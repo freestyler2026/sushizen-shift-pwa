@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, INPUT_CLASS, SELECT_CLASS, TABLE_HEADER, TABLE_ROW, TABLE_CELL } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/manila-payroll";
 
@@ -191,19 +192,27 @@ function AddModal({ onSaved, onClose }: { onSaved: (r: Remittance) => void; onCl
           {err && <p className="rounded bg-red-900/40 px-3 py-2 text-xs text-red-300">{err}</p>}
           <div>
             <label className={L}>Agency</label>
-            <select className={S} value={agency} onChange={e => setAgency(e.target.value as Agency)}>
-              <option value="SSS">SSS</option>
-              <option value="PHILHEALTH">PhilHealth</option>
-              <option value="PAGIBIG">Pag-IBIG (HDMF)</option>
-              <option value="BIR">BIR (Withholding Tax)</option>
-            </select>
+            <SelectDark
+              className={S}
+              value={agency}
+              onChange={v => setAgency(v as Agency)}
+              options={[
+                { value: "SSS", label: "SSS" },
+                { value: "PHILHEALTH", label: "PhilHealth" },
+                { value: "PAGIBIG", label: "Pag-IBIG (HDMF)" },
+                { value: "BIR", label: "BIR (Withholding Tax)" },
+              ]}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={L}>Period Month</label>
-              <select className={S} value={month} onChange={e => setMonth(parseInt(e.target.value))}>
-                {MONTH_NAMES.slice(1).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-              </select>
+              <SelectDark
+                className={S}
+                value={String(month)}
+                onChange={v => setMonth(parseInt(v))}
+                options={MONTH_NAMES.slice(1).map((m, i) => ({ value: String(i + 1), label: m }))}
+              />
             </div>
             <div>
               <label className={L}>Period Year</label>
@@ -345,22 +354,35 @@ export default function RemittancesPage() {
       <div className={GLASS_CARD + " mb-4 flex flex-wrap items-center gap-3 p-4"}>
         <div className="flex items-center gap-2">
           <CalendarDays size={14} className="text-slate-400"/>
-          <select className={SELECT_CLASS} value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))}>
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={String(filterYear)}
+            onChange={v => setFilterYear(parseInt(v))}
+            options={years.map(y => ({ value: String(y), label: String(y) }))}
+          />
         </div>
-        <select className={SELECT_CLASS} value={filterAgency} onChange={e => setFilterAgency(e.target.value)}>
-          <option value="">All agencies</option>
-          <option value="SSS">SSS</option>
-          <option value="PHILHEALTH">PhilHealth</option>
-          <option value="PAGIBIG">Pag-IBIG</option>
-          <option value="BIR">BIR</option>
-        </select>
-        <select className={SELECT_CLASS} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-        </select>
+        <SelectDark
+          className={SELECT_CLASS}
+          value={filterAgency}
+          onChange={setFilterAgency}
+          options={[
+            { value: "", label: "All agencies" },
+            { value: "SSS", label: "SSS" },
+            { value: "PHILHEALTH", label: "PhilHealth" },
+            { value: "PAGIBIG", label: "Pag-IBIG" },
+            { value: "BIR", label: "BIR" },
+          ]}
+        />
+        <SelectDark
+          className={SELECT_CLASS}
+          value={filterStatus}
+          onChange={setFilterStatus}
+          options={[
+            { value: "", label: "All statuses" },
+            { value: "pending", label: "Pending" },
+            { value: "paid", label: "Paid" },
+          ]}
+        />
         {(filterStatus || filterAgency) && (
           <button onClick={() => { setFilterStatus(""); setFilterAgency(""); }} className="text-xs text-slate-400 underline hover:text-white">
             Clear filters

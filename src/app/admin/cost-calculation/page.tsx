@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { costJson } from "@/lib/costClient";
+import SelectDark from "@/components/SelectDark";
 
 type SheetKey = string;
 
@@ -3866,18 +3867,15 @@ export default function CostCalculationPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {isIngredientSection ? (
-                <select
+                <SelectDark
                   value={ingredientCategoryFilter}
-                  onChange={(e) => setIngredientCategoryFilter(e.target.value)}
+                  onChange={setIngredientCategoryFilter}
                   className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-zinc-300 outline-none transition focus:border-sky-500/50"
-                >
-                  <option value="all">All Categories ({ingredients.length})</option>
-                  {ingredientCategories.map((option) => (
-                    <option key={option} value={option}>
-                      {option} ({ingredients.filter((item) => item.category === option).length})
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "all", label: `All Categories (${ingredients.length})` },
+                    ...ingredientCategories.map((option) => ({ value: option, label: `${option} (${ingredients.filter((item) => item.category === option).length})` })),
+                  ]}
+                />
               ) : null}
               {isIngredientSection ? (
                 <>
@@ -4002,14 +4000,15 @@ export default function CostCalculationPage() {
               <div className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
                 <Calculator className="h-4 w-4 text-violet-300" />
                 <span>{cityLabel}</span>
-                <select
+                <SelectDark
                   value={city}
-                  onChange={(e) => setCityPersist(e.target.value === "manila" ? "manila" : "dubai")}
+                  onChange={(v) => setCityPersist(v === "manila" ? "manila" : "dubai")}
                   className="rounded-md border border-white/10 bg-[#0c1322] px-2 py-1 text-sm text-zinc-200 outline-none"
-                >
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                  options={[
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
             </div>
           </div>
@@ -4445,11 +4444,11 @@ export default function CostCalculationPage() {
                         return (
                           <div key={component.id} className="border-b border-white/5 px-3 py-3 last:border-b-0">
                             <div className="grid grid-cols-[110px_minmax(0,1fr)_120px_100px_100px_40px] items-center gap-2 text-sm">
-                              <select
+                              <SelectDark
                                 value={component.component_type}
-                                onChange={(e) => updateMasterComponentRow(component.id, (current) => ({
+                                onChange={(v) => updateMasterComponentRow(component.id, (current) => ({
                                   ...current,
-                                  component_type: e.target.value === "processed_item" ? "processed_item" : "ingredient",
+                                  component_type: v === "processed_item" ? "processed_item" : "ingredient",
                                   ingredient_id: "",
                                   component_menu_item_id: "",
                                   name: "",
@@ -4461,10 +4460,11 @@ export default function CostCalculationPage() {
                                   ingredient_detail_loaded: false,
                                 }))}
                                 className="rounded border border-white/15 bg-white/5 px-2 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-                              >
-                                <option value="ingredient">Ingredient</option>
-                                <option value="processed_item">{masterComponentOptionLabel(masterEditor.item_type)}</option>
-                              </select>
+                                options={[
+                                  { value: "ingredient", label: "Ingredient" },
+                                  { value: "processed_item", label: masterComponentOptionLabel(masterEditor.item_type) },
+                                ]}
+                              />
                               <div className="relative">
                                 <input
                                   value={component.name}
@@ -5507,18 +5507,15 @@ export default function CostCalculationPage() {
                     </div>
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
-                      <select
+                      <SelectDark
                         value={newItemCategory}
-                        onChange={(e) => setNewItemCategory(e.target.value)}
+                        onChange={setNewItemCategory}
                         className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-zinc-300 outline-none focus:border-sky-500/50"
-                      >
-                        <option value="">Select category</option>
-                        {menuCategories.map((item) => (
-                          <option key={item.key} value={item.name}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Select category"
+                        options={[
+                          ...menuCategories.map((item) => ({ value: item.name, label: item.name })),
+                        ]}
+                      />
                     </div>
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{`Selling Price (${currencyCode})`}</div>
@@ -5551,18 +5548,15 @@ export default function CostCalculationPage() {
                       const ingredient = allIngredientOptions.find((item) => String(item.id) === String(row.ingredient_id));
                       return (
                         <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_120px_100px_40px] items-center gap-3 border-b border-white/5 px-4 py-3 last:border-b-0 odd:bg-white/[0.01]">
-                          <select
+                          <SelectDark
                             value={row.ingredient_id}
-                            onChange={(e) => updateNewItemIngredient(row.key, "ingredient_id", e.target.value)}
+                            onChange={(v) => updateNewItemIngredient(row.key, "ingredient_id", v)}
                             className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                          >
-                            <option value="">Select ingredient</option>
-                            {allIngredientOptions.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.name} ({option.category})
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="Select ingredient"
+                            options={[
+                              ...allIngredientOptions.map((option) => ({ value: option.id, label: `${option.name} (${option.category})` })),
+                            ]}
+                          />
                           <input
                             type="number"
                             value={row.quantity}
@@ -5894,18 +5888,15 @@ export default function CostCalculationPage() {
                                           </div>
                                         ))}
                                         <div className="grid grid-cols-[minmax(0,1fr)_110px_90px_110px_44px] items-center gap-2 bg-white/[0.03] px-3 py-3">
-                                          <select
+                                          <SelectDark
                                             value={draft.ingredient_id}
-                                            onChange={(e) => setMenuDraftLine((prev) => ({ ...prev, [item.id]: { ...draft, ingredient_id: e.target.value } }))}
+                                            onChange={(v) => setMenuDraftLine((prev) => ({ ...prev, [item.id]: { ...draft, ingredient_id: v } }))}
                                             className="rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
-                                          >
-                                            <option value="">Select ingredient</option>
-                                            {allIngredientOptions.map((option) => (
-                                              <option key={option.id} value={option.id}>
-                                                {option.name} ({option.category})
-                                              </option>
-                                            ))}
-                                          </select>
+                                            placeholder="Select ingredient"
+                                            options={[
+                                              ...allIngredientOptions.map((option) => ({ value: option.id, label: `${option.name} (${option.category})` })),
+                                            ]}
+                                          />
                                           <input
                                             type="number"
                                             value={draft.quantity}

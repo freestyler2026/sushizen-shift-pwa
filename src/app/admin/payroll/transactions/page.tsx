@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  CheckCircle2, ChevronDown, Download, FileText,
+  CheckCircle2, Download, FileText,
   Loader2, Printer, RefreshCw, XCircle,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
   KPI_CARD, KPI_LABEL, KPI_VALUE,
@@ -122,12 +123,17 @@ function PaymentModal({
           </div>
           <div>
             <p className={`${T_LABEL} mb-1`}>Payment Method</p>
-            <select value={paidVia} onChange={e => setPaidVia(e.target.value)} className={SELECT_CLASS}>
-              <option value="cash">Cash</option>
-              <option value="bank">Bank Transfer</option>
-              <option value="wps">WPS</option>
-              <option value="cheque">Cheque</option>
-            </select>
+            <SelectDark
+              value={paidVia}
+              onChange={setPaidVia}
+              className={SELECT_CLASS}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "bank", label: "Bank Transfer" },
+                { value: "wps", label: "WPS" },
+                { value: "cheque", label: "Cheque" },
+              ]}
+            />
           </div>
           <div>
             <p className={`${T_LABEL} mb-1`}>Payment Date</p>
@@ -528,21 +534,16 @@ function PayrollTransactionsInner() {
         <div className={`${GLASS_CARD} p-4 flex flex-wrap items-center gap-4`}>
           <div className="flex-1 min-w-[200px]">
             <p className={`${T_LABEL} mb-1`}>Pay Period</p>
-            <div className="relative">
-              <select
-                value={cycleId ?? ""}
-                onChange={e => setCycleId(Number(e.target.value))}
-                className={SELECT_CLASS}
-              >
-                <option value="">— Select Cycle —</option>
-                {cycles.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {MONTHS[c.month - 1]} {c.year} ({c.status})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-            </div>
+            <SelectDark
+              value={cycleId === null ? "" : String(cycleId)}
+              onChange={v => setCycleId(Number(v))}
+              className={SELECT_CLASS}
+              placeholder="— Select Cycle —"
+              options={[
+                { value: "", label: "— Select Cycle —" },
+                ...cycles.map(c => ({ value: String(c.id), label: `${MONTHS[c.month - 1]} ${c.year} (${c.status})` })),
+              ]}
+            />
           </div>
           {selectedCycle && (
             <div className="flex items-center gap-3">
@@ -845,12 +846,17 @@ function PayrollTransactionsInner() {
             <div className="space-y-3">
               <div>
                 <p className={`${T_LABEL} mb-1`}>Payment Method</p>
-                <select value={batchPaidVia} onChange={e => setBatchPaidVia(e.target.value)} className={SELECT_CLASS}>
-                  <option value="cash">Cash</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="wps">WPS</option>
-                  <option value="cheque">Cheque</option>
-                </select>
+                <SelectDark
+                  value={batchPaidVia}
+                  onChange={setBatchPaidVia}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "cash", label: "Cash" },
+                    { value: "bank", label: "Bank Transfer" },
+                    { value: "wps", label: "WPS" },
+                    { value: "cheque", label: "Cheque" },
+                  ]}
+                />
               </div>
               <div>
                 <p className={`${T_LABEL} mb-1`}>Payment Date</p>

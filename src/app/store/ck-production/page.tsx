@@ -34,6 +34,7 @@ import {
   defaultProcurementPin,
   saveProcurementSession,
 } from "@/lib/procurementClient";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type LineItem = {
@@ -347,17 +348,18 @@ export default function CkProductionPage() {
             <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
               <MapPin className="h-3 w-3" /> City
             </label>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => {
-                setCity(e.target.value);
-                if (fetched) void loadPending(e.target.value);
+              onChange={(v) => {
+                setCity(v);
+                if (fetched) void loadPending(v);
               }}
               className={SELECT_CLASS}
-            >
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
 
           <button

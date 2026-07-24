@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { canAccessAdminNav, getAuth, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -610,11 +611,15 @@ export default function AdminDailyCheckPage() {
         <div className={`${GLASS_CARD} grid grid-cols-2 gap-3 sm:grid-cols-4`}>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>City</label>
-            <select className={SELECT_CLASS} value={city}
-              onChange={(e) => { setCity(e.target.value as CityKey); setBranchFilter(""); }}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={city}
+              onChange={(v) => { setCity(v as CityKey); setBranchFilter(""); }}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Date</label>
@@ -622,17 +627,27 @@ export default function AdminDailyCheckPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select className={SELECT_CLASS} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
-              <option value="">All branches</option>
-              {branches.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={branchFilter}
+              onChange={setBranchFilter}
+              options={[
+                { value: "", label: "All branches" },
+                ...branches.map((b) => ({ value: b.code, label: b.label })),
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Check Type</label>
-            <select className={SELECT_CLASS} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">All types</option>
-              {CHECK_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[
+                { value: "", label: "All types" },
+                ...CHECK_TYPES.map((t) => ({ value: t.key, label: t.label })),
+              ]}
+            />
           </div>
           <div className="flex items-end">
             <button onClick={load} disabled={loading}

@@ -34,6 +34,7 @@ import {
   BADGE_INFO,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -206,19 +207,14 @@ function ItemRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className={itemLabelClass(draft.status)}>{item.item_label}</span>
-            <select
+            <SelectDark
               value={draft.status}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, status: e.target.value as ItemStatus }))
+              onChange={(v) =>
+                setDraft((prev) => ({ ...prev, status: v as ItemStatus }))
               }
               className="appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-xs text-white outline-none focus:border-violet-500/50"
-            >
-              {ITEM_STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              options={ITEM_STATUS_OPTIONS}
+            />
           </div>
 
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">

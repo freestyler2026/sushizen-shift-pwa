@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ShiftMasterData, StaffTransport, VLEntry, BranchPeakInfo } from "@/lib/shiftMasterData";
 import { getTransport, isOnVL, getPeakInfo } from "@/lib/shiftMasterData";
+import SelectDark from "@/components/SelectDark";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -279,28 +280,22 @@ function ShiftRow({
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-zinc-400">Start</span>
-              <select
-                value={editStart}
-                onChange={(e) => setEditStart(Number(e.target.value))}
+              <SelectDark
+                value={String(editStart)}
+                onChange={(v) => setEditStart(Number(v))}
                 className="h-7 rounded border border-white/20 bg-[#1e1e32] px-1 text-xs text-white"
-              >
-                {HOUR_OPTIONS.filter((h) => h < editEnd).map((h) => (
-                  <option key={h} value={h}>{fmtHourOpt(h)}</option>
-                ))}
-              </select>
+                options={HOUR_OPTIONS.filter((h) => h < editEnd).map((h) => ({ value: String(h), label: fmtHourOpt(h) }))}
+              />
             </div>
             <span className="text-zinc-600">→</span>
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-zinc-400">End</span>
-              <select
-                value={editEnd}
-                onChange={(e) => setEditEnd(Number(e.target.value))}
+              <SelectDark
+                value={String(editEnd)}
+                onChange={(v) => setEditEnd(Number(v))}
                 className="h-7 rounded border border-white/20 bg-[#1e1e32] px-1 text-xs text-white"
-              >
-                {HOUR_OPTIONS.filter((h) => h > editStart).map((h) => (
-                  <option key={h} value={h}>{fmtHourOpt(h)}</option>
-                ))}
-              </select>
+                options={HOUR_OPTIONS.filter((h) => h > editStart).map((h) => ({ value: String(h), label: fmtHourOpt(h) }))}
+              />
             </div>
             {/* Preview bar */}
             <div className="flex h-5 flex-1 overflow-hidden rounded-sm bg-white/5" style={{ minWidth: 80 }}>
@@ -440,14 +435,15 @@ function AddRowForm({
       <td colSpan={HOURS.length + 2} className="px-2 py-2">
         <div className="flex flex-wrap items-center gap-2">
           {staffOptions.length > 0 ? (
-            <select
+            <SelectDark
               value={staff}
-              onChange={(e) => setStaff(e.target.value)}
+              onChange={setStaff}
               className="h-7 rounded border border-white/15 bg-[#1e1e32] px-1.5 text-xs text-white"
-            >
-              {staffOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              <option value="__custom__">(Enter manually)</option>
-            </select>
+              options={[
+                ...staffOptions.map((s) => ({ value: s, label: s })),
+                { value: "__custom__", label: "(Enter manually)" },
+              ]}
+            />
           ) : (
             <input
               value={staff}
@@ -471,25 +467,19 @@ function AddRowForm({
             placeholder="Role"
             className="h-7 w-16 rounded border border-white/15 bg-[#1e1e32] px-1.5 text-xs text-white"
           />
-          <select
-            value={start}
-            onChange={(e) => setStart(Number(e.target.value))}
+          <SelectDark
+            value={String(start)}
+            onChange={(v) => setStart(Number(v))}
             className="h-7 rounded border border-white/15 bg-[#1e1e32] px-1 text-xs text-white"
-          >
-            {HOUR_OPTIONS.filter((h) => h < end).map((h) => (
-              <option key={h} value={h}>{fmtHourOpt(h)}</option>
-            ))}
-          </select>
+            options={HOUR_OPTIONS.filter((h) => h < end).map((h) => ({ value: String(h), label: fmtHourOpt(h) }))}
+          />
           <span className="text-zinc-600 text-xs">→</span>
-          <select
-            value={end}
-            onChange={(e) => setEnd(Number(e.target.value))}
+          <SelectDark
+            value={String(end)}
+            onChange={(v) => setEnd(Number(v))}
             className="h-7 rounded border border-white/15 bg-[#1e1e32] px-1 text-xs text-white"
-          >
-            {HOUR_OPTIONS.filter((h) => h > start).map((h) => (
-              <option key={h} value={h}>{fmtHourOpt(h)}</option>
-            ))}
-          </select>
+            options={HOUR_OPTIONS.filter((h) => h > start).map((h) => ({ value: String(h), label: fmtHourOpt(h) }))}
+          />
           <span className="font-mono text-[11px] text-sky-300">{fmtShift(start, end)}</span>
           <button
             type="button"

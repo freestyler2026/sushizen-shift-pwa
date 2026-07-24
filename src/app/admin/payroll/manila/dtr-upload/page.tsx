@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/manila-payroll";
 
@@ -295,20 +296,20 @@ export default function DtrUploadPage() {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Payroll Period
                 </label>
-                <select
-                  value={selectedPeriodId}
-                  onChange={e => setSelectedPeriodId(e.target.value)}
+                <SelectDark
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-violet-500 focus:outline-none"
-                >
-                  <option value="">— No specific period —</option>
-                  {periodsLoading
-                    ? <option disabled>Loading…</option>
-                    : periods.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.period_label} ({p.start_date} – {p.end_date}) [{p.status}]
-                        </option>
-                      ))}
-                </select>
+                  value={selectedPeriodId}
+                  onChange={setSelectedPeriodId}
+                  options={[
+                    { value: "", label: "— No specific period —" },
+                    ...(periodsLoading
+                      ? [{ value: "__loading__", label: "Loading…" }]
+                      : periods.map(p => ({
+                          value: String(p.id),
+                          label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
+                        }))),
+                  ]}
+                />
                 {selectedPeriod && (
                   <p className="mt-1 text-xs text-slate-500">
                     Syncs {selectedPeriod.start_date} → {selectedPeriod.end_date} and links rows to this period
@@ -594,16 +595,20 @@ export default function DtrUploadPage() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Associate with Payroll Period (optional)
               </p>
-              <select value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-violet-500 focus:outline-none min-w-[280px]">
-                <option value="">— No period association —</option>
-                {periodsLoading ? <option disabled>Loading…</option>
-                  : periods.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.period_label} ({p.start_date} – {p.end_date}) [{p.status}]
-                      </option>
-                    ))}
-              </select>
+              <SelectDark
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-violet-500 focus:outline-none min-w-[280px]"
+                value={selectedPeriodId}
+                onChange={setSelectedPeriodId}
+                options={[
+                  { value: "", label: "— No period association —" },
+                  ...(periodsLoading
+                    ? [{ value: "__loading__", label: "Loading…" }]
+                    : periods.map(p => ({
+                        value: String(p.id),
+                        label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
+                      }))),
+                ]}
+              />
             </div>
 
             {!csvPreview && !uploadResult && (

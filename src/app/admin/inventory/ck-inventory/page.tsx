@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -333,14 +334,15 @@ export default function CkInventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <SelectDark
             value={city}
-            onChange={(e) => setCity(e.target.value as City)}
+            onChange={(v) => setCity(v as City)}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200"
-          >
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
+            options={[
+              { value: "dubai", label: "Dubai" },
+              { value: "manila", label: "Manila" },
+            ]}
+          />
         </div>
       </div>
 

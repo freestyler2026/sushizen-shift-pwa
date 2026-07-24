@@ -14,6 +14,7 @@ import {
   T_LABEL,
 } from "@/lib/ui-tokens";
 import { AlertTriangle, CalendarDays, Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type BusinessEvent = {
   id: number;
@@ -245,15 +246,12 @@ export default function BusinessEventsPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Affected Cities</label>
-              <select
+              <SelectDark
                 value={affectedCities}
-                onChange={(e) => setAffectedCities(e.target.value)}
+                onChange={setAffectedCities}
+                options={CITY_OPTIONS}
                 className={INPUT_CLASS}
-              >
-                {CITY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+              />
             </div>
             <div className="sm:col-span-2">
               <label className={`${T_LABEL} mb-1.5 block`}>Event Name</label>
@@ -285,15 +283,12 @@ export default function BusinessEventsPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Event Type</label>
-              <select
+              <SelectDark
                 value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
+                onChange={setEventType}
+                options={EVENT_TYPE_OPTIONS}
                 className={INPUT_CLASS}
-              >
-                {EVENT_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+              />
             </div>
             <div className="sm:col-span-2">
               <label className={`${T_LABEL} mb-1.5 block`}>Impact Direction</label>

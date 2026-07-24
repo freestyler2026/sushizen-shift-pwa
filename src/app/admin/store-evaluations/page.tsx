@@ -36,6 +36,7 @@ import {
   Cell,
 } from "recharts";
 import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -422,16 +423,17 @@ function TrendView({ branch, city }: { branch: string; city: string }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h2 className={T_SECTION}>{branch} — Trend</h2>
-        <select
+        <SelectDark
           className={`${SELECT_CLASS} w-28`}
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-        >
-          <option value={7}>7 days</option>
-          <option value={14}>14 days</option>
-          <option value={30}>30 days</option>
-          <option value={60}>60 days</option>
-        </select>
+          value={String(days)}
+          onChange={(v) => setDays(Number(v))}
+          options={[
+            { value: "7", label: "7 days" },
+            { value: "14", label: "14 days" },
+            { value: "30", label: "30 days" },
+            { value: "60", label: "60 days" },
+          ]}
+        />
       </div>
 
       {loading ? (
@@ -1716,21 +1718,13 @@ export default function StoreEvaluationsPage() {
           <div>
             <div className={`${GLASS_CARD} p-4 mb-4`}>
               <label className={`${T_LABEL} mb-2 block`}>Select Branch</label>
-              <select
+              <SelectDark
                 className={SELECT_CLASS}
                 value={trendBranch}
-                onChange={(e) => setTrendBranch(e.target.value)}
-              >
-                <option value="">— Select branch —</option>
-                {/* Pull from already-loaded summary if available, else show placeholder */}
-                {allBranches.length > 0
-                  ? allBranches.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))
-                  : (
-                    <option disabled>Loading branches...</option>
-                  )}
-              </select>
+                onChange={setTrendBranch}
+                placeholder="— Select branch —"
+                options={allBranches.map((b) => ({ value: b, label: b }))}
+              />
             </div>
             {trendBranch ? (
               <TrendView branch={trendBranch} city={city} />

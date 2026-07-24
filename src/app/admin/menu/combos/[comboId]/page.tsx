@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
+import SelectDark from "@/components/SelectDark";
 
 type ProductOption = { id: string; name: string; sku: string; status: string };
 type ComboProductRow = { id: string; product_id: string; product_name: string; sku: string; quantity: number; sort_order: number; product_status: string };
@@ -226,10 +227,15 @@ export default function MenuComboDetailPage() {
             </label>
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Costing Method</div>
-              <select value={combo.costing_method} onChange={(e) => setCombo((current) => current ? { ...current, costing_method: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                <option value="FROM_INGREDIENTS">From Products</option>
-                <option value="FIXED_COST">Fixed Cost</option>
-              </select>
+              <SelectDark
+                value={combo.costing_method}
+                onChange={v => setCombo((current) => current ? { ...current, costing_method: v } : current)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={[
+                  { value: "FROM_INGREDIENTS", label: "From Products" },
+                  { value: "FIXED_COST", label: "Fixed Cost" },
+                ]}
+              />
             </label>
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Sort Order</div>
@@ -270,9 +276,16 @@ export default function MenuComboDetailPage() {
             <div className="mt-4 space-y-3">
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Product</div>
-                <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} disabled={Boolean(editingLinkId)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm disabled:opacity-60">
-                  {products.map((row) => <option key={row.id} value={row.id}>{row.name} {row.sku ? `(${row.sku})` : ""}</option>)}
-                </select>
+                <div className={Boolean(editingLinkId) ? "pointer-events-none opacity-60" : ""}>
+                  <SelectDark
+                    value={selectedProductId}
+                    onChange={setSelectedProductId}
+                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                    options={[
+                      ...products.map((row) => ({ value: row.id, label: `${row.name}${row.sku ? ` (${row.sku})` : ""}` })),
+                    ]}
+                  />
+                </div>
               </label>
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Quantity</div>

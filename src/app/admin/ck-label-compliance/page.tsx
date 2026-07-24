@@ -9,6 +9,7 @@ import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, SELECT_CLASS, INPUT_CLASS, SECONDARY_BUTTON,
   T_PAGE_TITLE, T_LABEL, T_CAPTION,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const ALLOWED = ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"];
 const BRANCHES = [
@@ -118,9 +119,12 @@ export default function CKLabelCompliancePage() {
         </div>
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-          <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-            {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={branch}
+            onChange={setBranch}
+            options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+          />
         </div>
         <button onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} inline-flex items-center gap-2`}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh

@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field } from "@/components/Field";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, setAuth, type City, type StaffRole } from "@/lib/auth";
 
 type StaffNameDirectory = {
@@ -241,19 +242,20 @@ function LoginInner() {
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="City">
-              <select
+              <SelectDark
                 className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
                 value={city}
-                onChange={(e) => {
-                  setCity(e.target.value as City);
+                onChange={(v) => {
+                  setCity(v as City);
                   setStaffName("");
                   setShowSuggestions(false);
                   setError("");
                 }}
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </Field>
 
             <Field label="Your name" hint={nameLoading ? "Loading names..." : nameLoadWarning ? "" : "Type to search and select"}>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -587,11 +588,11 @@ export default function InventoryCountsPage() {
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-6">
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">City</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
               value={city}
-              onChange={(e) => {
-                const next = e.target.value as City;
+              onChange={(v) => {
+                const next = v as City;
                 if (next === city) return;
                 if (draftLines.length > 0) {
                   setConfirmModal({
@@ -605,20 +606,20 @@ export default function InventoryCountsPage() {
                 }
                 setCity(next);
               }}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
-            <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
-              {BRANCHES[city].map((branch) => (
-                <option key={branch.code} value={branch.code}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              value={branchCode}
+              onChange={setBranchCode}
+              options={BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name }))}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
@@ -626,10 +627,15 @@ export default function InventoryCountsPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Cycle</label>
-            <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={cycle} onChange={(e) => setCycle(e.target.value)}>
-              <option value="15TH">15th</option>
-              <option value="MONTH_END">Month End</option>
-            </select>
+            <SelectDark
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              value={cycle}
+              onChange={setCycle}
+              options={[
+                { value: "15TH", label: "15th" },
+                { value: "MONTH_END", label: "Month End" },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">PIC</label>
@@ -696,10 +702,10 @@ export default function InventoryCountsPage() {
             )}
           </div>
           {countSheetOptions.length > 0 ? (
-            <select
+            <SelectDark
               value={templatePickerId}
-              onChange={(e) => {
-                const newId = e.target.value;
+              onChange={(v) => {
+                const newId = v;
                 setTemplatePickerId(newId);
                 if (!newId) return;
                 if (draftLines.length > 0) {
@@ -715,14 +721,11 @@ export default function InventoryCountsPage() {
                 setSelectedCountSheetId(newId);
               }}
               className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-            >
-              <option value="">— Select a template to load —</option>
-              {countSheetOptions.map((sheet) => (
-                <option key={sheet.id} value={sheet.id}>
-                  {sheet.name}{sheet.reference ? ` · ${sheet.reference}` : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "— Select a template to load —" },
+                ...countSheetOptions.map((sheet) => ({ value: sheet.id, label: sheet.reference ? `${sheet.name} · ${sheet.reference}` : sheet.name })),
+              ]}
+            />
           ) : (
             <div className="text-xs text-neutral-500">
               No templates available for this branch / cycle.{" "}
@@ -738,14 +741,15 @@ export default function InventoryCountsPage() {
 
         {/* ── Add item row ── */}
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Add inventory item manually</option>
-            {itemOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            value={selectedItemId}
+            onChange={setSelectedItemId}
+            options={[
+              { value: "", label: "Add inventory item manually" },
+              ...itemOptions.map((item) => ({ value: item.id, label: `${item.supplier_name ? `${item.supplier_name} / ` : ""}${item.name}${item.sku ? ` (${item.sku})` : ""}` })),
+            ]}
+          />
           <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>

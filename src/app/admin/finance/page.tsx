@@ -28,6 +28,7 @@ import {
 import { startPasskeyAuthentication } from "@/lib/webauthn";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
+import SelectDark from "@/components/SelectDark";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
 import { FlashValue } from "@/components/ui/FlashValue";
 import { Spinner } from "@/components/ui/Spinner";
@@ -825,10 +826,15 @@ export default function FinancePage() {
             <div className="min-w-[200px] flex-1 text-sm font-semibold">Management P&amp;L (Target-based)</div>
             <div className="w-full sm:w-auto">
               <div className="mb-1 text-xs text-neutral-400">City</div>
-              <select value={city} onChange={(e) => setCity(e.target.value)} className={`${SELECT_CLASS} min-w-[180px]`}>
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+              <SelectDark
+                value={city}
+                onChange={setCity}
+                className={`${SELECT_CLASS} min-w-[180px]`}
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
             <div className="w-full sm:w-auto">
               <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
@@ -851,10 +857,15 @@ export default function FinancePage() {
               </label>
               <label className="text-xs text-neutral-400">
                 Store scope (P&amp;L)
-                <select value={plStoreName} onChange={(e) => setPlStoreName(e.target.value)} className={`mt-1 ${SELECT_CLASS}`}>
-                  <option value="">Company total</option>
-                  {plStoreOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
+                <SelectDark
+                  value={plStoreName}
+                  onChange={setPlStoreName}
+                  className={`mt-1 ${SELECT_CLASS}`}
+                  options={[
+                    { value: "", label: "Company total" },
+                    ...plStoreOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+                  ]}
+                />
               </label>
             </div>
             <button
@@ -1370,10 +1381,15 @@ export default function FinancePage() {
                   <div className="w-full sm:w-auto sm:min-w-[240px]">
                     <label className="text-xs text-neutral-400">
                       Staff
-                      <select value={payrollStaffName} onChange={(e) => setPayrollStaffName(e.target.value)} className={`mt-1 ${SELECT_CLASS}`}>
-                        <option value="">All Staff</option>
-                        {payrollStaffOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-                      </select>
+                      <SelectDark
+                        value={payrollStaffName}
+                        onChange={setPayrollStaffName}
+                        className={`mt-1 ${SELECT_CLASS}`}
+                        options={[
+                          { value: "", label: "All Staff" },
+                          ...payrollStaffOptions.map((name) => ({ value: name, label: name })),
+                        ]}
+                      />
                     </label>
                   </div>
                   <div className="ml-auto flex gap-2">

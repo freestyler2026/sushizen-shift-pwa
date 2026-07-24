@@ -14,6 +14,7 @@ import {
   Clock,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -338,9 +339,12 @@ export default function DailyCheckPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-              <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-                {branches.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={branch}
+                onChange={setBranch}
+                options={branches.map((b) => ({ value: b.code, label: b.label }))}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Your Name</label>

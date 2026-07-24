@@ -38,6 +38,7 @@ import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
 import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancellationInputTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   STATUS_CARD,
@@ -1318,10 +1319,15 @@ function AdminPageInner() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[140px]">
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as BranchCity)}>
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={city}
+              onChange={(v) => setCity(v as BranchCity)}
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
 
           <div className="min-w-[200px] flex-1">
@@ -1412,27 +1418,29 @@ function AdminPageInner() {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4 xl:grid-cols-5">
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-                <select className={SELECT_CLASS} value={exportCity} onChange={(e) => setExportCity(e.target.value as BranchCity)}>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={exportCity}
+                  onChange={(v) => setExportCity(v as BranchCity)}
+                  options={[
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={exportBranch}
-                  onChange={(e) => {
-                    setExportBranch(e.target.value as BranchCode);
+                  onChange={(v) => {
+                    setExportBranch(v as BranchCode);
                     resetExportState();
                   }}
-                >
-                  {BRANCHES[exportCity].map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...BRANCHES[exportCity].map((b) => ({ value: b.code, label: b.name })),
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Month</label>
@@ -1446,17 +1454,18 @@ function AdminPageInner() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Mode</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={exportMode}
-                  onChange={(e) => {
-                    setExportMode(e.target.value as ExportMode);
+                  onChange={(v) => {
+                    setExportMode(v as ExportMode);
                     resetExportState();
                   }}
-                >
-                  <option value="FINAL">FINAL</option>
-                  <option value="DRAFT">DRAFT</option>
-                </select>
+                  options={[
+                    { value: "FINAL", label: "FINAL" },
+                    { value: "DRAFT", label: "DRAFT" },
+                  ]}
+                />
               </div>
               <div className="flex items-end">
                 <button

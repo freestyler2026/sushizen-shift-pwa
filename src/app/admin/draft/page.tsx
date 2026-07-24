@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { canAccessAdminNav, getAuth } from "@/lib/auth";
 import ShiftScheduleView from "./ShiftScheduleView";
 import ShiftMasterPanel from "@/components/ShiftMasterPanel";
+import SelectDark from "@/components/SelectDark";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   loadShiftMaster,
@@ -905,11 +906,16 @@ function StaffingRulesPanel({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Condition</label>
-              <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SELECT_CLASS + " text-sm"}>
-                <option value="holiday">Holiday</option>
-                <option value="weekend">Weekend</option>
-                <option value="all_days">Every Day</option>
-              </select>
+              <SelectDark
+                value={condition}
+                onChange={setCondition}
+                className={SELECT_CLASS + " text-sm"}
+                options={[
+                  { value: "holiday", label: "Holiday" },
+                  { value: "weekend", label: "Weekend" },
+                  { value: "all_days", label: "Every Day" },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Staff adjustment</label>
@@ -2553,14 +2559,15 @@ export default function AdminDraftPage() {
         <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>City</label>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => setCity(e.target.value === "manila" ? "manila" : "dubai")}
+              onChange={(v) => setCity(v === "manila" ? "manila" : "dubai")}
               className={SELECT_CLASS}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>Scope</label>
@@ -3103,14 +3110,15 @@ export default function AdminDraftPage() {
             </div>
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>Branch Filter</label>
-              <select className={SELECT_CLASS} value={pendingBranch} onChange={(e) => setPendingBranch(e.target.value)}>
-                <option value="ALL">All branches</option>
-                {versions.map((v) => (
-                  <option key={v.branch_code} value={v.branch_code}>
-                    {v.branch_name}
-                  </option>
-                ))}
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={pendingBranch}
+                onChange={setPendingBranch}
+                options={[
+                  { value: "ALL", label: "All branches" },
+                  ...versions.map((v) => ({ value: v.branch_code, label: v.branch_name })),
+                ]}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>Decision Note (optional)</label>
@@ -3135,14 +3143,15 @@ export default function AdminDraftPage() {
             </div>
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>MAIN Tab Name</label>
-              <select className={SELECT_CLASS} value={sheetTabMain} onChange={(e) => setSheetTabMain(e.target.value)}>
-                <option value="">Select MAIN tab</option>
-                {sheetTabs.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={sheetTabMain}
+                onChange={setSheetTabMain}
+                options={[
+                  { value: "", label: "Select MAIN tab" },
+                  ...sheetTabs.map((t) => ({ value: t, label: t })),
+                ]}
+              />
               {!sheetTabs.length ? (
                 <input
                   className={`${INPUT_CLASS} mt-2`}

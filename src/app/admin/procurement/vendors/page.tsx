@@ -20,6 +20,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle, Building2, Plus, Search } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type VendorRow = {
   id: string;
@@ -302,20 +303,30 @@ export default function ProcurementVendorsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All cities</option>
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+            <SelectDark
+              value={cityFilter}
+              onChange={setCityFilter}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All cities" },
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All statuses</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="INACTIVE">INACTIVE</option>
-              <option value="BLOCKED">BLOCKED</option>
-            </select>
+            <SelectDark
+              value={statusFilter}
+              onChange={setStatusFilter}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "ACTIVE", label: "ACTIVE" },
+                { value: "INACTIVE", label: "INACTIVE" },
+                { value: "BLOCKED", label: "BLOCKED" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Search</label>
@@ -444,11 +455,16 @@ export default function ProcurementVendorsPage() {
                     <span className="text-[10px] text-zinc-500">🔒 locked</span>
                   </div>
                 ) : (
-                  <select value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} className={SELECT_CLASS}>
-                    <option value="">Select city</option>
-                    <option value="dubai">Dubai</option>
-                    <option value="manila">Manila</option>
-                  </select>
+                  <SelectDark
+                    value={form.city}
+                    onChange={v => setForm((p) => ({ ...p, city: v }))}
+                    className={SELECT_CLASS}
+                    options={[
+                      { value: "", label: "Select city" },
+                      { value: "dubai", label: "Dubai" },
+                      { value: "manila", label: "Manila" },
+                    ]}
+                  />
                 )}
               </div>
             </div>
@@ -487,20 +503,30 @@ export default function ProcurementVendorsPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Risk Level</label>
-                <select value={form.risk_level} onChange={(e) => setForm((p) => ({ ...p, risk_level: e.target.value }))} className={SELECT_CLASS}>
-                  <option value="GREEN">GREEN</option>
-                  <option value="YELLOW">YELLOW</option>
-                  <option value="RED">RED</option>
-                  <option value="BLACK">BLACK</option>
-                </select>
+                <SelectDark
+                  value={form.risk_level}
+                  onChange={v => setForm((p) => ({ ...p, risk_level: v }))}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "GREEN", label: "GREEN" },
+                    { value: "YELLOW", label: "YELLOW" },
+                    { value: "RED", label: "RED" },
+                    { value: "BLACK", label: "BLACK" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-                <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={SELECT_CLASS}>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                  <option value="BLOCKED">BLOCKED</option>
-                </select>
+                <SelectDark
+                  value={form.status}
+                  onChange={v => setForm((p) => ({ ...p, status: v }))}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "ACTIVE", label: "ACTIVE" },
+                    { value: "INACTIVE", label: "INACTIVE" },
+                    { value: "BLOCKED", label: "BLOCKED" },
+                  ]}
+                />
               </div>
               <div className="flex items-center">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-zinc-200">

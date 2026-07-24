@@ -20,6 +20,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, Inbox, AlertCircle, Building2 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type CaseRow = {
   id: string;
@@ -237,10 +238,15 @@ export default function ProcurementApprovalInboxPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <select value={city} onChange={(e) => setCity(String(e.target.value).toLowerCase())} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={city}
+              onChange={v => setCity(String(v).toLowerCase())}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div className="flex items-end">
             <button

@@ -8,6 +8,7 @@ import { Copy, UserPlus } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City as BranchCity } from "@/lib/branches";
 import AdminOnboardingLinks from "@/components/admin/AdminOnboardingLinks";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   INPUT_CLASS,
@@ -153,29 +154,25 @@ export default function CreateStaffPage() {
           <form onSubmit={onSubmit} className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <div className={T_LABEL + " mb-1.5"}>City</div>
-              <select
+              <SelectDark
                 value={city}
-                onChange={(e) => setCity(e.target.value as BranchCity)}
+                onChange={v => setCity(v as BranchCity)}
                 className={SELECT_CLASS}
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
 
             <div>
               <div className={T_LABEL + " mb-1.5"}>Branch</div>
-              <select
+              <SelectDark
                 value={homeBranch}
-                onChange={(e) => setHomeBranch(e.target.value as BranchCode)}
+                onChange={v => setHomeBranch(v as BranchCode)}
                 className={SELECT_CLASS}
-              >
-                {BRANCHES[city].map((b) => (
-                  <option key={b.code} value={b.code}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+                options={BRANCHES[city].map(b => ({ value: b.code, label: b.name }))}
+              />
             </div>
 
             <div className="md:col-span-2">
@@ -190,26 +187,28 @@ export default function CreateStaffPage() {
 
             <div>
               <div className={T_LABEL + " mb-1.5"}>Role</div>
-              <select
+              <SelectDark
                 value={role}
-                onChange={(e) => setRole(e.target.value as "STAFF" | "MANAGER")}
+                onChange={v => setRole(v as "STAFF" | "MANAGER")}
                 className={SELECT_CLASS}
-              >
-                <option value="STAFF">STAFF</option>
-                <option value="MANAGER">MANAGER</option>
-              </select>
+                options={[
+                  { value: "STAFF", label: "STAFF" },
+                  { value: "MANAGER", label: "MANAGER" },
+                ]}
+              />
             </div>
 
             <div>
               <div className={T_LABEL + " mb-1.5"}>Status</div>
-              <select
+              <SelectDark
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={setStatus}
                 className={SELECT_CLASS}
-              >
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-              </select>
+                options={[
+                  { value: "ACTIVE", label: "ACTIVE" },
+                  { value: "INACTIVE", label: "INACTIVE" },
+                ]}
+              />
             </div>
 
             <div>

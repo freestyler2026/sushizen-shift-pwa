@@ -21,6 +21,7 @@ import {
   TABLE_CELL,
 } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
+import SelectDark from "@/components/SelectDark";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -515,14 +516,15 @@ export default function LeanShiftTab({
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Sort Order</span>
-            <select
+            <SelectDark
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "ot_desc" | "name")}
+              onChange={(v) => setSortBy(v as "ot_desc" | "name")}
               className="h-8 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white"
-            >
-              <option value="ot_desc">Most Reducible OT</option>
-              <option value="name">Branch Name</option>
-            </select>
+              options={[
+                { value: "ot_desc", label: "Most Reducible OT" },
+                { value: "name", label: "Branch Name" },
+              ]}
+            />
           </div>
         </div>
       </div>

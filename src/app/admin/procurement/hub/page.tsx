@@ -19,6 +19,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check, TriangleAlert, PackageSearch, ChevronUp } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -721,10 +722,15 @@ export default function ProcurementHubPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <select value={city} onChange={(e) => setCity(String(e.target.value).toLowerCase())} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(String(v).toLowerCase())}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div className="flex items-end">
             <button type="button" onClick={() => void load()} disabled={loading}
@@ -751,54 +757,65 @@ export default function ProcurementHubPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Request Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SUBMITTED">Submitted</option>
-              <option value="APPROVED">Approved</option>
-              <option value="PURCHASED">Purchased</option>
-              <option value="RECEIVED">Received</option>
-              <option value="CLOSED">Closed</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+            <SelectDark
+              value={filterStatus}
+              onChange={setFilterStatus}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "DRAFT", label: "Draft" },
+                { value: "SUBMITTED", label: "Submitted" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "PURCHASED", label: "Purchased" },
+                { value: "RECEIVED", label: "Received" },
+                { value: "CLOSED", label: "Closed" },
+                { value: "REJECTED", label: "Rejected" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Purchase Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All types</option>
-              <option value="standard">Standard</option>
-              <option value="cash_purchase">Cash &amp; Carry</option>
-              <option value="ec_purchase">EC / Online</option>
-              <option value="prepaid">Pre-payment</option>
-              <option value="direct_purchase">Direct Purchase</option>
-            </select>
+            <SelectDark
+              value={filterType}
+              onChange={setFilterType}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All types" },
+                { value: "standard", label: "Standard" },
+                { value: "cash_purchase", label: "Cash & Carry" },
+                { value: "ec_purchase", label: "EC / Online" },
+                { value: "prepaid", label: "Pre-payment" },
+                { value: "direct_purchase", label: "Direct Purchase" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All branches</option>
-              {city === "dubai" ? (
-                <>
-                  <option value="BB">Business Bay</option>
-                  <option value="JLT">JLT</option>
-                  {/* Arjan and Motor City are the same physical branch — one option.
-                      Backend ARJ alias also matches legacy "M City"/"Motor City" data. */}
-                  <option value="ARJ">Arjan</option>
-                  <option value="AM">Al Mina</option>
-                  <option value="AB">Al Barsha</option>
-                  <option value="CK">Central Kitchen</option>
-                  <option value="SH">Sharjah</option>
-                </>
-              ) : (
-                <>
-                  <option value="PAR">Parañaque</option>
-                  <option value="TAFT">Taft</option>
-                  <option value="CUBAO">Cubao</option>
-                  <option value="CK">Central Kitchen</option>
-                  <option value="WH">Warehouse</option>
-                </>
-              )}
-            </select>
+            <SelectDark
+              value={filterBranch}
+              onChange={setFilterBranch}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All branches" },
+                ...(city === "dubai" ? [
+                  { value: "BB", label: "Business Bay" },
+                  { value: "JLT", label: "JLT" },
+                  // Arjan and Motor City are the same physical branch — one option.
+                  // Backend ARJ alias also matches legacy "M City"/"Motor City" data.
+                  { value: "ARJ", label: "Arjan" },
+                  { value: "AM", label: "Al Mina" },
+                  { value: "AB", label: "Al Barsha" },
+                  { value: "CK", label: "Central Kitchen" },
+                  { value: "SH", label: "Sharjah" },
+                ] : [
+                  { value: "PAR", label: "Parañaque" },
+                  { value: "TAFT", label: "Taft" },
+                  { value: "CUBAO", label: "Cubao" },
+                  { value: "CK", label: "Central Kitchen" },
+                  { value: "WH", label: "Warehouse" },
+                ]),
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Supplier</label>

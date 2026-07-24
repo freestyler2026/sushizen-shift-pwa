@@ -13,6 +13,7 @@ import {
   GLASS_CARD, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   TABLE_HEADER, TABLE_ROW, TABLE_CELL,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/manila-payroll";
 
@@ -741,13 +742,17 @@ export default function GovTablesPage() {
                                 placeholder="Label" className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500" />
                             </td>
                             <td className="px-3 py-2">
-                              <select value={newForm.category} onChange={e => setNewForm(f => ({ ...f, category: e.target.value }))}
-                                className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500">
-                                <option value="de_minimis">de_minimis</option>
-                                <option value="regular">regular</option>
-                                <option value="fringe">fringe</option>
-                                <option value="other">other</option>
-                              </select>
+                              <SelectDark
+                                value={newForm.category}
+                                onChange={v => setNewForm(f => ({ ...f, category: v }))}
+                                className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                                options={[
+                                  { value: "de_minimis", label: "de_minimis" },
+                                  { value: "regular", label: "regular" },
+                                  { value: "fringe", label: "fringe" },
+                                  { value: "other", label: "other" },
+                                ]}
+                              />
                             </td>
                             <td className="px-3 py-2 text-center">
                               <button onClick={() => setNewForm(f => ({ ...f, is_taxable: !f.is_taxable }))}
@@ -785,13 +790,17 @@ export default function GovTablesPage() {
                                     className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500" />
                                 </td>
                                 <td className="px-3 py-2">
-                                  <select value={editForm.category ?? "other"} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
-                                    className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500">
-                                    <option value="de_minimis">de_minimis</option>
-                                    <option value="regular">regular</option>
-                                    <option value="fringe">fringe</option>
-                                    <option value="other">other</option>
-                                  </select>
+                                  <SelectDark
+                                    value={editForm.category ?? "other"}
+                                    onChange={v => setEditForm(f => ({ ...f, category: v }))}
+                                    className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                                    options={[
+                                      { value: "de_minimis", label: "de_minimis" },
+                                      { value: "regular", label: "regular" },
+                                      { value: "fringe", label: "fringe" },
+                                      { value: "other", label: "other" },
+                                    ]}
+                                  />
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   <button onClick={() => setEditForm(f => ({ ...f, is_taxable: !f.is_taxable }))}

@@ -33,6 +33,7 @@ import {
   ChevronUp,
   Star,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -413,11 +414,16 @@ export default function StorePurchasePage() {
 
         <div>
           <label className={`${T_LABEL} mb-1.5 block`}>Location / Branch</label>
-          <select value={storeCode} onChange={(e) => setStoreCode(e.target.value)} className={INPUT_CLASS}>
-            <option value="">— Select branch —</option>
-            <option value="CK">Central Kitchen (CK)</option>
-            <option value="WH">Warehouse (WH)</option>
-          </select>
+          <SelectDark
+            value={storeCode}
+            onChange={setStoreCode}
+            className={INPUT_CLASS}
+            options={[
+              { value: "", label: "— Select branch —" },
+              { value: "CK", label: "Central Kitchen (CK)" },
+              { value: "WH", label: "Warehouse (WH)" },
+            ]}
+          />
         </div>
 
         {/* Vendor field */}
@@ -544,11 +550,12 @@ export default function StorePurchasePage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[11px] text-zinc-500">Unit</label>
-                    <select value={item.unit}
-                      onChange={(e) => updateItem(item.id, "unit", e.target.value)}
-                      className={SELECT_CLASS}>
-                      {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
+                    <SelectDark
+                      value={item.unit}
+                      onChange={(v) => updateItem(item.id, "unit", v)}
+                      className={SELECT_CLASS}
+                      options={UNITS.map((u) => ({ value: u, label: u }))}
+                    />
                   </div>
                   <div>
                     <label className="mb-1 block text-[11px] text-zinc-500">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, ChevronDown } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import {
@@ -23,6 +23,7 @@ import {
   TABLE_ROW,
   TABLE_CELL,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 type OTRequest = {
   id: string;
@@ -191,19 +192,16 @@ export default function OvertimeRequestPage() {
             {/* Branch */}
             <div>
               <label className={T_LABEL}>Branch</label>
-              <div className="relative mt-1">
-                <select
+              <div className="mt-1">
+                <SelectDark
                   value={branchCode}
-                  onChange={(e) => setBranchCode(e.target.value)}
+                  onChange={setBranchCode}
                   className={`${SELECT_CLASS} appearance-none pr-8`}
-                  required
-                >
-                  <option value="">Select branch…</option>
-                  {branches.map((b) => (
-                    <option key={b.code} value={b.code}>{b.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                  options={[
+                    { value: "", label: "Select branch…" },
+                    ...branches.map((b) => ({ value: b.code, label: b.name })),
+                  ]}
+                />
               </div>
             </div>
 

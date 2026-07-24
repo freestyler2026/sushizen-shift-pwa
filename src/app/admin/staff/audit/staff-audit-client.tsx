@@ -25,6 +25,7 @@ import {
   TABLE_HEADER,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 async function apiGet<T = any>(path: string): Promise<T> {
@@ -236,17 +237,14 @@ export default function StaffAuditClient() {
 
             <div>
               <div className={T_LABEL + " mb-1.5"}>Event Type</div>
-              <select
+              <SelectDark
                 value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
+                onChange={setEventType}
                 className={SELECT_CLASS}
-              >
-                {EVENT_OPTIONS.map((x) => (
-                  <option key={x || "ALL"} value={x}>
-                    {x || "ALL"}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...EVENT_OPTIONS.map((x) => ({ value: x, label: x || "ALL" })),
+                ]}
+              />
             </div>
 
             <div>

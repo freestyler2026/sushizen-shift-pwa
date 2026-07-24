@@ -6,6 +6,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
+import SelectDark from "@/components/SelectDark";
 
 type InvoiceRow = {
   id: string;
@@ -1164,10 +1165,15 @@ export default function ProcurementInvoicesPage() {
               </div>
               <div className="min-w-[124px] xl:w-32 xl:flex-none">
                 <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Market</div>
-                <select value={city} onChange={(e) => setCity(e.target.value === "dubai" ? "dubai" : "manila")} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-violet-500/50 focus:bg-white/5/90">
-                  <option value="manila">Manila</option>
-                  <option value="dubai">Dubai</option>
-                </select>
+                <SelectDark
+                  value={city}
+                  onChange={v => setCity(v === "dubai" ? "dubai" : "manila")}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-violet-500/50 focus:bg-white/5/90"
+                  options={[
+                    { value: "manila", label: "Manila" },
+                    { value: "dubai", label: "Dubai" },
+                  ]}
+                />
               </div>
               <div className="flex flex-wrap gap-2 xl:ml-2 xl:justify-end">
                 <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-60">
@@ -1229,18 +1235,15 @@ export default function ProcurementInvoicesPage() {
                   </div>
                   <div className="min-w-[180px] xl:w-52 xl:flex-none">
                     <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Branch Name</div>
-                    <select
+                    <SelectDark
                       value={uploadBranchName}
-                      onChange={(e) => setUploadBranchName(String(e.target.value || ""))}
+                      onChange={v => setUploadBranchName(String(v || ""))}
                       className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-500/50 focus:bg-white/5/90"
-                    >
-                      <option value="">Select branch</option>
-                      {normalizedBranchOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Select branch"
+                      options={[
+                        ...normalizedBranchOptions.map((option) => ({ value: option, label: option })),
+                      ]}
+                    />
                   </div>
                   <div className="flex flex-wrap gap-2 xl:justify-end">
                     <button
@@ -1277,10 +1280,15 @@ export default function ProcurementInvoicesPage() {
         <div>
           <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Vendor</div>
           {vendorOptions.length > 0 ? (
-            <select value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white cursor-pointer">
-              <option value="">All Vendors</option>
-              {vendorOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <SelectDark
+              value={vendorName}
+              onChange={setVendorName}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white cursor-pointer"
+              placeholder="All Vendors"
+              options={[
+                ...vendorOptions.map((n) => ({ value: n, label: n })),
+              ]}
+            />
           ) : (
             <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-500" />
           )}

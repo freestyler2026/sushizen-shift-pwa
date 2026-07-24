@@ -18,6 +18,7 @@ import {
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SelectDark from "@/components/SelectDark";
 
 type CatalogRow = {
   id: string;
@@ -444,10 +445,15 @@ export default function ProcurementCatalogPage() {
         <div className="flex flex-wrap gap-3">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>City</label>
-            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value)}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={city}
+              onChange={setCity}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Approver Name</label>
@@ -528,23 +534,29 @@ export default function ProcurementCatalogPage() {
             {groupBy === "order_type" && (
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Order Type</label>
-                <select className={SELECT_CLASS} value={filterOrderType} onChange={(e) => setFilterOrderType(e.target.value)}>
-                  <option value="">All types</option>
-                  {orderTypes.map((t) => (
-                    <option key={t} value={t}>{ORDER_TYPE_LABELS[t] ?? t}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={filterOrderType}
+                  onChange={setFilterOrderType}
+                  options={[
+                    { value: "", label: "All types" },
+                    ...orderTypes.map((t) => ({ value: t, label: ORDER_TYPE_LABELS[t] ?? t })),
+                  ]}
+                />
               </div>
             )}
             {groupBy === "order_type" && (
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Store</label>
-                <select className={SELECT_CLASS} value={filterStore} onChange={(e) => setFilterStore(e.target.value)}>
-                  <option value="">All stores</option>
-                  {stores.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={filterStore}
+                  onChange={setFilterStore}
+                  options={[
+                    { value: "", label: "All stores" },
+                    ...stores.map((s) => ({ value: s, label: s })),
+                  ]}
+                />
               </div>
             )}
             <div className="flex-1 min-w-40">
@@ -917,20 +929,18 @@ export default function ProcurementCatalogPage() {
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Supplier</label>
                 {vendorList.length > 0 ? (
-                  <select
+                  <SelectDark
                     className={SELECT_CLASS}
                     value={editForm.supplier_name ?? ""}
-                    onChange={(e) => setEditForm((f) => ({ ...f, supplier_name: e.target.value }))}
-                  >
-                    <option value="">— Select supplier —</option>
-                    {/* If current value isn't in the list (legacy data), show it as an option */}
-                    {editForm.supplier_name && !vendorList.some((v) => v.name === editForm.supplier_name) && (
-                      <option value={editForm.supplier_name}>{editForm.supplier_name} (current)</option>
-                    )}
-                    {vendorList.map((v) => (
-                      <option key={v.name} value={v.name}>{v.name}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setEditForm((f) => ({ ...f, supplier_name: v }))}
+                    options={[
+                      { value: "", label: "— Select supplier —" },
+                      ...(editForm.supplier_name && !vendorList.some((v) => v.name === editForm.supplier_name)
+                        ? [{ value: editForm.supplier_name, label: `${editForm.supplier_name} (current)` }]
+                        : []),
+                      ...vendorList.map((v) => ({ value: v.name, label: v.name })),
+                    ]}
+                  />
                 ) : (
                   <input className={INPUT_CLASS} value={editForm.supplier_name ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, supplier_name: e.target.value }))} placeholder="Loading vendors…" />
                 )}
@@ -961,36 +971,44 @@ export default function ProcurementCatalogPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Order Type</label>
-                <select className={SELECT_CLASS} value={editForm.order_type ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, order_type: e.target.value }))}>
-                  <option value="CK">Store → CK</option>
-                  <option value="WH">Store → WH</option>
-                  <option value="Supplier">Store → Supplier</option>
-                  <option value="CK_WH_to_supplier">CK/WH → Supplier</option>
-                </select>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={editForm.order_type ?? ""}
+                  onChange={(v) => setEditForm((f) => ({ ...f, order_type: v }))}
+                  options={[
+                    { value: "CK", label: "Store → CK" },
+                    { value: "WH", label: "Store → WH" },
+                    { value: "Supplier", label: "Store → Supplier" },
+                    { value: "CK_WH_to_supplier", label: "CK/WH → Supplier" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Store Scope</label>
-                <select className={SELECT_CLASS} value={editForm.store_scope ?? "ALL"} onChange={(e) => setEditForm((f) => ({ ...f, store_scope: e.target.value }))}>
-                  <option value="ALL">ALL</option>
-                  {city === "dubai" ? (
-                    <>
-                      <option value="B Bay">Business Bay</option>
-                      <option value="JLT">JLT</option>
-                      <option value="Arjan">Arjan</option>
-                      <option value="Al Mina">Al Mina</option>
-                      <option value="Al Barsha">Al Barsha</option>
-                      <option value="Central Kitchen">Central Kitchen</option>
-                      <option value="Warehouse">Warehouse</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Paranaque">Paranaque</option>
-                      <option value="Taft">Taft</option>
-                      <option value="Cubao">Cubao</option>
-                      <option value="Central Kitchen">Central Kitchen</option>
-                    </>
-                  )}
-                </select>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={editForm.store_scope ?? "ALL"}
+                  onChange={(v) => setEditForm((f) => ({ ...f, store_scope: v }))}
+                  options={[
+                    { value: "ALL", label: "ALL" },
+                    ...(city === "dubai"
+                      ? [
+                          { value: "B Bay", label: "Business Bay" },
+                          { value: "JLT", label: "JLT" },
+                          { value: "Arjan", label: "Arjan" },
+                          { value: "Al Mina", label: "Al Mina" },
+                          { value: "Al Barsha", label: "Al Barsha" },
+                          { value: "Central Kitchen", label: "Central Kitchen" },
+                          { value: "Warehouse", label: "Warehouse" },
+                        ]
+                      : [
+                          { value: "Paranaque", label: "Paranaque" },
+                          { value: "Taft", label: "Taft" },
+                          { value: "Cubao", label: "Cubao" },
+                          { value: "Central Kitchen", label: "Central Kitchen" },
+                        ]),
+                  ]}
+                />
               </div>
               <div className="col-span-2 flex items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">

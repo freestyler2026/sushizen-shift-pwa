@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 
@@ -168,14 +169,15 @@ export default function InventoryPosSyncPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
-            onChange={(e) => setCity(e.target.value as "manila" | "dubai")}
-          >
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
+            onChange={v => setCity(v as "manila" | "dubai")}
+            options={[
+              { value: "dubai", label: "Dubai" },
+              { value: "manila", label: "Manila" },
+            ]}
+          />
           <input
             value={folderId}
             readOnly

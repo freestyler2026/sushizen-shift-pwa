@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { FilePen } from "lucide-react";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import DateRangePicker from "@/components/DateRangePicker";
+import SelectDark from "@/components/SelectDark";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -220,11 +221,16 @@ export default function AttendanceCorrectionsPage() {
             <div className="grid gap-4 md:grid-cols-4">
               <label className="space-y-2">
                 <span className={T_LABEL}>City</span>
-                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All</option>
-                  <option value="Dubai">Dubai</option>
-                  <option value="Manila">Manila</option>
-                </select>
+                <SelectDark
+                  value={city}
+                  onChange={setCity}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "Dubai", label: "Dubai" },
+                    { value: "Manila", label: "Manila" },
+                  ]}
+                />
               </label>
               <label className="space-y-2 md:col-span-2">
                 <span className={T_LABEL}>Date Range</span>
@@ -335,15 +341,20 @@ export default function AttendanceCorrectionsPage() {
                 <div className={`${GLASS_CARD} p-4`}>
                   <label className="space-y-2">
                     <span className={T_LABEL}>Correction Type</span>
-                    <select value={reason} onChange={(e) => setReason(e.target.value)} className={SELECT_CLASS}>
-                      <option value="">Select correction type</option>
-                      <option value="STATUS_ADJUSTMENT">Status adjustment</option>
-                      <option value="CHECK_IN_ADJUSTMENT">Check-in adjustment</option>
-                      <option value="CHECK_OUT_ADJUSTMENT">Check-out adjustment</option>
-                      <option value="WORKED_MINUTES_ADJUSTMENT">Worked minutes adjustment</option>
-                      <option value="OFFICE_MAPPING_ADJUSTMENT">Office mapping adjustment</option>
-                      <option value="OTHER">Other</option>
-                    </select>
+                    <SelectDark
+                      value={reason}
+                      onChange={setReason}
+                      className={SELECT_CLASS}
+                      options={[
+                        { value: "", label: "Select correction type" },
+                        { value: "STATUS_ADJUSTMENT", label: "Status adjustment" },
+                        { value: "CHECK_IN_ADJUSTMENT", label: "Check-in adjustment" },
+                        { value: "CHECK_OUT_ADJUSTMENT", label: "Check-out adjustment" },
+                        { value: "WORKED_MINUTES_ADJUSTMENT", label: "Worked minutes adjustment" },
+                        { value: "OFFICE_MAPPING_ADJUSTMENT", label: "Office mapping adjustment" },
+                        { value: "OTHER", label: "Other" },
+                      ]}
+                    />
                   </label>
                 </div>
 

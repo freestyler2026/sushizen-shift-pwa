@@ -7,6 +7,7 @@ import {
   FlaskConical, Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
   TABLE_CELL, TABLE_HEADER, TABLE_ROW,
@@ -1006,15 +1007,16 @@ export default function CKProductionPlanPage() {
                     </div>
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Priority</label>
-                      <select
+                      <SelectDark
                         className={SELECT_CLASS}
                         value={addItemPriority}
-                        onChange={e => setAddItemPriority(e.target.value as Priority)}
-                      >
-                        <option value="HIGH">🔴 HIGH</option>
-                        <option value="MEDIUM">🟡 MEDIUM</option>
-                        <option value="LOW">🟢 LOW</option>
-                      </select>
+                        onChange={v => setAddItemPriority(v as Priority)}
+                        options={[
+                          { value: "HIGH", label: "🔴 HIGH" },
+                          { value: "MEDIUM", label: "🟡 MEDIUM" },
+                          { value: "LOW", label: "🟢 LOW" },
+                        ]}
+                      />
                     </div>
                   </div>
 
@@ -1033,15 +1035,12 @@ export default function CKProductionPlanPage() {
                     </div>
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Unit</label>
-                      <select
+                      <SelectDark
                         className={SELECT_CLASS}
                         value={addItemUnit}
-                        onChange={e => setAddItemUnit(e.target.value)}
-                      >
-                        {[...new Set([addItemUnit, ...AVAILABLE_UNITS])].map(u => (
-                          <option key={u} value={u}>{u}</option>
-                        ))}
-                      </select>
+                        onChange={setAddItemUnit}
+                        options={[...new Set([addItemUnit, ...AVAILABLE_UNITS])].map(u => ({ value: u, label: u }))}
+                      />
                     </div>
                   </div>
 

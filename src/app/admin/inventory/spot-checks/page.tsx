@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -374,15 +375,14 @@ export default function InventorySpotChecksPage() {
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
               value={branchCode}
-              onChange={(e) => setBranchCode(e.target.value)}
-            >
-              {BRANCHES[city].map((branch) => (
-                <option key={branch.code} value={branch.code}>{branch.name}</option>
-              ))}
-            </select>
+              onChange={setBranchCode}
+              options={[
+                ...BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name })),
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>

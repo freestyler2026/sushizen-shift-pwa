@@ -34,6 +34,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
+import SelectDark from "@/components/SelectDark";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
@@ -1547,20 +1548,21 @@ export default function StoreProcurementHomePage() {
               <MapPin className="h-4 w-4 text-violet-400" />
               <span className="text-sm font-semibold text-white">City</span>
             </div>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => {
-                const nextCity = e.target.value as "dubai" | "manila";
+              onChange={(v) => {
+                const nextCity = v as "dubai" | "manila";
                 setCity(nextCity);
                 setStoreCode("");
                 if (typeof window !== "undefined") localStorage.removeItem("store_proc_branch");
                 void loadMyRequests(nextCity, undefined, "");
               }}
               className={SELECT_CLASS}
-            >
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
 
           {/* Branch selector */}
@@ -1687,19 +1689,20 @@ export default function StoreProcurementHomePage() {
                 <Building2 className="h-3 w-3" />
                 City
               </label>
-              <select
+              <SelectDark
                 value={city}
-                onChange={(e) => {
-                  const nextCity = String(e.target.value || "manila").toLowerCase();
+                onChange={(v) => {
+                  const nextCity = String(v || "manila").toLowerCase();
                   setCity(nextCity);
                   setStoreCode("");
                   void loadMyRequests(nextCity, undefined, "");
                 }}
                 className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              >
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
+                options={[
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
             </div>
             <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

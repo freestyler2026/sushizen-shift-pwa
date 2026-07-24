@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, BarChart2, RefreshCw, Search, TrendingUp } 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import SelectDark from "@/components/SelectDark";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -279,18 +280,28 @@ export default function ProcurementIntelligencePage() {
           </div>
           <div className="min-w-[124px] xl:w-32 xl:flex-none">
             <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Market</div>
-            <select value={city} onChange={(e) => setCity(e.target.value === "dubai" ? "dubai" : "manila")} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50">
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(v === "dubai" ? "dubai" : "manila")}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50"
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div className="xl:w-36 xl:flex-none">
             <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Period</div>
-            <select value={monthsBack} onChange={(e) => setMonthsBack(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50">
-              <option value={3}>3 months</option>
-              <option value={6}>6 months</option>
-              <option value={12}>12 months</option>
-            </select>
+            <SelectDark
+              value={String(monthsBack)}
+              onChange={v => setMonthsBack(Number(v))}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50"
+              options={[
+                { value: "3", label: "3 months" },
+                { value: "6", label: "6 months" },
+                { value: "12", label: "12 months" },
+              ]}
+            />
           </div>
           <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm hover:bg-white/5 disabled:opacity-60">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

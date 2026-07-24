@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -264,13 +265,18 @@ export default function ProcurementPaymentsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All statuses</option>
-              <option value="QUEUED">QUEUED</option>
-              <option value="HOLD">HOLD</option>
-              <option value="RELEASED">RELEASED</option>
-              <option value="EXECUTED">EXECUTED</option>
-            </select>
+            <SelectDark
+              value={statusFilter}
+              onChange={setStatusFilter}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "QUEUED", label: "QUEUED" },
+                { value: "HOLD", label: "HOLD" },
+                { value: "RELEASED", label: "RELEASED" },
+                { value: "EXECUTED", label: "EXECUTED" },
+              ]}
+            />
           </div>
           <div className="flex items-end">
             <button

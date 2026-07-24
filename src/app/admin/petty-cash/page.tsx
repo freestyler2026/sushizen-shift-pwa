@@ -21,6 +21,7 @@ import {
   TAB_ACTIVE,
   TAB_INACTIVE,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -425,19 +426,21 @@ export default function AdminPettyCashPage() {
         <div className={`${GLASS_CARD} grid grid-cols-2 gap-3`}>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-              {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label || "All branches"}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={branch}
+              onChange={setBranch}
+              options={BRANCHES.map((b) => ({ value: b.code, label: b.label || "All branches" }))}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Category</label>
-            <select className={SELECT_CLASS} value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c ? `${CATEGORY_ICONS[c] ?? ""} ${c}` : "All categories"}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={catFilter}
+              onChange={setCatFilter}
+              options={CATEGORIES.map((c) => ({ value: c, label: c ? `${CATEGORY_ICONS[c] ?? ""} ${c}` : "All categories" }))}
+            />
           </div>
           <div className="col-span-2">
             <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>

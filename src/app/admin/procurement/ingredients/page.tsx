@@ -2,6 +2,7 @@
 
 import { Package, Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import SelectDark from "@/components/SelectDark";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { costJson } from "@/lib/costClient";
 
@@ -371,14 +372,15 @@ export default function ProcurementIngredientsPage() {
             placeholder="Search ingredients..."
             className="rounded border border-white/15 bg-white/5 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-500"
           />
-          <select
+          <SelectDark
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={setCategoryFilter}
             className="rounded border border-white/15 bg-white/5 px-2 py-1 text-xs text-zinc-300 outline-none"
-          >
-            <option value="">All Categories</option>
-            {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{displayCategory(option)}</option>)}
-          </select>
+            options={[
+              { value: "", label: "All Categories" },
+              ...CATEGORY_OPTIONS.map((option) => ({ value: option, label: displayCategory(option) })),
+            ]}
+          />
           <button className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/20 px-3 py-1 text-violet-300" type="button" onClick={addRow}>
             <Plus className="h-3.5 w-3.5" />
             Add Row
@@ -388,14 +390,15 @@ export default function ProcurementIngredientsPage() {
             Save ({dirtyCount})
           </button>
           <div className="ml-auto flex items-center gap-2">
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => setCity(e.target.value === "manila" ? "manila" : "dubai")}
+              onChange={(v) => setCity(v === "manila" ? "manila" : "dubai")}
               className="rounded border border-white/15 bg-white/5 px-2 py-1 text-xs text-zinc-300 outline-none"
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
         </div>
 
@@ -581,14 +584,15 @@ export default function ProcurementIngredientsPage() {
 
                 <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
                   <div className="text-xs font-medium text-zinc-300">New Supplier Price</div>
-                  <select
+                  <SelectDark
                     value={supplierForm.supplier_id}
-                    onChange={(e) => setSupplierForm((prev) => ({ ...prev, supplier_id: e.target.value }))}
+                    onChange={(v) => setSupplierForm((prev) => ({ ...prev, supplier_id: v }))}
                     className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-zinc-300 outline-none"
-                  >
-                    <option value="">Supplier</option>
-                    {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                  </select>
+                    options={[
+                      { value: "", label: "Supplier" },
+                      ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
+                    ]}
+                  />
                   <div className="grid grid-cols-2 gap-3">
                     <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" placeholder="Purchase Unit" value={supplierForm.purchase_unit} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_unit: e.target.value }))} />
                     <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" placeholder="Qty" value={supplierForm.purchase_qty} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_qty: e.target.value }))} />

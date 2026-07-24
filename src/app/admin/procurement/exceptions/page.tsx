@@ -18,6 +18,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type ExceptionRow = {
   id: string;
@@ -167,14 +168,15 @@ export default function ProcurementExceptionsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => setCity(e.target.value === "dubai" ? "dubai" : "manila")}
+              onChange={v => setCity(v === "dubai" ? "dubai" : "manila")}
               className={SELECT_CLASS}
-            >
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div className="flex items-end">
             <button

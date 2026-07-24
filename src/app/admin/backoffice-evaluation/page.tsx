@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import SelectDark from "@/components/SelectDark";
 import { canAccessBackofficeEvaluationAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -511,10 +512,15 @@ export default function AdminBackofficeEvaluationPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>City</label>
-            <select value={city} onChange={(e) => setCity(e.target.value as "dubai" | "manila")} className={SELECT_CLASS}>
-              <option value="manila">manila</option>
-              <option value="dubai">dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(v as "dubai" | "manila")}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "manila" },
+                { value: "dubai", label: "dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>Month</label>
@@ -692,12 +698,17 @@ export default function AdminBackofficeEvaluationPage() {
           </div>
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>Status</label>
-            <select value={actionStatus} onChange={(e) => setActionStatus(e.target.value)} className={SELECT_CLASS}>
-              <option value="OPEN">OPEN</option>
-              <option value="IN_PROGRESS">IN PROGRESS</option>
-              <option value="DONE">DONE</option>
-              <option value="HOLD">HOLD</option>
-            </select>
+            <SelectDark
+              value={actionStatus}
+              onChange={setActionStatus}
+              className={SELECT_CLASS}
+              options={[
+                { value: "OPEN", label: "OPEN" },
+                { value: "IN_PROGRESS", label: "IN PROGRESS" },
+                { value: "DONE", label: "DONE" },
+                { value: "HOLD", label: "HOLD" },
+              ]}
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">

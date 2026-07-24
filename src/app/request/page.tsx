@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import {
@@ -581,23 +582,34 @@ export default function RequestPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="City">
-                  <select className={SELECT_CLASS} value={city} onChange={e => setCity(e.target.value as "dubai" | "manila")}>
-                    <option value="dubai">Dubai</option>
-                    <option value="manila">Manila</option>
-                  </select>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={city}
+                    onChange={v => setCity(v as "dubai" | "manila")}
+                    options={[
+                      { value: "dubai", label: "Dubai" },
+                      { value: "manila", label: "Manila" },
+                    ]}
+                  />
                 </Field>
                 <Field label="Branch">
-                  <select className={SELECT_CLASS} value={branch} onChange={e => setBranch(e.target.value)}>
-                    {branchOptions.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-                  </select>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={branch}
+                    onChange={setBranch}
+                    options={branchOptions.map(b => ({ value: b.code, label: b.name }))}
+                  />
                 </Field>
 
                 <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of staff" : "Locked to login"}>
                   {canSubmitForOthers && staffNames.length > 0 ? (
-                    <select className={SELECT_CLASS} value={staffName} onChange={e => setStaffName(e.target.value)}>
-                      <option value="">— Select —</option>
-                      {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                    <SelectDark
+                      className={SELECT_CLASS}
+                      value={staffName}
+                      onChange={setStaffName}
+                      placeholder="— Select —"
+                      options={staffNames.map(n => ({ value: n, label: n }))}
+                    />
                   ) : (
                     <input className={INPUT_CLASS} value={staffName} readOnly={!canSubmitForOthers}
                       onChange={e => setStaffName(e.target.value)} />
@@ -608,10 +620,12 @@ export default function RequestPage() {
                 </Field>
 
                 <Field label="Request type">
-                  <select className={SELECT_CLASS} value={requestType}
-                    onChange={e => setRequestType(e.target.value as ReqType)}>
-                    {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={requestType}
+                    onChange={v => setRequestType(v as ReqType)}
+                    options={LEAVE_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                  />
                 </Field>
 
                 {/* Type-specific extras */}
@@ -629,15 +643,20 @@ export default function RequestPage() {
                 {["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (
                   <>
                     <Field label="Leave sub-type">
-                      <select className={SELECT_CLASS} value={leaveSubType} onChange={e => setLeaveSubType(e.target.value)}>
-                        <option value="annual_leave">Annual Leave</option>
-                        <option value="sick_leave">Sick Leave</option>
-                        <option value="emergency_leave">Emergency Leave</option>
-                        <option value="unpaid_leave">Unpaid Leave</option>
-                        <option value="maternity_leave">Maternity Leave</option>
-                        <option value="paternity_leave">Paternity Leave</option>
-                        <option value="other">Other</option>
-                      </select>
+                      <SelectDark
+                        className={SELECT_CLASS}
+                        value={leaveSubType}
+                        onChange={setLeaveSubType}
+                        options={[
+                          { value: "annual_leave", label: "Annual Leave" },
+                          { value: "sick_leave", label: "Sick Leave" },
+                          { value: "emergency_leave", label: "Emergency Leave" },
+                          { value: "unpaid_leave", label: "Unpaid Leave" },
+                          { value: "maternity_leave", label: "Maternity Leave" },
+                          { value: "paternity_leave", label: "Paternity Leave" },
+                          { value: "other", label: "Other" },
+                        ]}
+                      />
                     </Field>
                     <Field label="Days">
                       <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" value={leaveDays}
@@ -657,10 +676,13 @@ export default function RequestPage() {
                   <>
                     <Field label="Counterparty staff">
                       {staffNames.length > 0 ? (
-                        <select className={SELECT_CLASS} value={withStaff} onChange={e => setWithStaff(e.target.value)}>
-                          <option value="">— Select —</option>
-                          {staffNames.filter(n => n !== staffName).map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
+                        <SelectDark
+                          className={SELECT_CLASS}
+                          value={withStaff}
+                          onChange={setWithStaff}
+                          placeholder="— Select —"
+                          options={staffNames.filter(n => n !== staffName).map(n => ({ value: n, label: n }))}
+                        />
                       ) : (
                         <input className={INPUT_CLASS} value={withStaff} onChange={e => setWithStaff(e.target.value)} />
                       )}

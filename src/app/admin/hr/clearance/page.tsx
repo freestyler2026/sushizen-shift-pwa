@@ -14,6 +14,7 @@ import {
   Send,
   X,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi, canAccessHrClearanceAdmin } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -189,16 +190,24 @@ function CreateModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={T_LABEL}>City</label>
-              <select className={SELECT_CLASS} value={form.city} onChange={e => set("city", e.target.value)}>
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={form.city}
+                onChange={v => set("city", v)}
+                options={[
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
             </div>
             <div>
               <label className={T_LABEL}>Separation Type</label>
-              <select className={SELECT_CLASS} value={form.separation_type} onChange={e => set("separation_type", e.target.value as SeparationType)}>
-                {Object.entries(SEP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={form.separation_type}
+                onChange={v => set("separation_type", v as SeparationType)}
+                options={Object.entries(SEP_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+              />
             </div>
           </div>
           <div>
@@ -688,17 +697,27 @@ export default function HrClearancePage() {
 
         {/* Filters + create */}
         <div className="flex flex-wrap gap-2 items-center">
-          <select className={SELECT_CLASS} value={cityFilter} onChange={e => setCityFilter(e.target.value as typeof cityFilter)}>
-            <option value="">All Cities</option>
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
-          <select className={SELECT_CLASS} value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={cityFilter}
+            onChange={v => setCityFilter(v as typeof cityFilter)}
+            options={[
+              { value: "", label: "All Cities" },
+              { value: "manila", label: "Manila" },
+              { value: "dubai", label: "Dubai" },
+            ]}
+          />
+          <SelectDark
+            className={SELECT_CLASS}
+            value={statusFilter}
+            onChange={v => setStatusFilter(v as typeof statusFilter)}
+            options={[
+              { value: "", label: "All Statuses" },
+              { value: "active", label: "Active" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+          />
           <button className={`${PRIMARY_BUTTON} ml-auto`} onClick={() => setShowCreate(true)}>
             <Plus size={16} className="inline mr-1" />New Case
           </button>

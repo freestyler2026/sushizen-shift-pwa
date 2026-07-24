@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, DANGER_BUTTON,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
@@ -170,14 +171,15 @@ export default function DeliveryAddressesPage() {
             value={pin}
             onChange={(e) => setPin(e.target.value)}
           />
-          <select
+          <SelectDark
             className={SELECT_CLASS}
             value={city}
-            onChange={(e) => setCity(e.target.value as City)}
-          >
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
+            onChange={(v) => setCity(v as City)}
+            options={[
+              { value: "dubai", label: "Dubai" },
+              { value: "manila", label: "Manila" },
+            ]}
+          />
           <button onClick={load} className={SECONDARY_BUTTON} type="button" disabled={loading}>
             {loading ? "Loading…" : "Refresh"}
           </button>
@@ -195,14 +197,15 @@ export default function DeliveryAddressesPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <p className={`${T_LABEL} mb-1`}>City *</p>
-              <select
+              <SelectDark
                 className={SELECT_CLASS}
                 value={form.city}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value as City }))}
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                onChange={(v) => setForm((f) => ({ ...f, city: v as City }))}
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
             <div>
               <p className={`${T_LABEL} mb-1`}>Store Code * (e.g. JLT, BB, TAFT)</p>

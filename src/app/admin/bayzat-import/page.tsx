@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Upload, CheckCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 interface PublishedWeek {
   branch_code: string;
@@ -94,14 +95,15 @@ export default function BayzatImportPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-white/50">City</label>
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value as "dubai" | "manila")}
+              <SelectDark
                 className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                value={city}
+                onChange={v => setCity(v as "dubai" | "manila")}
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-white/50">Excel File</label>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 import { parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
@@ -399,25 +400,21 @@ export default function InventoryItemsPage() {
               placeholder="Auto suggested SKU or Foodics SKU"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
-            <select
+            <SelectDark
               value={createCategoryId}
-              onChange={(e) => {
-                const id = e.target.value;
-                setCreateCategoryId(id);
-                if (id) {
-                  const hit = categories.find((row) => row.id === id);
+              onChange={(v) => {
+                setCreateCategoryId(v);
+                if (v) {
+                  const hit = categories.find((row) => row.id === v);
                   setCreateCategoryName(hit?.name || "");
                 }
               }}
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            >
-              <option value="">{categories.length === 0 ? "No categories yet - create below" : "Select category (optional)"}</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: categories.length === 0 ? "No categories yet - create below" : "Select category (optional)" },
+                ...categories.map((category) => ({ value: category.id, label: category.name })),
+              ]}
+            />
             <input
               value={createCategoryName}
               onChange={(e) => setCreateCategoryName(e.target.value)}
@@ -452,14 +449,15 @@ export default function InventoryItemsPage() {
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
             <div>
-              <select
+              <SelectDark
                 value={createType}
-                onChange={(e) => setCreateType(e.target.value)}
+                onChange={setCreateType}
                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              >
-                <option value="ITEM">Ingredient</option>
-                <option value="PRODUCT">Product (Finished Goods)</option>
-              </select>
+                options={[
+                  { value: "ITEM", label: "Ingredient" },
+                  { value: "PRODUCT", label: "Product (Finished Goods)" },
+                ]}
+              />
               <div className="mt-1 text-xs text-neutral-500">Ingredients are raw materials; Products are finished goods produced by CK.</div>
             </div>
             <button
@@ -475,16 +473,17 @@ export default function InventoryItemsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={tab}
-            onChange={(e) => setTab(e.target.value)}
-          >
-            <option value="ALL">All Types</option>
-            <option value="ITEMS">Raw Ingredients</option>
-            <option value="PRODUCTS">CK Products / Semi-finished</option>
-            <option value="DELETED">Deleted</option>
-          </select>
+            onChange={setTab}
+            options={[
+              { value: "ALL", label: "All Types" },
+              { value: "ITEMS", label: "Raw Ingredients" },
+              { value: "PRODUCTS", label: "CK Products / Semi-finished" },
+              { value: "DELETED", label: "Deleted" },
+            ]}
+          />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -748,14 +747,15 @@ export default function InventoryItemsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-neutral-200">Type</label>
-                <select
+                <SelectDark
                   value={editType}
-                  onChange={(e) => setEditType(e.target.value)}
+                  onChange={setEditType}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-                >
-                  <option value="ITEM">Ingredient</option>
-                  <option value="PRODUCT">Product (Finished Goods)</option>
-                </select>
+                  options={[
+                    { value: "ITEM", label: "Ingredient" },
+                    { value: "PRODUCT", label: "Product (Finished Goods)" },
+                  ]}
+                />
               </div>
             </div>
             {editError ? <div className="mt-3 text-sm text-rose-300">{editError}</div> : null}

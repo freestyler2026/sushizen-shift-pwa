@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, CheckCircle2, Circle, Clock, ExternalLink, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw, X } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { receivingsForRequest, receivingStepState } from "@/lib/procurementStatus";
@@ -676,10 +677,15 @@ export default function StoreProcurementReceivingPage() {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Session</p>
             <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" className={FIELD} />
             <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD} />
-            <select value={city} onChange={(e) => { const c = e.target.value; setCity(c); void loadMyRequests(c); }} className={FIELD}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => { setCity(v); void loadMyRequests(v); }}
+              className={FIELD}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
             <button
               type="button"
               disabled={refreshing}

@@ -6,6 +6,7 @@ import { canAccessProcurementAdmin, getAuth, hasPermission, refreshAuthFromApi }
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
+import SelectDark from "@/components/SelectDark";
 import { AlertCircle } from "lucide-react";
 import {
   GLASS_CARD,
@@ -931,18 +932,14 @@ export default function ProcurementRiskLabPage() {
           <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionRiskScoreCritical} onChange={(e) => setThresholds((p) => ({ ...p, exceptionRiskScoreCritical: Number(e.target.value || 0) }))} placeholder="Exception critical score" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-[280px_1fr]">
-          <select
-            disabled={!canWriteSharedConfig}
+          <SelectDark
             value={thresholdReasonCode}
-            onChange={(e) => setThresholdReasonCode(e.target.value)}
+            onChange={setThresholdReasonCode}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60"
-          >
-            {RISK_REASON_OPTIONS.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...RISK_REASON_OPTIONS.map((item) => ({ value: item.code, label: item.label })),
+            ]}
+          />
           <div className="rounded-xl border border-white/10 bg-white/6/50 px-3 py-2 text-xs text-zinc-400">
             {RISK_REASON_OPTIONS.find((item) => item.code === thresholdReasonCode)?.description || "Select a reason."}
           </div>
@@ -1045,18 +1042,15 @@ export default function ProcurementRiskLabPage() {
           </div>
         </div>
         <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[240px_180px_auto]">
-          <select
+          <SelectDark
             value={historyReasonFilter}
-            onChange={(e) => setHistoryReasonFilter(e.target.value)}
+            onChange={setHistoryReasonFilter}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs"
-          >
-            <option value="ALL">All reasons</option>
-            {RISK_REASON_OPTIONS.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "ALL", label: "All reasons" },
+              ...RISK_REASON_OPTIONS.map((item) => ({ value: item.code, label: item.label })),
+            ]}
+          />
           <MonthPicker value={historyMonthFilter} onChange={setHistoryMonthFilter} />
           <button
             type="button"
@@ -1282,12 +1276,17 @@ export default function ProcurementRiskLabPage() {
               <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title (e.g. INVESTIGATION:CASE-...)" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
               <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Investigation plan" className="min-h-24 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
               <DatePicker value={dueDate} onChange={setDueDate} />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm">
-                <option value="OPEN">OPEN</option>
-                <option value="IN_PROGRESS">IN_PROGRESS</option>
-                <option value="DONE">DONE</option>
-                <option value="CLOSED">CLOSED</option>
-              </select>
+              <SelectDark
+                value={status}
+                onChange={setStatus}
+                className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm"
+                options={[
+                  { value: "OPEN", label: "OPEN" },
+                  { value: "IN_PROGRESS", label: "IN_PROGRESS" },
+                  { value: "DONE", label: "DONE" },
+                  { value: "CLOSED", label: "CLOSED" },
+                ]}
+              />
               <textarea value={resultNote} onChange={(e) => setResultNote(e.target.value)} placeholder="Result / finding note" className="min-h-24 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
               <button type="button" onClick={() => void saveInvestigationAction()} disabled={saving} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
                 {saving ? "Saving..." : "Save Investigation Action"}

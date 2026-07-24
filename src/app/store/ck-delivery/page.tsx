@@ -6,6 +6,7 @@ import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
   Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, Trash2, TrendingUp,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
@@ -686,14 +687,15 @@ export default function CKDeliveryPage() {
       {pageTab === "pending" && (
         <div className="space-y-4">
           <div className={`${GLASS_CARD} flex flex-wrap items-center gap-3 p-3`}>
-            <select
+            <SelectDark
               className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
               value={pendingBranch}
-              onChange={(e) => { setPendingBranch(e.target.value); loadPending(e.target.value); }}
-            >
-              <option value="">Select branch</option>
-              {(city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES).map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+              onChange={v => { setPendingBranch(v); loadPending(v); }}
+              options={[
+                { value: "", label: "Select branch" },
+                ...(city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES).map((b) => ({ value: b, label: b })),
+              ]}
+            />
             <button className={SECONDARY_BUTTON} onClick={() => loadPending()} disabled={pendingLoading || !pendingBranch}>
               <RefreshCw className={`h-4 w-4 ${pendingLoading ? "animate-spin" : ""}`} />
             </button>
@@ -805,18 +807,26 @@ export default function CKDeliveryPage() {
             <span className="text-xs text-zinc-500">—</span>
             <input type="date" value={costToDate} onChange={e => setCostToDate(e.target.value)}
               className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50" />
-            <select value={costBranch} onChange={e => setCostBranch(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50">
-              <option value="">All Branches</option>
-              {branches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select value={costStatus} onChange={e => setCostStatus(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50">
-              <option value="">All Statuses</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="DISPATCHED">Dispatched</option>
-              <option value="PENDING">Pending</option>
-            </select>
+            <SelectDark
+              value={costBranch}
+              onChange={setCostBranch}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
+              options={[
+                { value: "", label: "All Branches" },
+                ...branches.map(b => ({ value: b, label: b })),
+              ]}
+            />
+            <SelectDark
+              value={costStatus}
+              onChange={setCostStatus}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
+              options={[
+                { value: "", label: "All Statuses" },
+                { value: "CONFIRMED", label: "Confirmed" },
+                { value: "DISPATCHED", label: "Dispatched" },
+                { value: "PENDING", label: "Pending" },
+              ]}
+            />
             <button className={PRIMARY_BUTTON} onClick={() => void loadCostSummary()} disabled={costLoading}>
               {costLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Load
@@ -912,14 +922,15 @@ export default function CKDeliveryPage() {
             {s === "" ? "All" : STATUS_LABEL[s]}
           </button>
         ))}
-        <select
+        <SelectDark
           className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
           value={filterBranch}
-          onChange={e => setFilterBranch(e.target.value)}
-        >
-          <option value="">All Branches</option>
-          {branches.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
+          onChange={setFilterBranch}
+          options={[
+            { value: "", label: "All Branches" },
+            ...branches.map(b => ({ value: b, label: b })),
+          ]}
+        />
       </div>
 
       {/* Two-column layout */}
@@ -1268,31 +1279,30 @@ export default function CKDeliveryPage() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">To Branch</label>
-                  <select
+                  <SelectDark
                     className={SELECT_CLASS}
                     value={newBranch}
-                    onChange={e => setNewBranch(e.target.value)}
-                  >
-                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                    onChange={setNewBranch}
+                    options={branches.map(b => ({ value: b, label: b }))}
+                  />
                 </div>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Linked Production Plan <span className="text-zinc-600">(for QC-passed items)</span>
                 </label>
-                <select
+                <SelectDark
                   className={INPUT_CLASS}
                   value={newPlanId}
-                  onChange={e => setNewPlanId(e.target.value)}
-                >
-                  <option value="">— No plan (manual items only) —</option>
-                  {plans.map(p => (
-                    <option key={p.id} value={String(p.id)}>
-                      {fmtDate(p.plan_date)} · {p.status} · {p.done_count}/{p.item_count} done
-                    </option>
-                  ))}
-                </select>
+                  onChange={setNewPlanId}
+                  options={[
+                    { value: "", label: "— No plan (manual items only) —" },
+                    ...plans.map(p => ({
+                      value: String(p.id),
+                      label: `${fmtDate(p.plan_date)} · ${p.status} · ${p.done_count}/${p.item_count} done`,
+                    })),
+                  ]}
+                />
                 <p className={T_CAPTION + " mt-1"}>
                   {plans.length === 0
                     ? "No production plans found for this city. Create a plan first to auto-populate QC-passed items."
@@ -1435,13 +1445,12 @@ export default function CKDeliveryPage() {
                           value={manualItemQty}
                           onChange={e => setManualItemQty(e.target.value)}
                         />
-                        <select
+                        <SelectDark
                           className={SELECT_CLASS}
                           value={manualItemUnit}
-                          onChange={e => setManualItemUnit(e.target.value)}
-                        >
-                          {AVAILABLE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                          onChange={setManualItemUnit}
+                          options={AVAILABLE_UNITS.map(u => ({ value: u, label: u }))}
+                        />
                       </div>
                     </>
                   )}
@@ -1573,18 +1582,19 @@ export default function CKDeliveryPage() {
                       </div>
                     </div>
                     {receiptLabelOk[item.id] === "problem" && (
-                      <select
+                      <SelectDark
                         className={`${INPUT_CLASS} mt-2 text-sm py-2`}
                         value={receiptLabelIssue[item.id] || ""}
-                        onChange={e => setReceiptLabelIssue(p => ({ ...p, [item.id]: e.target.value }))}
-                      >
-                        <option value="">Select issue…</option>
-                        <option value="SPOILED">Spoiled / bad odor</option>
-                        <option value="NO_LABEL">No label</option>
-                        <option value="NO_DATE">No production date</option>
-                        <option value="EXPIRED">Expired</option>
-                        <option value="OTHER">Other</option>
-                      </select>
+                        onChange={v => setReceiptLabelIssue(p => ({ ...p, [item.id]: v }))}
+                        options={[
+                          { value: "", label: "Select issue…" },
+                          { value: "SPOILED", label: "Spoiled / bad odor" },
+                          { value: "NO_LABEL", label: "No label" },
+                          { value: "NO_DATE", label: "No production date" },
+                          { value: "EXPIRED", label: "Expired" },
+                          { value: "OTHER", label: "Other" },
+                        ]}
+                      />
                     )}
                   </div>
                 </div>

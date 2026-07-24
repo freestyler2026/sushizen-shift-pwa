@@ -17,6 +17,7 @@ import {
   T_LABEL,
   T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -488,13 +489,12 @@ function MappingSettings() {
             </div>
             <div>
               <label className="mb-1 block text-xs text-neutral-400">Base Roll</label>
-              <select
+              <SelectDark
                 className={INPUT_CLASS}
                 value={addForm.base_roll_name}
-                onChange={(e) => setAddForm((f) => ({ ...f, base_roll_name: e.target.value }))}
-              >
-                {BASE_ROLL_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
+                onChange={(v) => setAddForm((f) => ({ ...f, base_roll_name: v }))}
+                options={BASE_ROLL_OPTIONS.map((b) => ({ value: b, label: b }))}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs text-neutral-400">Coefficient (rolls per unit sold)</label>
@@ -906,15 +906,21 @@ function OtherItemsBackupForm({ prepDate }: { prepDate: string }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-          <select value={branch} onChange={(e) => setBranch(e.target.value)} className={SELECT_CLASS}>
-            {MANILA_BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-          </select>
+          <SelectDark
+            value={branch}
+            onChange={setBranch}
+            className={SELECT_CLASS}
+            options={MANILA_BRANCHES.map((b) => ({ value: b.code, label: b.name }))}
+          />
         </div>
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Shift</label>
-          <select value={shift} onChange={(e) => setShift(e.target.value as typeof shift)} className={SELECT_CLASS}>
-            {SHIFT_OPTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
+          <SelectDark
+            value={shift}
+            onChange={(v) => setShift(v as typeof shift)}
+            className={SELECT_CLASS}
+            options={SHIFT_OPTS.map((s) => ({ value: s.value, label: s.label }))}
+          />
         </div>
         <div className="col-span-2 sm:col-span-1">
           <label className={`${T_LABEL} mb-1 block`}>Your Name</label>

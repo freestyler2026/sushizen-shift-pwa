@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, AlertTriangle, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -252,10 +253,15 @@ export default function EmergencyRequestPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={T_LABEL}>Store *</label>
-                  <select className={`mt-1 ${SELECT_CLASS}`} value={store} onChange={(e) => setStore(e.target.value)}>
-                    <option value="">Select store</option>
-                    {MANILA_STORES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <SelectDark
+                    className={`mt-1 ${SELECT_CLASS}`}
+                    value={store}
+                    onChange={setStore}
+                    options={[
+                      { value: "", label: "Select store" },
+                      ...MANILA_STORES.map((s) => ({ value: s, label: s })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className={T_LABEL}>Requested By *</label>
@@ -266,9 +272,12 @@ export default function EmergencyRequestPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={T_LABEL}>Urgency *</label>
-                  <select className={`mt-1 ${SELECT_CLASS}`} value={urgency} onChange={(e) => setUrgency(e.target.value)}>
-                    {URGENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <SelectDark
+                    className={`mt-1 ${SELECT_CLASS}`}
+                    value={urgency}
+                    onChange={setUrgency}
+                    options={URGENCY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                  />
                 </div>
                 <div>
                   <label className={T_LABEL}>Supplier (optional)</label>
@@ -278,9 +287,12 @@ export default function EmergencyRequestPage() {
 
               <div>
                 <label className={T_LABEL}>Root Cause *</label>
-                <select className={`mt-1 ${SELECT_CLASS}`} value={rootCause} onChange={(e) => setRootCause(e.target.value)}>
-                  {ROOT_CAUSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <SelectDark
+                  className={`mt-1 ${SELECT_CLASS}`}
+                  value={rootCause}
+                  onChange={setRootCause}
+                  options={ROOT_CAUSE_OPTIONS}
+                />
               </div>
 
               <div>
@@ -318,9 +330,12 @@ export default function EmergencyRequestPage() {
                     </div>
                     <div>
                       <label className={T_LABEL}>Unit</label>
-                      <select className={`mt-0.5 ${SELECT_CLASS}`} value={item.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)}>
-                        {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
+                      <SelectDark
+                        className={`mt-0.5 ${SELECT_CLASS}`}
+                        value={item.unit}
+                        onChange={(v) => updateItem(idx, "unit", v)}
+                        options={UNIT_OPTIONS}
+                      />
                     </div>
                     <div>
                       <label className={T_LABEL}>Unit Price (PHP)</label>

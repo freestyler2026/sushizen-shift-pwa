@@ -18,6 +18,7 @@ import {
   T_PAGE_TITLE,
   T_SECTION,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 /** Same-origin /api in production so Vercel proxies to Heroku (avoids browser CORS to Heroku). */
 function clientApiOrigin(): string {
@@ -911,19 +912,15 @@ function StaffRolesPageInner() {
                             </div>
                             <div className="text-xs text-neutral-500">{role.role_key}</div>
                           </div>
-                          <select
+                          <SelectDark
                             value={access}
-                            disabled={disabled}
-                            onChange={(e) => {
-                              setChannelRoleDrafts((prev) => ({ ...prev, [role.role_key]: e.target.value }));
+                            onChange={(v) => {
+                              setChannelRoleDrafts((prev) => ({ ...prev, [role.role_key]: v }));
                               setChannelMatrixDirty(true);
                             }}
+                            options={ACCESS_OPTIONS}
                             className={`${SELECT_CLASS} w-auto min-w-[120px] text-xs ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                          >
-                            {ACCESS_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       );
                     })}
@@ -1194,11 +1191,12 @@ function StaffRolesPageInner() {
             {/* Add assignment controls */}
             <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
               <div className={T_LABEL}>Add Role to: {staffName || "—"}</div>
-              <select value={assignmentRoleKey} onChange={(e) => setAssignmentRoleKey(e.target.value)} className={SELECT_CLASS}>
-                {roles.map((role) => (
-                  <option key={role.role_key} value={role.role_key}>{role.label}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={assignmentRoleKey}
+                onChange={setAssignmentRoleKey}
+                options={roles.map((role) => ({ value: role.role_key, label: role.label }))}
+                className={SELECT_CLASS}
+              />
               <label className="flex items-center gap-2 text-sm text-neutral-300">
                 <input type="checkbox" checked={assignmentPrimary} onChange={(e) => setAssignmentPrimary(e.target.checked)} />
                 Set as primary role
@@ -1243,17 +1241,12 @@ function StaffRolesPageInner() {
                         <div className="text-sm font-semibold text-white">{assignment.role_label || assignment.role_key}</div>
                         <div className="text-xs text-neutral-500">{assignment.role_key}</div>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <select
+                          <SelectDark
                             value={assignmentDrafts[assignment.role_key] || assignment.role_key}
-                            onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [assignment.role_key]: e.target.value }))}
+                            onChange={(v) => setAssignmentDrafts((prev) => ({ ...prev, [assignment.role_key]: v }))}
+                            options={roles.map((role) => ({ value: role.role_key, label: role.label }))}
                             className={`${SELECT_CLASS} max-w-[220px]`}
-                          >
-                            {roles.map((role) => (
-                              <option key={role.role_key} value={role.role_key}>
-                                {role.label}
-                              </option>
-                            ))}
-                          </select>
+                          />
                           <button
                             type="button"
                             onClick={() => handleReplaceAssignment(assignment.role_key)}

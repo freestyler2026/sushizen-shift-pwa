@@ -20,6 +20,7 @@ import {
   BADGE_SUCCESS,
   BADGE_WARNING,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -538,15 +539,14 @@ function ChecklistView() {
           {/* Branch */}
           <div className="space-y-1">
             <label className={T_LABEL}>Branch</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={branch}
-              onChange={(e) => setBranch(e.target.value as Branch)}
-            >
-              {BRANCHES.map((b) => (
-                <option key={b} value={b}>{BRANCH_LABELS[b]}</option>
-              ))}
-            </select>
+              onChange={(v) => setBranch(v as Branch)}
+              options={[
+                ...BRANCHES.map((b) => ({ value: b, label: BRANCH_LABELS[b] })),
+              ]}
+            />
           </div>
 
           {/* Date */}
@@ -563,15 +563,14 @@ function ChecklistView() {
           {/* Section */}
           <div className="space-y-1">
             <label className={T_LABEL}>Section</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={section}
-              onChange={(e) => setSection(e.target.value as Section)}
-            >
-              {sections.map((s) => (
-                <option key={s} value={s}>{SECTION_LABELS[s]}</option>
-              ))}
-            </select>
+              onChange={(v) => setSection(v as Section)}
+              options={[
+                ...sections.map((s) => ({ value: s, label: SECTION_LABELS[s] })),
+              ]}
+            />
           </div>
 
           {/* Staff Name */}
@@ -580,16 +579,15 @@ function ChecklistView() {
             {loadingNames ? (
               <div className="text-xs text-zinc-500 py-2">Loading…</div>
             ) : (
-              <select
+              <SelectDark
                 className={SELECT_CLASS}
                 value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
-              >
-                <option value="">— Select —</option>
-                {staffNames.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
+                onChange={setStaffName}
+                options={[
+                  { value: "", label: "— Select —" },
+                  ...staffNames.map((n) => ({ value: n, label: n })),
+                ]}
+              />
             )}
           </div>
         </div>
@@ -896,39 +894,36 @@ function ComplianceView() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <label className={T_LABEL}>Branch</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={branch}
-              onChange={(e) => setBranch(e.target.value as Branch)}
-            >
-              {BRANCHES.map((b) => (
-                <option key={b} value={b}>{BRANCH_LABELS[b]}</option>
-              ))}
-            </select>
+              onChange={(v) => setBranch(v as Branch)}
+              options={[
+                ...BRANCHES.map((b) => ({ value: b, label: BRANCH_LABELS[b] })),
+              ]}
+            />
           </div>
           <div className="space-y-1">
             <label className={T_LABEL}>Month</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-            >
-              {monthNames.map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
+              value={String(month)}
+              onChange={(v) => setMonth(Number(v))}
+              options={[
+                ...monthNames.map((m, i) => ({ value: String(i + 1), label: m })),
+              ]}
+            />
           </div>
           <div className="space-y-1">
             <label className={T_LABEL}>Year</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {[2025, 2026, 2027].map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+              value={String(year)}
+              onChange={(v) => setYear(Number(v))}
+              options={[
+                ...[2025, 2026, 2027].map((y) => ({ value: String(y), label: String(y) })),
+              ]}
+            />
           </div>
         </div>
       </div>

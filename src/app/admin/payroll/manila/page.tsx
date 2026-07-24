@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/manila-payroll";
 
@@ -188,26 +189,24 @@ export default function ManilaPayrollPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-slate-400">Month</label>
-                <select
-                  value={newMonth}
-                  onChange={e => setNewMonth(Number(e.target.value))}
+                <SelectDark
+                  value={String(newMonth)}
+                  onChange={v => setNewMonth(Number(v))}
                   className="rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white"
-                >
-                  {MONTHS.map((m, i) => (
-                    <option key={m} value={i + 1}>{m}</option>
-                  ))}
-                </select>
+                  options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-slate-400">Half</label>
-                <select
-                  value={newHalf}
-                  onChange={e => setNewHalf(Number(e.target.value) as 1|2)}
+                <SelectDark
+                  value={String(newHalf)}
+                  onChange={v => setNewHalf(Number(v) as 1|2)}
                   className="rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white"
-                >
-                  <option value={1}>1st Half (26–10)</option>
-                  <option value={2}>2nd Half (11–25)</option>
-                </select>
+                  options={[
+                    { value: "1", label: "1st Half (26–10)" },
+                    { value: "2", label: "2nd Half (11–25)" },
+                  ]}
+                />
               </div>
               <div className="flex items-end gap-2">
                 <button

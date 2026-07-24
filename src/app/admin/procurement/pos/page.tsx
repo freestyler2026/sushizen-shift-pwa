@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -633,10 +634,10 @@ export default function ProcurementPoPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => {
-                const nextCity = e.target.value as "manila" | "dubai";
+              onChange={(v) => {
+                const nextCity = v as "manila" | "dubai";
                 setCity(nextCity);
                 const can = canAccessProcurementAdmin(String(auth?.role || ""), nextCity);
                 setAllowed(can);
@@ -645,10 +646,11 @@ export default function ProcurementPoPage() {
                 setRequestSummary(null);
               }}
               className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
-            >
-              <option value="manila">Manila (PHP)</option>
-              <option value="dubai">Dubai (AED)</option>
-            </select>
+              options={[
+                { value: "manila", label: "Manila (PHP)" },
+                { value: "dubai", label: "Dubai (AED)" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
@@ -706,30 +708,19 @@ export default function ProcurementPoPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>VAT Treatment</label>
-            <select
+            <SelectDark
               value={vatTreatment}
-              onChange={(e) => setVatTreatment(e.target.value)}
+              onChange={setVatTreatment}
               className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
-            >
-              <option value="">— Select —</option>
-              {city === "dubai" ? (
-                <>
-                  <option value="VAT-inclusive">VAT-inclusive</option>
-                  <option value="VAT-exclusive">VAT-exclusive</option>
-                  <option value="VAT-exempt">VAT-exempt</option>
-                  <option value="Zero-rated">Zero-rated</option>
-                  <option value="Non-VAT">Non-VAT</option>
-                </>
-              ) : (
-                <>
-                  <option value="VAT-inclusive">VAT-inclusive</option>
-                  <option value="VAT-exclusive">VAT-exclusive</option>
-                  <option value="VAT-exempt">VAT-exempt</option>
-                  <option value="Zero-rated">Zero-rated</option>
-                  <option value="Non-VAT">Non-VAT</option>
-                </>
-              )}
-            </select>
+              options={[
+                { value: "", label: "— Select —" },
+                { value: "VAT-inclusive", label: "VAT-inclusive" },
+                { value: "VAT-exclusive", label: "VAT-exclusive" },
+                { value: "VAT-exempt", label: "VAT-exempt" },
+                { value: "Zero-rated", label: "Zero-rated" },
+                { value: "Non-VAT", label: "Non-VAT" },
+              ]}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={`${T_LABEL} mb-1.5 block`}>
@@ -748,22 +739,23 @@ export default function ProcurementPoPage() {
           </div>
           <div className="sm:col-span-2">
             <label className={`${T_LABEL} mb-1.5 block`}>Payment Terms</label>
-            <select
+            <SelectDark
               value={paymentTerms}
-              onChange={(e) => setPaymentTerms(e.target.value)}
+              onChange={setPaymentTerms}
               className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
-            >
-              <option value="">— Select —</option>
-              <option value="Prepaid">Prepaid</option>
-              <option value="COD">COD (Cash on Delivery)</option>
-              <option value="NET 7">NET 7</option>
-              <option value="NET 15">NET 15</option>
-              <option value="NET 30">NET 30</option>
-              <option value="NET 45">NET 45</option>
-              <option value="NET 60">NET 60</option>
-              <option value="30 days credit">30 days credit</option>
-              <option value="60 days credit">60 days credit</option>
-            </select>
+              options={[
+                { value: "", label: "— Select —" },
+                { value: "Prepaid", label: "Prepaid" },
+                { value: "COD", label: "COD (Cash on Delivery)" },
+                { value: "NET 7", label: "NET 7" },
+                { value: "NET 15", label: "NET 15" },
+                { value: "NET 30", label: "NET 30" },
+                { value: "NET 45", label: "NET 45" },
+                { value: "NET 60", label: "NET 60" },
+                { value: "30 days credit", label: "30 days credit" },
+                { value: "60 days credit", label: "60 days credit" },
+              ]}
+            />
           </div>
         </div>
 

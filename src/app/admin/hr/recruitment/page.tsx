@@ -27,6 +27,7 @@ import {
   BADGE_INFO,
   BADGE_ACCENT,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -327,15 +328,16 @@ function InterviewForm({
       </div>
       <div>
         <label className={T_LABEL}>Interview Type</label>
-        <select
+        <SelectDark
           className={`${SELECT_CLASS} mt-1`}
           value={form.interview_type}
-          onChange={(e) => set("interview_type", e.target.value)}
-        >
-          <option value="initial">Initial</option>
-          <option value="final">Final</option>
-          <option value="practical">Practical</option>
-        </select>
+          onChange={v => set("interview_type", v)}
+          options={[
+            { value: "initial", label: "Initial" },
+            { value: "final", label: "Final" },
+            { value: "practical", label: "Practical" },
+          ]}
+        />
       </div>
       <div>
         <label className={T_LABEL}>Notes</label>
@@ -418,17 +420,12 @@ function EvaluationForm({
         ).map(([key, label]) => (
           <div key={key}>
             <label className={T_LABEL}>{label}</label>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} mt-1`}
               value={String(form[key as keyof typeof form])}
-              onChange={(e) => set(key, Number(e.target.value))}
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+              onChange={v => set(key, Number(v))}
+              options={[1, 2, 3, 4, 5].map(n => ({ value: String(n), label: String(n) }))}
+            />
           </div>
         ))}
       </div>
@@ -441,15 +438,16 @@ function EvaluationForm({
 
       <div>
         <label className={T_LABEL}>Recommendation</label>
-        <select
+        <SelectDark
           className={`${SELECT_CLASS} mt-1`}
           value={form.recommendation}
-          onChange={(e) => set("recommendation", e.target.value)}
-        >
-          <option value="hire">Hire</option>
-          <option value="consider">Consider</option>
-          <option value="reject">Reject</option>
-        </select>
+          onChange={v => set("recommendation", v)}
+          options={[
+            { value: "hire", label: "Hire" },
+            { value: "consider", label: "Consider" },
+            { value: "reject", label: "Reject" },
+          ]}
+        />
       </div>
       <div>
         <label className={T_LABEL}>Strengths</label>
@@ -706,18 +704,12 @@ function DetailPanel({
               {/* Status */}
               <div>
                 <p className={T_LABEL}>Status</p>
-                <select
+                <SelectDark
                   className={`${SELECT_CLASS} mt-2`}
                   value={localStatus}
-                  disabled={statusChanging}
-                  onChange={(e) => void handleStatusChange(e.target.value as KanbanStatus)}
-                >
-                  {ALL_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {KANBAN_COLUMNS.find((c) => c.id === s)?.label || s}
-                    </option>
-                  ))}
-                </select>
+                  onChange={v => void handleStatusChange(v as KanbanStatus)}
+                  options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
+                />
                 {statusChanging && (
                   <p className={`${T_CAPTION} mt-1`}>Updating...</p>
                 )}
@@ -989,17 +981,18 @@ function AddApplicantModal({
           </div>
           <div>
             <label className={T_LABEL}>Source</label>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} mt-1`}
               value={form.source}
-              onChange={(e) => set("source", e.target.value)}
-            >
-              <option value="referral">Referral</option>
-              <option value="jobstreet">JobStreet</option>
-              <option value="facebook">Facebook</option>
-              <option value="walk_in">Walk-in</option>
-              <option value="other">Other</option>
-            </select>
+              onChange={v => set("source", v)}
+              options={[
+                { value: "referral", label: "Referral" },
+                { value: "jobstreet", label: "JobStreet" },
+                { value: "facebook", label: "Facebook" },
+                { value: "walk_in", label: "Walk-in" },
+                { value: "other", label: "Other" },
+              ]}
+            />
           </div>
           {form.source === "referral" && (
             <div>
@@ -1014,18 +1007,15 @@ function AddApplicantModal({
           )}
           <div className="col-span-2">
             <label className={T_LABEL}>Requisition (optional)</label>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} mt-1`}
               value={form.requisition_id}
-              onChange={(e) => set("requisition_id", e.target.value)}
-            >
-              <option value="">— None —</option>
-              {requisitions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.position} — {r.branch} ({r.priority})
-                </option>
-              ))}
-            </select>
+              onChange={v => set("requisition_id", v)}
+              options={[
+                { value: "", label: "— None —" },
+                ...requisitions.map(r => ({ value: r.id, label: `${r.position} — ${r.branch} (${r.priority})` })),
+              ]}
+            />
           </div>
           <div>
             <label className={T_LABEL}>Applied Date</label>
@@ -1147,16 +1137,17 @@ function AddRequisitionModal({
           </div>
           <div>
             <label className={T_LABEL}>Reason</label>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} mt-1`}
               value={form.reason}
-              onChange={(e) => set("reason", e.target.value)}
-            >
-              <option value="replacement">Replacement</option>
-              <option value="new_hire">New Hire</option>
-              <option value="expansion">Expansion</option>
-              <option value="buffer">Buffer</option>
-            </select>
+              onChange={v => set("reason", v)}
+              options={[
+                { value: "replacement", label: "Replacement" },
+                { value: "new_hire", label: "New Hire" },
+                { value: "expansion", label: "Expansion" },
+                { value: "buffer", label: "Buffer" },
+              ]}
+            />
           </div>
           {form.reason === "replacement" && (
             <div>
@@ -1180,15 +1171,16 @@ function AddRequisitionModal({
           </div>
           <div>
             <label className={T_LABEL}>Priority</label>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} mt-1`}
               value={form.priority}
-              onChange={(e) => set("priority", e.target.value)}
-            >
-              <option value="urgent">Urgent</option>
-              <option value="normal">Normal</option>
-              <option value="low">Low</option>
-            </select>
+              onChange={v => set("priority", v)}
+              options={[
+                { value: "urgent", label: "Urgent" },
+                { value: "normal", label: "Normal" },
+                { value: "low", label: "Low" },
+              ]}
+            />
           </div>
           <div className="col-span-2">
             <label className={T_LABEL}>Requested By</label>

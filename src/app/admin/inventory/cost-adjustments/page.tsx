@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -494,15 +495,14 @@ export default function InventoryCostAdjustmentsPage() {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>{branch.name}</option>
-            ))}
-          </select>
+            onChange={setBranchCode}
+            options={[
+              ...BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name })),
+            ]}
+          />
 
           <input
             type="date"
@@ -882,18 +882,15 @@ export default function InventoryCostAdjustmentsPage() {
                   : "Select an item to view cost change history"}
               </div>
             </div>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm"
               value={historyItemId}
-              onChange={(e) => setHistoryItemId(e.target.value)}
-            >
-              <option value="">— Select item —</option>
-              {itemOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}{item.sku ? ` (${item.sku})` : ""}
-                </option>
-              ))}
-            </select>
+              onChange={setHistoryItemId}
+              options={[
+                { value: "", label: "— Select item —" },
+                ...itemOptions.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` (${item.sku})` : ""}` })),
+              ]}
+            />
           </div>
 
           {!historyItemId ? (

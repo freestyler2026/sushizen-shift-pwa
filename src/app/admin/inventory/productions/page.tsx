@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
@@ -1280,19 +1281,20 @@ ${pages}
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">City</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
               value={city}
-              onChange={(e) => {
-                const next = e.target.value as City;
+              onChange={(v) => {
+                const next = v as City;
                 if (next === city) return;
                 if (draftOutputs.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
                 setCity(next);
               }}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
@@ -1476,17 +1478,14 @@ ${pages}
                           />
                         </div>
                         <div className="pl-2">
-                          <select
+                          <SelectDark
                             value={unit}
-                            onChange={(e) =>
-                              setStockUnits((prev) => ({ ...prev, [product.id]: e.target.value }))
+                            onChange={(v) =>
+                              setStockUnits((prev) => ({ ...prev, [product.id]: v }))
                             }
                             className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-200 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
-                          >
-                            {PRODUCTION_OUTPUT_UNITS.map((u) => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </select>
+                            options={[...PRODUCTION_OUTPUT_UNITS.map((u) => ({ value: u, label: u }))]}
+                          />
                         </div>
                       </div>
                     );
@@ -1516,15 +1515,12 @@ ${pages}
                     />
                   </div>
                   <div className="pl-2">
-                    <select
+                    <SelectDark
                       value={freeItemUnit}
-                      onChange={(e) => setFreeItemUnit(e.target.value)}
+                      onChange={setFreeItemUnit}
                       className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-200 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
-                    >
-                      {PRODUCTION_OUTPUT_UNITS.map((u) => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
+                      options={[...PRODUCTION_OUTPUT_UNITS.map((u) => ({ value: u, label: u }))]}
+                    />
                   </div>
                 </div>
               </div>
@@ -1840,18 +1836,15 @@ ${pages}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px_140px_140px]">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={selectedProductId}
-            onChange={(e) => setSelectedProductId(e.target.value)}
-          >
-            <option value="">Select a product</option>
-            {productOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedProductId}
+            placeholder="Select a product"
+            options={[
+              ...productOptions.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` (${item.sku})` : ""}` })),
+            ]}
+          />
           <input
             type="text"
             inputMode="decimal"
@@ -1864,17 +1857,12 @@ ${pages}
             }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
           />
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-          >
-            {PRODUCTION_OUTPUT_UNITS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedUnit}
+            options={[...PRODUCTION_OUTPUT_UNITS.map((unit) => ({ value: unit, label: unit }))]}
+          />
           <button
             type="button"
             onClick={addDraftOutput}
@@ -1986,17 +1974,12 @@ ${pages}
             }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
           />
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeUnit}
-            onChange={(e) => setRecipeUnit(e.target.value)}
-          >
-            {PRODUCTION_OUTPUT_UNITS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+            onChange={setRecipeUnit}
+            options={[...PRODUCTION_OUTPUT_UNITS.map((unit) => ({ value: unit, label: unit }))]}
+          />
           <button
             type="button"
             onClick={addRecipeLine}

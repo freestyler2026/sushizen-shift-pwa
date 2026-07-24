@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { inventoryGet } from "@/lib/inventoryClient";
@@ -139,26 +140,24 @@ export default function InventoryLedgerPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
-            onChange={(e) => setCity(e.target.value as "manila" | "dubai")}
-          >
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
-          <select
+            onChange={(v) => setCity(v as "manila" | "dubai")}
+            options={[
+              { value: "manila", label: "Manila" },
+              { value: "dubai", label: "Dubai" },
+            ]}
+          />
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            <option value="">All branches</option>
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
+            onChange={setBranchCode}
+            options={[
+              { value: "", label: "All branches" },
+              ...BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name })),
+            ]}
+          />
           <div className="flex items-center gap-2">
             <label className="text-xs text-neutral-500 whitespace-nowrap">From</label>
             <input

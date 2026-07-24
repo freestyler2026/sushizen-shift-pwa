@@ -13,6 +13,7 @@ import {
   T_CAPTION,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 type AttendanceRecord = {
   work_date: string;
@@ -362,17 +363,15 @@ export default function MyShiftPage() {
                 </div>
               ) : (
                 <div className="min-w-0 max-w-full">
-                  <select
+                  <SelectDark
                     className={`${SELECT_CLASS} max-w-full rounded-full border-white/8 bg-neutral-900/70 px-3 py-1.5 text-sm text-white`}
                     value={staffName}
-                    onChange={(e) => setStaffName(e.target.value)}
-                  >
-                    {(data?.eligible_staff_names?.length ? data.eligible_staff_names : [staffName]).map((name) => (
-                      <option key={name} value={name}>
-                        {stripJPNotes(name)}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setStaffName}
+                    options={(data?.eligible_staff_names?.length ? data.eligible_staff_names : [staffName]).map((name) => ({
+                      value: name,
+                      label: stripJPNotes(name),
+                    }))}
+                  />
                 </div>
               )}
             </div>

@@ -21,6 +21,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { AlertCircle, Building2, Camera, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type ClaimRow = {
   id: string;
@@ -316,20 +317,30 @@ export default function ProcurementClaimsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <select value={city} onChange={(e) => setCity(String(e.target.value).toLowerCase())} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(String(v).toLowerCase())}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Status Filter</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All statuses</option>
-              <option value="OPEN">OPEN</option>
-              <option value="ASSIGNED">ASSIGNED</option>
-              <option value="ESCALATED">ESCALATED</option>
-              <option value="RESOLVED">RESOLVED</option>
-            </select>
+            <SelectDark
+              value={statusFilter}
+              onChange={setStatusFilter}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "OPEN", label: "OPEN" },
+                { value: "ASSIGNED", label: "ASSIGNED" },
+                { value: "ESCALATED", label: "ESCALATED" },
+                { value: "RESOLVED", label: "RESOLVED" },
+              ]}
+            />
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -374,12 +385,17 @@ export default function ProcurementClaimsPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Claim Type</label>
-              <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className={SELECT_CLASS}>
-                <option value="SHORTAGE">SHORTAGE</option>
-                <option value="EXCESS">EXCESS</option>
-                <option value="QUALITY">QUALITY</option>
-                <option value="INVOICE_VARIANCE">INVOICE_VARIANCE</option>
-              </select>
+              <SelectDark
+                value={claimType}
+                onChange={setClaimType}
+                className={SELECT_CLASS}
+                options={[
+                  { value: "SHORTAGE", label: "SHORTAGE" },
+                  { value: "EXCESS", label: "EXCESS" },
+                  { value: "QUALITY", label: "QUALITY" },
+                  { value: "INVOICE_VARIANCE", label: "INVOICE_VARIANCE" },
+                ]}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Receiving ID <span className="text-zinc-600 font-normal">(optional)</span></label>
@@ -538,16 +554,17 @@ export default function ProcurementClaimsPage() {
                 </div>
                 <div>
                   <label className={`${T_LABEL} mb-1 block`}>Escalate to</label>
-                  <select
+                  <SelectDark
                     value={escalateRoleById[row.id] || "HQ"}
-                    onChange={(e) => setEscalateRoleById((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                    onChange={v => setEscalateRoleById((prev) => ({ ...prev, [row.id]: v }))}
                     className={SELECT_CLASS}
-                  >
-                    <option value="HQ">HQ</option>
-                    <option value="FINANCE">FINANCE</option>
-                    <option value="HR_MANAGER">HR_MANAGER</option>
-                    <option value="ADMIN">ADMIN</option>
-                  </select>
+                    options={[
+                      { value: "HQ", label: "HQ" },
+                      { value: "FINANCE", label: "FINANCE" },
+                      { value: "HR_MANAGER", label: "HR_MANAGER" },
+                      { value: "ADMIN", label: "ADMIN" },
+                    ]}
+                  />
                 </div>
                 <div className="flex gap-2 sm:col-span-4">
                   <button

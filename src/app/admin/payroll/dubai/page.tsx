@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/dubai-payroll";
 
@@ -146,18 +147,26 @@ export default function DubaiPayrollPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-slate-400">Month</label>
-                <select value={newMonth} onChange={e => setNewMonth(e.target.value)}
-                  className="w-28 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
-                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                </select>
+                <SelectDark
+                  value={newMonth}
+                  onChange={setNewMonth}
+                  className="w-28"
+                  options={[
+                    ...MONTHS.map((m, i) => ({ value: String(i + 1), label: m })),
+                  ]}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-slate-400">Half</label>
-                <select value={newHalf} onChange={e => setNewHalf(e.target.value)}
-                  className="w-28 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
-                  <option value="1">1st (1–15)</option>
-                  <option value="2">2nd (16–end)</option>
-                </select>
+                <SelectDark
+                  value={newHalf}
+                  onChange={setNewHalf}
+                  className="w-28"
+                  options={[
+                    { value: "1", label: "1st (1–15)" },
+                    { value: "2", label: "2nd (16–end)" },
+                  ]}
+                />
               </div>
               <button onClick={handleCreate} disabled={creating}
                 className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm disabled:opacity-40"}>

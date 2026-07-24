@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { apiGet, qs } from "@/lib/api";
 import DateRangePicker from "@/components/DateRangePicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, KPI_VALUE,
   TABLE_HEADER, TABLE_ROW, TABLE_CELL,
@@ -348,16 +349,18 @@ export default function AbsenceTab({
               <div>
                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Month</div>
                 <div className="flex gap-2">
-                  <select value={monthYear} onChange={(e) => setMonthYear(Number(e.target.value))}
-                    className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-rose-500/40 focus:outline-none">
-                    {[now.getFullYear() - 1, now.getFullYear()].map((y) => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                  <select value={monthMonth} onChange={(e) => setMonthMonth(Number(e.target.value))}
-                    className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-rose-500/40 focus:outline-none">
-                    {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => (
-                      <option key={i} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
+                  <SelectDark
+                    value={String(monthYear)}
+                    onChange={v => setMonthYear(Number(v))}
+                    className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-rose-500/40 focus:outline-none"
+                    options={[now.getFullYear() - 1, now.getFullYear()].map((y) => ({ value: String(y), label: String(y) }))}
+                  />
+                  <SelectDark
+                    value={String(monthMonth)}
+                    onChange={v => setMonthMonth(Number(v))}
+                    className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-rose-500/40 focus:outline-none"
+                    options={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => ({ value: String(i + 1), label: m }))}
+                  />
                 </div>
               </div>
               <button type="button" onClick={loadMonth} disabled={loading}

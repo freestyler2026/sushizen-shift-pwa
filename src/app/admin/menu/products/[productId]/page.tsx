@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import IngredientItemSearch, { type IngredientItemOption } from "@/components/menu/IngredientItemSearch";
+import SelectDark from "@/components/SelectDark";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
 import { costJson } from "@/lib/costClient";
@@ -643,18 +644,24 @@ export default function MenuProductDetailPage() {
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">City</div>
-              <select value={city} onChange={(e) => setCity(e.target.value as City)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
+              <SelectDark
+                value={city}
+                onChange={(v) => setCity(v as City)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={[
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Category</div>
-              <select value={product.category_id} onChange={(e) => setProduct((current) => current ? { ...current, category_id: e.target.value, category_name: categories.find((row) => row.id === e.target.value)?.name || current.category_name } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={product.category_id}
+                onChange={(v) => setProduct((current) => current ? { ...current, category_id: v, category_name: categories.find((row) => row.id === v)?.name || current.category_name } : current)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={categories.map((category) => ({ value: category.id, label: category.name }))}
+              />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Name</div>
@@ -690,24 +697,39 @@ export default function MenuProductDetailPage() {
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Pricing Method</div>
-              <select value={product.pricing_method} onChange={(e) => setProduct((current) => current ? { ...current, pricing_method: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                <option value="FIXED_PRICE">Fixed Price</option>
-                <option value="OPEN_PRICE">Open Price</option>
-              </select>
+              <SelectDark
+                value={product.pricing_method}
+                onChange={(v) => setProduct((current) => current ? { ...current, pricing_method: v } : current)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={[
+                  { value: "FIXED_PRICE", label: "Fixed Price" },
+                  { value: "OPEN_PRICE", label: "Open Price" },
+                ]}
+              />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Costing Method</div>
-              <select value={product.costing_method} onChange={(e) => setProduct((current) => current ? { ...current, costing_method: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                <option value="FROM_INGREDIENTS">From Ingredients</option>
-                <option value="FIXED_COST">Fixed Cost</option>
-              </select>
+              <SelectDark
+                value={product.costing_method}
+                onChange={(v) => setProduct((current) => current ? { ...current, costing_method: v } : current)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={[
+                  { value: "FROM_INGREDIENTS", label: "From Ingredients" },
+                  { value: "FIXED_COST", label: "Fixed Cost" },
+                ]}
+              />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Selling Method</div>
-              <select value={product.selling_method} onChange={(e) => setProduct((current) => current ? { ...current, selling_method: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                <option value="UNIT">Unit</option>
-                <option value="WEIGHT">Weight</option>
-              </select>
+              <SelectDark
+                value={product.selling_method}
+                onChange={(v) => setProduct((current) => current ? { ...current, selling_method: v } : current)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                options={[
+                  { value: "UNIT", label: "Unit" },
+                  { value: "WEIGHT", label: "Weight" },
+                ]}
+              />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Preparation Time</div>
@@ -802,11 +824,12 @@ export default function MenuProductDetailPage() {
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[200px,auto]">
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Unit</div>
-                <select value={ingredientUnit} onChange={(e) => setIngredientUnit(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  {ingredientUnitOptions.map((unit) => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={ingredientUnit}
+                  onChange={setIngredientUnit}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={ingredientUnitOptions.map((unit) => ({ value: unit, label: unit }))}
+                />
               </label>
               <div className="flex items-end gap-2">
                 <button type="button" onClick={() => void addOrUpdateIngredient()} disabled={ingredientSaving} className="rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-2 text-sm text-amber-100 disabled:opacity-50">
@@ -835,12 +858,15 @@ export default function MenuProductDetailPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr),90px,90px,90px]">
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Modifier Group</div>
-                <select value={selectedModifierGroupId} onChange={(e) => setSelectedModifierGroupId(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  <option value="">Select modifier group</option>
-                  {modifierGroupChoices.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name} ({Number(group.option_count || 0)} options)</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={selectedModifierGroupId}
+                  onChange={setSelectedModifierGroupId}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={[
+                    { value: "", label: "Select modifier group" },
+                    ...modifierGroupChoices.map((group) => ({ value: group.id, label: `${group.name} (${Number(group.option_count || 0)} options)` })),
+                  ]}
+                />
               </label>
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Min</div>
@@ -882,12 +908,15 @@ export default function MenuProductDetailPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr),auto]">
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Tag</div>
-                <select value={selectedTagId} onChange={(e) => setSelectedTagId(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  <option value="">Select tag</option>
-                  {availableTagOptions.map((tag) => (
-                    <option key={tag.id} value={tag.id}>{tag.name}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={selectedTagId}
+                  onChange={setSelectedTagId}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={[
+                    { value: "", label: "Select tag" },
+                    ...availableTagOptions.map((tag) => ({ value: tag.id, label: tag.name })),
+                  ]}
+                />
               </label>
               <div className="flex items-end">
                 <button type="button" onClick={() => void addTag()} disabled={tagSaving} className="rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-2 text-sm text-amber-100 disabled:opacity-50">
@@ -902,12 +931,15 @@ export default function MenuProductDetailPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Branch</div>
-                <select value={priceBranchCode} onChange={(e) => setPriceBranchCode(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  <option value="">Select branch</option>
-                  {branchOptions.map((branch) => (
-                    <option key={branch.code} value={branch.code}>{branch.label} ({branch.code})</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={priceBranchCode}
+                  onChange={setPriceBranchCode}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={[
+                    { value: "", label: "Select branch" },
+                    ...branchOptions.map((branch) => ({ value: branch.code, label: `${branch.label} (${branch.code})` })),
+                  ]}
+                />
               </label>
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Price</div>

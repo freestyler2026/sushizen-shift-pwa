@@ -13,6 +13,7 @@ import {
   T_LABEL,
   BADGE_WARNING,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CatalogRow = {
@@ -238,15 +239,12 @@ export default function CkWhGridPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Origin</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-            >
-              {ORIGINS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={setOrigin}
+              options={ORIGINS}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Order Date</label>

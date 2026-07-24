@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, Download, ChevronDown } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertCircle, Download } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -225,35 +226,29 @@ export default function AdminOvertimePage() {
             </div>
             <div>
               <label className={T_LABEL}>Branch</label>
-              <div className="relative mt-1">
-                <select
-                  value={filterBranch}
-                  onChange={(e) => setFilterBranch(e.target.value)}
-                  className={`${SELECT_CLASS} appearance-none pr-8`}
-                >
-                  <option value="">All branches</option>
-                  {branches.map((b) => (
-                    <option key={b.code} value={b.code}>{b.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-              </div>
+              <SelectDark
+                className={`${SELECT_CLASS} mt-1`}
+                value={filterBranch}
+                onChange={setFilterBranch}
+                options={[
+                  { value: "", label: "All branches" },
+                  ...branches.map((b) => ({ value: b.code, label: b.name })),
+                ]}
+              />
             </div>
             <div>
               <label className={T_LABEL}>Status</label>
-              <div className="relative mt-1">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className={`${SELECT_CLASS} appearance-none pr-8`}
-                >
-                  <option value="">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-              </div>
+              <SelectDark
+                className={`${SELECT_CLASS} mt-1`}
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={[
+                  { value: "", label: "All" },
+                  { value: "pending", label: "Pending" },
+                  { value: "approved", label: "Approved" },
+                  { value: "rejected", label: "Rejected" },
+                ]}
+              />
             </div>
             <div className="flex items-end">
               <button onClick={load} className={`${PRIMARY_BUTTON} w-full`}>Refresh</button>

@@ -13,6 +13,7 @@ import {
   T_LABEL,
   BADGE_WARNING,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CatalogRow = {
@@ -208,15 +209,21 @@ export default function OrderGridPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Store</label>
-            <select className={SELECT_CLASS} value={store} onChange={(e) => setStore(e.target.value)}>
-              {STORES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={store}
+              onChange={setStore}
+              options={STORES.map(s => ({ value: s, label: s }))}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Order Type</label>
-            <select className={SELECT_CLASS} value={orderType} onChange={(e) => setOrderType(e.target.value)}>
-              {ORDER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={orderType}
+              onChange={setOrderType}
+              options={ORDER_TYPES}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Order Date</label>

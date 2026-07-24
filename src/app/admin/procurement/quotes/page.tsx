@@ -18,6 +18,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, TrendingUp, Building2 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type RequestListRow = {
   id: string;
@@ -281,10 +282,15 @@ export default function ProcurementQuotesPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <select value={city} onChange={(e) => setCity(e.target.value as "manila" | "dubai")} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={(v) => setCity(v as "manila" | "dubai")}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Request ID</label>

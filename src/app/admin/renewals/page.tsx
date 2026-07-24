@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   CircleAlert,
   Info,
   Loader2,
@@ -30,6 +29,7 @@ import {
   type RenewalStatus,
   setRenewalsBadgeCount,
 } from "@/lib/renewals";
+import SelectDark from "@/components/SelectDark";
 
 type PageTab = "alerts" | "regularization" | "staff" | "add";
 
@@ -303,17 +303,12 @@ function DocumentFields({
               />
             </FormInput>
             <FormInput label="Status">
-              <select
+              <SelectDark
                 value={docForms[docType].renewal_status}
-                onChange={(event) => onChange(docType, "renewal_status", event.target.value)}
+                onChange={v => onChange(docType, "renewal_status", v)}
                 className={baseInputClass()}
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
+                options={STATUS_OPTIONS.map(status => ({ value: status, label: status }))}
+              />
             </FormInput>
             <FormInput label="Notes">
               <textarea
@@ -404,18 +399,15 @@ function StaffEditor({
             />
           </FormInput>
           <FormInput label="Branch">
-            <select
+            <SelectDark
               value={staffForm.branch}
-              onChange={(event) => setStaffForm((prev) => ({ ...prev, branch: event.target.value }))}
+              onChange={v => setStaffForm((prev) => ({ ...prev, branch: v }))}
               className={baseInputClass()}
-            >
-              <option value="">Select branch</option>
-              {BRANCHES.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Select branch" },
+                ...BRANCHES.map(branch => ({ value: branch, label: branch })),
+              ]}
+            />
           </FormInput>
           <FormInput label="Nationality">
             <input
@@ -970,21 +962,12 @@ export default function RenewalsAdminPage() {
                             <div className="mt-3 flex flex-wrap items-center gap-3">
                               <label className="flex items-center gap-2 text-xs text-neutral-400">
                                 <span>Status:</span>
-                                <div className="relative">
-                                  <select
-                                    value={alert.renewal_status}
-                                    onChange={(event) => void mutateAlertStatus(alert.document_id, event.target.value as RenewalStatus)}
-                                    disabled={statusSavingId === alert.document_id}
-                                    className="appearance-none rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 pr-7 text-xs text-neutral-200"
-                                  >
-                                    {STATUS_OPTIONS.map((status) => (
-                                      <option key={status} value={status}>
-                                        {status}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <ChevronDown className="pointer-events-none absolute right-2 top-1.5 h-3.5 w-3.5 text-neutral-500" />
-                                </div>
+                                <SelectDark
+                                  value={alert.renewal_status}
+                                  onChange={v => void mutateAlertStatus(alert.document_id, v as RenewalStatus)}
+                                  className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200"
+                                  options={STATUS_OPTIONS.map(status => ({ value: status, label: status }))}
+                                />
                               </label>
                               <button
                                 type="button"
@@ -1134,18 +1117,15 @@ export default function RenewalsAdminPage() {
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 py-2 pl-9 pr-3 text-sm text-neutral-200 focus:border-violet-500 focus:outline-none"
                 />
               </div>
-              <select
+              <SelectDark
                 value={branchFilter}
-                onChange={(event) => setBranchFilter(event.target.value)}
+                onChange={setBranchFilter}
                 className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200 focus:border-violet-500 focus:outline-none"
-              >
-                <option value="">All Branches</option>
-                {BRANCHES.map((branch) => (
-                  <option key={branch} value={branch}>
-                    {branch}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "All Branches" },
+                  ...BRANCHES.map(branch => ({ value: branch, label: branch })),
+                ]}
+              />
               <div className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 p-1">
                 <button
                   type="button"

@@ -22,6 +22,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle, ShieldAlert } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type WhitelistRow = {
   id: string;
@@ -275,11 +276,16 @@ export default function ProcurementWhitelistPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Scope Type</label>
-            <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={SELECT_CLASS}>
-              <option value="ITEM">ITEM</option>
-              <option value="VENDOR">VENDOR</option>
-              <option value="STORE">STORE</option>
-            </select>
+            <SelectDark
+              value={scopeType}
+              onChange={setScopeType}
+              className={SELECT_CLASS}
+              options={[
+                { value: "ITEM", label: "ITEM" },
+                { value: "VENDOR", label: "VENDOR" },
+                { value: "STORE", label: "STORE" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Scope Key</label>
@@ -355,14 +361,19 @@ export default function ProcurementWhitelistPage() {
             <p className={T_SECTION}>Stockout Risk Snapshot</p>
             <p className={`mt-0.5 ${T_CAPTION}`}>Filter by risk level after recompute.</p>
           </div>
-          <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)} className="w-44 appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50">
-            <option value="">All levels</option>
-            <option value="CRITICAL">CRITICAL</option>
-            <option value="HIGH">HIGH</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="WHITELISTED">WHITELISTED</option>
-            <option value="NORMAL">NORMAL</option>
-          </select>
+          <SelectDark
+            value={riskLevel}
+            onChange={setRiskLevel}
+            className="w-44 appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+            options={[
+              { value: "", label: "All levels" },
+              { value: "CRITICAL", label: "CRITICAL" },
+              { value: "HIGH", label: "HIGH" },
+              { value: "MEDIUM", label: "MEDIUM" },
+              { value: "WHITELISTED", label: "WHITELISTED" },
+              { value: "NORMAL", label: "NORMAL" },
+            ]}
+          />
         </div>
         <div className="space-y-2">
           {riskRows.map((row) => (

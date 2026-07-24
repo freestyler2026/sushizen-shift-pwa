@@ -17,6 +17,7 @@ import {
   T_PAGE_TITLE, T_SECTION, T_LABEL, T_BODY, T_CAPTION,
   BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO, BADGE_ACCENT,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -355,11 +356,14 @@ function LoanDetailPanel({
                     </div>
                     <div>
                       <p className={`${T_LABEL} mb-1`}>Start Repayments from Cycle</p>
-                      <select value={startCycleId} onChange={e => setStartCycleId(e.target.value)} className={SELECT_CLASS}>
-                        {cycles.map(c => (
-                          <option key={c.id} value={c.id}>{MONTHS[c.month - 1]} {c.year}</option>
-                        ))}
-                      </select>
+                      <SelectDark
+                        value={startCycleId}
+                        onChange={setStartCycleId}
+                        className={SELECT_CLASS}
+                        options={[
+                          ...cycles.map(c => ({ value: String(c.id), label: `${MONTHS[c.month - 1]} ${c.year}` })),
+                        ]}
+                      />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setShowDisburseForm(false)} className={`${SECONDARY_BUTTON} flex-1`}>Cancel</button>
@@ -580,12 +584,15 @@ export default function LoansPage() {
             </div>
             <div className="flex flex-1 items-center gap-3 min-w-[260px]">
               <div className="relative flex-1">
-                <select value={applyCycleId} onChange={e => setApplyCycleId(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">— Select Cycle —</option>
-                  {cycles.map(c => (
-                    <option key={c.id} value={c.id}>{MONTHS[c.month - 1]} {c.year} ({c.status})</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={applyCycleId}
+                  onChange={setApplyCycleId}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "— Select Cycle —" },
+                    ...cycles.map(c => ({ value: String(c.id), label: `${MONTHS[c.month - 1]} ${c.year} (${c.status})` })),
+                  ]}
+                />
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               </div>
               <button

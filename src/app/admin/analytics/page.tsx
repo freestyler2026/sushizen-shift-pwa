@@ -116,6 +116,7 @@ import LeanShiftTab from "./LeanShiftTab";
 import InventoryGapTab from "./InventoryGapTab";
 import DisposalAnalyticsSection from "@/components/analytics/DisposalAnalyticsSection";
 import BackupAnalyticsSection from "@/components/analytics/BackupAnalyticsSection";
+import SelectDark from "@/components/SelectDark";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -6343,14 +6344,15 @@ export default function AdminAnalyticsPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
                 <div className={LABEL_TEXT + " mb-1.5 block"}>City</div>
-                <select
+                <SelectDark
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={setCity}
                   className={SELECT_CLASS}
-                >
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                  options={[
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
 
               <div>
@@ -6374,17 +6376,12 @@ export default function AdminAnalyticsPage() {
 
               <div>
                 <div className={LABEL_TEXT + " mb-1.5 block"}>Compliance Branch</div>
-                <select
+                <SelectDark
                   value={branchCode}
-                  onChange={(e) => setBranchCode(e.target.value)}
+                  onChange={setBranchCode}
                   className={SELECT_CLASS}
-                >
-                  {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
-                    <option key={opt.value || "ALL"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => ({ value: opt.value, label: opt.label }))}
+                />
               </div>
             </div>
 
@@ -6524,18 +6521,15 @@ export default function AdminAnalyticsPage() {
                 <Search className="h-4 w-4 text-violet-400" />
                 <h2 className={SECTION_TITLE}>Individual Search</h2>
               </div>
-              <select
+              <SelectDark
                 value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
+                onChange={setStaffSearch}
                 className={SELECT_CLASS + " mb-4"}
-              >
-                <option value="">Select staff</option>
-                {staffSelectOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Select staff" },
+                  ...staffSelectOptions.map((name) => ({ value: name, label: name })),
+                ]}
+              />
 
               {staffSearch.trim() ? (
                 <div className="overflow-hidden rounded-xl border border-white/8">
@@ -6998,46 +6992,33 @@ export default function AdminAnalyticsPage() {
                   <>
                     <div>
                       <div className={LABEL_TEXT + " mb-1.5 block"}>Brand</div>
-                      <select
+                      <SelectDark
                         value={summaryBrandName}
-                        onChange={(e) => setSummaryBrandName(e.target.value)}
+                        onChange={setSummaryBrandName}
                         className={SELECT_CLASS}
-                      >
-                        {salesBrandOptions.map((opt) => (
-                          <option key={opt.value || "ALL"} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={salesBrandOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+                      />
                     </div>
                     <div>
                       <div className={LABEL_TEXT + " mb-1.5 block"}>Store</div>
-                      <select
+                      <SelectDark
                         value={summaryBranchCode}
-                        onChange={(e) => setSummaryBranchCode(e.target.value)}
+                        onChange={setSummaryBranchCode}
                         className={SELECT_CLASS}
-                      >
-                        {(BRANCH_OPTIONS[salesCity] || [{ value: "", label: "All Branches" }]).map((opt) => (
-                          <option key={opt.value || "ALL"} value={opt.value}>
-                            {opt.value ? opt.label : "Company total"}
-                          </option>
-                        ))}
-                      </select>
+                        options={(BRANCH_OPTIONS[salesCity] || [{ value: "", label: "All Branches" }]).map((opt) => ({ value: opt.value, label: opt.value ? opt.label : "Company total" }))}
+                      />
                     </div>
                     <div>
                       <div className={LABEL_TEXT + " mb-1.5 block"}>Hourly Store Scope</div>
-                      <select
+                      <SelectDark
                         value={hourlyStoreName}
-                        onChange={(e) => setHourlyStoreName(e.target.value)}
+                        onChange={setHourlyStoreName}
                         className={SELECT_CLASS}
-                      >
-                        <option value="">Company total</option>
-                        {hourlyStoreOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Company total" },
+                          ...hourlyStoreOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+                        ]}
+                      />
                     </div>
                   </>
                 ) : null}
@@ -7316,18 +7297,15 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div>
                   <div className={LABEL_TEXT + " mb-1.5 block"}>Store</div>
-                  <select
+                  <SelectDark
                     value={hourlyStoreName}
-                    onChange={(e) => setHourlyStoreName(e.target.value)}
+                    onChange={setHourlyStoreName}
                     className={SELECT_CLASS}
-                  >
-                    <option value="">Company total</option>
-                    {hourlyStoreOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "Company total" },
+                      ...hourlyStoreOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -8331,30 +8309,24 @@ export default function AdminAnalyticsPage() {
                       </span>
                     </h3>
                     <div className="flex flex-wrap items-center gap-2">
-                      <select
+                      <SelectDark
                         value={cancelOrdersTableBrandFilter}
-                        onChange={(e) => setCancelOrdersTableBrandFilter(e.target.value)}
+                        onChange={setCancelOrdersTableBrandFilter}
                         className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-white/20"
-                      >
-                        <option value="ALL">All Brands</option>
-                        {cancelOrdersBrandOptions.map((b) => (
-                          <option key={b} value={b}>
-                            {b}
-                          </option>
-                        ))}
-                      </select>
-                      <select
+                        options={[
+                          { value: "ALL", label: "All Brands" },
+                          ...cancelOrdersBrandOptions.map((b) => ({ value: b, label: b })),
+                        ]}
+                      />
+                      <SelectDark
                         value={cancelOrdersTablePlatformFilter}
-                        onChange={(e) => setCancelOrdersTablePlatformFilter(e.target.value)}
+                        onChange={setCancelOrdersTablePlatformFilter}
                         className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-white/20"
-                      >
-                        <option value="ALL">All Platforms</option>
-                        {Object.keys(CANCEL_ORDERS_PLATFORM_META).map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "ALL", label: "All Platforms" },
+                          ...Object.keys(CANCEL_ORDERS_PLATFORM_META).map((p) => ({ value: p, label: p })),
+                        ]}
+                      />
                     </div>
                   </div>
                   <p className={`${T_CAPTION} border-b border-white/5 px-4 py-2 text-white/35`}>
@@ -8687,14 +8659,15 @@ export default function AdminAnalyticsPage() {
                 <div className="min-w-[220px] flex-1 text-sm font-semibold">Store Evaluation Dashboard</div>
                 <div className="w-full sm:w-auto">
                   <div className="mb-1 text-xs text-neutral-400">City</div>
-                  <select
+                  <SelectDark
                     value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    onChange={setCity}
                     className="w-full min-w-[180px] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                  >
-                    <option value="dubai">Dubai</option>
-                    <option value="manila">Manila</option>
-                  </select>
+                    options={[
+                      { value: "dubai", label: "Dubai" },
+                      { value: "manila", label: "Manila" },
+                    ]}
+                  />
                 </div>
                 <div className="grid w-full gap-2 sm:w-auto sm:min-w-[360px]">
                   <label className="text-xs text-neutral-400">
@@ -9782,17 +9755,12 @@ export default function AdminAnalyticsPage() {
               
               <div>
                 <div className={LABEL_TEXT + " mb-1.5 block"}>Summary Branch</div>
-                <select
+                <SelectDark
                   value={summaryBranchCode}
-                  onChange={(e) => setSummaryBranchCode(e.target.value)}
+                  onChange={setSummaryBranchCode}
                   className={SELECT_CLASS}
-                >
-                  {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
-                    <option key={opt.value || "ALL"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => ({ value: opt.value, label: opt.label }))}
+                />
               </div>
             </div>
 
@@ -10074,18 +10042,17 @@ export default function AdminAnalyticsPage() {
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="text-sm font-semibold text-white">Branch Totals</div>
-              <select
+              <SelectDark
                 value={branchSortBy}
-                onChange={(e) =>
-                  setBranchSortBy(e.target.value as "totalHours" | "avgHoursPerDay" | "maxStaff" | "branch")
-                }
+                onChange={(v) => setBranchSortBy(v as "totalHours" | "avgHoursPerDay" | "maxStaff" | "branch")}
                 className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white"
-              >
-                <option value="totalHours">Sort: Total Hours</option>
-                <option value="avgHoursPerDay">Sort: Avg / Day</option>
-                <option value="maxStaff">Sort: Max Staff</option>
-                <option value="branch">Sort: Branch</option>
-              </select>
+                options={[
+                  { value: "totalHours", label: "Sort: Total Hours" },
+                  { value: "avgHoursPerDay", label: "Sort: Avg / Day" },
+                  { value: "maxStaff", label: "Sort: Max Staff" },
+                  { value: "branch", label: "Sort: Branch" },
+                ]}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
@@ -10312,16 +10279,17 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <select
+                  <SelectDark
                     value={staffSortBy}
-                    onChange={(e) => setStaffSortBy(e.target.value as "hours" | "days" | "segments" | "name")}
+                    onChange={(v) => setStaffSortBy(v as "hours" | "days" | "segments" | "name")}
                     className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white"
-                  >
-                    <option value="hours">Sort: Hours</option>
-                    <option value="days">Sort: Days</option>
-                    <option value="segments">Sort: Segments</option>
-                    <option value="name">Sort: Name</option>
-                  </select>
+                    options={[
+                      { value: "hours", label: "Sort: Hours" },
+                      { value: "days", label: "Sort: Days" },
+                      { value: "segments", label: "Sort: Segments" },
+                      { value: "name", label: "Sort: Name" },
+                    ]}
+                  />
                   <button
                     type="button"
                     onClick={() => downloadCsv(`${exportBaseName}_staff_work_summary.csv`, staffSummaryExportRows)}

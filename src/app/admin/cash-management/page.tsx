@@ -15,6 +15,7 @@ import {
   T_PAGE_TITLE, T_LABEL, T_CAPTION, T_SECTION,
   BADGE_WARNING,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -344,17 +345,26 @@ function ComplianceView() {
       <div className={`${GLASS_CARD} p-5`}>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="space-y-1"><label className={T_LABEL}>Branch</label>
-            <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value as Branch)}>
-              {BRANCHES.map((b) => <option key={b} value={b}>{BRANCH_LABELS[b]}</option>)}
-            </select></div>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={branch}
+              onChange={(v) => setBranch(v as Branch)}
+              options={BRANCHES.map((b) => ({ value: b, label: BRANCH_LABELS[b] }))}
+            /></div>
           <div className="space-y-1"><label className={T_LABEL}>Month</label>
-            <select className={SELECT_CLASS} value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-              {monthNames.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-            </select></div>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={String(month)}
+              onChange={(v) => setMonth(Number(v))}
+              options={monthNames.map((m, i) => ({ value: String(i + 1), label: m }))}
+            /></div>
           <div className="space-y-1"><label className={T_LABEL}>Year</label>
-            <select className={SELECT_CLASS} value={year} onChange={(e) => setYear(Number(e.target.value))}>
-              {[2025,2026,2027].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select></div>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={String(year)}
+              onChange={(v) => setYear(Number(v))}
+              options={[2025, 2026, 2027].map((y) => ({ value: String(y), label: String(y) }))}
+            /></div>
         </div>
       </div>
 
@@ -942,12 +952,17 @@ function NteView() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <select className={`${SELECT_CLASS} flex-1`} value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="DRAFT">Draft</option>
-          <option value="ISSUED">Issued</option>
-          <option value="RESOLVED">Resolved</option>
-        </select>
+        <SelectDark
+          className={`${SELECT_CLASS} flex-1`}
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "", label: "All Status" },
+            { value: "DRAFT", label: "Draft" },
+            { value: "ISSUED", label: "Issued" },
+            { value: "RESOLVED", label: "Resolved" },
+          ]}
+        />
         <div className="flex-1">
           <input className={INPUT_CLASS} placeholder="Your name (approver)" value={approver}
             onChange={(e) => setApprover(e.target.value)} />

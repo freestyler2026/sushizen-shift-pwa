@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, Minus, X, ChevronRight } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -185,15 +186,16 @@ function ChecklistItemRow({
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="sm:col-span-1">
               <label className={T_LABEL + " mb-1 block"}>Status</label>
-              <select
+              <SelectDark
                 value={status}
-                onChange={(e) => setStatus(e.target.value as SepItemStatus)}
+                onChange={v => setStatus(v as SepItemStatus)}
                 className={SELECT_CLASS + " py-1.5 text-xs"}
-              >
-                <option value="pending">Pending</option>
-                <option value="done">Done</option>
-                <option value="na">N/A</option>
-              </select>
+                options={[
+                  { value: "pending", label: "Pending" },
+                  { value: "done", label: "Done" },
+                  { value: "na", label: "N/A" },
+                ]}
+              />
             </div>
             <div className="sm:col-span-1">
               <label className={T_LABEL + " mb-1 block"}>Notes</label>
@@ -675,17 +677,17 @@ function AddSeparationModal({
 
           <div>
             <label className={T_LABEL + " mb-1 block"}>Separation Type</label>
-            <select
+            <SelectDark
               value={separationType}
-              onChange={(e) => setSeparationType(e.target.value as SeparationType)}
+              onChange={v => setSeparationType(v as SeparationType)}
               className={SELECT_CLASS}
-            >
-              {(Object.keys(SEPARATION_TYPE_LABELS) as SeparationType[]).map((key) => (
-                <option key={key} value={key}>
-                  {SEPARATION_TYPE_LABELS[key]}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...(Object.keys(SEPARATION_TYPE_LABELS) as SeparationType[]).map((key) => ({
+                  value: key,
+                  label: SEPARATION_TYPE_LABELS[key],
+                })),
+              ]}
+            />
           </div>
 
           {separationType === "termination" && (

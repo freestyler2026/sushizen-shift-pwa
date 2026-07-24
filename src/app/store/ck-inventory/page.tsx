@@ -6,6 +6,7 @@ import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
   Loader2, Lock, Package, Plus, Save, X, Trash2, Settings2,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON,
@@ -605,15 +606,12 @@ export default function CKInventoryPage() {
                                           {isFinalized ? (
                                             <span className="text-zinc-400">{draft.unit}</span>
                                           ) : (
-                                            <select
+                                            <SelectDark
                                               value={draft.unit}
-                                              onChange={e => updateEntry(item.id, "unit", e.target.value)}
-                                              className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2 py-1 text-sm text-white focus:border-violet-500/50 focus:outline-none"
-                                            >
-                                              {[...new Set([draft.unit, ...AVAILABLE_UNITS])].map(u => (
-                                                <option key={u} value={u}>{u}</option>
-                                              ))}
-                                            </select>
+                                              onChange={v => updateEntry(item.id, "unit", v)}
+                                              options={[...new Set([draft.unit, ...AVAILABLE_UNITS])].map(u => ({ value: u, label: u }))}
+                                              className="w-full rounded-lg border border-white/10 px-2 py-1 text-sm"
+                                            />
                                           )}
                                         </td>
                                         <td className={`${TABLE_CELL} px-3 text-right tabular-nums text-zinc-500`}>
@@ -708,12 +706,12 @@ export default function CKInventoryPage() {
                   placeholder="Section (e.g. SAUCE)"
                   className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none"
                 />
-                <select
-                  value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)}
-                  className="rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white focus:border-violet-500/50 focus:outline-none"
-                >
-                  {AVAILABLE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <SelectDark
+                  value={newItemUnit}
+                  onChange={setNewItemUnit}
+                  options={AVAILABLE_UNITS.map(u => ({ value: u, label: u }))}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-sm"
+                />
                 <button
                   onClick={() => void createItem()}
                   disabled={!newItemName.trim() || itemBusy}
@@ -783,15 +781,16 @@ export default function CKInventoryPage() {
               </div>
               <div>
                 <label className={`block ${T_CAPTION} mb-1`}>Session Type</label>
-                <select
+                <SelectDark
                   value={newType}
-                  onChange={e => setNewType(e.target.value as SessionType)}
-                  className="w-full rounded-xl border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white focus:border-violet-500/50 focus:outline-none"
-                >
-                  <option value="pre_delivery">Pre-Delivery</option>
-                  <option value="post_delivery">Post-Delivery</option>
-                  <option value="daily">Daily</option>
-                </select>
+                  onChange={v => setNewType(v as SessionType)}
+                  options={[
+                    { value: "pre_delivery", label: "Pre-Delivery" },
+                    { value: "post_delivery", label: "Post-Delivery" },
+                    { value: "daily", label: "Daily" },
+                  ]}
+                  className="w-full rounded-xl border border-white/10 px-3 py-2 text-sm"
+                />
               </div>
               <div>
                 <label className={`block ${T_CAPTION} mb-1`}>Notes (optional)</label>

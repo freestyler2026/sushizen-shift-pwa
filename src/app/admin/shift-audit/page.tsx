@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw, AlertTriangle, CheckCircle2, Database, FileSpreadsheet, Edit3, List } from "lucide-react";
 import { getAuth, getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, T_LABEL, T_PAGE_TITLE, TABLE_CELL, TABLE_HEADER, TABLE_ROW } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
@@ -207,13 +208,17 @@ export default function ShiftAuditPage() {
               ))}
             </div>
             {/* Weeks selector */}
-            <select value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}
-              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none">
-              <option value={2}>Last 2 weeks</option>
-              <option value={4}>Last 4 weeks</option>
-              <option value={8}>Last 8 weeks</option>
-              <option value={12}>Last 12 weeks</option>
-            </select>
+            <SelectDark
+              value={String(weeks)}
+              onChange={v => setWeeks(Number(v))}
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none"
+              options={[
+                { value: "2", label: "Last 2 weeks" },
+                { value: "4", label: "Last 4 weeks" },
+                { value: "8", label: "Last 8 weeks" },
+                { value: "12", label: "Last 12 weeks" },
+              ]}
+            />
             <button onClick={refresh} disabled={loading || logLoading}
               className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}>
               <RefreshCw className={`h-4 w-4 ${(loading || logLoading) ? "animate-spin" : ""}`} />

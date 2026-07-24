@@ -28,6 +28,7 @@ import {
   TABLE_HEADER,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ── API helpers ────────────────────────────────────────────────────────────
 
@@ -717,27 +718,39 @@ export default function CancellationReportPage() {
           <div className="flex flex-wrap gap-3">
             <div className="min-w-[140px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Branch</p>
-              <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
-                {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
+              <SelectDark
+                value={filterBranch}
+                onChange={setFilterBranch}
+                className={SELECT_CLASS}
+                options={BRANCHES.map((b) => ({ value: b, label: b }))}
+              />
             </div>
             <div className="min-w-[120px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Platform</p>
-              <select value={filterPlatform} onChange={(e) => setFilterPlatform(e.target.value)} className={SELECT_CLASS}>
-                {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <SelectDark
+                value={filterPlatform}
+                onChange={setFilterPlatform}
+                className={SELECT_CLASS}
+                options={PLATFORMS.map((p) => ({ value: p, label: p }))}
+              />
             </div>
             <div className="min-w-[150px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Category</p>
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={SELECT_CLASS}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <SelectDark
+                value={filterCategory}
+                onChange={setFilterCategory}
+                className={SELECT_CLASS}
+                options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+              />
             </div>
             <div className="min-w-[180px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Ticket Status</p>
-              <select value={filterTicket} onChange={(e) => setFilterTicket(e.target.value)} className={SELECT_CLASS}>
-                {TICKET_STATUSES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <SelectDark
+                value={filterTicket}
+                onChange={setFilterTicket}
+                className={SELECT_CLASS}
+                options={TICKET_STATUSES}
+              />
             </div>
             <div className="min-w-[180px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Search</p>

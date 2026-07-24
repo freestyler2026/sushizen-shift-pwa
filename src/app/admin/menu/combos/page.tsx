@@ -7,6 +7,7 @@ import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuGetText, menuPatch, menuPost } from "@/lib/menuClient";
+import SelectDark from "@/components/SelectDark";
 
 type ComboCostSummary = { effective_cost: number; cost_percentage: number };
 type MenuComboRow = {
@@ -353,15 +354,18 @@ function MenuCombosPageInner() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr,auto]">
           <div>
             <div className={LABEL}>Search</div>
-            <select value={q} onChange={(e) => setQ(e.target.value)} className={SELECT}>
-              <option value="">All combos</option>
-              {comboFilterOptions.map((row) => (
-                <option key={row.id} value={row.sku || row.barcode || row.name || ""}>
-                  {row.name}
-                  {row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              value={q}
+              onChange={setQ}
+              className={SELECT}
+              options={[
+                { value: "", label: "All combos" },
+                ...comboFilterOptions.map((row) => ({
+                  value: row.sku || row.barcode || row.name || "",
+                  label: row.name + (row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""),
+                })),
+              ]}
+            />
           </div>
           <div className="flex flex-col justify-end gap-2">
             <div className={LABEL}>Data tools</div>
@@ -410,17 +414,18 @@ function MenuCombosPageInner() {
             })}
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <SelectDark
               value={bulkAction}
-              onChange={(e) => setBulkAction(e.target.value)}
+              onChange={setBulkAction}
               className="rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500/50"
-            >
-              <option value="DEACTIVATE">Bulk Deactivate</option>
-              <option value="ACTIVATE">Bulk Activate</option>
-              <option value="DELETE">Bulk Delete</option>
-              <option value="RESTORE">Bulk Restore</option>
-              <option value="UPDATE_SORT">Bulk Update Sort</option>
-            </select>
+              options={[
+                { value: "DEACTIVATE", label: "Bulk Deactivate" },
+                { value: "ACTIVATE", label: "Bulk Activate" },
+                { value: "DELETE", label: "Bulk Delete" },
+                { value: "RESTORE", label: "Bulk Restore" },
+                { value: "UPDATE_SORT", label: "Bulk Update Sort" },
+              ]}
+            />
             <button
               type="button"
               onClick={() => void applyBulkAction()}
@@ -502,16 +507,26 @@ function MenuCombosPageInner() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className={LABEL}>Pricing Method</div>
-                    <select value={form.pricing_method} onChange={(e) => setForm((current) => ({ ...current, pricing_method: e.target.value }))} className={SELECT}>
-                      <option value="FIXED_PRICE">Fixed Price</option>
-                    </select>
+                    <SelectDark
+                      value={form.pricing_method}
+                      onChange={(v) => setForm((current) => ({ ...current, pricing_method: v }))}
+                      className={SELECT}
+                      options={[
+                        { value: "FIXED_PRICE", label: "Fixed Price" },
+                      ]}
+                    />
                   </div>
                   <div>
                     <div className={LABEL}>Costing Method</div>
-                    <select value={form.costing_method} onChange={(e) => setForm((current) => ({ ...current, costing_method: e.target.value }))} className={SELECT}>
-                      <option value="FROM_INGREDIENTS">From Products</option>
-                      <option value="FIXED_COST">Fixed Cost</option>
-                    </select>
+                    <SelectDark
+                      value={form.costing_method}
+                      onChange={(v) => setForm((current) => ({ ...current, costing_method: v }))}
+                      className={SELECT}
+                      options={[
+                        { value: "FROM_INGREDIENTS", label: "From Products" },
+                        { value: "FIXED_COST", label: "Fixed Cost" },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>

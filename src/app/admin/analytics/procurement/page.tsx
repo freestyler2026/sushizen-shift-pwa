@@ -30,6 +30,7 @@ import { cardVariants, pageVariants, staggerContainerVariants, tabContentTransit
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
+import SelectDark from "@/components/SelectDark";
 
 const PAGE_SHELL = "min-h-screen text-white";
 const PAGE_CONTAINER = "mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-6 py-10";
@@ -751,10 +752,15 @@ export default function ProcurementAnalyticsSection() {
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
           <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className={INPUT_CLASS} />
           <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={INPUT_CLASS} />
-          <select value={market} onChange={(e) => setMarket(String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")} className={SELECT_CLASS}>
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={market}
+            onChange={v => setMarket(String(v || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")}
+            options={[
+              { value: "manila", label: "Manila" },
+              { value: "dubai", label: "Dubai" },
+            ]}
+          />
           <DateRangePicker
             value={{ from: dateFrom, to: dateTo }}
             onChange={(range) => {
@@ -1229,14 +1235,15 @@ export default function ProcurementAnalyticsSection() {
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-2">
-            <select value={selectedPoNo} onChange={(e) => setSelectedPoNo(e.target.value)} className={`w-full ${SELECT_CLASS}`}>
-              <option value="">Select PO</option>
-              {poRows.map((row) => (
-                <option key={row.id} value={row.po_no}>
-                  {row.po_no} · {row.vendor_name || "-"} · {fmtDate(row.delivery_date || row.created_at || "")}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              className={`w-full ${SELECT_CLASS}`}
+              value={selectedPoNo}
+              onChange={setSelectedPoNo}
+              options={[
+                { value: "", label: "Select PO" },
+                ...poRows.map(row => ({ value: row.po_no, label: `${row.po_no} · ${row.vendor_name || "-"} · ${fmtDate(row.delivery_date || row.created_at || "")}` })),
+              ]}
+            />
             <div className="max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 shadow-lg shadow-black/30 backdrop-blur-sm">
               {poRows.map((row) => (
                 <button

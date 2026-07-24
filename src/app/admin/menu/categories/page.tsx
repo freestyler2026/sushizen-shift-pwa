@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import SelectDark from "@/components/SelectDark";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -318,14 +319,18 @@ export default function MenuCategoriesPage() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr,auto]">
           <div>
             <div className={LABEL}>Search</div>
-            <select value={q} onChange={(e) => setQ(e.target.value)} className={SELECT}>
-              <option value="">All categories</option>
-              {filterOptions.map((row) => (
-                <option key={row.id} value={row.name || ""}>
-                  {row.name}{row.reference ? ` (${row.reference})` : ""}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              value={q}
+              onChange={setQ}
+              className={SELECT}
+              options={[
+                { value: "", label: "All categories" },
+                ...filterOptions.map((row) => ({
+                  value: row.name || "",
+                  label: `${row.name}${row.reference ? ` (${row.reference})` : ""}`,
+                })),
+              ]}
+            />
           </div>
           <div className="flex flex-col justify-end gap-2">
             <div className={LABEL}>Data tools</div>
@@ -372,17 +377,18 @@ export default function MenuCategoriesPage() {
             })}
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <SelectDark
               value={bulkAction}
-              onChange={(e) => setBulkAction(e.target.value)}
+              onChange={setBulkAction}
               className="rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500/50"
-            >
-              <option value="DEACTIVATE">Bulk Deactivate</option>
-              <option value="ACTIVATE">Bulk Activate</option>
-              <option value="DELETE">Bulk Delete</option>
-              <option value="RESTORE">Bulk Restore</option>
-              <option value="UPDATE_SORT">Bulk Update Sort</option>
-            </select>
+              options={[
+                { value: "DEACTIVATE", label: "Bulk Deactivate" },
+                { value: "ACTIVATE", label: "Bulk Activate" },
+                { value: "DELETE", label: "Bulk Delete" },
+                { value: "RESTORE", label: "Bulk Restore" },
+                { value: "UPDATE_SORT", label: "Bulk Update Sort" },
+              ]}
+            />
             <button
               type="button"
               onClick={() => void applyBulkAction()}

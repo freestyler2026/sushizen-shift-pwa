@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Receipt, Clock, CheckCircle, XCircle, Banknote, ChevronDown } from "lucide-react";
+import { Receipt, Clock, CheckCircle, XCircle, Banknote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -28,6 +28,7 @@ import {
   TABLE_ROW,
   TABLE_CELL,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const CATEGORIES = ["Ingredients", "Transport", "Uniform", "Equipment", "Mobile", "Other"] as const;
 
@@ -198,20 +199,15 @@ export default function ExpenseRequestPage() {
               {/* Category */}
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Category *</label>
-                <div className="relative">
-                  <select
-                    className={SELECT_CLASS}
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    required
-                  >
-                    <option value="">Select category...</option>
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                </div>
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={category}
+                  onChange={setCategory}
+                  options={[
+                    { value: "", label: "Select category..." },
+                    ...CATEGORIES.map((c) => ({ value: c, label: c })),
+                  ]}
+                />
               </div>
 
               {/* Amount */}

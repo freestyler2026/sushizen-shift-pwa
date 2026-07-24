@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -408,11 +409,11 @@ export default function InventoryTransferOrdersPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
-            onChange={(e) => {
-              const next = e.target.value as City;
+            onChange={(v) => {
+              const next = v as City;
               if (next === city) return;
               if (draftItems.length > 0) {
                 setConfirmModal({
@@ -426,32 +427,23 @@ export default function InventoryTransferOrdersPage() {
               }
               setCity(next);
             }}
-          >
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
-          <select
+            options={[
+              { value: "dubai", label: "Dubai" },
+              { value: "manila", label: "Manila" },
+            ]}
+          />
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={fromBranch}
-            onChange={(e) => setFromBranch(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                From: {branch.name}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setFromBranch}
+            options={BRANCHES[city].map((branch) => ({ value: branch.code, label: `From: ${branch.name}` }))}
+          />
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={toBranch}
-            onChange={(e) => setToBranch(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                To: {branch.name}
-              </option>
-            ))}
-          </select>
+            onChange={setToBranch}
+            options={BRANCHES[city].map((branch) => ({ value: branch.code, label: `To: ${branch.name}` }))}
+          />
           <input
             list="inventory-transfer-staff-list"
             value={requestedBy}
@@ -558,17 +550,12 @@ export default function InventoryTransferOrdersPage() {
             }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-          >
-            {TRANSFER_ORDER_UNITS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedUnit}
+            options={TRANSFER_ORDER_UNITS.map((unit) => ({ value: unit, label: unit }))}
+          />
           <button
             type="button"
             onClick={addDraftItem}

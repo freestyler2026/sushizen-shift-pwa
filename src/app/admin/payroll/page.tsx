@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/payroll";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -194,17 +195,27 @@ function ConfigModal({
 
           <div>
             <label className={labelCls}>Currency</label>
-            <select className={selectCls} value={form.currency} onChange={e => set("currency", e.target.value)}>
-              <option value="AED">AED</option>
-              <option value="PHP">PHP</option>
-            </select>
+            <SelectDark
+              className={selectCls}
+              value={form.currency}
+              onChange={v => set("currency", v)}
+              options={[
+                { value: "AED", label: "AED" },
+                { value: "PHP", label: "PHP" },
+              ]}
+            />
           </div>
           <div>
             <label className={labelCls}>Paid Via</label>
-            <select className={selectCls} value={form.paid_via} onChange={e => set("paid_via", e.target.value)}>
-              <option value="cash">Cash</option>
-              <option value="bank">Bank Transfer</option>
-            </select>
+            <SelectDark
+              className={selectCls}
+              value={form.paid_via}
+              onChange={v => set("paid_via", v)}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "bank", label: "Bank Transfer" },
+              ]}
+            />
           </div>
           {form.paid_via === "bank" && (
             <div className="col-span-2">
@@ -650,21 +661,21 @@ export default function PayrollPage() {
       {/* ── Cycle controls toolbar ────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-white border-b border-gray-200 px-6 py-2">
         <div className="flex items-center gap-2">
-          <select
+          <SelectDark
             className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none focus:border-teal-500"
-            value={selectedCycle?.id ?? ""}
-            onChange={e => {
-              const c = cycles.find(x => x.id === Number(e.target.value));
+            value={String(selectedCycle?.id ?? "")}
+            onChange={v => {
+              const c = cycles.find(x => x.id === Number(v));
               if (c) setSelectedCycle(c);
             }}
-          >
-            {cycles.length === 0 && <option value="">No cycles</option>}
-            {cycles.map(c => (
-              <option key={c.id} value={c.id}>
-                {MONTHS[c.month - 1]} {c.year} — {c.status === "open" ? "Open" : "Closed"}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...(cycles.length === 0 ? [{ value: "", label: "No cycles" }] : []),
+              ...cycles.map(c => ({
+                value: String(c.id),
+                label: `${MONTHS[c.month - 1]} ${c.year} — ${c.status === "open" ? "Open" : "Closed"}`,
+              })),
+            ]}
+          />
           {selectedCycle && (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               selectedCycle.status === "open"

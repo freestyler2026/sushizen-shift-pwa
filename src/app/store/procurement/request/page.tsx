@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
@@ -1175,10 +1176,10 @@ export default function StoreProcurementRequestPage() {
 
       {/* Compact top bar — city/store selector visible even on mobile */}
       <div className={`${GLASS_PANEL} grid grid-cols-2 gap-2 p-3 sm:grid-cols-4`}>
-        <select
+        <SelectDark
           value={city}
-          onChange={(e) => {
-            const nextCity = String(e.target.value || "manila").toLowerCase();
+          onChange={(v) => {
+            const nextCity = String(v || "manila").toLowerCase();
             if (nextCity === city) return;
             if (validItems.length > 0) {
               setPendingCitySwitch(nextCity);
@@ -1194,15 +1195,14 @@ export default function StoreProcurementRequestPage() {
             }
           }}
           className={FIELD_CLASS}
-        >
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <select
+          options={[
+            { value: "manila", label: "Manila" },
+            { value: "dubai", label: "Dubai" },
+          ]}
+        />
+        <SelectDark
           value={allStoresFlag ? "ALL" : storeCode}
-          disabled={allStoresFlag}
-          onChange={(e) => {
-            const v = String(e.target.value || "");
+          onChange={(v) => {
             setStoreCode(v);
             if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v);
             // Auto-select matching category when a store is chosen
@@ -1217,17 +1217,12 @@ export default function StoreProcurementRequestPage() {
             }
           }}
           className={`${FIELD_CLASS} ${allStoresFlag ? "opacity-50 cursor-not-allowed" : ""}`}
-        >
-          {allStoresFlag
-            ? <option value="ALL">All Stores (global order)</option>
-            : <>
-                <option value="">Select store (required)</option>
-                {catalogStores.map((store) => (
-                  <option key={store} value={store}>{store}</option>
-                ))}
-              </>
+          options={
+            allStoresFlag
+              ? [{ value: "ALL", label: "All Stores (global order)" }]
+              : [{ value: "", label: "Select store (required)" }, ...catalogStores.map((store) => ({ value: store, label: store }))]
           }
-        </select>
+        />
         <input type="date" value={requestDate} onChange={(e) => { setRequestDate(e.target.value); if (validItems.length > 0) setShowDateWarning(true); }} className={FIELD_CLASS} />
         <div className="flex items-center gap-3 flex-wrap">
           <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">

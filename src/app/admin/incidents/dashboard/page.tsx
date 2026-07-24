@@ -26,6 +26,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -195,15 +196,16 @@ export default function IncidentDashboardPage() {
               {cityLock === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"} only
             </span>
           ) : (
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} w-auto min-w-[130px]`}
               value={filterCity}
-              onChange={(e) => setFilterCity(e.target.value)}
-            >
-              <option value="">All Cities</option>
-              <option value="dubai">Dubai 🇦🇪</option>
-              <option value="manila">Manila 🇵🇭</option>
-            </select>
+              onChange={setFilterCity}
+              options={[
+                { value: "", label: "All Cities" },
+                { value: "dubai", label: "Dubai 🇦🇪" },
+                { value: "manila", label: "Manila 🇵🇭" },
+              ]}
+            />
           )}
           <button
             className={`${SMALL_BUTTON} flex items-center gap-1`}

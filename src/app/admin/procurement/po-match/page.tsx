@@ -41,6 +41,7 @@ import {
   TAB_INACTIVE,
   TEXTAREA_CLASS,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 import { getAuth } from "@/lib/auth";
 
 const API = (path: string) => `/api/admin${path}`;
@@ -855,15 +856,12 @@ function QuickEntryTab({
             {!isMatch && (
               <div className="mt-3 border-t border-amber-500/20 pt-3">
                 <label className={T_LABEL}>Discrepancy Type *</label>
-                <select
+                <SelectDark
                   className={`mt-1.5 ${SELECT_CLASS}`}
                   value={discrepancyType}
-                  onChange={e => setDiscrepancyType(e.target.value)}
-                >
-                  {DISCREPANCY_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                  onChange={setDiscrepancyType}
+                  options={DISCREPANCY_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                />
               </div>
             )}
           </div>
@@ -1056,11 +1054,12 @@ function DiscrepancyQueueTab() {
                   <p className="text-sm font-medium text-amber-300">Resolve this discrepancy</p>
                   <div>
                     <label className={T_LABEL}>Discrepancy Type</label>
-                    <select className={`mt-1.5 ${SELECT_CLASS}`} value={resolveType} onChange={e => setResolveType(e.target.value)}>
-                      {DISCREPANCY_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
+                    <SelectDark
+                      className={`mt-1.5 ${SELECT_CLASS}`}
+                      value={resolveType}
+                      onChange={setResolveType}
+                      options={DISCREPANCY_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                    />
                   </div>
                   <div>
                     <label className={T_LABEL}>Resolution Note *</label>
@@ -1296,12 +1295,17 @@ function SupplierScorecardTab() {
         </div>
         <div className="flex items-center gap-2">
           <label className={T_LABEL}>Period</label>
-          <select className={SELECT_CLASS + " w-auto"} value={days} onChange={e => setDays(Number(e.target.value))}>
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={180}>Last 6 months</option>
-          </select>
+          <SelectDark
+            className={SELECT_CLASS + " w-auto"}
+            value={String(days)}
+            onChange={v => setDays(Number(v))}
+            options={[
+              { value: "7", label: "Last 7 days" },
+              { value: "30", label: "Last 30 days" },
+              { value: "90", label: "Last 90 days" },
+              { value: "180", label: "Last 6 months" },
+            ]}
+          />
           <button className={SMALL_BUTTON} onClick={load} disabled={loading}><RefreshCw size={13} className={loading ? "animate-spin" : ""} /></button>
         </div>
       </div>
@@ -1545,14 +1549,15 @@ export default function PoMatchPage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <label className={T_LABEL}>City</label>
-              <select
+              <SelectDark
                 className={SELECT_CLASS + " w-auto"}
                 value={city}
-                onChange={e => handleCityChange(e.target.value)}
-              >
-                <option value="dubai">Dubai (AED)</option>
-                <option value="manila">Manila (PHP)</option>
-              </select>
+                onChange={handleCityChange}
+                options={[
+                  { value: "dubai", label: "Dubai (AED)" },
+                  { value: "manila", label: "Manila (PHP)" },
+                ]}
+              />
             </div>
           </div>
 

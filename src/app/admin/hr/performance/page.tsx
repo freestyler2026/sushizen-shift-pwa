@@ -9,6 +9,7 @@ import {
   getAuthHeaders,
 } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -693,26 +694,26 @@ export default function HRPerformancePage() {
               value={filterName}
               onChange={(e) => setFilterName(e.target.value)}
             />
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-            >
-              <option value="">All review types</option>
-              {(Object.keys(REVIEW_TYPE_LABELS) as ReviewType[]).map((k) => (
-                <option key={k} value={k}>{REVIEW_TYPE_LABELS[k]}</option>
-              ))}
-            </select>
-            <select
+              onChange={setFilterType}
+              options={[
+                { value: "", label: "All review types" },
+                ...(Object.keys(REVIEW_TYPE_LABELS) as ReviewType[]).map((k) => ({ value: k, label: REVIEW_TYPE_LABELS[k] })),
+              ]}
+            />
+            <SelectDark
               className={SELECT_CLASS}
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
-              <option value="acknowledged">Acknowledged</option>
-            </select>
+              onChange={setFilterStatus}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "draft", label: "Draft" },
+                { value: "submitted", label: "Submitted" },
+                { value: "acknowledged", label: "Acknowledged" },
+              ]}
+            />
           </div>
           <button onClick={fetchReviews} className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
             <RefreshCw className="h-3.5 w-3.5" />
@@ -804,16 +805,15 @@ export default function HRPerformancePage() {
               </div>
               <div className="space-y-1.5">
                 <label className={T_LABEL}>Review Type *</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={form.review_type}
-                  onChange={(e) => setForm((f) => ({ ...f, review_type: e.target.value as ReviewType }))}
-                >
-                  <option value="">Select type...</option>
-                  {(Object.keys(REVIEW_TYPE_LABELS) as ReviewType[]).map((k) => (
-                    <option key={k} value={k}>{REVIEW_TYPE_LABELS[k]}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setForm((f) => ({ ...f, review_type: v as ReviewType }))}
+                  options={[
+                    { value: "", label: "Select type..." },
+                    ...(Object.keys(REVIEW_TYPE_LABELS) as ReviewType[]).map((k) => ({ value: k, label: REVIEW_TYPE_LABELS[k] })),
+                  ]}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className={T_LABEL}>Review Date *</label>

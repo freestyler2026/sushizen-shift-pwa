@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -440,15 +441,14 @@ export default function InventoryQuantityAdjustmentsPage() {
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={branchCode}
-              onChange={(e) => setBranchCode(e.target.value)}
-            >
-              {BRANCHES[city].map((branch) => (
-                <option key={branch.code} value={branch.code}>{branch.name}</option>
-              ))}
-            </select>
+              onChange={setBranchCode}
+              options={[
+                ...BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name })),
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
@@ -461,17 +461,18 @@ export default function InventoryQuantityAdjustmentsPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Reason</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            >
-              <option value="WASTE">Waste</option>
-              <option value="EXPIRED">Expired</option>
-              <option value="LOSS">Loss</option>
-              <option value="DAMAGE">Damage</option>
-              <option value="MANUAL_FIX">Manual Fix</option>
-            </select>
+              onChange={setReason}
+              options={[
+                { value: "WASTE", label: "Waste" },
+                { value: "EXPIRED", label: "Expired" },
+                { value: "LOSS", label: "Loss" },
+                { value: "DAMAGE", label: "Damage" },
+                { value: "MANUAL_FIX", label: "Manual Fix" },
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Notes</label>

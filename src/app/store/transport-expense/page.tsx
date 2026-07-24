@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -408,9 +409,12 @@ export default function TransportExpensePage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-              <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-                {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-              </select>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={branch}
+                onChange={setBranch}
+                options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+              />
             </div>
           </div>
 

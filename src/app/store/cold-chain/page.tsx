@@ -28,6 +28,7 @@ import {
   T_LABEL,
   T_CAPTION,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -372,10 +373,15 @@ function DispatchForm({ city }: { city: string }) {
       {/* Dispatched By */}
       <div>
         <label className={`${T_LABEL} mb-1 block`}>Dispatched By</label>
-        <select className={SELECT_CLASS} value={dispatchedBy} onChange={(e) => setDispatchedBy(e.target.value)}>
-          <option value="">— Select Staff —</option>
-          {staffNames.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <SelectDark
+          className={SELECT_CLASS}
+          value={dispatchedBy}
+          onChange={setDispatchedBy}
+          options={[
+            { value: "", label: "— Select Staff —" },
+            ...staffNames.map((n) => ({ value: n, label: n })),
+          ]}
+        />
       </div>
 
       {/* Destination Branches */}
@@ -712,9 +718,12 @@ function ReceivingForm({ city }: { city: string }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-          <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-            {branches.map((b) => <option key={b} value={b}>{BRANCH_LABELS[b] ?? b}</option>)}
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={branch}
+            onChange={setBranch}
+            options={branches.map((b) => ({ value: b, label: BRANCH_LABELS[b] ?? b }))}
+          />
         </div>
         <div>
           <div className="flex items-center justify-between mb-1">
@@ -730,17 +739,18 @@ function ReceivingForm({ city }: { city: string }) {
           ) : dispatches.length === 0 ? (
             <p className={`${T_CAPTION} text-amber-400 py-2`}>No dispatches found — ask CK to create one first</p>
           ) : (
-            <select className={SELECT_CLASS} value={dispatchId} onChange={(e) => setDispatchId(e.target.value)}>
-              {dispatches.map((d) => {
+            <SelectDark
+              className={SELECT_CLASS}
+              value={dispatchId}
+              onChange={setDispatchId}
+              options={dispatches.map((d) => {
                 const dests = (d.destination_branches ?? []).map((b) => BRANCH_LABELS[b] ?? b).join(", ");
-                return (
-                  <option key={d.id} value={d.id}>
-                    [{d.dispatch_date}] {d.dispatched_by}{dests ? ` → ${dests}` : ""}
-                    {d.has_dispatch_boxes ? " ✓" : ""}
-                  </option>
-                );
+                return {
+                  value: d.id,
+                  label: `[${d.dispatch_date}] ${d.dispatched_by}${dests ? ` → ${dests}` : ""}${d.has_dispatch_boxes ? " ✓" : ""}`,
+                };
               })}
-            </select>
+            />
           )}
         </div>
       </div>
@@ -749,10 +759,15 @@ function ReceivingForm({ city }: { city: string }) {
       {dispatchId && (
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Received By</label>
-          <select className={SELECT_CLASS} value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)}>
-            <option value="">— Select Receiving Staff —</option>
-            {staffNames.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={receivedBy}
+            onChange={setReceivedBy}
+            options={[
+              { value: "", label: "— Select Receiving Staff —" },
+              ...staffNames.map((n) => ({ value: n, label: n })),
+            ]}
+          />
         </div>
       )}
 

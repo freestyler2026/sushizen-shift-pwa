@@ -26,6 +26,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
+import SelectDark from "@/components/SelectDark";
 
 type RequestRow = {
   id: string;
@@ -397,18 +398,19 @@ export default function StoreProcurementClaimPage() {
                   <Building2 className="h-3 w-3" />
                   City
                 </label>
-                <select
+                <SelectDark
                   value={city}
-                  onChange={(e) => {
-                    const nextCity = String(e.target.value || "manila").toLowerCase();
+                  onChange={(v) => {
+                    const nextCity = String(v || "manila").toLowerCase();
                     setCity(nextCity);
                     void loadMyRequests(nextCity);
                   }}
                   className={SELECT_CLASS}
-                >
-                  <option value="manila">Manila</option>
-                  <option value="dubai">Dubai</option>
-                </select>
+                  options={[
+                    { value: "manila", label: "Manila" },
+                    { value: "dubai", label: "Dubai" },
+                  ]}
+                />
               </div>
               <button
                 type="button"
@@ -494,12 +496,17 @@ export default function StoreProcurementClaimPage() {
                 {/* Claim type */}
                 <div>
                   <label className={`${T_LABEL} mb-1.5 block`}>Claim Type</label>
-                  <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className={SELECT_CLASS}>
-                    <option value="SHORTAGE">SHORTAGE — Items missing from delivery</option>
-                    <option value="EXCESS">EXCESS — More than ordered received</option>
-                    <option value="QUALITY">QUALITY — Items damaged or substandard</option>
-                    <option value="INVOICE_VARIANCE">INVOICE_VARIANCE — Price discrepancy</option>
-                  </select>
+                  <SelectDark
+                    value={claimType}
+                    onChange={setClaimType}
+                    className={SELECT_CLASS}
+                    options={[
+                      { value: "SHORTAGE", label: "SHORTAGE — Items missing from delivery" },
+                      { value: "EXCESS", label: "EXCESS — More than ordered received" },
+                      { value: "QUALITY", label: "QUALITY — Items damaged or substandard" },
+                      { value: "INVOICE_VARIANCE", label: "INVOICE_VARIANCE — Price discrepancy" },
+                    ]}
+                  />
                 </div>
 
                 {/* Amount impact */}
@@ -661,17 +668,18 @@ export default function StoreProcurementClaimPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className={T_SECTION}>Claim History</h2>
                   <div className="flex items-center gap-2">
-                    <select
+                    <SelectDark
                       value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
+                      onChange={setStatusFilter}
                       className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white outline-none focus:border-violet-500/50"
-                    >
-                      <option value="">All statuses</option>
-                      <option value="OPEN">OPEN</option>
-                      <option value="ASSIGNED">ASSIGNED</option>
-                      <option value="ESCALATED">ESCALATED</option>
-                      <option value="RESOLVED">RESOLVED</option>
-                    </select>
+                      options={[
+                        { value: "", label: "All statuses" },
+                        { value: "OPEN", label: "OPEN" },
+                        { value: "ASSIGNED", label: "ASSIGNED" },
+                        { value: "ESCALATED", label: "ESCALATED" },
+                        { value: "RESOLVED", label: "RESOLVED" },
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="space-y-3">

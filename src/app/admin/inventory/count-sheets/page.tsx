@@ -9,6 +9,7 @@ import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { emptyCountLine, lineFromItem, monthNow, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 import { formatDraftNumber, getInventoryCostStep, getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
+import SelectDark from "@/components/SelectDark";
 
 type CountSheetRow = {
   id: string;
@@ -601,16 +602,18 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => handleBranchChange(e.target.value)}>
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>{branch.name}</option>
-            ))}
-          </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={cycle} onChange={(e) => setCycle(e.target.value)}>
-            {cycleOptions().map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            value={branchCode}
+            onChange={handleBranchChange}
+            options={BRANCHES[city].map((branch) => ({ value: branch.code, label: branch.name }))}
+          />
+          <SelectDark
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            value={cycle}
+            onChange={setCycle}
+            options={cycleOptions()}
+          />
           <input value={draftTemplateName()} readOnly placeholder="Template name (auto)" className="rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm text-neutral-400" />
           <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
         </div>

@@ -38,6 +38,7 @@ import {
   Star,
   ExternalLink,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -353,28 +354,43 @@ export default function DirectPurchasesAdminPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select value={cityFilter} onChange={(e) => handleFilterChange(e.target.value, statusFilter, verifiedFilter)} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-              <option value="">All</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={cityFilter}
+              onChange={v => handleFilterChange(v, statusFilter, verifiedFilter)}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+                { value: "", label: "All" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-            <select value={statusFilter} onChange={(e) => handleFilterChange(cityFilter, e.target.value, verifiedFilter)} className={SELECT_CLASS}>
-              <option value="">All</option>
-              <option value="IN_REVIEW">In Review</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={statusFilter}
+              onChange={v => handleFilterChange(cityFilter, v, verifiedFilter)}
+              options={[
+                { value: "", label: "All" },
+                { value: "IN_REVIEW", label: "In Review" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "REJECTED", label: "Rejected" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Verification</label>
-            <select value={verifiedFilter} onChange={(e) => handleFilterChange(cityFilter, statusFilter, e.target.value)} className={SELECT_CLASS}>
-              <option value="">All</option>
-              <option value="false">Pending review</option>
-              <option value="true">Verified</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={verifiedFilter}
+              onChange={v => handleFilterChange(cityFilter, statusFilter, v)}
+              options={[
+                { value: "", label: "All" },
+                { value: "false", label: "Pending review" },
+                { value: "true", label: "Verified" },
+              ]}
+            />
           </div>
         </div>
         <div className="mt-3 flex justify-end">
@@ -600,9 +616,12 @@ export default function DirectPurchasesAdminPage() {
                             <input type="number" value={item.qty}
                               onChange={(e) => updateEditItem(idx, "qty", e.target.value)}
                               placeholder="Qty" min="0" step="0.1" className={INPUT_CLASS} />
-                            <select value={item.unit} onChange={(e) => updateEditItem(idx, "unit", e.target.value)} className={SELECT_CLASS}>
-                              {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                            </select>
+                            <SelectDark
+                              className={SELECT_CLASS}
+                              value={item.unit}
+                              onChange={v => updateEditItem(idx, "unit", v)}
+                              options={UNITS.map(u => ({ value: u, label: u }))}
+                            />
                             <input type="number" value={item.unit_price}
                               onChange={(e) => updateEditItem(idx, "unit_price", e.target.value)}
                               placeholder="Unit price" min="0" step="1" className={INPUT_CLASS} />

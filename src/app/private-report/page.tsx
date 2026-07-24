@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, type City as BranchCity } from "@/lib/branches";
 import { GLASS_CARD, T_PAGE_TITLE, T_BODY, BADGE_WARNING } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 type ReportType = "app-private-report" | "hq-private-report";
 type PrivateReportResult = {
@@ -173,39 +174,42 @@ export default function PrivateReportPage() {
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block">
                   <div className={LABEL_CLASS}>Report Type</div>
-                  <select
+                  <SelectDark
                     className={SELECT_POLISH}
                     value={reportType}
-                    onChange={(e) => setReportType(e.target.value as ReportType)}
-                  >
-                    <option value="app-private-report">app-private-report</option>
-                    <option value="hq-private-report">hq-private-report</option>
-                  </select>
+                    onChange={v => setReportType(v as ReportType)}
+                    options={[
+                      { value: "app-private-report", label: "app-private-report" },
+                      { value: "hq-private-report", label: "hq-private-report" },
+                    ]}
+                  />
                 </label>
                 <label className="block">
                   <div className={LABEL_CLASS}>City</div>
-                  <select
+                  <SelectDark
                     className={SELECT_POLISH}
                     value={city}
-                    onChange={(e) => {
-                      setCity(e.target.value as BranchCity);
+                    onChange={v => {
+                      setCity(v as BranchCity);
                       setBranch("");
                     }}
-                  >
-                    <option value="dubai">Dubai</option>
-                    <option value="manila">Manila</option>
-                  </select>
+                    options={[
+                      { value: "dubai", label: "Dubai" },
+                      { value: "manila", label: "Manila" },
+                    ]}
+                  />
                 </label>
                 <label className="block">
                   <div className={LABEL_CLASS}>Store / Branch</div>
-                  <select className={SELECT_POLISH} value={branch} onChange={(e) => setBranch(e.target.value)}>
-                    <option value="">- Select branch -</option>
-                    {(BRANCHES[(city as BranchCity) || "dubai"] || []).map((b) => (
-                      <option key={b.code} value={b.code}>
-                        {b.name} ({b.code})
-                      </option>
-                    ))}
-                  </select>
+                  <SelectDark
+                    className={SELECT_POLISH}
+                    value={branch}
+                    onChange={setBranch}
+                    options={[
+                      { value: "", label: "- Select branch -" },
+                      ...(BRANCHES[(city as BranchCity) || "dubai"] || []).map(b => ({ value: b.code, label: `${b.name} (${b.code})` })),
+                    ]}
+                  />
                 </label>
                 <label className="block">
                   <div className={LABEL_CLASS}>Date / Time</div>
@@ -231,25 +235,31 @@ export default function PrivateReportPage() {
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block">
                     <div className={LABEL_CLASS}>Category</div>
-                    <select className={SELECT_POLISH} value={category} onChange={(e) => setCategory(e.target.value)}>
-                      <option value="App">App</option>
-                      <option value="Operation">Operation</option>
-                      <option value="Management">Management</option>
-                      <option value="Staff issue">Staff issue</option>
-                      <option value="Suggestion">Suggestion</option>
-                      <option value="Other">Other</option>
-                    </select>
+                    <SelectDark
+                      className={SELECT_POLISH}
+                      value={category}
+                      onChange={setCategory}
+                      options={[
+                        { value: "App", label: "App" },
+                        { value: "Operation", label: "Operation" },
+                        { value: "Management", label: "Management" },
+                        { value: "Staff issue", label: "Staff issue" },
+                        { value: "Suggestion", label: "Suggestion" },
+                        { value: "Other", label: "Other" },
+                      ]}
+                    />
                   </label>
                   <label className="block">
                     <div className={LABEL_CLASS}>Anonymous request</div>
-                    <select
+                    <SelectDark
                       className={SELECT_POLISH}
                       value={anonymousRequest ? "yes" : "no"}
-                      onChange={(e) => setAnonymousRequest(e.target.value === "yes")}
-                    >
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
+                      onChange={v => setAnonymousRequest(v === "yes")}
+                      options={[
+                        { value: "yes", label: "Yes" },
+                        { value: "no", label: "No" },
+                      ]}
+                    />
                   </label>
                   <label className="block">
                     <div className={LABEL_CLASS}>What happened</div>

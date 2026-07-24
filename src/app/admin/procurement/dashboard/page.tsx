@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, saveProcurementSession } from "@/lib/procurementClient";
 import MonthPicker from "@/components/MonthPicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   SECONDARY_BUTTON,
@@ -296,14 +297,15 @@ export default function ProcurementDashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <MonthPicker value={monthKey} onChange={setMonthKey} />
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => setCity(String(e.target.value).toLowerCase() === "dubai" ? "dubai" : "manila")}
+              onChange={v => setCity(String(v).toLowerCase() === "dubai" ? "dubai" : "manila")}
               className="appearance-none rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none"
-            >
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
             <button
               type="button"
               onClick={() => void load()}

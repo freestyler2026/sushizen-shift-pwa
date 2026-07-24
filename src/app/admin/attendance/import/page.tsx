@@ -19,6 +19,7 @@ import {
   T_PAGE_TITLE,
   T_SECTION,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 type SyncAllResponse = {
   ok?: boolean;
@@ -236,15 +237,16 @@ export default function AttendanceImportPage() {
 
               <label className="space-y-2">
                 <span className={T_LABEL}>City Hint (optional)</span>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={cityHint}
-                  onChange={(e) => setCityHint(e.target.value)}
-                >
-                  <option value="">Auto detect from file</option>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                  onChange={setCityHint}
+                  options={[
+                    { value: "", label: "Auto detect from file" },
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </label>
 
               <label className="space-y-2">

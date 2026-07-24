@@ -22,6 +22,7 @@ import {
   TABLE_CELL,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Fixed Template Definition ───────────────────────────────────────────────
 
@@ -725,15 +726,12 @@ function TemplateSectionBlock({
                         placeholder="—"
                         onChange={(e) => onChange(item.key, e.target.value)}
                       />
-                      <select
+                      <SelectDark
                         className="shrink-0 w-12 rounded-lg border border-white/10 bg-zinc-900 px-0.5 py-3 text-[10px] text-zinc-400 outline-none focus:border-violet-500/50 cursor-pointer text-center appearance-none"
                         value={unitOverrides[item.key] ?? item.unit}
-                        onChange={(e) => onUnitChange(item.key, e.target.value)}
-                      >
-                        {unitOptionsFor(item.unit).map((u) => (
-                          <option key={u} value={u}>{u}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => onUnitChange(item.key, v)}
+                        options={unitOptionsFor(item.unit).map((u) => ({ value: u, label: u }))}
+                      />
                     </div>
                   )}
                 </div>
@@ -976,18 +974,24 @@ export default function BackupReportPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>City</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={city}
-                  onChange={(e) => setCity(e.target.value as City)}>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={city}
+                  onChange={(v) => setCity(v as City)}
+                  options={[
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Branch</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={branchCode}
-                  onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
-                  {BRANCHES[city].map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={branchCode}
+                  onChange={(v) => setBranchCode(v as BranchCode)}
+                  options={BRANCHES[city].map((b) => ({ value: b.code, label: b.name }))}
+                />
               </div>
               <div className="min-w-0 overflow-hidden">
                 <label className={`${T_LABEL} block mb-1.5`}>Date</label>
@@ -1001,10 +1005,12 @@ export default function BackupReportPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Shift</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={shift}
-                  onChange={(e) => setShift(e.target.value as Shift)}>
-                  {SHIFT_OPTIONS.map((s) => <option key={s} value={s}>{SHIFT_LABELS[s]}</option>)}
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={shift}
+                  onChange={(v) => setShift(v as Shift)}
+                  options={SHIFT_OPTIONS.map((s) => ({ value: s, label: SHIFT_LABELS[s] }))}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Notes (optional)</label>

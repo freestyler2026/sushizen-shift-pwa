@@ -50,6 +50,7 @@ import {
   TABLE_HEADER,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // Fallback role list used before the API responds (or if the API fails).
 // Role Management is the authoritative master — roles are fetched dynamically.
@@ -1007,10 +1008,15 @@ export default function AdminStaffPage() {
         <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>City</label>
-            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as City)}>
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={city}
+              onChange={v => setCity(v as City)}
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Approver Name (HQ/ADMIN)</label>
@@ -1069,14 +1075,15 @@ export default function AdminStaffPage() {
             <label className={T_LABEL + " mb-1.5 block"}>
               City <span className="text-red-400">*</span>
             </label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={newStaffCity}
-              onChange={(e) => setNewStaffCity(e.target.value as City)}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              onChange={v => setNewStaffCity(v as City)}
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <div className="sm:col-span-1">
             <label className={T_LABEL + " mb-1.5 block"}>New Staff Full Name</label>
@@ -1089,48 +1096,41 @@ export default function AdminStaffPage() {
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={newStaffHomeBranch}
-              onChange={(e) => setNewStaffHomeBranch(e.target.value)}
-            >
-              <option value="">— select branch —</option>
-              {newStaffBranches.map((b) => {
-                const label = labelOf(newStaffCity as City, b);
-                return (
-                  <option key={b} value={b}>
-                    {b === label ? b : `${b} – ${label}`}
-                  </option>
-                );
-              })}
-            </select>
+              onChange={setNewStaffHomeBranch}
+              options={[
+                { value: "", label: "— select branch —" },
+                ...newStaffBranches.map((b) => {
+                  const label = labelOf(newStaffCity as City, b);
+                  return { value: b, label: b === label ? b : `${b} – ${label}` };
+                }),
+              ]}
+            />
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Role</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={newStaffRole}
-              onChange={(e) => setNewStaffRole(e.target.value as "STAFF" | "MANAGER")}
-            >
-              <option value="STAFF">STAFF</option>
-              <option value="MANAGER">MANAGER</option>
-            </select>
+              onChange={v => setNewStaffRole(v as "STAFF" | "MANAGER")}
+              options={[
+                { value: "STAFF", label: "STAFF" },
+                { value: "MANAGER", label: "MANAGER" },
+              ]}
+            />
           </div>
         </div>
 
         <div className="mb-4">
           <label className={T_LABEL + " mb-1.5 block"}>Status</label>
-          <select
+          <SelectDark
             className={SELECT_CLASS + " max-w-[180px]"}
             value={newStaffStatus}
-            onChange={(e) => setNewStaffStatus(e.target.value as StaffStatus)}
-          >
-            {STATUS_OPTIONS.map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
+            onChange={v => setNewStaffStatus(v as StaffStatus)}
+            options={STATUS_OPTIONS.map((x) => ({ value: x, label: x }))}
+          />
         </div>
 
         <button
@@ -1168,7 +1168,7 @@ export default function AdminStaffPage() {
         <div className="grid grid-cols-1 gap-3 border-b border-white/5 bg-white/3 px-5 py-4 sm:grid-cols-4 lg:grid-cols-5">
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Status</label>
-            <select
+            <SelectDark
               className={[
                 "w-full rounded-xl border px-3 py-2 text-sm bg-neutral-950",
                 statusFilter === "INACTIVE"
@@ -1178,44 +1178,39 @@ export default function AdminStaffPage() {
                   : "border-neutral-800",
               ].join(" ")}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StaffStatus | "")}
-            >
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
+              onChange={v => setStatusFilter(v as StaffStatus | "")}
+              options={[
+                { value: "", label: "All statuses" },
+                ...STATUS_OPTIONS.map((x) => ({ value: x, label: x })),
+              ]}
+            />
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
-            <select
+            <SelectDark
               className={SELECT_CLASS}
               value={homeBranchFilter}
-              onChange={(e) => setHomeBranchFilter(e.target.value)}
-            >
-              <option value="">(All branches)</option>
-              {branches.map((b) => {
-                const label = labelOf(city as City, b);
-                return (
-                  <option key={b} value={b}>
-                    {b === label ? b : `${b} – ${label}`}
-                  </option>
-                );
-              })}
-            </select>
+              onChange={setHomeBranchFilter}
+              options={[
+                { value: "", label: "(All branches)" },
+                ...branches.map((b) => {
+                  const label = labelOf(city as City, b);
+                  return { value: b, label: b === label ? b : `${b} – ${label}` };
+                }),
+              ]}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={T_LABEL + " mb-1.5 block"}>Staff</label>
-            <select className={SELECT_CLASS} value={listSelectedDisplayName} onChange={(e) => setListSelectedDisplayName(e.target.value)}>
-              <option value="">All staff</option>
-              {listStaffOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              className={SELECT_CLASS}
+              value={listSelectedDisplayName}
+              onChange={setListSelectedDisplayName}
+              options={[
+                { value: "", label: "All staff" },
+                ...listStaffOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Limit</label>
@@ -1307,37 +1302,29 @@ export default function AdminStaffPage() {
                         <div className="text-xs text-zinc-500">
                           max/wk:{Number(r.max_days_per_week ?? 6)} | max/cons:{Number(r.max_consecutive_days ?? 6)}
                         </div>
-                        <select
+                        <SelectDark
                           className={SELECT_CLASS + " py-1 text-xs max-w-[180px]"}
                           value={branchDrafts[dn] ?? hb}
-                          onChange={(e) => setBranchDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
-                        >
-                          <option value="">— select —</option>
-                          {branches.map((b) => {
-                            const label = labelOf(city as City, b);
-                            return (
-                              <option key={b} value={b}>
-                                {b === label ? b : `${b} – ${label}`}
-                              </option>
-                            );
-                          })}
-                        </select>
+                          onChange={v => setBranchDrafts((prev) => ({ ...prev, [dn]: v }))}
+                          options={[
+                            { value: "", label: "— select —" },
+                            ...branches.map((b) => {
+                              const label = labelOf(city as City, b);
+                              return { value: b, label: b === label ? b : `${b} – ${label}` };
+                            }),
+                          ]}
+                        />
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
                       <div className="space-y-2">
                         <span className={roleBadgeClass(rr)}>{rr}</span>
-                        <select
+                        <SelectDark
                           className={SELECT_CLASS + " max-w-[220px] py-1.5 text-xs"}
                           value={roleDrafts[dn] || rr}
-                          onChange={(e) => setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(e.target.value) }))}
-                        >
-                          {availableRoles.map((x) => (
-                            <option key={x} value={x}>
-                              {x}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={v => setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(v) }))}
+                          options={availableRoles.map((x) => ({ value: x, label: x }))}
+                        />
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>

@@ -8,6 +8,7 @@ import { apiGet, qs, type ShiftRow, type DayView } from "@/lib/api";
 import { getAuth, canAccessCalendarPage, type City } from "@/lib/auth";
 import MonthPicker from "@/components/MonthPicker";
 import DateRangePicker from "@/components/DateRangePicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   SELECT_CLASS,
@@ -353,14 +354,15 @@ export default function CalendarPage() {
             <p className="mt-1 text-xs text-neutral-400 sm:text-sm">Browse daily and same-month range shifts by store.</p>
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <SelectDark
               className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-white"
               value={city}
-              onChange={(e) => setCity(e.target.value as City)}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              onChange={(v) => setCity(v as City)}
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
             <span className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200">
               <CalendarDays className="h-3 w-3" />
               {selectedDate}
@@ -405,17 +407,12 @@ export default function CalendarPage() {
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div>
             <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">Store</div>
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} rounded-2xl px-3 py-2.5 text-sm focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={branchCode}
-              onChange={(e) => setBranchCode(e.target.value)}
-            >
-              {branchOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={setBranchCode}
+              options={branchOptions}
+            />
           </div>
           <div className="rounded-2xl border border-violet-500/20 bg-violet-950/25 px-3 py-2.5">
             <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300">Selected Day</div>

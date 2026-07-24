@@ -17,6 +17,7 @@ import {
   TrendingUp,
   XCircle,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -239,46 +240,64 @@ export default function AdminIncidentsPage() {
           ) : (
             <div className="flex items-center gap-2">
               <label className={T_LABEL}>City</label>
-              <select className={`${SELECT_CLASS} w-auto min-w-[120px]`} value={filterCity}
-                onChange={(e) => setFilterCity(e.target.value)}>
-                <option value="">All Cities</option>
-                <option value="dubai">Dubai 🇦🇪</option>
-                <option value="manila">Manila 🇵🇭</option>
-              </select>
+              <SelectDark
+                className={`${SELECT_CLASS} w-auto min-w-[120px]`}
+                value={filterCity}
+                onChange={setFilterCity}
+                options={[
+                  { value: "", label: "All Cities" },
+                  { value: "dubai", label: "Dubai 🇦🇪" },
+                  { value: "manila", label: "Manila 🇵🇭" },
+                ]}
+              />
             </div>
           )}
           <div className="flex items-center gap-2">
             <label className={T_LABEL}>Status</label>
-            <select className={`${SELECT_CLASS} w-auto min-w-[150px]`} value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}>
-              {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <SelectDark
+              className={`${SELECT_CLASS} w-auto min-w-[150px]`}
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={STATUS_OPTIONS}
+            />
           </div>
           <div className="flex items-center gap-2">
             <label className={T_LABEL}>Category</label>
-            <select className={`${SELECT_CLASS} w-auto min-w-[150px]`} value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}>
-              <option value="">All Categories</option>
-              {INCIDENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <SelectDark
+              className={`${SELECT_CLASS} w-auto min-w-[150px]`}
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: "", label: "All Categories" },
+                ...INCIDENT_CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </div>
           <div className="flex items-center gap-2">
             <label className={T_LABEL}>Branch</label>
-            <select className={`${SELECT_CLASS} w-auto min-w-[140px]`} value={filterBranch}
-              onChange={(e) => setFilterBranch(e.target.value)}>
-              <option value="">All Branches</option>
-              {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <SelectDark
+              className={`${SELECT_CLASS} w-auto min-w-[140px]`}
+              value={filterBranch}
+              onChange={setFilterBranch}
+              options={[
+                { value: "", label: "All Branches" },
+                ...branchOptions.map((b) => ({ value: b, label: b })),
+              ]}
+            />
           </div>
           <div className="flex items-center gap-2">
             <Lock className="h-3.5 w-3.5 text-amber-500/70" />
             <label className={T_LABEL}>Notes</label>
-            <select className={`${SELECT_CLASS} w-auto min-w-[130px]`} value={filterNotes}
-              onChange={(e) => setFilterNotes(e.target.value)}>
-              <option value="">All</option>
-              <option value="true">Has HQ Notes</option>
-              <option value="false">No Notes</option>
-            </select>
+            <SelectDark
+              className={`${SELECT_CLASS} w-auto min-w-[130px]`}
+              value={filterNotes}
+              onChange={setFilterNotes}
+              options={[
+                { value: "", label: "All" },
+                { value: "true", label: "Has HQ Notes" },
+                { value: "false", label: "No Notes" },
+              ]}
+            />
           </div>
           <button className={`${SMALL_BUTTON} ml-auto flex items-center gap-1.5`}
             onClick={() => fetchList()} disabled={loading}>

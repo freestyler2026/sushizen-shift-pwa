@@ -8,6 +8,7 @@ import {
   TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const BRANCHES = [
   { code: "PAR", label: "Paranaque" },
@@ -205,9 +206,12 @@ export default function CashierLogPage() {
         </div>
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-          <select className={`${SELECT_CLASS} w-full`} value={branch} onChange={(e) => setBranch(e.target.value)}>
-            {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-          </select>
+          <SelectDark
+            className={`${SELECT_CLASS} w-full`}
+            value={branch}
+            onChange={setBranch}
+            options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+          />
         </div>
         <div>
           <label className={`${T_LABEL} mb-1 block`}>Date</label>

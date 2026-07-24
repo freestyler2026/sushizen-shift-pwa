@@ -392,13 +392,16 @@ export default function ProbationPage() {
                           </div>
                           <div>
                             <label className={`${T_LABEL} mb-1 block`}>Cycle Status</label>
-                            <select value={editDraft.cycle_status}
-                              onChange={(e) => setEditDraft({ ...editDraft, cycle_status: e.target.value })}
-                              className={INPUT_CLASS + " cursor-pointer"}>
-                              <option value="IN_PROGRESS">IN_PROGRESS</option>
-                              <option value="PASSED">PASSED</option>
-                              <option value="FAILED">FAILED</option>
-                            </select>
+                            <SelectDark
+                              value={editDraft.cycle_status}
+                              onChange={(v) => setEditDraft({ ...editDraft, cycle_status: v })}
+                              className={INPUT_CLASS + " cursor-pointer"}
+                              options={[
+                                { value: "IN_PROGRESS", label: "IN_PROGRESS" },
+                                { value: "PASSED", label: "PASSED" },
+                                { value: "FAILED", label: "FAILED" },
+                              ]}
+                            />
                           </div>
                         </>
                       )}

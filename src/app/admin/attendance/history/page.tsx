@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, Download, History, RefreshCw } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth } from "@/lib/auth";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import { fmtNum } from "@/lib/formatters";
@@ -294,25 +295,35 @@ export default function AttendanceHistoryPage() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
               <div>
                 <div className={`${T_LABEL} mb-1.5`}>City</div>
-                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All</option>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                <SelectDark
+                  value={city}
+                  onChange={setCity}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
 
               <div>
                 <div className={`${T_LABEL} mb-1.5`}>Status</div>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All</option>
-                  <option value="SUCCESS">SUCCESS</option>
-                  <option value="IMPORTED">IMPORTED</option>
-                  <option value="FAILED">FAILED</option>
-                  <option value="PARTIAL">PARTIAL</option>
-                  <option value="DUPLICATE">DUPLICATE</option>
-                  <option value="PROCESSING">PROCESSING</option>
-                  <option value="ROLLED_BACK">ROLLED_BACK</option>
-                </select>
+                <SelectDark
+                  value={status}
+                  onChange={setStatus}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "SUCCESS", label: "SUCCESS" },
+                    { value: "IMPORTED", label: "IMPORTED" },
+                    { value: "FAILED", label: "FAILED" },
+                    { value: "PARTIAL", label: "PARTIAL" },
+                    { value: "DUPLICATE", label: "DUPLICATE" },
+                    { value: "PROCESSING", label: "PROCESSING" },
+                    { value: "ROLLED_BACK", label: "ROLLED_BACK" },
+                  ]}
+                />
               </div>
 
               <div>

@@ -11,6 +11,7 @@ import {
   GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE,
   TAB_ACTIVE, TAB_INACTIVE, BADGE_SUCCESS, BADGE_ERROR, BADGE_WARNING,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/attendance";
 
@@ -1163,24 +1164,39 @@ function DailyReportTab({ city }: { city: string }) {
         )}
 
         {/* Staff name dropdown */}
-        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className={SELECT_CLS} disabled={metaBusy}>
-          <option value="">All Staff</option>
-          {meta.staff_names.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <SelectDark
+          value={staffFilter}
+          onChange={setStaffFilter}
+          className={SELECT_CLS}
+          options={[
+            { value: "", label: "All Staff" },
+            ...meta.staff_names.map(n => ({ value: n, label: n })),
+          ]}
+        />
 
         {/* Branch dropdown */}
-        <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={SELECT_CLS} disabled={metaBusy}>
-          <option value="">All Branches</option>
-          {meta.branch_codes.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
+        <SelectDark
+          value={branchFilter}
+          onChange={setBranchFilter}
+          className={SELECT_CLS}
+          options={[
+            { value: "", label: "All Branches" },
+            ...meta.branch_codes.map(b => ({ value: b, label: b })),
+          ]}
+        />
 
         {/* Status dropdown */}
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className={SELECT_CLS}>
-          <option value="">All Status</option>
-          <option value="on_shift">On Shift</option>
-          <option value="clocked_out">Clocked Out</option>
-          <option value="not_clocked_in">Not Clocked In</option>
-        </select>
+        <SelectDark
+          value={statusFilter}
+          onChange={v => setStatusFilter(v as typeof statusFilter)}
+          className={SELECT_CLS}
+          options={[
+            { value: "", label: "All Status" },
+            { value: "on_shift", label: "On Shift" },
+            { value: "clocked_out", label: "Clocked Out" },
+            { value: "not_clocked_in", label: "Not Clocked In" },
+          ]}
+        />
 
         <button onClick={() => { void load(); }} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
           <RefreshCw size={12} />Refresh
@@ -1199,15 +1215,16 @@ function DailyReportTab({ city }: { city: string }) {
           Upload a Bayzat timesheet CSV for one branch at a time. Records over 14 h or under 0.5 h are skipped automatically.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <SelectDark
             value={csvImportBranch}
-            onChange={e => setCsvImportBranch(e.target.value)}
+            onChange={setCsvImportBranch}
             className={SELECT_CLS + " text-xs py-1"}
-          >
-            <option value="CUBAO">Cubao</option>
-            <option value="PARANAQUE">Paranaque</option>
-            <option value="TAFT">Taft</option>
-          </select>
+            options={[
+              { value: "CUBAO", label: "Cubao" },
+              { value: "PARANAQUE", label: "Paranaque" },
+              { value: "TAFT", label: "Taft" },
+            ]}
+          />
           <button
             onClick={() => csvImportRef.current?.click()}
             disabled={csvImportBusy}

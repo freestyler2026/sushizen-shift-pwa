@@ -10,10 +10,10 @@ import {
   Banknote,
   Users,
   RefreshCw,
-  ChevronDown,
   Filter,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -279,19 +279,21 @@ export default function AdminExpenseRequestsPage() {
               <span className="text-sm font-medium text-zinc-300">Filters</span>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div className="relative">
-                <select className={SELECT_CLASS} value={filterCity} onChange={(e) => setFilterCity(e.target.value)}>
-                  <option value="">All Cities</option>
-                  {CITIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              </div>
-              <div className="relative">
-                <select className={SELECT_CLASS} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              </div>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={filterCity}
+                onChange={setFilterCity}
+                options={[
+                  { value: "", label: "All Cities" },
+                  ...CITIES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
+                ]}
+              />
+              <SelectDark
+                className={SELECT_CLASS}
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
+              />
               <input
                 className={INPUT_CLASS}
                 placeholder="Staff name..."
@@ -316,13 +318,15 @@ export default function AdminExpenseRequestsPage() {
         {tab === "summary" && (
           <div className={`${GLASS_CARD} p-4`}>
             <div className="grid grid-cols-3 gap-3">
-              <div className="relative">
-                <select className={SELECT_CLASS} value={filterCity} onChange={(e) => setFilterCity(e.target.value)}>
-                  <option value="">All Cities</option>
-                  {CITIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              </div>
+              <SelectDark
+                className={SELECT_CLASS}
+                value={filterCity}
+                onChange={setFilterCity}
+                options={[
+                  { value: "", label: "All Cities" },
+                  ...CITIES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
+                ]}
+              />
               <input type="date" className={INPUT_CLASS} value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} placeholder="From date" />
               <input type="date" className={INPUT_CLASS} value={filterTo} onChange={(e) => setFilterTo(e.target.value)} placeholder="To date" />
             </div>
@@ -483,16 +487,18 @@ export default function AdminExpenseRequestsPage() {
                 {/* Status select */}
                 <div>
                   <label className={`${T_LABEL} block mb-1.5`}>Decision *</label>
-                  <div className="relative">
-                    <select className={SELECT_CLASS} value={reviewStatus} onChange={(e) => setReviewStatus(e.target.value)}>
-                      <option value="">Select decision...</option>
-                      <option value="approved">✅ Approve</option>
-                      <option value="rejected">❌ Reject</option>
-                      <option value="paid">💰 Mark as Paid</option>
-                      <option value="pending">🟡 Keep Pending</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  </div>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={reviewStatus}
+                    onChange={setReviewStatus}
+                    placeholder="Select decision..."
+                    options={[
+                      { value: "approved", label: "✅ Approve" },
+                      { value: "rejected", label: "❌ Reject" },
+                      { value: "paid", label: "💰 Mark as Paid" },
+                      { value: "pending", label: "🟡 Keep Pending" },
+                    ]}
+                  />
                 </div>
 
                 <div>

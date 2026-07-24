@@ -11,6 +11,7 @@ import {
   PRIMARY_BUTTON, SELECT_CLASS, INPUT_CLASS, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -755,13 +756,12 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
         <label className="block text-xs font-bold uppercase tracking-widest text-amber-400 mb-2">
           ⚠️ Submitting for Branch
         </label>
-        <select
+        <SelectDark
           className="w-full rounded-lg border border-amber-500/40 bg-slate-800 px-3 py-2 text-base font-bold text-white outline-none focus:ring-2 focus:ring-amber-500/50"
           value={branch}
-          onChange={(e) => onBranchChange(e.target.value)}
-        >
-          {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-        </select>
+          onChange={onBranchChange}
+          options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+        />
       </div>
 
       {openingBalance != null && (
@@ -1051,13 +1051,12 @@ function OpeningForm({ branch, onBranchChange, today }: { branch: string; onBran
         <label className="block text-xs font-bold uppercase tracking-widest text-amber-400 mb-2">
           ⚠️ Submitting for Branch
         </label>
-        <select
+        <SelectDark
           className="w-full rounded-lg border border-amber-500/40 bg-slate-800 px-3 py-2 text-base font-bold text-white outline-none focus:ring-2 focus:ring-amber-500/50"
           value={branch}
-          onChange={(e) => onBranchChange(e.target.value)}
-        >
-          {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-        </select>
+          onChange={onBranchChange}
+          options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+        />
       </div>
 
       {expectedOpening != null && (
@@ -1139,9 +1138,12 @@ export default function CashReportPage() {
         {/* Branch selector */}
         <div className="mb-4">
           <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-          <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-            {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-          </select>
+          <SelectDark
+            className={SELECT_CLASS}
+            value={branch}
+            onChange={setBranch}
+            options={BRANCHES.map((b) => ({ value: b.code, label: b.label }))}
+          />
         </div>
 
         {/* Tabs */}

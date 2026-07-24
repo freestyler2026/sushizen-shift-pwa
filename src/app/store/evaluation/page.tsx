@@ -13,6 +13,7 @@ import {
   ImageIcon,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -625,15 +626,12 @@ function PhotoPanel({
 
       {/* Category + Upload row */}
       <div className="flex gap-2 mb-3">
-        <select
+        <SelectDark
           className={`${SELECT_CLASS} flex-1`}
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {PHOTO_CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
+          onChange={setCategory}
+          options={PHOTO_CATEGORIES}
+        />
         <label className={`${PRIMARY_BUTTON} flex items-center gap-2 cursor-pointer shrink-0`}>
           {uploading ? (
             <RefreshCw size={16} className="animate-spin" />
@@ -985,16 +983,13 @@ export default function StoreEvaluationPage() {
         {/* Branch selector */}
         <div className={`${GLASS_CARD} p-4 mb-4`}>
           <label className={`${T_LABEL} mb-2 block`}>Branch</label>
-          <select
+          <SelectDark
             className={SELECT_CLASS}
             value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            <option value="">— Select branch —</option>
-            {branches.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </select>
+            onChange={setBranchCode}
+            placeholder="— Select branch —"
+            options={branches.map((b) => ({ value: b, label: b }))}
+          />
           {existingId && (
             <div className={`${BADGE_INFO} mt-2 inline-block`}>
               Editing existing evaluation for {evalDate}

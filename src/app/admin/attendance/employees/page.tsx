@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Users } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -212,11 +213,16 @@ export default function AttendanceEmployeesPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <label className="text-sm">
                 <div className={`${T_LABEL} mb-1.5`}>City</div>
-                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All</option>
-                  <option value="Dubai">Dubai</option>
-                  <option value="Manila">Manila</option>
-                </select>
+                <SelectDark
+                  value={city}
+                  onChange={setCity}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "Dubai", label: "Dubai" },
+                    { value: "Manila", label: "Manila" },
+                  ]}
+                />
               </label>
 
               <label className="flex items-end gap-2 text-sm text-zinc-300">
@@ -277,24 +283,23 @@ export default function AttendanceEmployeesPage() {
                               {item.mapped_staff_name ? "Matched" : "Unmatched"}
                             </span>
                           </div>
-                          <select
+                          <SelectDark
                             value={selectedStaff[item.employee_unique_key] || ""}
-                            onChange={(e) =>
+                            onChange={(v) =>
                               setSelectedStaff((prev) => ({
                                 ...prev,
-                                [item.employee_unique_key]: e.target.value,
+                                [item.employee_unique_key]: v,
                               }))
                             }
                             className={`${SELECT_CLASS} min-w-[240px]`}
-                          >
-                            <option value="">Select staff</option>
-                            {filteredStaffOptions.map((staff) => (
-                              <option key={`${staff.staff_name}-${staff.city || ""}`} value={staff.staff_name}>
-                                {staff.staff_name}
-                                {staff.branch_code ? ` (${staff.branch_code})` : ""}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: "", label: "Select staff" },
+                              ...filteredStaffOptions.map((staff) => ({
+                                value: staff.staff_name,
+                                label: staff.staff_name + (staff.branch_code ? ` (${staff.branch_code})` : ""),
+                              })),
+                            ]}
+                          />
                         </td>
                         <td className={TABLE_CELL}>{fmtNum(item.observed_row_count ?? 0)}</td>
                         <td className={TABLE_CELL}>{fmt(item.last_seen_at)}</td>

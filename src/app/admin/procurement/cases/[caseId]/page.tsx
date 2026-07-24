@@ -42,6 +42,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 type Bundle = {
   case?: any;
@@ -1083,12 +1084,17 @@ export default function ProcurementCaseDetailPage() {
 
               {/* Escalate */}
               <div className="flex items-center gap-1">
-                <select value={escalateRole} onChange={(e) => setEscalateRole(e.target.value)} className="w-36 appearance-none rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-white outline-none">
-                  <option value="HR_MANAGER">HR_MANAGER</option>
-                  <option value="HQ">HQ</option>
-                  <option value="FINANCE">FINANCE</option>
-                  <option value="ADMIN">ADMIN</option>
-                </select>
+                <SelectDark
+                  value={escalateRole}
+                  onChange={setEscalateRole}
+                  className="w-36"
+                  options={[
+                    { value: "HR_MANAGER", label: "HR_MANAGER" },
+                    { value: "HQ", label: "HQ" },
+                    { value: "FINANCE", label: "FINANCE" },
+                    { value: "ADMIN", label: "ADMIN" },
+                  ]}
+                />
                 <button
                   type="button"
                   onClick={() => void act("escalate", { case_id: caseId, approver_name: requestedBy, pin, target_role: escalateRole, comment: message })}
@@ -1230,11 +1236,12 @@ export default function ProcurementCaseDetailPage() {
         <div className={`${GLASS_CARD} p-5`}>
           <p className={`${T_CARD_TITLE} mb-4`}>Document Chain</p>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <select value={uploadStage} onChange={(e) => setUploadStage(e.target.value)} className={`${SELECT_CLASS} col-span-2 sm:col-span-1`}>
-              {["02_RFQ","03_PO","04_RECEIVING","05_INVOICE","06_PAYMENT","07_EXCEPTION"].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <SelectDark
+              value={uploadStage}
+              onChange={setUploadStage}
+              className={`${SELECT_CLASS} col-span-2 sm:col-span-1`}
+              options={["02_RFQ","03_PO","04_RECEIVING","05_INVOICE","06_PAYMENT","07_EXCEPTION"].map((s) => ({ value: s, label: s }))}
+            />
             <input value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} placeholder="Doc type" className={INPUT_CLASS} />
             <label className="col-span-2 sm:col-span-1 flex items-center gap-2 cursor-pointer rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10 transition">
               <span className="rounded-lg bg-violet-500/20 px-2 py-1 text-violet-300 shrink-0">Choose File</span>

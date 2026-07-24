@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
+import SelectDark from "@/components/SelectDark";
 
 type ProductOption = { id: string; name: string; sku: string; status: string };
 type ComboOption = { id: string; name: string; sku: string; status: string };
@@ -293,10 +294,15 @@ export default function MenuGroupDetailPage() {
               </label>
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Status</div>
-                <select value={productLinkStatus} onChange={(e) => setProductLinkStatus(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
+                <SelectDark
+                  value={productLinkStatus}
+                  onChange={setProductLinkStatus}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={[
+                    { value: "ACTIVE", label: "ACTIVE" },
+                    { value: "INACTIVE", label: "INACTIVE" },
+                  ]}
+                />
               </label>
             </div>
             <div className="flex gap-2">
@@ -350,10 +356,15 @@ export default function MenuGroupDetailPage() {
               </label>
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Status</div>
-                <select value={comboLinkStatus} onChange={(e) => setComboLinkStatus(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
+                <SelectDark
+                  value={comboLinkStatus}
+                  onChange={setComboLinkStatus}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"
+                  options={[
+                    { value: "ACTIVE", label: "ACTIVE" },
+                    { value: "INACTIVE", label: "INACTIVE" },
+                  ]}
+                />
               </label>
             </div>
             <div className="flex gap-2">

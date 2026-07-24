@@ -5,6 +5,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import SelectDark from "@/components/SelectDark";
 
 type RecipeRow = {
   id: string;
@@ -352,14 +353,15 @@ export default function InventoryRecipesPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <select
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
-            onChange={(e) => setCity(e.target.value as "manila" | "dubai")}
-          >
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
+            onChange={v => setCity(v as "manila" | "dubai")}
+            options={[
+              { value: "manila", label: "Manila" },
+              { value: "dubai", label: "Dubai" },
+            ]}
+          />
           <input
             value={menuItemName}
             onChange={(e) => setMenuItemName(e.target.value)}

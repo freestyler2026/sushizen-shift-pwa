@@ -22,6 +22,7 @@ import {
   TABLE_CELL,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -343,14 +344,15 @@ function UnitSelector({ value, onChange }: { value: string; onChange: (v: string
 
   return (
     <div className="space-y-1">
-      <select
+      <SelectDark
         className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white outline-none focus:border-violet-500/50 appearance-none cursor-pointer"
         value={showCustom ? "__custom__" : value}
-        onChange={(e) => handleSelectChange(e.target.value)}
-      >
-        {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-        <option value="__custom__">Other…</option>
-      </select>
+        onChange={handleSelectChange}
+        options={[
+          ...UNIT_OPTIONS.map((u) => ({ value: u, label: u })),
+          { value: "__custom__", label: "Other…" },
+        ]}
+      />
       {showCustom && (
         <input
           type="text"
@@ -411,16 +413,14 @@ function DisposalLineCard({
           onChange={(e) => onUpdate({ quantity: e.target.value })}
           placeholder="Qty" />
         <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
-        <select
+        <SelectDark
           className="flex-1 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
           value={line.disposal_reason}
-          onChange={(e) => onUpdate({ disposal_reason: e.target.value as DisposalReason })}>
-          {(Object.keys(REASON_LABELS) as DisposalReason[]).filter((r) =>
+          onChange={(v) => onUpdate({ disposal_reason: v as DisposalReason })}
+          options={(Object.keys(REASON_LABELS) as DisposalReason[]).filter((r) =>
             !(r === "staff_meal" && city === "manila")
-          ).map((r) => (
-            <option key={r} value={r}>{REASON_LABELS[r]}</option>
-          ))}
-        </select>
+          ).map((r) => ({ value: r, label: REASON_LABELS[r] }))}
+        />
       </div>
 
       {/* Notes */}
@@ -823,18 +823,24 @@ export default function DisposalPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>City</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={city}
-                  onChange={(e) => setCity(e.target.value as City)}>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={city}
+                  onChange={(v) => setCity(v as City)}
+                  options={[
+                    { value: "dubai", label: "Dubai" },
+                    { value: "manila", label: "Manila" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Branch</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={branchCode}
-                  onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
-                  {BRANCHES[city].map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={branchCode}
+                  onChange={(v) => setBranchCode(v as BranchCode)}
+                  options={BRANCHES[city].map((b) => ({ value: b.code, label: b.name }))}
+                />
               </div>
               <div className="min-w-0 overflow-hidden">
                 <label className={`${T_LABEL} block mb-1.5`}>Date</label>
@@ -859,10 +865,12 @@ export default function DisposalPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Shift</label>
-                <select className={`${SELECT_CLASS} py-3 text-base`} value={shift}
-                  onChange={(e) => setShift(e.target.value as Shift)}>
-                  {SHIFT_OPTIONS.map((s) => <option key={s} value={s}>{SHIFT_LABELS[s]}</option>)}
-                </select>
+                <SelectDark
+                  className={`${SELECT_CLASS} py-3 text-base`}
+                  value={shift}
+                  onChange={(v) => setShift(v as Shift)}
+                  options={SHIFT_OPTIONS.map((s) => ({ value: s, label: SHIFT_LABELS[s] }))}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Notes (optional)</label>

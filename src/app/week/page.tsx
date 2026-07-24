@@ -14,6 +14,7 @@ import {
   BADGE_WARNING,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // -----------------------------
 // helpers
@@ -589,17 +590,18 @@ export default function WeekPage() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="shrink-0 text-lg font-bold text-white">Week</h1>
-            <select
+            <SelectDark
               value={city}
-              onChange={(e) => {
+              onChange={(v) => {
                 didAutoSetRef.current = true;
-                setCity(e.target.value as City);
+                setCity(v as City);
               }}
               className="min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-white"
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+              options={[
+                { value: "dubai", label: "Dubai" },
+                { value: "manila", label: "Manila" },
+              ]}
+            />
           </div>
           <button
             onClick={fetchWeek}
@@ -664,20 +666,15 @@ export default function WeekPage() {
 
         <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
           <div className="hidden sm:block">
-            <select
+            <SelectDark
               className={`${SELECT_CLASS} h-full rounded-lg border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-white`}
               value={startDate}
-              onChange={(e) => {
+              onChange={(v) => {
                 didAutoSetRef.current = true;
-                setStartDate(e.target.value);
+                setStartDate(v);
               }}
-            >
-              {weekOptions.map((ws) => (
-                <option key={ws} value={ws}>
-                  {weekLabel(ws)}
-                </option>
-              ))}
-            </select>
+              options={weekOptions.map((ws) => ({ value: ws, label: weekLabel(ws) }))}
+            />
           </div>
 
           <button
@@ -693,20 +690,15 @@ export default function WeekPage() {
         </div>
 
         <div className="mt-2 sm:hidden">
-          <select
+          <SelectDark
             className={`${SELECT_CLASS} rounded-lg border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-white`}
             value={startDate}
-            onChange={(e) => {
+            onChange={(v) => {
               didAutoSetRef.current = true;
-              setStartDate(e.target.value);
+              setStartDate(v);
             }}
-          >
-            {weekOptions.map((ws) => (
-              <option key={ws} value={ws}>
-                {weekLabel(ws)}
-              </option>
-            ))}
-          </select>
+            options={weekOptions.map((ws) => ({ value: ws, label: weekLabel(ws) }))}
+          />
         </div>
 
         {!error && loading ? (

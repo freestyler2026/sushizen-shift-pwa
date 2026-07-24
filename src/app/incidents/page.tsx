@@ -34,6 +34,7 @@ import {
   T_SECTION,
   TEXTAREA_CLASS,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const INCIDENT_CATEGORIES = [
   "Product Issue",
@@ -348,18 +349,27 @@ export default function IncidentsPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className={T_LABEL}>City</label>
-                  <select className={SELECT_CLASS} value={formCity}
-                    onChange={(e) => { setFormCity(e.target.value as City); setBranch(""); }}>
-                    <option value="dubai">Dubai 🇦🇪</option>
-                    <option value="manila">Manila 🇵🇭</option>
-                  </select>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={formCity}
+                    onChange={v => { setFormCity(v as City); setBranch(""); }}
+                    options={[
+                      { value: "dubai", label: "Dubai 🇦🇪" },
+                      { value: "manila", label: "Manila 🇵🇭" },
+                    ]}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className={T_LABEL}>Branch *</label>
-                  <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-                    <option value="">— Select —</option>
-                    {branches.map((b) => <option key={b.code} value={b.name}>{b.name}</option>)}
-                  </select>
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={branch}
+                    onChange={setBranch}
+                    options={[
+                      { value: "", label: "— Select —" },
+                      ...branches.map((b) => ({ value: b.name, label: b.name })),
+                    ]}
+                  />
                 </div>
               </div>
             </div>

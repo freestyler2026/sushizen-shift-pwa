@@ -5,6 +5,7 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -365,12 +366,17 @@ export default function ProcurementScorecardsPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLASS}>
-                  <option value="OPEN">OPEN</option>
-                  <option value="IN_PROGRESS">IN_PROGRESS</option>
-                  <option value="DONE">DONE</option>
-                  <option value="CLOSED">CLOSED</option>
-                </select>
+                <SelectDark
+                  value={status}
+                  onChange={setStatus}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "OPEN", label: "OPEN" },
+                    { value: "IN_PROGRESS", label: "IN_PROGRESS" },
+                    { value: "DONE", label: "DONE" },
+                    { value: "CLOSED", label: "CLOSED" },
+                  ]}
+                />
               </div>
             </div>
             <div>

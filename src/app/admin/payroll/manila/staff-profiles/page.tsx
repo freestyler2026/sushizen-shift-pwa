@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, INPUT_CLASS, SELECT_CLASS, TABLE_HEADER, TABLE_ROW, TABLE_CELL } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/manila-payroll";
 
@@ -293,19 +294,29 @@ function ProfileModal({
             {/* Employment Type + Salary Type */}
             <div>
               <label className={L}>Employment Type</label>
-              <select className={S} value={form.employment_type} onChange={e => set("employment_type", e.target.value)}>
-                <option value="regular">Regular</option>
-                <option value="probationary">Probationary</option>
-                <option value="contractual">Contractual</option>
-                <option value="part_time">Part-time</option>
-              </select>
+              <SelectDark
+                className={S}
+                value={form.employment_type}
+                onChange={v => set("employment_type", v)}
+                options={[
+                  { value: "regular", label: "Regular" },
+                  { value: "probationary", label: "Probationary" },
+                  { value: "contractual", label: "Contractual" },
+                  { value: "part_time", label: "Part-time" },
+                ]}
+              />
             </div>
             <div>
               <label className={L}>Salary Type</label>
-              <select className={S} value={form.salary_type} onChange={e => set("salary_type", e.target.value)}>
-                <option value="monthly_paid">Monthly Paid</option>
-                <option value="daily_paid">Daily Paid</option>
-              </select>
+              <SelectDark
+                className={S}
+                value={form.salary_type}
+                onChange={v => set("salary_type", v)}
+                options={[
+                  { value: "monthly_paid", label: "Monthly Paid" },
+                  { value: "daily_paid", label: "Daily Paid" },
+                ]}
+              />
             </div>
 
             {/* Rates */}
@@ -391,13 +402,18 @@ function ProfileModal({
             </div>
             <div>
               <label className={L}>Civil Status</label>
-              <select className={S} value={form.civil_status} onChange={e => set("civil_status", e.target.value)}>
-                <option value="">— Not set —</option>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="widowed">Widowed</option>
-                <option value="legally_separated">Legally Separated</option>
-              </select>
+              <SelectDark
+                className={S}
+                value={form.civil_status}
+                onChange={v => set("civil_status", v)}
+                options={[
+                  { value: "", label: "— Not set —" },
+                  { value: "single", label: "Single" },
+                  { value: "married", label: "Married" },
+                  { value: "widowed", label: "Widowed" },
+                  { value: "legally_separated", label: "Legally Separated" },
+                ]}
+              />
               <p className="mt-1 text-xs text-slate-500">Government records / PhilHealth beneficiary registration (no effect on tax calculation under TRAIN law)</p>
             </div>
             <div>

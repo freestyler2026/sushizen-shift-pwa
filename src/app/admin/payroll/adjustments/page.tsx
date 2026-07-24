@@ -13,6 +13,7 @@ import {
   SECONDARY_BUTTON, SELECT_CLASS, SMALL_BUTTON,
   T_PAGE_TITLE, TAB_ACTIVE, TAB_INACTIVE, TABLE_CELL, TABLE_HEADER, TABLE_ROW,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/payroll";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -166,22 +167,27 @@ function AdjModal({
               </div>
               <div>
                 <label className={labelCls}>Type</label>
-                <select className={SELECT_CLASS} value={form.adj_type}
-                  onChange={e => setForm(f => ({ ...f, adj_type: e.target.value as Adjustment["adj_type"], subtype: "" }))}>
-                  <option value="addition">Addition</option>
-                  <option value="deduction">Deduction</option>
-                  <option value="recurring_deduction">Recurring Deduction</option>
-                </select>
+                <SelectDark className={SELECT_CLASS} value={form.adj_type}
+                  onChange={v => setForm(f => ({ ...f, adj_type: v as Adjustment["adj_type"], subtype: "" }))}
+                  options={[
+                    { value: "addition", label: "Addition" },
+                    { value: "deduction", label: "Deduction" },
+                    { value: "recurring_deduction", label: "Recurring Deduction" },
+                  ]}
+                />
               </div>
             </>
           )}
 
           <div>
             <label className={labelCls}>Sub-type</label>
-            <select className={SELECT_CLASS} value={form.subtype} onChange={e => set("subtype", e.target.value)}>
-              <option value="">— Select sub-type —</option>
-              {subtypeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <SelectDark className={SELECT_CLASS} value={form.subtype}
+              onChange={v => set("subtype", v)}
+              options={[
+                { value: "", label: "— Select sub-type —" },
+                ...subtypeOptions.map(s => ({ value: s, label: s })),
+              ]}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -387,16 +393,15 @@ export default function AdjustmentsPage() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Cycle</label>
-            <select
+            <SelectDark
               className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-              value={selectedCycle?.id ?? ""}
-              onChange={e => setSelectedCycle(cycles.find(x => x.id === Number(e.target.value)) ?? null)}
-            >
-              {cycles.length === 0 && <option value="">No cycles</option>}
-              {cycles.map(c => (
-                <option key={c.id} value={c.id}>{MONTHS[c.month - 1]} {c.year} — {c.status}</option>
-              ))}
-            </select>
+              value={selectedCycle ? String(selectedCycle.id) : ""}
+              onChange={v => setSelectedCycle(cycles.find(x => x.id === Number(v)) ?? null)}
+              options={[
+                ...(cycles.length === 0 ? [{ value: "", label: "No cycles" }] : []),
+                ...cycles.map(c => ({ value: String(c.id), label: `${MONTHS[c.month - 1]} ${c.year} — ${c.status}` })),
+              ]}
+            />
           </div>
           {selectedCycle && (
             <span className={selectedCycle.status === "open" ? BADGE_SUCCESS : BADGE_INFO}>{selectedCycle.status}</span>
@@ -432,13 +437,16 @@ export default function AdjustmentsPage() {
       <div className="flex flex-wrap gap-3 mb-4">
         <input className="rounded-xl border border-white/10 bg-white/6 px-4 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 min-w-[220px]"
           placeholder="Search by name or sub-type…" value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none"
-          value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          <option value="all">All Types</option>
-          <option value="addition">Additions</option>
-          <option value="deduction">Deductions</option>
-          <option value="recurring_deduction">Recurring</option>
-        </select>
+        <SelectDark className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none"
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={[
+            { value: "all", label: "All Types" },
+            { value: "addition", label: "Additions" },
+            { value: "deduction", label: "Deductions" },
+            { value: "recurring_deduction", label: "Recurring" },
+          ]}
+        />
         <span className={BADGE_INFO + " self-center"}>{filtered.length} records</span>
       </div>
 

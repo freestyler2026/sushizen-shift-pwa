@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
+import SelectDark from "@/components/SelectDark";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Date helpers
@@ -906,14 +907,15 @@ export default function ProcurementPriceChecksPage() {
             </div>
             <div>
               <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Market</div>
-              <select
+              <SelectDark
                 value={city}
-                onChange={(e) => setCity(e.target.value as "dubai" | "manila")}
+                onChange={(v) => setCity(v as "dubai" | "manila")}
                 className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
           </div>
         </div>

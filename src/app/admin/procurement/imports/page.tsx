@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DateRangePicker from "@/components/DateRangePicker";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
   SECONDARY_BUTTON,
@@ -307,10 +308,15 @@ export default function ProcurementImportsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select value={city} onChange={(e) => setCity(String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(String(v || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Source Sheet</label>
@@ -322,13 +328,18 @@ export default function ProcurementImportsPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Order Type</label>
-            <select value={orderType} onChange={(e) => setOrderType(e.target.value)} className={SELECT_CLASS}>
-              <option value="">All order types</option>
-              <option value="WH">WH</option>
-              <option value="Supplier">Supplier</option>
-              <option value="CK">CK</option>
-              <option value="CK_WH_to_supplier">CK_WH_to_supplier</option>
-            </select>
+            <SelectDark
+              value={orderType}
+              onChange={setOrderType}
+              className={SELECT_CLASS}
+              options={[
+                { value: "", label: "All order types" },
+                { value: "WH", label: "WH" },
+                { value: "Supplier", label: "Supplier" },
+                { value: "CK", label: "CK" },
+                { value: "CK_WH_to_supplier", label: "CK_WH_to_supplier" },
+              ]}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>

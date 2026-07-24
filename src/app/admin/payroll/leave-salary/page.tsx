@@ -6,6 +6,7 @@ import {
   AlertCircle, ArrowLeft, Banknote, CalendarDays, CheckCircle2,
   ChevronRight, Clock, Loader2, Plus, RefreshCw, XCircle,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -189,10 +190,15 @@ function CreateModal({
           </div>
           <div>
             <p className={T_LABEL}>Currency</p>
-            <select className={`${SELECT_CLASS} mt-1`} value={currency} onChange={e => setCurrency(e.target.value)}>
-              <option value="AED">AED</option>
-              <option value="PHP">PHP</option>
-            </select>
+            <SelectDark
+              className={`${SELECT_CLASS} mt-1`}
+              value={currency}
+              onChange={setCurrency}
+              options={[
+                { value: "AED", label: "AED" },
+                { value: "PHP", label: "PHP" },
+              ]}
+            />
           </div>
 
           <div>
@@ -478,12 +484,17 @@ function DetailPanel({
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <p className={T_CAPTION}>Method</p>
-                      <select className={`${SELECT_CLASS} mt-1`} value={payVia} onChange={e => setPayVia(e.target.value)}>
-                        <option value="cash">Cash</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="bayzat">Bayzat</option>
-                        <option value="check">Check</option>
-                      </select>
+                      <SelectDark
+                        className={`${SELECT_CLASS} mt-1`}
+                        value={payVia}
+                        onChange={setPayVia}
+                        options={[
+                          { value: "cash", label: "Cash" },
+                          { value: "bank_transfer", label: "Bank Transfer" },
+                          { value: "bayzat", label: "Bayzat" },
+                          { value: "check", label: "Check" },
+                        ]}
+                      />
                     </div>
                     <div>
                       <p className={T_CAPTION}>Payment Date *</p>
@@ -497,14 +508,15 @@ function DetailPanel({
                     </div>
                     <div>
                       <p className={T_CAPTION}>Payroll Cycle</p>
-                      <select className={`${SELECT_CLASS} mt-1`} value={payCycleId} onChange={e => setPayCycleId(e.target.value)}>
-                        <option value="">— None —</option>
-                        {cycles.map(c => (
-                          <option key={c.id} value={c.id}>
-                            {MONTHS[c.month - 1]} {c.year}
-                          </option>
-                        ))}
-                      </select>
+                      <SelectDark
+                        className={`${SELECT_CLASS} mt-1`}
+                        value={payCycleId}
+                        onChange={setPayCycleId}
+                        options={[
+                          { value: "", label: "— None —" },
+                          ...cycles.map(c => ({ value: String(c.id), label: `${MONTHS[c.month - 1]} ${c.year}` })),
+                        ]}
+                      />
                     </div>
                     <div className="col-span-2">
                       <p className={T_CAPTION}>Note</p>

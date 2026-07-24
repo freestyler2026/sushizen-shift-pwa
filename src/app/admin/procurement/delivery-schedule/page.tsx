@@ -13,6 +13,7 @@ import {
   T_PAGE_TITLE,
   T_LABEL,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ScheduleEntry = {
@@ -229,13 +230,12 @@ export default function DeliverySchedulePage() {
         {/* Store filter */}
         <div className="flex items-center gap-2">
           <label className={`${T_LABEL} shrink-0`}>Store</label>
-          <select
+          <SelectDark
             className={`${SELECT_CLASS} w-36`}
             value={filterStore}
-            onChange={(e) => setFilterStore(e.target.value)}
-          >
-            {STORES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+            onChange={setFilterStore}
+            options={STORES.map((s) => ({ value: s, label: s }))}
+          />
         </div>
 
         <button className={`${SECONDARY_BUTTON} ml-auto text-sm`} onClick={load} disabled={loading}>
@@ -391,13 +391,12 @@ export default function DeliverySchedulePage() {
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Supplier</label>
                 {suppliers.length > 0 ? (
-                  <select
+                  <SelectDark
                     className={SELECT_CLASS}
                     value={form.supplier_name}
-                    onChange={(e) => setForm((f) => ({ ...f, supplier_name: e.target.value }))}
-                  >
-                    {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                    onChange={(v) => setForm((f) => ({ ...f, supplier_name: v }))}
+                    options={suppliers.map((s) => ({ value: s, label: s }))}
+                  />
                 ) : (
                   <input
                     className={INPUT_CLASS}
@@ -410,13 +409,12 @@ export default function DeliverySchedulePage() {
 
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Store</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={form.store_code}
-                  onChange={(e) => setForm((f) => ({ ...f, store_code: e.target.value }))}
-                >
-                  {STORES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                  onChange={(v) => setForm((f) => ({ ...f, store_code: v }))}
+                  options={STORES.map((s) => ({ value: s, label: s }))}
+                />
               </div>
 
               <div>

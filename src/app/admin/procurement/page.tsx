@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle, ShoppingCart } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
+import SelectDark from "@/components/SelectDark";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -381,10 +382,10 @@ export default function AdminProcurementPage() {
         </div>
         <div className="min-w-[140px]">
           <span className={`${T_LABEL} mb-1.5 block`}>Market</span>
-          <select
+          <SelectDark
             value={city}
-            onChange={(e) => {
-              const nextCity = String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+            onChange={v => {
+              const nextCity = String(v || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
               setCity(nextCity);
               setRows([]);
               setQueueRows([]);
@@ -392,10 +393,11 @@ export default function AdminProcurementPage() {
               setKpiSummary(null);
             }}
             className={SELECT_CLASS}
-          >
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
+            options={[
+              { value: "manila", label: "Manila" },
+              { value: "dubai", label: "Dubai" },
+            ]}
+          />
         </div>
         <div className="min-w-[160px]">
           <span className={`${T_LABEL} mb-1.5 block`}>Store</span>
@@ -622,11 +624,16 @@ export default function AdminProcurementPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
-            <select value={approvalAction} onChange={(e) => setApprovalAction(e.target.value as "APPROVE" | "REJECT" | "RETURN")} className={SELECT_CLASS}>
-              <option value="APPROVE">APPROVE</option>
-              <option value="REJECT">REJECT</option>
-              <option value="RETURN">RETURN</option>
-            </select>
+            <SelectDark
+              value={approvalAction}
+              onChange={v => setApprovalAction(v as "APPROVE" | "REJECT" | "RETURN")}
+              className={SELECT_CLASS}
+              options={[
+                { value: "APPROVE", label: "APPROVE" },
+                { value: "REJECT", label: "REJECT" },
+                { value: "RETURN", label: "RETURN" },
+              ]}
+            />
             <textarea value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Comment" className={`${TEXTAREA_CLASS} lg:col-span-2`} rows={3} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">

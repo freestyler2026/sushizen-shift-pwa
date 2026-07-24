@@ -21,6 +21,7 @@ import {
   T_LABEL,
   T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 type AttendanceLocation = {
   id: number;
@@ -134,11 +135,16 @@ export default function AttendanceLocationsPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <label className="text-sm">
                 <div className={`${T_LABEL} mb-1.5`}>City</div>
-                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All</option>
-                  <option value="Dubai">Dubai</option>
-                  <option value="Manila">Manila</option>
-                </select>
+                <SelectDark
+                  value={city}
+                  onChange={setCity}
+                  className={SELECT_CLASS}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "Dubai", label: "Dubai" },
+                    { value: "Manila", label: "Manila" },
+                  ]}
+                />
               </label>
 
               <label className="flex items-end gap-2 text-sm text-zinc-300">

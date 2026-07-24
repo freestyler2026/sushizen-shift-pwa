@@ -11,6 +11,7 @@ import {
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
 } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 const W_CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
@@ -1271,10 +1272,15 @@ export default function ManualShiftPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">City</label>
-              <select className={W_SELECT} autoComplete="off" value={city} onChange={(e) => setCity(e.target.value as City)}>
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+              <SelectDark
+                className={W_SELECT}
+                value={city}
+                onChange={v => setCity(v as City)}
+                options={[
+                  { value: "dubai", label: "Dubai" },
+                  { value: "manila", label: "Manila" },
+                ]}
+              />
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Branch</label>
@@ -1490,35 +1496,26 @@ export default function ManualShiftPage() {
                   <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-300/50 bg-violet-50 px-3 py-1.5">
                     <span className="text-xs font-semibold text-violet-600">Template:</span>
                     <label className="text-xs text-gray-500">Start</label>
-                    <select
-                      value={paintStart}
-                      onChange={(e) => setPaintStart(Number(e.target.value))}
+                    <SelectDark
+                      value={String(paintStart)}
+                      onChange={v => setPaintStart(Number(v))}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
-                    >
-                      {START_HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{fmtHour(h)}</option>
-                      ))}
-                    </select>
+                      options={START_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                    />
                     <label className="text-xs text-gray-500">End</label>
-                    <select
-                      value={paintEnd}
-                      onChange={(e) => setPaintEnd(Number(e.target.value))}
+                    <SelectDark
+                      value={String(paintEnd)}
+                      onChange={v => setPaintEnd(Number(v))}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
-                    >
-                      {END_HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{fmtHour(h)}</option>
-                      ))}
-                    </select>
+                      options={END_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                    />
                     <label className="text-xs text-gray-500">Role</label>
-                    <select
+                    <SelectDark
                       value={paintRole}
-                      onChange={(e) => setPaintRole(e.target.value)}
+                      onChange={setPaintRole}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
-                    >
-                      {getRoleOptions(city).map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
+                      options={getRoleOptions(city).map((r) => ({ value: r, label: r }))}
+                    />
                     <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs font-medium text-violet-700">
                       <input
                         type="checkbox"
@@ -1532,25 +1529,19 @@ export default function ManualShiftPage() {
                       <>
                         <span className="text-xs font-semibold text-violet-400">+</span>
                         <label className="text-xs text-gray-500">Start</label>
-                        <select
-                          value={paintStart2}
-                          onChange={(e) => setPaintStart2(Number(e.target.value))}
+                        <SelectDark
+                          value={String(paintStart2)}
+                          onChange={v => setPaintStart2(Number(v))}
                           className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
-                        >
-                          {START_HOUR_OPTIONS.map((h) => (
-                            <option key={h} value={h}>{fmtHour(h)}</option>
-                          ))}
-                        </select>
+                          options={START_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                        />
                         <label className="text-xs text-gray-500">End</label>
-                        <select
-                          value={paintEnd2}
-                          onChange={(e) => setPaintEnd2(Number(e.target.value))}
+                        <SelectDark
+                          value={String(paintEnd2)}
+                          onChange={v => setPaintEnd2(Number(v))}
                           className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
-                        >
-                          {END_HOUR_OPTIONS.map((h) => (
-                            <option key={h} value={h}>{fmtHour(h)}</option>
-                          ))}
-                        </select>
+                          options={END_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                        />
                       </>
                     )}
                   </div>
@@ -1852,27 +1843,21 @@ export default function ManualShiftPage() {
                 <>
                   <div className="mb-2.5 flex items-center gap-3">
                     <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Start</label>
-                    <select
+                    <SelectDark
                       className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
-                      value={editStart}
-                      onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
-                    >
-                      {START_HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{fmtHour(h)}</option>
-                      ))}
-                    </select>
+                      value={String(editStart)}
+                      onChange={v => { setEditStart(Number(v)); setTimeError(""); }}
+                      options={START_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                    />
                   </div>
                   <div className="mb-2.5 flex items-center gap-3">
                     <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">End</label>
-                    <select
+                    <SelectDark
                       className={`flex-1 rounded-lg border px-2.5 py-2 text-xs text-white focus:outline-none ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900 focus:border-violet-500"}`}
-                      value={editEnd}
-                      onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
-                    >
-                      {END_HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{fmtHour(h)}</option>
-                      ))}
-                    </select>
+                      value={String(editEnd)}
+                      onChange={v => { setEditEnd(Number(v)); setTimeError(""); }}
+                      options={END_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
+                    />
                   </div>
                   {timeError && (
                     <div className="mb-2.5 rounded-lg bg-rose-900/40 px-3 py-2 text-[11px] text-rose-300">
@@ -1881,16 +1866,15 @@ export default function ManualShiftPage() {
                   )}
                   <div className="mb-2.5 flex items-center gap-3">
                     <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Role</label>
-                    <select
+                    <SelectDark
                       className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
                       value={editRole}
-                      onChange={(e) => setEditRole(e.target.value)}
-                    >
-                      {getRoleOptions(city).map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                      <option value="OTHER">Other...</option>
-                    </select>
+                      onChange={setEditRole}
+                      options={[
+                        ...getRoleOptions(city).map((r) => ({ value: r, label: r })),
+                        { value: "OTHER", label: "Other..." },
+                      ]}
+                    />
                   </div>
                   {editRole === "OTHER" && (
                     <input
@@ -1902,15 +1886,12 @@ export default function ManualShiftPage() {
                   )}
                   <div className="mb-2.5 flex items-center gap-3">
                     <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Branch</label>
-                    <select
+                    <SelectDark
                       className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
                       value={editBranchCode}
-                      onChange={(e) => setEditBranchCode(e.target.value)}
-                    >
-                      {BRANCHES[city].map((b) => (
-                        <option key={b.code} value={b.code}>{b.name}</option>
-                      ))}
-                    </select>
+                      onChange={setEditBranchCode}
+                      options={BRANCHES[city].map((b) => ({ value: b.code, label: b.name }))}
+                    />
                   </div>
                 </>
               ) : (

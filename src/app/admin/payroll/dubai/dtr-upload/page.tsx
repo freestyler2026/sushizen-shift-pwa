@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/dubai-payroll";
 
@@ -281,20 +282,20 @@ export default function DubaiDtrUploadPage() {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Payroll Period
                 </label>
-                <select
+                <SelectDark
                   value={selectedPeriodId}
-                  onChange={e => setSelectedPeriodId(e.target.value)}
+                  onChange={setSelectedPeriodId}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
-                >
-                  <option value="">— No specific period —</option>
-                  {periodsLoading
-                    ? <option disabled>Loading…</option>
-                    : periods.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.period_label} ({p.start_date} – {p.end_date}) [{p.status}]
-                        </option>
-                      ))}
-                </select>
+                  options={[
+                    { value: "", label: "— No specific period —" },
+                    ...(periodsLoading
+                      ? []
+                      : periods.map(p => ({
+                          value: String(p.id),
+                          label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
+                        }))),
+                  ]}
+                />
                 {selectedPeriod && (
                   <p className="mt-1 text-xs text-slate-500">
                     Syncs {selectedPeriod.start_date} → {selectedPeriod.end_date} and links rows to this period
@@ -527,18 +528,18 @@ export default function DubaiDtrUploadPage() {
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Link to Payroll Period (optional)
               </label>
-              <select
+              <SelectDark
                 value={selectedPeriodId}
-                onChange={e => setSelectedPeriodId(e.target.value)}
+                onChange={setSelectedPeriodId}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
-              >
-                <option value="">— No specific period —</option>
-                {periods.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.period_label} ({p.start_date} – {p.end_date})
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "— No specific period —" },
+                  ...periods.map(p => ({
+                    value: String(p.id),
+                    label: `${p.period_label} (${p.start_date} – ${p.end_date})`,
+                  })),
+                ]}
+              />
             </div>
 
             {/* CSV textarea */}

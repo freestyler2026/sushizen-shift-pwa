@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import IngredientItemSearch, { type IngredientItemOption } from "@/components/menu/IngredientItemSearch";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
+import SelectDark from "@/components/SelectDark";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuGetText, menuPatch, menuPost } from "@/lib/menuClient";
 
@@ -538,21 +539,30 @@ function MenuProductsPageInner() {
           {/* Row 1: search + category */}
           <div>
             <div className={LABEL}>Search product</div>
-            <select value={q} onChange={(e) => setQ(e.target.value)} className={SELECT}>
-              <option value="">All products</option>
-              {visibleProductFilterOptions.map((row) => (
-                <option key={row.id} value={row.sku || row.barcode || row.name || ""}>
-                  {row.name}{row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}
-                </option>
-              ))}
-            </select>
+            <SelectDark
+              className={SELECT}
+              value={q}
+              onChange={setQ}
+              options={[
+                { value: "", label: "All products" },
+                ...visibleProductFilterOptions.map((row) => ({
+                  value: row.sku || row.barcode || row.name || "",
+                  label: `${row.name}${row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}`,
+                })),
+              ]}
+            />
           </div>
           <div>
             <div className={LABEL}>Category</div>
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={SELECT}>
-              <option value="">All categories</option>
-              {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-            </select>
+            <SelectDark
+              className={SELECT}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={[
+                { value: "", label: "All categories" },
+                ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+              ]}
+            />
           </div>
 
           {/* Row 1: CSV tools */}
@@ -638,17 +648,18 @@ function MenuProductsPageInner() {
 
           {/* Bulk action */}
           <div className="flex items-center gap-2">
-            <select
-              value={bulkAction}
-              onChange={(e) => setBulkAction(e.target.value)}
+            <SelectDark
               className="rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500/50"
-            >
-              <option value="DEACTIVATE">Bulk Deactivate</option>
-              <option value="ACTIVATE">Bulk Activate</option>
-              <option value="DELETE">Bulk Delete</option>
-              <option value="RESTORE">Bulk Restore</option>
-              <option value="UPDATE_SORT">Bulk Update Sort</option>
-            </select>
+              value={bulkAction}
+              onChange={setBulkAction}
+              options={[
+                { value: "DEACTIVATE", label: "Bulk Deactivate" },
+                { value: "ACTIVATE", label: "Bulk Activate" },
+                { value: "DELETE", label: "Bulk Delete" },
+                { value: "RESTORE", label: "Bulk Restore" },
+                { value: "UPDATE_SORT", label: "Bulk Update Sort" },
+              ]}
+            />
             <button
               type="button"
               onClick={() => void applyBulkAction()}
@@ -681,10 +692,15 @@ function MenuProductsPageInner() {
             {/* Basic info */}
             <FormSection title="Basic Info" dot="bg-violet-400">
               <Field label="Category *">
-                <select value={form.category_id} onChange={(e) => setForm((c) => ({ ...c, category_id: e.target.value }))} className={SELECT}>
-                  <option value="">Select category</option>
-                  {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
+                <SelectDark
+                  className={SELECT}
+                  value={form.category_id}
+                  onChange={(v) => setForm((c) => ({ ...c, category_id: v }))}
+                  options={[
+                    { value: "", label: "Select category" },
+                    ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+                  ]}
+                />
               </Field>
               <Field label="Name *">
                 <input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} className={INPUT} placeholder="Product name" />
@@ -719,9 +735,12 @@ function MenuProductsPageInner() {
                     <input value={ingredientQty} onChange={(e) => setIngredientQty(e.target.value)} className={INPUT} />
                   </Field>
                   <Field label="Unit">
-                    <select value={ingredientUnit} onChange={(e) => setIngredientUnit(e.target.value)} className={SELECT}>
-                      {ingredientUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
+                    <SelectDark
+                      className={SELECT}
+                      value={ingredientUnit}
+                      onChange={setIngredientUnit}
+                      options={ingredientUnitOptions.map((u) => ({ value: u, label: u }))}
+                    />
                   </Field>
                 </div>
                 <button
@@ -764,16 +783,26 @@ function MenuProductsPageInner() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Pricing Method">
-                  <select value={form.pricing_method} onChange={(e) => setForm((c) => ({ ...c, pricing_method: e.target.value }))} className={SELECT}>
-                    <option value="FIXED_PRICE">Fixed Price</option>
-                    <option value="OPEN_PRICE">Open Price</option>
-                  </select>
+                  <SelectDark
+                    className={SELECT}
+                    value={form.pricing_method}
+                    onChange={(v) => setForm((c) => ({ ...c, pricing_method: v }))}
+                    options={[
+                      { value: "FIXED_PRICE", label: "Fixed Price" },
+                      { value: "OPEN_PRICE", label: "Open Price" },
+                    ]}
+                  />
                 </Field>
                 <Field label="Costing Method">
-                  <select value={form.costing_method} onChange={(e) => setForm((c) => ({ ...c, costing_method: e.target.value }))} className={SELECT}>
-                    <option value="FROM_INGREDIENTS">From Ingredients</option>
-                    <option value="FIXED_COST">Fixed Cost</option>
-                  </select>
+                  <SelectDark
+                    className={SELECT}
+                    value={form.costing_method}
+                    onChange={(v) => setForm((c) => ({ ...c, costing_method: v }))}
+                    options={[
+                      { value: "FROM_INGREDIENTS", label: "From Ingredients" },
+                      { value: "FIXED_COST", label: "Fixed Cost" },
+                    ]}
+                  />
                 </Field>
               </div>
             </FormSection>

@@ -45,6 +45,7 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
+import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1104,16 +1105,15 @@ export default function EmployeeCasesPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={T_LABEL}>Staff Member *</label>
-                <select
+                <SelectDark
                   className={`${SELECT_CLASS} mt-1`}
                   value={reqStaffName}
-                  onChange={(e) => setReqStaffName(e.target.value)}
-                >
-                  <option value="">— Select staff —</option>
-                  {staffList.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+                  onChange={setReqStaffName}
+                  options={[
+                    { value: "", label: "— Select staff —" },
+                    ...staffList.map((name) => ({ value: name, label: name })),
+                  ]}
+                />
               </div>
               <div>
                 <label className={T_LABEL}>Request Date</label>
@@ -1128,15 +1128,16 @@ export default function EmployeeCasesPage() {
 
             <div>
               <label className={T_LABEL}>Document Type</label>
-              <select
+              <SelectDark
                 className={`${SELECT_CLASS} mt-1`}
                 value={reqCaseType}
-                onChange={(e) => setReqCaseType(e.target.value as CaseType)}
-              >
-                <option value="NTE">NTE — Notice to Explain</option>
-                <option value="WARNING_LETTER">Warning Letter</option>
-                <option value="FINAL_WARNING">Final Warning</option>
-              </select>
+                onChange={(v) => setReqCaseType(v as CaseType)}
+                options={[
+                  { value: "NTE", label: "NTE — Notice to Explain" },
+                  { value: "WARNING_LETTER", label: "Warning Letter" },
+                  { value: "FINAL_WARNING", label: "Final Warning" },
+                ]}
+              />
             </div>
 
             <div>
@@ -1376,16 +1377,15 @@ export default function EmployeeCasesPage() {
             {/* Staff Name */}
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff Name *</label>
-              <select
+              <SelectDark
                 value={issueStaffName}
-                onChange={(e) => setIssueStaffName(e.target.value)}
+                onChange={setIssueStaffName}
                 className={SELECT_CLASS}
-              >
-                <option value="">— Select staff —</option>
-                {staffList.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "— Select staff —" },
+                  ...staffList.map((name) => ({ value: name, label: name })),
+                ]}
+              />
             </div>
             {/* Date */}
             <div>
@@ -1412,15 +1412,16 @@ export default function EmployeeCasesPage() {
           {/* Document Type */}
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Document Type</label>
-            <select
+            <SelectDark
               value={issueCaseType}
-              onChange={(e) => setIssueCaseType(e.target.value as CaseType)}
+              onChange={(v) => setIssueCaseType(v as CaseType)}
               className={SELECT_CLASS}
-            >
-              <option value="NTE">NTE — Notice to Explain</option>
-              <option value="WARNING_LETTER">Warning Letter</option>
-              <option value="FINAL_WARNING">Final Warning</option>
-            </select>
+              options={[
+                { value: "NTE", label: "NTE — Notice to Explain" },
+                { value: "WARNING_LETTER", label: "Warning Letter" },
+                { value: "FINAL_WARNING", label: "Final Warning" },
+              ]}
+            />
           </div>
 
           {/* Template toggle */}
@@ -1460,18 +1461,15 @@ export default function EmployeeCasesPage() {
               {templates.length === 0 ? (
                 <p className={T_CAPTION}>No templates available. Create one in the Templates tab.</p>
               ) : (
-                <select
+                <SelectDark
                   value={issueTemplateId}
-                  onChange={(e) => setIssueTemplateId(e.target.value)}
+                  onChange={setIssueTemplateId}
                   className={SELECT_CLASS}
-                >
-                  <option value="">— Select template —</option>
-                  {templates.map((tpl) => (
-                    <option key={tpl.id} value={tpl.id}>
-                      {tpl.title}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "— Select template —" },
+                    ...templates.map((tpl) => ({ value: tpl.id, label: tpl.title })),
+                  ]}
+                />
               )}
             </div>
           )}
@@ -1529,31 +1527,31 @@ export default function EmployeeCasesPage() {
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[180px]">
-              <select
+              <SelectDark
                 value={historyNameFilter}
-                onChange={(e) => setHistoryNameFilter(e.target.value)}
+                onChange={setHistoryNameFilter}
                 className={SELECT_CLASS}
-              >
-                <option value="">— All staff —</option>
-                {staffList.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "— All staff —" },
+                  ...staffList.map((name) => ({ value: name, label: name })),
+                ]}
+              />
             </div>
             <div className="min-w-[140px]">
-              <select
+              <SelectDark
                 value={historyStatusFilter}
-                onChange={(e) =>
+                onChange={(v) =>
                   setHistoryStatusFilter(
-                    e.target.value as "ALL" | "ACTIVE" | "RESOLVED"
+                    v as "ALL" | "ACTIVE" | "RESOLVED"
                   )
                 }
                 className={SELECT_CLASS}
-              >
-                <option value="ALL">All Status</option>
-                <option value="ACTIVE">Active</option>
-                <option value="RESOLVED">Resolved</option>
-              </select>
+                options={[
+                  { value: "ALL", label: "All Status" },
+                  { value: "ACTIVE", label: "Active" },
+                  { value: "RESOLVED", label: "Resolved" },
+                ]}
+              />
             </div>
           </div>
 
