@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 152 — Receiving: short-delivery re-receive + badge fix)
+Last updated: 2026-07-24 (session 154 — Menu Builder / Cost Calculation full migration)
 
 
 
@@ -8,6 +8,72 @@ Last updated: 2026-07-24 (session 152 — Receiving: short-delivery re-receive +
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 154 — Menu Builder full migration)
+
+### My Shift — Branch column removed from My Attendance (DEPLOYED ✅ Vercel 96f60ab)
+- Staff saw "BO" in Monthly Shifts (scheduled branch) and "PAR" in My Attendance (GPS clock-in location) under the same "BRANCH" label, which was confusing
+- Fix: removed BRANCH column from My Attendance section (desktop table header/row + mobile card subtitle)
+- File: `src/app/my-shift/page.tsx`
+
+### Menu Builder — Empty state banner (DEPLOYED ✅ Vercel 0324ac8)
+- Added explanatory banner when 0 products, directing users to Import from Cost Calc with inline button
+- File: `src/app/admin/menu/products/page.tsx`
+
+### Menu Builder — Full Cost Calculation migration (DEPLOYED ✅ Heroku adfefc1 / Vercel 2551eef / EXECUTED ✅)
+- **Problem**: Menu Builder and Cost Calculation are completely separate DB tables. Items in Cost Calculation never auto-sync. Existing import button filtered out ingredient/CK categories.
+- **Backend**: `full_import_all_cost_items(city)` in `menu_db.py` — deletes all `menu_products` for city, imports ALL `menu_item_master` + active `ingredient_master` (all categories, no filter), auto-creates categories, auto-assigns new SKUs via `next_shared_sku()`
+- **Endpoint**: `POST /api/admin/menu/products/full-import-from-cost` in `menu_api.py`
+- **Frontend**: "⟳ Full Import (All Categories)" button (green) added to Data Tools section
+- **Migration executed** for both cities:
+  - Dubai: 918 products, 70 categories, 0 errors
+  - Manila: 863 products, 62 categories, 0 errors
+
+---
+
+## Recently Completed (2026-07-24 session 153 — Dubai Payroll DTR Sync)
+
+### Short-delivery: Dubai auth bug on receiving items endpoint (DEPLOYED ✅ Heroku v1498)
+- **Bug**: `GET /api/admin/procurement/receiving/{id}/items` returned 403 for Dubai Management users because `target_city="manila"` was hardcoded. Since `procurement.request.write` has `city_scoped: True`, DUBAI_MANAGEMENT was blocked. The frontend `catch {}` silently swallowed the error, so the amber "Partial delivery" banner and "Previously received: X qty" labels never appeared for Dubai POs.
+- **Fix**: Changed `target_city="manila"` → `target_city=""` to skip city-scope check on this read-only endpoint
+- File: `sushizen_shift_app_clean/app/main.py` (line ~24884)
+
+### Dubai Payroll — Full DTR Sync system (DEPLOYED ✅ Heroku v1499–v1500 / Vercel e70a6e1)
+
+**Background**: Staff requested Dubai OS Attendance data be synced to DTR similar to Manila's Bayzat sync. July 2026 will be handled manually; August onward uses OS Attendance automatically.
+
+**Backend (db.py)**:
+- `ensure_dubai_payroll_tables()` creates 3 tables:
+  - `dubai_payroll_periods` — same structure as Manila but without self-referencing `first_half_period_id`
+  - `dubai_staff_profiles` — PH gov IDs (SSS, PhilHealth, TIN, Pag-IBIG) stripped; UAE-appropriate
+  - `dubai_attendance_daily` — PH-specific columns stripped; `annual_leave_flag` (vs `paid_leave_flag`); `os_session_id UUID` for traceability
+
+**Backend (main.py)** — 7 new endpoints:
+- `GET/POST /api/admin/dubai-payroll/periods`
+- `POST /api/admin/dubai-payroll/sync-dtr` — reads `os_attendance_sessions` + `os_attendance_breaks` WHERE city='dubai'; computes regular (≤8h) and overtime (>8h) hours; auto-creates unknown staff as profiles
+- `POST /api/admin/dubai-payroll/attendance/bulk-upload` — CSV import path
+- `GET /api/admin/dubai-payroll/attendance`
+- `GET/PUT /api/admin/dubai-payroll/staff-profiles/{staff_name}`
+
+**Bug fixed (v1500 — Rule #7 violation)**: Auto-create staff INSERT used same `conn` as subsequent attendance writes. If INSERT failed, connection entered aborted transaction state and all attendance rows silently failed with `written=0`. Fixed with independent `_ac_conn = get_conn()` / `try-finally _ac_conn.close()`.
+
+**Frontend**:
+- `src/app/admin/payroll/dubai/page.tsx` — Hub page: period list, create period form, quick action cards. Auth: ADMIN or HQ only.
+- `src/app/admin/payroll/dubai/dtr-upload/page.tsx` — DTR upload page:
+  - Tab 1 "Sync from OS Attendance": period selector + custom date range + quick presets (Jul 10–15, Jul 10–23, Jul 16–31, Aug 1–15, Aug 16–31) → Preview Sync → Confirm & Sync flow with preview table (Clock In/Out/Break/RegHrs/OTHrs)
+  - Tab 2 "Manual CSV Upload": CSV textarea → Parse preview → Upload
+  - Tab 3 "CSV Format Guide": 12-column spec for Dubai day types
+  - Timezone: `Asia/Dubai` (UTC+4) for all time display
+- `src/app/admin/payroll/page.tsx` — Added "🇦🇪 Dubai Payroll" button linking to hub
+
+**Bug fixed (frontend — useSearchParams without Suspense)**: `dtr-upload/page.tsx` originally used `useSearchParams()` to init `selectedPeriodId`. Next.js 15 App Router requires a Suspense boundary. Fixed by removing the import and using plain `useState<string>("")`.
+
+### Pending items
+- **Travel Path content review**: Richard to review — delete unnecessary items, update times, add OS tasks. Awaiting input.
+- **Dubai Staff Profiles page**: Hub card shows "Coming soon" — not yet implemented.
+- **Dubai Payroll Compute**: Hub card shows "Coming soon" — not yet implemented.
 
 ---
 
