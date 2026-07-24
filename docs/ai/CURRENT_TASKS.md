@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 154 — Menu Builder deprecated; Sales BOM now syncs from Cost Calculation)
+Last updated: 2026-07-24 (session 155 continued — Refund/Cancellation form improvements deployed)
 
 
 
@@ -8,6 +8,101 @@ Last updated: 2026-07-24 (session 154 — Menu Builder deprecated; Sales BOM now
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 155 — Refund/Cancellation Form Improvements)
+
+### Staff-requested Refund/Cancellation form improvements (DEPLOYED ✅ Heroku 28e385a / Vercel 25b3821)
+
+**Dubai (`AdminDubaiCancellationInputTab.tsx`)**:
+- EMAIL_STATUS_OPTIONS: renamed "Careem" → "Aggregator", added "No dispute required"
+- Added REFUND_STATUS_OPTIONS const with 13 predefined options
+- Removed "Double Checked By — Careem" field entirely
+- "Compensation (AED) — Keeta" → "Compensation (AED)"
+- "Platform Response Notes — Careem" → "Platform Response Notes"
+- Refund/Resolution Status changed from TextArea → SelectIn with 13 options
+- Cancellation Reason "Others": shows conditional free-text input
+
+**Manila Backend (`db_manila_cancellations.py` + `main.py`)**:
+- `manila_cancellations` table: ALTER TABLE ADD COLUMN IF NOT EXISTS for `photo_status TEXT`, `refund_amount NUMERIC(10,2)`, `compensation_amount NUMERIC(10,2)`
+- All SELECT queries, upsert INSERT/UPDATE updated to include new columns
+- `ManilaCancellationUpsertIn` model: 3 new Optional fields added
+
+**Manila (`AdminCancellationInputTab.tsx`)**:
+- CancelRecord/EditableRecord: added `photo_status`, `refund_amount`, `compensation_amount`, `refund_str`, `comp_str`, `cancellation_reason_other`
+- Added PHOTO_STATUS_OPTIONS (5 options) and REFUND_STATUS_OPTIONS (13 options)
+- Kitchen Photo ToggleBtns replaced with SelectIn (photo_status field)
+- Added Refund Amount (PHP) + Compensation Amount (PHP) numeric input fields
+- Refund/Resolution Notes TextArea → SelectIn with 13 options
+- Cancellation Reason "Other": shows conditional free-text input
+- Both upsert payloads updated to send new fields
+
+---
+
+## Recently Completed (2026-07-24 session 155 — CK Par Level Management)
+
+### CK Par Level Management — Full system implemented (DEPLOYED ✅ Heroku f8bbca8 / Vercel 41acb26)
+
+**Background**: Staff requested Par Levels for CK inventory to auto-generate Purchase Orders (supplier items) and Production Plans (CK-produced items).
+
+**Excel Template**: `public/CK_ParLevel_Template.xlsx` — 2 sheets:
+- Sheet 1: CK-Produced (Production Plan) — Manila 117 + Dubai 54 items; yellow input cells (Par Level, Current Stock), green formula cell (To Produce = MAX(0, Par-Stock))
+- Sheet 2: Supplier Orders (Purchase) — Manila 244 + Dubai 291 ingredients; same pattern with Order Qty formula
+- Available as download at `/CK_ParLevel_Template.xlsx`
+
+**Backend** (`app/ck_par_level_api.py` — new file):
+- `GET /api/admin/ck/par-levels?city=&item_type=` — list par levels
+- `POST /api/admin/ck/par-levels/seed?city=` — seed items from `menu_item_master` (CK category) + `ingredient_master`
+- `POST /api/admin/ck/par-levels/import` — import Excel file (multipart)
+- `PUT /api/admin/ck/par-levels/{row_id}?city=` — update single par level inline
+- Table: `ck_par_levels` with UNIQUE(city, item_type, item_name)
+
+**Frontend** (`src/app/admin/ck/par-levels/page.tsx` — new file):
+- City toggle (Manila/Dubai), tab (CK-Produced/Supplier Orders)
+- KPI bar: Total Items / Par Level Set / Not Set
+- Seed from Cost Calc button with inline 2-click confirmation (avoids window.confirm freeze)
+- Upload Excel, Download Template buttons
+- Inline par level editing (click amber "— Set —" → type value → save)
+- Search filter
+
+**NavBar**: Added "CK Par Levels" link (Factory icon, adminOnly) after CK Label Compliance
+
+**Verified**: Seed ran successfully — Manila 117 CK-Produced + 244 Supplier items seeded in one click
+
+**Phase ③ — Current Stock from CK Inventory (DEPLOYED ✅ Heroku dcb041e / Vercel 9ef32e7)**:
+- `_get_latest_ck_stock(city)`: queries `ck_inventory_sessions JOIN ck_inventory_entries` for latest finalized session, returns `{stock: {name_lower: qty}, session_date}`; wrapped in try/except (safe if tables empty)
+- GET `/api/admin/ck/par-levels` now includes `current_stock` (float|null) per row and `stock_date` in response root
+- Frontend: Current Stock column (sky blue), To Produce/To Order column (indigo/orange = MAX(0, par−stock)), ✓ OK when stock ≥ par; KPI bar expanded to 4 cards (added Stock Linked); stock date banner above table
+- Stock shows "—" until a CK Inventory session is Finalized for that city
+
+**Phase ④ — Production Plan / Purchase Order Excel generation (DEPLOYED ✅ Heroku 85d869b / Vercel 9c86d95)**:
+- `GET /api/admin/ck/par-levels/generate?city=&plan_type=production|purchase`
+  Returns `.xlsx` StreamingResponse; filters items where par_level set AND (stock unknown OR gap > 0)
+- Production Plan: navy theme; cols: No/ItemName/Unit/ParLevel/Stock/ToProduce/Notes; yellow fill when to_produce > 0
+- Purchase Order: brown theme; grouped by supplier with section headers; cols: No/Supplier/Category/ItemName/Unit/ParLevel/Stock/ToOrder
+- Frontend: "📋 Production Plan" button (CK-Produced tab) / "📋 Purchase Order" button (Supplier tab)
+  Disabled until at least one par level is set; downloads named `CK_ProductionPlan_{City}_{date}.xlsx` etc.
+
+**Bug fixes from Phase①–④ testing (DEPLOYED ✅ Vercel 46ffd81 / 1daf16f)**:
+- `whitespace-nowrap` added to par level button + "Stock" header (was "Current Stock") to prevent 2-line wrap on 8-column Supplier Orders table
+- Negative par level values now blocked in `saveEdit()` with alert ("Par level cannot be negative") — HTML `min="0"` alone doesn't block Enter-key submission
+- Dubai CK-Produced tab verified: 54 items, correct
+- Escape key cancel confirmed working
+- Purchase Order Excel download confirmed HTTP 200 on Manila with 1 par level set
+
+**Pending**:
+- Role Management: Per CLAUDE.md rule #11, `access_control.py` channels/permissions not yet updated for CK Par Levels nav entry
+- Test data to clean up if desired: Manila CK-Produced Ajitama=50, Manila Supplier MOUNTAIN DEW=24 (set during testing)
+
+### Sales BOM — Full sync from Cost Calculation EXECUTED (DEPLOYED ✅ Heroku 27acafb)
+
+### Sales BOM — Full sync from Cost Calculation EXECUTED (DEPLOYED ✅ Heroku 27acafb)
+- **Bug fixed**: `apply_sales_bom_from_cost_calc` failed on items with the same ingredient listed twice in `menu_item_components`. Both rows resolved to the same `inv_items.id`, causing `ON CONFLICT DO UPDATE` to fail ("cannot affect row a second time"). Fix: dedup `recipe_vals` by `ingredient_item_id` before INSERT, summing quantities.
+- **Results** (2026-07-24, 0 errors):
+  - Manila: 488 items synced, 2,739 recipe rows, 485 active menu items
+  - Dubai: 528 items synced, 2,996 recipe rows, 662 active menu items
+- **Workflow confirmed**: Cost Calculation → Sync from Cost Calc button on `/admin/inventory/recipes` → Sales BOM updated
 
 ---
 
