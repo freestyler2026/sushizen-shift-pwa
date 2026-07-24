@@ -1495,7 +1495,7 @@ export default function ManualShiftPage() {
                       onChange={(e) => setPaintStart(Number(e.target.value))}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
                     >
-                      {Array.from({ length: 24 }, (_, h) => (
+                      {START_HOUR_OPTIONS.map((h) => (
                         <option key={h} value={h}>{fmtHour(h)}</option>
                       ))}
                     </select>
@@ -1505,7 +1505,7 @@ export default function ManualShiftPage() {
                       onChange={(e) => setPaintEnd(Number(e.target.value))}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
                     >
-                      {Array.from({ length: 24 }, (_, h) => (
+                      {END_HOUR_OPTIONS.map((h) => (
                         <option key={h} value={h}>{fmtHour(h)}</option>
                       ))}
                     </select>
@@ -1537,7 +1537,7 @@ export default function ManualShiftPage() {
                           onChange={(e) => setPaintStart2(Number(e.target.value))}
                           className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
                         >
-                          {Array.from({ length: 24 }, (_, h) => (
+                          {START_HOUR_OPTIONS.map((h) => (
                             <option key={h} value={h}>{fmtHour(h)}</option>
                           ))}
                         </select>
@@ -1547,7 +1547,7 @@ export default function ManualShiftPage() {
                           onChange={(e) => setPaintEnd2(Number(e.target.value))}
                           className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
                         >
-                          {Array.from({ length: 24 }, (_, h) => (
+                          {END_HOUR_OPTIONS.map((h) => (
                             <option key={h} value={h}>{fmtHour(h)}</option>
                           ))}
                         </select>
