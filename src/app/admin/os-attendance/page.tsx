@@ -1608,9 +1608,200 @@ function CorrectionsTab({ city }: { city: string }) {
   );
 }
 
+// ── Shift Compliance Tab ──────────────────────────────────────────────────────
+
+type ComplianceStatus = "ON_TIME" | "LATE" | "NOT_CHECKED_IN" | "NO_SHOW" | "PENDING";
+
+type ComplianceRow = {
+  branch_code: string;
+  staff_name: string;
+  role: string;
+  start_hour: number;
+  end_hour: number;
+  session_id: string | null;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  late_minutes: number | null;
+  status: ComplianceStatus;
+  meal_allowance_ok: boolean | null;
+};
+
+type ComplianceSummary = {
+  on_time: number;
+  late: number;
+  not_checked_in: number;
+  no_show: number;
+  pending: number;
+};
+
+function fmtShiftHour(h: number): string {
+  const base = Math.floor(h);
+  const mins = Math.round((h % 1) * 60);
+  if (base >= 24) return `+${base - 24}:${String(mins).padStart(2, "0")}`;
+  return `${base}:${String(mins).padStart(2, "0")}`;
+}
+
+const STATUS_META: Record<ComplianceStatus, { label: string; icon: string; cls: string }> = {
+  ON_TIME:        { label: "On Time",        icon: "✓", cls: "text-emerald-400" },
+  LATE:           { label: "Late",           icon: "⚠", cls: "text-amber-400"  },
+  NOT_CHECKED_IN: { label: "Not Clocked In", icon: "⏰", cls: "text-orange-400" },
+  NO_SHOW:        { label: "No Show",        icon: "✕", cls: "text-red-400"    },
+  PENDING:        { label: "Pending",        icon: "⏳", cls: "text-zinc-400"  },
+};
+
+function ShiftComplianceTab({ city }: { city: string }) {
+  const [date, setDate] = useState(() =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date())
+  );
+  const [rows, setRows] = useState<ComplianceRow[]>([]);
+  const [summary, setSummary] = useState<ComplianceSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [issuesOnly, setIssuesOnly] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await apiFetch(`${API}/shift-compliance?city=${city}&date=${date}`);
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to load compliance data")); return; }
+      const d = await r.json() as { rows: ComplianceRow[]; summary: ComplianceSummary };
+      setRows(d.rows ?? []);
+      setSummary(d.summary ?? null);
+    } catch {
+      setErr("Network error loading compliance data");
+    } finally {
+      setLoading(false);
+    }
+  }, [city, date]);
+
+  useEffect(() => { void fetchData(); }, [fetchData]);
+
+  const displayRows = issuesOnly
+    ? rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING")
+    : rows;
+
+  const issueCount = rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING").length;
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white"
+        />
+        <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={issuesOnly}
+            onChange={e => setIssuesOnly(e.target.checked)}
+            className="rounded"
+          />
+          Issues Only {issueCount > 0 && <span className="text-amber-400 font-semibold">({issueCount})</span>}
+        </label>
+        <button onClick={fetchData} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Summary chips */}
+      {summary && rows.length > 0 && (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {summary.on_time > 0 && (
+            <span className="text-emerald-400">✓ {summary.on_time} On Time</span>
+          )}
+          {summary.late > 0 && (
+            <span className="text-amber-400">⚠ {summary.late} Late</span>
+          )}
+          {summary.not_checked_in > 0 && (
+            <span className="text-orange-400">⏰ {summary.not_checked_in} Not Clocked In</span>
+          )}
+          {summary.no_show > 0 && (
+            <span className="text-red-400">✕ {summary.no_show} No Show</span>
+          )}
+          {summary.pending > 0 && (
+            <span className="text-zinc-400">⏳ {summary.pending} Pending</span>
+          )}
+        </div>
+      )}
+
+      {/* Table */}
+      {loading ? (
+        <p className="text-zinc-400 text-sm py-4">Loading…</p>
+      ) : err ? (
+        <p className="text-red-400 text-sm py-4">{err}</p>
+      ) : displayRows.length === 0 ? (
+        <p className="text-zinc-500 text-sm py-4">
+          {rows.length === 0
+            ? "No published shifts found for this date. Publish a shift in Manual Shift Entry first."
+            : "No issues found — all staff are on time."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[750px]">
+            <thead>
+              <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider">
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Staff</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Branch</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Role</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Scheduled</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Clocked In</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Status</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Late</th>
+                <th className="pb-2 pt-2 pr-4 text-left font-medium">Meal Allow.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {displayRows.map((row, i) => {
+                const st = STATUS_META[row.status];
+                return (
+                  <tr key={i} className={`hover:bg-white/[0.03] transition-colors ${row.status === "NO_SHOW" ? "bg-red-950/10" : row.status === "NOT_CHECKED_IN" ? "bg-orange-950/10" : ""}`}>
+                    <td className="py-2.5 pr-4 text-white font-medium">{row.staff_name}</td>
+                    <td className="py-2.5 pr-4 text-zinc-300">{row.branch_code}</td>
+                    <td className="py-2.5 pr-4 text-zinc-400 text-xs">{row.role}</td>
+                    <td className="py-2.5 pr-4 tabular-nums text-zinc-300">
+                      {fmtShiftHour(row.start_hour)}–{fmtShiftHour(row.end_hour)}
+                    </td>
+                    <td className="py-2.5 pr-4 tabular-nums text-zinc-300">
+                      {row.check_in_at ? fmtTs(row.check_in_at, city) : "—"}
+                    </td>
+                    <td className={`py-2.5 pr-4 font-semibold text-xs ${st.cls}`}>
+                      {st.icon} {st.label}
+                    </td>
+                    <td className={`py-2.5 pr-4 tabular-nums text-xs ${row.late_minutes !== null && row.late_minutes > 0 ? "text-amber-400 font-semibold" : "text-zinc-500"}`}>
+                      {row.late_minutes !== null && row.late_minutes > 0 ? `+${row.late_minutes}m` : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-xs">
+                      {row.meal_allowance_ok === true ? (
+                        <span className="text-emerald-400">✓ Eligible</span>
+                      ) : row.meal_allowance_ok === false ? (
+                        <span className="text-red-400">✕ No</span>
+                      ) : (
+                        <span className="text-zinc-500">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="text-xs text-white/20 pt-1">
+        Meal allowance eligibility is tentative (based on clock-in time only). Final determination happens at clock-out.
+        Grace period: {5} min.
+      </p>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "staff_report" | "gps" | "corrections";
+type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -1689,6 +1880,9 @@ export default function OsAttendanceAdminPage() {
           <button onClick={() => setTab("gps")} className={tab === "gps" ? TAB_ACTIVE : TAB_INACTIVE}>
             GPS Settings
           </button>
+          <button onClick={() => setTab("compliance")} className={tab === "compliance" ? TAB_ACTIVE : TAB_INACTIVE}>
+            Shift Compliance
+          </button>
         </div>
 
         {/* Content */}
@@ -1697,6 +1891,7 @@ export default function OsAttendanceAdminPage() {
           {tab === "staff_report" && <StaffReportTab city={city} />}
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
+          {tab === "compliance" && <ShiftComplianceTab city={city} />}
         </div>
       </div>
     </main>
