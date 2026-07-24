@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 155 continued — bug fixes after testing Refund/Cancellation forms)
+Last updated: 2026-07-24 (session 156 — SelectDark sweep completion, HR Allowance field, HR Onboarding/Offboarding staff dropdown)
 
 
 
@@ -8,6 +8,35 @@ Last updated: 2026-07-24 (session 155 continued — bug fixes after testing Refu
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 156)
+
+### SelectDark site-wide sweep — Complete (DEPLOYED ✅ Vercel 9d46e03 + 644e0cc)
+- 398 native `<select>` elements replaced with SelectDark across 139 files
+- Remaining 2 kept as native: `admin/page.tsx` (per-option disabled), `productions/page.tsx` (ref + complex handlers)
+- `menu/groups/[groupId]`: disabled selects simulated with `pointer-events-none opacity-60` wrapper div
+- `cost-calculation`: onBlur save merged into SelectDark onChange
+
+### HR Clearance — Allowance field added (DEPLOYED ✅ Heroku + Vercel)
+- `fp_allowance` column added to `hr_clearance_cases` via ALTER TABLE IF NOT EXISTS
+- `update_hr_clearance_final_pay()` in db_hr.py accepts `fp_allowance` parameter
+- PATCH endpoint passes `fp_allowance` from request body
+- Frontend: `fp_allowance` in ClearanceCase type + totalEarnings calc + Earnings grid row
+
+### HR Onboarding & Offboarding — Staff name dropdown + roster sync (DEPLOYED ✅ Heroku df86b9a / Vercel 6692e5c)
+- **New backend endpoint**: `GET /api/admin/staff_master/info?name=X&city=Y`
+  Returns `{branch, branch_code, position}` from `staff_master` + `{manila|dubai}_staff_profiles`
+- **Onboarding modal**: Staff Name → SelectDark dropdown (pulls from `staff_master/names?status=ACTIVE`)
+  On selection, auto-fills Branch + Position from /info endpoint (fields remain manually editable)
+  "syncing..." indicator shown while fetching staff info
+- **Offboarding modal**: Staff Name → SelectDark dropdown (same staff_master/names source)
+
+### Bayzat attendance data — Direct DB insertion (2026-07-24)
+- 1,073 rows for 7/1–7/9 inserted via Heroku one-off dyno (gzip+base64 embedded script)
+- Batch ID: `bayzat-xls-20260724180307-31448df8`
+- Import system (xlsx upload endpoint + UI) removed as no longer needed
 
 ---
 
