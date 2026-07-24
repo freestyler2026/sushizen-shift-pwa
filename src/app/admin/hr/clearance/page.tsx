@@ -60,6 +60,7 @@ type ClearanceCase = {
   fp_prorated_13th: number;
   fp_leave_conversion: number;
   fp_separation_pay: number;
+  fp_allowance: number;
   fp_other_earnings: number;
   fp_other_earnings_label: string;
   fp_deduction_statutory: number;
@@ -253,6 +254,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
     fp_prorated_13th: c.fp_prorated_13th,
     fp_leave_conversion: c.fp_leave_conversion,
     fp_separation_pay: c.fp_separation_pay,
+    fp_allowance: c.fp_allowance,
     fp_other_earnings: c.fp_other_earnings,
     fp_other_earnings_label: c.fp_other_earnings_label,
     fp_deduction_statutory: c.fp_deduction_statutory,
@@ -269,6 +271,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
     (fp.fp_prorated_13th || 0) +
     (fp.fp_leave_conversion || 0) +
     (fp.fp_separation_pay || 0) +
+    (fp.fp_allowance || 0) +
     (fp.fp_other_earnings || 0);
   const totalDeductions =
     (fp.fp_deduction_statutory || 0) +
@@ -320,6 +323,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
                 { k: "fp_prorated_13th", label: "Prorated 13th Month" },
                 { k: "fp_leave_conversion", label: "Leave Conversion" },
                 { k: "fp_separation_pay", label: "Separation Pay" },
+                { k: "fp_allowance", label: "Allowance" },
               ].map(({ k, label }) => (
                 <div key={k}>
                   <label className={T_LABEL}>{label}</label>
