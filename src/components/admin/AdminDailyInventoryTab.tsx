@@ -1433,29 +1433,26 @@ export default function AdminDailyInventoryTab() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // WAREHOUSE par pattern lookup for the form entry view (today's day, with fallback to any WAREHOUSE_* pattern)
+  // Check pattern list first so we only fall back when the day-specific pattern truly doesn't exist,
+  // not when it exists but has zero items configured (which is a valid intentional state).
   const [formWHLookup, setFormWHLookup] = useState<Record<string, number>>({});
   useEffect(() => {
     const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
-    const fetchPatternItems = async (name: string): Promise<Record<string, number>> => {
+    (async () => {
       try {
-        const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`);
+        const listRes = await apiFetch("/api/daily-inventory/par-patterns");
+        const listData = await listRes.json() as { patterns?: string[] };
+        const pats = listData.patterns || [];
+        const targetPattern = pats.includes(`WAREHOUSE_${dayName}`)
+          ? `WAREHOUSE_${dayName}`
+          : (pats.find(p => p.startsWith("WAREHOUSE_")) ?? null);
+        if (!targetPattern) return;
+        const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(targetPattern)}/items`);
         const d = await r.json() as { items?: { item_code: string; par_level: number }[] };
         const lookup: Record<string, number> = {};
         (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
-        return lookup;
-      } catch { return {}; }
-    };
-    (async () => {
-      let lookup = await fetchPatternItems(`WAREHOUSE_${dayName}`);
-      if (Object.keys(lookup).length === 0) {
-        try {
-          const r = await apiFetch("/api/daily-inventory/par-patterns");
-          const d = await r.json() as { patterns?: string[] };
-          const fallback = (d.patterns || []).find(p => p.startsWith("WAREHOUSE_"));
-          if (fallback) lookup = await fetchPatternItems(fallback);
-        } catch { /* ignore */ }
-      }
-      setFormWHLookup(lookup);
+        setFormWHLookup(lookup);
+      } catch { /* ignore */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
