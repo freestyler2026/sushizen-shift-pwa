@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 146 — Analytics Absence By Day/Week/Month)
+Last updated: 2026-07-24 (session 148 — Procurement Phase 3: Auto Alerts + HQ Ack)
 
 
 
@@ -8,6 +8,52 @@ Last updated: 2026-07-24 (session 146 — Analytics Absence By Day/Week/Month)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 148 — Procurement Phase 3: Auto Alerts + HQ Acknowledgment)
+
+- **Phase 3: Automated overdue delivery alerts** ✅ DEPLOYED (Heroku v1489 / 7f5234c, Vercel 8b16c06):
+  - `proc_delivery_alert_log` table: `UNIQUE(po_id, alert_date)` dedup guard
+  - `overdue_ack_status/by/at/note` columns added to `proc_purchase_orders` (via `ensure_procurement_delivery_tables()`)
+  - `_get_hq_staff_for_delivery_alerts()`: queries `staff_role_assignments` + `staff_master` for HQ role staff
+  - `_maybe_send_delivery_alert()`: dedup via alert_log, then inserts into `private_report_notifications` for all HQ staff (notification_type = `delivery_overdue_alert`)
+  - `run_overdue_delivery_alerts()`: loops all cities, skips ack'd POs, calls `_maybe_send_delivery_alert()` for each overdue PO
+  - APScheduler job: `overdue_delivery_alerts` cron daily at 01:00 UTC (= 09:00 PHT, 05:00 GST)
+  - `ack_overdue_delivery()`: records `following_up | no_impact | resolved` on PO
+  - `POST /api/admin/procurement/overdue-deliveries/{po_id}/ack` endpoint
+  - `list_overdue_deliveries_admin` now returns `overdue_ack_status/by/at` fields
+
+- **Admin Procurement Hub: HQ Acknowledgment UI** ✅ DEPLOYED:
+  - Expanded overdue row: "Following Up" (amber) + "No Production Impact" (green) buttons
+  - Optimistic UI: `ackOverride` state updates immediately on success (no reload needed)
+  - Acknowledged rows dim (opacity-60) + show status badge instead of OVERDUE badge
+  - Acknowledged rows show who acked and the status description
+
+---
+
+## Recently Completed (2026-07-24 session 147 — Store Procurement: Overdue Delivery Detection)
+
+- **Bug fix: Pending Deliveries不消えバグ修正** ✅ DEPLOYED (Heroku c2d7d47, Vercel ccf5cd2):
+  - `confirm_proc_receiving` (db.py): `proc_receivings.status=CONFIRMED` 更新後、紐付く `proc_purchase_orders.receipt_confirmed_at = NOW()` も同時スタンプするよう修正 → Confirm後にPending Deliveriesリストから即消えるようになった
+  - 従来は `confirm_ck_receiving`（CK専用）だけがPOをスタンプしており、Store Receivingフローでは抜けていた
+
+- **Feature: Overdue Delivery Detection** ✅ DEPLOYED:
+  - `list_pending_deliveries_for_store` (db.py): `is_overdue`, `days_overdue`, `expected_date` フィールド追加。expected_date は `delivery_date` or `request_date + 1day`。Overdue順に並び替え
+  - `list_overdue_deliveries_admin` (db.py): 全店舗のOverdue PO一覧（HQ監視用）。`case_id` 付き
+  - `GET /api/admin/procurement/overdue-deliveries` (main.py): HQ向け全店舗Overdue API
+  - `POST /api/store/procurement/pending-deliveries/{po_id}/alert` (main.py): DELIVERY_OVERDUE_ALERT Case Messageを投稿（HQのCase閲覧画面に通知が届く）
+
+- **Frontend: Store Procurement - Overdue バッジ・アラート UI** ✅:
+  - Pending Deliveriesセクションヘッダー: Overdueがあれば赤いアイコン + 「X OVERDUE」バッジに変化
+  - 各POカード: OVERDUE赤バッジ（日数表示付き）、期待デリバリー日を赤字表示
+  - 展開時: 赤いアラートボックス（説明文）+ 「Send Alert to HQ」ボタン → ケースメッセージ送信、送信後は「Alert Sent」✓表示
+
+- **Frontend: Admin Procurement Hub - Delivery Exceptions パネル** ✅:
+  - ページ最上部に「Delivery Exceptions」パネルを追加（全店舗Overdue PO一覧）
+  - Overdueゼロ時: 緑「All Clear」バッジ、Overdue有り時: 赤「X OVERDUE」バッジ
+  - 各行展開: PR No./Branch/Expected/Days Overdue グリッド + 品目一覧 + 「Open Case →」「Record Receiving →」リンク
+  - ページロード時に自動取得
 
 ---
 
