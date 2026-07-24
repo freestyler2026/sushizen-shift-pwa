@@ -1454,7 +1454,7 @@ export default function HRRecruitmentPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Page Header ── */}
       <div className="shrink-0 border-b border-white/10 bg-[#0d1117]/80 backdrop-blur px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1545,16 +1545,16 @@ export default function HRRecruitmentPage() {
       </div>
 
       {/* ── Main area: Kanban + Detail Panel ── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex">
         {/* Kanban Board */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="grid h-full gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
+        <div className="flex-1 overflow-x-auto">
+          <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
             {KANBAN_COLUMNS.map((col) => {
               const cards = grouped[col.id] || [];
               return (
                 <div
                   key={col.id}
-                  className={`flex min-w-0 flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3 h-full`}
+                  className={`flex min-w-0 flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3`}
                 >
                   {/* Column header */}
                   <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-white/8">
@@ -1564,8 +1564,7 @@ export default function HRRecruitmentPage() {
                     </span>
                   </div>
 
-                  {/* Cards — min-h-0 is required so flex-1 can shrink below content height and overflow-y-auto activates */}
-                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                  <div className="max-h-[55vh] overflow-y-auto space-y-2 p-2">
                     {cards.length === 0 ? (
                       <p className="text-center text-xs text-zinc-600 pt-6">Empty</p>
                     ) : (
