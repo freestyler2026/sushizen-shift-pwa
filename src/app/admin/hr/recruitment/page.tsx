@@ -1564,7 +1564,7 @@ export default function HRRecruitmentPage() {
                     </span>
                   </div>
 
-                  <div className="max-h-[55vh] overflow-y-auto space-y-2 p-2">
+                  <div className="space-y-2 p-2">
                     {cards.length === 0 ? (
                       <p className="text-center text-xs text-zinc-600 pt-6">Empty</p>
                     ) : (
