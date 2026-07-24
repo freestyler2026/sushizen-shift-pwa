@@ -215,11 +215,16 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         const warehousePattern = `WAREHOUSE_${dayName}`;
 
         // Build merged lookup: WAREHOUSE first (lower priority), then branch (overrides)
+        // Fall back to any WAREHOUSE_* pattern when the day-specific one doesn't exist
         const merged: Record<string, number> = {};
 
-        if (pats.includes(warehousePattern)) {
+        const effectiveWHPattern = pats.includes(warehousePattern)
+          ? warehousePattern
+          : (pats.find(p => p.startsWith("WAREHOUSE_")) ?? null);
+
+        if (effectiveWHPattern) {
           try {
-            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(warehousePattern)}/items`);
+            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(effectiveWHPattern)}/items`);
             const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
             (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
           } catch { /* ignore */ }
@@ -232,8 +237,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
             const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
             (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
           } catch { /* ignore */ }
-        } else if (pats.includes(warehousePattern)) {
-          setActivePattern(warehousePattern);
+        } else if (effectiveWHPattern) {
+          setActivePattern(effectiveWHPattern);
         }
 
         setPatternLookup(merged);
@@ -1427,18 +1432,31 @@ export default function AdminDailyInventoryTab() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // WAREHOUSE par pattern lookup for the form entry view (today's day)
+  // WAREHOUSE par pattern lookup for the form entry view (today's day, with fallback to any WAREHOUSE_* pattern)
   const [formWHLookup, setFormWHLookup] = useState<Record<string, number>>({});
   useEffect(() => {
     const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
-    apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(`WAREHOUSE_${dayName}`)}/items`)
-      .then((r) => r.json() as Promise<{ items?: { item_code: string; par_level: number }[] }>)
-      .then((d) => {
+    const fetchPatternItems = async (name: string): Promise<Record<string, number>> => {
+      try {
+        const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`);
+        const d = await r.json() as { items?: { item_code: string; par_level: number }[] };
         const lookup: Record<string, number> = {};
         (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
-        setFormWHLookup(lookup);
-      })
-      .catch(() => {});
+        return lookup;
+      } catch { return {}; }
+    };
+    (async () => {
+      let lookup = await fetchPatternItems(`WAREHOUSE_${dayName}`);
+      if (Object.keys(lookup).length === 0) {
+        try {
+          const r = await apiFetch("/api/daily-inventory/par-patterns");
+          const d = await r.json() as { patterns?: string[] };
+          const fallback = (d.patterns || []).find(p => p.startsWith("WAREHOUSE_"));
+          if (fallback) lookup = await fetchPatternItems(fallback);
+        } catch { /* ignore */ }
+      }
+      setFormWHLookup(lookup);
+    })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load all items at mount for detail view (ensures allItems is complete regardless of which tabs are visited)
