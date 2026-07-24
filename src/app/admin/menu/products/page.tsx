@@ -403,6 +403,21 @@ function MenuProductsPageInner() {
     finally { setWorking(false); }
   }
 
+  async function fullImportFromCost() {
+    const target = city === "manila" ? "Manila" : city === "dubai" ? "Dubai" : "Both Manila + Dubai";
+    if (!confirm(`⚠️ FULL MIGRATION — ${target}\n\nThis will:\n1. DELETE all existing Menu Builder products for ${target}\n2. Import ALL Cost Calculation items (menu items + ingredients, ALL categories)\n3. Assign brand-new SKUs to each product\n\nThis cannot be undone. Continue?`)) return;
+    setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
+    try {
+      const res = await menuPost<{ ok: boolean; created: number; skipped: number; categories_created: number; errors: string[] }>(
+        "/api/admin/menu/products/full-import-from-cost",
+        { city, overwrite: true, clear_existing: true }
+      );
+      setSuccess(`Full migration complete — Created: ${res.created}, Skipped: ${res.skipped}, Categories auto-created: ${res.categories_created}.${res.errors?.length ? ` Errors: ${res.errors.join("; ")}` : ""}`);
+      await loadAll(city, tab, q, categoryFilter, 1, pageSize);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setWorking(false); }
+  }
+
   async function mergeMimToSk() {
     if (!confirm(`Merge CK Product bridge rows (MIM-xxx) into their matching SK-xxx product rows for ${city.toUpperCase()}?\n\nThis unifies duplicate entries and fixes ingredient SKU display. Safe to run multiple times.`)) return;
     setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
@@ -576,6 +591,14 @@ function MenuProductsPageInner() {
                 className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50"
               >
                 ⟳ Clear & Reimport
+              </button>
+              <button
+                type="button"
+                onClick={() => void fullImportFromCost()}
+                disabled={working}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20 hover:text-emerald-200 disabled:opacity-50"
+              >
+                ⟳ Full Import (All Categories)
               </button>
               <button
                 type="button"
