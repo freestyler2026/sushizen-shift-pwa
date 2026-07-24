@@ -492,6 +492,31 @@ function MenuProductsPageInner() {
         ))}
       </div>
 
+      {/* ── Cost Calc sync banner (shown when 0 products) ───────────────────── */}
+      {!loading && total === 0 && (
+        <div className="rounded-2xl border border-violet-500/30 bg-violet-950/30 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-violet-200">
+                <span className="text-base">📋</span>
+                No products yet — import from Cost Calculation
+              </div>
+              <p className="mt-1.5 text-xs text-zinc-400 leading-relaxed max-w-xl">
+                Menu Builder reads products from its own table. Items registered in Cost Calculation (商品 in menu_item_master) are not automatically synced — click <strong className="text-violet-300">Import from Cost Calc</strong> in the Data Tools section below to pull them in. Ingredient/CK categories are automatically excluded; only sellable products are imported.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void importFromCost(false)}
+              disabled={working}
+              className="shrink-0 flex items-center gap-2 rounded-xl border border-violet-500/50 bg-violet-500/20 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/30 disabled:opacity-50"
+            >
+              ⟳ Import from Cost Calc
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Filter / toolbar ─────────────────────────────────────────────────── */}
       <div className={`${CARD} p-4`}>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr,1fr,auto]">
