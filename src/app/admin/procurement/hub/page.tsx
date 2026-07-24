@@ -276,11 +276,17 @@ export default function ProcurementHubPage() {
     parent_case_no?: string;
     dispatched_at?: string;
     has_shortage: boolean;
+    overdue_ack_status?: string;
+    overdue_ack_by?: string;
+    overdue_ack_at?: string;
   };
   const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
   const [overdueLoading, setOverdueLoading] = useState(false);
   const [overduePanelOpen, setOverduePanelOpen] = useState(true);
   const [overdueExpanded, setOverdueExpanded] = useState<string | null>(null);
+  const [ackingPoId, setAckingPoId] = useState("");
+  // Local ack status overrides — applied immediately on success so UI updates without reload
+  const [ackOverride, setAckOverride] = useState<Record<string, string>>({});
 
   // Expandable rows — id → { items, receipt_url } cache
   type DetailItem = { id: string; item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number; line_total: number; category?: string };
@@ -395,6 +401,21 @@ export default function ProcurementHubPage() {
       setOverdueLoading(false);
     }
   }, [city]);
+
+  const sendAck = useCallback(async (poId: string, ackStatus: "following_up" | "no_impact" | "resolved") => {
+    setAckingPoId(poId);
+    try {
+      await fetch(`/api/admin/procurement/overdue-deliveries/${encodeURIComponent(poId)}/ack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders() as Record<string, string>) },
+        body: JSON.stringify({ acked_by: requestedBy.trim(), ack_status: ackStatus, ack_note: "" }),
+        cache: "no-store",
+      });
+      setAckOverride((prev) => ({ ...prev, [poId]: ackStatus }));
+    } catch { /* best-effort */ } finally {
+      setAckingPoId("");
+    }
+  }, [requestedBy]);
 
   useEffect(() => {
     async function init() {
@@ -545,11 +566,16 @@ export default function ProcurementHubPage() {
                 {overdueRows.map((row) => {
                   const isExp = overdueExpanded === row.id;
                   const items = Array.isArray(row.line_items_json) ? row.line_items_json : [];
+                  const effectiveAck = ackOverride[row.id] ?? row.overdue_ack_status ?? "pending";
+                  const isAcked = effectiveAck === "following_up" || effectiveAck === "no_impact" || effectiveAck === "resolved";
+                  const isAcking = ackingPoId === row.id;
                   return (
                     <div
                       key={row.id}
                       className={`rounded-xl border overflow-hidden transition-all duration-200 ${
-                        isExp
+                        isAcked
+                          ? "border-zinc-700/40 bg-zinc-900/20 opacity-60"
+                          : isExp
                           ? "border-red-500/50 bg-red-950/12"
                           : "border-red-800/40 bg-red-950/8 hover:border-red-600/50"
                       }`}
@@ -562,17 +588,23 @@ export default function ProcurementHubPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-white font-mono flex items-center gap-2 flex-wrap">
                             {row.po_no}
-                            <span className="inline-flex items-center gap-1 rounded-full border bg-red-900/40 border-red-600/60 text-red-300 px-2 py-0.5 text-[10px] font-bold">
-                              <TriangleAlert className="h-3 w-3" />
-                              {row.days_overdue}d OVERDUE
-                            </span>
+                            {isAcked ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border bg-zinc-800/60 border-zinc-600/40 text-zinc-400 px-2 py-0.5 text-[10px] font-bold">
+                                {effectiveAck === "following_up" ? "Following Up" : effectiveAck === "no_impact" ? "No Impact" : "Resolved"}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full border bg-red-900/40 border-red-600/60 text-red-300 px-2 py-0.5 text-[10px] font-bold">
+                                <TriangleAlert className="h-3 w-3" />
+                                {row.days_overdue}d OVERDUE
+                              </span>
+                            )}
                             <span className="rounded-full border border-zinc-600/40 bg-zinc-800/30 px-2 py-0.5 text-[10px] text-zinc-400">
                               {row.store_code}
                             </span>
                           </p>
                           <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
                             <span>{row.vendor_name}</span>
-                            <span className="text-red-400 font-medium">Expected {row.expected_date}</span>
+                            <span className={isAcked ? "text-zinc-500" : "text-red-400 font-medium"}>Expected {row.expected_date}</span>
                             <span>{items.length} item{items.length !== 1 ? "s" : ""}</span>
                             <span className="capitalize">{row.city}</span>
                           </div>
@@ -614,7 +646,7 @@ export default function ProcurementHubPage() {
                               ))}
                             </div>
                           )}
-                          <div className="flex gap-2 pt-1">
+                          <div className="flex flex-wrap gap-2 pt-1">
                             {row.case_id && (
                               <a
                                 href={`/admin/procurement/cases/${row.case_id}`}
@@ -630,6 +662,41 @@ export default function ProcurementHubPage() {
                               Record Receiving →
                             </a>
                           </div>
+                          {/* HQ Acknowledgment */}
+                          {!isAcked && (
+                            <div className="border-t border-white/8 pt-3">
+                              <p className={`${T_CAPTION} mb-2`}>HQ Action</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={isAcking}
+                                  onClick={() => void sendAck(row.id, "following_up")}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-600/50 bg-amber-900/20 px-2.5 py-1 text-xs text-amber-300 hover:bg-amber-900/35 transition-colors disabled:opacity-50"
+                                >
+                                  {isAcking ? "Saving…" : "Following Up"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isAcking}
+                                  onClick={() => void sendAck(row.id, "no_impact")}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/50 bg-emerald-900/20 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-900/35 transition-colors disabled:opacity-50"
+                                >
+                                  {isAcking ? "Saving…" : "No Production Impact"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {isAcked && (
+                            <div className="border-t border-white/8 pt-3">
+                              <p className={`${T_CAPTION} mb-1`}>HQ Status</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-zinc-300">
+                                  {effectiveAck === "following_up" ? "Following up with supplier" : effectiveAck === "no_impact" ? "No production impact confirmed" : "Resolved"}
+                                </span>
+                                {row.overdue_ack_by && <span className="text-xs text-zinc-500">by {row.overdue_ack_by}</span>}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
