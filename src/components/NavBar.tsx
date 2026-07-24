@@ -202,6 +202,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
   { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" },
+  { href: "/admin/ck/par-levels", label: "CK Par Levels", icon: Factory, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
   { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" },
