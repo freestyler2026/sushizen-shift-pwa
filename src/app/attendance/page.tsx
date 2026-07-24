@@ -67,6 +67,9 @@ interface TodayData {
   visits: AttendanceVisit[];
   breaks: AttendanceBreak[];
   open_session_yesterday: AttendanceSession | null;
+  scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string } | null;
+  lateness_min: number | null;
+  shift_elapsed_min: number | null;
 }
 
 // ─── WebAuthn helpers (native API) ───────────────────────────────────────────
@@ -296,6 +299,7 @@ export default function AttendancePage() {
   const [unclosedCorrReason, setUnclosedCorrReason] = useState("");
   const [unclosedCorrBusy, setUnclosedCorrBusy] = useState(false);
   const [unclosedCorrDone, setUnclosedCorrDone] = useState(false);
+  const [lateBannerDismissed, setLateBannerDismissed] = useState(false);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
@@ -939,6 +943,66 @@ export default function AttendancePage() {
           <span>Missed clock-out correction submitted — your manager will review it shortly.</span>
         </div>
       )}
+
+      {/* ── Late / not-clocked-in banner ─────────────────────────────────────── */}
+      {data?.scheduled_shift && !lateBannerDismissed && (() => {
+        const shift = data.scheduled_shift!;
+        const startH = shift.start_hour;
+        const base = startH >= 24 ? startH - 24 : startH;
+        const mins = Math.round((startH % 1) * 60);
+        const period = base >= 12 ? "PM" : "AM";
+        const disp = base % 12 === 0 ? 12 : Math.floor(base) % 12;
+        const startLabel = `${disp}:${String(mins).padStart(2, "0")} ${period}`;
+        const GRACE = 5;
+        const late = data.lateness_min ?? 0;
+        const elapsed = data.shift_elapsed_min ?? 0;
+
+        if (data.session?.check_in_at && late > GRACE) {
+          return (
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-950/25 px-4 py-3 flex items-start gap-2.5">
+              <Clock size={15} className="text-amber-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-300">
+                  You clocked in {late} min late
+                </p>
+                <p className="text-xs text-amber-300/60 mt-0.5">
+                  Shift started at {startLabel}. Meal allowance may not apply today.
+                </p>
+              </div>
+              <button
+                onClick={() => setLateBannerDismissed(true)}
+                className="text-amber-500/50 hover:text-amber-400 text-xl leading-none -mt-0.5 shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          );
+        }
+
+        if (!data.session?.check_in_at && elapsed > GRACE) {
+          return (
+            <div className="rounded-2xl border border-orange-500/40 bg-orange-950/20 px-4 py-3 flex items-start gap-2.5">
+              <Clock size={15} className="text-orange-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-orange-300">
+                  Shift started {elapsed} min ago
+                </p>
+                <p className="text-xs text-orange-300/60 mt-0.5">
+                  Your shift started at {startLabel}. Please clock in now.
+                </p>
+              </div>
+              <button
+                onClick={() => setLateBannerDismissed(true)}
+                className="text-orange-500/50 hover:text-orange-400 text-xl leading-none -mt-0.5 shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          );
+        }
+
+        return null;
+      })()}
 
       {/* Meal Allowance / Probation bonus banner */}
       {mealAllowanceBanner && (
