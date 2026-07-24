@@ -18,14 +18,20 @@ interface CancelRecord {
   paid_price: number | null;
   cancellation_reason: string | null;
   kitchen_photo_provided: boolean | null;
+  photo_status: string | null;
   ticket_status: string | null;
   recorded_by: string | null;
   refund_status: string | null;
+  refund_amount: number | null;
+  compensation_amount: number | null;
 }
 
 interface EditableRecord extends CancelRecord {
   _uid: string;
   paid_price_str: string;
+  refund_str: string;
+  comp_str: string;
+  cancellation_reason_other: string;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -50,6 +56,28 @@ const CANCEL_REASON_OPTIONS = [
   "Food was not prepared",
   "Late preparation",
   "Other",
+] as const;
+const PHOTO_STATUS_OPTIONS = [
+  "Kitchen has provided the photo",
+  "No need to look for photo",
+  "No replies from kitchen",
+  "PIC found the photo",
+  "Photo not available",
+] as const;
+const REFUND_STATUS_OPTIONS = [
+  "Full Refund",
+  "Partial Refund",
+  "No Refund",
+  "Compensation Provided",
+  "Replacement Order",
+  "Credit Applied",
+  "Refund Pending",
+  "Under Investigation",
+  "Disputed",
+  "Resolved – No Action Required",
+  "Escalated to Platform",
+  "Policy Exception Approved",
+  "Others",
 ] as const;
 
 const PLATFORM_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -92,8 +120,14 @@ function emptyRecord(date: string): EditableRecord {
     ordered_items: "",
     paid_price: null,
     paid_price_str: "",
+    refund_amount: null,
+    refund_str: "",
+    compensation_amount: null,
+    comp_str: "",
     cancellation_reason: "",
+    cancellation_reason_other: "",
     kitchen_photo_provided: null,
+    photo_status: null,
     ticket_status: "",
     recorded_by: "",
     refund_status: "",
@@ -110,6 +144,9 @@ function dbToEditable(r: CancelRecord): EditableRecord {
     category: r.category || "Cancellation",
     _uid: `db-${r.id}`,
     paid_price_str: r.paid_price != null ? String(r.paid_price) : "",
+    refund_str: r.refund_amount != null ? String(r.refund_amount) : "",
+    comp_str: r.compensation_amount != null ? String(r.compensation_amount) : "",
+    cancellation_reason_other: "",
     saving: false,
     saved: true,
     error: null,
@@ -444,16 +481,13 @@ function RecordCard({
               />
             </div>
             <div>
-              <Label>Kitchen Photo</Label>
-              <ToggleBtns
-                value={rec.kitchen_photo_provided == null ? "" : rec.kitchen_photo_provided ? "yes" : "no"}
-                onChange={(v) => onUpdate("kitchen_photo_provided", v === "yes" ? true : v === "no" ? false : null)}
-                options={[
-                  { label: "Yes", value: "yes" },
-                  { label: "No", value: "no" },
-                  { label: "—", value: "" },
-                ]}
-                colorMap={{ yes: "#10b981", no: "#ef4444", "": "#374151" }}
+              <Label>Kitchen Photo Status</Label>
+              <SelectIn
+                value={rec.photo_status ?? ""}
+                onChange={(v) => onUpdate("photo_status", v)}
+                options={PHOTO_STATUS_OPTIONS}
+                placeholder="Select…"
+                extraValues={rec.photo_status ? [rec.photo_status] : []}
               />
             </div>
             <div>
@@ -480,6 +514,13 @@ function RecordCard({
                 placeholder="Select reason…"
                 extraValues={rec.cancellation_reason ? [rec.cancellation_reason] : []}
               />
+              {rec.cancellation_reason === "Other" && (
+                <TextIn
+                  value={rec.cancellation_reason_other ?? ""}
+                  onChange={(v) => onUpdate("cancellation_reason_other", v)}
+                  placeholder="Please specify…"
+                />
+              )}
             </div>
             <div>
               <Label>Ticket Status</Label>
@@ -492,13 +533,38 @@ function RecordCard({
               />
             </div>
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Refund Amount (PHP)</Label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={rec.refund_str}
+                onChange={(e) => onUpdate("refund_str", e.target.value)}
+                placeholder="0"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-right text-sm text-white transition-colors placeholder:text-white/20 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <Label>Compensation Amount (PHP)</Label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={rec.comp_str}
+                onChange={(e) => onUpdate("comp_str", e.target.value)}
+                placeholder="0"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-right text-sm text-white transition-colors placeholder:text-white/20 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
           <div>
-            <Label>Refund / Resolution Notes</Label>
-            <TextArea
+            <Label>Refund / Resolution Status</Label>
+            <SelectIn
               value={rec.refund_status ?? ""}
               onChange={(v) => onUpdate("refund_status", v)}
-              placeholder="e.g. We will be compensated for the cancelled order…"
-              rows={2}
+              options={REFUND_STATUS_OPTIONS}
+              placeholder="Select status…"
+              extraValues={rec.refund_status ? [rec.refund_status] : []}
             />
           </div>
           {rec.error ? (
@@ -603,9 +669,12 @@ export default function AdminCancellationInputTab({
         paid_price: Number.isNaN(price) ? null : price,
         cancellation_reason: rec.cancellation_reason?.trim() || null,
         kitchen_photo_provided: rec.kitchen_photo_provided,
+        photo_status: rec.photo_status?.trim() || null,
         ticket_status: rec.ticket_status?.trim() || null,
         recorded_by: rec.recorded_by?.trim() || null,
         refund_status: rec.refund_status?.trim() || null,
+        refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
+        compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
       });
       if (data.record) {
         const row = data.record;

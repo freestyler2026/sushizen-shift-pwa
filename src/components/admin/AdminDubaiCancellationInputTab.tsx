@@ -37,6 +37,7 @@ interface EditableRecord extends CancelRecord {
   total_str: string;
   refund_str: string;
   comp_str: string;
+  cancellation_reason_other: string;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -149,11 +150,28 @@ const PHOTO_STATUS_OPTIONS = [
 ] as const;
 
 const EMAIL_STATUS_OPTIONS = [
-  "Email/Ticket has been sent to Careem",
+  "Email/Ticket has been sent to Aggregator",
+  "No dispute required",
   "No need to send an email, the food was not prepared",
   "Pending for review",
   "The claim is valid, no need to send e-mail",
   "under refund dispute",
+] as const;
+
+const REFUND_STATUS_OPTIONS = [
+  "Full Refund",
+  "Partial Refund",
+  "No Refund",
+  "Compensation Provided",
+  "Replacement Order",
+  "Credit Applied",
+  "Refund Pending",
+  "Under Investigation",
+  "Disputed",
+  "Resolved – No Action Required",
+  "Escalated to Platform",
+  "Policy Exception Approved",
+  "Others",
 ] as const;
 
 const PLATFORM_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -211,6 +229,7 @@ function emptyRecord(date: string): EditableRecord {
     refund_str: "",
     comp_str: "",
     cancellation_reason: "",
+    cancellation_reason_other: "",
     encoded_by: "",
     customer_note: "",
     photo_status: "",
@@ -236,6 +255,7 @@ function dbToEditable(r: CancelRecord): EditableRecord {
     total_str: fStr(r.total_amount),
     refund_str: fStr(r.refund_amount),
     comp_str: fStr(r.compensation_amount),
+    cancellation_reason_other: "",
     saving: false,
     saved: true,
     error: null,
@@ -622,7 +642,7 @@ function RecordCard({
               />
             </div>
             <div>
-              <Label>Compensation (AED) — Keeta</Label>
+              <Label>Compensation (AED)</Label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -646,6 +666,13 @@ function RecordCard({
                 placeholder="Select…"
                 extraValues={rec.cancellation_reason ? [rec.cancellation_reason] : []}
               />
+              {rec.cancellation_reason === "Others" && (
+                <TextIn
+                  value={rec.cancellation_reason_other ?? ""}
+                  onChange={(v) => onUpdate("cancellation_reason_other", v)}
+                  placeholder="Please specify…"
+                />
+              )}
             </div>
             <div>
               <Label>Encoded By</Label>
@@ -656,21 +683,15 @@ function RecordCard({
             <Label>Customer Note</Label>
             <TextArea value={rec.customer_note ?? ""} onChange={(v) => onUpdate("customer_note", v)} rows={2} />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Photo Status</Label>
-              <SelectIn
-                value={rec.photo_status ?? ""}
-                onChange={(v) => onUpdate("photo_status", v)}
-                options={PHOTO_STATUS_OPTIONS}
-                placeholder="Select…"
-                extraValues={rec.photo_status ? [rec.photo_status] : []}
-              />
-            </div>
-            <div>
-              <Label>Double Checked By — Careem</Label>
-              <TextIn value={rec.double_checked_by ?? ""} onChange={(v) => onUpdate("double_checked_by", v)} />
-            </div>
+          <div>
+            <Label>Photo Status</Label>
+            <SelectIn
+              value={rec.photo_status ?? ""}
+              onChange={(v) => onUpdate("photo_status", v)}
+              options={PHOTO_STATUS_OPTIONS}
+              placeholder="Select…"
+              extraValues={rec.photo_status ? [rec.photo_status] : []}
+            />
           </div>
           <div>
             <Label>Email / Ticket Status</Label>
@@ -687,12 +708,18 @@ function RecordCard({
             <TextArea value={rec.kitchen_notes ?? ""} onChange={(v) => onUpdate("kitchen_notes", v)} rows={2} />
           </div>
           <div>
-            <Label>Platform Response Notes — Careem</Label>
+            <Label>Platform Response Notes</Label>
             <TextArea value={rec.platform_notes ?? ""} onChange={(v) => onUpdate("platform_notes", v)} rows={2} />
           </div>
           <div>
             <Label>Refund / Resolution Status</Label>
-            <TextArea value={rec.refund_status ?? ""} onChange={(v) => onUpdate("refund_status", v)} rows={2} />
+            <SelectIn
+              value={rec.refund_status ?? ""}
+              onChange={(v) => onUpdate("refund_status", v)}
+              options={REFUND_STATUS_OPTIONS}
+              placeholder="Select…"
+              extraValues={rec.refund_status ? [rec.refund_status] : []}
+            />
           </div>
           {rec.error ? (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">✗ {rec.error}</div>
