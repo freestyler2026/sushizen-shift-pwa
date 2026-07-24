@@ -72,6 +72,9 @@ export default function CkParLevelsPage() {
   // search filter
   const [search, setSearch] = useState("");
 
+  // generate plan
+  const [generating, setGenerating] = useState(false);
+
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -191,6 +194,37 @@ export default function CkParLevelsPage() {
     }
   };
 
+  // ── generate plan / purchase order ───────────────────────────────────────
+  const handleGenerate = async (planType: "production" | "purchase") => {
+    setGenerating(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `${API_BASE}/api/admin/ck/par-levels/generate?city=${cityParam(city)}&plan_type=${planType}`,
+        { headers: getAuthHeaders(auth) }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || "Generate failed");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = planType === "production"
+        ? `CK_ProductionPlan_${city}_${today}.xlsx`
+        : `CK_PurchaseOrder_${city}_${today}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e.message || "Error generating file");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // ── filtered rows ─────────────────────────────────────────────────────────
   const filtered = rows.filter((r) =>
     !search || r.item_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -303,6 +337,15 @@ export default function CkParLevelsPage() {
               onChange={handleUpload}
             />
           </label>
+
+          {/* Generate Plan button */}
+          <button
+            onClick={() => handleGenerate(tab === "ck_produced" ? "production" : "purchase")}
+            disabled={generating || rows.filter(r => r.par_level != null).length === 0}
+            className="rounded-xl border border-violet-500/30 bg-violet-500/15 px-4 py-2 text-sm font-medium text-violet-400 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            {generating ? "Generating…" : tab === "ck_produced" ? "📋 Production Plan" : "📋 Purchase Order"}
+          </button>
 
           {/* Download template link */}
           <a
