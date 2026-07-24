@@ -751,7 +751,10 @@ function buildUpsertBody(
     total_amount: parseAmt(rec.total_str),
     refund_amount: parseAmt(rec.refund_str),
     compensation_amount: parseAmt(rec.comp_str),
-    cancellation_reason: rec.cancellation_reason?.trim() || null,
+    cancellation_reason:
+      rec.cancellation_reason === "Others" && rec.cancellation_reason_other?.trim()
+        ? rec.cancellation_reason_other.trim()
+        : rec.cancellation_reason?.trim() || null,
     encoded_by: rec.encoded_by?.trim() || null,
     customer_note: rec.customer_note?.trim() || null,
     photo_status: rec.photo_status?.trim() || null,

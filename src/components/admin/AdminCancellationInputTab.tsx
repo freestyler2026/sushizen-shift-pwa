@@ -667,7 +667,10 @@ export default function AdminCancellationInputTab({
         time_reported: rec.time_reported?.trim() || null,
         ordered_items: rec.ordered_items?.trim() || null,
         paid_price: Number.isNaN(price) ? null : price,
-        cancellation_reason: rec.cancellation_reason?.trim() || null,
+        cancellation_reason:
+          rec.cancellation_reason === "Other" && rec.cancellation_reason_other?.trim()
+            ? rec.cancellation_reason_other.trim()
+            : rec.cancellation_reason?.trim() || null,
         kitchen_photo_provided: rec.kitchen_photo_provided,
         photo_status: rec.photo_status?.trim() || null,
         ticket_status: rec.ticket_status?.trim() || null,
@@ -755,11 +758,17 @@ export default function AdminCancellationInputTab({
           time_reported: rec.time_reported?.trim() || null,
           ordered_items: rec.ordered_items?.trim() || null,
           paid_price: Number.isNaN(price) ? null : price,
-          cancellation_reason: rec.cancellation_reason?.trim() || null,
+          cancellation_reason:
+            rec.cancellation_reason === "Other" && rec.cancellation_reason_other?.trim()
+              ? rec.cancellation_reason_other.trim()
+              : rec.cancellation_reason?.trim() || null,
           kitchen_photo_provided: rec.kitchen_photo_provided,
+          photo_status: rec.photo_status?.trim() || null,
           ticket_status: rec.ticket_status?.trim() || null,
           recorded_by: rec.recorded_by?.trim() || null,
           refund_status: rec.refund_status?.trim() || null,
+          refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
+          compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
         });
         if (data.record) {
           const row = data.record;
