@@ -19,6 +19,7 @@ interface ParLevelRow {
   item_name: string;
   unit: string | null;
   par_level: number | null;
+  current_stock: number | null;
   category: string | null;
   supplier: string | null;
   notes: string | null;
@@ -39,11 +40,17 @@ const CITIES = ["Manila", "Dubai"] as const;
 type City = (typeof CITIES)[number];
 const cityParam = (c: City) => c.toLowerCase();
 
+function fmtNum(n: number | null | undefined, digits = 1): string {
+  if (n == null) return "—";
+  return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 export default function CkParLevelsPage() {
   const [city, setCity] = useState<City>("Manila");
   const [tab, setTab] = useState<"ck_produced" | "supplier">("ck_produced");
   const [rows, setRows] = useState<ParLevelRow[]>([]);
+  const [stockDate, setStockDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -78,6 +85,7 @@ export default function CkParLevelsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to load");
       setRows(data.rows || []);
+      setStockDate(data.stock_date || null);
     } catch (e: any) {
       setError(e.message || "Error loading par levels");
     } finally {
@@ -191,6 +199,9 @@ export default function CkParLevelsPage() {
 
   const withPar = rows.filter((r) => r.par_level != null).length;
   const withoutPar = rows.length - withPar;
+  const withStock = rows.filter((r) => r.current_stock != null).length;
+
+  const gapLabel = tab === "ck_produced" ? "To Produce" : "To Order";
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -221,7 +232,7 @@ export default function CkParLevelsPage() {
         </div>
 
         {/* KPI bar */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className={`${GLASS_CARD} p-4 text-center`}>
             <div className="text-2xl font-bold text-white">{rows.length}</div>
             <div className="text-xs text-zinc-400 mt-1">Total Items</div>
@@ -233,6 +244,14 @@ export default function CkParLevelsPage() {
           <div className={`${GLASS_CARD} p-4 text-center`}>
             <div className="text-2xl font-bold text-amber-400">{withoutPar}</div>
             <div className="text-xs text-zinc-400 mt-1">Not Set</div>
+          </div>
+          <div className={`${GLASS_CARD} p-4 text-center`}>
+            <div className="text-2xl font-bold text-sky-400">{withStock}</div>
+            <div className="text-xs text-zinc-400 mt-1">
+              {stockDate
+                ? `Stock (${new Date(stockDate).toLocaleDateString()})`
+                : "Stock Linked"}
+            </div>
           </div>
         </div>
 
@@ -329,6 +348,19 @@ export default function CkParLevelsPage() {
 
         {/* Table */}
         <div className={GLASS_CARD + " overflow-hidden"}>
+          {/* Stock date banner */}
+          {stockDate && (
+            <div className="px-4 py-2 border-b border-white/5 flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full bg-sky-400" />
+              <span className="text-xs text-sky-400/80">
+                Current stock linked from CK Inventory session on{" "}
+                <span className="font-semibold text-sky-300">
+                  {new Date(stockDate).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                </span>
+              </span>
+            </div>
+          )}
+
           {loading ? (
             <div className="py-16 text-center text-zinc-400 text-sm">Loading…</div>
           ) : error ? (
@@ -348,6 +380,8 @@ export default function CkParLevelsPage() {
                     <th className="px-4 py-3 text-left">Item Name</th>
                     <th className="px-4 py-3 text-center">Unit</th>
                     <th className="px-4 py-3 text-center">Par Level</th>
+                    <th className="px-4 py-3 text-center">Current Stock</th>
+                    <th className="px-4 py-3 text-center">{gapLabel}</th>
                     {tab === "supplier" && (
                       <th className="px-4 py-3 text-left">Supplier</th>
                     )}
@@ -357,6 +391,22 @@ export default function CkParLevelsPage() {
                 <tbody>
                   {filtered.map((row, idx) => {
                     const isEditing = editingId === row.id;
+
+                    // Gap calculation
+                    const gap =
+                      row.par_level != null && row.current_stock != null
+                        ? Math.max(0, row.par_level - row.current_stock)
+                        : null;
+
+                    const gapColor =
+                      gap == null
+                        ? "text-zinc-600"
+                        : gap === 0
+                        ? "text-emerald-400"
+                        : tab === "ck_produced"
+                        ? "text-indigo-400"
+                        : "text-orange-400";
+
                     return (
                       <tr
                         key={row.id}
@@ -367,6 +417,8 @@ export default function CkParLevelsPage() {
                         )}
                         <td className="px-4 py-2.5 text-white font-medium">{row.item_name}</td>
                         <td className="px-4 py-2.5 text-center text-zinc-400 text-xs">{row.unit || "—"}</td>
+
+                        {/* Par Level — inline editable */}
                         <td className="px-4 py-2.5 text-center">
                           {isEditing ? (
                             <div className="flex items-center justify-center gap-2">
@@ -407,11 +459,36 @@ export default function CkParLevelsPage() {
                               }`}
                             >
                               {row.par_level != null
-                                ? row.par_level.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                                ? fmtNum(row.par_level)
                                 : "— Set —"}
                             </button>
                           )}
                         </td>
+
+                        {/* Current Stock — read-only, from CK Inventory */}
+                        <td className="px-4 py-2.5 text-center">
+                          {row.current_stock != null ? (
+                            <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sm font-semibold text-sky-300">
+                              {fmtNum(row.current_stock)}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-700 text-xs">—</span>
+                          )}
+                        </td>
+
+                        {/* Gap: To Produce / To Order */}
+                        <td className={`px-4 py-2.5 text-center text-sm font-semibold ${gapColor}`}>
+                          {gap != null ? (
+                            gap === 0 ? (
+                              <span className="text-emerald-400 text-xs">✓ OK</span>
+                            ) : (
+                              fmtNum(gap)
+                            )
+                          ) : (
+                            <span className="text-zinc-700 text-xs">—</span>
+                          )}
+                        </td>
+
                         {tab === "supplier" && (
                           <td className="px-4 py-2.5 text-zinc-500 text-xs">{row.supplier || "—"}</td>
                         )}
