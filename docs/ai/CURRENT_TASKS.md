@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 142 — Menu Builder Cost Fixes: Phase 1/2/3)
+Last updated: 2026-07-24 (session 145 — Phase 1-3 bug fixes)
 
 
 
@@ -8,6 +8,73 @@ Last updated: 2026-07-24 (session 142 — Menu Builder Cost Fixes: Phase 1/2/3)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 145 — Phase 1-3 bug fixes)
+
+- **3 bugs found and fixed** across Phase 1-3 of Shift Compliance feature ✅ DEPLOYED:
+  - **Bug 1 (Phase 2 frontend)**: `startLabel` disp calc wrong for fractional 12pm hours (e.g. 12:30 → "0:30 PM"). Fix: `Math.floor(base) % 12 || 12` in `attendance/page.tsx`. Vercel ece522c.
+  - **Bug 2 (Phase 2 backend)**: `best_shift` selection when not checked in picked the FIRST started shift (break too early). Staff with AM + PM shifts at 7 PM would see AM banner. Fix: removed `break` so loop continues to find the most recently started shift. Heroku deployed.
+  - **Bug 3 (Phase 1 frontend)**: `ShiftComplianceTab` had no `key={city}` so city switch Manila→Dubai kept Manila's date in state. Fix: added `key={city}`. Vercel e148a3a.
+- Browser smoke test: Shift Compliance tab loads ✓, Dubai switch works ✓, TypeScript no errors ✓
+
+---
+
+## Recently Completed (2026-07-24 session 144 — Shift Compliance Phase 1)
+
+- **Phase 1: Admin Shift Compliance tab** ✅ DEPLOYED:
+  - New `get_shift_compliance(city, work_date)` in `db.py`: JOINs `shift_published_rows`+`shift_published_versions` with `os_attendance_sessions`
+  - New `GET /api/admin/attendance/shift-compliance?city=&date=` endpoint in `main.py`
+  - Calculates `late_minutes`, `status` (ON_TIME/LATE/NOT_CHECKED_IN/NO_SHOW/PENDING), provisional `meal_allowance_ok`
+  - New `ShiftComplianceTab` in `/admin/os-attendance` page: date picker, Issues Only toggle, color-coded table, summary chips
+  - Heroku ea004f2 ✅, Vercel auto-deploying
+  - Grace period: 5 min (matches `db_meal_allowance.LATE_GRACE_MINUTES`)
+  - Data source: `shift_published_rows` (Manual Shift Entry published shifts)
+
+- **Phase 2: Staff late/reminder banners on attendance page** ✅ DEPLOYED:
+  - New `get_published_shifts_for_staff(city, staff_name, work_date)` in `db.py`
+  - `api_attendance_today` now returns `scheduled_shift`, `lateness_min`, `shift_elapsed_min`
+  - Attendance page: amber banner "You clocked in X min late" (if `lateness_min > 5`)
+  - Attendance page: orange banner "Shift started X min ago" (if no check-in and `shift_elapsed_min > 5`)
+  - Both banners are dismissible (× button)
+  - Heroku deployed, Vercel auto-deploying
+
+- **Phase 3: Worker automated My Notices** ✅ DEPLOYED:
+  - New table `os_attendance_alert_log` — `UNIQUE(city, staff_name, work_date, alert_type)` prevents duplicate sends
+  - `run_attendance_alerts()` in `db.py` — iterates Manila + Dubai published shifts every 15 min
+  - `_maybe_send_attendance_alert()` — dedup INSERT + My Notices notification (2 separate connections per CLAUDE.md rule #7)
+  - `notification_type = 'attendance_alert'` in `private_report_notifications`
+  - Alert types: `PRE_SHIFT` (T-2h window: 105-135 min before start), `LATE_15` (15+ min since start, no check-in), `NO_SHOW_30` (30+ min since start, no check-in)
+  - Worker integration: 15-min slot (`now.minute // 15`) in `worker.py`
+  - Heroku deployed ✅ (web + worker both updated)
+
+---
+
+## Recently Completed (2026-07-24 session 143 — Menu Builder Bug Fixes + Attendance)
+
+- **Menu Builder 8-bug code review + fixes** ✅ DEPLOYED:
+  - Fix 1: `conn.rollback()` added to `list_menu_ingredient_items` except blocks (transaction abort cascade prevention)
+  - Fix 2: `update_menu_product_ingredient` + `update_menu_modifier_option_ingredient` now resolve `product:` / `menu_item:` / `cost:` prefixes (previously only create paths were fixed)
+  - Fix 3: `int()` conversion in `add_menu_modifier_option_ingredient` wrapped with `try/except ValueError`
+  - Fix 4: Restored `AND mi.is_active = TRUE` to MIM LEFT JOIN in `find_misplaced_ingredients` (false-positive prevention)
+  - Fix 5: Removed `UPDATE inv_items SET cost` from `find_or_create_inv_item_for_menu_item_master` when row already found (was corrupting SK-xxx rows)
+  - Fix 6: Wrapped SELECT in `migrate_mim_to_sk_items` with `with conn:` (CLAUDE.md rule #7)
+  - Fix 7: `_filter_int_ids()` helper logs skipped non-integer IDs instead of silent drop
+  - Fix 8: Removed dead code `if not resolved_city:` blocks
+  - Backend (menu_db.py + menu_api.py + db.py): deployed Heroku ✅
+  - No frontend changes needed for bug fixes
+
+- **Attendance: missed clock-out detection** ✅ DEPLOYED:
+  - New `get_os_open_session_before()` DB function: finds unclosed sessions in last 7 days
+  - `api_attendance_today` response now includes `open_session_yesterday` field
+  - Attendance page: orange warning banner + inline correction form when previous-day session is unclosed
+  - Staff submits actual finish time + reason → POST /api/attendance/corrections
+  - Heroku v1482 ✅, Vercel 8b4e62d ✅
+
+- **Peter Villafuerte attendance case** — system fix deployed; admin still needs to:
+  1. Delete the erroneous 2026-07-24 session (11:22–11:23, 1 min)
+  2. Set check_out_at on the 2026-07-23 session to Peter's actual finish time
 
 ---
 
@@ -27,6 +94,10 @@ Last updated: 2026-07-24 (session 142 — Menu Builder Cost Fixes: Phase 1/2/3)
 
 ## ⚠️ Deployments Pending
 
+- Heroku: ea004f2 (compliance: GET /api/admin/attendance/shift-compliance endpoint) — deployed ✅
+- Vercel: (compliance: Shift Compliance tab in OS Attendance admin) — auto-deploying
+- Heroku: 7e8332f (attendance: missed clock-out detection — get_os_open_session_before + open_session_yesterday) — deployed ✅ v1482
+- Vercel: 8b4e62d (attendance: missed clock-out banner + correction form) — auto-deploying
 - Heroku: 5039049 (menu: Phase3 misplaced items fix — menu_products match + int parse fix) — deployed ✅
 - Heroku: fc62d8c (menu: Phase2-B ingredient search + product: prefix support) — deployed ✅
 - Heroku: 4cd73a2 (menu: Phase2-A MIM→SK migration endpoint) — deployed ✅
