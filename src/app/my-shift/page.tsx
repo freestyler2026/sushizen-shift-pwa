@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, Clock3, MapPin, RefreshCw, User } from "lucide-react";
+import { AlertCircle, CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, Clock, Clock3, LogIn, LogOut, MapPin, RefreshCw, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiGet, qs, type ShiftRow } from "@/lib/api";
 import { getAuth, canAccessMyShiftPage, type City } from "@/lib/auth";
@@ -13,6 +13,21 @@ import {
   T_CAPTION,
   DIVIDER,
 } from "@/lib/ui-tokens";
+
+type AttendanceRecord = {
+  work_date: string;
+  branch_code: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  net_work_min: number | null;
+  break_min: number;
+  is_incomplete: boolean;
+};
+
+type AttendanceHistoryResponse = {
+  ok: boolean;
+  sessions: AttendanceRecord[];
+};
 
 type MyShiftDay = {
   work_date: string;
@@ -101,6 +116,28 @@ function stripJPNotes(name: string) {
   return (name || "").replace(/\([^)]*[^\x00-\x7F][^)]*\)/g, "").trim();
 }
 
+function fmtAttTime(iso: string | null, city: string): string {
+  if (!iso) return "--:--";
+  const tz = city.toLowerCase() === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+  try {
+    return new Date(iso).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: tz,
+    });
+  } catch {
+    return "--:--";
+  }
+}
+
+function fmtWorkHours(minutes: number | null): string {
+  if (minutes === null || minutes <= 0) return "--";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 function isAbsenceRow(row: ShiftRow) {
   const role = String(row.role || "").toUpperCase().trim();
   return Number(row.start_hour || 0) === 0 && Number(row.end_hour || 0) === 0 && (
@@ -126,6 +163,9 @@ export default function MyShiftPage() {
   const [error, setError] = useState("");
   const [data, setData] = useState<MyShiftMonthView | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [hasIncomplete, setHasIncomplete] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -191,6 +231,29 @@ export default function MyShiftPage() {
       cancelled = true;
     };
   }, [authed, city, month, staffName]);
+
+  useEffect(() => {
+    if (!authed?.staffName) return;
+    let cancelled = false;
+    async function runAtt() {
+      setAttendanceLoading(true);
+      try {
+        const res = await apiGet<AttendanceHistoryResponse>(
+          `/api/attendance/history${qs({ month })}`
+        );
+        if (cancelled) return;
+        const sessions = res.sessions || [];
+        setAttendanceData(sessions);
+        setHasIncomplete(sessions.some((s) => s.is_incomplete));
+      } catch {
+        if (!cancelled) setAttendanceData([]);
+      } finally {
+        if (!cancelled) setAttendanceLoading(false);
+      }
+    }
+    void runAtt();
+    return () => { cancelled = true; };
+  }, [authed, month]);
 
   const monthDate = useMemo(() => parseMonthKey(month), [month]);
   const todayDateIso = useMemo(() => iso(new Date()), []);
@@ -694,6 +757,125 @@ export default function MyShiftPage() {
                         </tr>
                       ))
                     )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+        <div className={DIVIDER} />
+
+        {/* ── My Attendance ─────────────────────────────────────────────────── */}
+        <div className={`${GLASS_CARD} bg-teal-950/30 p-4 sm:p-5`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-teal-500" />
+              <h2 className="text-base font-semibold text-white sm:text-lg">My Attendance</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {hasIncomplete && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-950/40 px-2.5 py-1 text-[11px] font-medium text-orange-300">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Incomplete record
+                </span>
+              )}
+              {attendanceLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-neutral-500" />}
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-neutral-500">Actual clock-in / clock-out records</p>
+
+          {attendanceData.length === 0 && !attendanceLoading ? (
+            <div className="flex flex-col items-center gap-2 py-8">
+              <Clock className="h-6 w-6 text-zinc-600" />
+              <p className={T_CAPTION}>No attendance records this month.</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile card list */}
+              <div className="mt-4 grid gap-2 sm:hidden">
+                {attendanceData.map((rec, idx) => (
+                  <div
+                    key={`att-${rec.work_date}-${idx}`}
+                    className={`rounded-2xl border p-3 ${
+                      rec.is_incomplete
+                        ? "border-orange-500/40 bg-orange-950/20"
+                        : "border-white/8 bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-white">{rec.work_date}</div>
+                        <div className="mt-0.5 text-[11px] text-neutral-500">{weekdayShort(rec.work_date)} · {rec.branch_code || "—"}</div>
+                      </div>
+                      {rec.is_incomplete ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-orange-500/40 bg-orange-950/40 px-2 py-0.5 text-[10px] font-medium text-orange-300">
+                          <AlertCircle className="h-3 w-3" />
+                          Incomplete
+                        </span>
+                      ) : (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-teal-500/30 bg-teal-950/40 px-2 py-0.5 text-[10px] font-medium text-teal-300">
+                          {fmtWorkHours(rec.net_work_min)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex gap-4 text-[11px]">
+                      <div className="flex items-center gap-1 text-neutral-400">
+                        <LogIn className="h-3 w-3 text-teal-400" />
+                        {fmtAttTime(rec.check_in_at, city)}
+                      </div>
+                      <div className="flex items-center gap-1 text-neutral-400">
+                        <LogOut className="h-3 w-3 text-zinc-400" />
+                        {rec.check_out_at ? fmtAttTime(rec.check_out_at, city) : <span className="text-orange-400">No clock-out</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="mt-4 hidden overflow-x-auto sm:block">
+                <table className="w-full min-w-[540px]">
+                  <thead>
+                    <tr>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Date</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Day</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Branch</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Clock In</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Clock Out</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Hours</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceData.map((rec, idx) => (
+                      <tr
+                        key={`att-tbl-${rec.work_date}-${idx}`}
+                        className={`border-t border-white/8 ${rec.is_incomplete ? "bg-orange-950/10" : ""}`}
+                      >
+                        <td className="py-2.5 text-sm text-zinc-200">{rec.work_date}</td>
+                        <td className="py-2.5 text-sm text-zinc-400">{weekdayShort(rec.work_date)}</td>
+                        <td className="py-2.5 text-sm text-zinc-400">{rec.branch_code || "—"}</td>
+                        <td className="py-2.5 text-sm font-medium text-white">{fmtAttTime(rec.check_in_at, city)}</td>
+                        <td className="py-2.5 text-sm font-medium text-white">
+                          {rec.check_out_at
+                            ? fmtAttTime(rec.check_out_at, city)
+                            : <span className="font-medium text-orange-400">—</span>}
+                        </td>
+                        <td className="py-2.5 text-sm font-medium text-teal-400">{fmtWorkHours(rec.net_work_min)}</td>
+                        <td className="py-2.5">
+                          {rec.is_incomplete ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-950/40 px-2 py-0.5 text-[10px] font-medium text-orange-300">
+                              <AlertCircle className="h-3 w-3" />
+                              Incomplete
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-teal-500/30 bg-teal-950/40 px-2 py-0.5 text-[10px] font-medium text-teal-300">
+                              Complete
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
