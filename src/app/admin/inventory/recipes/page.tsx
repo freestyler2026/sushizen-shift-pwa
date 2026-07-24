@@ -18,11 +18,21 @@ type RecipeRow = {
   active: boolean;
 };
 
-type SyncPreview = {
+type CostCalcPreview = {
+  source_menu_item_count?: number;
+  source_component_count?: number;
+  existing_recipe_row_count?: number;
+  existing_menu_item_count?: number;
+  items_preview?: { name: string; category: string; components: number }[];
+};
+
+type CostCalcResult = {
   synced_menu_item_count?: number;
   inserted_recipe_row_count?: number;
   deleted_recipe_row_count?: number;
-  active_inv_menu_recipe_row_count_after?: number;
+  active_recipe_row_count_after?: number;
+  active_menu_item_count_after?: number;
+  errors?: string[];
 };
 
 type DedupeGroup = {
@@ -52,11 +62,13 @@ export default function InventoryRecipesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<RecipeRow[]>([]);
-  const [syncBusy, setSyncBusy] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncPreview | null>(null);
-  const [syncError, setSyncError] = useState("");
-  const [previewResult, setPreviewResult] = useState<SyncPreview | null>(null);
-  const [confirmApply, setConfirmApply] = useState(false);
+
+  const [ccBusy, setCcBusy] = useState(false);
+  const [ccPreview, setCcPreview] = useState<CostCalcPreview | null>(null);
+  const [ccResult, setCcResult] = useState<CostCalcResult | null>(null);
+  const [ccError, setCcError] = useState("");
+  const [confirmCc, setConfirmCc] = useState(false);
+
   const [dedupeBusy, setDedupeBusy] = useState(false);
   const [dedupePreview, setDedupePreview] = useState<DedupePreview | null>(null);
   const [dedupeResult, setDedupeResult] = useState<DedupeResult | null>(null);
@@ -73,9 +85,7 @@ export default function InventoryRecipesPage() {
       setReady(true);
     }
     void init();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [auth]);
 
   useEffect(() => {
@@ -96,48 +106,44 @@ export default function InventoryRecipesPage() {
       }
     }
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [allowed, city, menuItemName, ready]);
 
   const groupedCount = useMemo(() => new Set(rows.map((row) => row.menu_item_name)).size, [rows]);
 
-  async function previewSync() {
-    setSyncBusy(true);
-    setSyncError("");
-    setSyncResult(null);
-    setPreviewResult(null);
-    setConfirmApply(false);
+  async function previewCostCalcSync() {
+    setCcBusy(true);
+    setCcError("");
+    setCcPreview(null);
+    setCcResult(null);
+    setConfirmCc(false);
     try {
-      const res = await inventoryPost<{ apply_summary?: SyncPreview; summary?: SyncPreview }>("/api/admin/inventory/recipes/menu-bom/preview", { city });
-      const s = res?.apply_summary || res?.summary || {};
-      setPreviewResult(s);
+      const res = await inventoryPost<CostCalcPreview & { ok: boolean }>("/api/admin/inventory/recipes/cost-calc/preview", { city });
+      setCcPreview(res);
     } catch (e: unknown) {
-      setSyncError(e instanceof Error ? e.message : String(e));
+      setCcError(e instanceof Error ? e.message : String(e));
     } finally {
-      setSyncBusy(false);
+      setCcBusy(false);
     }
   }
 
-  async function applySync() {
-    setConfirmApply(false);
-    setSyncBusy(true);
-    setSyncError("");
-    setSyncResult(null);
-    setPreviewResult(null);
+  async function applyCostCalcSync() {
+    setConfirmCc(false);
+    setCcBusy(true);
+    setCcError("");
+    setCcPreview(null);
+    setCcResult(null);
     try {
-      const res = await inventoryPost<{ apply_summary?: SyncPreview; summary?: SyncPreview }>("/api/admin/inventory/recipes/menu-bom/apply", { city });
-      const s = res?.apply_summary || res?.summary || {};
-      setSyncResult(s);
+      const res = await inventoryPost<CostCalcResult & { ok: boolean }>("/api/admin/inventory/recipes/cost-calc/apply", { city });
+      setCcResult(res);
       const updated = await inventoryGet<{ rows: RecipeRow[] }>(
         `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=500`,
       );
       setRows(updated.rows || []);
     } catch (e: unknown) {
-      setSyncError(e instanceof Error ? e.message : String(e));
+      setCcError(e instanceof Error ? e.message : String(e));
     } finally {
-      setSyncBusy(false);
+      setCcBusy(false);
     }
   }
 
@@ -184,80 +190,112 @@ export default function InventoryRecipesPage() {
     <div className="space-y-6">
       <InventoryTabs />
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Sync from Cost Calculation */}
+      <section className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Menu Ingredient Recipes</div>
-            <div className="mt-1 text-sm text-neutral-400">
-              Shows which ingredients are consumed when a menu item is sold. Used to calculate cost of goods sold.
+            <div className="text-base font-semibold text-emerald-200">Sync from Cost Calculation</div>
+            <div className="mt-1 text-sm text-neutral-400 max-w-xl">
+              Imports all product recipes from Cost Calculation (menu_item_master + menu_item_components) into Sales BOM.
+              Each time Cost Calculation is updated, run this sync to keep Sales BOM current.
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-neutral-500">{city.toUpperCase()} · {rows.length} lines · {groupedCount} items</div>
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void previewDedupe()}
-              disabled={dedupeBusy || syncBusy}
-              className="rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-1.5 text-xs text-amber-300 transition hover:bg-amber-900/30 disabled:opacity-60"
+              onClick={() => void previewCostCalcSync()}
+              disabled={ccBusy || dedupeBusy}
+              className="rounded-xl border border-emerald-700/50 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-300 transition hover:bg-emerald-900/50 disabled:opacity-60"
             >
-              {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
+              {ccBusy && !confirmCc ? "Checking..." : "Preview"}
             </button>
             <button
               type="button"
-              onClick={() => void previewSync()}
-              disabled={syncBusy || dedupeBusy}
-              className="rounded-xl border border-violet-600/40 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-300 transition hover:bg-violet-900/40 disabled:opacity-60"
+              onClick={() => setConfirmCc(true)}
+              disabled={ccBusy || dedupeBusy}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
             >
-              {syncBusy && !confirmApply ? "Checking..." : "Preview Changes"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmApply(true)}
-              disabled={syncBusy || dedupeBusy}
-              className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
-            >
-              {syncBusy && confirmApply ? "Syncing..." : "🔄 Sync from Menu Builder"}
+              {ccBusy && confirmCc ? "Syncing..." : "⟳ Sync from Cost Calc"}
             </button>
           </div>
         </div>
 
-        {/* Preview result */}
-        {previewResult ? (
-          <div className="mt-3 rounded-xl border border-violet-700/40 bg-violet-900/15 px-4 py-3 text-sm text-violet-200">
-            <div className="font-semibold mb-1">Preview: changes that will be applied</div>
-            <div className="space-y-0.5 text-xs text-violet-300">
-              <div>Menu items affected: <span className="font-bold text-white">{previewResult.synced_menu_item_count ?? "?"}</span></div>
-              <div>Recipe lines to add: <span className="font-bold text-emerald-300">{previewResult.inserted_recipe_row_count ?? "?"}</span></div>
-              {(previewResult.deleted_recipe_row_count ?? 0) > 0 ? (
-                <div>Old recipe lines to remove: <span className="font-bold text-rose-300">{previewResult.deleted_recipe_row_count}</span></div>
-              ) : null}
+        {ccPreview && !ccResult && (
+          <div className="mt-4 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm">
+            <div className="font-semibold text-emerald-200 mb-2">Preview — {city.toUpperCase()}</div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-emerald-300">
+              <div>Products with recipes: <span className="font-bold text-white">{ccPreview.source_menu_item_count ?? "?"}</span></div>
+              <div>Total ingredient lines: <span className="font-bold text-white">{ccPreview.source_component_count ?? "?"}</span></div>
+              <div>Current BOM rows: <span className="font-bold text-neutral-300">{ccPreview.existing_recipe_row_count ?? "?"}</span></div>
+              <div>Current BOM products: <span className="font-bold text-neutral-300">{ccPreview.existing_menu_item_count ?? "?"}</span></div>
             </div>
+            {(ccPreview.items_preview?.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <div className="text-xs text-neutral-500 mb-1">Items to sync (first 50):</div>
+                <div className="flex flex-wrap gap-1">
+                  {ccPreview.items_preview?.map((item) => (
+                    <span key={item.name} className="rounded-md bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">
+                      {item.name} <span className="text-neutral-500">({item.components})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => setConfirmApply(true)}
-              className="mt-3 rounded-lg bg-violet-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-violet-600"
+              onClick={() => setConfirmCc(true)}
+              className="mt-3 rounded-lg bg-emerald-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
             >
-              Apply these changes
+              Apply sync now
             </button>
           </div>
-        ) : null}
+        )}
 
-        {/* Sync result */}
-        {syncError ? (
-          <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {syncError}</div>
-        ) : syncResult ? (
-          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
-            ✅ Sync complete — <span className="font-bold">{syncResult.synced_menu_item_count ?? "?"}</span> menu items,{" "}
-            <span className="font-bold">{syncResult.inserted_recipe_row_count ?? syncResult.active_inv_menu_recipe_row_count_after ?? "?"}</span> recipe lines
-            {syncResult.deleted_recipe_row_count ? ` (${syncResult.deleted_recipe_row_count} old lines removed)` : ""}.
+        {ccError && (
+          <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {ccError}</div>
+        )}
+
+        {ccResult && (
+          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-200">
+            <div className="font-semibold mb-1">✅ Sync complete — {city.toUpperCase()}</div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-xs text-emerald-300">
+              <div>Products synced: <span className="font-bold text-white">{ccResult.synced_menu_item_count ?? "?"}</span></div>
+              <div>Recipe lines added: <span className="font-bold text-white">{ccResult.inserted_recipe_row_count ?? "?"}</span></div>
+              <div>Old lines removed: <span className="font-bold text-rose-300">{ccResult.deleted_recipe_row_count ?? 0}</span></div>
+              <div>Total BOM rows: <span className="font-bold text-white">{ccResult.active_recipe_row_count_after ?? "?"}</span></div>
+            </div>
+            {(ccResult.errors?.length ?? 0) > 0 && (
+              <div className="mt-2 text-xs text-rose-300">
+                Errors: {ccResult.errors?.join(" | ")}
+              </div>
+            )}
           </div>
-        ) : null}
+        )}
+      </section>
 
-        {/* Deduplicate preview */}
-        {dedupePreview ? (
+      {/* Recipe list */}
+      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold text-neutral-100">Sales BOM — Recipe Lines</div>
+            <div className="mt-1 text-sm text-neutral-400">
+              {city.toUpperCase()} · {rows.length} lines · {groupedCount} products
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void previewDedupe()}
+            disabled={dedupeBusy || ccBusy}
+            className="rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-1.5 text-xs text-amber-300 transition hover:bg-amber-900/30 disabled:opacity-60"
+          >
+            {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
+          </button>
+        </div>
+
+        {dedupePreview && (
           <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-900/10 px-4 py-3 text-sm text-amber-200">
             {dedupePreview.duplicate_groups === 0 ? (
-              <div className="font-semibold text-emerald-300">✅ No duplicate names found — recipes are clean.</div>
+              <div className="font-semibold text-emerald-300">✅ No duplicate names found.</div>
             ) : (
               <>
                 <div className="font-semibold mb-2">
@@ -266,13 +304,10 @@ export default function InventoryRecipesPage() {
                 <ul className="mb-3 space-y-1 text-xs text-amber-300">
                   {dedupePreview.groups.map((g) => (
                     <li key={g.key}>
-                      <span className="text-neutral-400">{g.key}</span>
-                      {" → "}
+                      <span className="text-neutral-400">{g.key}</span>{" → "}
                       {g.variants.map((v, i) => (
                         <span key={v}>
-                          <span className={i === g.variants.length - 1 ? "font-bold text-white" : "line-through text-neutral-500"}>
-                            {v}
-                          </span>
+                          <span className={i === g.variants.length - 1 ? "font-bold text-white" : "line-through text-neutral-500"}>{v}</span>
                           {i < g.variants.length - 1 && <span className="text-neutral-500">, </span>}
                         </span>
                       ))}
@@ -280,41 +315,39 @@ export default function InventoryRecipesPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="text-xs text-neutral-400 mb-3">The <span className="font-bold text-white">bold</span> name will be kept as canonical (most rows; uppercase preferred on tie).</div>
                 <button
                   type="button"
                   onClick={() => setConfirmDedupe(true)}
                   className="rounded-lg bg-amber-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
                 >
-                  Merge duplicates now
+                  Merge duplicates
                 </button>
               </>
             )}
           </div>
-        ) : null}
-
-        {/* Deduplicate result */}
-        {dedupeError ? (
+        )}
+        {dedupeError && (
           <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {dedupeError}</div>
-        ) : dedupeResult ? (
+        )}
+        {dedupeResult && (
           <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
             ✅ Deduplication complete — {dedupeResult.groups_merged} group{dedupeResult.groups_merged !== 1 ? "s" : ""} merged,{" "}
             {dedupeResult.rows_renamed} rows renamed, {dedupeResult.rows_deleted} duplicate rows removed.
           </div>
-        ) : null}
+        )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-3 gap-3">
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">Recipe Lines</div>
             <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.length}</div>
           </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Menu Items</div>
+            <div className="text-xs uppercase tracking-wide text-neutral-500">Products</div>
             <div className="mt-1 text-lg font-semibold text-neutral-100">{groupedCount}</div>
           </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">Active Lines</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.filter((row) => row.active).length}</div>
+            <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.filter((r) => r.active).length}</div>
           </div>
         </div>
 
@@ -330,30 +363,23 @@ export default function InventoryRecipesPage() {
           <input
             value={menuItemName}
             onChange={(e) => setMenuItemName(e.target.value)}
-            placeholder="Search menu item"
+            placeholder="Search product name"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
 
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-      </section>
+        {error && <div className="mt-3 text-sm text-rose-300">{error}</div>}
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="mb-3 text-sm font-semibold text-neutral-100">{loading ? "Loading..." : "Recipe Lines"}</div>
-        <div className="overflow-x-auto">
+        <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-neutral-500">
               <tr>
-                <th className="px-3 py-2">Sales Menu → Ingredients</th>
-                <th className="px-3 py-2">Ingredient Item</th>
+                <th className="px-3 py-2">Product (Cost Calc)</th>
+                <th className="px-3 py-2">Ingredient</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2" title="Yield: the usable portion kept after processing (e.g. 0.85 = 85% kept)">
-                  Yield <span className="text-neutral-600">ⓘ</span>
-                </th>
-                <th className="px-3 py-2" title="Waste: expected loss percentage during preparation (e.g. 0.05 = 5% wasted)">
-                  Waste % <span className="text-neutral-600">ⓘ</span>
-                </th>
+                <th className="px-3 py-2">Yield</th>
+                <th className="px-3 py-2">Waste %</th>
                 <th className="px-3 py-2">Active</th>
               </tr>
             </thead>
@@ -363,22 +389,22 @@ export default function InventoryRecipesPage() {
                   <td className="px-3 py-2">{row.menu_item_name}</td>
                   <td className="px-3 py-2">
                     {row.ingredient_item_name}
-                    {row.ingredient_unit ? <div className="mt-1 text-xs text-neutral-500">{row.ingredient_unit}</div> : null}
+                    {row.ingredient_unit && <div className="mt-0.5 text-xs text-neutral-500">{row.ingredient_unit}</div>}
                   </td>
-                  <td className="px-3 py-2">{row.sku || "-"}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-400">{row.sku || "—"}</td>
                   <td className="px-3 py-2">{Number(row.ingredient_qty || 0).toFixed(3)}</td>
                   <td className="px-3 py-2">{Number(row.yield_factor || 0).toFixed(2)}</td>
                   <td className="px-3 py-2">{Number(row.waste_factor || 0).toFixed(2)}</td>
                   <td className="px-3 py-2">{row.active ? "Yes" : "No"}</td>
                 </tr>
               ))}
-              {!loading && rows.length === 0 ? (
+              {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
-                    No recipe lines found.
+                  <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
+                    No recipe lines. Click &ldquo;Sync from Cost Calc&rdquo; above to populate.
                   </td>
                 </tr>
-              ) : null}
+              )}
             </tbody>
           </table>
         </div>
@@ -386,14 +412,42 @@ export default function InventoryRecipesPage() {
 
       <InventoryRegistrationHelp />
 
+      {/* Cost Calc sync confirmation modal */}
+      {confirmCc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-700 bg-neutral-900 p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-white">Sync Sales BOM from Cost Calculation?</h3>
+            <p className="mb-4 text-sm text-neutral-300">
+              All active products in Cost Calculation for <strong>{city.toUpperCase()}</strong> that have ingredient recipes will be synced into Sales BOM.
+              Existing recipe lines for those products will be replaced. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmCc(false)}
+                className="rounded-lg border border-neutral-600 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void applyCostCalcSync()}
+                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+              >
+                Sync Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Deduplicate confirmation modal */}
       {confirmDedupe && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-2xl border border-amber-700 bg-neutral-900 p-6 shadow-xl">
             <h3 className="mb-2 text-base font-semibold text-white">Merge duplicate recipe names?</h3>
             <p className="mb-4 text-sm text-neutral-300">
-              Duplicate name variants (e.g. &ldquo;7up&rdquo; and &ldquo;7 UP&rdquo;) will be consolidated into a single
-              canonical name. Conflicting ingredient rows will be removed. This cannot be undone.
+              Duplicate name variants will be consolidated into a single canonical name. Conflicting ingredient rows will be removed. This cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -409,41 +463,6 @@ export default function InventoryRecipesPage() {
                 className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
               >
                 Merge Now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sync confirmation modal */}
-      {confirmApply && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-xl">
-            <h3 className="mb-2 text-base font-semibold text-white">Sync recipes from Menu Builder?</h3>
-            <p className="mb-2 text-sm text-neutral-300">
-              This will update recipe lines for all menu items in {city.toUpperCase()} based on the current Menu Builder data.
-            </p>
-            {previewResult && (previewResult.deleted_recipe_row_count ?? 0) > 0 ? (
-              <p className="mb-4 text-sm text-rose-300">
-                ⚠️ {previewResult.deleted_recipe_row_count} old recipe line{(previewResult.deleted_recipe_row_count ?? 0) !== 1 ? "s" : ""} will be removed. This cannot be undone.
-              </p>
-            ) : (
-              <p className="mb-4 text-sm text-neutral-400">Existing recipe lines not in the Menu Builder will be removed. This cannot be undone.</p>
-            )}
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmApply(false)}
-                className="rounded-lg border border-neutral-600 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void applySync()}
-                className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-medium text-white hover:bg-violet-600"
-              >
-                Sync Now
               </button>
             </div>
           </div>
