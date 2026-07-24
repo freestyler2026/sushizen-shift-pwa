@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
@@ -869,6 +869,7 @@ export default function StoreProcurementHomePage() {
   const [showAllRecentActivities, setShowAllRecentActivities] = useState(false);
   const [expandedActionsByItem, setExpandedActionsByItem] = useState<Record<string, boolean>>({});
   const [deliverySummaryOpen, setDeliverySummaryOpen] = useState(false);
+  const [expandedSummaryMonth, setExpandedSummaryMonth] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [submitSuccessMsg, setSubmitSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2310,15 +2311,69 @@ export default function StoreProcurementHomePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {monthlySummary.map((row) => (
-                            <tr key={row.month} className="border-b border-white/5 last:border-0">
-                              <td className="py-2 text-zinc-300 font-mono text-xs">{row.month}</td>
-                              <td className="py-2 text-right text-zinc-400 text-xs">{row.count}</td>
-                              <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
-                                {Number(row.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                            </tr>
-                          ))}
+                          {monthlySummary.map((row) => {
+                            const SETTLED = new Set(["APPROVED", "RECEIVED", "CLAIMED", "CLOSED"]);
+                            const monthRows = rows.filter(
+                              (r) => String(r.request_date || "").slice(0, 7) === row.month && SETTLED.has(String(r.status || "").toUpperCase())
+                            );
+                            const isOpen = expandedSummaryMonth === row.month;
+                            return (
+                              <React.Fragment key={row.month}>
+                                <tr
+                                  className="border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/4 transition-colors"
+                                  onClick={() => setExpandedSummaryMonth(isOpen ? null : row.month)}
+                                >
+                                  <td className="py-2 text-zinc-300 font-mono text-xs">
+                                    <span className="inline-flex items-center gap-1">
+                                      {isOpen
+                                        ? <ChevronDown className="h-3 w-3 text-violet-400 shrink-0" />
+                                        : <ChevronRight className="h-3 w-3 text-zinc-500 shrink-0" />}
+                                      {row.month}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 text-right text-zinc-400 text-xs">{row.count}</td>
+                                  <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
+                                    {Number(row.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                                {isOpen && (
+                                  <tr>
+                                    <td colSpan={3} className="pb-2 pt-0">
+                                      <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-white/3 p-2">
+                                        {monthRows.map((pr) => {
+                                          const st = String(pr.status || "").toUpperCase();
+                                          return (
+                                            <div
+                                              key={pr.id}
+                                              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-violet-950/30 transition-colors"
+                                              onClick={(e) => { e.stopPropagation(); setSelectedRequestId(pr.id); }}
+                                            >
+                                              <div className="min-w-0 flex-1">
+                                                <p className="font-mono text-[11px] font-semibold text-white truncate">{pr.request_no}</p>
+                                                {pr.vendor_summary ? (
+                                                  <p className="text-[10px] text-violet-300/80 truncate">{pr.vendor_summary}</p>
+                                                ) : null}
+                                              </div>
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {st === "APPROVED" && <span className={BADGE_SUCCESS}>APPROVED</span>}
+                                                {st === "RECEIVED" && <span className="rounded-full bg-cyan-500/15 border border-cyan-500/25 px-2 py-0.5 text-[10px] font-medium text-cyan-400">RECEIVED</span>}
+                                                {st === "CLAIMED" && <span className="rounded-full bg-teal-500/15 border border-teal-500/25 px-2 py-0.5 text-[10px] font-medium text-teal-400">CLAIMED</span>}
+                                                {st === "CLOSED" && <span className="rounded-full bg-zinc-700/50 border border-zinc-600/40 px-2 py-0.5 text-[10px] font-medium text-zinc-400">CLOSED</span>}
+                                                <span className="text-[11px] font-semibold text-violet-300 tabular-nums">
+                                                  {Number(pr.total_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                                <ChevronRight className="h-3 w-3 text-zinc-600" />
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="border-t border-white/15">
