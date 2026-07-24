@@ -423,7 +423,7 @@ export default function CkParLevelsPage() {
                     <th className="px-4 py-3 text-left">Item Name</th>
                     <th className="px-4 py-3 text-center">Unit</th>
                     <th className="px-4 py-3 text-center">Par Level</th>
-                    <th className="px-4 py-3 text-center">Current Stock</th>
+                    <th className="px-4 py-3 text-center">Stock</th>
                     <th className="px-4 py-3 text-center">{gapLabel}</th>
                     {tab === "supplier" && (
                       <th className="px-4 py-3 text-left">Supplier</th>
@@ -495,7 +495,7 @@ export default function CkParLevelsPage() {
                           ) : (
                             <button
                               onClick={() => startEdit(row)}
-                              className={`rounded-lg px-3 py-1 text-sm font-semibold transition-all ${
+                              className={`rounded-lg px-3 py-1 text-sm font-semibold whitespace-nowrap transition-all ${
                                 row.par_level != null
                                   ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
                                   : "bg-amber-500/10 text-amber-500/70 hover:bg-amber-500/20"
