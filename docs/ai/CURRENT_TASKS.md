@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 156 — SelectDark sweep completion, HR Allowance field, HR Onboarding/Offboarding staff dropdown)
+Last updated: 2026-07-25 (session 157 — Company Asset Management system)
 
 
 
@@ -8,6 +8,50 @@ Last updated: 2026-07-24 (session 156 — SelectDark sweep completion, HR Allowa
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 157)
+
+### Company Asset Management System — Complete (DEPLOYED ✅ Heroku 18c9bad / Vercel 108044e)
+
+**Backend (Heroku)**
+- `db_assets.py`: new DB module — `company_assets`, `asset_loans`, `asset_incident_reports` tables
+  - `ensure_asset_tables()` called lazily in startup via `_run(_ensure_assets)`
+  - Full CRUD: list/create/update assets, create/return loans, create/resolve incidents
+  - `get_asset_summary(city)` for KPI cards; LEFT JOIN for active loan + open incident count
+- `main.py` new endpoints:
+  - `GET/POST /api/admin/assets` — list + register assets
+  - `GET /api/admin/assets/summary` — KPI counts
+  - `PATCH /api/admin/assets/{asset_id}` — update asset
+  - `GET /api/admin/assets/{asset_id}/loans` — loan history
+  - `POST /api/admin/assets/{asset_id}/loan` — assign to staff/location
+  - `POST /api/admin/assets/loans/{loan_id}/return` — return with condition
+  - `GET /api/admin/assets/loans/active?assignee=X` — active loans for assignee
+  - `GET/PATCH /api/admin/assets/incidents` — list + resolve incidents
+  - `GET /api/staff/assets/my-loans` — staff's own active loans
+  - `POST /api/staff/assets/report-incident` — staff damage/loss/theft report
+- `access_control.py`: `admin.assets` channel + `view`/`manage` permissions added to HQ, ADMIN, HR_MANAGER, MANILA_MANAGEMENT, DUBAI_MANAGEMENT roles
+
+**Frontend (Vercel)**
+- `src/app/admin/assets/page.tsx` (new): full admin page
+  - City toggle (Manila/Dubai), tabs (Asset List / Incidents)
+  - KPI cards: Total, On Loan, Available, Open Incidents
+  - Add/edit assets, loan to staff (SelectDark from staff_master) or location
+  - Return modal with condition + notes; expandable loan history per asset
+  - Incident resolution panel
+- `src/app/my-assets/page.tsx` (new): staff-facing page
+  - Shows own active loans (read-only)
+  - "Report Damage/Loss/Theft" modal → `POST /api/staff/assets/report-incident`
+- `NavBar.tsx`: "Company Assets" (`/admin/assets`) for admin + "My Assets" (`/my-assets`) for staff
+- `admin/hr/clearance/page.tsx`: `LoanedAssetsSection` component
+  - Fetches active loans for the employee when case is expanded
+  - Shows amber warning banner + loan list if any unreturned assets exist
+  - Link to `/admin/assets` for return processing
+
+**Post-deploy steps needed:**
+- Role Management → "Resync System Channels" to sync `admin.assets` channel to DB
+- Custom roles (HR Staff etc.) may need manual permission assignment in Roles tab
 
 ---
 
