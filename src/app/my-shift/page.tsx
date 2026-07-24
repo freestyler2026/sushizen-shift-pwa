@@ -805,7 +805,7 @@ export default function MyShiftPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-white">{rec.work_date}</div>
-                        <div className="mt-0.5 text-[11px] text-neutral-500">{weekdayShort(rec.work_date)} · {rec.branch_code || "—"}</div>
+                        <div className="mt-0.5 text-[11px] text-neutral-500">{weekdayShort(rec.work_date)}</div>
                       </div>
                       {rec.is_incomplete ? (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-orange-500/40 bg-orange-950/40 px-2 py-0.5 text-[10px] font-medium text-orange-300">
@@ -839,7 +839,6 @@ export default function MyShiftPage() {
                     <tr>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Date</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Day</th>
-                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Branch</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Clock In</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Clock Out</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Hours</th>
@@ -854,7 +853,6 @@ export default function MyShiftPage() {
                       >
                         <td className="py-2.5 text-sm text-zinc-200">{rec.work_date}</td>
                         <td className="py-2.5 text-sm text-zinc-400">{weekdayShort(rec.work_date)}</td>
-                        <td className="py-2.5 text-sm text-zinc-400">{rec.branch_code || "—"}</td>
                         <td className="py-2.5 text-sm font-medium text-white">{fmtAttTime(rec.check_in_at, city)}</td>
                         <td className="py-2.5 text-sm font-medium text-white">
                           {rec.check_out_at
