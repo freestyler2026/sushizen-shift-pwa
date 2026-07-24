@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 150 — Daily Inventory: detail view source tab bug fix)
+Last updated: 2026-07-24 (session 152 — Menu Builder MIM-% bug fix + My Shift Attendance History)
 
 
 
@@ -8,6 +8,55 @@ Last updated: 2026-07-25 (session 150 — Daily Inventory: detail view source ta
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 152 — Menu Builder bug fix + Attendance History)
+
+### Menu Builder — "Product was not found." on all Manila products (DEPLOYED ✅ Heroku v1495)
+- **Bug**: Clicking any product in Menu Builder → Products tab showed "Product was not found." on Manila page
+- **Root cause**: `list_menu_product_ingredients` and `list_menu_modifier_option_ingredients` in `menu_db.py` had `LIKE 'MIM-%'` in SQL passed to psycopg2. psycopg2 treats lone `%` as a parameter placeholder → `IndexError: tuple index out of range`. The "Product was not found." message masked the real backend error because `product` state stayed null when `loadDetail` threw.
+- **Fix**: Changed all 6 occurrences of `'MIM-%'` to `'MIM-%%'` in both functions (lines 1781, 1784, 1792, 1993, 1996, 2004)
+- **Bug introduced by**: commit `fc62d8c` (Phase 2-B: SK-xxx preferred in ingredient search)
+- File: `sushizen_shift_app_clean/app/menu_db.py` — commit `c2634ee`, Heroku v1495
+
+### My Shift — Attendance History section added (DEPLOYED ✅ Vercel 9547532 / Heroku v1496)
+- **Feature**: Staff can now view their actual clock-in/clock-out history in the My Shift page
+- **Backend**: New `GET /api/attendance/history?month=YYYY-MM` endpoint (staff-accessible, JWT identity, no role gate, no spoofing). Reuses `list_sessions_with_breaks` from db.py. Returns per-session: `work_date`, `check_in_at`, `check_out_at`, `net_work_min`, `break_min`, `is_incomplete`.
+- **Frontend**: New "My Attendance" section at the bottom of My Shift page showing:
+  - Per-day cards (mobile) and table (desktop) with Clock In/Out times, net hours worked
+  - "Incomplete" badge (orange) when clock-out is missing
+  - "Incomplete record" alert banner at section header when any incomplete entry exists
+  - Respects city timezone (Dubai: Asia/Dubai, Manila: Asia/Manila)
+- Files: `src/app/my-shift/page.tsx`, `sushizen_shift_app_clean/app/main.py`
+
+---
+
+## Recently Completed (2026-07-24 session 151 — Store Procurement fixes)
+
+### Delivery Amount Summary — drill-down detail view (DEPLOYED ✅ Vercel 98cd4b9)
+- **Feature**: Clicking a month row in Delivery Amount Summary now expands to show individual POs for that month
+- **Implementation**: Client-side only — filters already-loaded `rows` by month + settled status (APPROVED/RECEIVED/CLAIMED/CLOSED). Used `React.Fragment key={row.month}` to emit two `<tr>` per month. Clicking a PO row opens the detail modal.
+- File: `src/app/store/procurement/page.tsx`
+
+### Pending Deliveries — sort order changed to newest-first (DEPLOYED ✅ Heroku 4932d63)
+- **Bug**: Oldest overdue orders appeared at top (sorted by `days_overdue DESC`), making new orders hard to find
+- **Fix**: Changed `ORDER BY` in both `list_pending_deliveries_for_store` and `list_overdue_deliveries_admin` to `COALESCE(po.delivery_date::date, r.request_date::date + 1) DESC NULLS LAST, po.created_at DESC` — newest expected date at top
+- File: `sushizen_shift_app_clean/app/db.py` (~lines 50299, 50375)
+
+### Pending Deliveries — partial/short delivery stays visible (DEPLOYED ✅ Heroku 51ed159)
+- **Bug**: When some items were skipped/unchecked during delivery confirmation, the entire PO disappeared from Pending Deliveries
+- **Root cause**: `confirm_proc_receiving` unconditionally stamped `receipt_confirmed_at`, and the list query's `NOT EXISTS (confirmed receivings)` check also excluded these POs
+- **Fix**: `confirm_proc_receiving` checks `shortage_qty` from the receiving record; if `> 0`, sets `has_shortage = TRUE` on the PO. List query now includes `OR po.has_shortage = TRUE` so short-delivered POs remain visible with amber/yellow "Short Delivered" styling
+- Second confirmation (remaining items) clears shortage by setting `has_shortage = FALSE`
+- Frontend already had `has_shortage` field and `short_delivered` pending_status with amber styling — no frontend changes needed
+- File: `sushizen_shift_app_clean/app/db.py` (~lines 12921, 50299, 50375)
+
+### Daily Inventory — detail view source tab default wrong (DEPLOYED ✅ Vercel 46db29d)
+- **Bug**: "Generate Purchase Request" from submitted report detail view showed "No items are below par" even when supplier items (e.g. Fresh Salmon Fillet 0 KG vs par 25 KG) were clearly below par
+- **Root cause**: `detailSourceTab` state was initialized to `"ck"` (Central Kitchen), so `openOrderModal()` filtered only CK items. Since Supplier items use `source_type === "supplier"`, they were never found.
+- **Fix**: Changed `useState<SourceType>("ck")` → `useState<SourceType>("supplier")` on line 190 — now defaults to Supplier tab (consistent with the form view which already defaulted to "supplier" on line 1401)
+- File: `src/components/admin/AdminDailyInventoryTab.tsx:190` — commit 46db29d
 
 ---
 
