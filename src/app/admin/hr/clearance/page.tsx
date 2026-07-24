@@ -253,6 +253,68 @@ function CreateModal({
   );
 }
 
+// ─── Loaned Assets section ────────────────────────────────────────────────────
+
+interface ActiveLoan {
+  id: number;
+  asset_tag: string;
+  asset_type: string;
+  brand: string;
+  model: string;
+  loaned_at: string;
+}
+
+function LoanedAssetsSection({ employeeName, city }: { employeeName: string; city: string }) {
+  const [loans, setLoans] = useState<ActiveLoan[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const auth = getAuth();
+
+  useEffect(() => {
+    if (!employeeName || !auth?.accessToken) return;
+    fetch(
+      `${API_BASE}/api/admin/assets/loans/active?assignee=${encodeURIComponent(employeeName)}`,
+      { headers: getAuthHeaders() },
+    )
+      .then(r => r.json())
+      .then(d => { setLoans(d.loans ?? []); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, [employeeName, auth?.accessToken]);
+
+  if (!loaded || loans.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <div className={DIVIDER} />
+      <div className="mt-3 mb-1 flex items-center justify-between">
+        <p className={T_SECTION}>Loaned Company Assets</p>
+        <a
+          href={`/admin/assets?city=${city}`}
+          className="text-xs text-indigo-300 hover:underline"
+        >
+          Manage in Assets →
+        </a>
+      </div>
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 mb-2">
+        <p className="text-xs text-amber-300 font-semibold">
+          ⚠ {loans.length} company asset{loans.length > 1 ? "s" : ""} not yet returned. Please ensure return before finalizing clearance.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {loans.map(l => (
+          <div key={l.id} className="flex items-center justify-between text-sm rounded-lg bg-white/5 px-3 py-2">
+            <div>
+              <span className="font-mono text-violet-300 text-xs">{l.asset_tag}</span>
+              <span className="text-white ml-2">{l.brand} {l.model}</span>
+              <span className="text-white/40 text-xs ml-2 capitalize">{l.asset_type}</span>
+            </div>
+            <span className="text-white/40 text-xs">Since {l.loaned_at}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Final Pay section ────────────────────────────────────────────────────────
 
 function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updated: ClearanceCase) => void }) {
@@ -585,6 +647,8 @@ function CaseCard({ c, onUpdated, onCancel }: {
             <div><span className="text-white/50">Created by:</span> <span className="text-white">{c.created_by || "—"}</span></div>
             <div><span className="text-white/50">Net Pay:</span> <span className="text-white font-semibold">{fmt(c.fp_total, c.fp_currency)}</span></div>
           </div>
+
+          <LoanedAssetsSection employeeName={c.employee_name} city={c.city} />
 
           <FinalPaySection c={c} onUpdated={onUpdated} />
 
