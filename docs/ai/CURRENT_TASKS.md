@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 152 — Menu Builder MIM-% bug fix + My Shift Attendance History)
+Last updated: 2026-07-24 (session 152 — Receiving: short-delivery re-receive + badge fix)
 
 
 
@@ -8,6 +8,28 @@ Last updated: 2026-07-24 (session 152 — Menu Builder MIM-% bug fix + My Shift 
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 152 — Receiving short-delivery fixes)
+
+### Receiving — Short-Delivered PO: 3 bugs fixed (DEPLOYED ✅ Heroku f1ccfb9 / Vercel e3a890f)
+
+**Bug 1 (Visual): Short Delivered badge hidden on overdue POs**
+- When a PO was both OVERDUE and Short Delivered, only the red OVERDUE badge showed; the amber "Short Delivered" indicator was suppressed by `&& !isOverdue`
+- Fix: Restructured badge display to show both — OVERDUE red badge AND Short Delivered amber badge can appear simultaneously
+- File: `src/app/store/procurement/page.tsx`
+
+**Bug 2 (Backend): 409 block prevented additional receiving for shortage POs**
+- `POST /api/admin/procurement/receiving` blocked creation of a new receiving whenever any CONFIRMED record existed, even for `has_shortage=TRUE` POs where remaining items hadn't arrived yet
+- Error message: "This order has already been fully received... file a claim instead"
+- Fix: Before raising 409, check `proc_purchase_orders.has_shortage` for the linked PO. If `TRUE`, allow the new receiving (remaining items still expected)
+- File: `sushizen_shift_app_clean/app/main.py` — Heroku f1ccfb9
+
+**Bug 3 (UX): Receiving form showed all items unchecked with no context**
+- When reopening receiving for a short-delivered PO, all items appeared unchecked with no indication of what was previously received
+- Fix: On "Record additional delivery", loads per-item data from the last confirmed receiving (`GET /api/admin/procurement/receiving/{id}/items`). Pre-checks items where `qty_received = 0` (shortage items still needing delivery). Pre-unchecks items already received. Shows "Previously received: X qty" under each received item. Adds an amber info banner explaining partial delivery context.
+- File: `src/app/store/procurement/receiving/page.tsx`
 
 ---
 
