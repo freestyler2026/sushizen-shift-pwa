@@ -138,6 +138,7 @@ export default function StoreProcurementReceivingPage() {
   const [info, setInfo] = useState("");
   const [formError, setFormError] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
+  const [prevReceivedQty, setPrevReceivedQty] = useState<Record<string, number>>({}); // request_item_id → qty_received
   const [duplicateWarningConfirmed, setDuplicateWarningConfirmed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -541,6 +542,7 @@ export default function StoreProcurementReceivingPage() {
 
   useEffect(() => {
     setShowNewForm(false);
+    setPrevReceivedQty({});
     setFormError("");
     if (requestId) {
       void loadRequestDetail(requestId);
@@ -550,6 +552,47 @@ export default function StoreProcurementReceivingPage() {
       setItemChecks({});
     }
   }, [requestId, loadRequestDetail, loadReceivings]);
+
+  // When "Record additional delivery" is opened for a short-delivered PO,
+  // load per-item data from the last confirmed receiving so we can pre-check
+  // shortage items (qty_received = 0) and show what was already received.
+  useEffect(() => {
+    if (!showNewForm) { setPrevReceivedQty({}); return; }
+    const lastConfirmed = requestReceivings.find((r) => String(r.status || "").toUpperCase() === "CONFIRMED");
+    if (!lastConfirmed) { setPrevReceivedQty({}); return; }
+    async function loadPrevItems() {
+      try {
+        const data = await procurementJson<{ items: Array<{ request_item_id: string; qty_received: number }> }>(
+          `/api/admin/procurement/receiving/${lastConfirmed!.id}/items`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        );
+        const prevMap: Record<string, number> = {};
+        for (const it of data?.items || []) {
+          prevMap[String(it.request_item_id)] = Number(it.qty_received ?? 0);
+        }
+        setPrevReceivedQty(prevMap);
+        // Pre-check items that were NOT received (shortage items → still need delivery)
+        if (Object.keys(prevMap).length > 0) {
+          setItemChecks((prev) => {
+            const next = { ...prev };
+            for (const [itemId, qtyRec] of Object.entries(prevMap)) {
+              if (next[itemId]) {
+                next[itemId] = { ...next[itemId], checked: qtyRec === 0 };
+              }
+            }
+            return next;
+          });
+        }
+      } catch {
+        // Non-critical — items may not have been saved per-line
+        setPrevReceivedQty({});
+      }
+    }
+    void loadPrevItems();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNewForm, requestId]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -930,6 +973,16 @@ export default function StoreProcurementReceivingPage() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Check Items Received</span>
                 </div>
 
+                {/* Short-delivery banner: shown when re-recording after a partial delivery */}
+                {Object.keys(prevReceivedQty).length > 0 && (
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <span>
+                      <strong>Partial delivery:</strong> items already received in the first delivery are unchecked. Only check the items that arrived in <em>this</em> delivery.
+                    </span>
+                  </div>
+                )}
+
                 {/* Items checklist */}
                 <div className="mb-4 overflow-hidden rounded-xl border border-white/8">
                   {/* Header row */}
@@ -943,6 +996,8 @@ export default function StoreProcurementReceivingPage() {
                   {requestDetail.items.map((item) => {
                     const chk = itemChecks[item.id] ?? { checked: true, qty_received: item.qty };
                     const isZeroQty = chk.checked && (chk.qty_received === 0 || !chk.qty_received);
+                    const prevQty = prevReceivedQty[item.id];
+                    const wasPrevReceived = prevQty !== undefined && prevQty > 0;
                     return (
                       <div
                         key={item.id}
@@ -979,7 +1034,12 @@ export default function StoreProcurementReceivingPage() {
                             <span>·</span>
                             <span>Ordered: {item.qty} {item.unit}</span>
                           </div>
-                          {isZeroQty && (
+                          {wasPrevReceived && (
+                            <div className="mt-0.5 text-[11px] text-emerald-400/80">
+                              Previously received: {prevQty} {item.unit}
+                            </div>
+                          )}
+                          {isZeroQty && !wasPrevReceived && (
                             <div className="mt-0.5 text-[11px] text-amber-400/80">
                               Not delivered? Uncheck this item to mark it as skipped.
                             </div>

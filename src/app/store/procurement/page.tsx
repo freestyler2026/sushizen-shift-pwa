@@ -1845,18 +1845,22 @@ export default function StoreProcurementHomePage() {
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-semibold text-white font-mono flex items-center gap-2 flex-wrap">
                                     {row.po_no}
-                                    {isOverdue ? (
+                                    {isOverdue && (
                                       <span className="inline-flex items-center gap-1 rounded-full border bg-red-900/40 border-red-600/60 text-red-300 px-2 py-0.5 text-[10px] font-bold">
                                         <TriangleAlert className="h-3 w-3" />
                                         OVERDUE {row.days_overdue > 0 ? `${row.days_overdue}d` : ""}
                                       </span>
-                                    ) : (
+                                    )}
+                                    {row.pending_status === "short_delivered" && (
+                                      <span className="inline-flex items-center gap-1 rounded-full border bg-amber-900/40 border-amber-600/60 text-amber-300 px-2 py-0.5 text-[10px] font-semibold">
+                                        <TriangleAlert className="h-3 w-3" />
+                                        Short Delivered
+                                      </span>
+                                    )}
+                                    {!isOverdue && row.pending_status !== "short_delivered" && (
                                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusLabel.cls}`}>
                                         {statusLabel.label}
                                       </span>
-                                    )}
-                                    {row.pending_status === "short_delivered" && !isOverdue && (
-                                      <TriangleAlert className="h-3.5 w-3.5 text-amber-400" />
                                     )}
                                   </p>
                                   <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
