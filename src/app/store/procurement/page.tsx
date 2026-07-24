@@ -893,11 +893,16 @@ export default function StoreProcurementHomePage() {
     request_no: string;
     store_code: string;
     pending_status: "not_dispatched" | "in_transit" | "short_delivered";
+    is_overdue: boolean;
+    days_overdue: number;
+    expected_date?: string;
   };
   const [pendingDeliveries, setPendingDeliveries] = useState<PendingDeliveryRow[]>([]);
   const [pendingDeliveriesLoading, setPendingDeliveriesLoading] = useState(false);
   const [pendingDeliveriesSectionOpen, setPendingDeliveriesSectionOpen] = useState(true);
   const [pendingDeliveriesExpanded, setPendingDeliveriesExpanded] = useState<string | null>(null);
+  const [alertingPoId, setAlertingPoId] = useState("");
+  const [alertSentPoIds, setAlertSentPoIds] = useState<Set<string>>(new Set());
 
   // CK Dispatch state
   const [ckDispatchRows, setCkDispatchRows] = useState<CkDispatchRow[]>([]);
@@ -933,6 +938,23 @@ export default function StoreProcurementHomePage() {
       setPendingDeliveriesLoading(false);
     }
   }, [city, storeCode]);
+
+  const sendOverdueAlert = useCallback(async (poId: string) => {
+    setAlertingPoId(poId);
+    try {
+      await fetch(`/api/store/procurement/pending-deliveries/${encodeURIComponent(poId)}/alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approver_name: requestedBy.trim(), pin: pin.trim(), notes: "" }),
+        cache: "no-store",
+      });
+      setAlertSentPoIds((prev) => new Set([...prev, poId]));
+    } catch {
+      // best-effort — no error surfaced since the core action (pending display) is unaffected
+    } finally {
+      setAlertingPoId("");
+    }
+  }, [pin, requestedBy]);
 
   const loadCkDispatch = useCallback(async (cityOverride?: string) => {
     const activeCity = cityOverride ?? city;
@@ -1715,23 +1737,38 @@ export default function StoreProcurementHomePage() {
               className="w-full px-5 py-3.5 flex items-center justify-between gap-3"
               onClick={() => setPendingDeliveriesSectionOpen((v) => !v)}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 border border-sky-500/30">
-                  <PackageSearch className="h-4 w-4 text-sky-400" />
+              {(() => {
+                const overdueCount = pendingDeliveries.filter((r) => r.is_overdue).length;
+                return (
+                <div className="flex items-center gap-2.5">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${overdueCount > 0 ? "bg-red-500/15 border border-red-500/40" : "bg-sky-500/15 border border-sky-500/30"}`}>
+                    <PackageSearch className={`h-4 w-4 ${overdueCount > 0 ? "text-red-400" : "text-sky-400"}`} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
+                      Pending Deliveries
+                      {overdueCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 border border-red-500/50 px-2 py-0.5 text-[11px] font-bold text-red-300">
+                          <TriangleAlert className="h-3 w-3" />
+                          {overdueCount} OVERDUE
+                        </span>
+                      )}
+                      {pendingDeliveries.length > overdueCount && (
+                        <span className="inline-flex items-center justify-center rounded-full bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300">
+                          {pendingDeliveries.length - overdueCount} pending
+                        </span>
+                      )}
+                      {pendingDeliveriesLoading && <RefreshCw className="h-3 w-3 animate-spin text-zinc-500" />}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {overdueCount > 0
+                        ? `${overdueCount} order${overdueCount !== 1 ? "s" : ""} not received past expected date — action required`
+                        : "Vendor POs not yet received"}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-white flex items-center gap-2">
-                    Pending Deliveries
-                    {pendingDeliveries.length > 0 && (
-                      <span className="inline-flex items-center justify-center rounded-full bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300">
-                        {pendingDeliveries.length}
-                      </span>
-                    )}
-                    {pendingDeliveriesLoading && <RefreshCw className="h-3 w-3 animate-spin text-zinc-500" />}
-                  </p>
-                  <p className="text-xs text-zinc-500">Vendor POs not yet received</p>
-                </div>
-              </div>
+                );
+              })()}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1766,6 +1803,9 @@ export default function StoreProcurementHomePage() {
                       <div className="space-y-2">
                         {pendingDeliveries.map((row) => {
                           const isExp = pendingDeliveriesExpanded === row.id;
+                          const isOverdue = row.is_overdue;
+                          const alertSent = alertSentPoIds.has(row.id);
+                          const alerting = alertingPoId === row.id;
                           const statusLabel =
                             row.pending_status === "short_delivered"
                               ? { label: "Short Delivered", cls: "bg-amber-900/30 border-amber-700/50 text-amber-300" }
@@ -1777,10 +1817,14 @@ export default function StoreProcurementHomePage() {
                               key={row.id}
                               className={`rounded-xl border overflow-hidden transition-all duration-200 ${
                                 isExp
-                                  ? "border-sky-500/40 bg-sky-950/15"
-                                  : row.pending_status === "short_delivered"
-                                    ? "border-amber-700/40 bg-amber-950/10 hover:border-amber-500/40"
-                                    : "border-white/8 bg-white/3 hover:border-sky-500/25"
+                                  ? isOverdue
+                                    ? "border-red-500/50 bg-red-950/10"
+                                    : "border-sky-500/40 bg-sky-950/15"
+                                  : isOverdue
+                                    ? "border-red-700/50 bg-red-950/8 hover:border-red-500/50"
+                                    : row.pending_status === "short_delivered"
+                                      ? "border-amber-700/40 bg-amber-950/10 hover:border-amber-500/40"
+                                      : "border-white/8 bg-white/3 hover:border-sky-500/25"
                               }`}
                             >
                               <button
@@ -1791,28 +1835,49 @@ export default function StoreProcurementHomePage() {
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-semibold text-white font-mono flex items-center gap-2 flex-wrap">
                                     {row.po_no}
-                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusLabel.cls}`}>
-                                      {statusLabel.label}
-                                    </span>
-                                    {row.pending_status === "short_delivered" && (
+                                    {isOverdue ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full border bg-red-900/40 border-red-600/60 text-red-300 px-2 py-0.5 text-[10px] font-bold">
+                                        <TriangleAlert className="h-3 w-3" />
+                                        OVERDUE {row.days_overdue > 0 ? `${row.days_overdue}d` : ""}
+                                      </span>
+                                    ) : (
+                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusLabel.cls}`}>
+                                        {statusLabel.label}
+                                      </span>
+                                    )}
+                                    {row.pending_status === "short_delivered" && !isOverdue && (
                                       <TriangleAlert className="h-3.5 w-3.5 text-amber-400" />
                                     )}
                                   </p>
                                   <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
                                     <span>{row.vendor_name}</span>
-                                    {row.delivery_date && <span>📅 {row.delivery_date}</span>}
+                                    {row.expected_date && (
+                                      <span className={isOverdue ? "text-red-400 font-medium" : ""}>
+                                        Expected {row.expected_date}
+                                      </span>
+                                    )}
                                     <span>{(row.line_items_json || []).length} item{(row.line_items_json || []).length !== 1 ? "s" : ""}</span>
                                     {row.dispatched_at && <span>Dispatched {new Date(row.dispatched_at).toLocaleDateString()}</span>}
                                   </div>
                                 </div>
                                 <div className="shrink-0 pt-0.5">
                                   {isExp
-                                    ? <ChevronUp className="h-3.5 w-3.5 text-sky-400" />
+                                    ? <ChevronUp className={`h-3.5 w-3.5 ${isOverdue ? "text-red-400" : "text-sky-400"}`} />
                                     : <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />}
                                 </div>
                               </button>
                               {isExp && (
                                 <div className="border-t border-white/8 px-3 py-3 space-y-3">
+                                  {isOverdue && (
+                                    <div className="rounded-lg border border-red-700/40 bg-red-950/20 px-3 py-2 text-xs text-red-300 flex items-start gap-2">
+                                      <TriangleAlert className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
+                                      <span>
+                                        This delivery was expected on <strong>{row.expected_date}</strong> but has not been confirmed.
+                                        {row.days_overdue > 0 && ` (${row.days_overdue} day${row.days_overdue !== 1 ? "s" : ""} overdue)`}
+                                        {" "}Use <strong>Send Alert</strong> to notify HQ and the purchasing team.
+                                      </span>
+                                    </div>
+                                  )}
                                   {row.delivery_note && (
                                     <p className="text-xs text-zinc-400 italic">{row.delivery_note}</p>
                                   )}
@@ -1824,7 +1889,7 @@ export default function StoreProcurementHomePage() {
                                       </div>
                                     ))}
                                   </div>
-                                  <div className="flex gap-2 pt-1">
+                                  <div className="flex flex-wrap gap-2 pt-1">
                                     <a
                                       href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.request_id)}`}
                                       className={`${BLUSH_SMALL} text-xs`}
@@ -1840,6 +1905,25 @@ export default function StoreProcurementHomePage() {
                                         <AlertCircle className="h-3 w-3" />
                                         Claim
                                       </a>
+                                    )}
+                                    {isOverdue && (
+                                      alertSent ? (
+                                        <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-600/40 bg-emerald-950/20 px-2.5 py-1 text-xs text-emerald-400">
+                                          <CheckCircle2 className="h-3 w-3" /> Alert Sent
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={alerting}
+                                          onClick={(e) => { e.preventDefault(); void sendOverdueAlert(row.id); }}
+                                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-600/50 bg-red-950/30 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-950/50 disabled:opacity-50 transition-colors"
+                                        >
+                                          {alerting
+                                            ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                            : <TriangleAlert className="h-3 w-3" />}
+                                          {alerting ? "Sending…" : "Send Alert to HQ"}
+                                        </button>
+                                      )
                                     )}
                                   </div>
                                 </div>

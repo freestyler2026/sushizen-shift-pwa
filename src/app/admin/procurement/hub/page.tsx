@@ -18,7 +18,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check } from "lucide-react";
+import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check, TriangleAlert, PackageSearch, ChevronUp } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -258,6 +258,30 @@ export default function ProcurementHubPage() {
 
   const [rows, setRows] = useState<HubRow[]>([]);
 
+  // Overdue deliveries panel
+  type OverdueRow = {
+    id: string;
+    po_no: string;
+    vendor_name: string;
+    amount: number;
+    line_items_json: { item_name: string; qty: number; unit: string }[];
+    request_id: string;
+    request_no: string;
+    store_code: string;
+    city: string;
+    currency: string;
+    days_overdue: number;
+    expected_date: string;
+    case_id?: string;
+    parent_case_no?: string;
+    dispatched_at?: string;
+    has_shortage: boolean;
+  };
+  const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
+  const [overdueLoading, setOverdueLoading] = useState(false);
+  const [overduePanelOpen, setOverduePanelOpen] = useState(true);
+  const [overdueExpanded, setOverdueExpanded] = useState<string | null>(null);
+
   // Expandable rows — id → { items, receipt_url } cache
   type DetailItem = { id: string; item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number; line_total: number; category?: string };
   type DetailCache = { items: DetailItem[]; receipt_url: string; notes: string; loading: boolean };
@@ -354,6 +378,24 @@ export default function ProcurementHubPage() {
     }
   }, [city, filterStatus, filterType, filterDateFrom, filterDateTo, filterBranch, filterSupplier, pin, requestedBy]);
 
+  const loadOverdue = useCallback(async (cityOverride?: string) => {
+    const activeCity = cityOverride ?? city;
+    setOverdueLoading(true);
+    try {
+      const qs = new URLSearchParams({ city: activeCity, limit: "200" });
+      const res = await fetch(`/api/admin/procurement/overdue-deliveries?${qs}`, {
+        headers: getAuthHeaders() as Record<string, string>,
+        cache: "no-store",
+      });
+      const data = await res.json();
+      setOverdueRows(Array.isArray(data?.rows) ? data.rows : []);
+    } catch {
+      setOverdueRows([]);
+    } finally {
+      setOverdueLoading(false);
+    }
+  }, [city]);
+
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
@@ -365,14 +407,19 @@ export default function ProcurementHubPage() {
         resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
-      if (can) await load();
+      if (can) {
+        await Promise.all([load(), loadOverdue(resolvedCity)]);
+      }
     }
     void init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (allowed) void load();
+    if (allowed) {
+      void load();
+      void loadOverdue();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
 
@@ -436,6 +483,162 @@ export default function ProcurementHubPage() {
         <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400 shrink-0">
           <LayoutDashboard className="h-3 w-3" />{rows.length} requests
         </span>
+      </div>
+
+      {/* ── Overdue Delivery Exceptions Panel ── */}
+      <div className={`overflow-hidden rounded-2xl border ${overdueRows.length > 0 ? "border-red-700/50 bg-red-950/8" : "border-white/8 bg-white/3"}`}>
+        <button
+          type="button"
+          className="w-full px-5 py-3.5 flex items-center justify-between gap-3"
+          onClick={() => setOverduePanelOpen((v) => !v)}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${overdueRows.length > 0 ? "bg-red-500/15 border border-red-500/40" : "bg-zinc-700/30 border border-zinc-600/30"}`}>
+              <PackageSearch className={`h-4 w-4 ${overdueRows.length > 0 ? "text-red-400" : "text-zinc-500"}`} />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
+                Delivery Exceptions
+                {overdueRows.length > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 border border-red-500/50 px-2 py-0.5 text-[11px] font-bold text-red-300">
+                    <TriangleAlert className="h-3 w-3" />
+                    {overdueRows.length} OVERDUE
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                    All Clear
+                  </span>
+                )}
+                {overdueLoading && <RefreshCw className="h-3 w-3 animate-spin text-zinc-500" />}
+              </p>
+              <p className="text-xs text-zinc-500">
+                {overdueRows.length > 0
+                  ? `Vendor POs not received past expected delivery date — production may be at risk`
+                  : "No overdue vendor deliveries across all branches"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); void loadOverdue(); }}
+              className="rounded-lg p-1 text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+              title="Refresh"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+            {overduePanelOpen
+              ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" />
+              : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
+          </div>
+        </button>
+
+        {overduePanelOpen && (
+          <div className="border-t border-white/8 px-5 pb-4 pt-3">
+            {overdueRows.length === 0 && !overdueLoading ? (
+              <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
+                <span className="text-emerald-400">✓</span>
+                No overdue deliveries for {city === "dubai" ? "Dubai" : "Manila"}.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {overdueRows.map((row) => {
+                  const isExp = overdueExpanded === row.id;
+                  const items = Array.isArray(row.line_items_json) ? row.line_items_json : [];
+                  return (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                        isExp
+                          ? "border-red-500/50 bg-red-950/12"
+                          : "border-red-800/40 bg-red-950/8 hover:border-red-600/50"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2.5 flex items-start justify-between gap-2 text-left"
+                        onClick={() => setOverdueExpanded(isExp ? null : row.id)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-white font-mono flex items-center gap-2 flex-wrap">
+                            {row.po_no}
+                            <span className="inline-flex items-center gap-1 rounded-full border bg-red-900/40 border-red-600/60 text-red-300 px-2 py-0.5 text-[10px] font-bold">
+                              <TriangleAlert className="h-3 w-3" />
+                              {row.days_overdue}d OVERDUE
+                            </span>
+                            <span className="rounded-full border border-zinc-600/40 bg-zinc-800/30 px-2 py-0.5 text-[10px] text-zinc-400">
+                              {row.store_code}
+                            </span>
+                          </p>
+                          <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
+                            <span>{row.vendor_name}</span>
+                            <span className="text-red-400 font-medium">Expected {row.expected_date}</span>
+                            <span>{items.length} item{items.length !== 1 ? "s" : ""}</span>
+                            <span className="capitalize">{row.city}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 pt-0.5">
+                          {isExp
+                            ? <ChevronUp className="h-3.5 w-3.5 text-red-400" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />}
+                        </div>
+                      </button>
+                      {isExp && (
+                        <div className="border-t border-white/8 px-3 py-3 space-y-3">
+                          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <div>
+                              <p className={T_CAPTION}>PR No.</p>
+                              <p className="font-mono text-zinc-200">{row.request_no}</p>
+                            </div>
+                            <div>
+                              <p className={T_CAPTION}>Branch</p>
+                              <p className="text-zinc-200">{row.store_code}</p>
+                            </div>
+                            <div>
+                              <p className={T_CAPTION}>Expected</p>
+                              <p className="text-red-300 font-medium">{row.expected_date}</p>
+                            </div>
+                            <div>
+                              <p className={T_CAPTION}>Days Overdue</p>
+                              <p className="text-red-300 font-bold">{row.days_overdue}d</p>
+                            </div>
+                          </div>
+                          {items.length > 0 && (
+                            <div className="space-y-1">
+                              <p className={`${T_CAPTION} mb-1`}>Items ordered</p>
+                              {items.map((item, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs text-zinc-300">
+                                  <span>{item.item_name}</span>
+                                  <span className="text-zinc-500">{item.qty} {item.unit}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            {row.case_id && (
+                              <a
+                                href={`/admin/procurement/cases/${row.case_id}`}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+                              >
+                                Open Case →
+                              </a>
+                            )}
+                            <a
+                              href={`/store/procurement/receiving?city=${encodeURIComponent(row.city || "manila")}&request_id=${encodeURIComponent(row.request_id)}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-600/40 bg-sky-950/20 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-950/35 transition-colors"
+                            >
+                              Record Receiving →
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Session + city */}
