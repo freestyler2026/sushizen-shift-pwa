@@ -358,7 +358,9 @@ function LoanHistoryPanel({ asset, auth }: { asset: Asset; auth: ReturnType<type
       .then(d => setLoans(d.loans ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [asset.id, auth]);
+  // auth?.accessToken is a primitive string — stable even when auth object reference changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset.id, auth?.accessToken]);
 
   if (loading) return <p className={`${T_CAPTION} py-2`}>Loading history...</p>;
   if (loans.length === 0) return <p className={`${T_CAPTION} py-2`}>No loan history.</p>;
@@ -460,7 +462,8 @@ function IncidentsPanel({ auth, city }: { auth: ReturnType<typeof getAuth>; city
       .then(d => setIncidents(d.incidents ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [auth, city]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.accessToken, city]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -547,21 +550,23 @@ export default function AssetsPage() {
   const loadAssets = useCallback(async () => {
     if (!auth?.accessToken) return;
     setLoading(true); setErr("");
+    const token = auth.accessToken;
     try {
       const params = new URLSearchParams({ city });
       if (typeFilter) params.set("asset_type", typeFilter);
       if (statusFilter) params.set("status", statusFilter);
       if (q) params.set("q", q);
       const [aRes, kRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/assets?${params}`, { headers: { Authorization: `Bearer ${auth.accessToken}` } }),
-        fetch(`${API_BASE}/api/admin/assets/summary?city=${city}`, { headers: { Authorization: `Bearer ${auth.accessToken}` } }),
+        fetch(`${API_BASE}/api/admin/assets?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/admin/assets/summary?city=${city}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       const [aData, kData] = await Promise.all([aRes.json(), kRes.json()]);
       setAssets(aData.assets ?? []);
       setKpis({ total: kData.total ?? 0, on_loan: kData.on_loan ?? 0, available: kData.available ?? 0, open_incidents: kData.open_incidents ?? 0 });
     } catch { setErr("Failed to load assets."); }
     finally { setLoading(false); }
-  }, [auth, city, typeFilter, statusFilter, q]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.accessToken, city, typeFilter, statusFilter, q]);
 
   useEffect(() => {
     if (allowed) void loadAssets();
@@ -569,11 +574,13 @@ export default function AssetsPage() {
 
   useEffect(() => {
     if (!auth?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, { headers: { Authorization: `Bearer ${auth.accessToken}` } })
+    const token = auth.accessToken;
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => setStaffList(d.names ?? []))
       .catch(() => {});
-  }, [auth, city]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.accessToken, city]);
 
   if (!allowed) return (
     <div className="flex min-h-screen items-center justify-center">
