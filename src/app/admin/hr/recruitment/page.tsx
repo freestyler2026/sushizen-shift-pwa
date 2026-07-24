@@ -1545,7 +1545,7 @@ export default function HRRecruitmentPage() {
       </div>
 
       {/* ── Main area: Kanban + Detail Panel ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Kanban Board */}
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
           <div className="grid h-full gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
@@ -1564,8 +1564,8 @@ export default function HRRecruitmentPage() {
                     </span>
                   </div>
 
-                  {/* Cards */}
-                  <div className="flex-1 overflow-y-auto space-y-2 p-2">
+                  {/* Cards — min-h-0 is required so flex-1 can shrink below content height and overflow-y-auto activates */}
+                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
                     {cards.length === 0 ? (
                       <p className="text-center text-xs text-zinc-600 pt-6">Empty</p>
                     ) : (
