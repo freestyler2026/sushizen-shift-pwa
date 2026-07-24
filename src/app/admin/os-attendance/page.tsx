@@ -1891,7 +1891,7 @@ export default function OsAttendanceAdminPage() {
           {tab === "staff_report" && <StaffReportTab city={city} />}
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
-          {tab === "compliance" && <ShiftComplianceTab city={city} />}
+          {tab === "compliance" && <ShiftComplianceTab key={city} city={city} />}
         </div>
       </div>
     </main>
