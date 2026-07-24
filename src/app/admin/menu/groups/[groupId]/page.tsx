@@ -283,9 +283,9 @@ export default function MenuGroupDetailPage() {
           <div className="mt-4 space-y-3">
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Product</div>
-              <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} disabled={Boolean(editingProductLinkId)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm disabled:opacity-60">
-                {products.map((row) => <option key={row.id} value={row.id}>{row.name} {row.sku ? `(${row.sku})` : ""}</option>)}
-              </select>
+              <div className={Boolean(editingProductLinkId) ? "pointer-events-none opacity-60" : ""}>
+                <SelectDark value={selectedProductId} onChange={setSelectedProductId} options={products.map((row) => ({ value: row.id, label: `${row.name}${row.sku ? ` (${row.sku})` : ""}` }))} />
+              </div>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300">
@@ -345,9 +345,9 @@ export default function MenuGroupDetailPage() {
           <div className="mt-4 space-y-3">
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Combo</div>
-              <select value={selectedComboId} onChange={(e) => setSelectedComboId(e.target.value)} disabled={Boolean(editingComboLinkId)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm disabled:opacity-60">
-                {combos.map((row) => <option key={row.id} value={row.id}>{row.name} {row.sku ? `(${row.sku})` : ""}</option>)}
-              </select>
+              <div className={Boolean(editingComboLinkId) ? "pointer-events-none opacity-60" : ""}>
+                <SelectDark value={selectedComboId} onChange={setSelectedComboId} options={combos.map((row) => ({ value: row.id, label: `${row.name}${row.sku ? ` (${row.sku})` : ""}` }))} />
+              </div>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300">

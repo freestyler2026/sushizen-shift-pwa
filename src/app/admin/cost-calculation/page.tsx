@@ -5759,20 +5759,15 @@ export default function CostCalculationPage() {
                                       <div className="grid gap-3 md:grid-cols-[220px_220px_160px_220px_1fr]">
                                         <div>
                                           <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
-                                          <select
+                                          <SelectDark
                                             value={detail.category}
-                                            onChange={(e) => updateMenuDetailLocal(item.id, (current) => ({ ...current, category: e.target.value }))}
-                                            onBlur={() => void saveMenuCategory(item.id, menuDetails[item.id]?.category ?? detail.category)}
-                                            className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-                                          >
-                                            {[detail.category, ...menuCategories.map((categoryItem) => categoryItem.name)]
-                                              .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
-                                              .map((categoryName) => (
-                                              <option key={categoryName} value={categoryName}>
-                                                {categoryName}
-                                              </option>
-                                              ))}
-                                          </select>
+                                            onChange={(v) => {
+                                              updateMenuDetailLocal(item.id, (current) => ({ ...current, category: v }));
+                                              void saveMenuCategory(item.id, v);
+                                            }}
+                                            options={[detail.category, ...menuCategories.map((categoryItem) => categoryItem.name)]
+                                              .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)}
+                                          />
                                         </div>
                                         <div>
                                           <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Selling Price</div>
