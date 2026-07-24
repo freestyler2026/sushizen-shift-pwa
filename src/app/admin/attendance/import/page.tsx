@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle, FileSpreadsheet, FolderSearch, RefreshCw, Upload, XCircle } from "lucide-react";
+import { CheckCircle, FolderSearch, RefreshCw, Upload, XCircle } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import {
   BADGE_ERROR,
@@ -19,15 +19,6 @@ import {
   T_PAGE_TITLE,
   T_SECTION,
 } from "@/lib/ui-tokens";
-
-type XlsxUploadResult = {
-  ok?: boolean;
-  duplicate?: boolean;
-  imported?: number;
-  skipped?: number;
-  import_batch_id?: string;
-  skipped_details?: Array<{ name?: string; date?: string; reason?: string }>;
-};
 
 type SyncAllResponse = {
   ok?: boolean;
@@ -114,12 +105,6 @@ export default function AttendanceImportPage() {
   const [singleResult, setSingleResult] = useState<SingleSyncResponse | null>(null);
   const [driveFiles, setDriveFiles] = useState<DriveFileItem[] | null>(null);
 
-  // Excel (Bayzat Attendance Breakdown View) upload
-  const [xlsxFile, setXlsxFile] = useState<File | null>(null);
-  const [xlsxLoading, setXlsxLoading] = useState(false);
-  const [xlsxError, setXlsxError] = useState("");
-  const [xlsxResult, setXlsxResult] = useState<XlsxUploadResult | null>(null);
-
   const canSync = useMemo(() => !!approverName.trim() && !!pin.trim(), [approverName, pin]);
   const canSyncSelected = useMemo(() => canSync && !!driveFileId.trim(), [canSync, driveFileId]);
 
@@ -194,35 +179,6 @@ export default function AttendanceImportPage() {
       setError(normalizeError(String(err?.message || err || "")));
     } finally {
       setLoadingFiles(false);
-    }
-  }
-
-  async function uploadXlsx() {
-    if (!xlsxFile) return;
-    setXlsxLoading(true);
-    setXlsxError("");
-    setXlsxResult(null);
-    try {
-      const authData = getAuth();
-      const token = authData?.accessToken;
-      const formData = new FormData();
-      formData.append("file", xlsxFile);
-      const res = await fetch("/api/admin/attendance/import-bayzat-attendance-breakdown", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        let detail = text;
-        try { const j = JSON.parse(text); if (j?.detail) detail = String(j.detail); } catch { /* keep */ }
-        throw new Error(detail || "Upload failed");
-      }
-      setXlsxResult(JSON.parse(text));
-    } catch (err: any) {
-      setXlsxError(String(err?.message || err || "Upload failed"));
-    } finally {
-      setXlsxLoading(false);
     }
   }
 
@@ -483,92 +439,6 @@ export default function AttendanceImportPage() {
               ) : null}
             </section>
           ) : null}
-          {/* ─── Bayzat Attendance Breakdown View Excel Upload ─── */}
-          <section className={`${GLASS_CARD} mt-8 p-6 shadow-2xl`}>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/20 to-green-500/10">
-                <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
-              </div>
-              <div>
-                <h2 className={T_SECTION}>Bayzat Attendance Breakdown (.xlsx) Upload</h2>
-                <p className={T_CAPTION}>
-                  Upload the &quot;Attendance Breakdown View&quot; Excel export from Bayzat directly.
-                  City (Dubai / Manila) is inferred automatically from the Department column.
-                  Overnight shifts and column-shift anomalies are handled automatically.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-end gap-4">
-              <label className="flex-1 space-y-2" style={{ minWidth: 220 }}>
-                <span className={T_LABEL}>Excel File (.xlsx)</span>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  className={`${INPUT_CLASS} cursor-pointer file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sky-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-500`}
-                  onChange={(e) => {
-                    setXlsxFile(e.target.files?.[0] ?? null);
-                    setXlsxResult(null);
-                    setXlsxError("");
-                  }}
-                />
-                {xlsxFile && (
-                  <p className={T_CAPTION}>Selected: {xlsxFile.name} ({(xlsxFile.size / 1024).toFixed(0)} KB)</p>
-                )}
-              </label>
-
-              <button
-                type="button"
-                onClick={uploadXlsx}
-                disabled={!xlsxFile || xlsxLoading}
-                className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
-              >
-                <Upload className="h-4 w-4" />
-                {xlsxLoading ? "Importing…" : "Import Excel"}
-              </button>
-            </div>
-
-            {xlsxError && (
-              <div className={`mt-4 ${BADGE_ERROR} inline-flex`}>{xlsxError}</div>
-            )}
-
-            {xlsxResult && (
-              <div className="mt-5 space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {xlsxResult.duplicate ? (
-                    <span className={`${BADGE_INFO} text-xs`}>Already imported (duplicate file — skipped)</span>
-                  ) : (
-                    <span className={`${BADGE_SUCCESS} text-xs`}>
-                      ✓ Imported {xlsxResult.imported ?? 0} rows
-                      {(xlsxResult.skipped ?? 0) > 0 ? ` · ${xlsxResult.skipped} skipped` : ""}
-                    </span>
-                  )}
-                </div>
-
-                {xlsxResult.import_batch_id && (
-                  <p className={T_CAPTION}>Batch ID: {xlsxResult.import_batch_id}</p>
-                )}
-
-                {(xlsxResult.skipped_details?.length ?? 0) > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
-                      Show skipped rows ({xlsxResult.skipped_details!.length})
-                    </summary>
-                    <div className="mt-2 space-y-1">
-                      {xlsxResult.skipped_details!.map((s, i) => (
-                        <div key={i} className={`${GLASS_CARD} px-3 py-2`}>
-                          <p className="text-xs text-zinc-300">
-                            {s.name || "—"} {s.date ? `(${s.date})` : ""} — {s.reason}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-          </section>
-
         </motion.div>
       </div>
     </main>
