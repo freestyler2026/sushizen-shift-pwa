@@ -1554,7 +1554,7 @@ export default function AdminDailyInventoryTab() {
         staff_name: name,
         entries: Object.entries(ent)
           .filter(([, e]) => e.qty !== "")
-          .map(([item_code, e]) => ({ item_code, qty: parseFloat(e.qty) || null, unit: e.unit || null, note: e.note || null })),
+          .map(([item_code, e]) => { const n = parseFloat(e.qty); return { item_code, qty: isNaN(n) ? null : n, unit: e.unit || null, note: e.note || null }; }),
       };
       const res = await apiFetch("/api/daily-inventory/save", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
@@ -1921,7 +1921,7 @@ export default function AdminDailyInventoryTab() {
                                 type="number" inputMode="decimal" step="any" min="0" value={entry.qty}
                                 onChange={(e) => handleEntryChange(item.item_code, "qty", e.target.value)}
                                 className="w-16 appearance-none rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-right text-sm text-white outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                placeholder="0"
+                                placeholder="—"
                               />
                             </td>
                             <td className="px-2 py-3">
