@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 148 — Procurement Phase 3: Auto Alerts + HQ Ack)
+Last updated: 2026-07-25 (session 150 — Daily Inventory: detail view source tab bug fix)
 
 
 
@@ -8,6 +8,57 @@ Last updated: 2026-07-24 (session 148 — Procurement Phase 3: Auto Alerts + HQ 
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 150 — Daily Inventory detail view tab bug)
+
+### Daily Inventory — detail view source tab default wrong (DEPLOYED ✅ Vercel 46db29d)
+- **Bug**: "Generate Purchase Request" from submitted report detail view showed "No items are below par" even when supplier items (e.g. Fresh Salmon Fillet 0 KG vs par 25 KG) were clearly below par
+- **Root cause**: `detailSourceTab` state was initialized to `"ck"` (Central Kitchen), so `openOrderModal()` filtered only CK items. Since Supplier items use `source_type === "supplier"`, they were never found.
+- **Fix**: Changed `useState<SourceType>("ck")` → `useState<SourceType>("supplier")` on line 190 — now defaults to Supplier tab (consistent with the form view which already defaulted to "supplier" on line 1401)
+- File: `src/components/admin/AdminDailyInventoryTab.tsx:190` — commit 46db29d
+
+---
+
+## Recently Completed (2026-07-24 session 149 — Bug fixes)
+
+### Daily Inventory — Warehouse par fallback (DEPLOYED ✅)
+- **Bug**: Warehouse items always showed "OK" status badge (never red/yellow) and "Generate Purchase Request" modal showed blank QTY fields
+- **Root cause**: `WAREHOUSE_Thursday` pattern (today's day name) didn't exist in DB; pattern lookup was empty
+- **Fix**: Both `formWHLookup` (form view) and `patternLookup` + `effectiveWHPattern` (detail view) now fetch pattern list first and fall back to any `WAREHOUSE_*` pattern when day-specific doesn't exist. Guards against "pattern exists but is empty" vs "pattern doesn't exist" by checking `pats.includes(...)` before falling back.
+- File: `src/components/admin/AdminDailyInventoryTab.tsx` — commits 247ffd1
+
+### Store Procurement — Pending Deliveries cleanup (DEPLOYED ✅)
+- **Bug 1**: ~100 overdue orders from June cluttering the list (no age cap)
+- **Bug 2**: `PO-CASE-2026-001158-01` (Kor Asian) remained after receiving was confirmed
+- **Fix**: `list_pending_deliveries_for_store` (db.py) now excludes POs with confirmed `proc_receivings` record, caps at 90 days overdue, and returns `hidden_count`. Frontend shows info banner: "X older orders (90+ days overdue) hidden."
+- Heroku + Vercel deployed
+
+### Travel Path — Per-branch temperature units (DEPLOYED ✅)
+- **Bug**: Taft showed Freezer 3 & 4 (only has 2); Paranaque showed Freezer 3 & 4 + Counter Chiller 2 (only has Freezer 1-2 + Counter Chiller 1)
+- **Fix**: Added `branch_units_json JSONB` column to `travel_path_items`; `get_travel_path_detail` and `get_monthly_temp_log` resolve branch-specific unit overrides at query time
+- Taft: Chiller 1-4, Freezer 1-2, Counter Chiller 1-2; Paranaque: Chiller 1-4, Freezer 1-2, Counter Chiller 1
+- File: `sushizen_shift_app_clean/app/db_travel_path.py`
+
+### Cost Calculation — Misplaced Items 422 error (DEPLOYED ✅ Heroku v1492)
+- **Bug**: "Misplaced Items" button showed `Failed to load: path.ingredient_id: Input should be a valid integer`
+- **Root cause**: FastAPI route ordering — `GET /api/cost/ingredients/{ingredient_id}` was registered BEFORE `GET /api/cost/ingredients/misplaced-suspects`; FastAPI tried to parse `misplaced-suspects` as int → 422
+- **Fix**: Moved `misplaced-suspects` GET route to be declared BEFORE the `{ingredient_id}` parametric route in `cost_api.py`
+- File: `sushizen_shift_app_clean/app/cost_api.py` — commit 2c773c9, Heroku v1492
+
+### Daily Inventory — QTY=0 falsy-zero bug fix (DEPLOYED ✅ Vercel d1f88fe)
+- **Bug**: `parseFloat(e.qty) || null` treated `0` as falsy → user entering "0 stock" was saved as `null` (same as blank), meaning items with zero inventory were never included in purchase request
+- **Fix**: Changed to `isNaN(n) ? null : n` so `0` saves correctly as numeric `0`
+- **UX**: Placeholder changed from `"0"` to `"—"` so users understand fields are blank by default and must actively enter values
+- **Behavior after fix**:
+  - Blank/unfilled → null → excluded from PR (unchanged)
+  - Enter `0` → saved as `0` → appears in PR modal with full par as order qty ✓
+  - StatusBadge now shows LOW/WARN for qty=0 (was showing "—" before)
+- File: `src/components/admin/AdminDailyInventoryTab.tsx` lines 1557, 1924
+
+### Pending items
+- **Travel Path content review**: Richard to review Travel Path content — delete unnecessary items, update times, add OS tasks. Awaiting Richard's input.
 
 ---
 
