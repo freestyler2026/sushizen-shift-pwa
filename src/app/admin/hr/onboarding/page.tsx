@@ -468,8 +468,43 @@ function AddModal({
     applicant_id: "",
     notes: "",
   });
+  const [staffList, setStaffList] = useState<string[]>([]);
+  const [infoLoading, setInfoLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))
+      .catch(() => {});
+  }, [accessToken, city]);
+
+  const handleStaffSelect = async (name: string) => {
+    setForm((prev) => ({ ...prev, staff_name: name }));
+    if (!name) return;
+    setInfoLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/staff_master/info?name=${encodeURIComponent(name)}&city=${city}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (res.ok) {
+        const d = await res.json();
+        setForm((prev) => ({
+          ...prev,
+          branch: d.branch || prev.branch,
+          position: d.position || prev.position,
+        }));
+      }
+    } catch {
+      // ignore — form stays editable
+    } finally {
+      setInfoLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -510,7 +545,7 @@ function AddModal({
     }
   };
 
-  const field = (
+  const textField = (
     key: keyof typeof form,
     label: string,
     type: string = "text",
@@ -548,11 +583,41 @@ function AddModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {field("staff_name", "Staff Name *", "text", "Juan dela Cruz")}
-          {field("branch", "Branch", "text", "Makati")}
-          {field("position", "Position", "text", "Kitchen Staff")}
-          {field("start_date", "Start Date", "date")}
-          {field(
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>Staff Name *</label>
+            <SelectDark
+              value={form.staff_name}
+              onChange={handleStaffSelect}
+              options={staffList}
+              placeholder="Select staff member..."
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>
+              Branch{infoLoading && <span className="ml-2 text-xs text-neutral-500">syncing...</span>}
+            </label>
+            <input
+              type="text"
+              value={form.branch}
+              onChange={(e) => setForm((prev) => ({ ...prev, branch: e.target.value }))}
+              placeholder="e.g. Paranaque"
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>
+              Position{infoLoading && <span className="ml-2 text-xs text-neutral-500">syncing...</span>}
+            </label>
+            <input
+              type="text"
+              value={form.position}
+              onChange={(e) => setForm((prev) => ({ ...prev, position: e.target.value }))}
+              placeholder="e.g. Kitchen Staff"
+              className={INPUT_CLASS}
+            />
+          </div>
+          {textField("start_date", "Start Date", "date")}
+          {textField(
             "applicant_id",
             "Applicant ID (Pipeline)",
             "text",

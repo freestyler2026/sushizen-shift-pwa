@@ -597,6 +597,7 @@ function AddSeparationModal({
 }) {
   const auth = getAuth();
   const [staffName, setStaffName] = useState("");
+  const [staffList, setStaffList] = useState<string[]>([]);
   const [separationType, setSeparationType] = useState<SeparationType>("voluntary_resignation");
   const [resignationDate, setResignationDate] = useState("");
   const [lastWorkingDate, setLastWorkingDate] = useState("");
@@ -604,6 +605,16 @@ function AddSeparationModal({
   const [nteReference, setNteReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!auth?.accessToken) return;
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${auth.city || "manila"}&status=ACTIVE&limit=5000`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))
+      .catch(() => {});
+  }, [auth?.accessToken, auth?.city]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -665,13 +676,11 @@ function AddSeparationModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={T_LABEL + " mb-1 block"}>Staff Name *</label>
-            <input
-              type="text"
+            <SelectDark
               value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              placeholder="Full name..."
-              required
-              className={INPUT_CLASS}
+              onChange={setStaffName}
+              options={staffList}
+              placeholder="Select staff member..."
             />
           </div>
 
