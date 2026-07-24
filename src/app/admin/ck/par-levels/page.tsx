@@ -171,6 +171,11 @@ export default function CkParLevelsPage() {
         setSaving(false);
         return;
       }
+      if (par != null && par < 0) {
+        alert("Par level cannot be negative.");
+        setSaving(false);
+        return;
+      }
       const res = await fetch(
         `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
         {
