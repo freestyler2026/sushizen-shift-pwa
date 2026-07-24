@@ -593,6 +593,10 @@ export default function PayrollPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/admin/payroll/dubai"
+            className="flex items-center gap-1.5 rounded-lg border border-sky-400 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100 transition">
+            🇦🇪 Dubai Payroll <ArrowRight size={13} />
+          </Link>
           <Link href="/admin/payroll/manila"
             className="flex items-center gap-1.5 rounded-lg border border-violet-400 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition">
             Manila Payroll <ArrowRight size={13} />
