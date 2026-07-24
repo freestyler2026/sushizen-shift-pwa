@@ -876,8 +876,12 @@ function ComplianceView() {
 
   function getCellColor(row: ComplianceRow | undefined): string {
     if (!row) return "bg-zinc-800/30 text-zinc-700";
-    if (row.status === "SUBMITTED") return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-    return "bg-amber-500/15 text-amber-300 border border-amber-500/25";
+    if (row.status === "SUBMITTED") {
+      const pct = row.total_entries > 0 ? (row.checked_entries / row.total_entries) * 100 : 100;
+      if (pct < 100) return "bg-amber-500/20 text-amber-300 border border-amber-500/40";
+      return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+    }
+    return "bg-orange-500/15 text-orange-300 border border-orange-500/25";
   }
 
   function getCellPct(row: ComplianceRow | undefined): string {
@@ -951,19 +955,198 @@ function ComplianceView() {
         </div>
       )}
 
+      {/* ── Issues & Actions Panel ── */}
+      {!loading && (() => {
+        const now2 = new Date();
+        const isCurrentMonth = year === now2.getFullYear() && month === now2.getMonth() + 1;
+        // Only flag days strictly before today for current month; all days for past months
+        const lastPastDay = isCurrentMonth ? now2.getDate() - 1 : days;
+
+        const incomplete = data
+          .filter((r) => r.status === "SUBMITTED" && r.total_entries > 0 && r.checked_entries < r.total_entries)
+          .sort((a, b) => b.report_date.localeCompare(a.report_date));
+
+        const drafts = data
+          .filter((r) => r.status !== "SUBMITTED")
+          .sort((a, b) => b.report_date.localeCompare(a.report_date));
+
+        const missingBySec: Record<string, number> = {};
+        sections.forEach((sec) => { missingBySec[sec] = 0; });
+        for (let d = 1; d <= lastPastDay; d++) {
+          const dayRows = byDaySec[d] || {};
+          sections.forEach((sec) => { if (!dayRows[sec]) missingBySec[sec]++; });
+        }
+        const totalMissing = Object.values(missingBySec).reduce((a, b) => a + b, 0);
+
+        const tempViolationCount = tempLog.filter((row) =>
+          row.temp_items.some((item) =>
+            item.unit_labels_json.some((unit) =>
+              getTempStatus(unit.toLowerCase(), String(item.temp_values_json[unit] ?? "")) === "danger"
+            )
+          )
+        ).length;
+
+        const hasIssues = incomplete.length > 0 || drafts.length > 0 || totalMissing > 0 || tempViolationCount > 0;
+
+        if (!hasIssues && data.length > 0) return (
+          <div className={`${GLASS_CARD} p-4 flex items-center gap-2`}>
+            <span className="text-emerald-400 text-base">✓</span>
+            <span className="text-sm text-zinc-400">No issues found for {monthNames[month - 1]} {year} — {BRANCH_LABELS[branch]}</span>
+          </div>
+        );
+
+        if (!hasIssues) return null;
+
+        return (
+          <div className={`${GLASS_CARD} p-5 space-y-4 border border-amber-500/25`}>
+            {/* Panel header */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-amber-300">⚠ Issues Requiring Attention</h3>
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                {incomplete.length > 0 && (
+                  <span className="rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-amber-400">
+                    {incomplete.length} incomplete
+                  </span>
+                )}
+                {drafts.length > 0 && (
+                  <span className="rounded-full bg-orange-500/15 border border-orange-500/25 px-2 py-0.5 text-orange-400">
+                    {drafts.length} draft
+                  </span>
+                )}
+                {totalMissing > 0 && (
+                  <span className="rounded-full bg-red-500/15 border border-red-500/25 px-2 py-0.5 text-red-400">
+                    {totalMissing} missing
+                  </span>
+                )}
+                {tempViolationCount > 0 && (
+                  <span className="rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-violet-400">
+                    {tempViolationCount} temp flags
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Submitted but incomplete */}
+            {incomplete.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Submitted but Incomplete — items left unchecked
+                </p>
+                <div className="space-y-1.5">
+                  {incomplete.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedReport(r.id === selectedReport ? null : r.id)}
+                      className={[
+                        "w-full flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-left transition-all",
+                        r.id === selectedReport
+                          ? "border-amber-400/50 bg-amber-500/20"
+                          : "border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0 text-amber-400">📋</span>
+                        <span className="text-zinc-300 truncate">
+                          {r.report_date} · {SECTION_LABELS[r.section as Section] ?? r.section}
+                        </span>
+                        <span className="hidden sm:inline text-zinc-500 truncate">— {r.staff_name}</span>
+                      </div>
+                      <span className="ml-2 shrink-0 font-semibold text-amber-400">
+                        {r.checked_entries}/{r.total_entries} checked
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Draft reports */}
+            {drafts.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Not Submitted / Draft
+                </p>
+                <div className="space-y-1.5">
+                  {drafts.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedReport(r.id === selectedReport ? null : r.id)}
+                      className={[
+                        "w-full flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-left transition-all",
+                        r.id === selectedReport
+                          ? "border-orange-400/50 bg-orange-500/20"
+                          : "border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0 text-orange-400">⏳</span>
+                        <span className="text-zinc-300 truncate">
+                          {r.report_date} · {SECTION_LABELS[r.section as Section] ?? r.section}
+                        </span>
+                        <span className="hidden sm:inline text-zinc-500 truncate">— {r.staff_name}</span>
+                      </div>
+                      <span className="ml-2 shrink-0 font-semibold text-orange-400">Draft</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Missing sections */}
+            {totalMissing > 0 && lastPastDay > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  No Submission Record (past {lastPastDay} day{lastPastDay !== 1 ? "s" : ""})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {sections.map((sec) => {
+                    const cnt = missingBySec[sec];
+                    if (!cnt) return null;
+                    return (
+                      <span
+                        key={sec}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-1.5 text-xs text-red-400"
+                      >
+                        <span className="text-red-500">✗</span>
+                        {SECTION_LABELS[sec]}: {cnt} day{cnt !== 1 ? "s" : ""} missing
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Temperature violations */}
+            {tempViolationCount > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs">
+                <span className="text-red-400">🌡</span>
+                <span className="text-zinc-300">
+                  {tempViolationCount} temperature violation{tempViolationCount !== 1 ? "s" : ""} this month
+                </span>
+                <span className="text-zinc-500">— see Temperature Log below for details</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Calendar grid */}
       {loading ? (
         <div className={`${GLASS_CARD} p-8 text-center text-sm text-zinc-500`}>Loading…</div>
       ) : (
         <div className={`${GLASS_CARD} p-5 space-y-3`}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className={T_SECTION}>{monthNames[month - 1]} {year} — {BRANCH_LABELS[branch]}</h3>
-            <div className="flex gap-3 text-xs text-zinc-500">
-              <span><span className="inline-block w-3 h-3 rounded bg-emerald-500/30 mr-1 align-middle" />Submitted</span>
-              <span><span className="inline-block w-3 h-3 rounded bg-amber-500/20 mr-1 align-middle" />Draft</span>
+            <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
+              <span><span className="inline-block w-3 h-3 rounded bg-emerald-500/30 mr-1 align-middle" />100% complete</span>
+              <span><span className="inline-block w-3 h-3 rounded bg-amber-500/25 mr-1 align-middle" />Incomplete (&lt;100%)</span>
+              <span><span className="inline-block w-3 h-3 rounded bg-orange-500/20 mr-1 align-middle" />Draft</span>
               <span><span className="inline-block w-3 h-3 rounded bg-zinc-800/50 mr-1 align-middle" />None</span>
             </div>
           </div>
+          <p className="text-[11px] text-zinc-600">Tap any cell to review the full report and see unchecked items.</p>
 
           {/* Section header row */}
           <div className="overflow-x-auto">
