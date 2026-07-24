@@ -898,6 +898,7 @@ export default function StoreProcurementHomePage() {
     expected_date?: string;
   };
   const [pendingDeliveries, setPendingDeliveries] = useState<PendingDeliveryRow[]>([]);
+  const [pendingDeliveriesHiddenCount, setPendingDeliveriesHiddenCount] = useState(0);
   const [pendingDeliveriesLoading, setPendingDeliveriesLoading] = useState(false);
   const [pendingDeliveriesSectionOpen, setPendingDeliveriesSectionOpen] = useState(true);
   const [pendingDeliveriesExpanded, setPendingDeliveriesExpanded] = useState<string | null>(null);
@@ -932,8 +933,10 @@ export default function StoreProcurementHomePage() {
       const res = await fetch(`/api/store/procurement/pending-deliveries?${qs}`, { method: "GET", cache: "no-store" });
       const data = await res.json();
       setPendingDeliveries(Array.isArray(data?.rows) ? data.rows : []);
+      setPendingDeliveriesHiddenCount(typeof data?.hidden_count === "number" ? data.hidden_count : 0);
     } catch {
       setPendingDeliveries([]);
+      setPendingDeliveriesHiddenCount(0);
     } finally {
       setPendingDeliveriesLoading(false);
     }
@@ -1794,6 +1797,12 @@ export default function StoreProcurementHomePage() {
                   className="overflow-hidden"
                 >
                   <div className="border-t border-white/8 px-5 pb-4 pt-3">
+                    {pendingDeliveriesHiddenCount > 0 && (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg border border-zinc-700/40 bg-zinc-800/30 px-3 py-2 text-xs text-zinc-500">
+                        <span className="text-zinc-600">ℹ</span>
+                        {pendingDeliveriesHiddenCount} older order{pendingDeliveriesHiddenCount !== 1 ? "s" : ""} (90+ days overdue) hidden. Contact HQ to review or close them.
+                      </div>
+                    )}
                     {pendingDeliveries.length === 0 && !pendingDeliveriesLoading ? (
                       <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500/60" />
