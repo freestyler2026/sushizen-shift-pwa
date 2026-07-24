@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 145 — Phase 1-3 bug fixes)
+Last updated: 2026-07-24 (session 146 — Analytics Absence By Day/Week/Month)
 
 
 
@@ -8,6 +8,21 @@ Last updated: 2026-07-24 (session 145 — Phase 1-3 bug fixes)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-24 session 146 — Analytics Absence By Day/Week/Month)
+
+- **Absence Analytics: 3 new sub-tabs (By Day / By Week / By Month)** ✅ DEPLOYED:
+  - Data source: `os_attendance_sessions` + `shift_published_rows/versions` (clock-in data, not Bayzat)
+  - **By Day**: date picker → all scheduled staff with ON_TIME/LATE/NO_SHOW/NOT_CHECKED_IN status badges, Issues Only filter, search, KPI cards
+  - **By Week**: week-start picker → stacked bar chart (Late + No Show per day), daily summary table, staff issues table
+  - **By Month**: month/year selectors → same layout as By Week (daily trend chart + tables)
+  - Backend (Heroku 6fbc73e): `get_attendance_range_rows()` in `db.py`; `GET /api/admin/analytics/absence/by_day` and `GET /api/admin/analytics/absence/by_range` in `main.py`
+  - `_compute_attendance_status()` shared helper: 5 min grace (same as Phase 1), NO_SHOW at 30 min
+  - Frontend (Vercel c9e106c): `AbsenceTab.tsx` extended from 2 to 5 sub-tabs
+  - Existing By Branch / By Staff tabs unchanged (still use Bayzat `absences` table)
+  - Browser verified: By Day shows date picker + "OS attendance clock-in data" label ✓, By Week shows week-start picker ✓, By Month shows month/year selectors ✓
 
 ---
 
