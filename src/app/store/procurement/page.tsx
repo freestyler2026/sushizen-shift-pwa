@@ -134,23 +134,27 @@ type CkDispatchRow = {
   request_id: string;
 };
 
+function escHtml(s: string): string {
+  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function printProcDeliveryNote(detail: RequestDetail, currencyCode: string) {
   const now = new Date();
   const printDate = now.toLocaleString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-  const dnNo = `PR-DN-${detail.request_no}`;
+  const dnNo = `PR-DN-${escHtml(detail.request_no)}`;
   const vendors = [...new Set((detail.items || []).map((i) => i.vendor_name).filter(Boolean))];
-  const vendorLabel = vendors.join(" / ") || "Supplier";
+  const vendorLabel = escHtml(vendors.join(" / ") || "Supplier");
 
   const rows = (detail.items || []).map((item, i) => `
     <tr class="${i % 2 === 0 ? "even" : ""}">
       <td class="num">${i + 1}</td>
-      <td class="name">${item.item_name}${item.spec ? `<div class="spec">${item.spec}</div>` : ""}</td>
-      <td class="vendor">${item.vendor_name || "-"}</td>
+      <td class="name">${escHtml(item.item_name)}${item.spec ? `<div class="spec">${escHtml(item.spec)}</div>` : ""}</td>
+      <td class="vendor">${escHtml(item.vendor_name || "-")}</td>
       <td class="qty">${Number(item.qty || 0).toLocaleString()}</td>
-      <td class="unit">${item.unit}</td>
+      <td class="unit">${escHtml(item.unit)}</td>
       <td class="price">${item.unit_price > 0 ? Number(item.unit_price).toFixed(2) : "-"}</td>
       <td class="total">${item.line_total > 0 ? Number(item.line_total).toFixed(2) : "-"}</td>
     </tr>`).join("");
@@ -229,26 +233,26 @@ function printProcDeliveryNote(detail: RequestDetail, currencyCode: string) {
     <div class="arrow-cell">→</div>
     <div class="address-box to-box">
       <div class="address-label">To (Branch)</div>
-      <div class="address-name">${detail.store_code || "-"}</div>
-      <div class="address-sub">Requested by: ${detail.requested_by || "-"}</div>
+      <div class="address-name">${escHtml(detail.store_code || "-")}</div>
+      <div class="address-sub">Requested by: ${escHtml(detail.requested_by || "-")}</div>
     </div>
   </div>
   <div class="meta-row">
     <div class="meta-item">
       <div class="meta-label">Print Date</div>
-      <div class="meta-value">${printDate}</div>
+      <div class="meta-value">${escHtml(printDate)}</div>
     </div>
     <div class="meta-item">
       <div class="meta-label">PR Number</div>
-      <div class="meta-value">${detail.request_no}</div>
+      <div class="meta-value">${escHtml(detail.request_no)}</div>
     </div>
     <div class="meta-item">
       <div class="meta-label">Order Date</div>
-      <div class="meta-value">${String(detail.request_date || "").slice(0, 10)}</div>
+      <div class="meta-value">${escHtml(String(detail.request_date || "").slice(0, 10))}</div>
     </div>
     <div class="meta-item">
       <div class="meta-label">Status</div>
-      <div class="meta-value">${detail.status}</div>
+      <div class="meta-value">${escHtml(detail.status)}</div>
     </div>
   </div>
   <table>
@@ -292,7 +296,12 @@ function printProcDeliveryNote(detail: RequestDetail, currencyCode: string) {
 </html>`;
 
   const win = window.open("", "_blank", "width=950,height=700");
-  if (win) { win.document.write(html); win.document.close(); }
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  } else {
+    alert("Pop-up was blocked. Please allow pop-ups for this site and try again.");
+  }
 }
 
 function RequestDetailDrawer({
@@ -902,6 +911,7 @@ export default function StoreProcurementHomePage() {
   const [ckDispatchError, setCkDispatchError] = useState<Record<string, string>>({});
   const [ckDispatchSectionOpen, setCkDispatchSectionOpen] = useState(true);
   const initRef = useRef(false);
+  const storeCodeMountRef = useRef(true);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
@@ -1106,6 +1116,7 @@ export default function StoreProcurementHomePage() {
   }, [storeCode]);
 
   useEffect(() => {
+    if (storeCodeMountRef.current) { storeCodeMountRef.current = false; return; }
     void loadMyRequests(undefined, undefined, storeCode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeCode]);
@@ -1517,7 +1528,7 @@ export default function StoreProcurementHomePage() {
                 setCity(nextCity);
                 setStoreCode("");
                 if (typeof window !== "undefined") localStorage.removeItem("store_proc_branch");
-                void loadMyRequests(nextCity);
+                void loadMyRequests(nextCity, undefined, "");
               }}
               className={SELECT_CLASS}
             >
@@ -1655,7 +1666,8 @@ export default function StoreProcurementHomePage() {
                 onChange={(e) => {
                   const nextCity = String(e.target.value || "manila").toLowerCase();
                   setCity(nextCity);
-                  void loadMyRequests(nextCity);
+                  setStoreCode("");
+                  void loadMyRequests(nextCity, undefined, "");
                 }}
                 className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               >
