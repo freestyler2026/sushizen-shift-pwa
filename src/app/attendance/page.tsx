@@ -951,7 +951,7 @@ export default function AttendancePage() {
         const base = startH >= 24 ? startH - 24 : startH;
         const mins = Math.round((startH % 1) * 60);
         const period = base >= 12 ? "PM" : "AM";
-        const disp = base % 12 === 0 ? 12 : Math.floor(base) % 12;
+        const disp = Math.floor(base) % 12 || 12;
         const startLabel = `${disp}:${String(mins).padStart(2, "0")} ${period}`;
         const GRACE = 5;
         const late = data.lateness_min ?? 0;
