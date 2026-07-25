@@ -72,10 +72,11 @@ type UploadResult = {
 };
 
 type AttendanceRow = {
-  id: number;
+  id: number | null;
   staff_name: string;
   work_date: string;
   scheduled_store: string | null;
+  scheduled_shift: string | null;
   actual_time_in: string | null;
   actual_time_out: string | null;
   regular_hours: number;
@@ -88,6 +89,9 @@ type AttendanceRow = {
   annual_leave_flag: boolean;
   day_type: string;
   approval_status: string;
+  absence_type: string | null;
+  absence_note: string | null;
+  is_generated: boolean;
 };
 
 const DAY_TYPE_OPTIONS = [
@@ -150,19 +154,22 @@ function fmtLate(mins: number) {
 function rowStatus(row: AttendanceRow): string {
   if (row.annual_leave_flag) return "Annual Leave";
   if (row.absent_without_pay) return "Absent (AWP)";
+  if (row.absence_type) return `Absent (${row.absence_type})`;
+  if (row.approval_status === "no_clockin") return "No Clock-in";
   if (row.is_scheduled_rest_day) return "Day Off";
   return row.is_worked ? "Worked" : (DAY_TYPE_LABELS[row.day_type] ?? row.day_type);
 }
 
 function downloadDtrCsv(rows: AttendanceRow[], periodId: string) {
   const headers = [
-    "Date", "Staff", "Store", "Clock In", "Clock Out",
+    "Date", "Staff", "Store", "Scheduled", "Clock In", "Clock Out",
     "Break (min)", "Reg Hrs", "OT Hrs", "Late (min)", "Type", "Status",
   ];
   const csvRows = rows.map(r => [
     r.work_date,
     r.staff_name,
     r.scheduled_store ?? "",
+    r.scheduled_shift ?? "",
     r.actual_time_in ? fmtTime(r.actual_time_in) : "",
     r.actual_time_out ? fmtTime(r.actual_time_out) : "",
     String(r.actual_break_minutes ?? 0),
@@ -228,7 +235,7 @@ export default function DubaiDtrUploadPage() {
   useEffect(() => {
     if (!selectedPeriodId) { setDtrRecords([]); return; }
     setDtrLoading(true);
-    apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
+    apiFetch(`${API}/attendance-full?period_id=${selectedPeriodId}`)
       .then(r => r.json())
       .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
       .catch(() => {})
@@ -875,7 +882,7 @@ export default function DubaiDtrUploadPage() {
                   <button
                     onClick={() => {
                       setDtrLoading(true);
-                      apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
+                      apiFetch(`${API}/attendance-full?period_id=${selectedPeriodId}`)
                         .then(r => r.json())
                         .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
                         .catch(() => {})
@@ -955,23 +962,32 @@ export default function DubaiDtrUploadPage() {
                 <div className="py-10 text-center text-sm text-slate-500">No records match the current filters.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ minWidth: "980px" }}>
+                  <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
                     <thead>
                       <tr className="border-b border-white/8 bg-white/3">
-                        {["Date", "Staff", "Store", "Clock In", "Clock Out", "Break", "Reg Hrs", "OT Hrs", "Late", "Type", "Status"].map(h => (
+                        {["Date", "Staff", "Store", "Scheduled", "Clock In", "Clock Out", "Break", "Reg Hrs", "OT Hrs", "Late", "Type", "Status"].map(h => (
                           <th key={h} className="px-4 py-2.5 text-left font-medium text-slate-400">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {filtered.map(row => {
+                      {filtered.map((row, idx) => {
                         const lateDisplay = fmtLate(row.late_minutes ?? 0);
                         const status = rowStatus(row);
+                        const isGenerated = row.is_generated;
                         return (
-                          <tr key={row.id} className={`hover:bg-white/3 transition-colors ${row.absent_without_pay ? "opacity-60" : ""}`}>
-                            <td className="px-4 py-2 font-mono text-slate-300">{row.work_date}</td>
-                            <td className="px-4 py-2 text-white font-medium">{row.staff_name}</td>
+                          <tr
+                            key={row.id ?? `gen-${idx}`}
+                            className={`transition-colors ${
+                              isGenerated
+                                ? "bg-white/[0.015] hover:bg-white/[0.04]"
+                                : "hover:bg-white/3"
+                            } ${row.absent_without_pay || row.absence_type ? "opacity-70" : ""}`}
+                          >
+                            <td className={`px-4 py-2 font-mono ${isGenerated ? "text-slate-500" : "text-slate-300"}`}>{row.work_date}</td>
+                            <td className={`px-4 py-2 font-medium ${isGenerated ? "text-slate-400" : "text-white"}`}>{row.staff_name}</td>
                             <td className="px-4 py-2 text-slate-400">{row.scheduled_store ?? "—"}</td>
+                            <td className="px-4 py-2 font-mono text-violet-300/80">{row.scheduled_shift ?? "—"}</td>
                             <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
                             <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
                             <td className="px-4 py-2 text-slate-400">{row.actual_break_minutes ? `${row.actual_break_minutes}m` : "—"}</td>
@@ -983,11 +999,13 @@ export default function DubaiDtrUploadPage() {
                             <td className="px-4 py-2 text-slate-400">{DAY_TYPE_LABELS[row.day_type] ?? row.day_type}</td>
                             <td className="px-4 py-2">
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${
-                                status === "Worked"         ? "bg-emerald-900/30 text-emerald-300" :
-                                status === "Day Off"        ? "bg-slate-700 text-slate-300" :
-                                status === "Absent (AWP)"   ? "bg-red-900/30 text-red-300" :
-                                status === "Annual Leave"   ? "bg-sky-900/30 text-sky-300" :
-                                                              "bg-zinc-800 text-zinc-400"
+                                status === "Worked"           ? "bg-emerald-900/30 text-emerald-300" :
+                                status === "Day Off"          ? "bg-slate-700 text-slate-300" :
+                                status === "Absent (AWP)"     ? "bg-red-900/30 text-red-300" :
+                                status === "Annual Leave"     ? "bg-sky-900/30 text-sky-300" :
+                                status === "No Clock-in"      ? "bg-orange-900/30 text-orange-300" :
+                                status.startsWith("Absent (") ? "bg-red-900/20 text-red-400" :
+                                                                "bg-zinc-800 text-zinc-400"
                               }`}>
                                 {status}
                               </span>
