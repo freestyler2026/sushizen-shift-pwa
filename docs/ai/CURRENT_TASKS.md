@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 2)
+Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 1+2 verified)
 
 
 
@@ -8,6 +8,31 @@ Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 2)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 159 — DTR Phase 1+2 Browser Verified ✅)
+
+### DTR Phase 1+2 — Full Browser Verification (session 159 follow-up)
+
+All functionality confirmed in live OS (https://sushizen-shift-pwa.vercel.app):
+
+| Test | Result |
+|---|---|
+| Page loads with 4230 rows (141 staff × 30 days) | ✅ |
+| Columns: Date, Staff, Store, **Scheduled**, Clock In, Clock Out, Break, Reg Hrs, OT Hrs, Late, Type, Status | ✅ |
+| Scheduled column shows "17:00–26:00" / "09:00–18:00" / "—" correctly | ✅ |
+| Day Off rows generated for staff with no attendance + no shift | ✅ (188 on first page) |
+| No Clock-in rows generated for staff with shift but no clock-in | ✅ (353 total) |
+| Generated rows only filter shows 2231 / 4230 (Day Off + No Clock-in) | ✅ |
+| Staff name filter (e.g. "Abishek") returns 30 rows | ✅ |
+| Pagination: 300 rows/page, Page 1 of 15 | ✅ |
+| Badge shows "N / 4230 rows" when filtered, "4230 rows" unfiltered | ✅ |
+| Browser does not crash (prior issue with 4230 raw rows) | ✅ |
+
+**Data quality note (not a code bug):** Abishek Rana Magar 2026-07-23 shows Scheduled "00:00–00:00" — this is because `shift_published_rows.start_hour=0, end_hour=0` for that day. The code is correct; the shift data itself has a zero-hour entry.
+
+**Remaining known issue:** Browser preview pane shows white on scroll (rendering limitation of the in-app preview only — does not affect production).
 
 ---
 
