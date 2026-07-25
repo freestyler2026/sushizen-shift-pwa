@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 157 — Company Asset Management system)
+Last updated: 2026-07-25 (session 158 — Travel Path temp log UX fixes)
 
 
 
@@ -8,6 +8,46 @@ Last updated: 2026-07-25 (session 157 — Company Asset Management system)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 158 — cont.)
+
+### Travel Path — Temperature Log UX improvements (DEPLOYED ✅ Vercel 1f31159)
+
+**Bug 1 — TEMP VIOLATION badge wording** (`src/app/admin/travel-path/page.tsx`)
+- Renamed badge: `⚠ TEMP VIOLATION` → `⚠ Unsafe Temps`
+- Added `title` tooltip: "One or more temperature readings are outside safe range (Chiller >5°C or Freezer >-18°C)"
+- The badge IS technically correct (it fires when freezer temps are above -18°C threshold); the fix clarifies it means readings are out of safe range, not that the form is incomplete
+
+**Bug 2 — Missing Mid-Shift/Closing data** (`src/app/admin/travel-path/page.tsx`)
+- Root cause analysis: `tempLog` groups by `byDate[report_date][section]` — "No record" means the report genuinely doesn't exist in `tempLog` (or the temp-log API didn't return it). After extensive analysis, no code bug was found — the reports likely either weren't submitted, or were submitted under a different branch/date.
+- Fix (UX improvement): cross-reference compliance `data` array against `tempLog`:
+  - If a compliance row exists for the date+section but is NOT in tempLog → shows "Report submitted — no temp recorded" (amber) instead of generic "No record"
+  - If no compliance row either → shows "No report submitted" (grey)
+- `sortedDates` now merges dates from BOTH `byDate` (tempLog) AND `byDateCompliance` — so all dates with any compliance data appear in the temperature log, even if `tempLog` is missing them
+- Date display fix: `parseInt(date.slice(8, 10), 10)` instead of `new Date(date + "T00:00:00").getUTCDate()` to avoid local-timezone offset shifting the displayed day number
+
+**HR Onboarding/Offboarding — Manila/Dubai city toggle** (DEPLOYED ✅ Vercel 2eb10b8)
+- `src/app/admin/hr/onboarding/page.tsx`: Added `modalCity` state + Manila/Dubai toggle in AddModal; staff names now fetched for selected city, not admin's own city
+- `src/app/admin/hr/separation/page.tsx`: Same fix — `modalCity` state + toggle in AddSeparationModal
+
+---
+
+## Recently Completed (2026-07-25 session 158)
+
+### Company Asset Management — Bug fixes + bilingual PDF guide (session 157–158)
+
+**Bug fixes applied (session 157):**
+- `admin/assets/page.tsx`: changed `auth` object → `auth?.accessToken` (primitive string) in all 4 useCallback/useEffect dependency arrays to break infinite API fetch loop
+- `db_assets.py` `get_asset_summary()`: fixed SQL injection (f-string → parameterized query) + fixed wrong `on_loan` count when city filter was applied (missing `AND a.status='active'` in FILTER clauses)
+
+**User guide created (session 158):**
+- Bilingual PDF (English + Japanese) saved to user Desktop:
+  - `/Users/jaynishimura/Desktop/CompanyAssetManagement_UserGuide.pdf` (10 pages, WeasyPrint)
+  - `/Users/jaynishimura/Desktop/CompanyAssetManagement_UserGuide.docx` (backup Word format)
+- Covers all 3 channels: `/admin/assets` (admin), `/my-assets` (staff), HR Clearance integration
+- Sections: Overview, Admin page (register/loan/return/history/incidents), Staff page, HR Clearance warning, Quick Reference (types/conditions/statuses), Role Management setup, FAQ
 
 ---
 
