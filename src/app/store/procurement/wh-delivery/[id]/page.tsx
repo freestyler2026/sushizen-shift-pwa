@@ -77,7 +77,9 @@ export default function WHDeliveryNotePage() {
       .then(async (r) => {
         if (!r.ok) {
           const txt = await r.text();
-          throw new Error(txt || `Error ${r.status}`);
+          let msg = txt || `Error ${r.status}`;
+          try { const j = JSON.parse(txt); if (j.detail) msg = j.detail; } catch {}
+          throw new Error(msg);
         }
         return r.json();
       })
