@@ -71,6 +71,20 @@ type UploadResult = {
   errors: { row_index: number; staff_name: string; work_date: string; message: string }[];
 };
 
+type AttendanceRow = {
+  id: number;
+  staff_name: string;
+  work_date: string;
+  actual_time_in: string | null;
+  actual_time_out: string | null;
+  regular_hours: number;
+  overtime_hours: number;
+  is_worked: boolean;
+  absent_without_pay: boolean;
+  day_type: string;
+  approval_status: string;
+};
+
 const DAY_TYPE_OPTIONS = [
   "ordinary_day", "rest_day", "public_holiday", "public_holiday_and_rest_day",
 ];
@@ -152,6 +166,19 @@ export default function DubaiDtrUploadPage() {
   const [uploadResult, setUploadResult]     = useState<UploadResult | null>(null);
 
   const [activeTab, setActiveTab]           = useState<"sync" | "csv" | "guide">("sync");
+
+  const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
+  const [dtrLoading, setDtrLoading]         = useState(false);
+
+  useEffect(() => {
+    if (!selectedPeriodId) { setDtrRecords([]); return; }
+    setDtrLoading(true);
+    apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
+      .then(r => r.json())
+      .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
+      .catch(() => {})
+      .finally(() => setDtrLoading(false));
+  }, [selectedPeriodId]);
 
   const loadPeriods = useCallback(async () => {
     setPeriodsLoading(true);
@@ -744,6 +771,82 @@ export default function DubaiDtrUploadPage() {
               }</pre>
               <p className="mt-2 text-xs text-slate-500">Lines starting with # are ignored. Columns 3–12 are optional (default to empty/0/N).</p>
             </div>
+          </div>
+        )}
+
+        {/* ── Current DTR Records ──────────────────────────────────────────── */}
+        {selectedPeriodId && (
+          <div className={GLASS_CARD + " overflow-hidden"}>
+            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <ClipboardList size={15} className="text-sky-400" />
+                Current DTR Records for this Period
+                {dtrRecords.length > 0 && (
+                  <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-xs font-normal text-sky-300">
+                    {dtrRecords.length} rows
+                  </span>
+                )}
+              </h2>
+              <button
+                onClick={() => {
+                  setDtrLoading(true);
+                  apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
+                    .then(r => r.json())
+                    .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
+                    .catch(() => {})
+                    .finally(() => setDtrLoading(false));
+                }}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <RefreshCw size={14} className={dtrLoading ? "animate-spin" : ""} />
+              </button>
+            </div>
+
+            {dtrLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 size={20} className="animate-spin text-slate-400" />
+              </div>
+            ) : dtrRecords.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-500">
+                No DTR records yet for this period. Sync OS Attendance or upload a CSV above.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" style={{ minWidth: "760px" }}>
+                  <thead>
+                    <tr className="border-b border-white/8 bg-white/3">
+                      {["Date", "Staff", "Clock In", "Clock Out", "Reg Hrs", "OT Hrs", "Type", "Status"].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left font-medium text-slate-400">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {dtrRecords.map(row => (
+                      <tr key={row.id} className="hover:bg-white/3 transition-colors">
+                        <td className="px-4 py-2 font-mono text-slate-300">{row.work_date}</td>
+                        <td className="px-4 py-2 text-white font-medium">{row.staff_name}</td>
+                        <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
+                        <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
+                        <td className="px-4 py-2 text-emerald-300">{row.regular_hours ? fmtHours(Number(row.regular_hours)) : "—"}</td>
+                        <td className="px-4 py-2 text-amber-300">{row.overtime_hours ? fmtHours(Number(row.overtime_hours)) : "—"}</td>
+                        <td className="px-4 py-2 text-slate-400">
+                          {row.absent_without_pay ? "AWP" : DAY_TYPE_LABELS[row.day_type] ?? row.day_type}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            row.approval_status === "approved" ? "bg-emerald-900/30 text-emerald-300" :
+                            row.approval_status === "rejected" ? "bg-red-900/30 text-red-300" :
+                            "bg-zinc-800 text-zinc-400"
+                          }`}>
+                            {row.approval_status ?? "pending"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
