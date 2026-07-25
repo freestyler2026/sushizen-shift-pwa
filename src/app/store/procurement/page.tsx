@@ -849,17 +849,15 @@ function RequestDetailDrawer({
                   >
                     ✓ Received — File Claim
                   </Link>
-                  {detail && (
-                    <button
-                      type="button"
-                      onClick={() => printProcDeliveryNote(detail, currencyCode)}
-                      className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
-                      title="Print Delivery Note"
-                    >
-                      <Printer className="h-4 w-4" />
-                      DN
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/store/procurement/wh-delivery/${encodeURIComponent(requestId)}`, "_blank")}
+                    className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                    title="Open Delivery Note"
+                  >
+                    <Printer className="h-4 w-4" />
+                    DN
+                  </button>
                 </div>
               );
             }
@@ -872,17 +870,15 @@ function RequestDetailDrawer({
                 >
                   Receive Now
                 </Link>
-                {detail && (
-                  <button
-                    type="button"
-                    onClick={() => printProcDeliveryNote(detail, currencyCode)}
-                    className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
-                    title="Print Delivery Note"
-                  >
-                    <Printer className="h-4 w-4" />
-                    DN
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => window.open(`/store/procurement/wh-delivery/${encodeURIComponent(requestId)}`, "_blank")}
+                  className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                  title="Open Delivery Note"
+                >
+                  <Printer className="h-4 w-4" />
+                  DN
+                </button>
               </div>
             );
           }
@@ -896,17 +892,15 @@ function RequestDetailDrawer({
                 >
                   File Claim
                 </Link>
-                {detail && (
-                  <button
-                    type="button"
-                    onClick={() => printProcDeliveryNote(detail, currencyCode)}
-                    className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
-                    title="Print Delivery Note"
-                  >
-                    <Printer className="h-4 w-4" />
-                    DN
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => window.open(`/store/procurement/wh-delivery/${encodeURIComponent(requestId)}`, "_blank")}
+                  className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                  title="Open Delivery Note"
+                >
+                  <Printer className="h-4 w-4" />
+                  DN
+                </button>
               </div>
             );
           }
