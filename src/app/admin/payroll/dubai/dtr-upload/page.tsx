@@ -225,9 +225,10 @@ export default function DubaiDtrUploadPage() {
   const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
 
-  // DTR filter state
+  // DTR filter + pagination state
   const [dtrStaffFilter, setDtrStaffFilter] = useState("");
   const [dtrDateFrom, setDtrDateFrom]       = useState("");
+  const [dtrPage, setDtrPage]               = useState(0);
   const [dtrDateTo, setDtrDateTo]           = useState("");
   const [dtrStoreFilter, setDtrStoreFilter] = useState("");
   const [dtrStatusFilter, setDtrStatusFilter] = useState("");
@@ -838,6 +839,7 @@ export default function DubaiDtrUploadPage() {
 
         {/* ── Current DTR Records ──────────────────────────────────────────── */}
         {selectedPeriodId && (() => {
+          const PAGE_SIZE = 300;
           const dtrStores = [...new Set(dtrRecords.map(r => r.scheduled_store).filter(Boolean) as string[])].sort();
           const filtered = dtrRecords.filter(row => {
             if (dtrStaffFilter && !row.staff_name.toLowerCase().includes(dtrStaffFilter.toLowerCase())) return false;
@@ -856,6 +858,9 @@ export default function DubaiDtrUploadPage() {
             return true;
           });
           const hasFilter = !!(dtrStaffFilter || dtrDateFrom || dtrDateTo || dtrStoreFilter || dtrStatusFilter);
+          const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+          const safePage = Math.min(dtrPage, totalPages - 1);
+          const pageRows = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
           return (
             <div className={GLASS_CARD + " overflow-hidden"}>
@@ -904,25 +909,25 @@ export default function DubaiDtrUploadPage() {
                   <input
                     placeholder="Staff name..."
                     value={dtrStaffFilter}
-                    onChange={e => setDtrStaffFilter(e.target.value)}
+                    onChange={e => { setDtrStaffFilter(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-sky-500/50 w-36"
                   />
                   <input
                     type="date"
                     value={dtrDateFrom}
-                    onChange={e => setDtrDateFrom(e.target.value)}
+                    onChange={e => { setDtrDateFrom(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50 w-36 [color-scheme:dark]"
                   />
                   <span className="text-xs text-slate-500">–</span>
                   <input
                     type="date"
                     value={dtrDateTo}
-                    onChange={e => setDtrDateTo(e.target.value)}
+                    onChange={e => { setDtrDateTo(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50 w-36 [color-scheme:dark]"
                   />
                   <select
                     value={dtrStoreFilter}
-                    onChange={e => setDtrStoreFilter(e.target.value)}
+                    onChange={e => { setDtrStoreFilter(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
                   >
                     <option value="">All Stores</option>
@@ -930,7 +935,7 @@ export default function DubaiDtrUploadPage() {
                   </select>
                   <select
                     value={dtrStatusFilter}
-                    onChange={e => setDtrStatusFilter(e.target.value)}
+                    onChange={e => { setDtrStatusFilter(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
                   >
                     <option value="">All Status</option>
@@ -944,7 +949,7 @@ export default function DubaiDtrUploadPage() {
                   </select>
                   {hasFilter && (
                     <button
-                      onClick={() => { setDtrStaffFilter(""); setDtrDateFrom(""); setDtrDateTo(""); setDtrStoreFilter(""); setDtrStatusFilter(""); }}
+                      onClick={() => { setDtrStaffFilter(""); setDtrDateFrom(""); setDtrDateTo(""); setDtrStoreFilter(""); setDtrStatusFilter(""); setDtrPage(0); }}
                       className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
                     >
                       <X size={11} /> Clear
@@ -966,12 +971,6 @@ export default function DubaiDtrUploadPage() {
                 <div className="py-10 text-center text-sm text-slate-500">No records match the current filters.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  {filtered.length > 1500 && (
-                    <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/5 px-5 py-2.5 text-xs text-amber-300">
-                      <AlertTriangle size={13} />
-                      Showing first 1,500 of {filtered.length} rows. Use filters above (staff name, date, store, status) to narrow results.
-                    </div>
-                  )}
                   <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
                     <thead>
                       <tr className="border-b border-white/8 bg-white/3">
@@ -981,7 +980,7 @@ export default function DubaiDtrUploadPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {filtered.slice(0, 1500).map((row, idx) => {
+                      {pageRows.map((row, idx) => {
                         const lateDisplay = fmtLate(row.late_minutes ?? 0);
                         const status = rowStatus(row);
                         const isGenerated = row.is_generated;
@@ -1025,6 +1024,36 @@ export default function DubaiDtrUploadPage() {
                       })}
                     </tbody>
                   </table>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-white/8 bg-white/2 px-5 py-3">
+                      <span className="text-xs text-slate-500">
+                        Page {safePage + 1} of {totalPages} — rows {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setDtrPage(0)}
+                          disabled={safePage === 0}
+                          className="rounded px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        >«</button>
+                        <button
+                          onClick={() => setDtrPage(p => Math.max(0, p - 1))}
+                          disabled={safePage === 0}
+                          className="rounded px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        >‹ Prev</button>
+                        <span className="px-2 text-xs text-slate-300 font-medium">{safePage + 1}</span>
+                        <button
+                          onClick={() => setDtrPage(p => Math.min(totalPages - 1, p + 1))}
+                          disabled={safePage >= totalPages - 1}
+                          className="rounded px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        >Next ›</button>
+                        <button
+                          onClick={() => setDtrPage(totalPages - 1)}
+                          disabled={safePage >= totalPages - 1}
+                          className="rounded px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        >»</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
