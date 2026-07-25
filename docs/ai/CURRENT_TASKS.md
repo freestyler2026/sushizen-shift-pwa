@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 161 — Catalog duplicate fix + Fix Duplicates button)
+Last updated: 2026-07-25 (session 162 — WH DN dedicated page with Edit Prices)
 
 
 
@@ -8,6 +8,30 @@ Last updated: 2026-07-25 (session 161 — Catalog duplicate fix + Fix Duplicates
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 162 — WH DN dedicated page with Edit Prices)
+
+### WH Delivery Note — Dedicated React page (DEPLOYED ✅ Vercel f9982f9 — Browser verified ✅)
+
+**Background:** User asked to make WH Delivery Note editable like CK DN. Previous session 160 added Edit Prices to the RequestDetailDrawer (side drawer) but NOT to the actual DN document. This session creates the dedicated WH DN page.
+
+**Frontend (`sushizen-shift-pwa`):**
+- Created `src/app/store/procurement/wh-delivery/[id]/page.tsx`:
+  - Printable WH delivery note at `/store/procurement/wh-delivery/{request_id}`
+  - Fetches data from `GET /api/admin/procurement/requests/{id}` (regular auth headers)
+  - Groups items by category, shows QTY / Unit Price / Line Total / Supplier / checkbox columns
+  - **Edit Prices button** (managers/admins only): inline price inputs → PATCH per-item price
+  - Save Prices / Cancel buttons, blue edit-mode banner
+  - Print button, Hide/Show Prices toggle
+  - Grand total display, signature lines
+- `src/app/store/procurement/page.tsx`: Updated all 3 "Print DN" buttons in `RequestDetailDrawer` to open `/store/procurement/wh-delivery/{requestId}` in a new tab (replacing the old raw-HTML popup).
+
+**Catalog save confirmed working:**
+- Backend save (upsert) tested via direct API → 200 OK for both Calypso and Spaghetti Box 50pcs
+- Set test prices: Multi Purpose Plastic (10x14 Calypso) → 35 PHP, Spaghetti Box (Gyoza 8pc)(1pkt=50pcs) → 55 PHP
+- **User should update these to correct prices** via Admin → Order Catalog (Manila, Warehouse category)
 
 ---
 
