@@ -107,6 +107,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [stats, setStats] = useState<PrepTimeStat[]>([]);
   const [records, setRecords] = useState<PrepTimeRecord[]>([]);
   const [pending, setPending] = useState<PrepTimeRecord[]>([]);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Backfill state
@@ -153,13 +154,30 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     setLoading(true);
     try {
       const res = await apiFetch(
-        `/api/admin/prep-time/records?status=pending&limit=100&approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`
+        `/api/admin/prep-time/records?status=pending&limit=200&approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`
       );
-      setPending(res.records || []);
+      const recs: PrepTimeRecord[] = res.records || [];
+      setPending(recs);
+      setPendingCount(recs.length);
     } finally {
       setLoading(false);
     }
   }, [approverName, pin]);
+
+  // Pre-load pending count on mount so the badge shows while on the Dashboard tab
+  useEffect(() => {
+    apiFetch(
+      `/api/admin/prep-time/records?status=pending&limit=200&approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`
+    )
+      .then((res) => {
+        const recs: PrepTimeRecord[] = res.records || [];
+        setPendingCount(recs.length);
+        // Also populate the full list so switching to the tab is instant
+        setPending(recs);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (subTab === "dashboard") loadDashboard();
@@ -184,7 +202,11 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
           pin,
         }),
       });
-      setPending((prev) => prev.filter((r) => r.id !== rec.id));
+      setPending((prev) => {
+        const next = prev.filter((r) => r.id !== rec.id);
+        setPendingCount(next.length);
+        return next;
+      });
       setEditing((prev) => { const n = { ...prev }; delete n[rec.id]; return n; });
     } finally {
       setSaving(null);
@@ -288,6 +310,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
       const res = await apiFetch(`/api/admin/prep-time/bulk-confirm?${p.toString()}`, { method: "POST" });
       setBulkResult(`${res.confirmed} record(s) confirmed.`);
       setPending([]);
+      setPendingCount(0);
       await loadDashboard();
     } catch (e: unknown) {
       setBulkResult(`Error: ${e instanceof Error ? e.message : String(e)}`);
@@ -310,7 +333,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
                 : "text-white/50 hover:text-white/80"
             }`}
           >
-            {t === "dashboard" ? "Dashboard" : `Pending Confirmation${pending.length > 0 ? ` (${pending.length})` : ""}`}
+            {t === "dashboard" ? "Dashboard" : `Pending Confirmation${(pendingCount ?? pending.length) > 0 ? ` (${pendingCount ?? pending.length})` : ""}`}
           </button>
         ))}
       </div>
