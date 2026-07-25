@@ -850,6 +850,8 @@ export default function DubaiDtrUploadPage() {
               if (dtrStatusFilter === "awp" && !row.absent_without_pay) return false;
               if (dtrStatusFilter === "annual_leave" && !row.annual_leave_flag) return false;
               if (dtrStatusFilter === "late" && row.late_minutes <= 15) return false;
+              if (dtrStatusFilter === "no_clockin" && row.approval_status !== "no_clockin") return false;
+              if (dtrStatusFilter === "generated" && !row.is_generated) return false;
             }
             return true;
           });
@@ -937,6 +939,8 @@ export default function DubaiDtrUploadPage() {
                     <option value="awp">Absent (AWP)</option>
                     <option value="annual_leave">Annual Leave</option>
                     <option value="late">Late (&gt;15 min)</option>
+                    <option value="no_clockin">No Clock-in</option>
+                    <option value="generated">Generated rows only</option>
                   </select>
                   {hasFilter && (
                     <button
