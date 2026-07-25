@@ -1211,15 +1211,27 @@ function ComplianceView() {
         if (tempLogLoading) return (
           <div className={`${GLASS_CARD} p-5 text-sm text-zinc-500`}>Loading temperature log…</div>
         );
-        if (!tempLog.length) return null;
+        if (!tempLog.length && !data.length) return null;
 
-        // Group by date
+        // Group temp-log rows by date → section
         const byDate: Record<string, Record<string, TempLogRow>> = {};
         tempLog.forEach((row) => {
           if (!byDate[row.report_date]) byDate[row.report_date] = {};
           byDate[row.report_date][row.section] = row;
         });
-        const sortedDates = Object.keys(byDate).sort();
+
+        // Cross-reference: compliance data keyed by date → section
+        // Used to distinguish "no report submitted" vs "report exists but no temp recorded"
+        const byDateCompliance: Record<string, Record<string, ComplianceRow>> = {};
+        data.forEach((row) => {
+          const ds = row.report_date.slice(0, 10);
+          if (!byDateCompliance[ds]) byDateCompliance[ds] = {};
+          byDateCompliance[ds][row.section] = row;
+        });
+
+        // Include dates from both temp-log AND compliance data
+        const allDates = new Set([...Object.keys(byDate), ...Object.keys(byDateCompliance)]);
+        const sortedDates = Array.from(allDates).sort();
 
         const sectionColors: Record<string, string> = {
           OPENING:   "text-amber-300",
@@ -1237,9 +1249,9 @@ function ComplianceView() {
             <h3 className={T_SECTION}>🌡 Temperature Log — {monthNames[month - 1]} {year} — {BRANCH_LABELS[branch]}</h3>
 
             {sortedDates.map((date) => {
-              const dayRows = byDate[date];
-              const d = new Date(date + "T00:00:00");
-              const dayNum = d.getUTCDate();
+              const dayRows = byDate[date] ?? {};
+              // Parse date string directly (avoid local-time offset shifting the day number)
+              const dayNum = parseInt(date.slice(8, 10), 10);
               const hasDanger = sections.some((sec) => {
                 const row = dayRows[sec];
                 if (!row) return false;
@@ -1258,8 +1270,11 @@ function ComplianceView() {
                       {String(dayNum).padStart(2, "0")} {monthNames[month - 1]}
                     </span>
                     {hasDanger && (
-                      <span className="rounded-full bg-red-500/20 border border-red-500/30 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                        ⚠ TEMP VIOLATION
+                      <span
+                        className="rounded-full bg-red-500/20 border border-red-500/30 px-2 py-0.5 text-[10px] font-bold text-red-400"
+                        title="One or more temperature readings are outside safe range (Chiller >5°C or Freezer >-18°C)"
+                      >
+                        ⚠ Unsafe Temps
                       </span>
                     )}
                   </div>
@@ -1281,7 +1296,11 @@ function ComplianceView() {
                             )}
                           </p>
                           {!row ? (
-                            <p className="text-xs text-zinc-600">No record</p>
+                            byDateCompliance[date]?.[sec] ? (
+                              <p className="text-xs text-amber-500/70">Report submitted — no temp recorded</p>
+                            ) : (
+                              <p className="text-xs text-zinc-600">No report submitted</p>
+                            )
                           ) : row.temp_items.length === 0 ? (
                             <p className="text-xs text-zinc-600">No temperature items</p>
                           ) : (
