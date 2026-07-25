@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -669,6 +669,175 @@ function ChannelSetupPanel({
   );
 }
 
+// ─── Reference Images Panel ──────────────────────────────────────────────────
+
+interface RefImage {
+  id: number;
+  food_type: string;
+  label: string;
+  is_active: boolean;
+  image_b64: string;
+  created_at: string;
+}
+
+function ReferenceImagesPanel({ approverName, pin }: { approverName: string; pin: string }) {
+  const [images, setImages] = useState<RefImage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [form, setForm] = useState({ food_type: "yakisoba", label: "", file: null as File | null });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/qc/reference-images?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`,
+        { headers: getAuthHeaders() }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setImages(data.images || []);
+    } catch (e: unknown) {
+      setMsg(`Load error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [approverName, pin]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleUpload = async () => {
+    if (!form.file || !form.food_type.trim()) { setMsg("Select a file and set Food Type"); return; }
+    setUploading(true);
+    setMsg("");
+    try {
+      const reader = new FileReader();
+      const b64: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1] ?? "");
+        reader.onerror = reject;
+        reader.readAsDataURL(form.file!);
+      });
+      const res = await fetch("/api/admin/qc/reference-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ food_type: form.food_type.trim(), label: form.label.trim(), image_b64: b64, approver_name: approverName, pin }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setMsg("Uploaded successfully");
+      setForm((f) => ({ ...f, file: null, label: "" }));
+      await load();
+    } catch (e: unknown) {
+      setMsg(`Upload error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this reference image?")) return;
+    try {
+      const res = await fetch(
+        `/api/admin/qc/reference-images/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`,
+        { method: "DELETE", headers: getAuthHeaders() }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      setImages((prev) => prev.filter((img) => img.id !== id));
+    } catch (e: unknown) {
+      setMsg(`Delete error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  return (
+    <div className={`${GLASS_CARD} p-4 space-y-4`}>
+      <div className="flex items-center gap-2">
+        <span className="text-violet-400 text-sm">★</span>
+        <h3 className={SECTION_TITLE}>QC Reference Standard Images</h3>
+        <span className={`${SUBTEXT} text-xs`}>Used by AI as visual benchmarks during scoring</span>
+      </div>
+
+      {/* Existing images */}
+      {loading ? (
+        <p className={`${SUBTEXT} text-xs`}>Loading…</p>
+      ) : images.length === 0 ? (
+        <p className={`${SUBTEXT} text-xs`}>No reference images registered yet.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {images.map((img) => (
+            <div key={img.id} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`data:image/jpeg;base64,${img.image_b64}`}
+                alt={img.label || img.food_type}
+                className="w-full aspect-square object-cover rounded-lg border border-white/10"
+              />
+              <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-2">
+                <p className="text-white text-xs font-semibold text-center truncate w-full text-center">{img.label || img.food_type}</p>
+                <p className="text-white/60 text-[10px]">{img.food_type}</p>
+                <button
+                  onClick={() => handleDelete(img.id)}
+                  className="mt-1 px-2 py-0.5 rounded bg-red-600/80 text-white text-[10px] hover:bg-red-500 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 rounded-b-lg px-1.5 py-0.5 text-[10px] text-white/70 truncate">
+                {img.label || img.food_type}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload form */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end border-t border-white/10 pt-3">
+        <div>
+          <label className={`block text-xs mb-1 ${SUBTEXT}`}>Food Type</label>
+          <input
+            className={INPUT_CLASS}
+            placeholder="e.g. yakisoba, sushi, ramen"
+            value={form.food_type}
+            onChange={(e) => setForm((f) => ({ ...f, food_type: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className={`block text-xs mb-1 ${SUBTEXT}`}>Label</label>
+          <input
+            className={INPUT_CLASS}
+            placeholder="e.g. Yakisoba Standard"
+            value={form.label}
+            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className={`block text-xs mb-1 ${SUBTEXT}`}>Image File</label>
+          <input
+            type="file"
+            accept="image/*"
+            className="text-xs text-slate-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-white/10 file:text-white/70 hover:file:bg-white/20"
+            onChange={(e) => setForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-transparent">Upload</label>
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={uploading || !form.file}
+            className={PRIMARY_BUTTON}
+          >
+            {uploading ? "Uploading…" : "Upload"}
+          </button>
+        </div>
+      </div>
+      {msg && (
+        <p className={`text-xs px-2 py-1 rounded ${msg.includes("error") || msg.includes("Error") ? "text-red-300 bg-red-900/30" : "text-emerald-300 bg-emerald-900/30"}`}>
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function ProductScoringTab({
@@ -968,12 +1137,15 @@ export default function ProductScoringTab({
 
       {/* Channel Setup Panel */}
       {subTab === "overview" && showSetup && isHQOrAdmin && (
-        <ChannelSetupPanel
-          channels={channels}
-          approverName={approverName}
-          pin={pin}
-          onSaved={load}
-        />
+        <>
+          <ChannelSetupPanel
+            channels={channels}
+            approverName={approverName}
+            pin={pin}
+            onSaved={load}
+          />
+          <ReferenceImagesPanel approverName={approverName} pin={pin} />
+        </>
       )}
 
       {subTab === "overview" && (<div className="space-y-6">
