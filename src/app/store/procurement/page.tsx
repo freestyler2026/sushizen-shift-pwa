@@ -330,6 +330,14 @@ function RequestDetailDrawer({
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
 
+  // Edit prices mode
+  const drawerAuth = useMemo(() => getAuth(), []);
+  const canEditPricesRole = ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(drawerAuth?.role || "");
+  const [editPricesMode, setEditPricesMode] = useState(false);
+  const [draftPrices, setDraftPrices] = useState<Record<string, string>>({});
+  const [savingPrices, setSavingPrices] = useState(false);
+  const [savePricesError, setSavePricesError] = useState("");
+
   const handleSubmitForApproval = async () => {
     setSubmitBusy(true);
     setError("");
@@ -382,6 +390,55 @@ function RequestDetailDrawer({
       setCancelConfirm(false);
     }
   };
+
+  function enterEditPricesMode() {
+    const items = detail?.items || [];
+    const init: Record<string, string> = {};
+    for (const it of items) init[it.id] = String(it.unit_price ?? 0);
+    setDraftPrices(init);
+    setSavePricesError("");
+    setEditPricesMode(true);
+  }
+
+  async function savePrices() {
+    if (!detail) return;
+    setSavingPrices(true);
+    setSavePricesError("");
+    const items = detail.items || [];
+    const changed = items.filter((it) => {
+      const draft = parseFloat(draftPrices[it.id] ?? "") || 0;
+      return Math.abs(draft - (it.unit_price ?? 0)) > 0.0001;
+    });
+    try {
+      await Promise.all(
+        changed.map((it) =>
+          fetch(
+            `/api/admin/procurement/requests/${encodeURIComponent(requestId)}/items/${encodeURIComponent(it.id)}/price`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ unit_price: parseFloat(draftPrices[it.id] ?? "") || 0 }),
+            },
+          ).then(async (r) => {
+            if (!r.ok) throw new Error(await r.text());
+          }),
+        ),
+      );
+      setEditPricesMode(false);
+      // Refresh detail to pick up new prices
+      const data = await procurementJson<{ ok: boolean; request: RequestDetail }>(
+        `/api/admin/procurement/requests/${encodeURIComponent(requestId)}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setDetail(data?.request ?? null);
+    } catch (e: unknown) {
+      setSavePricesError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingPrices(false);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -509,55 +566,116 @@ function RequestDetailDrawer({
 
               {/* Items */}
               <div>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                  <Package className="h-4 w-4 text-violet-400" />
-                  Items ({detail.items?.length ?? 0})
-                </h3>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                    <Package className="h-4 w-4 text-violet-400" />
+                    Items ({detail.items?.length ?? 0})
+                  </h3>
+                  {canEditPricesRole && !!detail.items?.length && (
+                    editPricesMode ? (
+                      <div className="flex items-center gap-2">
+                        {savePricesError && (
+                          <span className="text-[10px] text-red-400 max-w-[120px] truncate">{savePricesError}</span>
+                        )}
+                        <button
+                          onClick={() => { setEditPricesMode(false); setSavePricesError(""); }}
+                          disabled={savingPrices}
+                          className="rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={savePrices}
+                          disabled={savingPrices}
+                          className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {savingPrices ? "Saving…" : "Save Prices"}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={enterEditPricesMode}
+                        className="rounded-lg border border-blue-500/40 bg-blue-950/30 px-2 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-900/40"
+                      >
+                        Edit Prices
+                      </button>
+                    )
+                  )}
+                </div>
+                {editPricesMode && (
+                  <div className="mb-2 rounded-lg border border-blue-500/20 bg-blue-950/20 px-2.5 py-1.5 text-[11px] text-blue-300">
+                    Price edit mode — update unit prices below, then click Save Prices.
+                  </div>
+                )}
                 {!detail.items?.length ? (
                   <p className="text-xs text-zinc-500 py-4 text-center">No items</p>
                 ) : (
                   <div className="space-y-2">
-                    {detail.items.map((item, idx) => (
-                      <div
-                        key={item.id || idx}
-                        className="rounded-xl border border-white/8 bg-white/4 px-3 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="font-semibold text-white text-sm leading-tight">{item.item_name}</div>
-                            {item.category && (
-                              <div className="mt-0.5 text-xs text-violet-400">{item.category}</div>
-                            )}
-                            {item.spec && (
-                              <div className="mt-0.5 text-xs text-zinc-500">{item.spec}</div>
-                            )}
-                            {item.vendor_name && (
-                              <div className="mt-0.5 text-xs text-zinc-500">Vendor: {item.vendor_name}</div>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="text-sm font-semibold text-white">
-                              {Number(item.qty || 0).toLocaleString()} {item.unit}
+                    {detail.items.map((item, idx) => {
+                      const draftPrice = editPricesMode ? (parseFloat(draftPrices[item.id] ?? "") || 0) : (item.unit_price ?? 0);
+                      const draftTotal = (item.qty || 0) * draftPrice;
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className={`rounded-xl border px-3 py-3 ${editPricesMode ? "border-blue-500/20 bg-blue-950/10" : "border-white/8 bg-white/4"}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-white text-sm leading-tight">{item.item_name}</div>
+                              {item.category && (
+                                <div className="mt-0.5 text-xs text-violet-400">{item.category}</div>
+                              )}
+                              {item.spec && (
+                                <div className="mt-0.5 text-xs text-zinc-500">{item.spec}</div>
+                              )}
+                              {item.vendor_name && (
+                                <div className="mt-0.5 text-xs text-zinc-500">Vendor: {item.vendor_name}</div>
+                              )}
                             </div>
-                            {item.unit_price > 0 && (
-                              <div className="text-xs text-zinc-400">
-                                @ {Number(item.unit_price).toFixed(2)}
+                            <div className="text-right shrink-0">
+                              <div className="text-sm font-semibold text-white">
+                                {Number(item.qty || 0).toLocaleString()} {item.unit}
                               </div>
-                            )}
-                            {item.line_total > 0 && (
-                              <div className="text-xs font-semibold text-violet-300 mt-0.5">
-                                {Number(item.line_total).toFixed(2)} {currencyCode}
-                              </div>
-                            )}
+                              {editPricesMode ? (
+                                <div className="mt-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={draftPrices[item.id] ?? "0"}
+                                    onChange={(e) => setDraftPrices((p) => ({ ...p, [item.id]: e.target.value }))}
+                                    className="w-24 rounded border border-blue-400/40 bg-zinc-900 px-1.5 py-0.5 text-right text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  />
+                                  {draftTotal > 0 && (
+                                    <div className="text-[10px] text-blue-300 mt-0.5 tabular-nums">
+                                      = {draftTotal.toFixed(2)} {currencyCode}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <>
+                                  {item.unit_price > 0 && (
+                                    <div className="text-xs text-zinc-400">
+                                      @ {Number(item.unit_price).toFixed(2)}
+                                    </div>
+                                  )}
+                                  {item.line_total > 0 && (
+                                    <div className="text-xs font-semibold text-violet-300 mt-0.5">
+                                      {Number(item.line_total).toFixed(2)} {currencyCode}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
+                          {item.needed_by_date && (
+                            <div className="mt-1.5 text-xs text-amber-400">
+                              Needed by: {item.needed_by_date}
+                            </div>
+                          )}
                         </div>
-                        {item.needed_by_date && (
-                          <div className="mt-1.5 text-xs text-amber-400">
-                            Needed by: {item.needed_by_date}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
