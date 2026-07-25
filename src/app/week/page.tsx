@@ -595,6 +595,7 @@ export default function WeekPage() {
               onChange={(v) => {
                 didAutoSetRef.current = true;
                 setCity(v as City);
+                window.scrollTo(0, 0);
               }}
               className="min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-white"
               options={[
