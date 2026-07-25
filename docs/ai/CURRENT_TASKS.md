@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 1+2 verified)
+Last updated: 2026-07-25 (session 159 — Prep Time timezone fix + pending badge)
 
 
 
@@ -8,6 +8,27 @@ Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 1+2 verified)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 159 — Prep Time fixes)
+
+### Analytics Prep Time — Timezone + Pending Badge (DEPLOYED ✅ Heroku 0d95756 / Vercel ec52df6)
+
+**Bug 1: `work_date` が UTC 日付で記録されていた**
+- ファイル: `app/services/discord_bot_service.py:105`
+- 原因: `message_ts.date()` はDiscordのUTCタイムスタンプをそのままDATE化→Manila深夜〜早朝にQCフォトが投稿されると前日扱いになる
+- 修正: Manila(UTC+8) / Dubai(UTC+4)の現地時間に変換してから`.date()`を取得
+  ```python
+  _offset = timedelta(hours=8) if city.lower() == "manila" else timedelta(hours=4)
+  score_date = message_ts.astimezone(timezone(_offset)).date()
+  ```
+
+**Bug 2: DashboardタブにいるときPending件数バッジが0表示**
+- ファイル: `src/components/analytics/PrepTimeTab.tsx`
+- 原因: `pending` stateはPendingタブに切り替えたときのみ読み込まれていた
+- 修正: `pendingCount` state追加 + マウント時にpending件数を先読み → タブボタンに常時表示
+- Confirm/Reject/Bulk Confirmでも`pendingCount`を同期更新
 
 ---
 
