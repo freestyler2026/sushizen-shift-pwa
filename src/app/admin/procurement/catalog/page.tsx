@@ -16,7 +16,7 @@ import {
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2 } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SelectDark from "@/components/SelectDark";
 
@@ -84,6 +84,9 @@ export default function ProcurementCatalogPage() {
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<CatalogRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // Fix duplicates
+  const [mergingDups, setMergingDups] = useState(false);
 
   // Vendor Master list (for supplier dropdown)
   const [vendorList, setVendorList] = useState<{ name: string }[]>([]);
@@ -416,6 +419,34 @@ export default function ProcurementCatalogPage() {
     }
   }
 
+  async function fixDuplicates() {
+    if (!requestedBy || !pin) { setError("Enter approver name and PIN first."); return; }
+    setMergingDups(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const data = await procurementJson<{ ok: boolean; groups: number; deleted: number }>(
+        "/api/admin/procurement/catalog/curated/merge-duplicates",
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, city }),
+        },
+        requestedBy,
+        pin,
+      );
+      if (data?.deleted === 0) {
+        setSuccessMsg("No duplicates found — catalog is clean.");
+      } else {
+        setSuccessMsg(`Fixed ${data?.groups ?? 0} duplicate group(s), removed ${data?.deleted ?? 0} redundant item(s).`);
+      }
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Fix duplicates failed.");
+    } finally {
+      setMergingDups(false);
+    }
+  }
+
   if (!allowed) return null;
 
   return (
@@ -432,6 +463,15 @@ export default function ProcurementCatalogPage() {
           <button onClick={openAddNew} className={PRIMARY_BUTTON}>
             <Plus className="h-4 w-4" />
             Add Item
+          </button>
+          <button
+            onClick={() => void fixDuplicates()}
+            disabled={mergingDups || busy}
+            className="flex items-center gap-1.5 rounded-lg border border-orange-400/50 bg-orange-500/10 px-3 py-2 text-sm font-semibold text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+            title="Find and merge duplicate catalog entries (keeps highest-price row)"
+          >
+            <Wrench className={`h-4 w-4 ${mergingDups ? "animate-spin" : ""}`} />
+            Fix Duplicates
           </button>
           <button onClick={() => void load()} disabled={busy} className={SECONDARY_BUTTON}>
             <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
