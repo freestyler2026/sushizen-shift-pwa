@@ -161,8 +161,21 @@ function ProfileModal({
   const [err, setErr] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const [rosterNames, setRosterNames] = useState<string[]>([]);
 
   const isEdit = !!existing;
+
+  useEffect(() => {
+    if (isEdit) return;
+    const auth = getAuth();
+    fetch(`/api/admin/staff_master/names?city=manila&status=ACTIVE&limit=5000`, {
+      headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
+    })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.names)) setRosterNames(d.names); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
@@ -274,9 +287,27 @@ function ProfileModal({
             {/* Staff Name */}
             <div className="col-span-2">
               <label className={L}>Staff Name *</label>
-              <input className={I} value={form.staff_name}
-                onChange={e => set("staff_name", e.target.value)}
-                placeholder="Full name (must match OS Attendance)" disabled={isEdit} />
+              {isEdit ? (
+                <input className={I} value={form.staff_name} disabled
+                  placeholder="Full name (must match OS Attendance)" />
+              ) : (
+                <>
+                  <input
+                    className={I}
+                    list="staff-profile-names-list"
+                    value={form.staff_name}
+                    onChange={e => set("staff_name", e.target.value)}
+                    placeholder="Select from roster or type manually"
+                    autoComplete="off"
+                  />
+                  <datalist id="staff-profile-names-list">
+                    {rosterNames.map(n => <option key={n} value={n} />)}
+                  </datalist>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Choose from roster suggestions, or type a new name if not listed.
+                  </p>
+                </>
+              )}
               {isEdit && <p className="mt-1 text-xs text-slate-500">Name cannot be changed after creation</p>}
             </div>
 

@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
-import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/dubai-payroll";
 
@@ -51,9 +50,10 @@ export default function DubaiPayrollPage() {
 
   // New period form
   const now = new Date();
-  const [newYear, setNewYear]               = useState(String(now.getFullYear()));
-  const [newMonth, setNewMonth]             = useState(String(now.getMonth() + 1));
-  const [newHalf, setNewHalf]               = useState("1");
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const [newStart, setNewStart]             = useState(todayStr);
+  const [newEnd, setNewEnd]                 = useState(todayStr);
+  const [newLabel, setNewLabel]             = useState("");
   const [showCreate, setShowCreate]         = useState(false);
 
   const loadPeriods = useCallback(async () => {
@@ -70,23 +70,26 @@ export default function DubaiPayrollPage() {
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
 
   async function handleCreate() {
+    if (!newStart || !newEnd) { setErr("Please select both start and end dates"); return; }
+    if (newStart > newEnd)   { setErr("Start date must be before end date"); return; }
     setCreating(true); setErr("");
     try {
-      const yr  = parseInt(newYear);
-      const mo  = parseInt(newMonth);
-      const ph  = parseInt(newHalf);
-      const half1End = ph === 1 ? 15 : new Date(yr, mo, 0).getDate();
-      const startDay = ph === 1 ? 1 : 16;
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const start = `${yr}-${pad(mo)}-${pad(startDay)}`;
-      const end   = `${yr}-${pad(mo)}-${pad(half1End)}`;
-      const label = `${MONTHS[mo - 1]} ${yr} ${ph === 1 ? "1st" : "2nd"} Half`;
+      const [yr, mo] = newStart.split("-").map(Number);
+      const autoLabel = newLabel.trim() ||
+        `${MONTHS[mo - 1]} ${yr} (${newStart.slice(8)} – ${newEnd.slice(8)})`;
       const r = await apiFetch(`${API}/periods`, {
         method: "POST",
-        body: JSON.stringify({ period_label: label, period_half: ph, year: yr, month: mo, start_date: start, end_date: end }),
+        body: JSON.stringify({
+          period_label: autoLabel,
+          period_half: 0,
+          year: yr, month: mo,
+          start_date: newStart,
+          end_date: newEnd,
+        }),
       });
       if (!r.ok) throw new Error(await r.text());
       setShowCreate(false);
+      setNewLabel("");
       await loadPeriods();
     } catch (e) { setErr(String(e)); }
     finally { setCreating(false); }
@@ -141,32 +144,20 @@ export default function DubaiPayrollPage() {
             <h3 className="text-sm font-semibold text-white">Create Payroll Period</h3>
             <div className="flex items-end gap-3 flex-wrap">
               <div>
-                <label className="mb-1 block text-xs text-slate-400">Year</label>
-                <input type="number" value={newYear} onChange={e => setNewYear(e.target.value)}
-                  className="w-24 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none" />
+                <label className="mb-1 block text-xs text-slate-400">Start Date</label>
+                <input type="date" value={newStart} onChange={e => setNewStart(e.target.value)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none" />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-slate-400">Month</label>
-                <SelectDark
-                  value={newMonth}
-                  onChange={setNewMonth}
-                  className="w-28"
-                  options={[
-                    ...MONTHS.map((m, i) => ({ value: String(i + 1), label: m })),
-                  ]}
-                />
+                <label className="mb-1 block text-xs text-slate-400">End Date</label>
+                <input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none" />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-slate-400">Half</label>
-                <SelectDark
-                  value={newHalf}
-                  onChange={setNewHalf}
-                  className="w-28"
-                  options={[
-                    { value: "1", label: "1st (1–15)" },
-                    { value: "2", label: "2nd (16–end)" },
-                  ]}
-                />
+                <label className="mb-1 block text-xs text-slate-400">Label (optional)</label>
+                <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+                  placeholder="Auto-generated if blank"
+                  className="w-52 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none" />
               </div>
               <button onClick={handleCreate} disabled={creating}
                 className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm disabled:opacity-40"}>
@@ -174,6 +165,7 @@ export default function DubaiPayrollPage() {
                 {creating ? "Creating…" : "Create"}
               </button>
             </div>
+            <p className="text-xs text-slate-500">Label is auto-generated from dates if left blank (e.g. &ldquo;Jul 2026 (01 – 31)&rdquo;).</p>
           </div>
         )}
 
