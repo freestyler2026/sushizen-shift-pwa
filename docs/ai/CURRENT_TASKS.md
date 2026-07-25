@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 158 — Travel Path temp log UX fixes)
+Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR fixes + verification)
 
 
 
@@ -8,6 +8,38 @@ Last updated: 2026-07-25 (session 158 — Travel Path temp log UX fixes)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 159 — Dubai Payroll DTR fixes)
+
+### Dubai Payroll — Period creation + DTR view (DEPLOYED ✅)
+
+**Bug: `Missing field: period_half` when creating Jun 26–Jul 25 period**
+- Cause 1: Python `if not body.get("period_half")` treats `0` as falsy → fixed to `if body.get(f) is None or body.get(f) == ""`
+- Cause 2: `UNIQUE(year, month, period_half)` constraint prevented multiple free-range periods → dropped via `ALTER TABLE`
+- Removed `ON CONFLICT (year, month, period_half) DO NOTHING` from INSERT
+- Deployed: Heroku commit 2f8f2a1
+
+**Bayzat Jul 1–9 data import (1,073 rows)**
+- Source: `/Users/jaynishimura/Downloads/Attendance_Breakdown_View_Table_From_2026_07_01_To_2026_07_09.xlsx`
+- Ran one-time import script → 1,073 rows inserted to period_id=4 (Jun 26–Jul 25)
+- Script saved at: `/private/tmp/.../scratchpad/import_july1_9_dubai.py`
+
+**6/26–6/30 data period reassignment**
+- Data was in period_id=1 (Jun Full Month) instead of period_id=4 (Jun 26–Jul 25)
+- Direct DB: `UPDATE dubai_attendance_daily SET period_id=4 WHERE work_date BETWEEN '2026-06-26' AND '2026-06-30' AND period_id=1` → 285 rows moved
+
+**New "Current DTR Records" table on DTR Sync page (DEPLOYED ✅ Vercel d75de28)**
+- `src/app/admin/payroll/dubai/dtr-upload/page.tsx`: Added DTR records view below the sync panel
+- Fetches `GET /api/admin/dubai-payroll/attendance?period_id=X&limit=2000` when period changes
+- Shows Date / Staff / Clock In / Clock Out / Reg Hrs / OT Hrs / Type / Status columns
+- **Verified live**: period_id=4 returns 1,999 rows combining Bayzat (Jun 26–Jul 9) + OS (Jul 10–25) data
+
+**Sharon Namale clock-in investigation**
+- System-side all healthy (staff active, ARJ geofence 150m, passkeys registered, shift published)
+- Diagnosis: user confusion or passkey biometric failure on device
+- Manual admin clock-in confirmed to enable staff self clock-out
 
 ---
 

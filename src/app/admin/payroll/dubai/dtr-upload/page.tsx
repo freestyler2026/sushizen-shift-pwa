@@ -75,12 +75,17 @@ type AttendanceRow = {
   id: number;
   staff_name: string;
   work_date: string;
+  scheduled_store: string | null;
   actual_time_in: string | null;
   actual_time_out: string | null;
   regular_hours: number;
   overtime_hours: number;
+  actual_break_minutes: number;
+  late_minutes: number;
   is_worked: boolean;
+  is_scheduled_rest_day: boolean;
   absent_without_pay: boolean;
+  annual_leave_flag: boolean;
   day_type: string;
   approval_status: string;
 };
@@ -136,6 +141,49 @@ function fmtHours(h: number) {
   return min > 0 ? `${hrs}h ${min}m` : `${hrs}h`;
 }
 
+function fmtLate(mins: number) {
+  // Dubai grace period: 15 minutes — only flag if > 15 min late
+  if (!mins || mins <= 15) return "—";
+  return `Late ${mins}m`;
+}
+
+function rowStatus(row: AttendanceRow): string {
+  if (row.annual_leave_flag) return "Annual Leave";
+  if (row.absent_without_pay) return "Absent (AWP)";
+  if (row.is_scheduled_rest_day) return "Day Off";
+  return row.is_worked ? "Worked" : (DAY_TYPE_LABELS[row.day_type] ?? row.day_type);
+}
+
+function downloadDtrCsv(rows: AttendanceRow[], periodId: string) {
+  const headers = [
+    "Date", "Staff", "Store", "Clock In", "Clock Out",
+    "Break (min)", "Reg Hrs", "OT Hrs", "Late (min)", "Type", "Status",
+  ];
+  const csvRows = rows.map(r => [
+    r.work_date,
+    r.staff_name,
+    r.scheduled_store ?? "",
+    r.actual_time_in ? fmtTime(r.actual_time_in) : "",
+    r.actual_time_out ? fmtTime(r.actual_time_out) : "",
+    String(r.actual_break_minutes ?? 0),
+    String(r.regular_hours ?? 0),
+    String(r.overtime_hours ?? 0),
+    r.late_minutes > 15 ? String(r.late_minutes) : "0",
+    r.absent_without_pay ? "AWP" : (DAY_TYPE_LABELS[r.day_type] ?? r.day_type),
+    r.approval_status ?? "pending",
+  ]);
+  const csv = [headers, ...csvRows]
+    .map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `dtr_period${periodId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function DubaiDtrUploadPage() {
@@ -169,6 +217,13 @@ export default function DubaiDtrUploadPage() {
 
   const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
+
+  // DTR filter state
+  const [dtrStaffFilter, setDtrStaffFilter] = useState("");
+  const [dtrDateFrom, setDtrDateFrom]       = useState("");
+  const [dtrDateTo, setDtrDateTo]           = useState("");
+  const [dtrStoreFilter, setDtrStoreFilter] = useState("");
+  const [dtrStatusFilter, setDtrStatusFilter] = useState("");
 
   useEffect(() => {
     if (!selectedPeriodId) { setDtrRecords([]); return; }
@@ -775,80 +830,178 @@ export default function DubaiDtrUploadPage() {
         )}
 
         {/* ── Current DTR Records ──────────────────────────────────────────── */}
-        {selectedPeriodId && (
-          <div className={GLASS_CARD + " overflow-hidden"}>
-            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <ClipboardList size={15} className="text-sky-400" />
-                Current DTR Records for this Period
-                {dtrRecords.length > 0 && (
-                  <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-xs font-normal text-sky-300">
-                    {dtrRecords.length} rows
-                  </span>
-                )}
-              </h2>
-              <button
-                onClick={() => {
-                  setDtrLoading(true);
-                  apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
-                    .then(r => r.json())
-                    .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
-                    .catch(() => {})
-                    .finally(() => setDtrLoading(false));
-                }}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <RefreshCw size={14} className={dtrLoading ? "animate-spin" : ""} />
-              </button>
-            </div>
+        {selectedPeriodId && (() => {
+          const dtrStores = [...new Set(dtrRecords.map(r => r.scheduled_store).filter(Boolean) as string[])].sort();
+          const filtered = dtrRecords.filter(row => {
+            if (dtrStaffFilter && !row.staff_name.toLowerCase().includes(dtrStaffFilter.toLowerCase())) return false;
+            if (dtrDateFrom && row.work_date < dtrDateFrom) return false;
+            if (dtrDateTo && row.work_date > dtrDateTo) return false;
+            if (dtrStoreFilter && row.scheduled_store !== dtrStoreFilter) return false;
+            if (dtrStatusFilter) {
+              if (dtrStatusFilter === "worked" && !row.is_worked) return false;
+              if (dtrStatusFilter === "rest_day" && !row.is_scheduled_rest_day) return false;
+              if (dtrStatusFilter === "awp" && !row.absent_without_pay) return false;
+              if (dtrStatusFilter === "annual_leave" && !row.annual_leave_flag) return false;
+              if (dtrStatusFilter === "late" && row.late_minutes <= 15) return false;
+            }
+            return true;
+          });
+          const hasFilter = !!(dtrStaffFilter || dtrDateFrom || dtrDateTo || dtrStoreFilter || dtrStatusFilter);
 
-            {dtrLoading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 size={20} className="animate-spin text-slate-400" />
+          return (
+            <div className={GLASS_CARD + " overflow-hidden"}>
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <ClipboardList size={15} className="text-sky-400" />
+                  Current DTR Records for this Period
+                  {dtrRecords.length > 0 && (
+                    <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-xs font-normal text-sky-300">
+                      {hasFilter ? `${filtered.length} / ${dtrRecords.length}` : `${dtrRecords.length}`} rows
+                    </span>
+                  )}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {dtrRecords.length > 0 && (
+                    <button
+                      onClick={() => downloadDtrCsv(filtered, selectedPeriodId)}
+                      title="Download CSV"
+                      className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      <FileSpreadsheet size={13} />
+                      CSV
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setDtrLoading(true);
+                      apiFetch(`${API}/attendance?period_id=${selectedPeriodId}&limit=2000`)
+                        .then(r => r.json())
+                        .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
+                        .catch(() => {})
+                        .finally(() => setDtrLoading(false));
+                    }}
+                    className="text-slate-400 hover:text-white transition-colors"
+                    title="Refresh"
+                  >
+                    <RefreshCw size={14} className={dtrLoading ? "animate-spin" : ""} />
+                  </button>
+                </div>
               </div>
-            ) : dtrRecords.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-500">
-                No DTR records yet for this period. Sync OS Attendance or upload a CSV above.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs" style={{ minWidth: "760px" }}>
-                  <thead>
-                    <tr className="border-b border-white/8 bg-white/3">
-                      {["Date", "Staff", "Clock In", "Clock Out", "Reg Hrs", "OT Hrs", "Type", "Status"].map(h => (
-                        <th key={h} className="px-4 py-2.5 text-left font-medium text-slate-400">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {dtrRecords.map(row => (
-                      <tr key={row.id} className="hover:bg-white/3 transition-colors">
-                        <td className="px-4 py-2 font-mono text-slate-300">{row.work_date}</td>
-                        <td className="px-4 py-2 text-white font-medium">{row.staff_name}</td>
-                        <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
-                        <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
-                        <td className="px-4 py-2 text-emerald-300">{row.regular_hours ? fmtHours(Number(row.regular_hours)) : "—"}</td>
-                        <td className="px-4 py-2 text-amber-300">{row.overtime_hours ? fmtHours(Number(row.overtime_hours)) : "—"}</td>
-                        <td className="px-4 py-2 text-slate-400">
-                          {row.absent_without_pay ? "AWP" : DAY_TYPE_LABELS[row.day_type] ?? row.day_type}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            row.approval_status === "approved" ? "bg-emerald-900/30 text-emerald-300" :
-                            row.approval_status === "rejected" ? "bg-red-900/30 text-red-300" :
-                            "bg-zinc-800 text-zinc-400"
-                          }`}>
-                            {row.approval_status ?? "pending"}
-                          </span>
-                        </td>
+
+              {/* Filter bar */}
+              {!dtrLoading && dtrRecords.length > 0 && (
+                <div className="border-b border-white/8 bg-white/2 px-5 py-3 flex flex-wrap gap-2 items-center">
+                  <input
+                    placeholder="Staff name..."
+                    value={dtrStaffFilter}
+                    onChange={e => setDtrStaffFilter(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-sky-500/50 w-36"
+                  />
+                  <input
+                    type="date"
+                    value={dtrDateFrom}
+                    onChange={e => setDtrDateFrom(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50 w-36 [color-scheme:dark]"
+                  />
+                  <span className="text-xs text-slate-500">–</span>
+                  <input
+                    type="date"
+                    value={dtrDateTo}
+                    onChange={e => setDtrDateTo(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50 w-36 [color-scheme:dark]"
+                  />
+                  <select
+                    value={dtrStoreFilter}
+                    onChange={e => setDtrStoreFilter(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
+                  >
+                    <option value="">All Stores</option>
+                    {dtrStores.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select
+                    value={dtrStatusFilter}
+                    onChange={e => setDtrStatusFilter(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
+                  >
+                    <option value="">All Status</option>
+                    <option value="worked">Worked</option>
+                    <option value="rest_day">Day Off</option>
+                    <option value="awp">Absent (AWP)</option>
+                    <option value="annual_leave">Annual Leave</option>
+                    <option value="late">Late (&gt;15 min)</option>
+                  </select>
+                  {hasFilter && (
+                    <button
+                      onClick={() => { setDtrStaffFilter(""); setDtrDateFrom(""); setDtrDateTo(""); setDtrStoreFilter(""); setDtrStatusFilter(""); }}
+                      className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+                    >
+                      <X size={11} /> Clear
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Table */}
+              {dtrLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 size={20} className="animate-spin text-slate-400" />
+                </div>
+              ) : dtrRecords.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-500">
+                  No DTR records yet for this period. Sync OS Attendance or upload a CSV above.
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-500">No records match the current filters.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ minWidth: "980px" }}>
+                    <thead>
+                      <tr className="border-b border-white/8 bg-white/3">
+                        {["Date", "Staff", "Store", "Clock In", "Clock Out", "Break", "Reg Hrs", "OT Hrs", "Late", "Type", "Status"].map(h => (
+                          <th key={h} className="px-4 py-2.5 text-left font-medium text-slate-400">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filtered.map(row => {
+                        const lateDisplay = fmtLate(row.late_minutes ?? 0);
+                        const status = rowStatus(row);
+                        return (
+                          <tr key={row.id} className={`hover:bg-white/3 transition-colors ${row.absent_without_pay ? "opacity-60" : ""}`}>
+                            <td className="px-4 py-2 font-mono text-slate-300">{row.work_date}</td>
+                            <td className="px-4 py-2 text-white font-medium">{row.staff_name}</td>
+                            <td className="px-4 py-2 text-slate-400">{row.scheduled_store ?? "—"}</td>
+                            <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
+                            <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
+                            <td className="px-4 py-2 text-slate-400">{row.actual_break_minutes ? `${row.actual_break_minutes}m` : "—"}</td>
+                            <td className="px-4 py-2 text-emerald-300">{row.regular_hours ? fmtHours(Number(row.regular_hours)) : "—"}</td>
+                            <td className="px-4 py-2 text-amber-300">{row.overtime_hours ? fmtHours(Number(row.overtime_hours)) : "—"}</td>
+                            <td className={`px-4 py-2 font-medium ${lateDisplay !== "—" ? "text-red-400" : "text-slate-600"}`}>
+                              {lateDisplay}
+                            </td>
+                            <td className="px-4 py-2 text-slate-400">{DAY_TYPE_LABELS[row.day_type] ?? row.day_type}</td>
+                            <td className="px-4 py-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${
+                                status === "Worked"         ? "bg-emerald-900/30 text-emerald-300" :
+                                status === "Day Off"        ? "bg-slate-700 text-slate-300" :
+                                status === "Absent (AWP)"   ? "bg-red-900/30 text-red-300" :
+                                status === "Annual Leave"   ? "bg-sky-900/30 text-sky-300" :
+                                                              "bg-zinc-800 text-zinc-400"
+                              }`}>
+                                {status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Footer */}
         <div className="text-center text-xs text-slate-600">
