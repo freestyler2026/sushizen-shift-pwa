@@ -322,7 +322,7 @@ export default function DubaiDtrUploadPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -971,11 +971,11 @@ export default function DubaiDtrUploadPage() {
                 <div className="py-10 text-center text-sm text-slate-500">No records match the current filters.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
+                  <table className="w-full text-xs" style={{ minWidth: "960px" }}>
                     <thead>
                       <tr className="border-b border-white/8 bg-white/3">
-                        {["Date", "Staff", "Store", "Scheduled", "Clock In", "Clock Out", "Break", "Reg Hrs", "OT Hrs", "Late", "Type", "Status"].map(h => (
-                          <th key={h} className="px-4 py-2.5 text-left font-medium text-slate-400">{h}</th>
+                        {["Date", "Staff", "Store", "Schedule", "Clock In", "Clock Out", "Break", "Reg Hrs", "OT Hrs", "Late", "Type", "Status"].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left font-medium text-slate-400">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -993,20 +993,20 @@ export default function DubaiDtrUploadPage() {
                                 : "hover:bg-white/3"
                             } ${row.absent_without_pay || row.absence_type ? "opacity-70" : ""}`}
                           >
-                            <td className={`px-4 py-2 font-mono ${isGenerated ? "text-slate-500" : "text-slate-300"}`}>{row.work_date}</td>
-                            <td className={`px-4 py-2 font-medium ${isGenerated ? "text-slate-400" : "text-white"}`}>{row.staff_name}</td>
-                            <td className="px-4 py-2 text-slate-400">{row.scheduled_store ?? "—"}</td>
-                            <td className="px-4 py-2 font-mono text-violet-300/80">{row.scheduled_shift ?? "—"}</td>
-                            <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
-                            <td className="px-4 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
-                            <td className="px-4 py-2 text-slate-400">{row.actual_break_minutes ? `${row.actual_break_minutes}m` : "—"}</td>
-                            <td className="px-4 py-2 text-emerald-300">{row.regular_hours ? fmtHours(Number(row.regular_hours)) : "—"}</td>
-                            <td className="px-4 py-2 text-amber-300">{row.overtime_hours ? fmtHours(Number(row.overtime_hours)) : "—"}</td>
-                            <td className={`px-4 py-2 font-medium ${lateDisplay !== "—" ? "text-red-400" : "text-slate-600"}`}>
+                            <td className={`px-3 py-2 font-mono ${isGenerated ? "text-slate-500" : "text-slate-300"}`}>{row.work_date}</td>
+                            <td className={`px-3 py-2 font-medium ${isGenerated ? "text-slate-400" : "text-white"}`}>{row.staff_name}</td>
+                            <td className="px-3 py-2 text-slate-400">{row.scheduled_store ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-violet-300/80">{row.scheduled_shift ?? "—"}</td>
+                            <td className="px-3 py-2 font-mono text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
+                            <td className="px-3 py-2 font-mono text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
+                            <td className="px-3 py-2 text-slate-400">{row.actual_break_minutes ? `${row.actual_break_minutes}m` : "—"}</td>
+                            <td className="px-3 py-2 text-emerald-300">{row.regular_hours ? fmtHours(Number(row.regular_hours)) : "—"}</td>
+                            <td className="px-3 py-2 text-amber-300">{row.overtime_hours ? fmtHours(Number(row.overtime_hours)) : "—"}</td>
+                            <td className={`px-3 py-2 font-medium ${lateDisplay !== "—" ? "text-red-400" : "text-slate-600"}`}>
                               {lateDisplay}
                             </td>
-                            <td className="px-4 py-2 text-slate-400">{DAY_TYPE_LABELS[row.day_type] ?? row.day_type}</td>
-                            <td className="px-4 py-2">
+                            <td className="px-3 py-2 text-slate-400">{DAY_TYPE_LABELS[row.day_type] ?? row.day_type}</td>
+                            <td className="px-3 py-2">
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${
                                 status === "Worked"           ? "bg-emerald-900/30 text-emerald-300" :
                                 status === "Day Off"          ? "bg-slate-700 text-slate-300" :
