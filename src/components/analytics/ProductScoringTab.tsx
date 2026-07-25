@@ -680,7 +680,7 @@ export default function ProductScoringTab({
   pin: string;
   isHQOrAdmin: boolean;
 }) {
-  const [subTab, setSubTab] = useState<"overview" | "history">("overview");
+  const [subTab, setSubTab] = useState<"overview" | "grade" | "history">("overview");
   const [dateFrom, setDateFrom] = useState(sevenDaysAgoIso());
   const [dateTo, setDateTo] = useState(todayIso());
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
@@ -940,6 +940,13 @@ export default function ProductScoringTab({
           className={subTab === "overview" ? TAB_ACTIVE : TAB_INACTIVE}
         >
           Overview
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab("grade")}
+          className={subTab === "grade" ? TAB_ACTIVE : TAB_INACTIVE}
+        >
+          Grade Distribution
         </button>
         <button
           type="button"
@@ -1365,6 +1372,102 @@ export default function ProductScoringTab({
       )}
 
       </div>)}
+
+      {/* ── Grade Distribution sub-tab ── */}
+      {subTab === "grade" && (
+        <div className="space-y-5">
+          {/* City filter row */}
+          <div className={`${GLASS_CARD} flex flex-wrap gap-3 p-4`}>
+            {(["", "dubai", "manila"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCityFilter(c)}
+                className={cityFilter === c ? TAB_ACTIVE : TAB_INACTIVE}
+              >
+                {c === "" ? "All" : c === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
+              </button>
+            ))}
+          </div>
+
+          {Object.keys(gradeDistByStore).length === 0 ? (
+            <div className={`${GLASS_CARD} p-8 text-center`}>
+              <p className={BODY_TEXT}>No score data for this period.</p>
+            </div>
+          ) : (
+            (["dubai", "manila"] as const).map((city) => {
+              if (cityFilter && cityFilter !== city) return null;
+              const cityStores = storeAggregatedWithRates.filter(
+                (s) => s.city === city && gradeDistByStore[s.branch_code || s.store_code],
+              );
+              if (cityStores.length === 0) return null;
+              const activeGrades = GRADE_ORDER.filter((g) =>
+                cityStores.some((s) => gradeDistByStore[s.branch_code || s.store_code]?.[g]),
+              );
+              return (
+                <div key={city} className={GLASS_CARD + " p-4"}>
+                  <h3 className={`${SECTION_TITLE} mb-3`}>
+                    {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"} — Grade Distribution
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr>
+                          {["Store", "Avg Score", "Photos", ...activeGrades, "C/D Rate"].map((h) => (
+                            <th key={h} className={TABLE_HEADER}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cityStores.map((s) => {
+                          const key = s.branch_code || s.store_code;
+                          const dist = gradeDistByStore[key] ?? {};
+                          const total = Object.values(dist).reduce((a, v) => a + v, 0);
+                          const cdCount = (dist["C"] ?? 0) + (dist["D"] ?? 0) + (dist["F"] ?? 0);
+                          const cdRate = total > 0 ? (cdCount / total) * 100 : 0;
+                          return (
+                            <tr key={key} className={TABLE_ROW}>
+                              <td className="py-2 px-2 font-semibold text-slate-200">{key}</td>
+                              <td className={`py-2 px-2 font-bold ${scoreBg(s.avg_total)}`}>{s.avg_total}</td>
+                              <td className="py-2 px-2 text-slate-400">{total}</td>
+                              {activeGrades.map((g) => {
+                                const cnt = dist[g] ?? 0;
+                                const pct = total > 0 ? (cnt / total) * 100 : 0;
+                                return (
+                                  <td key={g} className="py-2 px-2 text-center">
+                                    {cnt > 0 ? (
+                                      <span>
+                                        <span
+                                          className="inline-block rounded px-1 py-0.5 text-[10px] font-bold text-black"
+                                          style={{ background: gradeColor(g) }}
+                                        >
+                                          {g}
+                                        </span>
+                                        <span className="ml-1 text-slate-300">{pct.toFixed(0)}%</span>
+                                        <span className="ml-0.5 text-slate-500">({cnt})</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-600">—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className={`py-2 px-2 font-bold ${gradeRateBg(cdRate)}`}>
+                                {cdRate.toFixed(0)}%
+                                <span className="ml-1 font-normal text-slate-500">({cdCount})</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }

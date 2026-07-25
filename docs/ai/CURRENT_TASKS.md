@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 159 — Prep Time timezone fix + pending badge)
+Last updated: 2026-07-25 (session 159 — Grade Distribution sub-tab added)
 
 
 
@@ -8,6 +8,21 @@ Last updated: 2026-07-25 (session 159 — Prep Time timezone fix + pending badge
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 159 — Grade Distribution sub-tab)
+
+### Product Scoring — "Grade Distribution" dedicated sub-tab (DEPLOYED ✅)
+
+- File: `src/components/analytics/ProductScoringTab.tsx`
+- Added 3rd sub-tab **"Grade Distribution"** between Overview and Weekly History
+- Shows Dubai and Manila in separate cards, each with a full-width table sorted by avg_score descending
+- Columns: Store | Avg Score | Photos | Active Grades (A/B/C/F with %) | C/D Rate
+- Includes city filter (All / Dubai / Manila) at the top of the Grade Distribution tab
+- Existing compact Grade Distribution table remains in the Overview tab as a summary
+- `storeAggregatedWithRates` already sorts by `avg_total` DESC → matches screenshot order (JLT 75.2 → AM 73.6 → ...)
+- TypeScript: clean (no errors)
 
 ---
 
