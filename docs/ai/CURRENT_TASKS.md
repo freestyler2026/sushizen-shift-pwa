@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 159 — Grade Distribution sub-tab added)
+Last updated: 2026-07-25 (session 160 — WH DN Edit Prices added)
 
 
 
@@ -8,6 +8,38 @@ Last updated: 2026-07-25 (session 159 — Grade Distribution sub-tab added)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 160 — WH DN Edit Prices)
+
+### WH Delivery Note — Edit Prices feature (DEPLOYED ✅ Heroku v1524 / Vercel d2fe584)
+
+**Background:** Staff reported that WH delivery note items (Spaghetti Box, Multi Purpose Plastic, etc.) showed price=0. CK DN already got Edit Prices in the prior session. This session adds the same feature for WH orders.
+
+**Backend (`sushizen_shift_app_clean`):**
+- `db.py`: Added `update_proc_request_item_price(*, item_id, unit_price)` — patches `proc_request_items.unit_price` and recalculates `line_total = qty * unit_price`
+- `main.py`: Added `PATCH /api/admin/procurement/requests/{request_id}/items/{item_id}/price` endpoint (uses `_require_action_from_token` with `procurement.request.write`) + calls `recalc_proc_request_total` to keep header total in sync
+
+**Frontend (`sushizen-shift-pwa`):**
+- `src/app/store/procurement/page.tsx`: Added "Edit Prices" button to the `RequestDetailDrawer` items section header
+  - Visible only to ADMIN/HQ/MANILA_MANAGEMENT/DUBAI_MANAGEMENT roles
+  - Clicking enters edit mode: inline numeric inputs per item, Cancel / Save Prices buttons
+  - Save PATCHes changed items in parallel, then reloads detail (updated prices visible in drawer and in DN popup)
+  - Edit mode: items highlighted with blue border; line total updates in real-time from draft price
+
+### Pending issues (not yet fixed):
+
+**Issue A — Sliced Beef (80g/Portion) price = 0:**
+- All items in CK delivery note come from `proc_curated_catalog_items` (category: COLD_SECTION/DRY_ITEMS/etc.)
+- Sliced Beef still shows 0 after catalog update — possible duplicate entry or name mismatch
+- Staff can now use Edit Prices on the CK DN page as an immediate workaround
+
+**Issue B — WH catalog save failure (Spaghetti Box, Multi Purpose Plastic):**
+- Staff says price and item name cannot be saved for these 2 items
+- Root cause suspected: duplicate `proc_curated_catalog_items` entries with same composite key (city, catalog_category, store_scope, supplier_name, sku, item_name). The UPDATE by UUID succeeds on one, but the other (with old price=0) remains.
+- Fix: need to investigate via DB query or add duplicate-detection UI to Procurement Catalog admin page
+- Staff can use Edit Prices on the WH DN as an immediate workaround
 
 ---
 
