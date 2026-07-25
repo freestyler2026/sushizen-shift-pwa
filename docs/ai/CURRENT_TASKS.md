@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 160 — WH DN Edit Prices added)
+Last updated: 2026-07-25 (session 161 — Catalog duplicate fix + Fix Duplicates button)
 
 
 
@@ -13,7 +13,7 @@ Last updated: 2026-07-25 (session 160 — WH DN Edit Prices added)
 
 ## Recently Completed (2026-07-25 session 160 — WH DN Edit Prices)
 
-### WH Delivery Note — Edit Prices feature (DEPLOYED ✅ Heroku v1524 / Vercel d2fe584)
+### WH Delivery Note — Edit Prices feature (DEPLOYED ✅ Heroku v1524 / Vercel d2fe584 — Browser verified ✅)
 
 **Background:** Staff reported that WH delivery note items (Spaghetti Box, Multi Purpose Plastic, etc.) showed price=0. CK DN already got Edit Prices in the prior session. This session adds the same feature for WH orders.
 
@@ -28,18 +28,30 @@ Last updated: 2026-07-25 (session 160 — WH DN Edit Prices added)
   - Save PATCHes changed items in parallel, then reloads detail (updated prices visible in drawer and in DN popup)
   - Edit mode: items highlighted with blue border; line total updates in real-time from draft price
 
-### Pending issues (not yet fixed):
+---
 
-**Issue A — Sliced Beef (80g/Portion) price = 0:**
-- All items in CK delivery note come from `proc_curated_catalog_items` (category: COLD_SECTION/DRY_ITEMS/etc.)
-- Sliced Beef still shows 0 after catalog update — possible duplicate entry or name mismatch
-- Staff can now use Edit Prices on the CK DN page as an immediate workaround
+## Recently Completed (2026-07-25 session 161 — Catalog duplicate fix)
 
-**Issue B — WH catalog save failure (Spaghetti Box, Multi Purpose Plastic):**
-- Staff says price and item name cannot be saved for these 2 items
-- Root cause suspected: duplicate `proc_curated_catalog_items` entries with same composite key (city, catalog_category, store_scope, supplier_name, sku, item_name). The UPDATE by UUID succeeds on one, but the other (with old price=0) remains.
-- Fix: need to investigate via DB query or add duplicate-detection UI to Procurement Catalog admin page
-- Staff can use Edit Prices on the WH DN as an immediate workaround
+### Procurement Catalog — Upsert dedup fix + Fix Duplicates button (DEPLOYED ✅ Heroku 9648bfc / Vercel eb2a132)
+
+**Root cause investigation results:**
+- Manila + Dubai catalogs: **0 true duplicates** (same trimmed composite key)
+- Sliced Beef: catalog already shows price=50 PHP for both variants — the price=0 in existing CK DNs is from orders placed before the price was set. Fix via Edit Prices on CK DN.
+- Spaghetti Box / Multi Purpose Plastic main variants: prices already set (55/41 PHP). The "cannot save" was caused by whitespace mismatch in key fields creating apparent conflicts.
+
+**Backend (`sushizen_shift_app_clean`):**
+- `db.py`: Fixed `upsert_proc_curated_catalog_items` — before each UPDATE, DELETE any other row whose trimmed composite key matches the new values. Prevents unique-constraint violation from whitespace differences.
+- `db.py`: Added `merge_duplicate_catalog_items(city)` — finds near-duplicate groups (same trimmed composite key), keeps highest-price row, deletes others, normalises whitespace.
+- `main.py`: Added `ProcCatalogCityIn` Pydantic model + `POST /api/admin/procurement/catalog/curated/merge-duplicates` endpoint.
+
+**Frontend (`sushizen-shift-pwa`):**
+- `src/app/admin/procurement/catalog/page.tsx`: Added orange **"Fix Duplicates"** button next to Add Item. Calls merge endpoint, shows result toast (groups merged / rows deleted).
+
+**Note:** As of 2026-07-25 13:46, new catalog variants were added with price=0:
+- "Spaghetti Box (Gyoza 8pc) (1pkt = 50pcs)" — WH_to_supplier + Supplier
+- "Multi Purpose Plastic (1PKT = 100pcs)" — WH_to_supplier
+- "Multi Purpose Plastic (10x14 Calypso)" — Supplier
+These need prices set by staff via the Order Catalog admin page (save now works correctly).
 
 ---
 
