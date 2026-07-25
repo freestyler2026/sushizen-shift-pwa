@@ -962,6 +962,12 @@ export default function DubaiDtrUploadPage() {
                 <div className="py-10 text-center text-sm text-slate-500">No records match the current filters.</div>
               ) : (
                 <div className="overflow-x-auto">
+                  {filtered.length > 1500 && (
+                    <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/5 px-5 py-2.5 text-xs text-amber-300">
+                      <AlertTriangle size={13} />
+                      Showing first 1,500 of {filtered.length} rows. Use filters above (staff name, date, store, status) to narrow results.
+                    </div>
+                  )}
                   <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
                     <thead>
                       <tr className="border-b border-white/8 bg-white/3">
@@ -971,7 +977,7 @@ export default function DubaiDtrUploadPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {filtered.map((row, idx) => {
+                      {filtered.slice(0, 1500).map((row, idx) => {
                         const lateDisplay = fmtLate(row.late_minutes ?? 0);
                         const status = rowStatus(row);
                         const isGenerated = row.is_generated;
