@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR fixes + verification)
+Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR Phase 2)
 
 
 
@@ -8,6 +8,37 @@ Last updated: 2026-07-25 (session 159 — Dubai Payroll DTR fixes + verification
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-25 session 159 — Dubai Payroll DTR Phase 1+2)
+
+### DTR Records — Phase 2 Full View (DEPLOYED ✅ Heroku ff8011f / Vercel 9b4e904)
+
+**New endpoint: `GET /api/admin/dubai-payroll/attendance-full`**
+- Merges 4 data sources (separate DB connections per CLAUDE.md lesson #7):
+  1. `dubai_attendance_daily` — existing records, enriched with shift times
+  2. `shift_published_rows` JOIN `shift_published_versions WHERE city='dubai'` → scheduled_shift (e.g. "09:00–18:00")
+  3. `absences WHERE city='dubai'` → generated Absent rows
+  4. Generated Day Off rows (no attendance + no published shift) and No Clock-in rows (shift exists, no attendance)
+- Returns `{rows: [...], total: N}` sorted date DESC, staff ASC
+- Each row includes: `scheduled_shift`, `absence_type`, `absence_note`, `is_generated`
+
+**Frontend changes (`src/app/admin/payroll/dubai/dtr-upload/page.tsx`)**
+- Switched fetch from `attendance?period_id=X&limit=2000` → `attendance-full?period_id=X`
+- Added `scheduled_shift`, `absence_type`, `absence_note`, `is_generated` to `AttendanceRow` type
+- New **Scheduled** column (violet, shows "09:00–18:00" or "—")
+- Generated rows (Day Off / No Clock-in / Absence): subtle background, dimmed text
+- New status badges: **No Clock-in** (orange), **Absent (type)** (dim red)
+- CSV export includes Scheduled column
+
+### DTR Records — Phase 1 Filters + Columns (DEPLOYED ✅ Vercel 33dcb75)
+
+- Filter bar: staff name, date range, store, status
+- New columns: Store, Break (min), Late (Dubai 15-min grace period)
+- Improved Status badge: Worked / Day Off / Absent (AWP) / Annual Leave / Late Xm
+- CSV download (BOM UTF-8 for Excel)
+- Filtered row count badge
 
 ---
 
