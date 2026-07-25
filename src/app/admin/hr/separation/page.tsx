@@ -596,6 +596,9 @@ function AddSeparationModal({
   onCreated: (rec: SeparationRecord) => void;
 }) {
   const auth = getAuth();
+  const [modalCity, setModalCity] = useState(
+    String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
+  );
   const [staffName, setStaffName] = useState("");
   const [staffList, setStaffList] = useState<string[]>([]);
   const [separationType, setSeparationType] = useState<SeparationType>("voluntary_resignation");
@@ -608,13 +611,19 @@ function AddSeparationModal({
 
   useEffect(() => {
     if (!auth?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/staff_master/names?city=${auth.city || "manila"}&status=ACTIVE&limit=5000`, {
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${modalCity}&status=ACTIVE&limit=5000`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
       .then((r) => r.json())
       .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))
       .catch(() => {});
-  }, [auth?.accessToken, auth?.city]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.accessToken, modalCity]);
+
+  const handleCitySwitch = (c: string) => {
+    setModalCity(c);
+    setStaffName("");
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -674,6 +683,26 @@ function AddSeparationModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* City toggle */}
+          <div>
+            <label className={T_LABEL + " mb-1 block"}>City</label>
+            <div className="flex gap-2">
+              {["manila", "dubai"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => handleCitySwitch(c)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    modalCity === c
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/10 text-neutral-400 hover:bg-white/20 hover:text-white"
+                  }`}
+                >
+                  {c === "manila" ? "Manila" : "Dubai"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className={T_LABEL + " mb-1 block"}>Staff Name *</label>
             <SelectDark

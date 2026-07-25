@@ -460,6 +460,7 @@ function AddModal({
   onClose: () => void;
   onCreated: (record: OnboardingRecord) => void;
 }) {
+  const [modalCity, setModalCity] = useState(city);
   const [form, setForm] = useState({
     staff_name: "",
     branch: "",
@@ -474,13 +475,18 @@ function AddModal({
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${modalCity}&status=ACTIVE&limit=5000`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => r.json())
       .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))
       .catch(() => {});
-  }, [accessToken, city]);
+  }, [accessToken, modalCity]);
+
+  const handleCitySwitch = (c: string) => {
+    setModalCity(c);
+    setForm((prev) => ({ ...prev, staff_name: "", branch: "", position: "" }));
+  };
 
   const handleStaffSelect = async (name: string) => {
     setForm((prev) => ({ ...prev, staff_name: name }));
@@ -488,7 +494,7 @@ function AddModal({
     setInfoLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/staff_master/info?name=${encodeURIComponent(name)}&city=${city}`,
+        `${API_BASE}/api/admin/staff_master/info?name=${encodeURIComponent(name)}&city=${modalCity}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (res.ok) {
@@ -523,7 +529,7 @@ function AddModal({
         },
         body: JSON.stringify({
           staff_name: form.staff_name.trim(),
-          city,
+          city: modalCity,
           branch: form.branch.trim(),
           position: form.position.trim(),
           start_date: form.start_date || null,
@@ -583,6 +589,26 @@ function AddModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* City toggle */}
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>City</label>
+            <div className="flex gap-2">
+              {["manila", "dubai"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => handleCitySwitch(c)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    modalCity === c
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/10 text-neutral-400 hover:bg-white/20 hover:text-white"
+                  }`}
+                >
+                  {c === "manila" ? "Manila" : "Dubai"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className={`${T_LABEL} block mb-1`}>Staff Name *</label>
             <SelectDark
