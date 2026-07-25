@@ -692,7 +692,7 @@ export default function AssetsPage() {
                   <tr><td colSpan={8} className="py-8 text-center text-white/30">Loading...</td></tr>
                 )}
                 {!loading && assets.length === 0 && (
-                  <tr><td colSpan={8} className="py-8 text-center text-white/30">No assets found. Click "Register Asset" to add one.</td></tr>
+                  <tr><td colSpan={8} className="py-8 text-center text-white/30">No assets found. Click &ldquo;Register Asset&rdquo; to add one.</td></tr>
                 )}
                 {assets.map(asset => (
                   <AssetRow key={asset.id} asset={asset} auth={auth} staffList={staffList} onUpdated={updated => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))} />
