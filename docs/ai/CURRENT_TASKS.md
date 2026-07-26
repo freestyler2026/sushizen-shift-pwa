@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 172 — Staff Rank System Phase A: L0-L10 management UI)
+Last updated: 2026-07-27 (session 172 — Prep Time hourly history + Phase C draft integration)
 
 
 
@@ -46,10 +46,34 @@ Last updated: 2026-07-27 (session 172 — Staff Rank System Phase A: L0-L10 mana
 - L5: Commis Chef | L6: Senior Commis/Asst. PIC | L7: PIC/Store Manager
 - L8: Multi-Unit Manager | L9: Area Manager | L10: PH Ops Head / GM
 
+**Phase C + Hourly History DEPLOYED ✅ Heroku + Vercel (session 172 continued):**
+- `prep_time_hourly` table: stores city/branch/work_date/hour_of_day aggregates permanently
+- `aggregate_prep_time_hourly()`: reads prep_time_records, extracts hour from ordered_at_str, upserts
+- `get_prep_time_boost_by_dow_hour()`: returns avg prep by (sql_dow, hour) for Phase C planner
+- `POST /api/admin/prep-time/aggregate-hourly` — saves hourly snapshots (HQ/ADMIN)
+- `GET /api/admin/prep-time/hourly` — reads saved hourly rows
+- Phase C in planner: `_load_prep_time_boost()` → avg≥25m adds +1, avg≥35m adds +2 to required_by_hour
+- Summary fields: `prep_boost_hours_covered` + `prep_adjustments_total`
+- UI: Hourly Pattern table (real-time from records), Save to History button, DOW×hour heatmap
+
+**Bug fixes (session 172 continued — PENDING DEPLOY):**
+- Bug 1 (db.py): `get_prep_time_boost_by_dow_hour` interval fix: `%s * INTERVAL '1 day'` (was `||` text concat)
+- Bug 2 (db.py): `bulk_confirm_prep_time_records` param order: `[confirmed_by] + params` (was appended)
+- Bug 3 (db.py): `SUBSTRING(ordered_at_str, '^[0-9]{1,2}:[0-9]{2}')::TIME` to avoid invalid cast crashes
+- Bug 4 (frontend PrepTimeTab.tsx): `branchCity` state tracks city of selected branch; fixes Dubai hourly data fetch with `cityFilter=""`
+- Bug 5 (draft_demand_planner.py): `_load_prep_time_boost` logs failures instead of silent pass
+
+**Phase B DEPLOYED ✅ Heroku v1545 (session 172 continued):**
+- `draft_demand_planner.py`: loads rank_level from DB after reliability enrichment
+- Profiles enriched with `rank_level` and `rank_role` (e.g. L7→"PIC")
+- `draft_rows`: `role` overridden with rank-derived role when rank is set; `rank_level` field added
+- `_ensure_opening_crew`: prefers L5+ staff for opener slots (rank_map param)
+- PIC warnings: list of dates with no L7+ scheduled (when any L7+ exists in branch)
+- Return value extended: `rank_summary` (all ranked staff) + `pic_warnings` (date strings)
+
 **Next steps for this feature:**
-- Phase B: Rank-aware draft planner (L7 PIC required, L5+ at peak hours, role auto-assign)
 - Phase C: Efficiency learning from attendance + hourly sales + prep_time_records
-- After deploy: run "Resync System Channels" in Role Management
+- After Phase A deploy: run "Resync System Channels" in Role Management (still pending if not done)
 
 ---
 

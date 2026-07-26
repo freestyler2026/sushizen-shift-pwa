@@ -111,6 +111,7 @@ const monthStart = () => {
 export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
   const [branchFilter, setBranchFilter] = useState("");
+  const [branchCity, setBranchCity] = useState("");
   const [dateFrom, setDateFrom] = useState(monthStart());
   const [dateTo, setDateTo] = useState(today());
 
@@ -161,7 +162,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const loadHourlyHistory = useCallback(async () => {
     if (!branchFilter) { setHourlyRows([]); return; }
     const p = new URLSearchParams({
-      city: cityFilter || "manila",
+      city: branchCity || cityFilter || "manila",
       branch_code: branchFilter,
       date_from: dateFrom,
       date_to: dateTo,
@@ -172,7 +173,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     } catch {
       setHourlyRows([]);
     }
-  }, [branchFilter, cityFilter, dateFrom, dateTo]);
+  }, [branchFilter, branchCity, cityFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     loadDashboard();
@@ -275,7 +276,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     setHourlyMsg(null);
     try {
       const p = new URLSearchParams({
-        city: cityFilter || "manila",
+        city: branchCity || cityFilter || "manila",
         branch_code: branchFilter,
         date_from: dateFrom,
         date_to: dateTo,
@@ -355,7 +356,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
           <label className="text-xs text-white/50">City</label>
           <select
             value={cityFilter}
-            onChange={(e) => { setCityFilter(e.target.value as "" | "dubai" | "manila"); setBranchFilter(""); }}
+            onChange={(e) => { setCityFilter(e.target.value as "" | "dubai" | "manila"); setBranchFilter(""); setBranchCity(""); }}
             className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white"
           >
             <option value="">All Cities</option>
@@ -367,7 +368,12 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
           <label className="text-xs text-white/50">Store</label>
           <select
             value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
+            onChange={(e) => {
+              const code = e.target.value;
+              setBranchFilter(code);
+              const found = stats.find(s => s.branch_code === code);
+              setBranchCity(found ? found.city : "");
+            }}
             className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white"
           >
             <option value="">All Stores</option>
@@ -421,7 +427,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
             <h3 className="text-sm font-semibold text-white/80">Store Summary</h3>
             {branchFilter && (
               <button
-                onClick={() => setBranchFilter("")}
+                onClick={() => { setBranchFilter(""); setBranchCity(""); }}
                 className="text-xs px-2 py-0.5 rounded-full bg-sky-600/50 text-sky-200 hover:bg-sky-500/50 transition-colors"
               >
                 {branchFilter} ✕
@@ -450,7 +456,10 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
                 return (
                   <tr
                     key={`${s.city}-${s.branch_code}`}
-                    onClick={() => setBranchFilter(isSelected ? "" : s.branch_code)}
+                    onClick={() => {
+                      if (isSelected) { setBranchFilter(""); setBranchCity(""); }
+                      else { setBranchFilter(s.branch_code); setBranchCity(s.city); }
+                    }}
                     className={`border-b border-white/5 cursor-pointer transition-colors ${isSelected ? "bg-sky-900/40" : "hover:bg-white/5"}`}
                   >
                     <td className="py-2 pr-4 font-medium text-white">{s.branch_code || s.store_code}</td>
