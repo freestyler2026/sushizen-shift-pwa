@@ -313,6 +313,12 @@ export default function NavBar() {
   const [inboxBadge, setInboxBadge] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
   const [nteBadge, setNteBadge] = useState(0);
+  const [pettyCashBadge, setPettyCashBadge] = useState(0);
+  const [expenseBadge, setExpenseBadge] = useState(0);
+  const [transportBadge, setTransportBadge] = useState(0);
+  const [spotPurchaseBadge, setSpotPurchaseBadge] = useState(0);
+  const [nteCasesBadge, setNteCasesBadge] = useState(0);
+  const [supplierBadge, setSupplierBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -719,6 +725,102 @@ export default function NavBar() {
       } catch {
         // badge is optional — ignore
       }
+
+      // Petty Cash PENDING badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(roleB)) {
+          const res = await fetch(`/api/admin/petty-cash/badge?city=manila`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setPettyCashBadge(Number(j?.badge_count || 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // Expense Requests PENDING badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT", "HR_MANAGER"].includes(roleB)) {
+          const res = await fetch(`/api/admin/expense-requests/pending-count`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setExpenseBadge(Number(j?.count || 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // Transport Expense PENDING badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(roleB)) {
+          const res = await fetch(`/api/admin/transport/badge?city=manila`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setTransportBadge(Number(j?.badge_count || 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // Spot Purchase PENDING badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(roleB)) {
+          const res = await fetch(`/api/admin/spot-purchase/pending-count`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setSpotPurchaseBadge(Number(j?.count || 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // NTE (Notice to Explain) ACTIVE cases badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(roleB)) {
+          const res = await fetch(`/api/admin/conduct/badge?city=manila`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setNteCasesBadge(Number(j?.badge_count || 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // Supplier Confirmations pending badge (non-blocking)
+      try {
+        const authB = resolved || a;
+        const roleB = String(authB?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "MANILA_MANAGEMENT"].includes(roleB)) {
+          const res = await fetch(`/api/admin/supplier-confirmations/badge?city=manila`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authB?.accessToken}` },
+          });
+          if (res.ok) {
+            const j = await res.json();
+            if (!cancelled) setSupplierBadge(Number(j?.badge_count || 0));
+          }
+        }
+      } catch { /* optional */ }
     }
 
     void loadAuth();
@@ -795,9 +897,21 @@ export default function NavBar() {
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item.href === "/admin/overtime"
             ? { ...item, badgeCount: otBadge, badgeWarning: otBadge > 0 }
+          : item.href === "/admin/petty-cash"
+            ? { ...item, badgeCount: pettyCashBadge, badgeYellow: pettyCashBadge > 0 }
+          : item.href === "/admin/expense-requests"
+            ? { ...item, badgeCount: expenseBadge, badgeYellow: expenseBadge > 0 }
+          : item.href === "/admin/transport-expense"
+            ? { ...item, badgeCount: transportBadge, badgeYellow: transportBadge > 0 }
+          : item.href === "/admin/spot-purchase"
+            ? { ...item, badgeCount: spotPurchaseBadge, badgeYellow: spotPurchaseBadge > 0 }
+          : item.href === "/admin/employee-cases"
+            ? { ...item, badgeCount: nteCasesBadge, badgeWarning: nteCasesBadge > 0 }
+          : item.href === "/admin/supplier-confirmations"
+            ? { ...item, badgeCount: supplierBadge, badgeYellow: supplierBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
