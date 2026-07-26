@@ -681,7 +681,9 @@ function PayslipDetail({
     }
   }
 
-  const earnings      = items.filter(i => i.item_type === "earning"      && i.amount > 0);
+  // 13TH_MONTH_ACCRUAL is a reference-only line (paid Dec 2H) — excluded from
+  // displayed earnings so it doesn't inflate the visible Gross Pay figure.
+  const earnings      = items.filter(i => i.item_type === "earning" && i.amount > 0 && i.item_code !== "13TH_MONTH_ACCRUAL");
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
 
