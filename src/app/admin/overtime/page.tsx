@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Clock, CheckCircle, XCircle, AlertCircle, Download } from "lucide-react";
-import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -69,6 +69,14 @@ export default function AdminOvertimePage() {
   const city = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const branches = BRANCHES[city] ?? BRANCHES.dubai;
 
+  const tokenHeaders = useCallback(async () => {
+    const freshAuth = getAuth();
+    const refreshed = await refreshAuthFromApi(freshAuth);
+    const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
+    if (!accessToken) throw new Error("Please log in again.");
+    return { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  }, []);
+
   // Filters
   const [filterBranch, setFilterBranch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -90,38 +98,39 @@ export default function AdminOvertimePage() {
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
-    if (!auth) return;
     setLoading(true);
     setError("");
     try {
+      const headers = await tokenHeaders();
       const params = new URLSearchParams({ city, limit: "200" });
       if (filterBranch) params.set("branch_code", filterBranch);
       if (filterStatus) params.set("status", filterStatus);
       if (filterMonth) params.set("month", filterMonth);
       const res = await fetch(`${apiBase}/api/admin/overtime/list?${params}`, {
-        headers: new Headers(getAuthHeaders(auth)),
+        headers: new Headers(headers),
         cache: "no-store",
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
       setRequests(data.requests ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
       setLoading(false);
     }
-  }, [auth, apiBase, city, filterBranch, filterStatus, filterMonth]);
+  }, [tokenHeaders, apiBase, city, filterBranch, filterStatus, filterMonth]);
 
   useEffect(() => { load(); }, [load]);
 
   async function submitReview() {
-    if (!reviewing || !auth) return;
+    if (!reviewing) return;
     setReviewSubmitting(true);
     setReviewError("");
     try {
+      const headers = await tokenHeaders();
       const res = await fetch(`${apiBase}/api/admin/overtime/${reviewing.id}/review`, {
         method: "PATCH",
-        headers: new Headers({ ...getAuthHeaders(auth), "Content-Type": "application/json" }),
+        headers: new Headers(headers),
         body: JSON.stringify({ status: reviewStatus, review_note: reviewNote }),
       });
       const data = await res.json();
@@ -137,12 +146,12 @@ export default function AdminOvertimePage() {
   }
 
   async function handleExport() {
-    if (!auth) return;
     setExporting(true);
     try {
+      const headers = await tokenHeaders();
       const params = new URLSearchParams({ city, month: filterMonth });
       const res = await fetch(`${apiBase}/api/admin/overtime/export?${params}`, {
-        headers: new Headers(getAuthHeaders(auth)),
+        headers: new Headers(headers),
         cache: "no-store",
       });
       const data = await res.json();
@@ -265,7 +274,7 @@ export default function AdminOvertimePage() {
           )}
           {loading ? (
             <p className={`${T_CAPTION} p-6`}>Loading…</p>
-          ) : requests.length === 0 ? (
+          ) : error ? null : requests.length === 0 ? (
             <p className={`${T_CAPTION} p-6`}>No overtime requests found.</p>
           ) : (
             <>

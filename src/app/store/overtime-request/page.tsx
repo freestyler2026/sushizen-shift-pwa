@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD,
@@ -87,43 +87,56 @@ export default function OvertimeRequestPage() {
   // History
   const [requests, setRequests] = useState<OTRequest[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState("");
 
   const otMinutes = calcMinutes(hourFromTime(otStart), hourFromTime(otEnd));
 
+  const tokenHeaders = useCallback(async () => {
+    const freshAuth = getAuth();
+    const refreshed = await refreshAuthFromApi(freshAuth);
+    const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
+    if (!accessToken) throw new Error("Please log in again.");
+    return { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  }, []);
+
+  // loadHistory does NOT depend on auth state — uses getAuth() inline to avoid infinite re-render loop
   const loadHistory = useCallback(async () => {
-    if (!auth) return;
+    const currentAuth = getAuth();
+    if (!currentAuth?.staffName) return;
     setLoadingHistory(true);
+    setHistoryError("");
     try {
+      const headers = await tokenHeaders();
       const res = await fetch(`${apiBase}/api/store/overtime/my-requests`, {
-        headers: new Headers(getAuthHeaders(auth)),
+        headers: new Headers(headers),
         cache: "no-store",
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRequests(data.requests ?? []);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || `Error ${res.status}`);
+      setRequests(data.requests ?? []);
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : "Failed to load history");
     } finally {
       setLoadingHistory(false);
     }
-  }, [auth, apiBase]);
+  }, [apiBase, tokenHeaders]);
 
   useEffect(() => {
-    refreshAuthFromApi().then((a) => { if (a) setAuth(a); });
-    loadHistory();
+    void loadHistory();
   }, [loadHistory]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!auth) return;
     setSubmitError("");
     setSubmitSuccess("");
     if (otMinutes <= 0) { setSubmitError("OT end time must be after start time."); return; }
     if (reason.trim().length < 5) { setSubmitError("Please enter a reason (at least 5 characters)."); return; }
     setSubmitting(true);
     try {
+      const headers = await tokenHeaders();
       const res = await fetch(`${apiBase}/api/store/overtime/request`, {
         method: "POST",
-        headers: new Headers({ ...getAuthHeaders(auth), "Content-Type": "application/json" }),
+        headers: new Headers(headers),
         body: JSON.stringify({
           branch_code: branchCode,
           work_date: workDate,
@@ -145,7 +158,7 @@ export default function OvertimeRequestPage() {
     }
   }
 
-  if (!auth) {
+  if (!auth?.staffName) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-white/60">Please log in to submit an overtime request.</p>
@@ -290,9 +303,14 @@ export default function OvertimeRequestPage() {
         {/* History */}
         <div className={`${GLASS_CARD} p-4 sm:p-6`}>
           <h2 className={`${T_SECTION} mb-4`}>My OT Requests</h2>
+          {historyError && (
+            <div className="flex items-center gap-2 mb-3 rounded-lg bg-red-900/30 border border-red-500/30 p-3 text-sm text-red-300">
+              <AlertCircle className="h-4 w-4 shrink-0" />{historyError}
+            </div>
+          )}
           {loadingHistory ? (
             <p className={T_CAPTION}>Loading…</p>
-          ) : requests.length === 0 ? (
+          ) : historyError ? null : requests.length === 0 ? (
             <p className={T_CAPTION}>No overtime requests yet.</p>
           ) : (
             <>
