@@ -259,21 +259,34 @@ export default function PettyCashPage() {
   // My requests
   const [myRequests, setMyRequests]     = useState<PettyCashRequest[]>([]);
   const [loadingList, setLoadingList]   = useState(false);
+  const [listError, setListError]       = useState<string | null>(null);
+
+  // Use a ref so loadMyRequests stays stable (no excessive re-fetches while typing)
+  const staffNameRef = useRef(staffName);
+  staffNameRef.current = staffName;
 
   const loadMyRequests = useCallback(async () => {
-    if (!staffName.trim()) return;
+    const name = staffNameRef.current.trim();
+    if (!name) return;
     setLoadingList(true);
+    setListError(null);
     try {
       const r = await fetch(
-        `/api/store/petty-cash/my-requests?city=manila&requested_by=${encodeURIComponent(staffName.trim())}`,
+        `/api/store/petty-cash/my-requests?city=manila&requested_by=${encodeURIComponent(name)}`,
         { headers: getAuthHeaders(), cache: "no-store" }
       );
       const d = await r.json();
-      if (r.ok) setMyRequests(d.requests ?? []);
+      if (r.ok) {
+        setMyRequests(d.requests ?? []);
+      } else {
+        setListError(d.detail || "Failed to load requests");
+      }
+    } catch {
+      setListError("Network error. Please refresh.");
     } finally {
       setLoadingList(false);
     }
-  }, [staffName]);
+  }, []); // stable — reads staffName via ref
 
   useEffect(() => { loadMyRequests(); }, [loadMyRequests]);
 
@@ -302,7 +315,10 @@ export default function PettyCashPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Request failed");
-      setSubmitMsg({ ok: true, text: "Request submitted! Waiting for approval." });
+      const text = d.warning
+        ? `Request submitted, but photo upload failed: ${d.warning}`
+        : "Request submitted! Waiting for approval.";
+      setSubmitMsg({ ok: !d.warning, text });
       setAmount(""); setPurpose(""); setFile(null);
       if (fileRef.current) fileRef.current.value = "";
       loadMyRequests();
@@ -449,7 +465,10 @@ export default function PettyCashPage() {
               <RefreshCw size={18} className="animate-spin text-white/30" />
             </div>
           )}
-          {!loadingList && myRequests.length === 0 && (
+          {listError && !loadingList && (
+            <p className="text-center text-sm text-red-400 py-4">{listError}</p>
+          )}
+          {!loadingList && !listError && myRequests.length === 0 && (
             <p className="text-center text-sm text-white/30 py-6">No requests yet.</p>
           )}
           <div className="space-y-3">
