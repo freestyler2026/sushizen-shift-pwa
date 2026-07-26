@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 169 — Avg Daily Orders denominator fix)
+Last updated: 2026-07-26 (session 169 — Dubai Evaluation KPI fixes)
 
 
 
@@ -8,6 +8,32 @@ Last updated: 2026-07-26 (session 169 — Avg Daily Orders denominator fix)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 169 — Dubai Evaluation KPI fixes)
+
+### Dubai Evaluation: City Operation Time Average text overflow fixed (DEPLOYED ✅ Frontend 0dfdae8)
+
+**Problem:** At `2xl` breakpoint (1536px+), the KPI grid switches to 8 columns, making each card narrow (~108px content width). The value span "15.3 min" at `text-2xl` (24px) overflowed its container frame.
+
+**Fix (`src/app/admin/analytics/page.tsx` — `EvaluationKpiCard` component):**
+- Added `overflow-hidden` to the value container `<div>` as a safety clip
+- Added `2xl:text-xl` to the value `<span>` to reduce font size at 8-column layout (from 24px to 20px), preventing overflow without clipping
+
+---
+
+### Dubai Evaluation: Food Cost Average "—" — warning added (DEPLOYED ✅ Backend Heroku)
+
+**Problem:** Food Cost Average shows "—" for Dubai because `_pick_store_pl_facts` returns `{}` when the P&L `facts` dict has no `__stores__` key. `__stores__` is only added by `parse_facts_from_grid` when per-store column headers are detected (Dubai: `max_search_col = 12` — if Total column is at index >12, per-store detection fails silently). Also, cross-month date range selection crashed the entire evaluation via unguarded `ValueError` from `month_key_from_date_range`.
+
+**What was NOT fixed (root cause remains):** The `__stores__` detection failure in `parse_facts_from_grid` requires re-syncing the P&L from Google Sheet after confirming the spreadsheet has per-store column headers within col 12. The actual per-store data must be in the imported P&L.
+
+**Fix (`app/services/evaluation_channel.py` — `build_evaluation_snapshot`):**
+- Wrapped `_get_food_cost_snapshot` call in try/except ValueError (cross-month crash fix) and generic Exception
+- After empty result, checks whether P&L row exists → emits actionable warning:
+  - "P&L found but no per-store breakdown" → tells admin to re-sync Finance sheet
+  - "No P&L found" → tells admin to import via Finance tab
 
 ---
 
