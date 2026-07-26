@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 167 — Payroll Inquiries feature)
+Last updated: 2026-07-26 (session 168 — Petty Cash bug fixes)
 
 
 
@@ -8,6 +8,41 @@ Last updated: 2026-07-26 (session 167 — Payroll Inquiries feature)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 168 — Petty Cash bug audit & fixes)
+
+### Petty Cash — Security + UX bug fixes (DEPLOYED ✅ Frontend 9bd999c, Backend 9acfa73)
+
+**Bugs found and fixed:**
+
+1. **Security — Missing auth on 3 store endpoints (backend `petty_cash_api.py`):**
+   - `POST /api/store/petty-cash/request` — added `_require_auth(request)`
+   - `POST /api/store/petty-cash/{id}/photo` — added `_require_auth(request)`
+   - `GET /api/store/petty-cash/my-requests` — added `_require_auth(request)`
+   - Without these, any unauthenticated caller could submit requests or read request lists.
+
+2. **DB — `photo_url` stored as `""` instead of `NULL` (backend `db_petty_cash.py`):**
+   - `create_petty_cash_request` had `photo_url: str = ""` default, inserting `""` when no photo provided.
+   - Fixed to `photo_url: Optional[str] = None` and `photo_url or None` in the INSERT — now stores proper SQL NULL.
+
+3. **UX — Silent failure in `loadMyRequests` (frontend `store/petty-cash/page.tsx`):**
+   - HTTP errors (401 expired token, 500) showed "No requests yet." with no feedback.
+   - Added `listError` state + try/catch + `r.ok` check — now shows a red error message.
+
+4. **UX — Drive upload warning ignored (frontend):**
+   - Server returns `{ ok: true, request: {...}, warning: "..." }` when Drive upload fails after request creation.
+   - Frontend ignored `d.warning` and always showed success. Now shows warning message in amber.
+
+5. **UX — Excessive API calls on staffName keystroke (frontend):**
+   - `loadMyRequests` was in `useCallback([staffName])`, causing a re-fetch on every character typed in Name field.
+   - Fixed using `staffNameRef` — callback is now stable (empty deps), reads staffName via ref on demand.
+
+**Files changed:**
+- `sushizen_shift_app_clean/app/petty_cash_api.py` — 3 auth guards added
+- `sushizen_shift_app_clean/app/db_petty_cash.py` — `photo_url` type + NULL fix
+- `src/app/store/petty-cash/page.tsx` — `listError` state, warning display, `staffNameRef` pattern
 
 ---
 
