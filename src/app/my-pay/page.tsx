@@ -460,6 +460,16 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
 
 // ─── Payslip Detail Modal ─────────────────────────────────────────────────────
 
+interface ManilaPayslipItem {
+  item_code: string;
+  item_type: string;
+  label: string;
+  quantity: number | null;
+  unit_rate: number | null;
+  amount: number;
+  note: string | null;
+}
+
 function PayslipModal({
   slip,
   stepUpToken,
@@ -473,7 +483,10 @@ function PayslipModal({
   const isManila = slip.city?.toLowerCase() === "manila" || slip.currency === "PHP";
   const [items, setItems] = useState<PayslipItem[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
+  const [manilaItems, setManilaItems] = useState<ManilaPayslipItem[]>([]);
+  const [manilaDetailLoading, setManilaDetailLoading] = useState(false);
 
+  // Dubai payslip detail
   useEffect(() => {
     if (!slip.cycle_id || slip.city?.toLowerCase() === "manila") {
       setDetailLoading(false);
@@ -491,8 +504,36 @@ function PayslipModal({
       .finally(() => setDetailLoading(false));
   }, [slip.cycle_id, slip.city, stepUpToken]);
 
+  // Manila payslip detail — fetches individual line items using run_id
+  useEffect(() => {
+    if (!isManila || !slip.id) return;
+    setManilaDetailLoading(true);
+    const auth = getAuth();
+    const headers = {
+      ...(getAuthHeaders(auth) as Record<string, string>),
+      "X-Step-Up-Token": stepUpToken,
+    };
+    fetch(`${API_BASE}/api/admin/payroll/my-pay/manila-payslip-detail?run_id=${slip.id}`, { headers })
+      .then((r) => r.json())
+      .then((d) => setManilaItems((d as { items?: ManilaPayslipItem[] }).items ?? []))
+      .catch(() => {})
+      .finally(() => setManilaDetailLoading(false));
+  }, [slip.id, isManila, stepUpToken]);
+
   const additions = items.filter((i) => i.adj_type === "addition");
   const deductions = items.filter((i) => i.adj_type === "deduction");
+
+  // Manila breakdown derived from individual items
+  const manilaBasicItem = manilaItems.find(i => i.item_code === "BASIC_SALARY_HALF");
+  const manilaEarnings = manilaItems.filter(i =>
+    i.item_type === "earning" &&
+    i.item_code !== "BASIC_SALARY_HALF" &&
+    i.item_code !== "13TH_MONTH_ACCRUAL"
+  );
+  const manilaDeductions = manilaItems.filter(i => i.item_type === "deduction");
+  const manilaHasDetail = manilaItems.length > 0;
+  const manilaBasicAmount = manilaBasicItem?.amount ?? slip.basic_salary;
+  const manilaNetAdditions = manilaEarnings.reduce((s, i) => s + i.amount, 0);
 
   return (
     <>
@@ -579,21 +620,40 @@ function PayslipModal({
               <div className="flex justify-between items-center py-2.5 border-b border-slate-100">
                 <div>
                   <span className="text-sm font-semibold text-slate-700">Basic Salary</span>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Monthly contracted salary</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {isManila && manilaHasDetail ? "Half-month contracted salary" : "Monthly contracted salary"}
+                  </p>
                 </div>
-                <span className="text-sm font-bold text-slate-900 tabular-nums">{fmt(slip.basic_salary, slip.currency)}</span>
+                <span className="text-sm font-bold text-slate-900 tabular-nums">
+                  {fmt(isManila && manilaHasDetail ? manilaBasicAmount : slip.basic_salary, slip.currency)}
+                </span>
               </div>
 
-              {/* Additions */}
-              {(slip.net_additions > 0 || additions.length > 0) && (
+              {/* Additions — Manila shows individual earning items; Dubai shows adjustment items */}
+              {(isManila
+                ? (manilaDetailLoading || manilaEarnings.length > 0)
+                : (slip.net_additions > 0 || additions.length > 0)
+              ) && (
                 <>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 pt-3 mb-1">
                     + Additions & Allowances
                   </p>
-                  {detailLoading ? (
+                  {(isManila ? manilaDetailLoading : detailLoading) ? (
                     <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
                       <Loader2 className="h-3 w-3 animate-spin" />Loading breakdown…
                     </div>
+                  ) : isManila ? (
+                    manilaEarnings.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-slate-600">{item.label}</span>
+                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                        </div>
+                        <span className={`text-sm font-medium tabular-nums ml-4 ${item.amount > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                          {item.amount > 0 ? "+" : ""}{fmt(item.amount, slip.currency)}
+                        </span>
+                      </div>
+                    ))
                   ) : additions.length > 0 ? (
                     additions.map((item, i) => (
                       <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
@@ -626,16 +686,31 @@ function PayslipModal({
                 <span className="text-sm font-bold text-slate-900 tabular-nums">{fmt(slip.gross_pay, slip.currency)}</span>
               </div>
 
-              {/* Deductions */}
-              {(slip.net_deductions > 0 || deductions.length > 0) && (
+              {/* Deductions — Manila shows individual deduction items; Dubai shows adjustment items */}
+              {(isManila
+                ? (manilaDetailLoading || manilaDeductions.length > 0)
+                : (slip.net_deductions > 0 || deductions.length > 0)
+              ) && (
                 <>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500 pt-3 mb-1">
                     − Deductions
                   </p>
-                  {detailLoading ? (
+                  {(isManila ? manilaDetailLoading : detailLoading) ? (
                     <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
                       <Loader2 className="h-3 w-3 animate-spin" />Loading breakdown…
                     </div>
+                  ) : isManila ? (
+                    manilaDeductions.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-slate-600">{item.label}</span>
+                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                        </div>
+                        <span className={`text-sm font-medium tabular-nums ml-4 ${item.amount !== 0 ? "text-red-500" : "text-slate-400"}`}>
+                          {item.amount !== 0 ? "−" : ""}{fmt(Math.abs(item.amount), slip.currency)}
+                        </span>
+                      </div>
+                    ))
                   ) : deductions.length > 0 ? (
                     deductions.map((item, i) => (
                       <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
@@ -660,10 +735,17 @@ function PayslipModal({
               )}
 
               {/* Formula summary line */}
-              {(slip.net_additions > 0 || slip.net_deductions > 0) && (
+              {(isManila
+                ? (manilaHasDetail && (manilaNetAdditions > 0 || slip.net_deductions > 0))
+                : (slip.net_additions > 0 || slip.net_deductions > 0)
+              ) && (
                 <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-500 font-mono text-center">
-                  {fmt(slip.basic_salary, slip.currency)}
-                  {slip.net_additions > 0 && <> + {fmt(slip.net_additions, slip.currency)}</>}
+                  {fmt(isManila && manilaHasDetail ? manilaBasicAmount : slip.basic_salary, slip.currency)}
+                  {isManila && manilaHasDetail ? (
+                    manilaNetAdditions > 0 && <> + {fmt(manilaNetAdditions, slip.currency)}</>
+                  ) : (
+                    slip.net_additions > 0 && <> + {fmt(slip.net_additions, slip.currency)}</>
+                  )}
                   {slip.net_deductions > 0 && <> − {fmt(slip.net_deductions, slip.currency)}</>}
                   {" "}<span className="font-bold text-slate-700">= {fmt(slip.net_pay, slip.currency)}</span>
                 </div>
