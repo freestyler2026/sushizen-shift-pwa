@@ -641,6 +641,7 @@ function PayslipDetail({
   onClose,
   onRecomputed,
   period,
+  profileMonthlyRate,
 }: {
   run: Run;
   items: PayrollItem[];
@@ -652,6 +653,7 @@ function PayslipDetail({
   onClose: () => void;
   onRecomputed: () => void;
   period: Period | null;
+  profileMonthlyRate?: number | null;
 }) {
   const [showDTR, setShowDTR]     = useState(false);
   const [showAdj, setShowAdj]     = useState(false);
@@ -793,6 +795,14 @@ function PayslipDetail({
             </button>
           </div>
         </div>
+
+        {profileMonthlyRate != null && run.monthly_rate != null &&
+         Math.abs(profileMonthlyRate - run.monthly_rate) > 1 && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-900/20 px-3 py-2 text-xs text-orange-300">
+            <AlertTriangle size={12} />
+            Salary mismatch: this run used ₱{run.monthly_rate.toLocaleString("en-PH")} but the Staff Profile now shows ₱{profileMonthlyRate.toLocaleString("en-PH")}. Click &quot;Compute All&quot; to recompute with the updated rate.
+          </div>
+        )}
 
         {run.minimum_wage_compliant === false && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
@@ -1492,7 +1502,7 @@ export default function ManilaPayrollPeriodPage() {
                     {sortedRuns.map(run => (
                       <tr
                         key={run.id}
-                        onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
+                        onClick={() => setSelectedRun(run)}
                         className={`cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
                           selectedRun?.id === run.id ? "bg-violet-900/20 border-l-2 border-l-violet-500" : "border-l-2 border-l-transparent"
                         }`}
@@ -1566,6 +1576,11 @@ export default function ManilaPayrollPeriodPage() {
                 onClose={() => setSelectedRun(null)}
                 onRecomputed={handleRecomputed}
                 period={period}
+                profileMonthlyRate={
+                  profiles.size > 0
+                    ? (Number(profiles.get(selectedRun.staff_name)?.monthly_rate) || null)
+                    : null
+                }
               />
             )}
           </div>
