@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 170 — Evaluation Dubai/Manila CK rename + Cubao visibility)
+Last updated: 2026-07-27 (session 171 — Manila Draft XLSX Phase 2: Editable Excel + Import)
 
 
 
@@ -8,6 +8,91 @@ Last updated: 2026-07-26 (session 170 — Evaluation Dubai/Manila CK rename + Cu
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-27 session 171 — Manila Draft XLSX Phase 2)
+
+### Draft: Editable Excel Export + Import (DEPLOYED ✅ Frontend + Backend Heroku)
+
+**User request:** Draft Excel export with dropdown selections for Staff Name, Role, Start/End Time. Staff edits Excel; import back updates draft rows.
+
+**Backend — new service `app/services/draft_xlsx_service.py`:**
+- `generate_draft_xlsx()`: openpyxl Excel with DataValidation dropdowns (Staff, Time, Role). Hidden Ref sheet holds lists. Embeds `version_id:xxx` metadata row for import validation. Overnight shifts shown as `HH:MM(+1)`.
+- `parse_draft_xlsx()`: reads Shifts sheet, auto-fixes overnight (end < start → +24h), extracts metadata.
+- `compute_draft_diff()`: diff current DB rows vs parsed rows (added/removed/modified/unchanged).
+
+**Backend — new DB functions in `db.py`:**
+- `fetch_draft_version_info(version_id)` — city, branch_code, week_start
+- `fetch_distinct_staff_for_city(city)` — from `base_shift_normalized`
+- `fetch_distinct_roles_for_city(city)` — from `base_shift_normalized`
+- `replace_draft_rows(version_id, new_rows)` — atomic delete+insert for xlsx apply
+
+**Backend — new endpoints in `main.py` (HQ/ADMIN, Bearer token):**
+- `GET /api/admin/draft/export-xlsx?version_id=xxx` → streaming xlsx download
+- `POST /api/admin/draft/import-xlsx/preview?version_id=xxx` (multipart) → diff preview
+- `POST /api/admin/draft/import-xlsx/apply` (JSON) → replaces draft rows
+
+**Frontend — `src/app/admin/draft/page.tsx`:**
+- Export toolbar: added "Download Editable Excel" (violet) + "Upload Adjusted Excel" (amber) buttons
+- Import preview modal: diff summary (added/removed/modified/unchanged) + sample rows + Apply button
+- Apply button calls import-xlsx/apply, refreshes `rows` state in-place
+
+---
+
+## Recently Completed (2026-07-26 session 170 cont. — My Pay Role Management)
+
+### My Pay: Role Management configured + MANILA_STAFF access granted (Local ✅ — no code change)
+
+**Task:** Enable My Pay channel access for staff roles so staff members can see the My Pay link in the NavBar and view their own payslips.
+
+**API used:** `PUT /api/admin/access/channels/my_pay/role-matrix`
+
+**Findings from GET role-matrix:**
+- STAFF (Dubai Staff) — already assigned ✅ (was there before, session summary had slight inaccuracy)
+- MANILA_STAFF (custom role) — NOT assigned ❌ → fixed, now assigned ✅
+- All system management roles (ADMIN, HQ, HR_MANAGER, MANAGEMENT, MANAGER, DUBAI_MANAGEMENT, MANILA_MANAGEMENT) — already assigned
+
+**Security verified:**
+- My Pay page requires step-up authentication (passkey or PIN) before displaying any data
+- Backend `_user_auth_check` allows any authenticated user, but `_require_payroll_step_up` validates the step-up token is tied to the exact same `staff_name`
+- `get_my_manila_payslip_detail` SQL checks: `r.staff_name = %s AND r.published_at IS NOT NULL` — staff can only see published payslips for their own name
+- City is set from `auth.city` in the frontend — Manila staff see Manila payslips; Dubai staff see Dubai payslips
+
+**Result:** STAFF can see My Pay in NavBar (both Dubai and Manila since the nav respects role+permissions). MANILA_STAFF custom role users now also see My Pay.
+
+---
+
+## Recently Completed (2026-07-26 session 170 — Manila payroll fixes + My Pay individual line items)
+
+### My Pay: Manila payslip individual line item breakdown (DEPLOYED ✅ Backend Heroku + Frontend Vercel)
+
+**Problem:** Manila payslips in My Pay showed only summary figures (Gross Pay lump sum, Total Deductions lump sum). Staff could not see individual items like SSS, PhilHealth, Night Differential, Late Deduction.
+
+**Backend changes (`app/db.py`, `app/main.py`):**
+- New DB function `get_my_manila_payslip_detail(run_id, staff_name)` — fetches `manila_payroll_items` for a published run; includes ownership check (`published_at IS NOT NULL AND staff_name=%s`) to prevent cross-staff data leakage
+- New endpoint `GET /api/admin/payroll/my-pay/manila-payslip-detail?run_id=X`
+
+**Frontend changes (`src/app/my-pay/page.tsx`):**
+- `PayslipModal` adds `ManilaPayslipItem` interface and Manila-specific fetch using `slip.id` (= run_id)
+- For Manila: Basic Salary shows MONTHLY_BASIC item amount (not gross_pay); Additions section shows ND items (even ₱0); Deductions shows SSS/PhilHealth/Pag-IBIG/Late/Undertime/IncomeTax individually
+- Formula summary uses actual item totals for Manila; ₱0 deduction rows shown in muted colour
+- Dubai display is unchanged
+
+### Manila Payroll engine fixes (DEPLOYED ✅ Backend Heroku + Frontend Vercel)
+
+**Fix 1 — 13TH_MONTH_ACCRUAL excluded from Gross Pay:**
+- `compute_net_pay()` now skips items with `item_code == "13TH_MONTH_ACCRUAL"` when summing gross
+- Frontend filter in `[periodId]/page.tsx` also excludes it from the Earnings list
+- Aaron's 2H Gross: ₱10,833.33 → ₱10,000.00
+
+**Fix 2 — Government deductions for all 2H staff:**
+- `compute_payroll_run()` 2H path: when `first_half_gross is None`, now falls back to `Decimal("0")` instead of skipping deductions entirely
+- 2H total deductions: ₱850 (Aaron only) → ₱36,566.45 (all 42 staff)
+
+**Fix 3 — ND/Undertime always on payslip:**
+- `compute_gross_pay()` emits ₱0 placeholder items for NIGHT_DIFF_REGULAR, NIGHT_DIFF_OT, LATE_DEDUCTION, UNDERTIME_DEDUCTION when not otherwise emitted
+- Frontend earnings filter passes ND codes regardless of amount=0
 
 ---
 
