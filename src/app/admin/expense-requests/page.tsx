@@ -233,6 +233,7 @@ export default function AdminExpenseRequestsPage() {
       setReviewing(null);
       setReviewStatus("");
       setReviewNote("");
+      setReceiptImage(null);
       await loadRequests();
     } catch (e: unknown) {
       setReviewError(e instanceof Error ? e.message : String(e));
