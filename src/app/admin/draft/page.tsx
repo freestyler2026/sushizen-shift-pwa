@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowDownToLine,
+  ArrowUpFromLine,
   Bot,
   CalendarCog,
   CheckCircle2,
@@ -148,6 +149,33 @@ type BatchGenerateResult = {
   versions: BatchDraftVersion[];
   failed_branches: Array<{ branch_code: string; detail: string }>;
   skipped_branches: Array<{ branch_code: string; reason: string }>;
+};
+
+type XlsxDiffRow = {
+  work_date: string;
+  staff_name: string;
+  start_hour: number;
+  end_hour: number;
+  role: string;
+  note?: string;
+};
+
+type XlsxImportPreview = {
+  ok: boolean;
+  parsed_count: number;
+  warnings: string[];
+  version_id: string;
+  branch_code: string;
+  diff: {
+    added: number;
+    removed: number;
+    modified: number;
+    unchanged: number;
+    added_rows: XlsxDiffRow[];
+    removed_rows: XlsxDiffRow[];
+    modified_rows: Array<{ before: XlsxDiffRow; after: XlsxDiffRow }>;
+  };
+  new_rows: DraftRow[];
 };
 
 type RecommendedAction =
@@ -1204,6 +1232,14 @@ export default function AdminDraftPage() {
   const [sheetExportResult, setSheetExportResult] = useState<{ ok: boolean; url?: string } | null>(null);
   const [sheetExportError, setSheetExportError] = useState("");
   const [xlsxExporting, setXlsxExporting] = useState(false);
+
+  // Editable XLSX export + import state
+  const [xlsxEditDownloading, setXlsxEditDownloading] = useState(false);
+  const [xlsxImportBusy, setXlsxImportBusy] = useState(false);
+  const [xlsxImportPreview, setXlsxImportPreview] = useState<XlsxImportPreview | null>(null);
+  const [xlsxImportError, setXlsxImportError] = useState("");
+  const [xlsxApplyBusy, setXlsxApplyBusy] = useState(false);
+  const xlsxFileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-export state: triggered right after Confirm Generate
   const [autoExportBusy, setAutoExportBusy] = useState(false);
@@ -2262,6 +2298,96 @@ export default function AdminDraftPage() {
     }
   }
 
+  // ── Editable XLSX download (server-side openpyxl with dropdowns) ──────────
+  async function downloadEditableXlsx() {
+    if (!version?.version_id || !auth?.accessToken || !canOperate) return;
+    setXlsxEditDownloading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/draft/export-xlsx?version_id=${encodeURIComponent(version.version_id)}`,
+        { headers: { Authorization: `Bearer ${auth.accessToken}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Download failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `draft_${activeBranchCode}_${targetMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      console.error("Editable xlsx download failed", e);
+    } finally {
+      setXlsxEditDownloading(false);
+    }
+  }
+
+  async function previewXlsxImport(file: File) {
+    if (!version?.version_id || !auth?.accessToken) return;
+    setXlsxImportBusy(true);
+    setXlsxImportError("");
+    setXlsxImportPreview(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(
+        `${API_BASE}/api/admin/draft/import-xlsx/preview?version_id=${encodeURIComponent(version.version_id)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          body: formData,
+        },
+      );
+      const text = await res.text();
+      if (!res.ok) {
+        const j = JSON.parse(text);
+        throw new Error(j?.detail || text || "Preview failed");
+      }
+      setXlsxImportPreview(JSON.parse(text) as XlsxImportPreview);
+    } catch (e: any) {
+      setXlsxImportError(String(e?.message || e || "Preview failed"));
+    } finally {
+      setXlsxImportBusy(false);
+    }
+  }
+
+  async function applyXlsxImport() {
+    if (!xlsxImportPreview || !auth?.accessToken) return;
+    setXlsxApplyBusy(true);
+    setXlsxImportError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/draft/import-xlsx/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
+        body: JSON.stringify({
+          version_id: xlsxImportPreview.version_id,
+          rows: xlsxImportPreview.new_rows,
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        const j = JSON.parse(text);
+        throw new Error(j?.detail || text || "Apply failed");
+      }
+      const result = JSON.parse(text) as { ok: boolean; rows: DraftRow[]; rows_inserted: number };
+      setRows(result.rows);
+      setXlsxImportPreview(null);
+      if (xlsxFileInputRef.current) xlsxFileInputRef.current.value = "";
+    } catch (e: any) {
+      setXlsxImportError(String(e?.message || e || "Apply failed"));
+    } finally {
+      setXlsxApplyBusy(false);
+    }
+  }
+
   async function proposeFromSheet() {
     if (!canOperate) return;
     if (!approverName.trim() || !pin.trim()) {
@@ -2469,7 +2595,7 @@ export default function AdminDraftPage() {
                   </button>
                 ))}
               </div>
-              {/* Export toolbar */}
+              {/* Export / Import toolbar */}
               {rows.length > 0 && (
                 <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/8 bg-white/3 px-3 py-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mr-1">Export:</span>
@@ -2485,7 +2611,7 @@ export default function AdminDraftPage() {
                     {sheetExportLoading ? "Exporting…" : "Export to Sheet"}
                   </button>
 
-                  {/* Local xlsx download */}
+                  {/* Local xlsx pivot view (read-only) */}
                   <button
                     type="button"
                     onClick={downloadDraftXlsx}
@@ -2495,6 +2621,43 @@ export default function AdminDraftPage() {
                     <ArrowDownToLine className="h-3.5 w-3.5" />
                     {xlsxExporting ? "Preparing…" : "Download .xlsx"}
                   </button>
+
+                  {/* Editable Excel with dropdowns (for staff adjustment) */}
+                  {canOperate && version?.version_id && (
+                    <>
+                      <div className="h-4 w-px bg-white/10" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mr-1">Staff Edit:</span>
+                      <button
+                        type="button"
+                        onClick={downloadEditableXlsx}
+                        disabled={xlsxEditDownloading}
+                        className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-40 transition-colors"
+                      >
+                        <ArrowDownToLine className="h-3.5 w-3.5" />
+                        {xlsxEditDownloading ? "Preparing…" : "Download Editable Excel"}
+                      </button>
+                      {/* Hidden file input for upload */}
+                      <input
+                        ref={xlsxFileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) previewXlsxImport(f);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => xlsxFileInputRef.current?.click()}
+                        disabled={xlsxImportBusy}
+                        className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 disabled:opacity-40 transition-colors"
+                      >
+                        <ArrowUpFromLine className="h-3.5 w-3.5" />
+                        {xlsxImportBusy ? "Parsing…" : "Upload Adjusted Excel"}
+                      </button>
+                    </>
+                  )}
 
                   {/* Sheet export result link */}
                   {sheetExportResult?.ok && sheetExportResult.url && (
@@ -2517,10 +2680,100 @@ export default function AdminDraftPage() {
                   {sheetExportError && (
                     <span className="text-xs text-rose-400">{sheetExportError}</span>
                   )}
+                  {xlsxImportError && (
+                    <span className="text-xs text-rose-400">{xlsxImportError}</span>
+                  )}
 
                   {!canOperate && (
                     <span className="text-[11px] text-zinc-600">HQ/Admin only for sheet export</span>
                   )}
+                </div>
+              )}
+
+              {/* Import Preview Modal */}
+              {xlsxImportPreview && (
+                <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-amber-300">Import Preview — Review Changes</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setXlsxImportPreview(null);
+                        setXlsxImportError("");
+                        if (xlsxFileInputRef.current) xlsxFileInputRef.current.value = "";
+                      }}
+                      className="text-xs text-zinc-500 hover:text-zinc-300"
+                    >
+                      ✕ Discard
+                    </button>
+                  </div>
+
+                  {/* Summary counts */}
+                  <div className="mb-3 flex flex-wrap gap-3">
+                    <span className="rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300">
+                      Parsed: <strong>{xlsxImportPreview.parsed_count}</strong> rows
+                    </span>
+                    {xlsxImportPreview.diff.added > 0 && (
+                      <span className="rounded-md bg-emerald-900/40 px-2.5 py-1 text-xs text-emerald-300">
+                        +{xlsxImportPreview.diff.added} added
+                      </span>
+                    )}
+                    {xlsxImportPreview.diff.removed > 0 && (
+                      <span className="rounded-md bg-rose-900/40 px-2.5 py-1 text-xs text-rose-300">
+                        −{xlsxImportPreview.diff.removed} removed
+                      </span>
+                    )}
+                    {xlsxImportPreview.diff.modified > 0 && (
+                      <span className="rounded-md bg-amber-900/40 px-2.5 py-1 text-xs text-amber-300">
+                        ~{xlsxImportPreview.diff.modified} modified
+                      </span>
+                    )}
+                    <span className="rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-500">
+                      {xlsxImportPreview.diff.unchanged} unchanged
+                    </span>
+                  </div>
+
+                  {/* Warnings */}
+                  {xlsxImportPreview.warnings.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-900/20 p-2">
+                      <p className="mb-1 text-[11px] font-semibold uppercase text-amber-400">Warnings</p>
+                      {xlsxImportPreview.warnings.slice(0, 5).map((w, i) => (
+                        <p key={i} className="text-[11px] text-amber-300/80">{w}</p>
+                      ))}
+                      {xlsxImportPreview.warnings.length > 5 && (
+                        <p className="text-[11px] text-zinc-500">…and {xlsxImportPreview.warnings.length - 5} more</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sample diff rows */}
+                  {(xlsxImportPreview.diff.added_rows.length > 0 || xlsxImportPreview.diff.removed_rows.length > 0 || xlsxImportPreview.diff.modified_rows.length > 0) && (
+                    <div className="mb-3 max-h-48 overflow-y-auto rounded-lg border border-white/5 bg-black/20 p-2 text-[11px] font-mono">
+                      {xlsxImportPreview.diff.added_rows.slice(0, 10).map((r, i) => (
+                        <p key={`a${i}`} className="text-emerald-400">+ {r.work_date} {r.staff_name} {r.role}</p>
+                      ))}
+                      {xlsxImportPreview.diff.removed_rows.slice(0, 10).map((r, i) => (
+                        <p key={`r${i}`} className="text-rose-400">− {r.work_date} {r.staff_name} {r.role}</p>
+                      ))}
+                      {xlsxImportPreview.diff.modified_rows.slice(0, 10).map((m, i) => (
+                        <p key={`m${i}`} className="text-amber-400">~ {m.after.work_date} {m.after.staff_name}: {m.before.role || "—"} → {m.after.role || "—"}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {xlsxImportError && (
+                    <p className="mb-3 text-xs text-rose-400">{xlsxImportError}</p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={applyXlsxImport}
+                    disabled={xlsxApplyBusy}
+                    className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {xlsxApplyBusy ? "Applying…" : `Apply ${xlsxImportPreview.parsed_count} rows to Draft`}
+                  </button>
                 </div>
               )}
 
