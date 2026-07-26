@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
   Banknote,
+  CheckCircle2,
   ChevronRight,
   Clock,
   CreditCard,
@@ -12,7 +14,10 @@ import {
   KeyRound,
   Lock,
   Loader2,
+  MessageCircle,
+  Plus,
   Receipt,
+  Send,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -136,6 +141,34 @@ interface Summary {
   total_loan_remaining: number;
   pending_adjustments: number;
   pending_adj_net: number;
+}
+
+interface Inquiry {
+  id: number;
+  city: string;
+  staff_name: string;
+  subject: string;
+  status: "open" | "in_progress" | "resolved";
+  created_at: string;
+  updated_at: string;
+  reply_count: number;
+  last_reply_at: string | null;
+}
+
+interface InquiryReply {
+  id: number;
+  inquiry_id: number;
+  sender_name: string;
+  sender_role: string;
+  body: string;
+  is_from_staff: boolean;
+  created_at: string;
+}
+
+interface InquiryThread {
+  found: boolean;
+  inquiry: Inquiry & { body: string };
+  replies: InquiryReply[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -729,7 +762,7 @@ function LoanCard({ loan, currency }: { loan: Loan; currency: string }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = "payslips" | "adjustments" | "loans" | "leave";
+type Tab = "payslips" | "adjustments" | "loans" | "leave" | "inquiries";
 
 export default function MyPayPage() {
   const router = useRouter();
@@ -743,6 +776,15 @@ export default function MyPayPage() {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [leaveReqs, setLeaveReqs] = useState<LeaveSalaryReq[]>([]);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [selectedInquiry, setSelectedInquiry] = useState<InquiryThread | null>(null);
+  const [showNewInquiry, setShowNewInquiry] = useState(false);
+  const [inquirySubject, setInquirySubject] = useState("");
+  const [inquiryBody, setInquiryBody] = useState("");
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquiryReplyBody, setInquiryReplyBody] = useState("");
+  const [inquiryReplySubmitting, setInquiryReplySubmitting] = useState(false);
+  const [inquiryThreadLoading, setInquiryThreadLoading] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
@@ -846,6 +888,10 @@ export default function MyPayPage() {
         const data = await doFetch(`/api/admin/payroll/my-pay/leave-salary?city=${c}`);
         if (tabLoadRef.current !== id) return;
         setLeaveReqs((data as { requests?: LeaveSalaryReq[] }).requests ?? []);
+      } else if (t === "inquiries") {
+        const data = await doFetch(`/api/admin/payroll/my-pay/inquiries?city=${c}`);
+        if (tabLoadRef.current !== id) return;
+        setInquiries(Array.isArray(data) ? (data as Inquiry[]) : []);
       }
     } catch (e: unknown) {
       if (tabLoadRef.current !== id) return;
@@ -875,7 +921,73 @@ export default function MyPayPage() {
     setAdjustments([]);
     setLoans([]);
     setLeaveReqs([]);
+    setInquiries([]);
   };
+
+  // Helpers for inquiry CRUD
+  const loadInquiryThread = useCallback(async (id: number) => {
+    setInquiryThreadLoading(true);
+    try {
+      const data = await doFetch(`/api/admin/payroll/my-pay/inquiries/${id}`);
+      setSelectedInquiry(data as InquiryThread);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg !== "step_up_required") setError("Failed to load inquiry thread.");
+    } finally {
+      setInquiryThreadLoading(false);
+    }
+  }, [doFetch]);
+
+  const submitNewInquiry = useCallback(async () => {
+    if (!inquirySubject.trim() || !inquiryBody.trim()) return;
+    setInquirySubmitting(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`${API_BASE}/api/admin/payroll/my-pay/inquiries`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, subject: inquirySubject.trim(), body: inquiryBody.trim() }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        let d = t; try { d = (JSON.parse(t) as { detail?: string }).detail ?? t; } catch { /* ok */ }
+        if (d === "step_up_required") { sessionStorage.removeItem("payroll_step_up"); setVerified(false); setStepUpToken(""); return; }
+        throw new Error(d || `HTTP ${res.status}`);
+      }
+      void auth; // suppress unused-var
+      setInquirySubject("");
+      setInquiryBody("");
+      setShowNewInquiry(false);
+      const data = await doFetch(`/api/admin/payroll/my-pay/inquiries?city=${city}`);
+      setInquiries(Array.isArray(data) ? (data as Inquiry[]) : []);
+    } catch { /* error shown via tab error */ } finally {
+      setInquirySubmitting(false);
+    }
+  }, [inquirySubject, inquiryBody, city, authHeaders, doFetch]);
+
+  const submitInquiryReply = useCallback(async (inquiryId: number) => {
+    if (!inquiryReplyBody.trim()) return;
+    setInquiryReplySubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/payroll/my-pay/inquiries/${inquiryId}/reply`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ body: inquiryReplyBody.trim() }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        let d = t; try { d = (JSON.parse(t) as { detail?: string }).detail ?? t; } catch { /* ok */ }
+        if (d === "step_up_required") { sessionStorage.removeItem("payroll_step_up"); setVerified(false); setStepUpToken(""); return; }
+        throw new Error(d || `HTTP ${res.status}`);
+      }
+      setInquiryReplyBody("");
+      await loadInquiryThread(inquiryId);
+      const data = await doFetch(`/api/admin/payroll/my-pay/inquiries?city=${city}`);
+      setInquiries(Array.isArray(data) ? (data as Inquiry[]) : []);
+    } catch { /* ignore */ } finally {
+      setInquiryReplySubmitting(false);
+    }
+  }, [inquiryReplyBody, authHeaders, loadInquiryThread, doFetch, city]);
 
   // Show gate if not verified
   if (!verified) {
@@ -889,6 +1001,7 @@ export default function MyPayPage() {
     { key: "adjustments", label: "Adjustments", icon: <TrendingUp className="h-4 w-4" /> },
     { key: "loans", label: "Loans", icon: <CreditCard className="h-4 w-4" /> },
     { key: "leave", label: "Leave Advance", icon: <Wallet className="h-4 w-4" /> },
+    { key: "inquiries", label: "Inquiries", icon: <MessageCircle className="h-4 w-4" /> },
   ];
 
   return (
@@ -1193,6 +1306,56 @@ export default function MyPayPage() {
                 )}
               </div>
             )}
+
+            {/* ── Inquiries ── */}
+            {tab === "inquiries" && !tabLoading && (
+              <div className="space-y-3">
+                {/* New Inquiry button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowNewInquiry(true)}
+                    className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm`}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Inquiry
+                  </button>
+                </div>
+
+                {inquiries.length === 0 ? (
+                  <div className={`${GLASS_CARD} flex flex-col items-center justify-center py-16 text-center`}>
+                    <MessageCircle className="h-10 w-10 text-zinc-600 mb-3" />
+                    <p className="text-zinc-400 font-medium">No inquiries yet</p>
+                    <p className="text-xs text-zinc-600 mt-1">Have a question about your pay? Send an inquiry to HQ.</p>
+                  </div>
+                ) : (
+                  inquiries.map((inq) => (
+                    <button
+                      key={inq.id}
+                      onClick={() => loadInquiryThread(inq.id)}
+                      className={`${GLASS_CARD} w-full text-left p-4 hover:border-violet-500/30 transition group`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-white text-sm truncate">{inq.subject}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">{fmtDate(inq.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {inq.reply_count > 0 && (
+                            <span className="text-xs text-zinc-500 flex items-center gap-1">
+                              <MessageCircle className="h-3 w-3" />{inq.reply_count}
+                            </span>
+                          )}
+                          {inq.status === "open" && <span className={BADGE_WARNING}>Open</span>}
+                          {inq.status === "in_progress" && <span className={BADGE_INFO}>In Progress</span>}
+                          {inq.status === "resolved" && <span className={BADGE_SUCCESS}>Resolved</span>}
+                          <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-violet-400 transition" />
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1204,6 +1367,159 @@ export default function MyPayPage() {
           stepUpToken={stepUpToken}
           onClose={() => setSelectedSlip(null)}
         />
+      )}
+
+      {/* New Inquiry Modal */}
+      {showNewInquiry && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-violet-400" />
+                New Pay Inquiry
+              </h2>
+              <button onClick={() => setShowNewInquiry(false)} className="rounded-full p-1.5 text-zinc-400 hover:bg-white/10 transition">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-500">Your inquiry will be reviewed by the payroll team and answered as soon as possible.</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">Subject</label>
+                <input
+                  value={inquirySubject}
+                  onChange={(e) => setInquirySubject(e.target.value)}
+                  placeholder="e.g. Question about my June deduction"
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-400 mb-1 block">Message</label>
+                <textarea
+                  value={inquiryBody}
+                  onChange={(e) => setInquiryBody(e.target.value)}
+                  rows={5}
+                  placeholder="Describe your question or concern in detail…"
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setShowNewInquiry(false)}
+                className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm text-zinc-400 hover:bg-white/5 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitNewInquiry}
+                disabled={inquirySubmitting || !inquirySubject.trim() || !inquiryBody.trim()}
+                className={`${PRIMARY_BUTTON} flex-1 flex items-center justify-center gap-2 text-sm disabled:opacity-50`}
+              >
+                {inquirySubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send Inquiry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inquiry Thread Modal */}
+      {(selectedInquiry || inquiryThreadLoading) && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-900">
+          <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+            <button
+              onClick={() => { setSelectedInquiry(null); setInquiryReplyBody(""); }}
+              className="rounded-full p-1.5 text-zinc-400 hover:bg-white/10 transition"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-white truncate">
+                {selectedInquiry?.inquiry.subject ?? "Loading…"}
+              </p>
+              {selectedInquiry && (
+                <p className="text-xs text-zinc-500">{fmtDate(selectedInquiry.inquiry.created_at)}</p>
+              )}
+            </div>
+            {selectedInquiry && (
+              <>
+                {selectedInquiry.inquiry.status === "open" && <span className={BADGE_WARNING}>Open</span>}
+                {selectedInquiry.inquiry.status === "in_progress" && <span className={BADGE_INFO}>In Progress</span>}
+                {selectedInquiry.inquiry.status === "resolved" && <span className={BADGE_SUCCESS}>Resolved</span>}
+              </>
+            )}
+          </div>
+
+          {inquiryThreadLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            </div>
+          ) : selectedInquiry ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Original inquiry */}
+              <div className="flex flex-col items-end">
+                <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-violet-600/30 border border-violet-500/20 px-4 py-3">
+                  <p className="text-sm text-white whitespace-pre-wrap">{selectedInquiry.inquiry.body}</p>
+                </div>
+                <p className="text-xs text-zinc-600 mt-1">You · {fmtDate(selectedInquiry.inquiry.created_at)}</p>
+              </div>
+
+              {/* Thread replies */}
+              {selectedInquiry.replies.map((reply) => (
+                <div key={reply.id} className={`flex flex-col ${reply.is_from_staff ? "items-end" : "items-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 border ${
+                    reply.is_from_staff
+                      ? "rounded-tr-sm bg-violet-600/30 border-violet-500/20"
+                      : "rounded-tl-sm bg-white/5 border-white/10"
+                  }`}>
+                    {!reply.is_from_staff && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-400 mb-1">
+                        HQ · {reply.sender_name}
+                      </p>
+                    )}
+                    <p className="text-sm text-white whitespace-pre-wrap">{reply.body}</p>
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    {reply.is_from_staff ? "You" : reply.sender_name} · {fmtDate(reply.created_at)}
+                  </p>
+                </div>
+              ))}
+
+              {selectedInquiry.inquiry.status === "resolved" && (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  This inquiry has been resolved.
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Reply input (not shown if resolved) */}
+          {selectedInquiry && selectedInquiry.inquiry.status !== "resolved" && (
+            <div className="border-t border-white/10 px-4 py-3 flex gap-3 items-end">
+              <textarea
+                value={inquiryReplyBody}
+                onChange={(e) => setInquiryReplyBody(e.target.value)}
+                rows={2}
+                placeholder="Type your follow-up message…"
+                className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition resize-none"
+              />
+              <button
+                onClick={() => submitInquiryReply(selectedInquiry.inquiry.id)}
+                disabled={inquiryReplySubmitting || !inquiryReplyBody.trim()}
+                className="rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 p-3 transition"
+              >
+                {inquiryReplySubmitting
+                  ? <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  : <Send className="h-4 w-4 text-white" />}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
