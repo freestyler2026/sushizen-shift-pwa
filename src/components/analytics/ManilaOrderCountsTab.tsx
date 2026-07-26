@@ -8,7 +8,7 @@ import { ShoppingBag } from "lucide-react";
 import MonthPicker from "@/components/MonthPicker";
 
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
   return "";
 }
 
@@ -193,6 +193,7 @@ type ApiResp = {
   notes?: string[];
   date_from?: string;
   date_to?: string;
+  data_days_count?: number;
 };
 
 // Channel color config
@@ -510,9 +511,18 @@ export function ManilaOrderCountsTab({
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Avg Daily Orders</p>
                 <div className="mt-2">
                   <div className="text-3xl font-bold text-white">
-                    {displayDays && grandTotal ? formatInt(Math.round(grandTotal / displayDays)) : "—"}
+                    {(data?.data_days_count ?? displayDays) && grandTotal
+                      ? formatInt(Math.round(grandTotal / (data?.data_days_count ?? displayDays)!))
+                      : "—"}
                   </div>
-                  <div className="mt-0.5 text-xs text-neutral-500">per day{displayDays ? ` · ${displayDays} days` : ""}</div>
+                  <div className="mt-0.5 text-xs text-neutral-500">
+                    per day
+                    {data?.data_days_count != null
+                      ? ` · ${data.data_days_count} days with data`
+                      : displayDays
+                        ? ` · ${displayDays} days`
+                        : ""}
+                  </div>
                 </div>
               </div>
               {/* Top Channel */}
