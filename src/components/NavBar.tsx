@@ -623,6 +623,39 @@ export default function NavBar() {
     };
   }, []);
 
+  // Poll the 6 admin badges (petty cash, expense, transport, spot purchase, NTE, supplier) every 60s
+  useEffect(() => {
+    async function pollGroupBadges() {
+      const auth = getAuth();
+      if (!auth?.accessToken) return;
+      const r = String(auth.role || "").toUpperCase();
+      const h = { cache: "no-store" as const, headers: { Authorization: `Bearer ${auth.accessToken}` } };
+      if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r)) {
+        fetch("/api/admin/petty-cash/badge?city=manila", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setPettyCashBadge(Number(j.badge_count || 0))).catch(() => {});
+        fetch("/api/admin/transport/badge?city=manila", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setTransportBadge(Number(j.badge_count || 0))).catch(() => {});
+        fetch("/api/admin/conduct/badge?city=manila", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setNteCasesBadge(Number(j.badge_count || 0))).catch(() => {});
+      }
+      if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT", "HR_MANAGER"].includes(r)) {
+        fetch("/api/admin/expense-requests/pending-count", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setExpenseBadge(Number(j.count || 0))).catch(() => {});
+      }
+      if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(r)) {
+        fetch("/api/admin/spot-purchase/pending-count", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setSpotPurchaseBadge(Number(j.count || 0))).catch(() => {});
+      }
+      if (["ADMIN", "HQ", "MANILA_MANAGEMENT"].includes(r)) {
+        fetch("/api/admin/supplier-confirmations/badge?city=manila", h)
+          .then(res => res.ok ? res.json() : null).then(j => j && setSupplierBadge(Number(j.badge_count || 0))).catch(() => {});
+      }
+    }
+    void pollGroupBadges();
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void pollGroupBadges(); }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 

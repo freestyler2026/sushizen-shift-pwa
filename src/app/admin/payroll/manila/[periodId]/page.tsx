@@ -151,14 +151,22 @@ function isoToManilaInput(ts: string | null): string {
   if (!ts) return "";
   try {
     const d = new Date(ts);
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Manila",
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false,
-    }).formatToParts(d);
+    const getManilaParts = (date: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false,
+      }).formatToParts(date);
+    const parts = getManilaParts(d);
     const g = (t: string) => parts.find(p => p.type === t)?.value ?? "00";
-    const h = g("hour") === "24" ? "00" : g("hour");
-    return `${g("year")}-${g("month")}-${g("day")}T${h}:${g("minute")}`;
+    if (g("hour") === "24") {
+      // Some JS engines report midnight as hour=24 of the previous day.
+      // Advance by 1 minute to get the correct next-day date, then use 00:mm.
+      const next = getManilaParts(new Date(d.getTime() + 60_000));
+      const gn = (t: string) => next.find(p => p.type === t)?.value ?? "00";
+      return `${gn("year")}-${gn("month")}-${gn("day")}T00:${g("minute")}`;
+    }
+    return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
   } catch { return ""; }
 }
 
@@ -1022,6 +1030,7 @@ export default function ManilaPayrollPeriodPage() {
         apiFetch(`${API}/periods/${periodId}/runs`),
       ]);
       if (seq !== loadRef.current) return;
+      if (!pr.ok) throw new Error(await pr.text());
       const periods = await pr.json() as Period[];
       const p = periods.find(x => x.id === periodId);
       setPeriod(p ?? null);
@@ -1073,12 +1082,14 @@ export default function ManilaPayrollPeriodPage() {
   // Load items when run selected
   useEffect(() => {
     if (!selectedRun) { setItems([]); return; }
+    const ctrl = new AbortController();
     setItemsLoading(true);
-    apiFetch(`${API}/runs/${selectedRun.id}/items`)
+    apiFetch(`${API}/runs/${selectedRun.id}/items`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(d => setItems(d as PayrollItem[]))
-      .catch(e => setError(String(e)))
+      .catch(e => { if ((e as { name?: string }).name !== "AbortError") setError(String(e)); })
       .finally(() => setItemsLoading(false));
+    return () => ctrl.abort();
   }, [selectedRun]);
 
   const computeAll = async () => {
@@ -1152,7 +1163,7 @@ export default function ManilaPayrollPeriodPage() {
     if (!period) return;
     if (!confirm(`Publish all computed/approved payslips for this period to staff My Pay?`)) return;
     try {
-      const r = await apiFetch(`${API.replace("/runs", "")}/periods/${periodId}/publish-all`, { method: "POST" });
+      const r = await apiFetch(`${API}/periods/${periodId}/publish-all`, { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json() as { published_count: number };
       await loadPeriod();
