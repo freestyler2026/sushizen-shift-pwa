@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 168 — Manila Payroll: staff selection UX, statutory deductions 50/50 split, NSD guide)
+Last updated: 2026-07-26 (session 168 continued — UI testing + 3 bug fixes on Manila Payroll period detail page)
 
 
 
@@ -8,6 +8,35 @@ Last updated: 2026-07-26 (session 168 — Manila Payroll: staff selection UX, st
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 168 — UI testing + 3 payroll page bug fixes)
+
+### Browser-level QA of session 168 implementations (DEPLOYED ✅ Frontend 57a47c8)
+
+Tested as Yukihiro Nishimura (HQ) on local dev pointing to Heroku backend.
+
+**Verified working:**
+- ✅ Manila Payroll list page — periods show with correct labels
+- ✅ Period detail (2H) — first staff auto-selects, violet row highlight, "Statutory deductions 50%" label
+- ✅ Statutory deductions: SSS (₱1,000), PhilHealth (₱450), Pag-IBIG (₱200) all show "50% this cut-off" in description
+- ✅ DTR Upload → CSV Format Guide tab — NSD green callout box present, `time_in`/`time_out` descriptions say "enables auto NSD/OT"
+- ✅ NavBar 6 new badges — Petty Cash (5), Expense (3), Spot Purchase (4), Supplier (99+), NTE (1), Transport (0) all showing
+
+**3 bugs found and fixed (commit 57a47c8):**
+
+1. **"Statutory deductions 50%" label showed on 1H periods too** (wrong — should only appear on 2H)
+   - Fix: Wrapped JSX with `{period.period_half === 2 && "..."}`
+   - Note: The documented behavior in ① was wrong ("shows regardless of which half") — corrected above
+
+2. **"Publish to Staff" button overflowed at 1280px viewport** (right edge at 1332px, beyond 1280px)
+   - Fix: Shortened label to "Publish" (tooltip still says "Publish to staff My Pay")
+   - Also: Removed `px-3` on icon-only print button (→ `p-1.5`)
+
+3. **All 6 action buttons overflow right panel at 1280px** (5 buttons total need ~480px, panel is ~400px)
+   - Fix: Added `flex-wrap` + `gap-y-2` to `<div className="flex items-start justify-between">` header container
+   - Buttons now wrap to second row on narrow viewports
 
 ---
 
@@ -20,7 +49,7 @@ Last updated: 2026-07-26 (session 168 — Manila Payroll: staff selection UX, st
 - Auto-select the first run when the period loads (no more blank right panel on first load)
 - Selected row gets violet left border + `hover:bg-violet-900/10` + violet text
 - Right panel placeholder updated: "← Select a staff member from the table · click any row to view their payroll breakdown"
-- Period subtitle always shows `· Statutory deductions 50%` regardless of which half
+- Period subtitle shows `· Statutory deductions 50%` for 2H periods only (1H shows no label)
 
 ### ② Statutory deductions 50/50 split (DEPLOYED ✅ Backend 470beeb, Frontend 0da91b0)
 
