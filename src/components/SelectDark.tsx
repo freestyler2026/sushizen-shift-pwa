@@ -77,9 +77,10 @@ export default function SelectDark({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Focus input when dropdown opens
+  // Focus input when dropdown opens — preventScroll stops the browser from
+  // scrolling to the portal node (which lives at the end of document.body)
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) inputRef.current?.focus({ preventScroll: true });
   }, [open]);
 
   const normalized = useMemo<OptionItem[]>(
