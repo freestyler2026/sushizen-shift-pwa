@@ -650,26 +650,23 @@ function PayslipDetail({
 
   function itemFormula(code: string): string | null {
     const mr = run.monthly_rate;
-    const half = period?.period_half;
     switch (code) {
       case "PHILHEALTH_EE": {
-        if (!mr) return "5% of monthly basic ÷ 2 (EE share)";
+        if (!mr) return "monthly basic × 5% ÷ 2 (50% per cut-off, EE share)";
         const clamped = Math.max(Math.min(mr, 100000), 10000);
-        const ee = clamped * 0.05 / (half === 2 ? 2 : 1);
-        return `min(max(₱${mr.toLocaleString("en-PH")}, ₱10k), ₱100k) × 5%${half === 2 ? " ÷ 2" : ""} = ${fmtPHP(ee)}`;
+        const ee = clamped * 0.05 / 2;
+        return `min(max(₱${mr.toLocaleString("en-PH")}, ₱10k), ₱100k) × 5% ÷ 2 = ${fmtPHP(ee)} (50% this cut-off)`;
       }
-      case "PHILHEALTH_ER":    return "Employer mirrors employee contribution";
-      case "SSS_EE":           return "Per SSS MSC contribution table (EE 4.5%)";
-      case "SSS_ER":           return "Per SSS MSC contribution table (ER 9.5%)";
+      case "PHILHEALTH_ER":    return "Employer mirrors employee contribution (50% this cut-off)";
+      case "SSS_EE":           return "SSS MSC table (EE share) × 50% — split across both cut-offs";
+      case "SSS_ER":           return "SSS MSC table (ER 9.5% + EC) × 50% — split across both cut-offs";
       case "SSS_EC":           return "Employees' Compensation — employer cost only";
-      case "SSS_WISP_EE":      return "WISP portion: MSC > ₱20,000 (EE share above cap)";
-      case "SSS_WISP_ER":      return "WISP portion: MSC > ₱20,000 (ER share above cap)";
-      case "PAGIBIG_EE":       return mr ? `min(₱${mr.toLocaleString("en-PH")} + COLA, ₱10,000) × 2%` : "2% of base up to ₱10,000";
-      case "PAGIBIG_ER":       return "Employer contribution = 2% of same base";
-      case "PAGIBIG_VOLUNTARY_EE": return "Voluntary additional Pag-IBIG (above mandatory ₱200)";
-      case "BIR_WITHHOLDING":  return half === 2
-        ? "TRAIN 2023 table: annual taxable income ÷ 24 pay periods"
-        : "BIR withholding applied on 2nd half only";
+      case "SSS_WISP_EE":      return "WISP portion: MSC > ₱20,000 (EE share) × 50%";
+      case "SSS_WISP_ER":      return "WISP portion: MSC > ₱20,000 (ER share) × 50%";
+      case "PAGIBIG_EE":       return mr ? `min(₱${mr.toLocaleString("en-PH")} + COLA, ₱10,000) × 2% ÷ 2 (50% this cut-off)` : "2% of base up to ₱10,000 ÷ 2";
+      case "PAGIBIG_ER":       return "Employer contribution = 2% of same base × 50%";
+      case "PAGIBIG_VOLUNTARY_EE": return "Voluntary Pag-IBIG × 50% (split across both cut-offs)";
+      case "BIR_WITHHOLDING":  return "TRAIN 2023 table: monthly WHT ÷ 2 (50% per cut-off)";
       default: return null;
     }
   }
@@ -1279,7 +1276,7 @@ export default function ManilaPayrollPeriodPage() {
                     <h1 className="text-2xl font-light text-white">{period.period_label}</h1>
                     <p className="text-sm text-slate-400">
                       {period.start_date} → {period.end_date}
-                      {period.period_half === 2 && " · Statutory deductions (SSS/PhilHealth/Pag-IBIG)"}
+                      {" · Statutory deductions 50% (SSS/PhilHealth/Pag-IBIG/BIR)"}
                     </p>
                   </div>
                   <div className="flex gap-2">
