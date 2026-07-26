@@ -683,7 +683,10 @@ function PayslipDetail({
 
   // 13TH_MONTH_ACCRUAL is a reference-only line (paid Dec 2H) — excluded from
   // displayed earnings so it doesn't inflate the visible Gross Pay figure.
-  const earnings      = items.filter(i => i.item_type === "earning" && i.amount > 0 && i.item_code !== "13TH_MONTH_ACCRUAL");
+  // ND items are always emitted (even ₱0) so they appear on payslip even with
+  // incomplete DTR — include them regardless of amount.
+  const ND_CODES = new Set(["NIGHT_DIFF_REGULAR", "NIGHT_DIFF_OT"]);
+  const earnings      = items.filter(i => i.item_type === "earning" && i.item_code !== "13TH_MONTH_ACCRUAL" && (i.amount > 0 || ND_CODES.has(i.item_code)));
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
 
