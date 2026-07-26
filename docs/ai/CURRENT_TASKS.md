@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 169 — Evaluation store config corrections)
+Last updated: 2026-07-26 (session 170 — Evaluation Dubai/Manila CK rename + Cubao visibility)
 
 
 
@@ -8,6 +8,26 @@ Last updated: 2026-07-26 (session 169 — Evaluation store config corrections)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 170 — Dubai/Manila CK rename + Cubao + all-store visibility)
+
+### Evaluation: Dubai CK renamed, Manila CK distinct branch_code, all stores always visible (DEPLOYED ✅ Backend Heroku)
+
+**Problem:** (1) Dubai CK was labeled "Central Kitchen" — ambiguous vs Manila CK. (2) Cubao and Manila CK were absent from the Store Score Summary because they had no data for the queried city. (3) Manila CK shared branch_code "CK" with Dubai CK, causing display collision in a combined view.
+
+**Changes to `app/services/evaluation_channel.py`:**
+
+| Item | Change |
+|---|---|
+| Dubai CK | `branch_name` "Central Kitchen" → "Dubai Central Kitchen"; `BRANCH_NAME_FALLBACKS["CK"]` updated |
+| Manila CK | `branch_code` "CK" → "MCK", `branch_name` "Central Kitchen (PH)" → "Manila Central Kitchen"; `BRANCH_NAME_FALLBACKS["MCK"]` added |
+| NO_BACKUP_BRANCHES | Added "MCK" (Manila CK has no Backup, same policy as Dubai CK) |
+| `build_evaluation_snapshot` | "CK" → "MCK" remap when city="manila" for attendance, order, disposal, backup dicts |
+| `build_evaluation_snapshot` | Always adds ALL EVALUATION_STORES branch codes to branch_codes — so all known stores appear even with zero data for the queried city |
+
+**Architecture note:** Manila CK data in DB (`disposal_reports`, `backup_reports`, attendance shifts) is stored with `branch_code='CK'`. The remap step (`if city_key == "manila": CK → MCK`) translates this transparently. QC is unaffected — `_match_qc_branch_code` looks up by `qc_codes: ["Manila_CK"]` in EVALUATION_STORES and automatically returns "MCK" after the change.
 
 ---
 
