@@ -144,14 +144,28 @@ const STATUS_BADGE: Record<string, string> = {
 
 // ─── DTR Correction Modal ─────────────────────────────────────────────────────
 
-function fmtLocalDatetime(ts: string | null): string {
+// Display times in Manila timezone (Asia/Manila = UTC+8) for datetime-local inputs.
+// The user's browser may be in a different timezone (e.g. Japan UTC+9), so we must
+// explicitly format using Asia/Manila regardless of local browser offset.
+function isoToManilaInput(ts: string | null): string {
   if (!ts) return "";
-  // ts is ISO with tz — convert to local datetime-local string
   try {
     const d = new Date(ts);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(d);
+    const g = (t: string) => parts.find(p => p.type === t)?.value ?? "00";
+    const h = g("hour") === "24" ? "00" : g("hour");
+    return `${g("year")}-${g("month")}-${g("day")}T${h}:${g("minute")}`;
   } catch { return ""; }
+}
+
+// Convert a Manila-timezone datetime-local string back to UTC ISO for the API.
+function manilaInputToISO(manilaStr: string): string {
+  if (!manilaStr) return "";
+  return new Date(manilaStr + "+08:00").toISOString();
 }
 
 function DTRModal({
@@ -182,8 +196,8 @@ function DTRModal({
         const initial: Record<string, { time_in: string; time_out: string }> = {};
         (d as AttendanceRow[]).forEach(row => {
           initial[row.work_date] = {
-            time_in:  fmtLocalDatetime(row.actual_time_in),
-            time_out: fmtLocalDatetime(row.actual_time_out),
+            time_in:  isoToManilaInput(row.actual_time_in),
+            time_out: isoToManilaInput(row.actual_time_out),
           };
         });
         setEdits(initial);
@@ -202,8 +216,8 @@ function DTRModal({
         day_type:   row.day_type,
         is_worked:  row.is_worked,
         is_scheduled_rest_day: false,
-        actual_time_in:  ed.time_in  ? new Date(ed.time_in).toISOString()  : null,
-        actual_time_out: ed.time_out ? new Date(ed.time_out).toISOString() : null,
+        actual_time_in:  ed.time_in  ? manilaInputToISO(ed.time_in)  : null,
+        actual_time_out: ed.time_out ? manilaInputToISO(ed.time_out) : null,
         late_minutes:    row.late_minutes,
         undertime_minutes: row.undertime_minutes,
         absent_without_pay: row.absent_without_pay,
@@ -260,6 +274,9 @@ function DTRModal({
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Correct clock-in / clock-out times. Save each row, then click Recompute.
+            </p>
+            <p className="text-[10px] text-amber-400/70 mt-1">
+              ⏱ All times are in Philippine Standard Time (UTC+8)
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18}/></button>
@@ -1015,7 +1032,7 @@ export default function ManilaPayrollPeriodPage() {
       const newRuns = await rr.json() as Run[];
       setRuns(newRuns);
       setSelectedRun(prev => {
-        if (!prev) return null;
+        if (!prev) return newRuns[0] ?? null; // auto-select first staff on initial load
         return newRuns.find(r => r.id === prev.id) ?? null;
       });
       // Load supplementary data in background (non-blocking)
@@ -1468,8 +1485,8 @@ export default function ManilaPayrollPeriodPage() {
                       <tr
                         key={run.id}
                         onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                        className={`cursor-pointer border-b border-white/5 hover:bg-white/5 transition-colors ${
-                          selectedRun?.id === run.id ? "bg-violet-900/20" : ""
+                        className={`cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
+                          selectedRun?.id === run.id ? "bg-violet-900/20 border-l-2 border-l-violet-500" : "border-l-2 border-l-transparent"
                         }`}
                       >
                         <td className="py-2.5 text-left">
@@ -1477,7 +1494,7 @@ export default function ManilaPayrollPeriodPage() {
                             {run.minimum_wage_compliant === false && (
                               <AlertTriangle size={12} className="text-amber-400 flex-none" />
                             )}
-                            <span className="text-white">{run.staff_name}</span>
+                            <span className={selectedRun?.id === run.id ? "text-violet-300 font-medium" : "text-white"}>{run.staff_name}</span>
                           </div>
                         </td>
                         <td className="py-2.5 text-right text-slate-300 tabular-nums">{fmtPHP(run.gross_pay)}</td>
@@ -1518,13 +1535,12 @@ export default function ManilaPayrollPeriodPage() {
           <div className="flex w-[48%] flex-col overflow-hidden" id="payroll-print-area">
             {!selectedRun ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8">
-                <div className="rounded-xl border border-white/5 bg-white/5 p-6">
-                  <p className="text-sm text-slate-400 font-medium">Select a staff member</p>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Click a name from the list on the left<br />
-                    to view the payroll breakdown.
+                <div className="rounded-xl border border-violet-500/20 bg-violet-900/10 p-6 max-w-xs">
+                  <p className="text-sm text-slate-300 font-medium">← Select a staff member</p>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Click any row in the staff table on the left to view their payslip breakdown.
                   </p>
-                  <p className="text-xs text-slate-700 mt-3">
+                  <p className="text-xs text-slate-600 mt-3">
                     Use <span className="text-blue-400">Edit DTR</span> to correct clock-in/out times.<br/>
                     Use <span className="text-violet-400">Adjust</span> to add manual additions or deductions.
                   </p>
