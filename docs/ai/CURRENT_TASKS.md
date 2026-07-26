@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 164 — Expense receipt image upload)
+Last updated: 2026-07-26 (session 167 — Payroll Inquiries feature)
 
 
 
@@ -8,6 +8,108 @@ Last updated: 2026-07-26 (session 164 — Expense receipt image upload)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 167 — Payroll Inquiries: staff ↔ HQ messaging)
+
+### Payroll Inquiries — Staff inquiry from My Pay + Admin management page (DEPLOYED ✅ Frontend 404512e, Backend 5be8362)
+
+**What was done:**
+- **My Pay → Inquiries tab:** Added 5th tab "Inquiries" to `/my-pay`. Staff can submit payroll-related questions to HQ via a modal (Subject + Message). Own inquiry list shown with status badges. Clicking an inquiry opens a full-screen thread view with chat-style messages and a reply field. All endpoints require `X-Step-Up-Token` (passkey gate already guards the page).
+- **New admin page:** `/admin/payroll/inquiries` — "Staff Pay Inquiries" management page for HQ/Admin. Shows all inquiries with KPI chips (Open count, In Progress count), city/status filters, and clickable cards. Thread view shows full message history in chat style. HQ can reply and change status (Open → In Progress → Resolved).
+- **Backend — DB tables (auto-created on first use):**
+  - `payroll_inquiries`: id, city, staff_name, subject, body, status (open/in_progress/resolved), created_at, updated_at
+  - `payroll_inquiry_replies`: id, inquiry_id, sender_name, sender_role, body, is_from_staff, created_at
+- **Backend — Staff endpoints (step-up required):**
+  - `GET/POST /api/admin/payroll/my-pay/inquiries` — list own / submit new
+  - `GET /api/admin/payroll/my-pay/inquiries/{id}` — thread (own only)
+  - `POST /api/admin/payroll/my-pay/inquiries/{id}/reply` — staff follow-up
+- **Backend — Admin endpoints (HQ/ADMIN/MANAGEMENT roles):**
+  - `GET /api/admin/payroll/inquiries` — all inquiries with filters
+  - `GET /api/admin/payroll/inquiries/{id}` — full thread
+  - `POST /api/admin/payroll/inquiries/{id}/reply` — HQ reply (auto: open→in_progress)
+  - `PATCH /api/admin/payroll/inquiries/{id}/status` — update status
+- **Status auto-progression:** HQ reply → open becomes in_progress. Staff follow-up → resolved becomes in_progress. HQ can manually set any status.
+
+**Files changed:**
+- `sushizen_shift_app_clean/app/db.py` — `_ensure_payroll_inquiry_tables()` + 6 CRUD functions
+- `sushizen_shift_app_clean/app/main.py` — 8 new API endpoints + `_INQUIRY_ROLES` set
+- `src/app/my-pay/page.tsx` — new icons, Inquiry types, state, `loadTab` case, tabs entry, JSX content + modals
+- `src/app/admin/payroll/inquiries/page.tsx` — new admin page (created)
+
+**Note for NavBar:** The admin inquiries page is accessible directly at `/admin/payroll/inquiries`. If it needs to appear in the NavBar, add it to `access_control.py` per CLAUDE.md lesson #11 and run Resync.
+
+---
+
+## Recently Completed (2026-07-26 session 166 — My Pay passkey gate + payslip breakdown)
+
+### My Pay page — Passkey/PIN identity gate + salary calculation breakdown (DEPLOYED ✅ Frontend 90c8487, Backend df5f978)
+
+**What was done:**
+- **Passkey gate:** `/my-pay` now shows a lock screen before any pay data loads. Staff must verify via passkey (WebAuthn, device biometric) or PIN. Step-up token stored in `sessionStorage` (cleared on tab close). "Verified" badge shown in header after auth.
+- **Backend security:** All 5 my-pay endpoints (`summary`, `payslips`, `adjustments`, `loans`, `leave-salary`) now require `X-Step-Up-Token` header via `_require_payroll_step_up()`. Returns `"step_up_required"` detail if missing/invalid — frontend catches this and re-shows the gate.
+- **New detail endpoint:** `GET /api/admin/payroll/my-pay/payslip-detail?city=&cycle_id=` returns per-cycle adjustment line items. DB function `get_my_payslip_detail()` uses 2 separate connections (lesson #7 compliance).
+- **Salary breakdown formula:** Payslip modal now shows "How Your Pay is Calculated" section with each addition/deduction line item by name. Formula line: `Basic + Additions − Deductions = Net Pay`. Falls back to aggregated totals if no adjustments found.
+- **Bug fixed:** "Failed to load tab data" error was caused by the frontend calling my-pay endpoints without a step-up token (403). Now: data only loads AFTER successful verification, eliminating the error.
+- **WebAuthn reused:** PasskeyGate component uses the same `webauthnAuthenticate()` helper as the Attendance page, calling existing `/api/auth/webauthn/auth/options` + `/api/auth/webauthn/auth/verify` endpoints.
+
+**Files changed:**
+- `sushizen_shift_app_clean/app/main.py` — `_require_payroll_step_up()`, applied to 5 endpoints, new `payslip-detail` endpoint
+- `sushizen_shift_app_clean/app/db.py` — `get_my_payslip_detail()` function
+- `src/app/my-pay/page.tsx` — Full rewrite with PasskeyGate + enhanced PayslipModal
+
+---
+
+## Recently Completed (2026-07-26 session 166 — NTE "Cannot identify staff" bug fix)
+
+### NTE Staff Page — "Cannot identify staff from token." 403 error (DEPLOYED ✅ Backend 8fc99f5)
+
+**Root cause:** `nte_api.py` auth helpers (`_require_staff_token`, `_require_token`, `_require_admin`) call `verify_access_token()` which returns the raw JWT payload. The JWT mints staff_name in the `"sub"` claim (not a `"staff_name"` claim) — confirmed in `security_tokens.py` line 79: `"sub": staff_name`. All downstream code called `p.get("staff_name")` which returned `None`, hitting the `if not staff_name:` guard → 403 "Cannot identify staff from token."
+
+**Fix applied to `app/nte_api.py`:**
+- Added `_normalize_payload()` function: copies `p["sub"]` → `p["staff_name"]` when the latter is missing
+- Applied to all three auth helpers: `_require_staff_token`, `_require_token`, `_require_admin`
+- Fixes all staff endpoints: `/api/store/conduct/my-notices`, `/api/store/conduct/submit-explanation`, `/api/store/conduct/mark-read`, `/api/store/conduct/notifications/badge`
+- Also fixes admin `reviewed_by` recording on approve/reject actions
+
+**Verification:** Heroku logs confirmed `/api/store/conduct/notifications/badge` returning 200 OK consistently post-deploy. No conduct 403 errors in log window.
+
+**Files changed:** `sushizen_shift_app_clean/app/nte_api.py` (backend only)
+
+---
+
+## Recently Completed (2026-07-26 sessions 165–166 — Overtime pages bug fix + verification)
+
+### Overtime Request pages — API storm fix + token refresh + error UI (DEPLOYED ✅ Frontend 807d3e0, LOOP CONFIRMED RESOLVED)
+
+**Root cause:** Staff page (`/store/overtime-request`) had `loadHistory` depending on `auth` state. `refreshAuthFromApi()` updated `auth` → `loadHistory` useCallback recreated → `useEffect([loadHistory])` re-fired → infinite loop of API calls. Heroku logs showed 15+ simultaneous `GET /api/store/overtime/my-requests` requests per page load, almost all returning 401.
+
+**Post-deploy status:** Session 166 checked Heroku logs — zero `overtime/my-requests` calls in recent window. Loop fully stopped. The brief "200 storm" seen immediately after deploy was residual cached browser tabs with old code still running.
+
+**Fixes applied to both pages:**
+- `src/app/store/overtime-request/page.tsx`:
+  - Removed `auth` from `loadHistory` deps — uses `getAuth()` inline instead
+  - Added `tokenHeaders()` function (same pattern as expense page) that refreshes token before each call
+  - Removed the combined refresh+load useEffect; load now fires once via stable `[loadHistory]` dep
+  - Added `historyError` state with UI display (red alert box)
+  - Fixed error condition: no empty table shown when error present
+  - `handleSubmit` now uses `tokenHeaders()` instead of stale `getAuthHeaders(auth)`
+  - Removed unused `getAuthHeaders` import, replaced with `refreshAuthFromApi`
+
+- `src/app/admin/overtime/page.tsx`:
+  - Removed unused `canAccessAdminNav` import
+  - Added `tokenHeaders()` function for `load`, `submitReview`, `handleExport`
+  - Fixed error condition: no "No overtime requests found." shown when error present
+
+---
+
+## Recently Completed (2026-07-26 session 165 — Expense receipt fix + deploy)
+
+### Expense receipt state cleanup fix (DEPLOYED ✅ Frontend ce1635c)
+
+- Fixed `handleReview` in `src/app/admin/expense-requests/page.tsx`: added `setReceiptImage(null)` to the success path so stale receipt image doesn't persist after a review is submitted
+- Deployed via Terminal workaround (`open -a Terminal ~/deploy_receipt_fix.sh`)
 
 ---
 
