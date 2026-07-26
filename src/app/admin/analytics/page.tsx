@@ -2912,7 +2912,6 @@ export default function AdminAnalyticsPage() {
     if (analyticsTab !== "evaluation") return;
     if (!approverName.trim() || !salesStepUpReady) return;
     if (summaryDateFrom !== summaryDateTo) return;
-    if (city === "manila") return;
     const normalized = summaryDateFrom;
     setEvaluationDetailDate(normalized);
     const qs = new URLSearchParams({
@@ -3609,35 +3608,6 @@ export default function AdminAnalyticsPage() {
         } catch (e) {
           setCctvScoreRows([]);
           setCctvScoreLoadError(String((e as any)?.message || e || "CCTV score unavailable"));
-        }
-        if (city === "manila") {
-          const underConstructionSections: EvaluationSection[] = [
-            { section_key: "attendance", section_label: "Attendance Score", status: "under_construction", description: "Dubai only for now.", display_order: 10 },
-            { section_key: "operation", section_label: "Operation Score", status: "under_construction", description: "Dubai only for now.", display_order: 20 },
-            { section_key: "disposal", section_label: "Disposal", status: "under_construction", description: "Dubai only for now.", display_order: 25 },
-            { section_key: "backup", section_label: "Backup", status: "under_construction", description: "Dubai only for now.", display_order: 27 },
-            { section_key: "food_cost", section_label: "Food Cost", status: "under_construction", description: "Dubai only for now.", display_order: 30 },
-            { section_key: "purchasing", section_label: "Purchasing", status: "under_construction", description: "Data source will be connected later.", display_order: 40 },
-            { section_key: "inventory_accuracy", section_label: "Inventory Accuracy", status: "under_construction", description: "Theory vs actual inventory will be added later.", display_order: 50 },
-          ];
-          setEvaluationSummary({
-            store_count: 0,
-            overall_avg_score: null,
-            attendance_avg_score: null,
-            operation_avg_score: null,
-            food_cost_avg_score: null,
-            operation_time_avg_minutes: null,
-            warning_count: 1,
-          });
-          setEvaluationStores([]);
-          setEvaluationSections(underConstructionSections);
-          setEvaluationWarnings(["Manila evaluation is under construction. Evaluation data is available for Dubai only at this stage."]);
-          setEvaluationRules([]);
-          setEvaluationTimeline(null);
-          setEvaluationDayDetails(null);
-          setEvaluationStrictnessLevel(5);
-          setEvaluationRuleMessage("");
-          return;
         }
         try {
           const evaluationQs = new URLSearchParams({
