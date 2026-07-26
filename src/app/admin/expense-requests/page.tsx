@@ -11,6 +11,8 @@ import {
   Users,
   RefreshCw,
   Filter,
+  Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SelectDark from "@/components/SelectDark";
@@ -71,6 +73,7 @@ type ExpenseRequest = {
   reviewed_at: string | null;
   review_note: string;
   submitted_at: string;
+  has_receipt: boolean;
 };
 
 type SummaryItem = {
@@ -121,6 +124,8 @@ export default function AdminExpenseRequestsPage() {
   const [reviewNote, setReviewNote] = useState("");
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   useEffect(() => {
     const a = getAuth();
@@ -188,6 +193,29 @@ export default function AdminExpenseRequestsPage() {
       void loadRequests();
     }
   }, [tab, loadRequests, loadSummary]);
+
+  const openReview = async (r: ExpenseRequest) => {
+    setReviewing(r);
+    setReviewStatus(r.status === "pending" ? "approved" : r.status);
+    setReviewNote(r.review_note || "");
+    setReviewError("");
+    setReceiptImage(null);
+    if (r.has_receipt) {
+      setReceiptLoading(true);
+      try {
+        const headers = await tokenHeaders();
+        const res = await fetch(`${apiBase}/api/admin/expense-requests/${r.id}`, { headers, cache: "no-store" });
+        const j = await res.json();
+        if (res.ok && j?.request?.receipt_image) {
+          setReceiptImage(j.request.receipt_image);
+        }
+      } catch {
+        // non-blocking — receipt just won't show
+      } finally {
+        setReceiptLoading(false);
+      }
+    }
+  };
 
   const handleReview = async () => {
     if (!reviewing || !reviewStatus) return;
@@ -358,6 +386,7 @@ export default function AdminExpenseRequestsPage() {
                       <th className={`${TABLE_HEADER} px-4 pt-4`}>Amount</th>
                       <th className={`${TABLE_HEADER} px-4 pt-4`}>Date</th>
                       <th className={`${TABLE_HEADER} px-4 pt-4`}>Status</th>
+                      <th className={`${TABLE_HEADER} px-4 pt-4`}>Receipt</th>
                       <th className={`${TABLE_HEADER} px-4 pt-4`}>Action</th>
                     </tr>
                   </thead>
@@ -377,9 +406,14 @@ export default function AdminExpenseRequestsPage() {
                         <td className={`${TABLE_CELL} px-4 text-xs whitespace-nowrap`}>{r.expense_date}</td>
                         <td className={`${TABLE_CELL} px-4`}>{statusBadge(r.status)}</td>
                         <td className={`${TABLE_CELL} px-4`}>
+                          {r.has_receipt
+                            ? <span className="text-violet-400 flex items-center gap-1 text-xs"><ImageIcon className="h-3.5 w-3.5" />Yes</span>
+                            : <span className="text-zinc-600 text-xs">—</span>}
+                        </td>
+                        <td className={`${TABLE_CELL} px-4`}>
                           <button
                             type="button"
-                            onClick={() => { setReviewing(r); setReviewStatus(r.status === "pending" ? "approved" : r.status); setReviewNote(r.review_note || ""); setReviewError(""); }}
+                            onClick={() => openReview(r)}
                             className={SMALL_BUTTON}
                           >
                             Review
@@ -484,6 +518,30 @@ export default function AdminExpenseRequestsPage() {
                   </div>
                 )}
 
+                {/* Receipt */}
+                {reviewing.has_receipt && (
+                  <div className={`${GLASS_CARD} p-3`}>
+                    <div className={T_LABEL}>Receipt</div>
+                    {receiptLoading && <p className="mt-1 text-xs text-zinc-500">Loading receipt...</p>}
+                    {!receiptLoading && receiptImage && (
+                      <div className="mt-2 space-y-2">
+                        <img src={receiptImage} alt="Receipt" className="max-h-48 rounded-lg border border-white/10 object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => { const w = window.open(); if (w) { w.document.write(`<img src="${receiptImage}" style="max-width:100%;height:auto;">`); } }}
+                          className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open full size
+                        </button>
+                      </div>
+                    )}
+                    {!receiptLoading && !receiptImage && (
+                      <p className="mt-1 text-xs text-zinc-500">Could not load receipt.</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Status select */}
                 <div>
                   <label className={`${T_LABEL} block mb-1.5`}>Decision *</label>
@@ -525,7 +583,7 @@ export default function AdminExpenseRequestsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setReviewing(null); setReviewStatus(""); setReviewNote(""); setReviewError(""); }}
+                    onClick={() => { setReviewing(null); setReviewStatus(""); setReviewNote(""); setReviewError(""); setReceiptImage(null); }}
                     className={SECONDARY_BUTTON}
                   >
                     Cancel

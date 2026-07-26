@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Receipt, Clock, CheckCircle, XCircle, Banknote } from "lucide-react";
+import { Receipt, Clock, CheckCircle, XCircle, Banknote, Paperclip, Image as ImageIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -47,7 +47,30 @@ type ExpenseRequest = {
   reviewed_at: string | null;
   review_note: string;
   submitted_at: string;
+  has_receipt: boolean;
 };
+
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+    img.src = url;
+  });
+}
 
 function statusBadge(status: string) {
   if (status === "approved") return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
@@ -66,6 +89,10 @@ export default function ExpenseRequestPage() {
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
+  const [receiptImage, setReceiptImage] = useState("");
+  const [receiptPreview, setReceiptPreview] = useState("");
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
@@ -133,7 +160,7 @@ export default function ExpenseRequestPage() {
       const res = await fetch(`${apiBase}/api/expense/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ city, branch_code: "", category, amount: amt, currency, expense_date: expenseDate, description }),
+        body: JSON.stringify({ city, branch_code: "", category, amount: amt, currency, expense_date: expenseDate, description, receipt_image: receiptImage }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.detail || `Error ${res.status}`);
@@ -142,6 +169,8 @@ export default function ExpenseRequestPage() {
       setAmount("");
       setExpenseDate(new Date().toISOString().slice(0, 10));
       setDescription("");
+      setReceiptImage("");
+      setReceiptPreview("");
       await loadHistory();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
@@ -250,6 +279,53 @@ export default function ExpenseRequestPage() {
               />
             </div>
 
+            {/* Receipt Image */}
+            <div>
+              <label className={`${T_LABEL} block mb-1.5`}>Receipt / Photo</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setReceiptLoading(true);
+                  try {
+                    const compressed = await compressImage(file);
+                    setReceiptImage(compressed);
+                    setReceiptPreview(compressed);
+                  } catch {
+                    setSubmitError("Failed to process image. Please try another file.");
+                  } finally {
+                    setReceiptLoading(false);
+                  }
+                }}
+              />
+              {!receiptPreview ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={receiptLoading}
+                  className="flex items-center gap-2 rounded-lg border border-dashed border-white/20 px-4 py-3 text-sm text-zinc-400 hover:border-violet-500 hover:text-violet-300 transition-colors w-full"
+                >
+                  <Paperclip className="h-4 w-4" />
+                  {receiptLoading ? "Processing..." : "Attach receipt image (optional)"}
+                </button>
+              ) : (
+                <div className="relative inline-block">
+                  <img src={receiptPreview} alt="Receipt" className="max-h-40 rounded-lg border border-white/10 object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => { setReceiptImage(""); setReceiptPreview(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="absolute -top-2 -right-2 rounded-full bg-red-500 p-0.5 text-white hover:bg-red-600"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
             {submitError && <p className="text-sm text-red-400">{submitError}</p>}
             {submitSuccess && <p className="text-sm text-emerald-400">{submitSuccess}</p>}
 
@@ -291,6 +367,7 @@ export default function ExpenseRequestPage() {
                       <th className={`${TABLE_HEADER} px-3`}>Amount</th>
                       <th className={`${TABLE_HEADER} px-3`}>Status</th>
                       <th className={`${TABLE_HEADER} px-3`}>Note</th>
+                      <th className={`${TABLE_HEADER} px-3`}>Receipt</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -306,6 +383,9 @@ export default function ExpenseRequestPage() {
                         <td className={`${TABLE_CELL} px-3`}>{statusBadge(r.status)}</td>
                         <td className={`${TABLE_CELL} px-3 text-xs text-zinc-400 max-w-[180px] truncate`}>
                           {r.review_note || r.description || "—"}
+                        </td>
+                        <td className={`${TABLE_CELL} px-3`}>
+                          {r.has_receipt ? <span className="text-violet-400"><ImageIcon className="h-4 w-4" /></span> : <span className="text-zinc-600">—</span>}
                         </td>
                       </tr>
                     ))}
