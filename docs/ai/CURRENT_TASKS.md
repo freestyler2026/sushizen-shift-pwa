@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 171 — Manila Draft XLSX Phase 2: Editable Excel + Import)
+Last updated: 2026-07-27 (session 172 — Staff Rank System Phase A: L0-L10 management UI)
 
 
 
@@ -8,6 +8,48 @@ Last updated: 2026-07-27 (session 171 — Manila Draft XLSX Phase 2: Editable Ex
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-27 session 172 — Staff Rank System Phase A)
+
+### Staff Rank Management: L0-L10 UI (DEPLOYED ✅ Frontend + Backend Heroku v1544)
+
+**User request:** Admin page to input each Manila staff member's L0-L10 rank (from PDF "L0-10ランク分け July 25, 2026"). Used as input to Manila draft auto-shift creation (Phase B).
+
+**Backend — `db.py`:**
+- `staff_master`: `ADD COLUMN IF NOT EXISTS rank_level INT NOT NULL DEFAULT -1` (-1 = unset)
+- `fetch_staff_ranks_by_city(city, q)` → returns staff_name, branch_code, is_active, rank_level
+- `set_staff_rank_level(city, staff_name, rank_level)` → UPDATE + rowcount
+
+**Backend — `main.py`:**
+- `GET /api/admin/staff-ranks?city=&q=` (HQ/ADMIN only, Bearer token)
+- `POST /api/admin/staff-ranks/set` (HQ/ADMIN only) → `StaffRankSetIn: city, staff_name, rank_level`
+
+**Backend — `access_control.py`:**
+- Channel: `admin.staff_ranks` (sort_order 195, between Staff 190 and Draft 200)
+- Permission: `channel.admin.staff_ranks.view`
+- **ACTION REQUIRED after deploy:** Role Management → "Resync System Channels" to sync DB
+
+**Frontend — `src/app/admin/staff-ranks/page.tsx` (new):**
+- City filter (Manila / Dubai), name search, show inactive toggle
+- Table: Staff Name | Branch | Status | Current Rank | Set Rank (dropdown) | Save button
+- Inline per-row save with saved/error feedback (no bulk save needed)
+- Rank reference legend (Phase 1/2/3 color coded)
+
+**Frontend — `src/components/NavBar.tsx`:**
+- Added "Staff Ranks (L0-L10)" entry with TrendingUp icon, canAccessStaffAdmin access check
+
+**Rank level reference (from PDF):**
+- -1: Not set (default)
+- L0: Kitchen Assistant | L1: Junior Cook | L2: Prep Cook | L3: Line Cook | L4: Section Cook
+- L5: Commis Chef | L6: Senior Commis/Asst. PIC | L7: PIC/Store Manager
+- L8: Multi-Unit Manager | L9: Area Manager | L10: PH Ops Head / GM
+
+**Next steps for this feature:**
+- Phase B: Rank-aware draft planner (L7 PIC required, L5+ at peak hours, role auto-assign)
+- Phase C: Efficiency learning from attendance + hourly sales + prep_time_records
+- After deploy: run "Resync System Channels" in Role Management
 
 ---
 
