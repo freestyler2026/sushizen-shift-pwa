@@ -717,7 +717,7 @@ function PayslipDetail({
 
       {/* ── Header ── */}
       <div className="flex-none border-b border-white/5 p-5">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-y-2">
           <div>
             <h2 className="text-lg font-semibold text-white">{run.staff_name}</h2>
             {period && (
@@ -778,12 +778,12 @@ function PayslipDetail({
                 className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-900/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Publish to staff My Pay"
               >
-                <Send size={12} /> Publish to Staff
+                <Send size={12} /> Publish
               </button>
             )}
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
+              className="flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 p-1.5 text-xs text-slate-300 hover:bg-slate-700"
               title="Print / Save as PDF"
             >
               <Printer size={12} />
@@ -1287,7 +1287,7 @@ export default function ManilaPayrollPeriodPage() {
                     <h1 className="text-2xl font-light text-white">{period.period_label}</h1>
                     <p className="text-sm text-slate-400">
                       {period.start_date} → {period.end_date}
-                      {" · Statutory deductions 50% (SSS/PhilHealth/Pag-IBIG/BIR)"}
+                      {period.period_half === 2 && " · Statutory deductions 50% (SSS/PhilHealth/Pag-IBIG/BIR)"}
                     </p>
                   </div>
                   <div className="flex gap-2">
