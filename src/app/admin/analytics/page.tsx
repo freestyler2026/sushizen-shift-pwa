@@ -121,7 +121,7 @@ import SelectDark from "@/components/SelectDark";
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
   return "";
 }
 
@@ -1589,8 +1589,8 @@ function EvaluationKpiCard({
   return (
     <div className="flex h-full min-w-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
       <div className="h-[64px] overflow-hidden text-xs leading-5 text-neutral-500">{title}</div>
-      <div className="mt-1 flex h-[42px] items-end">
-        <span className="ml-auto block w-full whitespace-nowrap text-right text-xl font-bold leading-none tabular-nums sm:text-2xl">
+      <div className="mt-1 flex h-[42px] items-end overflow-hidden">
+        <span className="ml-auto block w-full whitespace-nowrap text-right text-xl font-bold leading-none tabular-nums sm:text-2xl 2xl:text-xl">
           {value}
         </span>
       </div>
