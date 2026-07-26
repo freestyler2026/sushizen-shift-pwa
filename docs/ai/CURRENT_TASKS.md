@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 169 — Dubai Evaluation KPI fixes)
+Last updated: 2026-07-26 (session 169 — Manila Evaluation enabled)
 
 
 
@@ -8,6 +8,31 @@ Last updated: 2026-07-26 (session 169 — Dubai Evaluation KPI fixes)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 169 — Manila Evaluation enabled)
+
+### Manila Evaluation: "under construction" removed — live data now fetched (DEPLOYED ✅ Frontend d2f68ff)
+
+**Root cause:** Manila was blocked by two frontend-only guards in `src/app/admin/analytics/page.tsx`. The backend `build_evaluation_snapshot` and both API endpoints (`/api/admin/evaluation/stores`, `/api/admin/evaluation/rules`) had zero city restrictions and were already fully Manila-aware.
+
+**Frontend changes (30 lines deleted):**
+- Removed `if (city === "manila") return;` guard in day-details `useEffect` (prevented single-day drill-down for Manila)
+- Removed 28-line under-construction block that hardcoded 7 sections as `status: "under_construction"` and returned early without calling the API
+
+**Data sources confirmed available for Manila:**
+| Category | Source | Status |
+|---|---|---|
+| Attendance | `actual_attendance` + `absences` + `shift_change_requests` WHERE city='manila' | Shows when attendance data imported |
+| Operation (orders) | `pos_sales_branch_daily` WHERE city='manila' | Likely populated via Manila POS pipeline |
+| Operation (time) | `pos_operation_time_daily` WHERE city='manila' | Needs operation time upload for Manila |
+| Food Cost | `pl_monthly_imports` WHERE city='manila' + `_rollup_manila()` | Needs monthly Finance Excel import |
+| Disposal | SHEET_DISPOSAL Google Sheet (aliases: paranaque/taft/cubao/ck) | Needs form submissions from Manila staff |
+| Backup/Prep | SHEET_BACKUP Google Sheet (same aliases) | Needs form submissions from Manila staff |
+| QC | SHEET_QC with Manila_Paranaque / Manila_Taft / Manila_Cubao / Manila_CK codes | Needs QC checks recorded with Manila codes |
+
+Manila stores: PAR (Paranaque), TAFT (Taft), CUBAO (Cubao), CK (Central Kitchen PH). Food cost target: 30%.
 
 ---
 
