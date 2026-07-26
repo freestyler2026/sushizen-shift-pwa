@@ -8,8 +8,12 @@ import {
   Clock,
   CreditCard,
   FileText,
+  Fingerprint,
+  KeyRound,
+  Lock,
   Loader2,
   Receipt,
+  ShieldCheck,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -22,11 +26,12 @@ import {
   BADGE_WARNING,
   GLASS_CARD,
   KPI_CARD,
+  PRIMARY_BUTTON,
   T_PAGE_TITLE,
   TAB_ACTIVE,
   TAB_INACTIVE,
 } from "@/lib/ui-tokens";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,6 +57,16 @@ interface Payslip {
   paid_via: string;
   staff_name: string;
   city: string;
+}
+
+interface PayslipItem {
+  adj_type: "addition" | "deduction";
+  subtype: string;
+  amount: number;
+  vat: number;
+  note: string;
+  incurred_at: string | null;
+  reference_no: string;
 }
 
 interface Adjustment {
@@ -159,15 +174,295 @@ function leaveSalaryBadge(status: string) {
   return <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/15 border border-zinc-500/25 px-2.5 py-0.5 text-xs font-medium text-zinc-400">{status}</span>;
 }
 
+// ─── WebAuthn helpers ─────────────────────────────────────────────────────────
+
+function b64uDecode(b64u: string): Uint8Array {
+  const b64 = b64u.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const bin = atob(padded);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+function b64uEncode(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function credentialToJSON(cred: PublicKeyCredential): Record<string, unknown> {
+  const resp = cred.response;
+  if (resp instanceof AuthenticatorAssertionResponse) {
+    return {
+      id: cred.id,
+      rawId: b64uEncode(cred.rawId),
+      type: cred.type,
+      response: {
+        authenticatorData: b64uEncode(resp.authenticatorData),
+        clientDataJSON: b64uEncode(resp.clientDataJSON),
+        signature: b64uEncode(resp.signature),
+        userHandle: resp.userHandle ? b64uEncode(resp.userHandle) : null,
+      },
+      clientExtensionResults: cred.getClientExtensionResults(),
+    };
+  }
+  return { id: cred.id, rawId: b64uEncode(cred.rawId), type: cred.type };
+}
+
+type PublicKeyCredentialRequestOptionsJSON = {
+  challenge: string;
+  rpId?: string;
+  timeout?: number;
+  userVerification?: string;
+  allowCredentials?: Array<{ id: string; type: string; transports?: string[] }>;
+};
+
+async function webauthnAuthenticate(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const pubKey = options as PublicKeyCredentialRequestOptionsJSON;
+  const getOptions: CredentialRequestOptions = {
+    publicKey: {
+      challenge: b64uDecode(pubKey.challenge as string).buffer as ArrayBuffer,
+      rpId: pubKey.rpId as string | undefined,
+      timeout: (pubKey.timeout as number | undefined) ?? 60000,
+      userVerification: (pubKey.userVerification as UserVerificationRequirement | undefined) ?? "required",
+      allowCredentials: ((pubKey.allowCredentials ?? []) as Array<{ id: string; type: string; transports?: string[] }>).map((c) => ({
+        id: b64uDecode(c.id).buffer as ArrayBuffer,
+        type: c.type as PublicKeyCredentialType,
+        transports: (c.transports ?? []) as AuthenticatorTransport[],
+      })),
+    },
+  };
+  const cred = await navigator.credentials.get(getOptions);
+  if (!cred) throw new Error("Authentication cancelled");
+  return credentialToJSON(cred as PublicKeyCredential);
+}
+
+// ─── Passkey Gate ─────────────────────────────────────────────────────────────
+
+interface PasskeyGateProps {
+  onVerified: (stepUpToken: string) => void;
+}
+
+function PasskeyGate({ onVerified }: PasskeyGateProps) {
+  const [mode, setMode] = useState<"idle" | "loading" | "pin" | "registering">("idle");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [wauSupported] = useState(() =>
+    typeof window !== "undefined" && !!window.PublicKeyCredential
+  );
+
+  const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    await refreshAuthFromApi(getAuth());
+    const auth = getAuth();
+    return getAuthHeaders(auth) as Record<string, string>;
+  }, []);
+
+  const verifyPasskey = useCallback(async () => {
+    setError("");
+    setMode("loading");
+    try {
+      const headers = await getHeaders();
+      const optRes = await fetch(`${API_BASE}/api/auth/webauthn/auth/options`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!optRes.ok) {
+        const j = await optRes.json().catch(() => ({}));
+        const detail = (j as { detail?: string }).detail || "";
+        if (optRes.status === 404 || detail.includes("No passkeys")) {
+          setError("No passkey registered on this account. Use PIN verification instead, or register a passkey from the Attendance page.");
+          setMode("idle");
+          return;
+        }
+        throw new Error(detail || `HTTP ${optRes.status}`);
+      }
+      const { state_token, options } = await optRes.json();
+      const credential = await webauthnAuthenticate(options as Record<string, unknown>);
+      const verRes = await fetch(`${API_BASE}/api/auth/webauthn/auth/verify`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ state_token, credential }),
+      });
+      if (!verRes.ok) {
+        const j = await verRes.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || "Passkey verification failed");
+      }
+      const { step_up_token } = await verRes.json();
+      onVerified(step_up_token);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("cancel") || msg.includes("NotAllowedError") || msg.includes("AbortError")) {
+        setError("Verification was cancelled. Please try again.");
+      } else if (msg.includes("Not implemented") || msg.includes("NotImplementedError")) {
+        setError("Passkey not found on this device. Try PIN verification or register a passkey from the Attendance page.");
+      } else {
+        setError(msg || "Passkey verification failed. Please try again.");
+      }
+      setMode("idle");
+    }
+  }, [getHeaders, onVerified]);
+
+  const verifyPin = useCallback(async () => {
+    if (pin.length < 4) {
+      setError("PIN must be at least 4 digits.");
+      return;
+    }
+    setError("");
+    setMode("loading");
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(`${API_BASE}/api/auth/step-up/pin`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || "Invalid PIN");
+      }
+      const { step_up_token } = await res.json();
+      onVerified(step_up_token);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Invalid PIN");
+      setMode("pin");
+    }
+  }, [pin, getHeaders, onVerified]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        {/* Lock Icon */}
+        <div className="flex justify-center mb-6">
+          <div className="w-20 h-20 rounded-full bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+            <Lock className="h-10 w-10 text-violet-400" />
+          </div>
+        </div>
+
+        <h1 className="text-2xl font-bold text-white text-center mb-1">Verify Your Identity</h1>
+        <p className="text-sm text-zinc-400 text-center mb-8">
+          Your pay information is protected. Verify to continue.
+        </p>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        {mode === "loading" && (
+          <div className="flex flex-col items-center gap-3 py-8 text-zinc-400">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+            <p className="text-sm">Verifying…</p>
+          </div>
+        )}
+
+        {mode !== "loading" && mode !== "pin" && (
+          <div className="space-y-3">
+            {wauSupported && (
+              <button
+                onClick={verifyPasskey}
+                className="w-full flex items-center justify-center gap-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-4 transition"
+              >
+                <Fingerprint className="h-5 w-5" />
+                Verify with Passkey
+              </button>
+            )}
+            <button
+              onClick={() => { setMode("pin"); setError(""); }}
+              className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium py-3.5 transition text-sm"
+            >
+              <KeyRound className="h-4 w-4" />
+              Use PIN instead
+            </button>
+
+            {!wauSupported && (
+              <p className="text-xs text-zinc-600 text-center">
+                This browser does not support passkeys. Please use Chrome or Safari.
+              </p>
+            )}
+          </div>
+        )}
+
+        {mode === "pin" && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                Enter your PIN
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                onKeyDown={(e) => e.key === "Enter" && verifyPin()}
+                placeholder="••••"
+                autoFocus
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 text-white text-center text-2xl tracking-[0.5em] placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
+              />
+            </div>
+            <button
+              onClick={verifyPin}
+              className="w-full rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-3.5 transition flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Confirm
+            </button>
+            <button
+              onClick={() => { setMode("idle"); setError(""); setPin(""); }}
+              className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition py-1"
+            >
+              Back
+            </button>
+          </div>
+        )}
+
+        <p className="mt-8 text-xs text-zinc-600 text-center">
+          Your pay data is only visible after identity verification.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Payslip Detail Modal ─────────────────────────────────────────────────────
 
-function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void }) {
+function PayslipModal({
+  slip,
+  stepUpToken,
+  onClose,
+}: {
+  slip: Payslip;
+  stepUpToken: string;
+  onClose: () => void;
+}) {
   const cycleDisplay = formatCycleLabel(slip.cycle_year, slip.cycle_month, slip.cycle_label);
   const isManila = slip.city?.toLowerCase() === "manila" || slip.currency === "PHP";
+  const [items, setItems] = useState<PayslipItem[]>([]);
+  const [detailLoading, setDetailLoading] = useState(true);
+
+  useEffect(() => {
+    if (!slip.cycle_id || slip.city?.toLowerCase() === "manila") {
+      setDetailLoading(false);
+      return;
+    }
+    const auth = getAuth();
+    const headers = {
+      ...(getAuthHeaders(auth) as Record<string, string>),
+      "X-Step-Up-Token": stepUpToken,
+    };
+    fetch(`${API_BASE}/api/admin/payroll/my-pay/payslip-detail?city=${slip.city}&cycle_id=${slip.cycle_id}`, { headers })
+      .then((r) => r.json())
+      .then((d) => setItems((d as { items?: PayslipItem[] }).items ?? []))
+      .catch(() => {})
+      .finally(() => setDetailLoading(false));
+  }, [slip.cycle_id, slip.city, stepUpToken]);
+
+  const additions = items.filter((i) => i.adj_type === "addition");
+  const deductions = items.filter((i) => i.adj_type === "deduction");
 
   return (
     <>
-      {/* Print styles — shows only the payslip, white background */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           body * { visibility: hidden !important; }
@@ -186,7 +481,6 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
 
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
         <div className="w-full max-w-lg my-4">
-          {/* Payslip document */}
           <div id="payslip-print" className="bg-white rounded-2xl overflow-hidden shadow-2xl">
 
             {/* ── Document Header ── */}
@@ -237,42 +531,117 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
               </div>
             </div>
 
-            {/* ── Earnings & Deductions ── */}
-            <div className="px-6 py-5 bg-white space-y-1">
-              {/* Section label */}
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Earnings</p>
-
-              <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                <span className="text-sm text-slate-600">Basic Salary</span>
-                <span className="text-sm font-medium text-slate-900 tabular-nums">{fmt(slip.basic_salary, slip.currency)}</span>
+            {/* ── Pay Calculation Breakdown ── */}
+            <div className="px-6 py-5 bg-white">
+              {/* Formula header */}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  How Your Pay is Calculated
+                </span>
+                <div className="h-px flex-1 bg-slate-200" />
               </div>
 
-              {slip.net_additions > 0 && (
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-600">Allowances & Additions</span>
-                  <span className="text-sm font-medium text-emerald-600 tabular-nums">+{fmt(slip.net_additions, slip.currency)}</span>
+              {/* Basic salary */}
+              <div className="flex justify-between items-center py-2.5 border-b border-slate-100">
+                <div>
+                  <span className="text-sm font-semibold text-slate-700">Basic Salary</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Monthly contracted salary</p>
                 </div>
+                <span className="text-sm font-bold text-slate-900 tabular-nums">{fmt(slip.basic_salary, slip.currency)}</span>
+              </div>
+
+              {/* Additions */}
+              {(slip.net_additions > 0 || additions.length > 0) && (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 pt-3 mb-1">
+                    + Additions & Allowances
+                  </p>
+                  {detailLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />Loading breakdown…
+                    </div>
+                  ) : additions.length > 0 ? (
+                    additions.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-slate-600 capitalize">{item.subtype || "Allowance"}</span>
+                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                        </div>
+                        <span className="text-sm font-medium text-emerald-600 tabular-nums ml-4">
+                          +{fmt(item.amount, slip.currency)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                      <span className="text-sm text-slate-600">Total Allowances & Additions</span>
+                      <span className="text-sm font-medium text-emerald-600 tabular-nums">
+                        +{fmt(slip.net_additions, slip.currency)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Gross pay subtotal */}
-              <div className="flex justify-between items-center py-2.5 px-3 -mx-3 bg-slate-50 rounded-lg mt-1">
-                <span className="text-sm font-semibold text-slate-700">Gross Pay</span>
+              {/* Gross pay total */}
+              <div className="flex justify-between items-center py-3 px-3 -mx-3 bg-slate-50 rounded-lg mt-2">
+                <div>
+                  <span className="text-sm font-bold text-slate-700">Gross Pay</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Basic + Additions</p>
+                </div>
                 <span className="text-sm font-bold text-slate-900 tabular-nums">{fmt(slip.gross_pay, slip.currency)}</span>
               </div>
 
-              {slip.net_deductions > 0 && (
+              {/* Deductions */}
+              {(slip.net_deductions > 0 || deductions.length > 0) && (
                 <>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 pt-3 mb-1">Deductions</p>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                    <span className="text-sm text-slate-600">Total Deductions</span>
-                    <span className="text-sm font-medium text-red-500 tabular-nums">−{fmt(slip.net_deductions, slip.currency)}</span>
-                  </div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500 pt-3 mb-1">
+                    − Deductions
+                  </p>
+                  {detailLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />Loading breakdown…
+                    </div>
+                  ) : deductions.length > 0 ? (
+                    deductions.map((item, i) => (
+                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-slate-600 capitalize">{item.subtype || "Deduction"}</span>
+                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                        </div>
+                        <span className="text-sm font-medium text-red-500 tabular-nums ml-4">
+                          −{fmt(item.amount, slip.currency)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                      <span className="text-sm text-slate-600">Total Deductions</span>
+                      <span className="text-sm font-medium text-red-500 tabular-nums">
+                        −{fmt(slip.net_deductions, slip.currency)}
+                      </span>
+                    </div>
+                  )}
                 </>
+              )}
+
+              {/* Formula summary line */}
+              {(slip.net_additions > 0 || slip.net_deductions > 0) && (
+                <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-500 font-mono text-center">
+                  {fmt(slip.basic_salary, slip.currency)}
+                  {slip.net_additions > 0 && <> + {fmt(slip.net_additions, slip.currency)}</>}
+                  {slip.net_deductions > 0 && <> − {fmt(slip.net_deductions, slip.currency)}</>}
+                  {" "}<span className="font-bold text-slate-700">= {fmt(slip.net_pay, slip.currency)}</span>
+                </div>
               )}
 
               {/* Net pay highlight */}
               <div className="mt-4 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 px-5 py-4 flex justify-between items-center">
-                <span className="text-white font-bold text-sm uppercase tracking-wide">Net Pay</span>
+                <div>
+                  <span className="text-white font-bold text-sm uppercase tracking-wide">Net Pay</span>
+                  <p className="text-violet-200 text-xs mt-0.5">Amount received</p>
+                </div>
                 <span className="text-white font-black text-2xl tabular-nums">{fmt(slip.net_pay, slip.currency)}</span>
               </div>
             </div>
@@ -285,7 +654,7 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
               </p>
             </div>
 
-            {/* ── Action Buttons (hidden on print) ── */}
+            {/* ── Action Buttons ── */}
             <div className="payslip-no-print px-6 pb-6 flex gap-3 bg-white border-t border-slate-100 pt-4">
               <button
                 onClick={() => window.print()}
@@ -364,10 +733,9 @@ type Tab = "payslips" | "adjustments" | "loans" | "leave";
 
 export default function MyPayPage() {
   const router = useRouter();
-  const [city, setCity] = useState<City>(() => {
-    const a = getAuth();
-    return a?.city?.toLowerCase() === "manila" ? "manila" : "dubai";
-  });
+  const [verified, setVerified] = useState(false);
+  const [stepUpToken, setStepUpToken] = useState("");
+  const [city, setCity] = useState<City>("dubai");
   const [tab, setTab] = useState<Tab>("payslips");
 
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -384,37 +752,59 @@ export default function MyPayPage() {
   const summaryLoadRef = useRef(0);
   const tabLoadRef = useRef(0);
   const tabMountedRef = useRef(false);
-  const authRef = useRef(getAuth());
 
-  // Auth guard — redirect if not logged in
+  // Auth guard — redirect if not logged in; set city from profile
   useEffect(() => {
     const auth = getAuth();
-    authRef.current = auth;
-    if (!auth) {
-      router.replace("/");
-      return;
+    if (!auth) { router.replace("/"); return; }
+    setCity(auth.city?.toLowerCase() === "manila" ? "manila" : "dubai");
+
+    // Restore step-up token from session storage (survives tab navigation, not tab close)
+    const saved = sessionStorage.getItem("payroll_step_up");
+    if (saved) {
+      setStepUpToken(saved);
+      setVerified(true);
+    } else {
+      setLoading(false);
     }
-    if (auth.city === "manila") setCity("manila");
-    else setCity("dubai");
   }, [router]);
 
+  const handleVerified = useCallback((token: string) => {
+    sessionStorage.setItem("payroll_step_up", token);
+    setStepUpToken(token);
+    setVerified(true);
+  }, []);
+
+  const authHeaders = useCallback((): Record<string, string> => {
+    const auth = getAuth();
+    return {
+      ...(getAuthHeaders(auth) as Record<string, string>),
+      "X-Step-Up-Token": stepUpToken,
+    };
+  }, [stepUpToken]);
+
   const doFetch = useCallback(async (path: string) => {
-    const res = await fetch(`${API_BASE}${path}`, {
-      headers: getAuthHeaders(authRef.current),
-    });
+    const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       let detail = text;
       try {
         const j = JSON.parse(text);
-        const d = j?.detail;
+        const d = (j as { detail?: string | Array<{ msg?: string }> })?.detail;
         if (typeof d === "string") detail = d;
-        else if (Array.isArray(d)) detail = d.map((e: any) => e?.msg || JSON.stringify(e)).join("; ");
+        else if (Array.isArray(d)) detail = d.map((e) => e?.msg || JSON.stringify(e)).join("; ");
       } catch { /* keep detail = text */ }
+      // Step-up expired — clear and show gate again
+      if (detail === "step_up_required") {
+        sessionStorage.removeItem("payroll_step_up");
+        setVerified(false);
+        setStepUpToken("");
+        throw new Error("step_up_required");
+      }
       throw new Error(detail || `HTTP ${res.status}`);
     }
     return res.json();
-  }, []);
+  }, [authHeaders]);
 
   // Load summary cards
   const loadSummary = useCallback(async (c: City) => {
@@ -424,10 +814,11 @@ export default function MyPayPage() {
     try {
       const data = await doFetch(`/api/admin/payroll/my-pay/summary?city=${c}`);
       if (summaryLoadRef.current !== id) return;
-      setSummary(data);
-    } catch {
+      setSummary(data as Summary);
+    } catch (e: unknown) {
       if (summaryLoadRef.current !== id) return;
-      setError("Failed to load pay summary. Please try again.");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg !== "step_up_required") setError("Failed to load pay summary. Please try again.");
     } finally {
       if (summaryLoadRef.current === id) setLoading(false);
     }
@@ -442,35 +833,38 @@ export default function MyPayPage() {
       if (t === "payslips") {
         const data = await doFetch(`/api/admin/payroll/my-pay/payslips?city=${c}`);
         if (tabLoadRef.current !== id) return;
-        setPayslips(data.payslips ?? []);
+        setPayslips((data as { payslips?: Payslip[] }).payslips ?? []);
       } else if (t === "adjustments") {
         const data = await doFetch(`/api/admin/payroll/my-pay/adjustments?city=${c}`);
         if (tabLoadRef.current !== id) return;
-        setAdjustments(data.adjustments ?? []);
+        setAdjustments((data as { adjustments?: Adjustment[] }).adjustments ?? []);
       } else if (t === "loans") {
         const data = await doFetch(`/api/admin/payroll/my-pay/loans?city=${c}`);
         if (tabLoadRef.current !== id) return;
-        setLoans(data.loans ?? []);
+        setLoans((data as { loans?: Loan[] }).loans ?? []);
       } else if (t === "leave") {
         const data = await doFetch(`/api/admin/payroll/my-pay/leave-salary?city=${c}`);
         if (tabLoadRef.current !== id) return;
-        setLeaveReqs(data.requests ?? []);
+        setLeaveReqs((data as { requests?: LeaveSalaryReq[] }).requests ?? []);
       }
-    } catch {
+    } catch (e: unknown) {
       if (tabLoadRef.current !== id) return;
-      setError("Failed to load tab data. Please try again.");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg !== "step_up_required") setError("Failed to load tab data. Please try again.");
     } finally {
       if (tabLoadRef.current === id) setTabLoading(false);
     }
   }, [doFetch]);
 
   useEffect(() => {
+    if (!verified || !stepUpToken) return;
     void loadSummary(city);
     void loadTab(tab, city);
-  }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [verified, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!tabMountedRef.current) { tabMountedRef.current = true; return; }
+    if (!verified || !stepUpToken) return;
     void loadTab(tab, city);
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -481,8 +875,12 @@ export default function MyPayPage() {
     setAdjustments([]);
     setLoans([]);
     setLeaveReqs([]);
-    // loadSummary and loadTab are triggered by useEffect([city])
   };
+
+  // Show gate if not verified
+  if (!verified) {
+    return <PasskeyGate onVerified={handleVerified} />;
+  }
 
   const defaultCurrency = city === "dubai" ? "AED" : "PHP";
 
@@ -504,19 +902,27 @@ export default function MyPayPage() {
             <h1 className={T_PAGE_TITLE}>My Pay</h1>
           </div>
 
-          {/* City Toggle */}
-          <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 gap-1">
-            {(["dubai", "manila"] as City[]).map((c) => (
-              <button
-                key={c}
-                onClick={() => handleCityChange(c)}
-                className={city === c
-                  ? "rounded-lg bg-violet-500/30 px-4 py-1.5 text-sm font-semibold text-violet-200 transition"
-                  : "rounded-lg px-4 py-1.5 text-sm text-zinc-400 transition hover:text-zinc-200"}
-              >
-                {c === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            {/* Verified badge */}
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-400">Verified</span>
+            </div>
+
+            {/* City Toggle */}
+            <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 gap-1">
+              {(["dubai", "manila"] as City[]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => handleCityChange(c)}
+                  className={city === c
+                    ? "rounded-lg bg-violet-500/30 px-4 py-1.5 text-sm font-semibold text-violet-200 transition"
+                    : "rounded-lg px-4 py-1.5 text-sm text-zinc-400 transition hover:text-zinc-200"}
+                >
+                  {c === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -538,7 +944,6 @@ export default function MyPayPage() {
         {/* KPI Summary */}
         {!loading && summary && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* Last Net Pay */}
             <div className={KPI_CARD}>
               <div className="flex items-center gap-2 mb-2">
                 <Banknote className="h-4 w-4 text-emerald-400" />
@@ -558,7 +963,6 @@ export default function MyPayPage() {
               )}
             </div>
 
-            {/* Loan Balance */}
             <div className={KPI_CARD}>
               <div className="flex items-center gap-2 mb-2">
                 <CreditCard className="h-4 w-4 text-amber-400" />
@@ -581,7 +985,6 @@ export default function MyPayPage() {
               )}
             </div>
 
-            {/* Pending Adjustments */}
             <div className={KPI_CARD}>
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="h-4 w-4 text-violet-400" />
@@ -596,7 +999,6 @@ export default function MyPayPage() {
               )}
             </div>
 
-            {/* Last Pay Date */}
             <div className={KPI_CARD}>
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4 text-teal-400" />
@@ -664,9 +1066,12 @@ export default function MyPayPage() {
                         </div>
                         <div className="text-right ml-4 shrink-0">
                           <p className="text-lg font-bold text-emerald-400">{fmt(slip.net_pay, slip.currency)}</p>
-                          {slip.net_deductions > 0 && (
-                            <p className="text-xs text-red-400">−{fmt(slip.net_deductions, slip.currency)} deducted</p>
-                          )}
+                          <p className="text-xs text-zinc-500">
+                            {fmt(slip.basic_salary, slip.currency)} base
+                            {slip.net_deductions > 0 && (
+                              <span className="text-red-400"> · −{fmt(slip.net_deductions, slip.currency)}</span>
+                            )}
+                          </p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-zinc-600 ml-3 group-hover:text-violet-400 transition shrink-0" />
                       </div>
@@ -794,7 +1199,11 @@ export default function MyPayPage() {
 
       {/* Payslip Modal */}
       {selectedSlip && (
-        <PayslipModal slip={selectedSlip} onClose={() => setSelectedSlip(null)} />
+        <PayslipModal
+          slip={selectedSlip}
+          stepUpToken={stepUpToken}
+          onClose={() => setSelectedSlip(null)}
+        />
       )}
     </div>
   );
