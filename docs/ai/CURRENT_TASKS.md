@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 169 — Manila Evaluation disposal/backup DB route)
+Last updated: 2026-07-26 (session 169 — Evaluation store config corrections)
 
 
 
@@ -8,6 +8,27 @@ Last updated: 2026-07-26 (session 169 — Manila Evaluation disposal/backup DB r
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 169 — Evaluation store config corrections)
+
+### Evaluation: store policy corrections (DEPLOYED ✅ Backend Heroku)
+
+**Changes to `app/services/evaluation_channel.py`:**
+
+| Item | Change |
+|---|---|
+| Motor City (MC) | Renamed to "Arjan" — `branch_name`, `pl_store_name`, `form_aliases` (added "arjan"), `qc_codes` (added "Dubai_Arjan"), `BRANCH_NAME_FALLBACKS["MC"]` |
+| Driver | `NO_OPERATION_BRANCHES` — all operation scoring excluded (no POS/QC data). `operation_total=0`, `operation_max=0`, not counted in overall_max |
+| Warehouse | Same as Driver |
+| Dubai CK | Backup already excluded (`NO_BACKUP_BRANCHES` contains "CK") |
+| Manila CK | Same — "CK" in `NO_BACKUP_BRANCHES` covers both cities |
+| Cubao, Manila CK | Already in `EVALUATION_STORES` — will appear when attendance/order data is present |
+
+**New `NO_OPERATION_BRANCHES = {"DRIVER", "WH"}`** — branches where Operation section is entirely N/A (no QC, no image upload, no disposal, no backup). When `include_operation=False`: all operation sub-scores are None, operation_max=0 and excluded from overall_max.
+
+**Architecture note for future Dubai migration:** When Dubai Disposal/Backup moves to DB route (same `disposal_reports`/`backup_reports` tables with `city='dubai'`), change the `if city_key == "manila":` fork in `build_evaluation_snapshot` to `if city_key in ("manila", "dubai"):` or remove the fork entirely.
 
 ---
 
