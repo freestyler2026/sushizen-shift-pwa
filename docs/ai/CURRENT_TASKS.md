@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 168 continued — UI testing + 3 bug fixes on Manila Payroll period detail page)
+Last updated: 2026-07-26 (session 168 continued — staff inquiry: SelectDark X button causing "drops" on location select)
 
 
 
@@ -8,6 +8,27 @@ Last updated: 2026-07-26 (session 168 continued — UI testing + 3 bug fixes on 
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 168 — SelectDark X-button "drops" bug fix)
+
+### Staff inquiry: "system drops/refreshes when selecting location" (DEPLOYED ✅ Frontend f4be9a8)
+
+**Report:** Caila (Procurement/PO) and Ms. Aliana (Travel Path, Daily Inventory) reported system "drops or refreshes" when selecting a location/city.
+
+**Root cause (2 issues):**
+
+1. **SelectDark X clear button on required fields** — SelectDark shows an X button whenever a value is set. On required selectors (city, branch), accidentally tapping X fires `onChange("")`, wiping the loaded data. Travel Path branch selector was especially prone since branch is always set.
+
+2. **PO page: any city selection clears data (even same city)** — The city onChange in `pos/page.tsx` cleared `rows`, `catalogSuppliers`, `requestSummary` on EVERY onChange call including re-selecting the same city. No automatic reload was triggered after clearing, so the table appeared to "drop."
+
+**Fixes (commit f4be9a8):**
+- `SelectDark.tsx`: Added `clearable` prop (default `false`). X button hidden unless `clearable={true}` is explicitly passed. All existing usages keep their behavior without code changes (optional filter selectors have an empty-value option in the dropdown list as alternative).
+- `procurement/pos/page.tsx` city onChange: Added `if (!v) return` (guard against empty clear) and `if (nextCity === city) return` (guard against same-city re-selection clearing data).
+- `procurement/page.tsx` city onChange: Same guards added.
+
+**Why Daily Inventory was unaffected by X button:** Uses native `<select>`, not SelectDark.
 
 ---
 
