@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 168 — NavBar badge expansion)
+Last updated: 2026-07-26 (session 168 — Manila Payroll: staff selection UX, statutory deductions 50/50 split, NSD guide)
 
 
 
@@ -8,6 +8,50 @@ Last updated: 2026-07-26 (session 168 — NavBar badge expansion)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 168 — Manila Payroll: 3 staff inquiries)
+
+### ① Staff selection UX — auto-select + visual cue (DEPLOYED ✅ Frontend e00f102)
+
+**Problem:** Staff list was on the left but users couldn't figure out they needed to click a row.
+**Fixes:**
+- Auto-select the first run when the period loads (no more blank right panel on first load)
+- Selected row gets violet left border + `hover:bg-violet-900/10` + violet text
+- Right panel placeholder updated: "← Select a staff member from the table · click any row to view their payroll breakdown"
+- Period subtitle always shows `· Statutory deductions 50%` regardless of which half
+
+### ② Statutory deductions 50/50 split (DEPLOYED ✅ Backend 470beeb, Frontend 0da91b0)
+
+**Problem:** SSS/PhilHealth/Pag-IBIG/BIR were only deducted in 2nd cut-off.
+**Fix:** `compute_statutory_deductions(fraction=Decimal("0.5"))` now called for BOTH halves:
+- 1st half: uses `monthly_rate` as estimated gross, 50% of all statutory deductions
+- 2nd half: uses actual combined gross (first_half + current), 50% of all statutory deductions
+- BIR correctness preserved: bracket lookup uses full monthly amounts; only final WHT is halved
+- `itemFormula()` in frontend updated to show "50% per cut-off" language
+
+### ③ Night Differential & Holiday auto-calculation (DEPLOYED ✅ Frontend 43a51e7)
+
+**Status: Engine already fully implements all PH labor law calculations.**
+No new calculation logic needed.
+
+**What's already in the engine (`manila_payroll_engine.py`):**
+- `aggregate_attendance()`: when `actual_time_in + actual_time_out` present → auto-calculates regular, OT, NSD regular, NSD OT hours
+- NSD window: 22:00–06:00 Philippine Standard Time
+- `ph_pay_rate_rules` table: seeded with correct multipliers (OT=1.25 ordinary, 1.30 others, NSD=0.10 all)
+- Without actual clock times → uses `night_reg`/`night_ot` stored from CSV upload
+
+**Fixes deployed for ③:**
+- `dtr-upload/page.tsx` `fmtTime()`: added `timeZone: "Asia/Manila"` (was using browser local timezone = Japan UTC+9, off by 1hr)
+- CSV Format Guide: updated `time_in`/`time_out` description to say "enables auto NSD/OT"
+- Added green callout box explaining automatic Night Differential calculation feature
+- Clarified `night_reg`/`night_ot` are for manual entry when actual clock times absent
+
+**DTR timezone fix (both ① and ③):**
+- DTR modal was displaying times in Japan timezone (UTC+9) instead of Manila (UTC+8)
+- Fixed with `isoToManilaInput()` / `manilaInputToISO()` using explicit `+08:00` offset
+- DTR modal header added: `⏱ All times are in Philippine Standard Time (UTC+8)`
 
 ---
 
