@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 168 continued — staff inquiry: SelectDark X button causing "drops" on location select)
+Last updated: 2026-07-26 (session 169 — Avg Daily Orders denominator fix)
 
 
 
@@ -8,6 +8,22 @@ Last updated: 2026-07-26 (session 168 continued — staff inquiry: SelectDark X 
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 169 — Avg Daily Orders denominator fix)
+
+### Number of Orders (Manila): Avg Daily Orders divided by actual data days (DEPLOYED ✅ Frontend 7ae31b6, Backend v1534)
+
+**Problem:** Avg Daily Orders KPI always divided by the full calendar width of the selected date range (e.g., 31 for all of July), even mid-month when only ~25 days had actual sales data. This made the average look smaller than it actually was.
+
+**Root cause:** `displayDays` was computed as `(dateTo - dateFrom) / msPerDay + 1` — always the range width.
+
+**Fix:**
+- **Backend (`main.py`):** Added `COUNT(DISTINCT sale_date)` query to `/api/admin/analytics/manila/order-counts` endpoint. Uses a separate `get_conn()` connection (psycopg2 transaction isolation rule). Returns `data_days_count: int` in the response. Respects the same date + branch filters.
+- **Frontend (`ManilaOrderCountsTab.tsx`):** Added `data_days_count?: number` to `ApiResp` type. Avg Daily Orders now uses `data?.data_days_count` as the divisor (falls back to `displayDays` if backend doesn't return it). Label updated to `N days with data` when `data_days_count` is present.
+
+**Result:** Mid-July query shows "25 days with data" instead of "31 days", giving a correct daily average.
 
 ---
 
