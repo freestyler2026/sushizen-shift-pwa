@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 169 — Manila Evaluation enabled)
+Last updated: 2026-07-26 (session 169 — Manila Evaluation disposal/backup DB route)
 
 
 
@@ -8,6 +8,25 @@ Last updated: 2026-07-26 (session 169 — Manila Evaluation enabled)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 169 — Manila Evaluation disposal/backup DB route)
+
+### Manila Evaluation: Disposal/Backup scoring reads from DB instead of Google Sheets (DEPLOYED ✅ Backend Heroku)
+
+**Problem:** Manila staff submit Disposal and Backup reports via the PWA, which stores them in the PostgreSQL DB (`disposal_reports`, `backup_reports` tables). The evaluation engine only read from Google Sheets form responses. Dubai uses Google Sheets; Manila uses the DB.
+
+**New functions added (`app/services/evaluation_channel.py`):**
+- `_read_disposal_metrics_from_db(city, date_from, date_to)` — queries `disposal_reports` + `disposal_report_lines` for the city/date range, returns `{branch: {submitted_day_count, row_count, quantity_total}}` — same shape as `_read_form_metrics()`
+- `_read_backup_metrics_from_db(city, date_from, date_to)` — same for `backup_reports` + `backup_report_lines`
+
+**Fork in `build_evaluation_snapshot`:**
+- `city='manila'` → DB functions (new route)
+- Other cities (Dubai) → existing Google Sheets path (`_read_form_metrics`)
+- Dubai will migrate to DB route in the future when ready
+
+**Architecture note:** Tables `disposal_reports` and `backup_reports` already have a `city` column supporting both 'dubai' and 'manila'. The migration path for Dubai is already in place.
 
 ---
 
