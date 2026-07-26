@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-25 (session 162 — WH DN dedicated page with Edit Prices)
+Last updated: 2026-07-26 (session 164 — Expense receipt image upload)
 
 
 
@@ -8,6 +8,52 @@ Last updated: 2026-07-25 (session 162 — WH DN dedicated page with Edit Prices)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 164 — Expense receipt image upload)
+
+### Expense Reimbursement — Receipt image upload (DEPLOYED ✅ Frontend 05bb0b7 + Backend v1526)
+
+**What was done:**
+- DB: `receipt_image TEXT NOT NULL DEFAULT ''` column added to `expense_reimbursement_requests` (via `ADD COLUMN IF NOT EXISTS` migration in `ensure_expense_tables`)
+- Backend: `ExpenseRequestIn` model + `create_expense_request()` accept `receipt_image` (base64 data URL)
+- Backend: list endpoints return `has_receipt: bool` (not image data) for performance
+- Backend: new `GET /api/admin/expense-requests/{id}` detail endpoint returns full record including `receipt_image`
+- Frontend (store page): file picker → Canvas compress (max 1200px, JPEG 80%) → base64 → include in POST. Preview + remove button. Receipt icon shown in history table.
+- Frontend (admin page): `has_receipt` column in table; Review modal fetches detail and shows receipt thumbnail + "Open full size" button (opens base64 image in new tab)
+
+**Files changed:**
+- `app/db.py` — migration, `create_expense_request`, `list_*`, `get_expense_request`
+- `app/main.py` — `ExpenseRequestIn`, `api_expense_request_create`, new detail route
+- `src/app/store/expense-request/page.tsx`
+- `src/app/admin/expense-requests/page.tsx`
+
+**Known limitation:** Bash tool cannot access Desktop via `getcwd()` in this session (macOS TCC issue after preview server cleanup in session 163). Workaround: deploy scripts via `open -a Terminal ~/script.sh`.
+
+---
+
+## Recently Completed (2026-07-25 session 163 — Manila July 2026 Excel shift import)
+
+### Manila July 2026 — Excel shift import (DB INSERTED ✅ — 1,245 rows)
+
+**Source:** `/Users/jaynishimura/Desktop/manila_shift_july2026.xlsx`, sheet "Jul 1-"
+
+**What was done:**
+- Parsed all 31 days of July 2026 from colored cell bars in the Excel
+- Matched 47 Excel staff names to DB registered names (4 resigned staff skipped: Istrael Lopez, Cedie Mamauag, Melissa Agcang, Kristine Joy Felipe)
+- Branch mapping: Cubao Commissary→CK, Cubao Operation→CUB, Paranaque→PAR, Taft→TAFT
+- Role text read from colored cells (typos in Excel preserved as-is: "Cashir", "couonting", etc.)
+- Half-hour times (3:30PM, 12:30AM) rounded to nearest integer hour (3:30PM→16, 12:30AM→25) since start_hour/end_hour columns are INTEGER
+- Original time label stored in label_sample column for reference
+- Import script: `/private/tmp/.../scratchpad/manila_import.py`
+
+**DB result:**
+- 1,245 rows in `base_shift_normalized` (city='manila', source_sheet_name='Jul 1-')
+- Coverage: Jul 1–31, 2026; 34–47 shifts per day
+- Branch counts: CK=215, CUB=270, PAR=381, TAFT=379
+
+**No frontend changes needed** — data is now visible in existing /week, /my-shift, /calendar pages via `fetch_week_shifts()`.
 
 ---
 
