@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-26 (session 168 — Petty Cash bug fixes)
+Last updated: 2026-07-26 (session 168 — NavBar badge expansion)
 
 
 
@@ -8,6 +8,37 @@ Last updated: 2026-07-26 (session 168 — Petty Cash bug fixes)
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-26 session 168 — NavBar badge expansion)
+
+### NavBar — Added badges to 6 more admin pages (DEPLOYED ✅ Backend 9ede58c, Frontend 7f49232)
+
+**What was done:**
+Added colored badge chips to 6 admin NavBar items that previously showed no counts:
+
+| NavBar Item | Badge Color | Count shows |
+|---|---|---|
+| Petty Cash | Yellow (amber) | PENDING requests |
+| Expense Requests | Yellow | PENDING requests |
+| Transport Expense | Yellow | PENDING expenses |
+| Spot Purchase | Yellow | PENDING spot purchases |
+| Employee Cases (NTE) | Orange (warning) | ACTIVE NTE records |
+| Supplier Confirmations | Yellow | Pending supplier confirmations |
+
+**New backend badge endpoints added:**
+- `GET /api/admin/petty-cash/badge?city=manila` — in `petty_cash_api.py`
+- `GET /api/admin/transport/badge?city=manila` — in `transport_expense_api.py`
+- `GET /api/admin/conduct/badge?city=manila` — in `nte_api.py`
+- `GET /api/admin/supplier-confirmations/badge?city=manila` — in `main.py`
+- (Used existing endpoints for expense-requests and spot-purchase)
+
+**Frontend (`NavBar.tsx`):**
+- Added 6 state vars: `pettyCashBadge`, `expenseBadge`, `transportBadge`, `spotPurchaseBadge`, `nteCasesBadge`, `supplierBadge`
+- Added 6 polling blocks in `loadAuth()` with role-gated fetches
+- Added 6 conditions in `adminItems` useMemo ternary chain
+- Updated useMemo deps array with all 6 new vars
 
 ---
 
