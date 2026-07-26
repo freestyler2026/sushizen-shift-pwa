@@ -524,10 +524,10 @@ function PayslipModal({
   const deductions = items.filter((i) => i.adj_type === "deduction");
 
   // Manila breakdown derived from individual items
-  const manilaBasicItem = manilaItems.find(i => i.item_code === "BASIC_SALARY_HALF");
+  const manilaBasicItem = manilaItems.find(i => i.item_code === "MONTHLY_BASIC");
   const manilaEarnings = manilaItems.filter(i =>
     i.item_type === "earning" &&
-    i.item_code !== "BASIC_SALARY_HALF" &&
+    i.item_code !== "MONTHLY_BASIC" &&
     i.item_code !== "13TH_MONTH_ACCRUAL"
   );
   const manilaDeductions = manilaItems.filter(i => i.item_type === "deduction");
