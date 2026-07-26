@@ -119,7 +119,7 @@ function fmtTime(iso: string | null) {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila" });
   } catch { return iso.slice(11, 16) || "—"; }
 }
 
@@ -751,18 +751,28 @@ export default function DtrUploadPage() {
               <p className="font-semibold text-blue-300 mb-2">Column order (tab or comma separated):</p>
               <code className="block text-slate-300 font-mono bg-slate-800/60 rounded-lg p-3 whitespace-pre">{`date          YYYY-MM-DD      (required)
 staff_name    Employee name   (required — must match staff profiles)
-time_in       HH:MM 24hr      (optional)
-time_out      HH:MM 24hr      (optional)
+time_in       HH:MM 24hr      (optional — enables auto NSD/OT)
+time_out      HH:MM 24hr      (optional — enables auto NSD/OT)
 reg_hours     Decimal         (default: 8.0)
 ot_hours      Decimal         (default: 0)
-night_reg     NSD reg hrs     (default: 0)
-night_ot      NSD OT hrs      (default: 0)
+night_reg     NSD reg hrs     (default: 0 — manual if no time_in/out)
+night_ot      NSD OT hrs      (default: 0 — manual if no time_in/out)
 late_min      Integer minutes (default: 0)
 ut_min        Integer minutes (default: 0)
 day_type      See values      (default: ordinary_day)
 rest_day      Y / N          (default: N)
 awp           Y / N          (default: N — absent no pay)
 paid_leave    Y / N          (default: N)`}</code>
+            </div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-3 text-xs text-emerald-200 leading-relaxed">
+              <p className="font-semibold text-emerald-300 mb-1">⭐ Auto Night Differential &amp; Overtime Calculation</p>
+              <p>When <code className="text-emerald-100">time_in</code> and <code className="text-emerald-100">time_out</code> are provided, the payroll engine automatically calculates:</p>
+              <ul className="mt-1 ml-3 space-y-0.5 list-disc list-inside">
+                <li>Night Differential hours (22:00–06:00 Philippine Standard Time)</li>
+                <li>Overtime hours (beyond 8 regular hours)</li>
+                <li>All multipliers per PH labor law (day type, rest day, holiday)</li>
+              </ul>
+              <p className="mt-2 text-emerald-300/70">Without actual clock times, enter <code className="text-emerald-100">night_reg</code> / <code className="text-emerald-100">night_ot</code> manually in the CSV.</p>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 mb-2">Valid day_type values:</p>
