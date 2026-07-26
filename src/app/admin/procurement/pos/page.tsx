@@ -637,7 +637,9 @@ export default function ProcurementPoPage() {
             <SelectDark
               value={city}
               onChange={(v) => {
+                if (!v) return;
                 const nextCity = v as "manila" | "dubai";
+                if (nextCity === city) return;
                 setCity(nextCity);
                 const can = canAccessProcurementAdmin(String(auth?.role || ""), nextCity);
                 setAllowed(can);

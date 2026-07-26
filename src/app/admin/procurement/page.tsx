@@ -385,7 +385,9 @@ export default function AdminProcurementPage() {
           <SelectDark
             value={city}
             onChange={v => {
-              const nextCity = String(v || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+              if (!v) return;
+              const nextCity = String(v).toLowerCase() === "dubai" ? "dubai" : "manila";
+              if (nextCity === city) return;
               setCity(nextCity);
               setRows([]);
               setQueueRows([]);

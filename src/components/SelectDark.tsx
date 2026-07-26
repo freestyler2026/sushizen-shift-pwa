@@ -12,6 +12,9 @@ type Props = {
   options: (string | OptionItem)[];
   placeholder?: string;
   className?: string;
+  // When false (default), the X clear button is hidden — use for required fields
+  // like city/branch selectors where an empty value is invalid.
+  clearable?: boolean;
 };
 
 /**
@@ -25,6 +28,7 @@ export default function SelectDark({
   options,
   placeholder = "— Select —",
   className = "",
+  clearable = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -119,7 +123,7 @@ export default function SelectDark({
           {value ? selectedLabel : placeholder}
         </span>
         <div className="flex items-center gap-1 ml-2 shrink-0">
-          {value && (
+          {clearable && value && (
             <span
               role="button"
               tabIndex={0}
