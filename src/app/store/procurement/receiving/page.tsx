@@ -142,6 +142,8 @@ export default function StoreProcurementReceivingPage() {
   const [prevReceivedQty, setPrevReceivedQty] = useState<Record<string, number>>({}); // request_item_id → qty_received
   const [duplicateWarningConfirmed, setDuplicateWarningConfirmed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // On mobile: collapse Step 1 list when a request is pre-selected (from URL or after user picks one)
+  const [step1Collapsed, setStep1Collapsed] = useState(false);
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -510,7 +512,7 @@ export default function StoreProcurementReceivingPage() {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
     const initial = sp.get("request_id") || "";
-    if (initial) setRequestId(initial);
+    if (initial) { setRequestId(initial); setStep1Collapsed(true); }
   }, []);
 
   useEffect(() => {
@@ -701,14 +703,41 @@ export default function StoreProcurementReceivingPage() {
           </div>
 
           {/* Step 1: Request selector */}
-          <div className={`${GLASS} p-4`}>
+          {/* Mobile collapsed view — shown when a request is selected */}
+          {requestId && step1Collapsed && (
+            <div className={`${GLASS} p-3 lg:hidden`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-400" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-white truncate">
+                      Step 1 ✓ — {selectedRequest?.request_no || requestId}
+                    </div>
+                    {selectedRequest && (
+                      <div className="text-[11px] text-zinc-400">
+                        {selectedRequest.store_code} · {formatDate(selectedRequest.request_date)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep1Collapsed(false)}
+                  className="shrink-0 rounded-lg border border-violet-400/20 bg-violet-950/30 px-2.5 py-1 text-xs text-violet-300 hover:bg-violet-950/50"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+          <div className={`${GLASS} p-4 ${requestId && step1Collapsed ? "hidden lg:block" : ""}`}>
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold">Step 1 — Select Request</div>
               <div className="text-xs text-zinc-500">All approved requests for {cityLabel}.</div>
             </div>
             {requestId && (
-              <button type="button" onClick={() => { setRequestId(""); setRequestDetail(null); setRows([]); setDuplicateWarningConfirmed(false); }} className="text-xs text-zinc-500 underline">
+              <button type="button" onClick={() => { setRequestId(""); setRequestDetail(null); setRows([]); setDuplicateWarningConfirmed(false); setStep1Collapsed(false); }} className="text-xs text-zinc-500 underline">
                 Clear
               </button>
             )}
@@ -740,7 +769,7 @@ export default function StoreProcurementReceivingPage() {
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() => { setRequestId(row.id); setDuplicateWarningConfirmed(false); }}
+                  onClick={() => { setRequestId(row.id); setDuplicateWarningConfirmed(false); setStep1Collapsed(true); }}
                   className={[
                     "w-full rounded-xl border p-3 text-left transition-all duration-150",
                     selected
