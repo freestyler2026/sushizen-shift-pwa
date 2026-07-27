@@ -72,8 +72,17 @@ type EvaluatorStat = {
   full_compliance_rate_pct: number;
   last_eval_date: string;
   recent_avg: number | null;
+  max_gap_days: number;
+  long_gap_count: number;
   flags: string[];
   reliability: "HIGH" | "MEDIUM" | "LOW" | "SUSPICIOUS";
+};
+
+type SubmissionAlert = {
+  missing: boolean;
+  date: string;
+  count: number;
+  skipped: boolean;
 };
 
 type EvalRow = {
@@ -218,16 +227,20 @@ const FLAG_LABELS: Record<string, { label: string; severity: "red" | "amber" }> 
     label: "Avg score >88 — consistently too high for a developing team",
     severity: "red",
   },
-  NO_VARIANCE: {
-    label: "Low score variance (<4 std dev) — may not be evaluating carefully",
+  TRENDING_UP: {
+    label: "Recent evaluations 10+ pts above overall baseline — scoring is getting softer",
     severity: "red",
   },
-  FULL_COMPLIANCE_HIGH: {
-    label: "Full compliance rate >70% of evaluations — suspiciously high",
+  SUBMISSION_GAPS: {
+    label: "Repeated missed submissions — multiple 5+ day gaps detected",
+    severity: "red",
+  },
+  NO_VARIANCE: {
+    label: "Low score variance (<4 std dev) — evaluations are very consistent (may be genuine)",
     severity: "amber",
   },
-  TRENDING_UP: {
-    label: "Recent evaluations 10+ pts above baseline — getting softer over time",
+  FULL_COMPLIANCE_HIGH: {
+    label: "Full compliance rate >70% — may be genuine if evaluator is thorough",
     severity: "amber",
   },
 };
@@ -362,7 +375,7 @@ function EvaluatorQualityView({ city }: { city: string }) {
                       s.score_stddev == null
                         ? "text-slate-500"
                         : s.score_stddev < 4
-                        ? "text-red-400"
+                        ? "text-amber-400"
                         : "text-emerald-400"
                     }`}
                   >
@@ -394,6 +407,28 @@ function EvaluatorQualityView({ city }: { city: string }) {
                     {s.full_compliance_rate_pct.toFixed(0)}%
                   </p>
                   <p className={`${T_CAPTION} text-slate-600`}>all 4 checks ✓</p>
+                </div>
+                <div className={`${GLASS_CARD} p-2.5 col-span-2`}>
+                  <p className={`${T_CAPTION} text-slate-500`}>Submission Gaps</p>
+                  <div className="flex items-baseline gap-2">
+                    <p
+                      className={`text-lg font-bold ${
+                        s.max_gap_days >= 5 && s.long_gap_count >= 2
+                          ? "text-red-400"
+                          : s.max_gap_days >= 5
+                          ? "text-amber-400"
+                          : "text-emerald-400"
+                      }`}
+                    >
+                      {s.max_gap_days > 0 ? `${s.max_gap_days}d max` : "—"}
+                    </p>
+                    {s.long_gap_count > 0 && (
+                      <p className={`${T_CAPTION} text-slate-500`}>
+                        ({s.long_gap_count}× gap ≥5d)
+                      </p>
+                    )}
+                  </div>
+                  <p className={`${T_CAPTION} text-slate-600`}>longest gap between submissions</p>
                 </div>
               </div>
 
@@ -1671,6 +1706,7 @@ export default function StoreEvaluationsPage() {
   const [trendBranch, setTrendBranch] = useState("");
   const [allBranches, setAllBranches] = useState<string[]>([]);
   const [evaluatorMap, setEvaluatorMap] = useState<Record<string, EvaluatorStat>>({});
+  const [submissionAlert, setSubmissionAlert] = useState<SubmissionAlert | null>(null);
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -1729,6 +1765,19 @@ export default function StoreEvaluationsPage() {
     if (tab === "trend") void loadBranches();
   }, [tab, loadSummary, loadBranches, loadEvaluatorStats]);
 
+  // Load submission alert once on mount
+  useEffect(() => {
+    fetch(`/api/admin/store-evaluations/submission-alert?city=${city}`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d: SubmissionAlert & { ok?: boolean }) => {
+        if (d.ok && d.missing && !d.skipped) setSubmissionAlert(d);
+      })
+      .catch(() => {});
+  }, [city]);
+
   // KPI summary
   const submitted = evaluations.length;
   const avgScore =
@@ -1766,6 +1815,33 @@ export default function StoreEvaluationsPage() {
             </button>
           )}
         </div>
+
+        {/* Missing submission alert banner */}
+        {submissionAlert?.missing && (
+          <div className="flex items-start gap-3 p-3 mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-300 font-semibold text-sm">Evaluations Not Submitted</p>
+              <p className="text-amber-400/80 text-xs mt-0.5">
+                No evaluations were submitted for{" "}
+                {new Date(submissionAlert.date + "T00:00:00").toLocaleDateString("en-PH", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+                . Please check whether store evaluations were completed.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSubmissionAlert(null)}
+              className="text-amber-500/60 hover:text-amber-300 text-xs shrink-0"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className={`${TAB_CONTAINER} mb-5`}>
