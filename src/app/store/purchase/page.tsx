@@ -237,8 +237,11 @@ export default function StorePurchasePage() {
 
   const handleItemNameChange = (id: number, val: string) => {
     const match = catalog.find((c) => c.item_name.toLowerCase() === val.toLowerCase());
-    updateItem(id, "item_name", val);
-    updateItem(id, "is_new", !match && val.length > 0);
+    setItems((p) => p.map((i) =>
+      i.id === id
+        ? { ...i, item_name: val, is_new: !match && val.length > 0, benchmark_price: match ? (match.benchmark_unit_price || 0) : 0 }
+        : i
+    ));
     setActiveSuggestId(id);
   };
 
@@ -265,6 +268,7 @@ export default function StorePurchasePage() {
   // ─── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setError("");
+    if (!storeCode)                        { setError("Please select a location / branch."); return; }
     if (!vendorName.trim())               { setError("Vendor / market name is required."); return; }
     const validItems = items.filter((i) => i.item_name.trim() && parseFloat(i.qty) > 0);
     if (!validItems.length)               { setError("Add at least one item with a name and quantity."); return; }
