@@ -1668,6 +1668,7 @@ export default function StoreProcurementHomePage() {
                 setStoreCode("");
                 if (typeof window !== "undefined") localStorage.removeItem("store_proc_branch");
                 void loadMyRequests(nextCity, undefined, "");
+                if (isCkDispatchVisible(nextCity)) void loadCkDispatch(nextCity);
               }}
               className={SELECT_CLASS}
               options={[
@@ -1807,7 +1808,9 @@ export default function StoreProcurementHomePage() {
                   const nextCity = String(v || "manila").toLowerCase();
                   setCity(nextCity);
                   setStoreCode("");
+                  if (typeof window !== "undefined") localStorage.removeItem("store_proc_branch");
                   void loadMyRequests(nextCity, undefined, "");
+                  if (isCkDispatchVisible(nextCity)) void loadCkDispatch(nextCity);
                 }}
                 className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 options={[
