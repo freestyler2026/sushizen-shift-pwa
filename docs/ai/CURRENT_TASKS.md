@@ -1,8 +1,30 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 176 — Daily Inventory ordering fixes)
+Last updated: 2026-07-27 (session 177 — Store Evaluation Follow-up Issue Tracker)
 
 
+
+---
+
+## Recently Completed (2026-07-27 session 177 — Store Eval Follow-up Tracker)
+
+### Store Evaluation: A+B+C Follow-up Issue Tracker (DEPLOYED ✅ Heroku v1563, Vercel 7eeceaf)
+
+**A — Submitted_at display:**
+- `admin/store-evaluations/page.tsx` `EvalDetailModal`: added "Submitted {fmtDatetime(ev.submitted_at)}" below eval date/evaluator in header
+- `fmtDatetime()` helper added: formats TIMESTAMPTZ → "Jul 27, 2:30 PM" (Asia/Manila)
+
+**B — Follow-up Issue Tracker:**
+- New DB tables: `store_eval_followup_items` (city, branch_code, eval_date?, title, status, created_by, created/resolved timestamps) and `store_eval_followup_comments` (item_id FK, author, body)
+- `db_store_evaluation.py`: `list_followup_items()`, `create_followup_item()`, `update_followup_item()` — status: open/in_progress/resolved
+- `store_evaluation_api.py`: `GET/POST /api/admin/store-evaluations/followup-items`, `PATCH /api/admin/store-evaluations/followup-items/{id}`
+- Frontend: `FollowupView` component with KPI cards (Open/In Progress/Resolved), branch filter, "+ Add Issue" form, item cards with status chips and inline status-change buttons
+
+**C — Comment Threads:**
+- `db_store_evaluation.py`: `list_followup_comments()`, `add_followup_comment()`
+- `store_evaluation_api.py`: `GET/POST /api/admin/store-evaluations/followup-items/{id}/comments`
+- Frontend: `FollowupItemCard` component — expandable with full comment thread, last-comment preview when collapsed, Cmd+Enter to post, resolved_at/resolved_by display
+- New "Follow-up" tab added to Store Evaluations page tab bar (between Evaluator and Settings)
 
 ---
 
