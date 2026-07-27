@@ -1,6 +1,153 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 172 — Prep Time hourly history + Phase C draft integration)
+Last updated: 2026-07-27 (session 176 — Daily Inventory ordering fixes)
+
+
+
+---
+
+## Recently Completed (2026-07-27 session 176 — Daily Inventory ordering fixes)
+
+### Daily Inventory → Order generation: 4 bug fixes (DEPLOYED ✅ Heroku v1559-1562, Vercel 3c390db)
+
+**Fix ①A — Price not reflected (active_only bug):**
+- `daily_inventory_api.py`: `list_proc_curated_catalog_items(active_only=False)` → `active_only=True`
+- Old inactive (renamed) items could shadow active items, returning price 0
+
+**Fix ①B — Old item names reappearing after rename (seed duplication):**
+- `db.py` `_seed_manila_catalog()`: now pre-queries `(catalog_category, store_scope, supplier_name, sku)` combos; skips any seed row whose natural key already exists regardless of `item_name`
+- Root cause: `upsert_proc_curated_catalog_items` UPDATEs by UUID in-place, freeing old unique key; seed's `ON CONFLICT DO NOTHING` on the full key (including item_name) then re-inserted old name on restart
+
+**Fix ② — Warehouse items missing from edit modal:**
+- `daily_inventory_api.py`: `vendor_name = ""` → `"Warehouse"` for non-CK items in `api_generate_order_from_report`
+- Empty vendor_name meant the edit modal's supplier filter couldn't match warehouse lines
+
+**Fix ③ — Approval item picker wrong source:**
+- `cases/[caseId]/page.tsx` `loadIngredientCatalog`: changed from `GET /api/cost/ingredients` + `cost/component-options` (cost module) to `GET /api/admin/procurement/requests/item-catalog?city=...&store=...` (procurement curated catalog)
+- Names and prices now match the actual procurement catalog
+
+**Fix ④ — Min order qty and order step per item:**
+- `db.py`: Added `min_order_qty NUMERIC(10,3)` and `order_step NUMERIC(10,3)` to `proc_curated_catalog_items` schema, SELECT, and UPSERT
+- `main.py`: Added `min_order_qty: Optional[float]` and `order_step: Optional[float]` to `ProcCuratedCatalogRowIn` Pydantic model
+- `daily_inventory_api.py`: `_apply_order_constraints()` applies floor (`min_order_qty`) then rounds up to nearest `order_step` (with `round(qty/step, 9)` guard for float precision)
+- `catalog/page.tsx`: Added Min Order Qty and Order Step numeric inputs to catalog edit modal
+
+**Bugs found during testing and fixed:**
+- `_catalog_key` only searched `catalog_price_map` — items with constraints but price=0 wouldn't get prefix-matched → fixed by using union of all three maps (`_all_catalog_names`)
+- `import math` inside function → moved to module-level
+- `math.ceil(qty/step)` floating-point overshoot (e.g. `0.1+0.2=0.30000000000000004 → ceil=4 not 3`) → guarded with `round(qty/step, 9)` before ceil
+- `ProcCuratedCatalogRowIn` Pydantic model missing `min_order_qty`/`order_step` → Pydantic silently dropped them from `model_dump()` → upsert always stored NULL
+
+---
+
+## Recently Completed (2026-07-27 session 175 — Anti-Gaming System bug fixes)
+
+### Anti-Gaming System: 3 Bug Fixes Post-Testing (DEPLOYED ✅)
+
+**Found during browser testing:**
+1. `score_range` is `MAX(score) - MIN(score)` (total span), NOT symmetric deviation. Fixed "range ±X" → "span X pts" in:
+   - `admin/store-evaluations/page.tsx` — evaluator card repeat-pattern stats
+   - `store/evaluation/page.tsx` — repeat-flag alert banner text
+2. `action_submitted_date` can be null → rendered raw "null" in action record label.
+   Fixed with `rp.action_submitted_date ? fmtDate(rp.action_submitted_date) : "—"`
+
+**Commit:** `9cca8f1` — deployed to Vercel via git push
+
+---
+
+## Recently Completed (2026-07-27 session 175 — Anti-Gaming System)
+
+### Anti-Gaming System: 10-Point Score + Repeat Detection + Action Tracking (DEPLOYED ✅)
+
+**User request:** Replace HIGH/LOW badge with 10-point numeric score per evaluator. Detect same-score repetition (3+ consecutive ±3pt to same branch). Require mandatory action comment when pattern detected.
+
+**Backend (deployed as Heroku commit e73003e — session 174–175):**
+- `db_store_evaluation.py`:
+  - `_compute_score_10()`: 5 dimensions × 2pts = 10pt max
+    - A: Variance (stddev≥6→2, 4-6→1, <4→0)
+    - B: Score level (60-82→2, boundary→1, else→0)
+    - C: Submission regularity (long_gap_count=0→2, 1→1, 2+→0)
+    - D: Compliance calibration (fc_rate≤55%→2, ≤70%→1, >70%→0)
+    - E: Repetition penalty (0 patterns→2, 1→1, 2+→0)
+  - `get_repetition_flags()`: LAG() SQL detects 3+ consecutive ±3pt scores per (evaluator, branch) within 14 days
+  - `get_active_repeat_flag()`: real-time check for current branch/evaluator
+  - `get_missing_submission_alert()`: yesterday had 0 submissions alert (skips Sunday)
+  - `upsert_store_evaluation()`: accepts `action_comment`, COALESCE preserves existing on re-submit
+  - `get_evaluator_reliability_stats()`: now includes `score_10`, `score_breakdown`, `repeat_patterns`
+- `store_evaluation_api.py`:
+  - `GET /api/admin/store-evaluations/repetition-flags`
+  - `GET /api/store/evaluation/repeat-check?city=&branch_code=&evaluator_name=`
+  - `GET /api/admin/store-evaluations/submission-alert`
+  - Submit handler: includes `action_comment` in payload
+
+**Frontend — `src/app/admin/store-evaluations/page.tsx`:**
+- New types: `ScoreBreakdown`, `RepeatPattern`, `SubmissionAlert`
+- Score helpers: `scoreLabel()`, `scoreColorClass()`, `scoreBorderClass()`, `ScoreBadge`, `outcomeChip()`
+- `EvaluatorQualityView` fully replaced:
+  - KPI: Evaluators, Alert (<5/10), Repeat Flags
+  - Per-evaluator card: large score_10, 5-dimension progress bars, compact stats row, repeat patterns with action record
+  - Sorted by score ascending (worst first)
+- Daily Summary cards: `ScoreBadge score={...score_10}` replaces `ReliabilityBadge`
+- Dismissable "yesterday's submissions missing" alert banner
+
+**Frontend — `src/app/store/evaluation/page.tsx`:**
+- Repeat-check fetch on branch select: `GET /api/store/evaluation/repeat-check`
+- Red alert banner when `repeatFlag.flagged` — shows avg score, range, explanation
+- Mandatory `actionComment` textarea (blocks submit if empty when flagged)
+- `action_comment` included in submit payload
+
+**Score thresholds calibrated to real production data:**
+- Avg 60-82 realistic for a developing kitchen team
+- FC rate ≤55% realistic (stores don't consistently pass all 4 checks)
+- Yuri Yamada (stddev 2.1 → low variance → 0pts on dim A) now shows low score rather than being mislabeled "LOW TRUST"
+
+---
+
+## Recently Completed (2026-07-27 session 174 — Evaluator Quality Monitoring)
+
+### AI Camera Monitoring System — Design Saved to Memory (PENDING HARDWARE)
+
+Saved complete system design to persistent memory (`ai-camera-monitoring.md`). Covers:
+- Hardware: Jetson Orin Nano Super, Tapo C210 ×8, MikroTik hAP ax³
+- 8 detection features (mobile, idle, zone, group, PPE, etc.)
+- DeepStream + YOLOv8n + TensorRT software stack
+- OS integration file list (frontend pages, backend API routes, DB tables)
+- Implementation phases (6 phases post-hardware arrival)
+
+**Status:** Design complete. Implementation pending Jetson hardware arrival.
+
+---
+
+### Evaluator Quality Monitoring — Store Evaluations (DEPLOYED ✅ Frontend + Backend)
+
+**User request:** Detect evaluators who give inflated/lazy scores without proper checking.
+Yusuke Uejima evaluations are trustworthy; Peter Villafuerte's are suspect.
+System should alert when evaluation quality is suspect to deter dishonest behavior.
+
+**Backend — `app/db_store_evaluation.py`:**
+- `get_evaluator_reliability_stats(city, days)`: SQL aggregation per evaluator:
+  - `avg_score`, `score_stddev`, `high_score_rate_pct`, `full_compliance_rate_pct`, `recent_avg` (last 5)
+- Flag logic: HIGH_SCORE (avg>88), NO_VARIANCE (stddev<4 AND count≥5), FULL_COMPLIANCE_HIGH (fc_rate>70%), TRENDING_UP (recent_avg - avg > 10)
+- Reliability: SUSPICIOUS (≥2 red flags), LOW (1 red flag), MEDIUM (only FC_HIGH), HIGH (no flags)
+- Key fix: FULL_COMPLIANCE_HIGH threshold raised from 25% → 70% after real data calibration
+
+**Backend — `app/store_evaluation_api.py`:**
+- `GET /api/admin/store-evaluations/evaluator-stats?city=&days=` — per-evaluator reliability
+
+**Frontend — `src/app/admin/store-evaluations/page.tsx`:**
+- New "Evaluator" tab (ShieldAlert icon) with `EvaluatorQualityView` component
+- `EvaluatorStat` type + `RELIABILITY_CONFIG` + `ReliabilityBadge` component
+- Daily Summary cards: inline reliability badge next to evaluator name
+- Badges appear in both mobile card view and desktop table view
+
+**Verified with real production data (6 evaluators, 60-day window):**
+- Peter Villafuerte: HIGH TRUST (avg 75.9, stddev 4.4, fc 62%) ✅
+- Yusuke Uejima: HIGH TRUST (avg 75.5, stddev 5.1, fc 56%) ✅
+- Yuri Yamada: LOW TRUST (stddev 2.1, fc 95%) — correctly flagged ✅
+- Ayako Nishimura: MEDIUM (fc 97%) ✅
+- Daily Summary 07/26: both CUB (Yusuke) and PAR (Peter) cards show badges ✅
+
+**Data quality note:** "Peter Villafuerte" (37 evals) and "Villafuerte Peter John" (3 evals) appear to be the same person — name inconsistency splits their analytics. Not a code bug; data entry issue.
 
 
 
@@ -8,6 +155,27 @@ Last updated: 2026-07-27 (session 172 — Prep Time hourly history + Phase C dra
 > 1. Read `CLAUDE.md` (root) — always first
 > 2. Read THIS file — understand where things left off
 > 3. Load only the additional `docs/ai/` file(s) needed for the specific task
+
+---
+
+## Recently Completed (2026-07-27 session 173 — Excel timetable + Sheets Role highlight)
+
+### Draft Excel: Timetable layout matching Google Sheets design (DEPLOYED ✅ Heroku v1549)
+
+**User request:** Match Excel design to Google Sheets timetable style; add Role column visually to Sheets.
+
+**Backend — `app/services/draft_xlsx_service.py` (full rewrite of export):**
+- Layout changed: flat table → timetable (Date | Day | Staff | **Role** | Start | End | [22 hour bars] | Notes)
+- Colors match Google Sheets: `#D9E8FF` header, `#F2F6FF` date/info cells, `#F7F7F7` weekend rows
+- Role column: gold header `#FFE899`, data cells `#FFFCE8` (light yellow, italic, dark gold text)
+- Hour bars (8:00–5:00+1, 22 columns): branch-specific bar color fills the in-shift cells
+- `parse_draft_xlsx()` updated: auto-detects new vs. old format by reading header row col D label
+  - New format: Role=col D, Start=col E, End=col F → data starts row 3
+  - Old format: Start=col D (backward compat) → data starts row 2
+
+**Backend — `app/exporter.py` (Google Sheets changes):**
+- Role column in `_MAIN` tab: header gold `#FFE899`, data cells `#FFFCE8` + italic + dark gold text
+- Removed `_SHIFTS` flat tab (was added mid-session 172, now superseded by improved Excel design)
 
 ---
 
