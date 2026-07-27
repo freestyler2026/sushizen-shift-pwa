@@ -157,7 +157,10 @@ function isAbsenceRow(row: ShiftRow) {
 export default function MyShiftPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<ReturnType<typeof getAuth> | null>(null);
-  const [city, setCity] = useState<City>("dubai");
+  const [city, setCity] = useState<City>(() => {
+    const a = getAuth();
+    return ((a?.city || "dubai").toLowerCase() as City);
+  });
   const [staffName, setStaffName] = useState("");
   const [month, setMonth] = useState(() => toMonthKey(new Date()));
   const [loading, setLoading] = useState(false);
@@ -179,7 +182,7 @@ export default function MyShiftPage() {
       return;
     }
     setAuthed(auth);
-    setCity(auth.city || "dubai");
+    setCity(((auth.city || "dubai").toLowerCase() as City));
     setStaffName(auth.staffName || "");
   }, [router]);
 
@@ -257,7 +260,7 @@ export default function MyShiftPage() {
   }, [authed, month]);
 
   const monthDate = useMemo(() => parseMonthKey(month), [month]);
-  const todayDateIso = useMemo(() => iso(new Date()), []);
+  const todayDateIso = iso(new Date());
 
   const calendarCells = useMemo(() => {
     const start = startOfMonth(monthDate);
