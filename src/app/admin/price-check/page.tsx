@@ -352,32 +352,65 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px]">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr>
                   <th className={`${TABLE_HEADER} text-left`}>Item</th>
                   <th className={`${TABLE_HEADER} text-right`}>Qty Sold</th>
                   <th className={`${TABLE_HEADER} text-right`}>Net Sales</th>
                   <th className={`${TABLE_HEADER} text-right`}>Avg Unit Price</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Expected</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Variance</th>
+                  <th className={`${TABLE_HEADER} text-center`}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {dubaiData.items.map((item) => (
-                  <tr key={item.item_name} className={TABLE_ROW}>
-                    <td className={TABLE_CELL}>
-                      <div className="font-medium text-white">{item.item_name}</div>
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
-                      {item.qty_sold > 0 ? item.qty_sold.toFixed(0) : "—"}
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
-                      {fmtAED(item.net_sales)}
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-white`}>
-                      {fmtAED(item.actual_unit_price)}
-                    </td>
-                  </tr>
-                ))}
+                {dubaiData.items.map((item) => {
+                  const varianceClass =
+                    item.status === "outside"
+                      ? "text-red-400 font-semibold"
+                      : item.status === "within"
+                      ? "text-emerald-400"
+                      : "text-zinc-500";
+                  return (
+                    <tr key={item.item_name} className={TABLE_ROW}>
+                      <td className={TABLE_CELL}>
+                        <div className="font-medium text-white">{item.item_name}</div>
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {item.qty_sold > 0 ? item.qty_sold.toFixed(0) : "—"}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {fmtAED(item.net_sales)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-white`}>
+                        {fmtAED(item.actual_unit_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-400`}>
+                        {fmtAED(item.expected_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums ${varianceClass}`}>
+                        {item.variance_pct != null
+                          ? `${item.variance_pct > 0 ? "+" : ""}${(item.variance_pct * 100).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                      <td className={`${TABLE_CELL} text-center`}>
+                        {item.status === "within" && (
+                          <span className={BADGE_SUCCESS}><CheckCircle2 className="h-3 w-3" />Within</span>
+                        )}
+                        {item.status === "outside" && (
+                          <span className={BADGE_ERROR}><AlertTriangle className="h-3 w-3" />Outside</span>
+                        )}
+                        {item.status === "no_baseline" && (
+                          <span className={BADGE_WARNING}>No baseline</span>
+                        )}
+                        {item.status === "no_sales" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">No sales</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -406,10 +439,13 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
           {/* Discount Rate checkmark */}
-          <label className="flex cursor-pointer items-start gap-3">
+          <button
+            type="button"
+            onClick={() => setDiscountRateOk((v) => !v)}
+            className="flex cursor-pointer items-start gap-3 text-left"
+          >
             <div
-              onClick={() => setDiscountRateOk((v) => !v)}
-              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-colors ${
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
                 discountRateOk
                   ? "border-emerald-500 bg-emerald-500"
                   : "border-zinc-600 bg-transparent"
@@ -423,13 +459,16 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
                 Selling prices confirmed at 50% discount
               </div>
             </div>
-          </label>
+          </button>
 
           {/* Menu checkmark */}
-          <label className="flex cursor-pointer items-start gap-3">
+          <button
+            type="button"
+            onClick={() => setMenuOk((v) => !v)}
+            className="flex cursor-pointer items-start gap-3 text-left"
+          >
             <div
-              onClick={() => setMenuOk((v) => !v)}
-              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-colors ${
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
                 menuOk
                   ? "border-emerald-500 bg-emerald-500"
                   : "border-zinc-600 bg-transparent"
@@ -443,7 +482,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
                 Menu items confirmed — no unauthorized changes
               </div>
             </div>
-          </label>
+          </button>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -665,11 +704,19 @@ export default function PriceCheckPage() {
   }, [auth, router]);
 
   useEffect(() => {
+    setError("");
+    setSuccess("");
+    setResults([]);
+    setLastRun(null);
+    setFlaggedCount(0);
     if (activeTab !== "DUBAI") void loadStatus();
-  }, [loadStatus, activeTab]);
+  }, [loadStatus, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Grouped
-  const flaggedRows = useMemo(() => results.filter((r) => r.status === "changed"), [results]);
+  const flaggedRows = useMemo(
+    () => results.filter((r) => r.status === "changed" || r.status === "pending_manual"),
+    [results],
+  );
   const confirmedRows = useMemo(() => results.filter((r) => r.status === "confirmed"), [results]);
   const okRows = useMemo(() => results.filter((r) => r.status === "ok"), [results]);
 
@@ -1023,7 +1070,7 @@ function PriceTable({
               <tr key={`${row.store_code}-${row.product_id}`} className={TABLE_ROW}>
                 <td className={TABLE_CELL}>
                   <div className="font-medium text-white">{row.product_name}</div>
-                  <div className={`${TABLE_HEADER} mt-0.5`}>{row.product_id}</div>
+                  <div className="mt-0.5 text-xs text-zinc-500">{row.product_id}</div>
                 </td>
                 <td className={`${TABLE_CELL} hidden sm:table-cell text-zinc-400`}>
                   {row.category || "—"}
