@@ -19,6 +19,14 @@ import {
   Camera,
   ShieldAlert,
   AlertTriangle,
+  ListChecks,
+  MessageCircle,
+  Circle,
+  CheckCircle,
+  Clock,
+  Send,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   BarChart,
@@ -592,6 +600,448 @@ function ScorePip({ value }: { value: number | null }) {
   );
 }
 
+// ─── Follow-up Issue Tracker ─────────────────────────────────────────────────
+
+type FollowupItem = {
+  id: string;
+  city: string;
+  branch_code: string;
+  eval_date: string | null;
+  title: string;
+  status: "open" | "in_progress" | "resolved";
+  created_by: string;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  comment_count: number;
+  last_comment_at: string | null;
+  last_comment_body: string | null;
+  last_comment_author: string | null;
+};
+
+type FollowupComment = {
+  id: string;
+  item_id: string;
+  author: string;
+  body: string;
+  created_at: string;
+};
+
+function fmtDatetime(ts: string | null) {
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return ts;
+  }
+}
+
+function StatusChip({ status }: { status: FollowupItem["status"] }) {
+  const cfg = {
+    open:        { label: "Open",        cls: "text-red-400 bg-red-500/10 border-red-500/20",       Icon: Circle },
+    in_progress: { label: "In Progress", cls: "text-amber-400 bg-amber-500/10 border-amber-500/20", Icon: Clock },
+    resolved:    { label: "Resolved",    cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", Icon: CheckCircle },
+  }[status];
+  const { label, cls, Icon } = cfg;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+      <Icon size={9} />
+      {label}
+    </span>
+  );
+}
+
+function FollowupItemCard({
+  item,
+  city,
+  currentUser,
+  onUpdated,
+}: {
+  item: FollowupItem;
+  city: string;
+  currentUser: string;
+  onUpdated: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [comments, setComments] = useState<FollowupComment[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  const loadComments = async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/store-evaluations/followup-items/${item.id}/comments`,
+        { headers: getAuthHeaders(), cache: "no-store" }
+      );
+      const data = await res.json();
+      setComments(data.comments || []);
+      setCommentsLoaded(true);
+    } catch { /* ignore */ }
+  };
+
+  const toggleExpand = () => {
+    setExpanded((v) => !v);
+    if (!commentsLoaded) void loadComments();
+  };
+
+  const postComment = async () => {
+    if (!commentText.trim() || posting) return;
+    setPosting(true);
+    try {
+      await fetch(`/api/admin/store-evaluations/followup-items/${item.id}/comments`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ author: currentUser || "Admin", body: commentText.trim() }),
+      });
+      setCommentText("");
+      await loadComments();
+      onUpdated();
+    } catch { /* ignore */ } finally {
+      setPosting(false);
+    }
+  };
+
+  const changeStatus = async (newStatus: FollowupItem["status"]) => {
+    setStatusBusy(true);
+    try {
+      await fetch(`/api/admin/store-evaluations/followup-items/${item.id}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, resolved_by: currentUser || "Admin" }),
+      });
+      onUpdated();
+    } catch { /* ignore */ } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const isResolved = item.status === "resolved";
+
+  return (
+    <div className={`${GLASS_CARD} p-4 ${isResolved ? "opacity-60" : ""}`}>
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="text-xs font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded">
+              {item.branch_code}
+            </span>
+            <StatusChip status={item.status} />
+            {item.eval_date && (
+              <span className={`${T_CAPTION} text-slate-500`}>
+                eval {fmtDate(item.eval_date)}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-white leading-snug">{item.title}</p>
+          <p className={`${T_CAPTION} text-slate-500 mt-1`}>
+            Added by {item.created_by} · {fmtDatetime(item.created_at)}
+          </p>
+        </div>
+        <button
+          onClick={toggleExpand}
+          className="flex items-center gap-1 text-xs text-slate-400 hover:text-white shrink-0 mt-0.5"
+        >
+          <MessageCircle size={12} />
+          <span>{item.comment_count}</span>
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      </div>
+
+      {/* Last comment preview (collapsed) */}
+      {!expanded && item.last_comment_body && (
+        <div className="mt-2 pl-3 border-l-2 border-slate-700">
+          <p className={`${T_CAPTION} text-slate-400 line-clamp-1`}>
+            <span className="font-medium text-slate-300">{item.last_comment_author}:</span>{" "}
+            {item.last_comment_body}
+          </p>
+        </div>
+      )}
+
+      {/* Status actions (collapsed view) */}
+      {!expanded && !isResolved && (
+        <div className="flex gap-2 mt-3">
+          {item.status === "open" && (
+            <button
+              disabled={statusBusy}
+              onClick={() => changeStatus("in_progress")}
+              className="text-[10px] px-2 py-1 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-40"
+            >
+              Mark In Progress
+            </button>
+          )}
+          <button
+            disabled={statusBusy}
+            onClick={() => changeStatus("resolved")}
+            className="text-[10px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40"
+          >
+            Mark Resolved
+          </button>
+        </div>
+      )}
+
+      {/* Expanded: full comment thread */}
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          {/* Status actions */}
+          {!isResolved && (
+            <div className="flex gap-2">
+              {item.status === "open" && (
+                <button
+                  disabled={statusBusy}
+                  onClick={() => changeStatus("in_progress")}
+                  className="text-[10px] px-2 py-1 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-40"
+                >
+                  Mark In Progress
+                </button>
+              )}
+              {item.status === "in_progress" && (
+                <button
+                  disabled={statusBusy}
+                  onClick={() => changeStatus("open")}
+                  className="text-[10px] px-2 py-1 rounded border border-slate-500/30 text-slate-400 hover:bg-slate-500/10 disabled:opacity-40"
+                >
+                  Reopen
+                </button>
+              )}
+              <button
+                disabled={statusBusy}
+                onClick={() => changeStatus("resolved")}
+                className="text-[10px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40"
+              >
+                Mark Resolved
+              </button>
+            </div>
+          )}
+          {isResolved && item.resolved_at && (
+            <p className={`${T_CAPTION} text-emerald-500`}>
+              Resolved by {item.resolved_by} · {fmtDatetime(item.resolved_at)}
+            </p>
+          )}
+
+          {/* Comments */}
+          <div className="space-y-2">
+            {!commentsLoaded && (
+              <div className="flex items-center gap-2 text-slate-500 text-xs">
+                <RefreshCw size={10} className="animate-spin" /> Loading…
+              </div>
+            )}
+            {commentsLoaded && comments.length === 0 && (
+              <p className={`${T_CAPTION} text-slate-600`}>No comments yet.</p>
+            )}
+            {comments.map((c) => (
+              <div key={c.id} className="bg-white/5 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-slate-300">{c.author}</span>
+                  <span className={`${T_CAPTION} text-slate-600`}>{fmtDatetime(c.created_at)}</span>
+                </div>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{c.body}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Add comment */}
+          <div className="flex gap-2 mt-2">
+            <textarea
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-violet-500/50"
+              rows={2}
+              placeholder="Add a comment…"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void postComment();
+              }}
+            />
+            <button
+              disabled={!commentText.trim() || posting}
+              onClick={postComment}
+              className={`${PRIMARY_BUTTON} self-end px-3 py-2 disabled:opacity-40`}
+            >
+              {posting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FollowupView({ city, currentUser }: { city: string; currentUser: string }) {
+  const [items, setItems] = useState<FollowupItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filterBranch, setFilterBranch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"" | "open" | "in_progress" | "resolved">("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newBranch, setNewBranch] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const BRANCHES = ["PAR", "TAFT", "CUB", "CK"];
+  const BRANCH_OPTIONS = [{ value: "", label: "All Branches" }, ...BRANCHES.map((b) => ({ value: b, label: b }))];
+  const BRANCH_OPTIONS_REQ = [{ value: "", label: "Select branch…" }, ...BRANCHES.map((b) => ({ value: b, label: b }))];
+
+  const loadItems = async () => {
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ city });
+      if (filterBranch) qs.set("branch_code", filterBranch);
+      if (filterStatus) qs.set("status", filterStatus);
+      const res = await fetch(`/api/admin/store-evaluations/followup-items?${qs}`, {
+        headers: getAuthHeaders(),
+        cache: "no-store",
+      });
+      const data = await res.json();
+      setItems(data.items || []);
+    } catch { /* ignore */ } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filterBranch, filterStatus]);
+
+  const addItem = async () => {
+    if (!newTitle.trim() || !newBranch || adding) return;
+    setAdding(true);
+    try {
+      await fetch("/api/admin/store-evaluations/followup-items", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          branch_code: newBranch,
+          title: newTitle.trim(),
+          created_by: currentUser || "Admin",
+        }),
+      });
+      setNewTitle("");
+      setNewBranch("");
+      setShowAdd(false);
+      await loadItems();
+    } catch { /* ignore */ } finally {
+      setAdding(false);
+    }
+  };
+
+  const openCount = items.filter((i) => i.status === "open").length;
+  const inProgressCount = items.filter((i) => i.status === "in_progress").length;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary counts */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className={`${KPI_CARD} p-3 text-center cursor-pointer ${filterStatus === "open" ? "ring-1 ring-red-500/40" : ""}`}
+          onClick={() => setFilterStatus(filterStatus === "open" ? "" : "open")}>
+          <p className="text-2xl font-bold text-red-400">{openCount}</p>
+          <p className={`${KPI_LABEL} text-slate-400`}>Open</p>
+        </div>
+        <div className={`${KPI_CARD} p-3 text-center cursor-pointer ${filterStatus === "in_progress" ? "ring-1 ring-amber-500/40" : ""}`}
+          onClick={() => setFilterStatus(filterStatus === "in_progress" ? "" : "in_progress")}>
+          <p className="text-2xl font-bold text-amber-400">{inProgressCount}</p>
+          <p className={`${KPI_LABEL} text-slate-400`}>In Progress</p>
+        </div>
+        <div className={`${KPI_CARD} p-3 text-center cursor-pointer ${filterStatus === "resolved" ? "ring-1 ring-emerald-500/40" : ""}`}
+          onClick={() => setFilterStatus(filterStatus === "resolved" ? "" : "resolved")}>
+          <p className="text-2xl font-bold text-emerald-400">{items.filter((i) => i.status === "resolved").length}</p>
+          <p className={`${KPI_LABEL} text-slate-400`}>Resolved</p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2">
+        <SelectDark
+          value={filterBranch}
+          onChange={setFilterBranch}
+          options={BRANCH_OPTIONS}
+          className={`${SELECT_CLASS} flex-1 min-w-[120px]`}
+          clearable={false}
+        />
+        <button
+          onClick={() => setShowAdd((v) => !v)}
+          className={`${PRIMARY_BUTTON} flex items-center gap-1 px-3 py-2`}
+        >
+          <Plus size={14} />
+          Add Issue
+        </button>
+        <button
+          onClick={loadItems}
+          className={`${SECONDARY_BUTTON} px-3 py-2`}
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
+
+      {/* Add issue form */}
+      {showAdd && (
+        <div className={`${GLASS_CARD} p-4 space-y-3`}>
+          <p className={T_LABEL}>New Follow-up Issue</p>
+          <SelectDark
+            value={newBranch}
+            onChange={setNewBranch}
+            options={BRANCH_OPTIONS_REQ}
+            className={SELECT_CLASS}
+            clearable={false}
+          />
+          <textarea
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-violet-500/50"
+            rows={3}
+            placeholder="Describe the issue that needs follow-up…"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              disabled={!newTitle.trim() || !newBranch || adding}
+              onClick={addItem}
+              className={`${PRIMARY_BUTTON} px-4 py-2 disabled:opacity-40`}
+            >
+              {adding ? <RefreshCw size={14} className="animate-spin" /> : "Add Issue"}
+            </button>
+            <button
+              onClick={() => { setShowAdd(false); setNewTitle(""); setNewBranch(""); }}
+              className={`${SECONDARY_BUTTON} px-4 py-2`}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Items list */}
+      {loading && items.length === 0 && (
+        <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
+          <RefreshCw size={14} className="animate-spin" /> Loading issues…
+        </div>
+      )}
+      {!loading && items.length === 0 && (
+        <div className={`${GLASS_CARD} p-8 text-center`}>
+          <ListChecks size={32} className="mx-auto text-slate-600 mb-2" />
+          <p className={`${T_BODY} text-slate-500`}>No follow-up issues found.</p>
+          <p className={`${T_CAPTION} text-slate-600 mt-1`}>Add issues from evaluations to track them until resolved.</p>
+        </div>
+      )}
+      <div className="space-y-3">
+        {items.map((item) => (
+          <FollowupItemCard
+            key={item.id}
+            item={item}
+            city={city}
+            currentUser={currentUser}
+            onUpdated={loadItems}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
 type EvalImage = {
@@ -649,6 +1099,9 @@ function EvalDetailModal({
             <h2 className={T_SECTION}>{ev.branch_code}</h2>
             <p className={`${T_CAPTION} text-slate-400`}>
               {fmtDate(ev.eval_date)} · {ev.evaluator_name}
+            </p>
+            <p className={`${T_CAPTION} text-slate-600 mt-0.5`}>
+              Submitted {fmtDatetime(ev.submitted_at)}
             </p>
           </div>
           <div className="text-right">
@@ -1766,7 +2219,7 @@ export default function StoreEvaluationsPage() {
 
   const todayPH = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
-  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "evaluator" | "settings" | "protocol">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "evaluator" | "followup" | "settings" | "protocol">("dashboard");
   const [evalDate, setEvalDate] = useState(todayPH);
   const [city] = useState("manila");
   const [evaluations, setEvaluations] = useState<EvalRow[]>([]);
@@ -1941,6 +2394,13 @@ export default function StoreEvaluationsPage() {
           >
             <ShieldAlert size={14} />
             Evaluator
+          </button>
+          <button
+            className={tab === "followup" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setTab("followup")}
+          >
+            <ListChecks size={14} />
+            Follow-up
           </button>
           <button
             className={tab === "settings" ? TAB_ACTIVE : TAB_INACTIVE}
@@ -2222,6 +2682,14 @@ export default function StoreEvaluationsPage() {
 
         {/* EVALUATOR QUALITY TAB */}
         {tab === "evaluator" && <EvaluatorQualityView city={city} />}
+
+        {/* FOLLOW-UP TAB */}
+        {tab === "followup" && (
+          <FollowupView
+            city={city}
+            currentUser={auth?.staffName || "Admin"}
+          />
+        )}
 
         {/* SETTINGS TAB */}
         {tab === "settings" && (
