@@ -223,7 +223,7 @@ const FLAG_LABELS: Record<string, { label: string; severity: "red" | "amber" }> 
     severity: "red",
   },
   FULL_COMPLIANCE_HIGH: {
-    label: "Full compliance rate >25% of evaluations — suspiciously high",
+    label: "Full compliance rate >70% of evaluations — suspiciously high",
     severity: "amber",
   },
   TRENDING_UP: {
@@ -388,7 +388,7 @@ function EvaluatorQualityView({ city }: { city: string }) {
                   <p className={`${T_CAPTION} text-slate-500`}>Full Compliance</p>
                   <p
                     className={`text-lg font-bold ${
-                      s.full_compliance_rate_pct > 25 ? "text-amber-400" : "text-emerald-400"
+                      s.full_compliance_rate_pct > 70 ? "text-amber-400" : "text-emerald-400"
                     }`}
                   >
                     {s.full_compliance_rate_pct.toFixed(0)}%
