@@ -35,6 +35,7 @@ type SPRItem = {
   notes: string;
   photo_url: string;
   photoUploading: boolean;
+  photoError: string;
 };
 
 type SPRRequest = {
@@ -96,6 +97,7 @@ function newItem(): SPRItem {
     notes: "",
     photo_url: "",
     photoUploading: false,
+    photoError: "",
   };
 }
 
@@ -203,7 +205,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
   }
 
   async function uploadPhoto(itemId: string, file: File) {
-    updateItem(itemId, { photoUploading: true });
+    updateItem(itemId, { photoUploading: true, photoError: "" });
     try {
       const form = new FormData();
       form.append("file", file);
@@ -216,7 +218,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
       const data = await res.json();
       updateItem(itemId, { photo_url: data.photo_url || "", photoUploading: false });
     } catch {
-      updateItem(itemId, { photoUploading: false });
+      updateItem(itemId, { photoUploading: false, photoError: "Photo upload failed. Please try again." });
     }
   }
 
@@ -491,6 +493,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
                           <span className={T_CAPTION}>PNG, JPG — max 20 MB</span>
                         </div>
                       )}
+                      {item.photoError && <p className="mt-1 text-xs text-red-400">{item.photoError}</p>}
                     </div>
                   </div>
                 ))}
