@@ -536,7 +536,7 @@ function EvaluatorQualityView({ city }: { city: string }) {
                               {outcomeChip(rp.action_outcome)}
                             </div>
                             <p className="text-xs text-slate-300 bg-slate-800/60 rounded px-2.5 py-1.5 leading-relaxed">
-                              "{rp.action_comment}"
+                              &ldquo;{rp.action_comment}&rdquo;
                             </p>
                           </div>
                         ) : (
