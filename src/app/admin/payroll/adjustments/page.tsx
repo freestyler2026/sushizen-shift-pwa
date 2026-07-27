@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
@@ -651,6 +652,9 @@ export default function AdjustmentsPage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
+          <Link href="/admin/payroll" className="mb-2 inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition">
+            ← Payroll
+          </Link>
           <h1 className={T_PAGE_TITLE}>Payroll Adjustments</h1>
           <p className="mt-1 text-sm text-zinc-400">Additions, deductions, and recurring adjustments per cycle</p>
         </div>
