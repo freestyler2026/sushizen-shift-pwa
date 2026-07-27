@@ -17,6 +17,8 @@ import {
   BarChart3,
   BookOpen,
   Camera,
+  ShieldAlert,
+  AlertTriangle,
 } from "lucide-react";
 import {
   BarChart,
@@ -60,6 +62,19 @@ import {
 } from "@/lib/ui-tokens";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+type EvaluatorStat = {
+  evaluator_name: string;
+  eval_count: number;
+  avg_score: number;
+  score_stddev: number | null;
+  high_score_rate_pct: number;
+  full_compliance_rate_pct: number;
+  last_eval_date: string;
+  recent_avg: number | null;
+  flags: string[];
+  reliability: "HIGH" | "MEDIUM" | "LOW" | "SUSPICIOUS";
+};
 
 type EvalRow = {
   id: string;
@@ -169,6 +184,287 @@ function fmtDate(d: string) {
     return d;
   }
 }
+
+// ─── Reliability helpers ─────────────────────────────────────────────────────
+
+const RELIABILITY_CONFIG = {
+  HIGH:       { label: "HIGH TRUST",   cls: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" },
+  MEDIUM:     { label: "MEDIUM",       cls: "bg-amber-500/10 border-amber-500/30 text-amber-400" },
+  LOW:        { label: "LOW TRUST",    cls: "bg-orange-500/10 border-orange-500/30 text-orange-400" },
+  SUSPICIOUS: { label: "⚠ SUSPICIOUS", cls: "bg-red-500/10 border-red-500/30 text-red-400" },
+} as const;
+
+function ReliabilityBadge({
+  reliability,
+  size = "sm",
+}: {
+  reliability: EvaluatorStat["reliability"];
+  size?: "sm" | "lg";
+}) {
+  const cfg = RELIABILITY_CONFIG[reliability];
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded border font-semibold ${cfg.cls} ${
+        size === "lg" ? "text-xs" : "text-[10px]"
+      }`}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+const FLAG_LABELS: Record<string, { label: string; severity: "red" | "amber" }> = {
+  HIGH_SCORE: {
+    label: "Avg score >88 — consistently too high for a developing team",
+    severity: "red",
+  },
+  NO_VARIANCE: {
+    label: "Low score variance (<4 std dev) — may not be evaluating carefully",
+    severity: "red",
+  },
+  FULL_COMPLIANCE_HIGH: {
+    label: "Full compliance rate >25% of evaluations — suspiciously high",
+    severity: "amber",
+  },
+  TRENDING_UP: {
+    label: "Recent evaluations 10+ pts above baseline — getting softer over time",
+    severity: "amber",
+  },
+};
+
+// ─── Evaluator Quality View ──────────────────────────────────────────────────
+
+function EvaluatorQualityView({ city }: { city: string }) {
+  const [stats, setStats] = useState<EvaluatorStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(60);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(
+      `/api/admin/store-evaluations/evaluator-stats?city=${city}&days=${days}`,
+      { headers: getAuthHeaders(), cache: "no-store" }
+    )
+      .then((r) => r.json())
+      .then((d) => setStats(d.stats || []))
+      .catch(() => setStats([]))
+      .finally(() => setLoading(false));
+  }, [city, days]);
+
+  const suspicious = stats.filter((s) => s.reliability === "SUSPICIOUS").length;
+  const lowTrust   = stats.filter((s) => s.reliability === "LOW").length;
+
+  return (
+    <div>
+      {/* Info banner */}
+      <div className={`${GLASS_CARD} p-4 mb-4 border-amber-500/20 bg-amber-950/10`}>
+        <div className="flex items-start gap-3">
+          <ShieldAlert size={20} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className={`${T_BODY} font-semibold text-amber-300`}>
+              Evaluator Reliability Monitoring
+            </p>
+            <p className={`${T_CAPTION} text-slate-400 mt-0.5`}>
+              Detects evaluators who may be giving inflated scores. Requires ≥3 evaluations in
+              the selected period to appear. Scores are monitored — evaluators cannot game this
+              without it being flagged.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary KPIs */}
+      {!loading && stats.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className={KPI_CARD}>
+            <p className={KPI_LABEL}>Evaluators</p>
+            <p className={KPI_VALUE}>{stats.length}</p>
+          </div>
+          <div className={KPI_CARD}>
+            <p className={KPI_LABEL}>Low Trust</p>
+            <p className={`${KPI_VALUE} ${lowTrust > 0 ? "text-orange-400" : "text-emerald-400"}`}>
+              {lowTrust}
+            </p>
+          </div>
+          <div className={KPI_CARD}>
+            <p className={KPI_LABEL}>Suspicious</p>
+            <p className={`${KPI_VALUE} ${suspicious > 0 ? "text-red-400" : "text-emerald-400"}`}>
+              {suspicious}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Period selector */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className={T_LABEL}>Period</span>
+        {[30, 60, 90].map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDays(d)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              days === d
+                ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <RefreshCw size={20} className="animate-spin text-slate-400" />
+        </div>
+      ) : stats.length === 0 ? (
+        <div className={`${GLASS_CARD} p-10 text-center`}>
+          <ShieldAlert size={32} className="text-slate-600 mx-auto mb-3" />
+          <p className={T_BODY}>No evaluators with ≥3 evaluations in this period.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {stats.map((s) => (
+            <div
+              key={s.evaluator_name}
+              className={`${GLASS_CARD} p-4 ${
+                s.reliability === "SUSPICIOUS"
+                  ? "border-red-500/30 bg-red-950/10"
+                  : s.reliability === "LOW"
+                  ? "border-orange-500/25"
+                  : ""
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className={`${T_BODY} font-semibold`}>{s.evaluator_name}</p>
+                  <p className={`${T_CAPTION} text-slate-500 mt-0.5`}>
+                    {s.eval_count} evals · Last: {fmtDate(s.last_eval_date)}
+                  </p>
+                </div>
+                <ReliabilityBadge reliability={s.reliability} size="lg" />
+              </div>
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className={`${GLASS_CARD} p-2.5`}>
+                  <p className={`${T_CAPTION} text-slate-500`}>Avg Score</p>
+                  <p className={`text-lg font-bold ${scoreColor(s.avg_score)}`}>
+                    {s.avg_score.toFixed(1)}
+                  </p>
+                </div>
+                <div className={`${GLASS_CARD} p-2.5`}>
+                  <p className={`${T_CAPTION} text-slate-500`}>Score Std Dev</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      s.score_stddev == null
+                        ? "text-slate-500"
+                        : s.score_stddev < 4
+                        ? "text-red-400"
+                        : "text-emerald-400"
+                    }`}
+                  >
+                    {s.score_stddev != null ? s.score_stddev.toFixed(1) : "—"}
+                  </p>
+                </div>
+                <div className={`${GLASS_CARD} p-2.5`}>
+                  <p className={`${T_CAPTION} text-slate-500`}>High Score Rate</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      s.high_score_rate_pct > 40
+                        ? "text-red-400"
+                        : s.high_score_rate_pct > 20
+                        ? "text-amber-400"
+                        : "text-emerald-400"
+                    }`}
+                  >
+                    {s.high_score_rate_pct.toFixed(0)}%
+                  </p>
+                  <p className={`${T_CAPTION} text-slate-600`}>scores ≥88</p>
+                </div>
+                <div className={`${GLASS_CARD} p-2.5`}>
+                  <p className={`${T_CAPTION} text-slate-500`}>Full Compliance</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      s.full_compliance_rate_pct > 25 ? "text-amber-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {s.full_compliance_rate_pct.toFixed(0)}%
+                  </p>
+                  <p className={`${T_CAPTION} text-slate-600`}>all 4 checks ✓</p>
+                </div>
+              </div>
+
+              {/* Recent trend */}
+              {s.recent_avg != null && (
+                <div className="flex items-center gap-2 mb-3 text-xs">
+                  <span className="text-slate-500">Recent avg (last 5 evals):</span>
+                  <span
+                    className={`font-bold ${
+                      s.recent_avg - s.avg_score > 10
+                        ? "text-amber-400"
+                        : s.recent_avg - s.avg_score > 5
+                        ? "text-amber-300/70"
+                        : "text-slate-300"
+                    }`}
+                  >
+                    {s.recent_avg.toFixed(1)}
+                  </span>
+                  {s.recent_avg - s.avg_score > 5 && (
+                    <span className="text-amber-400 font-medium">↑ trending up</span>
+                  )}
+                </div>
+              )}
+
+              {/* Flags */}
+              {s.flags.length > 0 ? (
+                <div className="space-y-1.5">
+                  {s.flags.map((flag) => {
+                    const info = FLAG_LABELS[flag];
+                    if (!info) return null;
+                    return (
+                      <div
+                        key={flag}
+                        className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 ${
+                          info.severity === "red"
+                            ? "bg-red-950/30 border border-red-500/20"
+                            : "bg-amber-950/30 border border-amber-500/20"
+                        }`}
+                      >
+                        <AlertTriangle
+                          size={12}
+                          className={`shrink-0 mt-0.5 ${
+                            info.severity === "red" ? "text-red-400" : "text-amber-400"
+                          }`}
+                        />
+                        <p
+                          className={`text-xs ${
+                            info.severity === "red" ? "text-red-300" : "text-amber-300"
+                          }`}
+                        >
+                          {info.label}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-emerald-400 text-xs">
+                  <CheckCircle2 size={12} />
+                  No reliability concerns detected
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── BoolIcon ────────────────────────────────────────────────────────────────
 
 function BoolIcon({ v }: { v: boolean | null }) {
   if (v == null) return <span className="text-slate-500 text-xs">—</span>;
@@ -1366,7 +1662,7 @@ export default function StoreEvaluationsPage() {
 
   const todayPH = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
-  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "settings" | "protocol">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "evaluator" | "settings" | "protocol">("dashboard");
   const [evalDate, setEvalDate] = useState(todayPH);
   const [city] = useState("manila");
   const [evaluations, setEvaluations] = useState<EvalRow[]>([]);
@@ -1374,6 +1670,7 @@ export default function StoreEvaluationsPage() {
   const [selected, setSelected] = useState<EvalRow | null>(null);
   const [trendBranch, setTrendBranch] = useState("");
   const [allBranches, setAllBranches] = useState<string[]>([]);
+  const [evaluatorMap, setEvaluatorMap] = useState<Record<string, EvaluatorStat>>({});
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -1407,10 +1704,30 @@ export default function StoreEvaluationsPage() {
     }
   }, [city]);
 
+  const loadEvaluatorStats = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/store-evaluations/evaluator-stats?city=${city}&days=60`,
+        { headers: getAuthHeaders(), cache: "no-store" }
+      );
+      const data = await res.json();
+      const map: Record<string, EvaluatorStat> = {};
+      (data.stats || []).forEach((s: EvaluatorStat) => {
+        map[s.evaluator_name] = s;
+      });
+      setEvaluatorMap(map);
+    } catch {
+      // ignore — badges just won't show
+    }
+  }, [city]);
+
   useEffect(() => {
-    if (tab === "summary") void loadSummary();
+    if (tab === "summary") {
+      void loadSummary();
+      void loadEvaluatorStats();
+    }
     if (tab === "trend") void loadBranches();
-  }, [tab, loadSummary, loadBranches]);
+  }, [tab, loadSummary, loadBranches, loadEvaluatorStats]);
 
   // KPI summary
   const submitted = evaluations.length;
@@ -1472,6 +1789,13 @@ export default function StoreEvaluationsPage() {
           >
             <TrendingUp size={14} />
             Branch Trend
+          </button>
+          <button
+            className={tab === "evaluator" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setTab("evaluator")}
+          >
+            <ShieldAlert size={14} />
+            Evaluator
           </button>
           <button
             className={tab === "settings" ? TAB_ACTIVE : TAB_INACTIVE}
@@ -1596,7 +1920,14 @@ export default function StoreEvaluationsPage() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className={`${T_BODY} font-semibold`}>{ev.branch_code}</p>
-                          <p className={`${T_CAPTION} text-slate-400`}>{ev.evaluator_name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <p className={`${T_CAPTION} text-slate-400`}>{ev.evaluator_name}</p>
+                            {evaluatorMap[ev.evaluator_name] && (
+                              <ReliabilityBadge
+                                reliability={evaluatorMap[ev.evaluator_name].reliability}
+                              />
+                            )}
+                          </div>
                         </div>
                         <div className={`text-center px-3 py-1.5 rounded-xl border ${scoreBg(ev.total_score)}`}>
                           <p className={`text-xl font-bold ${scoreColor(ev.total_score)}`}>
@@ -1700,8 +2031,15 @@ export default function StoreEvaluationsPage() {
                               )}
                             </div>
                           </td>
-                          <td className={`${TABLE_CELL} text-slate-400`}>
-                            {ev.evaluator_name}
+                          <td className={TABLE_CELL}>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-slate-400 text-sm">{ev.evaluator_name}</span>
+                              {evaluatorMap[ev.evaluator_name] && (
+                                <ReliabilityBadge
+                                  reliability={evaluatorMap[ev.evaluator_name].reliability}
+                                />
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1736,6 +2074,9 @@ export default function StoreEvaluationsPage() {
             )}
           </div>
         )}
+
+        {/* EVALUATOR QUALITY TAB */}
+        {tab === "evaluator" && <EvaluatorQualityView city={city} />}
 
         {/* SETTINGS TAB */}
         {tab === "settings" && (
