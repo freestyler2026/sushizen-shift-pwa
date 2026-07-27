@@ -1229,7 +1229,7 @@ export default function StoreEvaluationPage() {
                       <span className="text-white font-medium">
                         {repeatFlag.avg_score?.toFixed(0)}
                       </span>
-                      , range ±{repeatFlag.score_range}) to this branch 3+ consecutive times.
+                      , span {repeatFlag.score_range} pts) to this branch 3+ consecutive times.
                       Please document a specific action you have taken or are taking to improve
                       the result — not just your intention.
                     </p>

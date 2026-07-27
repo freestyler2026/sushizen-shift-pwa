@@ -520,7 +520,7 @@ function EvaluatorQualityView({ city }: { city: string }) {
                               {rp.branch_code}
                             </span>
                             <span className={`${T_CAPTION} text-slate-500`}>
-                              avg {rp.avg_score} · range ±{rp.score_range}
+                              avg {rp.avg_score} · span {rp.score_range} pts
                             </span>
                           </div>
                           <span className={`${T_CAPTION} text-slate-500`}>
@@ -531,7 +531,7 @@ function EvaluatorQualityView({ city }: { city: string }) {
                           <div className="mt-1.5">
                             <div className="flex items-center gap-2 mb-1">
                               <p className="text-[10px] text-slate-400 uppercase tracking-wide">
-                                Action record ({rp.action_submitted_date})
+                                Action record ({rp.action_submitted_date ? fmtDate(rp.action_submitted_date) : "—"})
                               </p>
                               {outcomeChip(rp.action_outcome)}
                             </div>
