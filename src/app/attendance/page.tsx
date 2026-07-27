@@ -1508,7 +1508,12 @@ export default function AttendancePage() {
                       </div>
                       <button
                         onClick={() => { void submitCorrection(); }}
-                        disabled={correctionBusy || !correctionReason.trim()}
+                        disabled={
+                          correctionBusy ||
+                          !correctionReason.trim() ||
+                          ((correctionField === "check_in" || correctionField === "both") && !correctionCheckIn) ||
+                          ((correctionField === "check_out" || correctionField === "both") && !correctionCheckOut)
+                        }
                         className="w-full rounded-xl bg-violet-700 py-2.5 text-sm font-semibold text-white disabled:opacity-30 hover:bg-violet-600 transition-colors"
                       >
                         {correctionBusy ? "Submitting..." : "Submit Request"}
