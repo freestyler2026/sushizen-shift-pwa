@@ -170,6 +170,14 @@ const BINARY_LABELS: Record<string, string> = {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type RepeatFlagCheck = {
+  flagged: boolean;
+  scores: number[];
+  dates: string[];
+  avg_score: number;
+  score_range: number;
+};
+
 type AutoData = {
   eval_date: string;
   sales_data_is_prev_day: boolean;
@@ -721,6 +729,8 @@ export default function StoreEvaluationPage() {
   const [existingId, setExistingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [repeatFlag, setRepeatFlag] = useState<RepeatFlagCheck | null>(null);
+  const [actionComment, setActionComment] = useState("");
   // Pending inline photos: keyed by ScoredKey
   const [pendingPhotos, setPendingPhotos] = useState<Record<string, PendingPhoto[]>>({});
 
@@ -754,12 +764,16 @@ export default function StoreEvaluationPage() {
       .catch(() => {});
   }, []);
 
+  const evaluatorName = auth?.staffName || "";
+
   // Load existing evaluation + auto-data when branch changes
   const loadBranchData = useCallback(
     async (bc: string) => {
       if (!bc) return;
       setAutoLoading(true);
       setSubmitMsg(null);
+      setRepeatFlag(null);
+      setActionComment("");
       const headers = getAuthHeaders();
 
       try {
@@ -803,13 +817,27 @@ export default function StoreEvaluationPage() {
         );
         const ad = await autoRes.json();
         setAutoData(ad);
+
+        // Check for repeat score pattern (only if we have an evaluator name)
+        if (evaluatorName) {
+          try {
+            const rfRes = await fetch(
+              `/api/store/evaluation/repeat-check?city=Manila&branch_code=${encodeURIComponent(bc)}&evaluator_name=${encodeURIComponent(evaluatorName)}`,
+              { headers, cache: "no-store" }
+            );
+            const rfData = await rfRes.json();
+            setRepeatFlag(rfData || null);
+          } catch {
+            // silently fail
+          }
+        }
       } catch {
         // silently fail auto-data
       } finally {
         setAutoLoading(false);
       }
     },
-    [evalDate]
+    [evalDate, evaluatorName]
   );
 
   useEffect(() => {
@@ -851,6 +879,13 @@ export default function StoreEvaluationPage() {
       setSubmitMsg({ ok: false, text: `Please rate all 8 items (${scored}/8 done).` });
       return;
     }
+    if (repeatFlag?.flagged && !actionComment.trim()) {
+      setSubmitMsg({
+        ok: false,
+        text: "A repeat score pattern was detected. Please describe what specific action you have taken or will take before submitting.",
+      });
+      return;
+    }
 
     setSubmitting(true);
     setSubmitMsg(null);
@@ -871,6 +906,7 @@ export default function StoreEvaluationPage() {
       waste_report_submitted: autoData?.waste_report_submitted ?? false,
       inventory_check_done: autoData?.inventory_check_done ?? false,
       purchasing_done: autoData?.purchasing_done ?? false,
+      action_comment: actionComment.trim() || null,
     };
 
     try {
@@ -1179,6 +1215,45 @@ export default function StoreEvaluationPage() {
               />
             </div>
 
+            {/* Repeat Score Flag — mandatory action comment */}
+            {repeatFlag?.flagged && (
+              <div className={`${GLASS_CARD} p-4 mb-4 border-red-500/30 bg-red-950/10`}>
+                <div className="flex items-start gap-3 mb-3">
+                  <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className={`${T_BODY} font-semibold text-red-300`}>
+                      Repeat Score Pattern Detected
+                    </p>
+                    <p className={`${T_CAPTION} text-slate-400 mt-0.5`}>
+                      You have given a similar score (avg{" "}
+                      <span className="text-white font-medium">
+                        {repeatFlag.avg_score?.toFixed(0)}
+                      </span>
+                      , range ±{repeatFlag.score_range}) to this branch 3+ consecutive times.
+                      Please document a specific action you have taken or are taking to improve
+                      the result — not just your intention.
+                    </p>
+                  </div>
+                </div>
+                <label className={`${T_LABEL} mb-1.5 block`}>
+                  Action Record{" "}
+                  <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  className={`${TEXTAREA_CLASS} border-red-500/30 focus:border-red-400`}
+                  rows={4}
+                  placeholder="Describe a specific, concrete action you have taken or will take (e.g. &quot;Conducted individual coaching with Kenji on backup procedures on 2026-07-27&quot;). Vague intentions like &quot;I will try harder&quot; are insufficient."
+                  value={actionComment}
+                  onChange={(e) => setActionComment(e.target.value)}
+                />
+                {!actionComment.trim() && (
+                  <p className={`${T_CAPTION} text-red-400 mt-1.5`}>
+                    Required — submission is blocked until this is filled in.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Submit */}
             {submitMsg && (
               <div
@@ -1200,9 +1275,9 @@ export default function StoreEvaluationPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || !allScored}
+              disabled={submitting || !allScored || (repeatFlag?.flagged === true && !actionComment.trim())}
               className={`${PRIMARY_BUTTON} w-full py-4 text-base font-semibold flex items-center justify-center gap-2 ${
-                !allScored ? "opacity-50" : ""
+                !allScored || (repeatFlag?.flagged && !actionComment.trim()) ? "opacity-50" : ""
               }`}
             >
               {submitting ? (

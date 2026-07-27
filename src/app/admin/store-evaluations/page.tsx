@@ -63,6 +63,25 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type ScoreBreakdownDim = { pts: number; max: number; value: number | null; label: string };
+type ScoreBreakdown = {
+  variance: ScoreBreakdownDim;
+  score_level: ScoreBreakdownDim;
+  submission: ScoreBreakdownDim;
+  compliance: ScoreBreakdownDim;
+  repetition: ScoreBreakdownDim;
+};
+type RepeatPattern = {
+  branch_code: string;
+  repeat_instance_count: number;
+  earliest_date: string;
+  latest_date: string;
+  avg_score: number;
+  score_range: number;
+  action_comment: string | null;
+  action_outcome: "improved" | "stagnant" | "declined" | "pending" | null;
+  action_submitted_date: string | null;
+};
 type EvaluatorStat = {
   evaluator_name: string;
   eval_count: number;
@@ -76,6 +95,9 @@ type EvaluatorStat = {
   long_gap_count: number;
   flags: string[];
   reliability: "HIGH" | "MEDIUM" | "LOW" | "SUSPICIOUS";
+  score_10: number;
+  score_breakdown: ScoreBreakdown;
+  repeat_patterns: RepeatPattern[];
 };
 
 type SubmissionAlert = {
@@ -194,29 +216,55 @@ function fmtDate(d: string) {
   }
 }
 
-// ─── Reliability helpers ─────────────────────────────────────────────────────
+// ─── Score helpers ────────────────────────────────────────────────────────────
 
-const RELIABILITY_CONFIG = {
-  HIGH:       { label: "HIGH TRUST",   cls: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" },
-  MEDIUM:     { label: "MEDIUM",       cls: "bg-amber-500/10 border-amber-500/30 text-amber-400" },
-  LOW:        { label: "LOW TRUST",    cls: "bg-orange-500/10 border-orange-500/30 text-orange-400" },
-  SUSPICIOUS: { label: "⚠ SUSPICIOUS", cls: "bg-red-500/10 border-red-500/30 text-red-400" },
-} as const;
+function scoreLabel(s: number) {
+  if (s >= 9) return "Excellent";
+  if (s >= 7) return "Reliable";
+  if (s >= 5) return "Caution";
+  if (s >= 3) return "Unreliable";
+  return "Alert";
+}
 
-function ReliabilityBadge({
-  reliability,
-  size = "sm",
-}: {
-  reliability: EvaluatorStat["reliability"];
-  size?: "sm" | "lg";
-}) {
-  const cfg = RELIABILITY_CONFIG[reliability];
+function scoreColorClass(s: number) {
+  if (s >= 7) return "text-emerald-400";
+  if (s >= 5) return "text-amber-400";
+  if (s >= 3) return "text-orange-400";
+  return "text-red-400";
+}
+
+function scoreBorderClass(s: number) {
+  if (s >= 7) return "border-emerald-500/30 bg-emerald-500/10";
+  if (s >= 5) return "border-amber-500/30 bg-amber-500/10";
+  if (s >= 3) return "border-orange-500/30 bg-orange-500/10";
+  return "border-red-500/30 bg-red-500/10";
+}
+
+function ScoreBadge({ score, size = "sm" }: { score: number; size?: "sm" | "lg" }) {
+  const color = scoreColorClass(score);
+  const border = scoreBorderClass(score);
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded border font-semibold ${cfg.cls} ${
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-bold ${border} ${color} ${
         size === "lg" ? "text-xs" : "text-[10px]"
       }`}
     >
+      {score}<span className="font-normal opacity-70">/10</span>
+    </span>
+  );
+}
+
+function outcomeChip(outcome: RepeatPattern["action_outcome"]) {
+  if (!outcome) return null;
+  const cfg = {
+    improved: { label: "Improved ↑", cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+    stagnant: { label: "Stagnant →", cls: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
+    declined: { label: "Declined ↓", cls: "text-red-400 bg-red-500/10 border-red-500/20" },
+    pending:  { label: "Pending…",   cls: "text-slate-400 bg-slate-500/10 border-slate-500/20" },
+  }[outcome];
+  if (!cfg) return null;
+  return (
+    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${cfg.cls}`}>
       {cfg.label}
     </span>
   );
@@ -247,6 +295,10 @@ const FLAG_LABELS: Record<string, { label: string; severity: "red" | "amber" }> 
 
 // ─── Evaluator Quality View ──────────────────────────────────────────────────
 
+const BREAKDOWN_KEYS: (keyof ScoreBreakdown)[] = [
+  "variance", "score_level", "submission", "compliance", "repetition",
+];
+
 function EvaluatorQualityView({ city }: { city: string }) {
   const [stats, setStats] = useState<EvaluatorStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -264,8 +316,8 @@ function EvaluatorQualityView({ city }: { city: string }) {
       .finally(() => setLoading(false));
   }, [city, days]);
 
-  const suspicious = stats.filter((s) => s.reliability === "SUSPICIOUS").length;
-  const lowTrust   = stats.filter((s) => s.reliability === "LOW").length;
+  const alertCount = stats.filter((s) => (s.score_10 ?? 10) < 5).length;
+  const repeatCount = stats.filter((s) => s.repeat_patterns?.length > 0).length;
 
   return (
     <div>
@@ -275,12 +327,13 @@ function EvaluatorQualityView({ city }: { city: string }) {
           <ShieldAlert size={20} className="text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className={`${T_BODY} font-semibold text-amber-300`}>
-              Evaluator Reliability Monitoring
+              Evaluator Quality Score — 10-Point System
             </p>
             <p className={`${T_CAPTION} text-slate-400 mt-0.5`}>
-              Detects evaluators who may be giving inflated scores. Requires ≥3 evaluations in
-              the selected period to appear. Scores are monitored — evaluators cannot game this
-              without it being flagged.
+              Each evaluator is scored across 5 dimensions (2 pts each): score variance,
+              score level, submission regularity, compliance calibration, and repetition
+              pattern. Requires ≥3 evaluations. Same score 3+ days triggers action record
+              requirement on next submission.
             </p>
           </div>
         </div>
@@ -294,15 +347,15 @@ function EvaluatorQualityView({ city }: { city: string }) {
             <p className={KPI_VALUE}>{stats.length}</p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Low Trust</p>
-            <p className={`${KPI_VALUE} ${lowTrust > 0 ? "text-orange-400" : "text-emerald-400"}`}>
-              {lowTrust}
+            <p className={KPI_LABEL}>Alert (&lt;5/10)</p>
+            <p className={`${KPI_VALUE} ${alertCount > 0 ? "text-orange-400" : "text-emerald-400"}`}>
+              {alertCount}
             </p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Suspicious</p>
-            <p className={`${KPI_VALUE} ${suspicious > 0 ? "text-red-400" : "text-emerald-400"}`}>
-              {suspicious}
+            <p className={KPI_LABEL}>Repeat Flags</p>
+            <p className={`${KPI_VALUE} ${repeatCount > 0 ? "text-red-400" : "text-emerald-400"}`}>
+              {repeatCount}
             </p>
           </div>
         </div>
@@ -338,161 +391,177 @@ function EvaluatorQualityView({ city }: { city: string }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {stats.map((s) => (
-            <div
-              key={s.evaluator_name}
-              className={`${GLASS_CARD} p-4 ${
-                s.reliability === "SUSPICIOUS"
-                  ? "border-red-500/30 bg-red-950/10"
-                  : s.reliability === "LOW"
-                  ? "border-orange-500/25"
-                  : ""
-              }`}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <p className={`${T_BODY} font-semibold`}>{s.evaluator_name}</p>
-                  <p className={`${T_CAPTION} text-slate-500 mt-0.5`}>
-                    {s.eval_count} evals · Last: {fmtDate(s.last_eval_date)}
-                  </p>
-                </div>
-                <ReliabilityBadge reliability={s.reliability} size="lg" />
-              </div>
-
-              {/* Stats grid */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className={`${GLASS_CARD} p-2.5`}>
-                  <p className={`${T_CAPTION} text-slate-500`}>Avg Score</p>
-                  <p className={`text-lg font-bold ${scoreColor(s.avg_score)}`}>
-                    {s.avg_score.toFixed(1)}
-                  </p>
-                </div>
-                <div className={`${GLASS_CARD} p-2.5`}>
-                  <p className={`${T_CAPTION} text-slate-500`}>Score Std Dev</p>
-                  <p
-                    className={`text-lg font-bold ${
-                      s.score_stddev == null
-                        ? "text-slate-500"
-                        : s.score_stddev < 4
-                        ? "text-amber-400"
-                        : "text-emerald-400"
-                    }`}
-                  >
-                    {s.score_stddev != null ? s.score_stddev.toFixed(1) : "—"}
-                  </p>
-                </div>
-                <div className={`${GLASS_CARD} p-2.5`}>
-                  <p className={`${T_CAPTION} text-slate-500`}>High Score Rate</p>
-                  <p
-                    className={`text-lg font-bold ${
-                      s.high_score_rate_pct > 40
-                        ? "text-red-400"
-                        : s.high_score_rate_pct > 20
-                        ? "text-amber-400"
-                        : "text-emerald-400"
-                    }`}
-                  >
-                    {s.high_score_rate_pct.toFixed(0)}%
-                  </p>
-                  <p className={`${T_CAPTION} text-slate-600`}>scores ≥88</p>
-                </div>
-                <div className={`${GLASS_CARD} p-2.5`}>
-                  <p className={`${T_CAPTION} text-slate-500`}>Full Compliance</p>
-                  <p
-                    className={`text-lg font-bold ${
-                      s.full_compliance_rate_pct > 70 ? "text-amber-400" : "text-emerald-400"
-                    }`}
-                  >
-                    {s.full_compliance_rate_pct.toFixed(0)}%
-                  </p>
-                  <p className={`${T_CAPTION} text-slate-600`}>all 4 checks ✓</p>
-                </div>
-                <div className={`${GLASS_CARD} p-2.5 col-span-2`}>
-                  <p className={`${T_CAPTION} text-slate-500`}>Submission Gaps</p>
-                  <div className="flex items-baseline gap-2">
-                    <p
-                      className={`text-lg font-bold ${
-                        s.max_gap_days >= 5 && s.long_gap_count >= 2
-                          ? "text-red-400"
-                          : s.max_gap_days >= 5
-                          ? "text-amber-400"
-                          : "text-emerald-400"
-                      }`}
-                    >
-                      {s.max_gap_days > 0 ? `${s.max_gap_days}d max` : "—"}
+          {stats
+            .slice()
+            .sort((a, b) => (a.score_10 ?? 10) - (b.score_10 ?? 10))
+            .map((s) => {
+            const score = s.score_10 ?? 10;
+            const bd = s.score_breakdown;
+            const hasRepeat = s.repeat_patterns?.length > 0;
+            return (
+              <div
+                key={s.evaluator_name}
+                className={`${GLASS_CARD} p-4 ${
+                  score < 3
+                    ? "border-red-500/30 bg-red-950/10"
+                    : score < 5
+                    ? "border-orange-500/25"
+                    : ""
+                }`}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className={`${T_BODY} font-semibold`}>{s.evaluator_name}</p>
+                    <p className={`${T_CAPTION} text-slate-500 mt-0.5`}>
+                      {s.eval_count} evals · Last: {fmtDate(s.last_eval_date)}
                     </p>
-                    {s.long_gap_count > 0 && (
-                      <p className={`${T_CAPTION} text-slate-500`}>
-                        ({s.long_gap_count}× gap ≥5d)
-                      </p>
-                    )}
                   </div>
-                  <p className={`${T_CAPTION} text-slate-600`}>longest gap between submissions</p>
+                  {/* Large score */}
+                  <div className="text-right shrink-0">
+                    <p className={`text-3xl font-black leading-none ${scoreColorClass(score)}`}>
+                      {score}
+                      <span className="text-base font-normal text-slate-500"> /10</span>
+                    </p>
+                    <p className={`text-xs font-semibold mt-0.5 ${scoreColorClass(score)}`}>
+                      {scoreLabel(score)}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Recent trend */}
-              {s.recent_avg != null && (
-                <div className="flex items-center gap-2 mb-3 text-xs">
-                  <span className="text-slate-500">Recent avg (last 5 evals):</span>
-                  <span
-                    className={`font-bold ${
-                      s.recent_avg - s.avg_score > 10
-                        ? "text-amber-400"
-                        : s.recent_avg - s.avg_score > 5
-                        ? "text-amber-300/70"
-                        : "text-slate-300"
-                    }`}
-                  >
-                    {s.recent_avg.toFixed(1)}
-                  </span>
-                  {s.recent_avg - s.avg_score > 5 && (
-                    <span className="text-amber-400 font-medium">↑ trending up</span>
-                  )}
+                {/* 5-Dimension breakdown bars */}
+                {bd && (
+                  <div className="space-y-2 mb-4">
+                    {BREAKDOWN_KEYS.map((key) => {
+                      const dim = bd[key];
+                      if (!dim) return null;
+                      const pct = (dim.pts / dim.max) * 100;
+                      const barColor =
+                        dim.pts === dim.max
+                          ? "bg-emerald-500"
+                          : dim.pts === 0
+                          ? "bg-red-500"
+                          : "bg-amber-500";
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className={`${T_CAPTION} text-slate-400`}>{dim.label}</p>
+                            <p className={`text-xs font-bold ${
+                              dim.pts === dim.max ? "text-emerald-400"
+                              : dim.pts === 0 ? "text-red-400"
+                              : "text-amber-400"
+                            }`}>
+                              {dim.pts}/{dim.max}
+                            </p>
+                          </div>
+                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${barColor}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Raw stats (compact) */}
+                <div className="grid grid-cols-4 gap-1.5 mb-3 text-center">
+                  <div className={`${GLASS_CARD} py-1.5`}>
+                    <p className="text-[10px] text-slate-500">Avg</p>
+                    <p className={`text-sm font-bold ${scoreColor(s.avg_score)}`}>
+                      {s.avg_score.toFixed(0)}
+                    </p>
+                  </div>
+                  <div className={`${GLASS_CARD} py-1.5`}>
+                    <p className="text-[10px] text-slate-500">StdDev</p>
+                    <p className={`text-sm font-bold ${
+                      s.score_stddev == null ? "text-slate-500"
+                      : s.score_stddev < 4 ? "text-amber-400"
+                      : "text-emerald-400"
+                    }`}>
+                      {s.score_stddev != null ? s.score_stddev.toFixed(1) : "—"}
+                    </p>
+                  </div>
+                  <div className={`${GLASS_CARD} py-1.5`}>
+                    <p className="text-[10px] text-slate-500">FC%</p>
+                    <p className={`text-sm font-bold ${
+                      s.full_compliance_rate_pct > 70 ? "text-amber-400" : "text-emerald-400"
+                    }`}>
+                      {s.full_compliance_rate_pct.toFixed(0)}%
+                    </p>
+                  </div>
+                  <div className={`${GLASS_CARD} py-1.5`}>
+                    <p className="text-[10px] text-slate-500">Gap</p>
+                    <p className={`text-sm font-bold ${
+                      s.max_gap_days >= 5 ? "text-amber-400" : "text-emerald-400"
+                    }`}>
+                      {s.max_gap_days > 0 ? `${s.max_gap_days}d` : "—"}
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              {/* Flags */}
-              {s.flags.length > 0 ? (
-                <div className="space-y-1.5">
-                  {s.flags.map((flag) => {
-                    const info = FLAG_LABELS[flag];
-                    if (!info) return null;
-                    return (
+                {/* Repeat patterns */}
+                {hasRepeat && (
+                  <div className="mt-2 space-y-2">
+                    <p className={`${T_LABEL} text-red-400 flex items-center gap-1.5`}>
+                      <AlertTriangle size={12} />
+                      Same-Score Patterns Detected
+                    </p>
+                    {s.repeat_patterns.map((rp) => (
                       <div
-                        key={flag}
-                        className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 ${
-                          info.severity === "red"
-                            ? "bg-red-950/30 border border-red-500/20"
-                            : "bg-amber-950/30 border border-amber-500/20"
-                        }`}
+                        key={rp.branch_code}
+                        className="rounded-lg bg-red-950/20 border border-red-500/20 p-3"
                       >
-                        <AlertTriangle
-                          size={12}
-                          className={`shrink-0 mt-0.5 ${
-                            info.severity === "red" ? "text-red-400" : "text-amber-400"
-                          }`}
-                        />
-                        <p
-                          className={`text-xs ${
-                            info.severity === "red" ? "text-red-300" : "text-amber-300"
-                          }`}
-                        >
-                          {info.label}
-                        </p>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-200">
+                              {rp.branch_code}
+                            </span>
+                            <span className={`${T_CAPTION} text-slate-500`}>
+                              avg {rp.avg_score} · range ±{rp.score_range}
+                            </span>
+                          </div>
+                          <span className={`${T_CAPTION} text-slate-500`}>
+                            {fmtDate(rp.earliest_date)}–{fmtDate(rp.latest_date)}
+                          </span>
+                        </div>
+                        {rp.action_comment ? (
+                          <div className="mt-1.5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+                                Action record ({rp.action_submitted_date})
+                              </p>
+                              {outcomeChip(rp.action_outcome)}
+                            </div>
+                            <p className="text-xs text-slate-300 bg-slate-800/60 rounded px-2.5 py-1.5 leading-relaxed">
+                              "{rp.action_comment}"
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <AlertTriangle size={11} className="text-red-400" />
+                            <p className="text-xs text-red-400 font-medium">
+                              No action record submitted — required on next evaluation
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-emerald-400 text-xs">
-                  <CheckCircle2 size={12} />
-                  No reliability concerns detected
-                </div>
-              )}
-            </div>
-          ))}
+                    ))}
+                  </div>
+                )}
+
+                {/* Clean evaluator */}
+                {!hasRepeat && score >= 7 && (
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs mt-1">
+                    <CheckCircle2 size={12} />
+                    No reliability concerns detected
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1999,8 +2068,8 @@ export default function StoreEvaluationsPage() {
                           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                             <p className={`${T_CAPTION} text-slate-400`}>{ev.evaluator_name}</p>
                             {evaluatorMap[ev.evaluator_name] && (
-                              <ReliabilityBadge
-                                reliability={evaluatorMap[ev.evaluator_name].reliability}
+                              <ScoreBadge
+                                score={evaluatorMap[ev.evaluator_name].score_10 ?? 10}
                               />
                             )}
                           </div>
@@ -2111,8 +2180,8 @@ export default function StoreEvaluationsPage() {
                             <div className="flex flex-col gap-0.5">
                               <span className="text-slate-400 text-sm">{ev.evaluator_name}</span>
                               {evaluatorMap[ev.evaluator_name] && (
-                                <ReliabilityBadge
-                                  reliability={evaluatorMap[ev.evaluator_name].reliability}
+                                <ScoreBadge
+                                  score={evaluatorMap[ev.evaluator_name].score_10 ?? 10}
                                 />
                               )}
                             </div>
