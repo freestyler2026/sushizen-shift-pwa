@@ -251,6 +251,16 @@ type CsvRow = {
 const CSV_VALID_TYPES = new Set(["addition", "deduction", "recurring_deduction"]);
 const CSV_TEMPLATE_HEADERS = "staff_name,adj_type,subtype,amount,incurred_date,reference_no,note";
 
+function downloadAdjTemplate(city: string) {
+  const ex = `John Doe,addition,Overtime,500.00,${new Date().toISOString().slice(0, 10)},,OT work`;
+  const blob = new Blob(["﻿" + CSV_TEMPLATE_HEADERS + "\r\n" + ex], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `adj_import_template_${city}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
 function parseCsvText(text: string): string[][] {
   const rows: string[][] = [];
   for (const raw of text.split(/\r?\n/)) {
@@ -325,15 +335,7 @@ function CsvImportModal({
       .catch(() => {});
   }, [city]);
 
-  function dlTemplate() {
-    const ex = `John Doe,addition,Overtime,500.00,${new Date().toISOString().slice(0, 10)},,OT work`;
-    const blob = new Blob(["﻿" + CSV_TEMPLATE_HEADERS + "\r\n" + ex], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `adj_import_template_${city}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  }
+  function dlTemplate() { downloadAdjTemplate(city); }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -689,6 +691,9 @@ export default function AdjustmentsPage() {
           <div className="ml-auto flex gap-2 flex-wrap">
             <button className={SMALL_BUTTON} onClick={() => selectedCycle && void loadAdjustments(selectedCycle.id, city)} disabled={busy}>
               <RefreshCw size={12} className={busy ? "animate-spin" : ""} />Refresh
+            </button>
+            <button className={SMALL_BUTTON} onClick={() => downloadAdjTemplate(city)}>
+              <Download size={12} />Download Template
             </button>
             {adjustments.length > 0 && (
               <button className={SMALL_BUTTON} onClick={downloadCSV}><Download size={12} />Download</button>
