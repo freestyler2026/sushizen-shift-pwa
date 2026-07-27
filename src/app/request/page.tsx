@@ -207,6 +207,7 @@ function InboxTab({ city }: { city: string }) {
 
   async function review(id: string, action: "approved" | "rejected") {
     setReviewBusy(true);
+    setError("");
     try {
       const auth = getAuth();
       const r = await apiFetch(`/api/request/notifications/${id}/review`, {
@@ -439,6 +440,8 @@ export default function RequestPage() {
       if (requestType === "swap" && (!myTo.trim() || !theirTo.trim())) throw new Error("Both swap time fields are required.");
       if (requestType === "time_change" && !to.trim()) throw new Error("Requested time is required.");
       if (medicalDoc && !medicalDocumentFile) throw new Error("Please attach your medical document file.");
+      if (requestType === "overtime_request" && (parseFloat(otHours) || 0) <= 0) throw new Error("Overtime hours must be greater than 0.");
+      if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) <= 0) throw new Error("Leave days must be greater than 0.");
 
       if (requestType === "overtime_request") {
         const r = await apiFetch("/api/request/notify", {
@@ -448,7 +451,7 @@ export default function RequestPage() {
             sender_city: city,
             notification_type: "overtime",
             target_date: workDate,
-            overtime_hours: parseFloat(otHours) || 0,
+            overtime_hours: parseFloat(otHours),
             reason: reason.trim(),
           }),
         });
@@ -461,17 +464,19 @@ export default function RequestPage() {
 
       const isLeaveType = ["paid_leave", "vacation", "absence", "day_off"].includes(requestType);
       if (isLeaveType) {
+        const notifyType = (requestType === "paid_leave" || requestType === "vacation") ? "leave" : requestType;
+        const notifyBody: Record<string, unknown> = {
+          sender_name: staffName,
+          sender_city: city,
+          notification_type: notifyType,
+          target_date: workDate,
+          leave_days: parseFloat(leaveDays) || 1,
+          reason: reason.trim(),
+        };
+        if (notifyType === "leave") notifyBody.leave_type = leaveSubType;
         await apiFetch("/api/request/notify", {
           method: "POST",
-          body: JSON.stringify({
-            sender_name: staffName,
-            sender_city: city,
-            notification_type: "leave",
-            target_date: workDate,
-            leave_type: leaveSubType,
-            leave_days: parseFloat(leaveDays) || 1,
-            reason: reason.trim(),
-          }),
+          body: JSON.stringify(notifyBody),
         }).catch(() => {});
       }
 
