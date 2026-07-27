@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -71,6 +72,10 @@ export default function CkParLevelsPage() {
 
   // search filter
   const [search, setSearch] = useState("");
+
+  // delete
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // generate plan
   const [generating, setGenerating] = useState(false);
@@ -196,6 +201,30 @@ export default function CkParLevelsPage() {
       alert(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── delete item ───────────────────────────────────────────────────────────
+  const handleDelete = async (row: ParLevelRow) => {
+    if (deleteConfirmId !== row.id) {
+      setDeleteConfirmId(row.id);
+      return;
+    }
+    setDeleting(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        { method: "DELETE", headers: getAuthHeaders(auth) }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Delete failed");
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -434,6 +463,7 @@ export default function CkParLevelsPage() {
                       <th className="px-4 py-3 text-left">Supplier</th>
                     )}
                     <th className="px-4 py-3 text-right text-xs">Updated</th>
+                    <th className="px-2 py-3 text-center text-xs w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -542,6 +572,33 @@ export default function CkParLevelsPage() {
                         )}
                         <td className="px-4 py-2.5 text-right text-zinc-600 text-xs">
                           {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-2 py-2.5 text-center">
+                          {deleteConfirmId === row.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDelete(row)}
+                                disabled={deleting}
+                                className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/35 disabled:opacity-60"
+                              >
+                                {deleting ? "…" : "Yes"}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleDelete(row)}
+                              className="rounded p-1 text-zinc-700 hover:bg-red-500/15 hover:text-red-400 transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
