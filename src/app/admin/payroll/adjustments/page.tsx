@@ -245,6 +245,7 @@ type CsvRow = {
   reference_no: string;
   note: string;
   _errors: string[];
+  _nameWarning: boolean;
 };
 
 const CSV_VALID_TYPES = new Set(["addition", "deduction", "recurring_deduction"]);
@@ -274,7 +275,7 @@ function parseCsvText(text: string): string[][] {
   return rows;
 }
 
-function buildCsvRows(data: string[][], headers: string[]): CsvRow[] {
+function buildCsvRows(data: string[][], headers: string[], staffNames?: Set<string>): CsvRow[] {
   const idx = (n: string) => headers.findIndex(h => h.toLowerCase().trim() === n);
   const iName = idx("staff_name"), iType = idx("adj_type"), iSub = idx("subtype");
   const iAmt = idx("amount"), iDate = idx("incurred_date");
@@ -290,7 +291,8 @@ function buildCsvRows(data: string[][], headers: string[]): CsvRow[] {
     const n = parseFloat(amount);
     if (isNaN(n) || n <= 0) errs.push("amount must be > 0");
     if (incurred_date && !/^\d{4}-\d{2}-\d{2}$/.test(incurred_date)) errs.push("date must be YYYY-MM-DD");
-    return { staff_name, adj_type, subtype, amount, incurred_date, reference_no, note, _errors: errs };
+    const _nameWarning = !!staff_name && !!staffNames && !staffNames.has(staff_name.toLowerCase());
+    return { staff_name, adj_type, subtype, amount, incurred_date, reference_no, note, _errors: errs, _nameWarning };
   });
 }
 
@@ -300,7 +302,12 @@ function CsvImportModal({
   city: string; cycleId: number; onImported: () => void; onClose: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [rows, setRows] = useState<CsvRow[]>([]);
+  const [parsedData, setParsedData] = useState<{ headers: string[]; data: string[][] } | null>(null);
+  const [staffNames, setStaffNames] = useState<Set<string> | null>(null);
+  const rows = useMemo(
+    () => parsedData ? buildCsvRows(parsedData.data, parsedData.headers, staffNames ?? undefined) : [],
+    [parsedData, staffNames],
+  );
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -308,6 +315,15 @@ function CsvImportModal({
     imported: number; skipped: number;
     errors: { row: number; staff_name: string; reason: string }[];
   } | null>(null);
+
+  useEffect(() => {
+    apiFetch(`/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE`)
+      .then(r => r.json())
+      .then((d: { names?: string[] }) => {
+        setStaffNames(new Set((d.names ?? []).map((n: string) => n.toLowerCase())));
+      })
+      .catch(() => {});
+  }, [city]);
 
   function dlTemplate() {
     const ex = `John Doe,addition,Overtime,500.00,${new Date().toISOString().slice(0, 10)},,OT work`;
@@ -327,9 +343,9 @@ function CsvImportModal({
     reader.onload = ev => {
       const text = (ev.target?.result as string) ?? "";
       const all = parseCsvText(text);
-      if (all.length < 2) { setErr("CSV must have a header row and at least one data row."); setRows([]); return; }
-      const [hdr, ...data] = all;
-      setRows(buildCsvRows(data, hdr));
+      if (all.length < 2) { setErr("CSV must have a header row and at least one data row."); setParsedData(null); return; }
+      const [headers, ...data] = all;
+      setParsedData({ headers, data });
     };
     reader.readAsText(file, "UTF-8");
   }
@@ -361,8 +377,9 @@ function CsvImportModal({
     } finally { setBusy(false); }
   }
 
-  const validCount = rows.filter(r => r._errors.length === 0).length;
+  const validCount   = rows.filter(r => r._errors.length === 0).length;
   const invalidCount = rows.filter(r => r._errors.length > 0).length;
+  const warnCount    = rows.filter(r => r._errors.length === 0 && r._nameWarning).length;
   const lbl = "block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1";
 
   return (
@@ -388,6 +405,7 @@ function CsvImportModal({
               <Upload size={12} />{fileName || "Choose file…"}
             </button>
             {fileName && <span className="text-xs text-zinc-400">{rows.length} data row(s) parsed</span>}
+            {!staffNames && <span className="text-xs text-zinc-500 italic">Loading staff list…</span>}
           </div>
         </div>
 
@@ -398,6 +416,7 @@ function CsvImportModal({
             <div className="flex items-center gap-3 mb-2">
               <p className={lbl + " mb-0"}>Preview — {rows.length} row(s)</p>
               {validCount > 0 && <span className={`${BADGE_SUCCESS} text-[10px]`}>{validCount} valid</span>}
+              {warnCount > 0 && <span className={`${BADGE_WARNING} text-[10px]`}>{warnCount} name warning</span>}
               {invalidCount > 0 && <span className={`${BADGE_ERROR} text-[10px]`}>{invalidCount} invalid</span>}
             </div>
             <div className="overflow-x-auto rounded-xl border border-white/10 max-h-64">
@@ -414,31 +433,52 @@ function CsvImportModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={i} className={row._errors.length === 0 ? TABLE_ROW : "bg-red-500/10 border-b border-red-500/20"}>
-                      <td className="px-2 py-1.5 text-zinc-500">{i + 1}</td>
-                      <td className="px-2 py-1.5 font-medium text-white">
-                        {row.staff_name ? row.staff_name : <span className="text-red-400 italic">missing</span>}
-                      </td>
-                      <td className="px-2 py-1.5 text-zinc-300">{row.adj_type}</td>
-                      <td className="px-2 py-1.5 text-zinc-400">{row.subtype || "—"}</td>
-                      <td className={`px-2 py-1.5 text-right tabular-nums ${row.adj_type === "addition" ? "text-emerald-400" : "text-red-400"}`}>
-                        {row.amount}
-                      </td>
-                      <td className="px-2 py-1.5 text-zinc-400">{row.incurred_date || "—"}</td>
-                      <td className="px-2 py-1.5">
-                        {row._errors.length > 0
-                          ? <span className="text-red-400">{row._errors.join("; ")}</span>
-                          : <span className="text-emerald-500">✓</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((row, i) => {
+                    const rowCls = row._errors.length > 0
+                      ? "bg-red-500/10 border-b border-red-500/20"
+                      : row._nameWarning
+                        ? "bg-amber-500/10 border-b border-amber-500/20"
+                        : TABLE_ROW;
+                    return (
+                      <tr key={i} className={rowCls}>
+                        <td className="px-2 py-1.5 text-zinc-500">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-medium">
+                          {row.staff_name
+                            ? <span className={row._nameWarning ? "text-amber-300" : "text-white"}>{row.staff_name}</span>
+                            : <span className="text-red-400 italic">missing</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-zinc-300">{row.adj_type}</td>
+                        <td className="px-2 py-1.5 text-zinc-400">{row.subtype || "—"}</td>
+                        <td className={`px-2 py-1.5 text-right tabular-nums ${row.adj_type === "addition" ? "text-emerald-400" : "text-red-400"}`}>
+                          {row.amount}
+                        </td>
+                        <td className="px-2 py-1.5 text-zinc-400">{row.incurred_date || "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {row._errors.length > 0
+                            ? <span className="text-red-400">{row._errors.join("; ")}</span>
+                            : row._nameWarning
+                              ? <span className="text-amber-400">⚠ Not in staff list</span>
+                              : <span className="text-emerald-500">✓</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             {invalidCount > 0 && (
-              <p className="text-xs text-amber-400 mt-2">
+              <p className="text-xs text-red-400 mt-2">
                 {invalidCount} row(s) with errors will be skipped — only {validCount} valid row(s) will be imported.
+              </p>
+            )}
+            {warnCount > 0 && invalidCount === 0 && (
+              <p className="text-xs text-amber-400 mt-2">
+                ⚠ {warnCount} row(s) have names not found in the staff list. Please double-check spelling before importing.
+              </p>
+            )}
+            {warnCount > 0 && invalidCount > 0 && (
+              <p className="text-xs text-amber-400 mt-1">
+                ⚠ {warnCount} additional row(s) have names not found in the staff list.
               </p>
             )}
           </div>
