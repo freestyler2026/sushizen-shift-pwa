@@ -877,14 +877,26 @@ export default function DubaiDtrUploadPage() {
                 </h2>
                 <div className="flex items-center gap-2">
                   {dtrRecords.length > 0 && (
-                    <button
-                      onClick={() => downloadDtrCsv(filtered, selectedPeriodId)}
-                      title="Download CSV"
-                      className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"
-                    >
-                      <FileSpreadsheet size={13} />
-                      CSV
-                    </button>
+                    <>
+                      {hasFilter && (
+                        <button
+                          onClick={() => downloadDtrCsv(filtered, selectedPeriodId)}
+                          title={`Download filtered rows (${filtered.length})`}
+                          className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-sky-500/20 transition-colors"
+                        >
+                          <FileSpreadsheet size={13} />
+                          CSV ({filtered.length})
+                        </button>
+                      )}
+                      <button
+                        onClick={() => downloadDtrCsv(dtrRecords, selectedPeriodId)}
+                        title={`Download all rows (${dtrRecords.length})`}
+                        className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <FileSpreadsheet size={13} />
+                        CSV All ({dtrRecords.length})
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => {
