@@ -239,10 +239,9 @@ export default function AdminOvertimePage() {
                 className={`${SELECT_CLASS} mt-1`}
                 value={filterBranch}
                 onChange={setFilterBranch}
-                options={[
-                  { value: "", label: "All branches" },
-                  ...branches.map((b) => ({ value: b.code, label: b.name })),
-                ]}
+                placeholder="All branches"
+                clearable={true}
+                options={branches.map((b) => ({ value: b.code, label: b.name }))}
               />
             </div>
             <div>
@@ -251,8 +250,9 @@ export default function AdminOvertimePage() {
                 className={`${SELECT_CLASS} mt-1`}
                 value={filterStatus}
                 onChange={setFilterStatus}
+                placeholder="All"
+                clearable={true}
                 options={[
-                  { value: "", label: "All" },
                   { value: "pending", label: "Pending" },
                   { value: "approved", label: "Approved" },
                   { value: "rejected", label: "Rejected" },

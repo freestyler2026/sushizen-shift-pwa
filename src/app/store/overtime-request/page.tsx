@@ -129,6 +129,7 @@ export default function OvertimeRequestPage() {
     e.preventDefault();
     setSubmitError("");
     setSubmitSuccess("");
+    if (!branchCode) { setSubmitError("Please select a branch."); return; }
     if (otMinutes <= 0) { setSubmitError("OT end time must be after start time."); return; }
     if (reason.trim().length < 5) { setSubmitError("Please enter a reason (at least 5 characters)."); return; }
     setSubmitting(true);
@@ -210,10 +211,8 @@ export default function OvertimeRequestPage() {
                   value={branchCode}
                   onChange={setBranchCode}
                   className={`${SELECT_CLASS} appearance-none pr-8`}
-                  options={[
-                    { value: "", label: "Select branch…" },
-                    ...branches.map((b) => ({ value: b.code, label: b.name })),
-                  ]}
+                  placeholder="Select branch…"
+                  options={branches.map((b) => ({ value: b.code, label: b.name }))}
                 />
               </div>
             </div>
