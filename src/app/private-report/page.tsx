@@ -30,7 +30,10 @@ export default function PrivateReportPage() {
   const router = useRouter();
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const [reportType, setReportType] = useState<ReportType>("app-private-report");
-  const [city, setCity] = useState<"dubai" | "manila">("dubai");
+  const [city, setCity] = useState<"dubai" | "manila">(() => {
+    const a = getAuth();
+    return ((a?.city || "dubai").toLowerCase() as "dubai" | "manila");
+  });
   const [branch, setBranch] = useState("");
   const [dateTimeLocal, setDateTimeLocal] = useState("");
   const [category, setCategory] = useState("Suggestion");
@@ -76,7 +79,7 @@ export default function PrivateReportPage() {
         router.replace("/login?next=%2Fprivate-report");
         return;
       }
-      setCity(refreshed.city || "dubai");
+      setCity(((refreshed.city || "dubai").toLowerCase() as "dubai" | "manila"));
     }
     void syncAuth();
   }, [auth, router]);
@@ -179,8 +182,8 @@ export default function PrivateReportPage() {
                     value={reportType}
                     onChange={v => setReportType(v as ReportType)}
                     options={[
-                      { value: "app-private-report", label: "app-private-report" },
-                      { value: "hq-private-report", label: "hq-private-report" },
+                      { value: "app-private-report", label: "App Bug Report" },
+                      { value: "hq-private-report", label: "HQ / HR Report" },
                     ]}
                   />
                 </label>
@@ -205,10 +208,9 @@ export default function PrivateReportPage() {
                     className={SELECT_POLISH}
                     value={branch}
                     onChange={setBranch}
-                    options={[
-                      { value: "", label: "- Select branch -" },
-                      ...(BRANCHES[(city as BranchCity) || "dubai"] || []).map(b => ({ value: b.code, label: `${b.name} (${b.code})` })),
-                    ]}
+                    placeholder="Select branch…"
+                    clearable={true}
+                    options={(BRANCHES[(city as BranchCity) || "dubai"] || []).map(b => ({ value: b.code, label: `${b.name} (${b.code})` }))}
                   />
                 </label>
                 <label className="block">
