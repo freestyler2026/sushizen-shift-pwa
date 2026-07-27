@@ -954,7 +954,10 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     setRestoring(true); setError(""); setMsg("");
     try {
       const res = await apiFetch(`/api/daily-inventory/items/restore-commissary`, { method: "POST" });
-      setMsg(`CK items restored: ${(res as { restored?: number }).restored ?? 0} items reactivated.`);
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Restore failed");
+      const data = JSON.parse(text) as { restored?: number };
+      setMsg(`CK items restored: ${data.restored ?? 0} items reactivated.`);
       await loadItems();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Restore failed");
@@ -974,10 +977,11 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     )) return;
     setCleaning(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(`/api/daily-inventory/items/cleanup-commissary`, { method: "POST" }) as {
-        retired_deactivated?: number; duplicates_removed?: number;
-      };
-      setMsg(`Cleanup complete: ${res.retired_deactivated ?? 0} [Retired] items re-deactivated, ${res.duplicates_removed ?? 0} duplicate entries removed.`);
+      const res = await apiFetch(`/api/daily-inventory/items/cleanup-commissary`, { method: "POST" });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Cleanup failed");
+      const data = JSON.parse(text) as { retired_deactivated?: number; duplicates_removed?: number };
+      setMsg(`Cleanup complete: ${data.retired_deactivated ?? 0} [Retired] items re-deactivated, ${data.duplicates_removed ?? 0} duplicate entries removed.`);
       await loadItems();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Cleanup failed");
@@ -991,8 +995,11 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     if (!confirm("Sync Warehouse items from Order Catalog (WH items) into Daily Inventory?\n\nThis will add/update warehouse items based on the active WH entries in the Order Catalog.")) return;
     setSyncingWh(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(`/api/daily-inventory/items/seed-warehouse`, { method: "POST" }) as { synced?: number };
-      setMsg(`Warehouse items synced: ${res.synced ?? 0} items added/updated.`);
+      const res = await apiFetch(`/api/daily-inventory/items/seed-warehouse`, { method: "POST" });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Sync failed");
+      const data = JSON.parse(text) as { synced?: number };
+      setMsg(`Warehouse items synced: ${data.synced ?? 0} items added/updated.`);
       await loadItems();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sync failed");
