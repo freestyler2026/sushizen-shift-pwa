@@ -656,9 +656,12 @@ function PayslipModal({
                     ))
                   ) : additions.length > 0 ? (
                     additions.map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                      <div key={i} className="flex justify-between items-start py-1.5 border-b border-slate-50">
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-slate-600 capitalize">{item.subtype || "Allowance"}</span>
+                          {item.incurred_at && (
+                            <p className="text-[11px] text-slate-400">{fmtDate(item.incurred_at)}</p>
+                          )}
                           {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
                         </div>
                         <span className="text-sm font-medium text-emerald-600 tabular-nums ml-4">
@@ -713,9 +716,12 @@ function PayslipModal({
                     ))
                   ) : deductions.length > 0 ? (
                     deductions.map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                      <div key={i} className="flex justify-between items-start py-1.5 border-b border-slate-50">
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-slate-600 capitalize">{item.subtype || "Deduction"}</span>
+                          {item.incurred_at && (
+                            <p className="text-[11px] text-slate-400">{fmtDate(item.incurred_at)}</p>
+                          )}
                           {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
                         </div>
                         <span className="text-sm font-medium text-red-500 tabular-nums ml-4">
