@@ -190,7 +190,10 @@ function ShiftGroupsSection({ title, rows }: { title: string; rows: ShiftRow[] }
 export default function CalendarPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<ReturnType<typeof getAuth> | null>(null);
-  const [city, setCity] = useState<City>("dubai");
+  const [city, setCity] = useState<City>(() => {
+    const a = getAuth();
+    return (a?.city || "dubai") as City;
+  });
   const [branchCode, setBranchCode] = useState("ALL");
   const [mKey, setMKey] = useState(() => toMonthKey(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => iso(new Date()));
@@ -308,7 +311,8 @@ export default function CalendarPage() {
 
   const nonEmptyRangeDays = useMemo(() => (rangeView?.days || []).filter((day) => (day.rows || []).length > 0), [rangeView]);
   const branchOptions = useMemo(() => {
-    const preferred = BASE_BRANCH_OPTIONS.map((option) => option.value);
+    const baseOptions = city === "dubai" ? BASE_BRANCH_OPTIONS : [{ value: "ALL", label: "All stores" }];
+    const preferred = baseOptions.map((option) => option.value);
     const discovered = new Set<string>();
 
     for (const row of dayView?.rows || []) {
@@ -323,7 +327,7 @@ export default function CalendarPage() {
     }
 
     const merged = [
-      ...BASE_BRANCH_OPTIONS,
+      ...baseOptions,
       ...Array.from(discovered)
         .filter((branch) => !preferred.includes(branch))
         .sort((a, b) => a.localeCompare(b))
@@ -335,7 +339,7 @@ export default function CalendarPage() {
     }
 
     return merged;
-  }, [branchCode, dayView, rangeView]);
+  }, [branchCode, city, dayView, rangeView]);
 
   if (!authed) return <div className="p-6 text-sm text-neutral-400">Loading...</div>;
 
@@ -357,7 +361,7 @@ export default function CalendarPage() {
             <SelectDark
               className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-white"
               value={city}
-              onChange={(v) => setCity(v as City)}
+              onChange={(v) => { setCity(v as City); setBranchCode("ALL"); }}
               options={[
                 { value: "dubai", label: "Dubai" },
                 { value: "manila", label: "Manila" },
