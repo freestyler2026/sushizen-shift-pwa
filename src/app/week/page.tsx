@@ -339,7 +339,10 @@ export default function WeekPage() {
   const [authed, setAuthed] = useState<ReturnType<typeof getAuth> | null>(null);
   const myName = authed?.staffName || "";
 
-  const [city, setCity] = useState<City>("dubai");
+  const [city, setCity] = useState<City>(() => {
+    const a = getAuth();
+    return (a?.city || "dubai") as City;
+  });
   const [startDate, setStartDate] = useState(mondayOf(isoToday()));
   const [latestWeekStart, setLatestWeekStart] = useState(mondayOf(isoToday()));
 
@@ -595,6 +598,7 @@ export default function WeekPage() {
               onChange={(v) => {
                 didAutoSetRef.current = true;
                 setCity(v as City);
+                setBranchFilter("ALL");
                 window.scrollTo(0, 0);
               }}
               className="min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-white"
