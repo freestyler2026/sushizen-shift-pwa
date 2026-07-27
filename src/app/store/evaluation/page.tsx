@@ -734,6 +734,12 @@ export default function StoreEvaluationPage() {
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
   })();
 
+  const fiveDaysAgoPH = (() => {
+    const parts = todayPH.split("-").map(Number);
+    const dt = new Date(parts[0], parts[1] - 1, parts[2] - 5);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  })();
+
   // evalDate: which day's evaluation this form is for (default: yesterday)
   const [evalDate, setEvalDate] = useState(yesterdayPH);
 
@@ -942,7 +948,7 @@ export default function StoreEvaluationPage() {
         <div className={`${GLASS_CARD} p-4 mb-4`}>
           <label className={`${T_LABEL} mb-1 block`}>Evaluation Date</label>
           <p className={`${T_CAPTION} text-slate-400 mb-3`}>
-            Which date are you evaluating? (Usually yesterday)
+            Which date are you evaluating? You can submit for the past 5 days.
           </p>
           <div className="flex gap-2 mb-3">
             <button
@@ -972,6 +978,7 @@ export default function StoreEvaluationPage() {
             type="date"
             className={INPUT_CLASS}
             value={evalDate}
+            min={fiveDaysAgoPH}
             max={todayPH}
             onChange={(e) => setEvalDate(e.target.value)}
           />
