@@ -683,8 +683,9 @@ function FollowupItemCard({
       );
       const data = await res.json();
       setComments(data.comments || []);
+    } catch { /* ignore */ } finally {
       setCommentsLoaded(true);
-    } catch { /* ignore */ }
+    }
   };
 
   const toggleExpand = () => {
@@ -885,7 +886,7 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
   const [adding, setAdding] = useState(false);
 
   const BRANCHES = ["PAR", "TAFT", "CUB", "CK"];
-  const BRANCH_OPTIONS = [{ value: "", label: "All Branches" }, ...BRANCHES.map((b) => ({ value: b, label: b }))];
+  const BRANCH_OPTIONS = BRANCHES.map((b) => ({ value: b, label: b }));
   const BRANCH_OPTIONS_REQ = [{ value: "", label: "Select branch…" }, ...BRANCHES.map((b) => ({ value: b, label: b }))];
 
   const loadItems = async () => {
@@ -893,7 +894,7 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
     try {
       const qs = new URLSearchParams({ city });
       if (filterBranch) qs.set("branch_code", filterBranch);
-      if (filterStatus) qs.set("status", filterStatus);
+      // status is filtered locally so KPI counts always reflect the full loaded set
       const res = await fetch(`/api/admin/store-evaluations/followup-items?${qs}`, {
         headers: getAuthHeaders(),
         cache: "no-store",
@@ -905,7 +906,7 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
     }
   };
 
-  useEffect(() => { void loadItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filterBranch, filterStatus]);
+  useEffect(() => { void loadItems(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filterBranch]);
 
   const addItem = async () => {
     if (!newTitle.trim() || !newBranch || adding) return;
@@ -930,12 +931,17 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
     }
   };
 
+  // KPI counts always from full loaded list regardless of filterStatus
   const openCount = items.filter((i) => i.status === "open").length;
   const inProgressCount = items.filter((i) => i.status === "in_progress").length;
+  const resolvedCount = items.filter((i) => i.status === "resolved").length;
+
+  // Status filter applied locally
+  const displayedItems = filterStatus ? items.filter((i) => i.status === filterStatus) : items;
 
   return (
     <div className="space-y-4">
-      {/* Summary counts */}
+      {/* Summary counts — always global, click to filter display */}
       <div className="grid grid-cols-3 gap-3">
         <div className={`${KPI_CARD} p-3 text-center cursor-pointer ${filterStatus === "open" ? "ring-1 ring-red-500/40" : ""}`}
           onClick={() => setFilterStatus(filterStatus === "open" ? "" : "open")}>
@@ -949,7 +955,7 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
         </div>
         <div className={`${KPI_CARD} p-3 text-center cursor-pointer ${filterStatus === "resolved" ? "ring-1 ring-emerald-500/40" : ""}`}
           onClick={() => setFilterStatus(filterStatus === "resolved" ? "" : "resolved")}>
-          <p className="text-2xl font-bold text-emerald-400">{items.filter((i) => i.status === "resolved").length}</p>
+          <p className="text-2xl font-bold text-emerald-400">{resolvedCount}</p>
           <p className={`${KPI_LABEL} text-slate-400`}>Resolved</p>
         </div>
       </div>
@@ -960,8 +966,9 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
           value={filterBranch}
           onChange={setFilterBranch}
           options={BRANCH_OPTIONS}
+          placeholder="All Branches"
           className={`${SELECT_CLASS} flex-1 min-w-[120px]`}
-          clearable={false}
+          clearable={true}
         />
         <button
           onClick={() => setShowAdd((v) => !v)}
@@ -1020,15 +1027,17 @@ function FollowupView({ city, currentUser }: { city: string; currentUser: string
           <RefreshCw size={14} className="animate-spin" /> Loading issues…
         </div>
       )}
-      {!loading && items.length === 0 && (
+      {!loading && displayedItems.length === 0 && (
         <div className={`${GLASS_CARD} p-8 text-center`}>
           <ListChecks size={32} className="mx-auto text-slate-600 mb-2" />
-          <p className={`${T_BODY} text-slate-500`}>No follow-up issues found.</p>
+          <p className={`${T_BODY} text-slate-500`}>
+            {filterStatus ? `No ${filterStatus.replace("_", " ")} issues.` : "No follow-up issues found."}
+          </p>
           <p className={`${T_CAPTION} text-slate-600 mt-1`}>Add issues from evaluations to track them until resolved.</p>
         </div>
       )}
       <div className="space-y-3">
-        {items.map((item) => (
+        {displayedItems.map((item) => (
           <FollowupItemCard
             key={item.id}
             item={item}
