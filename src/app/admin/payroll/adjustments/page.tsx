@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, ChevronDown, ChevronRight, Download, Loader2,
-  Pencil, Plus, RefreshCw, Trash2, X,
+  Pencil, Plus, RefreshCw, Trash2, Upload, X,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -234,6 +234,245 @@ function AdjModal({
   );
 }
 
+// ── CSV Import Modal ─────────────────────────────────────────────────────────
+
+type CsvRow = {
+  staff_name: string;
+  adj_type: string;
+  subtype: string;
+  amount: string;
+  incurred_date: string;
+  reference_no: string;
+  note: string;
+  _errors: string[];
+};
+
+const CSV_VALID_TYPES = new Set(["addition", "deduction", "recurring_deduction"]);
+const CSV_TEMPLATE_HEADERS = "staff_name,adj_type,subtype,amount,incurred_date,reference_no,note";
+
+function parseCsvText(text: string): string[][] {
+  const rows: string[][] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw.trim()) continue;
+    const cells: string[] = [];
+    let cell = "";
+    let inQ = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (ch === '"') {
+        if (inQ && raw[i + 1] === '"') { cell += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        cells.push(cell.trim()); cell = "";
+      } else {
+        cell += ch;
+      }
+    }
+    cells.push(cell.trim());
+    rows.push(cells);
+  }
+  return rows;
+}
+
+function buildCsvRows(data: string[][], headers: string[]): CsvRow[] {
+  const idx = (n: string) => headers.findIndex(h => h.toLowerCase().trim() === n);
+  const iName = idx("staff_name"), iType = idx("adj_type"), iSub = idx("subtype");
+  const iAmt = idx("amount"), iDate = idx("incurred_date");
+  const iRef = idx("reference_no"), iNote = idx("note");
+  return data.map(cells => {
+    const g = (i: number) => (i >= 0 ? (cells[i] ?? "") : "").trim();
+    const staff_name = g(iName), adj_type = g(iType).toLowerCase();
+    const subtype = g(iSub), amount = g(iAmt);
+    const incurred_date = g(iDate), reference_no = g(iRef), note = g(iNote);
+    const errs: string[] = [];
+    if (!staff_name) errs.push("staff_name required");
+    if (!CSV_VALID_TYPES.has(adj_type)) errs.push("adj_type invalid");
+    const n = parseFloat(amount);
+    if (isNaN(n) || n <= 0) errs.push("amount must be > 0");
+    if (incurred_date && !/^\d{4}-\d{2}-\d{2}$/.test(incurred_date)) errs.push("date must be YYYY-MM-DD");
+    return { staff_name, adj_type, subtype, amount, incurred_date, reference_no, note, _errors: errs };
+  });
+}
+
+function CsvImportModal({
+  city, cycleId, onImported, onClose,
+}: {
+  city: string; cycleId: number; onImported: () => void; onClose: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<CsvRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [result, setResult] = useState<{
+    imported: number; skipped: number;
+    errors: { row: number; staff_name: string; reason: string }[];
+  } | null>(null);
+
+  function dlTemplate() {
+    const ex = `John Doe,addition,Overtime,500.00,${new Date().toISOString().slice(0, 10)},,OT work`;
+    const blob = new Blob(["﻿" + CSV_TEMPLATE_HEADERS + "\r\n" + ex], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `adj_import_template_${city}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name); setResult(null); setErr("");
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = (ev.target?.result as string) ?? "";
+      const all = parseCsvText(text);
+      if (all.length < 2) { setErr("CSV must have a header row and at least one data row."); setRows([]); return; }
+      const [hdr, ...data] = all;
+      setRows(buildCsvRows(data, hdr));
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  async function doImport() {
+    const valid = rows.filter(r => r._errors.length === 0);
+    if (!valid.length) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/adjustments/bulk-import?city=${encodeURIComponent(city)}&cycle_id=${cycleId}`, {
+        method: "POST",
+        body: JSON.stringify({
+          rows: valid.map(row => ({
+            staff_name: row.staff_name, adj_type: row.adj_type, subtype: row.subtype,
+            amount: parseFloat(row.amount), vat: 0,
+            incurred_at: row.incurred_date, reference_no: row.reference_no, note: row.note,
+          })),
+        }),
+      });
+      if (!r.ok) { setErr(await extractApiError(r, "Import failed")); return; }
+      const data = await r.json() as {
+        imported: number; skipped: number;
+        errors: { row: number; staff_name: string; reason: string }[];
+      };
+      setResult(data);
+      if (data.imported > 0) onImported();
+    } catch {
+      setErr("Network error — please try again");
+    } finally { setBusy(false); }
+  }
+
+  const validCount = rows.filter(r => r._errors.length === 0).length;
+  const invalidCount = rows.filter(r => r._errors.length > 0).length;
+  const lbl = "block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className={`${GLASS_CARD} w-full max-w-3xl p-6 relative my-8`}>
+        <button onClick={onClose} className="absolute right-4 top-4 text-zinc-500 hover:text-white"><X size={18} /></button>
+        <h3 className="text-lg font-semibold text-white mb-1">Import Adjustments from CSV</h3>
+        <p className="text-sm text-zinc-400 mb-5">Bulk-import Net Additions / Deductions for this payroll cycle.</p>
+
+        <div className="mb-5">
+          <p className={lbl}>Step 1 — Download template (optional)</p>
+          <button className={SMALL_BUTTON} onClick={dlTemplate}><Download size={12} />Download Template</button>
+          <p className="text-xs text-zinc-500 mt-1">
+            Columns: staff_name · adj_type (addition / deduction / recurring_deduction) · subtype · amount · incurred_date (YYYY-MM-DD) · reference_no · note
+          </p>
+        </div>
+
+        <div className="mb-5">
+          <p className={lbl}>Step 2 — Select your CSV file</p>
+          <div className="flex items-center gap-3">
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
+            <button className={SMALL_BUTTON} onClick={() => fileRef.current?.click()}>
+              <Upload size={12} />{fileName || "Choose file…"}
+            </button>
+            {fileName && <span className="text-xs text-zinc-400">{rows.length} data row(s) parsed</span>}
+          </div>
+        </div>
+
+        {err && <p className={`${BADGE_ERROR} mb-4 w-full justify-center py-2 rounded-xl text-sm`}>{err}</p>}
+
+        {rows.length > 0 && !result && (
+          <div className="mb-5">
+            <div className="flex items-center gap-3 mb-2">
+              <p className={lbl + " mb-0"}>Preview — {rows.length} row(s)</p>
+              {validCount > 0 && <span className={`${BADGE_SUCCESS} text-[10px]`}>{validCount} valid</span>}
+              {invalidCount > 0 && <span className={`${BADGE_ERROR} text-[10px]`}>{invalidCount} invalid</span>}
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-white/10 max-h-64">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-zinc-900/90">
+                  <tr>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>#</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>Staff Name</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>Type</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>Sub-type</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-right`}>Amount</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>Date</th>
+                    <th className={`${TABLE_HEADER} px-2 py-2 text-left`}>Issues</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={i} className={row._errors.length === 0 ? TABLE_ROW : "bg-red-500/10 border-b border-red-500/20"}>
+                      <td className="px-2 py-1.5 text-zinc-500">{i + 1}</td>
+                      <td className="px-2 py-1.5 font-medium text-white">
+                        {row.staff_name ? row.staff_name : <span className="text-red-400 italic">missing</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-zinc-300">{row.adj_type}</td>
+                      <td className="px-2 py-1.5 text-zinc-400">{row.subtype || "—"}</td>
+                      <td className={`px-2 py-1.5 text-right tabular-nums ${row.adj_type === "addition" ? "text-emerald-400" : "text-red-400"}`}>
+                        {row.amount}
+                      </td>
+                      <td className="px-2 py-1.5 text-zinc-400">{row.incurred_date || "—"}</td>
+                      <td className="px-2 py-1.5">
+                        {row._errors.length > 0
+                          ? <span className="text-red-400">{row._errors.join("; ")}</span>
+                          : <span className="text-emerald-500">✓</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {invalidCount > 0 && (
+              <p className="text-xs text-amber-400 mt-2">
+                {invalidCount} row(s) with errors will be skipped — only {validCount} valid row(s) will be imported.
+              </p>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <p className="font-semibold text-emerald-400 mb-1">
+              Import complete — {result.imported} row(s) imported{result.skipped > 0 ? `, ${result.skipped} skipped` : ""}.
+            </p>
+            {result.errors.length > 0 && (
+              <ul className="text-xs text-red-400 space-y-0.5 mt-2">
+                {result.errors.map((e, idx) => (
+                  <li key={idx}>Row {e.row} ({e.staff_name}): {e.reason}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button className={SECONDARY_BUTTON} onClick={onClose}>{result ? "Close" : "Cancel"}</button>
+          {!result && (
+            <button className={PRIMARY_BUTTON} disabled={validCount === 0 || busy} onClick={() => { void doImport(); }}>
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={15} />}
+              {busy ? "Importing…" : `Import ${validCount} row(s)`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AdjustmentsPage() {
@@ -262,6 +501,7 @@ export default function AdjustmentsPage() {
   const [modalType, setModalType] = useState<Adjustment["adj_type"]>("addition");
   const [editingAdj, setEditingAdj] = useState<Adjustment | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const cycleLoadRef = useRef(0);
   const loadCountRef = useRef(0);
@@ -413,6 +653,10 @@ export default function AdjustmentsPage() {
             {adjustments.length > 0 && (
               <button className={SMALL_BUTTON} onClick={downloadCSV}><Download size={12} />Download</button>
             )}
+            <button className={SMALL_BUTTON} disabled={!selectedCycle || busy}
+              onClick={() => setShowCsvImport(true)}>
+              <Upload size={12} />Import CSV
+            </button>
             {/* New Adjustment group */}
             <button className={`${PRIMARY_BUTTON} text-sm py-2 px-3 flex items-center gap-1`}
               disabled={!selectedCycle || busy}
@@ -535,6 +779,16 @@ export default function AdjustmentsPage() {
           </table>
         )}
       </div>
+
+      {/* CSV Import Modal */}
+      {showCsvImport && selectedCycle && (
+        <CsvImportModal
+          city={city}
+          cycleId={selectedCycle.id}
+          onImported={() => void loadAdjustments(selectedCycle.id, city)}
+          onClose={() => setShowCsvImport(false)}
+        />
+      )}
 
       {/* Adjustment Modal */}
       {showModal && selectedCycle && (
