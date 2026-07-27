@@ -612,6 +612,10 @@ export default function PayrollPage() {
             className="flex items-center gap-1.5 rounded-lg border border-violet-400 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition">
             Manila Payroll <ArrowRight size={13} />
           </Link>
+          <Link href={`/admin/payroll/adjustments?city=${city}`}
+            className="flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 transition">
+            Adjustments <ArrowRight size={13} />
+          </Link>
           <Link href={`/admin/payroll/loans?city=${city}`}
             className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition">
             Loans <ArrowRight size={13} />
