@@ -314,47 +314,28 @@ export default function ProcurementCaseDetailPage() {
   const loadIngredientCatalog = async (cityForCatalog: string) => {
     if (catalogLoaded) return;
     try {
-      // Fetch both ingredient master AND processed/product master via component-options.
-      // This ensures items like "Truffle Sauce" (registered as a processed item) also appear.
-      const [ingRes, compRes] = await Promise.all([
-        fetch(
-          `/api/cost/ingredients?city=${encodeURIComponent(cityForCatalog)}&limit=2000&offset=0`,
-          { headers: getAuthHeaders() as Record<string, string> },
-        ),
-        fetch(
-          `/api/cost/component-options?city=${encodeURIComponent(cityForCatalog)}`,
-          { headers: getAuthHeaders() as Record<string, string> },
-        ),
-      ]);
-
+      // Use the procurement curated catalog as the item picker source so names
+      // and prices match what actually gets ordered (not the cost-module ingredient master).
+      const storeCode = (bundle.request?.store_code || "").trim() || "PAR";
+      const qs = new URLSearchParams({ city: cityForCatalog, store: storeCode });
+      const data = await procurementJson<{ suppliers: { supplier: string; categories: { category: string; items: { item_name: string; unit: string; unit_price: number }[] }[] }[] }>(
+        `/api/admin/procurement/requests/item-catalog?${qs}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
       const seen = new Set<string>();
       const merged: { name: string; unit: string; unit_price: number; category: string }[] = [];
-
-      // Ingredient master first (unit_price = purchase cost)
-      if (ingRes.ok) {
-        const ingData = await ingRes.json();
-        const ingItems: any[] = Array.isArray(ingData?.items) ? ingData.items : Array.isArray(ingData?.ingredients) ? ingData.ingredients : [];
-        for (const i of ingItems) {
-          const name = String(i.name || "").trim();
-          if (!name || seen.has(name.toUpperCase())) continue;
-          seen.add(name.toUpperCase());
-          merged.push({ name, unit: String(i.unit || ""), unit_price: Number(i.unit_price || 0), category: String(i.category || "") });
+      for (const sup of data?.suppliers ?? []) {
+        for (const cat of sup.categories ?? []) {
+          for (const item of cat.items ?? []) {
+            const name = String(item.item_name || "").trim();
+            if (!name || seen.has(name.toUpperCase())) continue;
+            seen.add(name.toUpperCase());
+            merged.push({ name, unit: String(item.unit || ""), unit_price: Number(item.unit_price || 0), category: cat.category });
+          }
         }
       }
-
-      // Processed/product master (unit_cost = computed cost; useful when item is only in master)
-      if (compRes.ok) {
-        const compData = await compRes.json();
-        const compItems: any[] = Array.isArray(compData?.items) ? compData.items : [];
-        for (const i of compItems) {
-          if (String(i.component_type || "") === "ingredient") continue; // already captured above
-          const name = String(i.name || "").trim();
-          if (!name || seen.has(name.toUpperCase())) continue;
-          seen.add(name.toUpperCase());
-          merged.push({ name, unit: String(i.unit || ""), unit_price: Number(i.unit_cost || 0), category: String(i.category || "") });
-        }
-      }
-
       setIngredientCatalog(merged.sort((a, b) => a.name.localeCompare(b.name)));
       setCatalogLoaded(true);
     } catch { /* silently fail */ }

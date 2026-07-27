@@ -38,6 +38,8 @@ type CatalogRow = {
   min_stock_qty: string;
   package_spec: string;
   fast_running: boolean;
+  min_order_qty: number | null;
+  order_step: number | null;
 };
 
 const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -332,6 +334,8 @@ export default function ProcurementCatalogPage() {
       min_stock_qty: "",
       package_spec: "",
       fast_running: false,
+      min_order_qty: null,
+      order_step: null,
     };
     setEditRow({} as CatalogRow); // non-null sentinel to open modal
     setEditForm(blank);
@@ -1008,6 +1012,14 @@ export default function ProcurementCatalogPage() {
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Package Spec</label>
                 <input className={INPUT_CLASS} value={editForm.package_spec ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, package_spec: e.target.value }))} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1 block`}>Min Order Qty</label>
+                <input className={INPUT_CLASS} type="number" min="0" step="0.001" placeholder="e.g. 1" value={editForm.min_order_qty ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, min_order_qty: e.target.value === "" ? null : parseFloat(e.target.value) }))} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1 block`}>Order Step</label>
+                <input className={INPUT_CLASS} type="number" min="0" step="0.001" placeholder="e.g. 0.25" value={editForm.order_step ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, order_step: e.target.value === "" ? null : parseFloat(e.target.value) }))} />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Order Type</label>
