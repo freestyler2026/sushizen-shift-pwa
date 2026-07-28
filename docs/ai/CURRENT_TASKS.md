@@ -1,6 +1,15 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 184 — Payroll channel audit + gov-tables NaN fixes)
+Last updated: 2026-07-28 (session 185 — CK Production Plan per-item assignee feature)
+
+---
+
+## Recently Completed (2026-07-28 session 185 — CK Production Plan per-item assignees)
+
+### CK Production Plan: Per-item assignee assignment (DEPLOYED ✅ Heroku 4c85c8a, Vercel 9d71b79)
+- **Backend `db.py`**: `ensure_ck_production_plan_tables()` now runs `ALTER TABLE ck_production_plan_items ADD COLUMN IF NOT EXISTS assigned_staff JSONB NOT NULL DEFAULT '[]'::jsonb` in a separate conn3 block; `get_ck_production_plan` items SELECT includes `i.assigned_staff`; new `assign_ck_plan_items(plan_id, item_ids, staff)` function does a bulk UPDATE
+- **Backend `main.py`**: `assign_ck_plan_items` added to imports; new `PATCH /api/store/ck-production-plan/plans/{plan_id}/items/assign` endpoint with `CKItemAssignIn` model — placed BEFORE the `/{item_id}` PATCH route to avoid FastAPI path conflict
+- **Frontend `page.tsx`**: `PlanItem` type gains `assigned_staff?: string[]`; per-item selection state (`selectedItems: Set<number>`, `showItemAssignModal`, `itemAssignees`, `itemAssignFilter`, `savingItemAssignees`); checkbox column added to every items table header (select-all for category) and each item row; violet-highlighted selected rows; floating selection bar appears when any items are selected ("N items selected" + "Assign Staff" button + dismiss X); staff-search assign modal mirrors Edit Assignees UI; `handleSaveItemAssignees` PATCHes the API and updates local state; assignee chips displayed under each item name
 
 ---
 
