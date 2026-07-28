@@ -73,6 +73,10 @@ export default function OvertimeRequestPage() {
   const branches = BRANCHES[city] ?? BRANCHES.dubai;
   const staffBranch = (auth as Record<string, unknown>)?.branch_code as string ?? "";
 
+  const cityTzOffset = city === "manila" ? 8 : 4;
+  const localToday = new Date(Date.now() + cityTzOffset * 3600_000).toISOString().slice(0, 10);
+  const minPostDate = new Date(Date.now() + cityTzOffset * 3600_000 - 2 * 86_400_000).toISOString().slice(0, 10);
+
   // Form state
   const [branchCode, setBranchCode] = useState(staffBranch);
   const [workDate, setWorkDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -225,8 +229,15 @@ export default function OvertimeRequestPage() {
                 value={workDate}
                 onChange={(e) => setWorkDate(e.target.value)}
                 className={`${INPUT_CLASS} mt-1`}
+                min={requestType === "post" ? minPostDate : undefined}
+                max={requestType === "post" ? localToday : undefined}
                 required
               />
+              {requestType === "post" && (
+                <p className={`${T_CAPTION} mt-1 text-amber-400`}>
+                  Post-report requests must be submitted within 48 hours of the work date.
+                </p>
+              )}
             </div>
 
             {/* OT times */}
