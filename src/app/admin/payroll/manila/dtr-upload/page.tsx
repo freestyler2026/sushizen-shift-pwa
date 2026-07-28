@@ -63,6 +63,7 @@ type ManilaAttRow = {
   overtime_hours: number;
   night_regular_hours: number;
   night_overtime_hours: number;
+  approved_ot_hours: number | null;
   late_minutes: number;
   undertime_minutes: number;
   day_type: string;
@@ -246,6 +247,10 @@ export default function DtrUploadPage() {
   const [dtrStaffFilter, setDtrStaffFilter] = useState("");
   const [dtrStoreFilter, setDtrStoreFilter] = useState("");
   const [dtrStatusFilter, setDtrStatusFilter] = useState("");
+  // Approved OT inline edit state
+  const [otEditId, setOtEditId]   = useState<number | null>(null);
+  const [otEditVal, setOtEditVal] = useState("");
+  const [otSavingId, setOtSavingId] = useState<number | null>(null);
 
   const loadDtrRecords = useCallback(async (periodId: string) => {
     if (!periodId) { setDtrRecords([]); return; }
@@ -258,6 +263,24 @@ export default function DtrUploadPage() {
     } catch { setDtrRecords([]); }
     finally { setDtrLoading(false); }
   }, []);
+
+  async function saveApprovedOt(recordId: number, val: string) {
+    const trimmed = val.trim();
+    const hours = trimmed === "" ? null : parseFloat(trimmed);
+    if (hours !== null && (isNaN(hours) || hours < 0)) { setOtEditId(null); return; }
+    setOtSavingId(recordId);
+    try {
+      const r = await apiFetch(`${API}/attendance/${recordId}/approved-ot`, {
+        method: "PATCH",
+        body: JSON.stringify({ approved_ot_hours: hours }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setDtrRecords(prev => prev.map(row =>
+        row.id === recordId ? { ...row, approved_ot_hours: hours } : row
+      ));
+    } catch { /* best-effort — row unchanged */ }
+    finally { setOtSavingId(null); setOtEditId(null); }
+  }
 
   const loadPeriods = useCallback(async () => {
     setPeriodsLoading(true);
@@ -763,20 +786,21 @@ export default function DtrUploadPage() {
             <h3 className="text-sm font-semibold text-white">CSV Format Specification</h3>
             <div className="rounded-xl border border-blue-500/20 bg-blue-900/10 p-4 text-xs text-blue-200 leading-relaxed">
               <p className="font-semibold text-blue-300 mb-2">Column order (tab or comma separated):</p>
-              <code className="block text-slate-300 font-mono bg-slate-800/60 rounded-lg p-3 whitespace-pre">{`date          YYYY-MM-DD      (required)
-staff_name    Employee name   (required — must match staff profiles)
-time_in       HH:MM 24hr      (optional — enables auto NSD/OT)
-time_out      HH:MM 24hr      (optional — enables auto NSD/OT)
-reg_hours     Decimal         (default: 8.0)
-ot_hours      Decimal         (default: 0)
-night_reg     NSD reg hrs     (default: 0 — manual if no time_in/out)
-night_ot      NSD OT hrs      (default: 0 — manual if no time_in/out)
-late_min      Integer minutes (default: 0)
-ut_min        Integer minutes (default: 0)
-day_type      See values      (default: ordinary_day)
-rest_day      Y / N          (default: N)
-awp           Y / N          (default: N — absent no pay)
-paid_leave    Y / N          (default: N)`}</code>
+              <code className="block text-slate-300 font-mono bg-slate-800/60 rounded-lg p-3 whitespace-pre">{`date             YYYY-MM-DD      (required)
+staff_name       Employee name   (required — must match staff profiles)
+time_in          HH:MM 24hr      (optional — enables auto NSD/OT)
+time_out         HH:MM 24hr      (optional — enables auto NSD/OT)
+reg_hours        Decimal         (default: 8.0)
+ot_hours         Decimal         (default: 0)
+approved_ot_hours Decimal        (optional — overrides computed OT for payroll)
+night_reg        NSD reg hrs     (default: 0 — manual if no time_in/out)
+night_ot         NSD OT hrs      (default: 0 — manual if no time_in/out)
+late_min         Integer minutes (default: 0)
+ut_min           Integer minutes (default: 0)
+day_type         See values      (default: ordinary_day)
+rest_day         Y / N          (default: N)
+awp              Y / N          (default: N — absent no pay)
+paid_leave       Y / N          (default: N)`}</code>
             </div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-3 text-xs text-emerald-200 leading-relaxed">
               <p className="font-semibold text-emerald-300 mb-1">⭐ Auto Night Differential &amp; Overtime Calculation</p>
@@ -787,6 +811,7 @@ paid_leave    Y / N          (default: N)`}</code>
                 <li>All multipliers per PH labor law (day type, rest day, holiday)</li>
               </ul>
               <p className="mt-2 text-emerald-300/70">Without actual clock times, enter <code className="text-emerald-100">night_reg</code> / <code className="text-emerald-100">night_ot</code> manually in the CSV.</p>
+              <p className="mt-2 text-emerald-300/70">Use <code className="text-emerald-100">approved_ot_hours</code> to record approved OT separately from raw clock-out (e.g. clock-out 24:15 but approved OT = 1h). The engine uses this value for NSD+OT payroll calculation. You can also set it inline in the DTR Records table below.</p>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 mb-2">Valid day_type values:</p>
@@ -884,7 +909,7 @@ paid_leave    Y / N          (default: N)`}</code>
                   <table className="w-full text-xs" style={{ minWidth: "900px" }}>
                     <thead>
                       <tr className="border-b border-white/10 bg-white/5">
-                        {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs","Late","Type","Status"].map(h => (
+                        {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs","Apprvd OT","Late","Type","Status"].map(h => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                         ))}
                       </tr>
@@ -906,6 +931,36 @@ paid_leave    Y / N          (default: N)`}</code>
                             <td className="px-3 py-2 text-right tabular-nums text-emerald-400">{fmtHours(Number(row.regular_hours))}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-amber-400">
                               {Number(row.overtime_hours) > 0 ? fmtHours(Number(row.overtime_hours)) : "—"}
+                            </td>
+                            {/* Approved OT — inline editable */}
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {otEditId === row.id ? (
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  value={otEditVal}
+                                  onChange={e => setOtEditVal(e.target.value)}
+                                  onBlur={() => saveApprovedOt(row.id, otEditVal)}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") saveApprovedOt(row.id, otEditVal);
+                                    if (e.key === "Escape") setOtEditId(null);
+                                  }}
+                                  className="w-16 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-right text-xs text-white focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => { setOtEditId(row.id); setOtEditVal(row.approved_ot_hours != null ? String(row.approved_ot_hours) : ""); }}
+                                  title="Click to set approved OT hours"
+                                  className={`min-w-[2.5rem] rounded px-1 py-0.5 text-right text-xs hover:bg-white/10 ${
+                                    otSavingId === row.id ? "text-slate-500" :
+                                    row.approved_ot_hours != null ? "text-violet-400 font-semibold" : "text-slate-600"
+                                  }`}
+                                >
+                                  {otSavingId === row.id ? "…" : row.approved_ot_hours != null ? fmtHours(row.approved_ot_hours) : "—"}
+                                </button>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-slate-400">
                               {Number(row.late_minutes) > 0 ? `${row.late_minutes}m` : "—"}
