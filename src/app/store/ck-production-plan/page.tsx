@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  FlaskConical, Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, X,
+  FlaskConical, Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, Users, X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
@@ -169,6 +169,12 @@ export default function CKProductionPlanPage() {
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
+  // Edit Assignees modal
+  const [showEditAssignees, setShowEditAssignees] = useState(false);
+  const [editAssignees, setEditAssignees] = useState<string[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [savingAssignees, setSavingAssignees] = useState(false);
+
   // QC Check modal
   const [showQcModal, setShowQcModal] = useState(false);
   const [qcTargetItem, setQcTargetItem] = useState<PlanItem | null>(null);
@@ -282,6 +288,32 @@ export default function CKProductionPlanPage() {
       showToast((e as Error).message, false);
     } finally {
       setPublishing(false);
+    }
+  }
+
+  // ── Edit Assignees ─────────────────────────────────────────────────────────
+  function openEditAssignees() {
+    setEditAssignees(activePlan?.assigned_staff || []);
+    setAssigneeFilter("");
+    setShowEditAssignees(true);
+  }
+
+  async function handleSaveAssignees() {
+    if (!activePlan) return;
+    setSavingAssignees(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-production-plan/plans/${activePlan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ assigned_staff: editAssignees }),
+      });
+      setActivePlan(prev => prev ? { ...prev, assigned_staff: data.plan.assigned_staff } : null);
+      setPlans(ps => ps.map(p => p.id === activePlan.id ? { ...p, assigned_staff: data.plan.assigned_staff } : p));
+      setShowEditAssignees(false);
+      showToast("Assignees updated");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSavingAssignees(false);
     }
   }
 
@@ -627,6 +659,9 @@ export default function CKProductionPlanPage() {
                       <>
                         <button className={SMALL_BUTTON} onClick={openAddItem}>
                           <span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Add Item</span>
+                        </button>
+                        <button className={SMALL_BUTTON} onClick={openEditAssignees}>
+                          <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Edit Assignees</span>
                         </button>
                         <button
                           className={`${SECONDARY_BUTTON} text-sm`}
@@ -1102,6 +1137,71 @@ export default function CKProductionPlanPage() {
                 disabled={publishing}
               >
                 {publishing ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Publishing...</span> : "Yes, Publish"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Edit Assignees Modal ───────────────────────────────────────────── */}
+      {showEditAssignees && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-sm p-6`}>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 border border-violet-500/25">
+                  <Users className="h-5 w-5 text-violet-400" />
+                </div>
+                <h3 className={T_SECTION}>Edit Assignees</h3>
+              </div>
+              <button onClick={() => setShowEditAssignees(false)} className="text-zinc-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input
+              className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              placeholder="Search staff..."
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+            />
+            <div className="max-h-64 overflow-y-auto space-y-1 mb-5">
+              {staffOptions
+                .filter(name => !assigneeFilter.trim() || name.toLowerCase().includes(assigneeFilter.toLowerCase()))
+                .map(name => (
+                  <label key={name} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editAssignees.includes(name)}
+                      onChange={e => {
+                        setEditAssignees(prev =>
+                          e.target.checked ? [...prev, name] : prev.filter(n => n !== name)
+                        );
+                      }}
+                      className="accent-violet-500"
+                    />
+                    <span className="text-sm text-zinc-200">{name}</span>
+                  </label>
+                ))}
+              {staffOptions.filter(name => !assigneeFilter.trim() || name.toLowerCase().includes(assigneeFilter.toLowerCase())).length === 0 && (
+                <p className="text-zinc-500 text-sm px-2">No staff found.</p>
+              )}
+            </div>
+            {editAssignees.length > 0 && (
+              <p className="text-xs text-violet-400 mb-3">{editAssignees.length} selected: {editAssignees.join(", ")}</p>
+            )}
+            <div className="flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowEditAssignees(false)}>
+                Cancel
+              </button>
+              <button
+                className={`${PRIMARY_BUTTON} flex-1`}
+                onClick={handleSaveAssignees}
+                disabled={savingAssignees}
+              >
+                {savingAssignees
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Saving...</span>
+                  : "Save"}
               </button>
             </div>
           </div>
