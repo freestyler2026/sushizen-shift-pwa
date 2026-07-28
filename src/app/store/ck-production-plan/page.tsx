@@ -59,6 +59,7 @@ type PlanItem = {
   qc_notes: string;
   qc_checked_by: string;
   qc_checked_at: string | null;
+  assigned_staff?: string[];
 };
 
 type ProcessedItem = {
@@ -169,11 +170,18 @@ export default function CKProductionPlanPage() {
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  // Edit Assignees modal
+  // Edit Assignees modal (plan-level)
   const [showEditAssignees, setShowEditAssignees] = useState(false);
   const [editAssignees, setEditAssignees] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [savingAssignees, setSavingAssignees] = useState(false);
+
+  // Per-item assignee selection
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [showItemAssignModal, setShowItemAssignModal] = useState(false);
+  const [itemAssignees, setItemAssignees] = useState<string[]>([]);
+  const [itemAssignFilter, setItemAssignFilter] = useState("");
+  const [savingItemAssignees, setSavingItemAssignees] = useState(false);
 
   // QC Check modal
   const [showQcModal, setShowQcModal] = useState(false);
@@ -314,6 +322,34 @@ export default function CKProductionPlanPage() {
       showToast((e as Error).message, false);
     } finally {
       setSavingAssignees(false);
+    }
+  }
+
+  // ── Assign Staff to Selected Items ─────────────────────────────────────────
+  async function handleSaveItemAssignees() {
+    if (!activePlan) return;
+    setSavingItemAssignees(true);
+    try {
+      await apiFetch(`/api/store/ck-production-plan/plans/${activePlan.id}/items/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({ item_ids: Array.from(selectedItems), staff: itemAssignees }),
+      });
+      setActivePlan(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          items: prev.items?.map(item =>
+            selectedItems.has(item.id) ? { ...item, assigned_staff: itemAssignees } : item
+          ),
+        };
+      });
+      setShowItemAssignModal(false);
+      setSelectedItems(new Set());
+      showToast("Assignees saved for selected items");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSavingItemAssignees(false);
     }
   }
 
@@ -748,7 +784,21 @@ export default function CKProductionPlanPage() {
                           <table className="w-full">
                             <thead>
                               <tr>
-                                <th className={`${TABLE_HEADER} pl-4 text-left`}>Item</th>
+                                <th className={`${TABLE_HEADER} w-8 pl-3 text-center`}>
+                                  <input
+                                    type="checkbox"
+                                    className="accent-violet-500"
+                                    checked={items.length > 0 && items.every(i => selectedItems.has(i.id))}
+                                    onChange={e => {
+                                      setSelectedItems(prev => {
+                                        const s = new Set(prev);
+                                        items.forEach(i => e.target.checked ? s.add(i.id) : s.delete(i.id));
+                                        return s;
+                                      });
+                                    }}
+                                  />
+                                </th>
+                                <th className={`${TABLE_HEADER} pl-2 text-left`}>Item</th>
                                 <th className={`${TABLE_HEADER} text-right`}>Target</th>
                                 <th className={`${TABLE_HEADER} text-center`}>Priority</th>
                                 <th className={`${TABLE_HEADER} text-center`}>Status</th>
@@ -758,10 +808,33 @@ export default function CKProductionPlanPage() {
                             </thead>
                             <tbody>
                               {items.map(item => (
-                                <tr key={item.id} className={`${TABLE_ROW} ${item.status === "DONE" ? "opacity-60" : ""}`}>
-                                  <td className={`${TABLE_CELL} pl-4`}>
+                                <tr key={item.id} className={`${TABLE_ROW} ${item.status === "DONE" ? "opacity-60" : ""} ${selectedItems.has(item.id) ? "bg-violet-500/5" : ""}`}>
+                                  <td className={`${TABLE_CELL} w-8 pl-3 text-center`}>
+                                    <input
+                                      type="checkbox"
+                                      className="accent-violet-500"
+                                      checked={selectedItems.has(item.id)}
+                                      onChange={e => {
+                                        setSelectedItems(prev => {
+                                          const s = new Set(prev);
+                                          e.target.checked ? s.add(item.id) : s.delete(item.id);
+                                          return s;
+                                        });
+                                      }}
+                                    />
+                                  </td>
+                                  <td className={`${TABLE_CELL} pl-2`}>
                                     <div>
                                       <p className="font-medium text-white">{item.item_name}</p>
+                                      {item.assigned_staff && item.assigned_staff.length > 0 && (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {item.assigned_staff.map(name => (
+                                            <span key={name} className="inline-flex items-center rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-300">
+                                              {name}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
                                       {item.notes && <p className={T_CAPTION}>{item.notes}</p>}
                                       {item.started_by && item.status === "IN_PROGRESS" && (
                                         <p className={T_CAPTION + " text-blue-400"}>Started by {item.started_by}</p>
@@ -1202,6 +1275,93 @@ export default function CKProductionPlanPage() {
                 {savingAssignees
                   ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Saving...</span>
                   : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Per-item Assign Floating Bar ──────────────────────────────────── */}
+      {selectedItems.size > 0 && typeof document !== "undefined" && createPortal(
+        <div className="fixed bottom-6 left-1/2 z-[200] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-500/40 bg-[#1a1730]/95 px-5 py-3 shadow-2xl backdrop-blur-md">
+          <span className="text-sm font-medium text-violet-300">
+            {selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected
+          </span>
+          <button
+            className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/20 px-3 py-1.5 text-sm text-violet-200 hover:bg-violet-500/30"
+            onClick={() => { setItemAssignees([]); setItemAssignFilter(""); setShowItemAssignModal(true); }}
+          >
+            <Users className="h-3.5 w-3.5" /> Assign Staff
+          </button>
+          <button
+            className="text-zinc-500 hover:text-zinc-300"
+            onClick={() => setSelectedItems(new Set())}
+            title="Clear selection"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Per-item Assign Modal ─────────────────────────────────────────── */}
+      {showItemAssignModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-sm p-6`}>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/15">
+                  <Users className="h-5 w-5 text-violet-400" />
+                </div>
+                <div>
+                  <h3 className={T_SECTION}>Assign to Items</h3>
+                  <p className="text-xs text-zinc-400">{selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected</p>
+                </div>
+              </div>
+              <button onClick={() => setShowItemAssignModal(false)} className="text-zinc-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input
+              className="mb-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              placeholder="Search staff..."
+              value={itemAssignFilter}
+              onChange={e => setItemAssignFilter(e.target.value)}
+            />
+            <div className="mb-5 max-h-64 space-y-1 overflow-y-auto">
+              {staffOptions
+                .filter(name => !itemAssignFilter.trim() || name.toLowerCase().includes(itemAssignFilter.toLowerCase()))
+                .map(name => (
+                  <label key={name} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/5">
+                    <input
+                      type="checkbox"
+                      checked={itemAssignees.includes(name)}
+                      onChange={e => setItemAssignees(prev => e.target.checked ? [...prev, name] : prev.filter(n => n !== name))}
+                      className="accent-violet-500"
+                    />
+                    <span className="text-sm text-zinc-200">{name}</span>
+                  </label>
+                ))}
+              {staffOptions.filter(name => !itemAssignFilter.trim() || name.toLowerCase().includes(itemAssignFilter.toLowerCase())).length === 0 && (
+                <p className="px-2 text-sm text-zinc-500">No staff found.</p>
+              )}
+            </div>
+            {itemAssignees.length > 0 && (
+              <p className="mb-3 text-xs text-violet-400">{itemAssignees.length} selected: {itemAssignees.join(", ")}</p>
+            )}
+            <div className="flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowItemAssignModal(false)}>
+                Cancel
+              </button>
+              <button
+                className={`${PRIMARY_BUTTON} flex-1`}
+                onClick={handleSaveItemAssignees}
+                disabled={savingItemAssignees}
+              >
+                {savingItemAssignees
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Saving...</span>
+                  : "Assign"}
               </button>
             </div>
           </div>
