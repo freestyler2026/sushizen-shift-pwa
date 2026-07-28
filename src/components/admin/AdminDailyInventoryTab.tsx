@@ -1439,6 +1439,13 @@ export default function AdminDailyInventoryTab() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Option 2: auto-recovery banner state
+  const [recoveryDraft, setRecoveryDraft] = useState<ReportHeader | null>(null);
+  const hasCheckedRecoveryRef = useRef(false);
+  // When restoring a draft whose branch differs from current, staff names reload after setBranch.
+  // Store the intended name here so the staff-loading effect can resolve it correctly.
+  const pendingStaffRestoreRef = useRef<string | null>(null);
+
   // WAREHOUSE par pattern lookup for the form entry view (today's day, with fallback to any WAREHOUSE_* pattern)
   // Check pattern list first so we only fall back when the day-specific pattern truly doesn't exist,
   // not when it exists but has zero items configured (which is a valid intentional state).
@@ -1495,11 +1502,23 @@ export default function AdminDailyInventoryTab() {
         const names = Array.isArray(data.names) ? data.names.map((n) => String(n || "").trim()).filter(Boolean) : [];
         if (cancelled) return;
         setStaffNames(names);
-        setStaffChoice((prev) => {
-          if (prev === STAFF_OTHER) return prev;
-          if (prev && !names.includes(prev)) return "";
-          return prev;
-        });
+        // If a draft restore is pending, resolve the staff name against the newly loaded list
+        const pendingName = pendingStaffRestoreRef.current;
+        if (pendingName) {
+          pendingStaffRestoreRef.current = null;
+          if (names.includes(pendingName)) {
+            setStaffChoice(pendingName);
+          } else {
+            setStaffChoice(STAFF_OTHER);
+            setCustomStaff(pendingName);
+          }
+        } else {
+          setStaffChoice((prev) => {
+            if (prev === STAFF_OTHER) return prev;
+            if (prev && !names.includes(prev)) return "";
+            return prev;
+          });
+        }
       } catch {
         if (!cancelled) { setStaffNames([]); setStaffListError("Could not load staff list."); }
       } finally { if (!cancelled) setStaffNamesLoading(false); }
@@ -1627,6 +1646,65 @@ export default function AdminDailyInventoryTab() {
   };
 
   useEffect(() => { if (view === "history") void loadHistory(); }, [view, branch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Option 1 + 2: load a DRAFT report back into the editable form
+  const loadAndEditDraft = async (reportId: number) => {
+    setDetailLoading(true); setError("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/reports/${reportId}`);
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      const detail = JSON.parse(text) as ReportDetail;
+      // Restore entries first (branch-independent; keyed by item_code)
+      const restored: EntryMap = {};
+      for (const e of detail.entries) {
+        restored[e.item_code] = {
+          qty: e.qty !== null ? String(e.qty) : "",
+          unit: e.unit || "",
+          note: e.note || "",
+        };
+      }
+      setEntries(restored);
+      setCurrentReportId(detail.id);
+      setReportDate(detail.report_date);
+      setShift(detail.shift);
+      // Restore staff — if branch changes, staff names reload and pendingStaffRestoreRef handles it
+      if (detail.branch !== branch) {
+        pendingStaffRestoreRef.current = detail.staff_name;
+        setStaffChoice("");
+        setCustomStaff("");
+        setBranch(detail.branch); // triggers staff reload → ref resolves name
+      } else {
+        if (staffNames.includes(detail.staff_name)) {
+          setStaffChoice(detail.staff_name);
+        } else {
+          setStaffChoice(STAFF_OTHER);
+          setCustomStaff(detail.staff_name);
+        }
+      }
+      setRecoveryDraft(null);
+      setSelectedDetail(null);
+      setView("form");
+    } catch (e) {
+      setError(`Failed to load draft: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setDetailLoading(false); }
+  };
+
+  // Option 2: check for today's unsubmitted draft on mount (auto-recovery)
+  useEffect(() => {
+    if (hasCheckedRecoveryRef.current || currentReportId) return;
+    hasCheckedRecoveryRef.current = true;
+    void (async () => {
+      try {
+        const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=10`);
+        if (!res.ok) return;
+        const reports = JSON.parse(await res.text()) as ReportHeader[];
+        const today = todayYmd();
+        const todayDraft = reports.find((r) => r.report_date === today && r.status !== "SUBMITTED");
+        if (todayDraft) setRecoveryDraft(todayDraft);
+      } catch { /* silent — non-critical */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sections = [...new Set(items.map((i) => i.section))].sort();
   const countBySection = (sec: string) => {
@@ -1773,7 +1851,7 @@ export default function AdminDailyInventoryTab() {
                 </thead>
                 <tbody>
                   {history.map((r) => (
-                    <tr key={r.id} className={`${TABLE_ROW} cursor-pointer`} onClick={() => void loadDetail(r.id)}>
+                    <tr key={r.id} className={`${TABLE_ROW} cursor-pointer`} onClick={() => r.status === "SUBMITTED" ? void loadDetail(r.id) : void loadAndEditDraft(r.id)}>
                       <td className={`${TABLE_CELL} px-5 font-medium text-white`}>{formatDate(r.report_date)}</td>
                       <td className={`${TABLE_CELL} px-3`}>{r.shift}</td>
                       <td className={`${TABLE_CELL} px-3`}>{r.staff_name}</td>
@@ -1787,7 +1865,15 @@ export default function AdminDailyInventoryTab() {
                         {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {detailLoading ? <span className="text-xs text-zinc-600">…</span> : <ChevronRight className="mx-auto h-4 w-4 text-zinc-600" />}
+                        {detailLoading ? (
+                          <span className="text-xs text-zinc-600">…</span>
+                        ) : r.status === "SUBMITTED" ? (
+                          <ChevronRight className="mx-auto h-4 w-4 text-zinc-600" />
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300">
+                            Continue ↩
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1801,6 +1887,34 @@ export default function AdminDailyInventoryTab() {
       {/* Form view */}
       {view === "form" && (
         <>
+          {/* Option 2: Auto-recovery banner */}
+          {recoveryDraft && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-300">Unfinished entry found</p>
+                <p className="text-xs text-amber-200/70">
+                  {recoveryDraft.shift} shift · {formatDate(recoveryDraft.report_date)} · {recoveryDraft.staff_name} · {recoveryDraft.branch}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRecoveryDraft(null)}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 hover:text-white">
+                  Start fresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void loadAndEditDraft(recoveryDraft.id)}
+                  disabled={detailLoading}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 disabled:opacity-50">
+                  {detailLoading ? <Loader2 size={12} className="animate-spin" /> : null}
+                  Restore ↩
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Header fields */}
           <div className={`${GLASS_CARD} mb-4 p-5`}>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
