@@ -362,7 +362,10 @@ export default function DtrUploadPage() {
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
 
   useEffect(() => { void loadDtrRecords(selectedPeriodId); }, [selectedPeriodId, loadDtrRecords]);
-  useEffect(() => { void loadOtApprovals(selectedPeriodId); }, [selectedPeriodId, loadOtApprovals]);
+  useEffect(() => {
+    setOtSyncResult(null);
+    void loadOtApprovals(selectedPeriodId);
+  }, [selectedPeriodId, loadOtApprovals]);
 
   const selectedPeriod = periods.find(p => String(p.id) === selectedPeriodId);
 
