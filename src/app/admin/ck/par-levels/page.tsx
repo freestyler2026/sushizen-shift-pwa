@@ -80,6 +80,10 @@ export default function CkParLevelsPage() {
   // generate plan
   const [generating, setGenerating] = useState(false);
 
+  // push to production plan
+  const [pushingToPlan, setPushingToPlan] = useState(false);
+  const [pushResult, setPushResult] = useState<{ ok: boolean; msg: string; planId?: number } | null>(null);
+
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -259,6 +263,31 @@ export default function CkParLevelsPage() {
     }
   };
 
+  // ── push to production plan ───────────────────────────────────────────────
+  const handlePushToPlan = async () => {
+    setPushingToPlan(true);
+    setPushResult(null);
+    try {
+      const auth = getAuth();
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await fetch(
+        `${API_BASE}/api/admin/ck/par-levels/push-to-plan?city=${cityParam(city)}&plan_date=${today}`,
+        { method: "POST", headers: getAuthHeaders(auth) }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Push failed");
+      setPushResult({
+        ok: true,
+        msg: `Production Plan created — ${data.items_added} items added${data.stock_date ? ` (stock as of ${data.stock_date})` : ""}`,
+        planId: data.plan_id,
+      });
+    } catch (e: any) {
+      setPushResult({ ok: false, msg: e.message || "Error pushing to production plan" });
+    } finally {
+      setPushingToPlan(false);
+    }
+  };
+
   // ── filtered rows ─────────────────────────────────────────────────────────
   const filtered = rows.filter((r) =>
     !search || r.item_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -381,6 +410,17 @@ export default function CkParLevelsPage() {
             {generating ? "Generating…" : tab === "ck_produced" ? "📋 Production Plan" : "📋 Purchase Order"}
           </button>
 
+          {/* Push to Production Plan (CK-Produced tab only) */}
+          {tab === "ck_produced" && (
+            <button
+              onClick={handlePushToPlan}
+              disabled={pushingToPlan || rows.filter((r) => r.par_level != null).length === 0}
+              className="rounded-xl border border-orange-500/30 bg-orange-500/15 px-4 py-2 text-sm font-medium text-orange-400 hover:bg-orange-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              {pushingToPlan ? "Pushing…" : "🚀 Push to Production Plan"}
+            </button>
+          )}
+
           {/* Download template link */}
           <a
             href="/CK_ParLevel_Template.xlsx"
@@ -389,6 +429,21 @@ export default function CkParLevelsPage() {
             ⬇ Download Template
           </a>
         </div>
+
+        {/* Push result */}
+        {pushResult && (
+          <div className={`rounded-xl border px-4 py-3 text-sm flex items-center justify-between gap-4 ${pushResult.ok ? "border-orange-500/30 bg-orange-500/10 text-orange-300" : "border-red-500/30 bg-red-500/10 text-red-400"}`}>
+            <span>{pushResult.msg}</span>
+            {pushResult.ok && (
+              <a
+                href="/store/ck-production-plan"
+                className="shrink-0 rounded-lg bg-orange-500/20 px-3 py-1 text-xs font-semibold text-orange-300 hover:bg-orange-500/30 transition-all"
+              >
+                Open Plan →
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Seed result */}
         {seedResult && (
