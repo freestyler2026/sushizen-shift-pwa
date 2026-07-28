@@ -102,6 +102,18 @@ function AdjModal({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+
+  useEffect(() => {
+    if (adj) return;
+    setStaffLoading(true);
+    apiFetch(`/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE`)
+      .then(r => r.json())
+      .then((d: { names?: string[] }) => setStaffNames(d.names ?? []))
+      .catch(() => {})
+      .finally(() => setStaffLoading(false));
+  }, [city, adj]);
 
   function set(k: keyof typeof form, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -163,19 +175,25 @@ function AdjModal({
             <>
               <div>
                 <label className={labelCls}>Staff Name *</label>
-                <input className={INPUT_CLASS} value={form.staff_name} onChange={e => set("staff_name", e.target.value)}
-                  placeholder="Enter staff name exactly" />
+                {staffLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-xs text-zinc-400">
+                    <Loader2 size={12} className="animate-spin" />Loading staff…
+                  </div>
+                ) : (
+                  <SelectDark
+                    className={SELECT_CLASS}
+                    value={form.staff_name}
+                    onChange={v => set("staff_name", v)}
+                    placeholder="— Select staff member —"
+                    options={staffNames.map(n => ({ value: n, label: n }))}
+                  />
+                )}
               </div>
               <div>
                 <label className={labelCls}>Type</label>
-                <SelectDark className={SELECT_CLASS} value={form.adj_type}
-                  onChange={v => setForm(f => ({ ...f, adj_type: v as Adjustment["adj_type"], subtype: "" }))}
-                  options={[
-                    { value: "addition", label: "Addition" },
-                    { value: "deduction", label: "Deduction" },
-                    { value: "recurring_deduction", label: "Recurring Deduction" },
-                  ]}
-                />
+                <p className="rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white">
+                  {ADJ_LABELS[defaultType]}
+                </p>
               </div>
             </>
           )}
@@ -529,6 +547,10 @@ export default function AdjustmentsPage() {
   }, [role, router]);
 
   const [city, setCity] = useState<"dubai" | "manila">(() => {
+    if (typeof window !== "undefined") {
+      const param = new URLSearchParams(window.location.search).get("city");
+      if (param === "dubai" || param === "manila") return param;
+    }
     const a = getAuth();
     return (a as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila";
   });

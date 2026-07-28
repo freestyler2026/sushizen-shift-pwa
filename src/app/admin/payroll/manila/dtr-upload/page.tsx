@@ -392,6 +392,7 @@ export default function DtrUploadPage() {
       const res = await r.json() as UploadResult;
       setUploadResult(res);
       if (res.errors.length === 0) { setCsvPreview(null); setCsvText(""); }
+      void loadDtrRecords(selectedPeriodId);
     } catch (e) { setParsError(`Upload error: ${String(e)}`); }
     finally { setUploading(false); }
   }
