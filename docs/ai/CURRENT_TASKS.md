@@ -1,10 +1,22 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 183 cont. — CK Par Level push-to-plan bug fixes)
+Last updated: 2026-07-28 (session 183 cont. — OT 48h restriction)
 
 ---
 
-## Recently Completed (2026-07-28 session 183 cont. — CK Par Level: Push to Production Plan bug fixes)
+## Recently Completed (2026-07-28 session 183 cont. — OT Request 48h submission window)
+
+### OT Request: 48-hour submission restriction (DEPLOYED ✅ Heroku e995a61, Vercel 7249840)
+- **Backend** (`main.py`): `POST /api/store/overtime/request` rejects work_date older than 2 calendar days in staff's local timezone (Dubai UTC+4, Manila UTC+8); also rejects future work_date for post-OT type
+- **Frontend** (`overtime-request/page.tsx`):
+  - `workDate` default now uses local timezone (not UTC) — fixes wrong date shown at local midnight
+  - Post-report date picker constrained: min=2 days ago (local), max=today (local); amber warning shown
+  - Switching Pre→Post clamps any future date back to localToday automatically
+  - `handleSubmit` validates both bounds client-side before API call (double guard)
+
+---
+
+## Recently Completed (2026-07-28 session 183 cont. — CK Par Level push-to-plan bug fixes)
 
 ### CK Par Level: Bug 1 — Finalized inventory not reflected (DEPLOYED ✅ Heroku d3572d1)
 - Root cause: `_get_latest_ck_stock()` in `ck_par_level_api.py` used plain cursor; calling `.get()` on tuples raised `AttributeError` silently caught → empty stock → full par level used instead of gap
