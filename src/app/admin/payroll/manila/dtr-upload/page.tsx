@@ -120,8 +120,8 @@ function downloadManilaAttCsv(rows: ManilaAttRow[], periodLabel: string) {
       sched,
       r.actual_time_in ? fmtTime(r.actual_time_in) : "",
       r.actual_time_out ? fmtTime(r.actual_time_out) : "",
-      r.regular_hours, r.overtime_hours,
-      r.night_regular_hours, r.night_overtime_hours,
+      fmtHours(Number(r.regular_hours)), fmtHours(Number(r.overtime_hours)),
+      fmtHours(Number(r.night_regular_hours)), fmtHours(Number(r.night_overtime_hours)),
       r.late_minutes,
       r.day_type, manilaRowStatus(r),
     ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
@@ -201,6 +201,13 @@ function fmtTime(iso: string | null) {
     const d = new Date(iso);
     return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila" });
   } catch { return iso.slice(11, 16) || "—"; }
+}
+
+function fmtHours(h: number) {
+  if (!h) return "—";
+  const hrs = Math.floor(h);
+  const min = Math.round((h - hrs) * 60);
+  return min > 0 ? `${hrs}h ${min}m` : `${hrs}h`;
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -664,9 +671,9 @@ export default function DtrUploadPage() {
                           <td className="px-3 py-1.5 font-medium text-white">{row.staff_name}</td>
                           <td className="px-3 py-1.5 tabular-nums text-slate-400">{row.actual_time_in || "—"}</td>
                           <td className="px-3 py-1.5 tabular-nums text-slate-400">{row.actual_time_out || "—"}</td>
-                          <td className="px-3 py-1.5 text-right text-emerald-300">{row.regular_hours}h</td>
+                          <td className="px-3 py-1.5 text-right text-emerald-300">{fmtHours(parseFloat(row.regular_hours))}</td>
                           <td className="px-3 py-1.5 text-right text-amber-300">
-                            {parseFloat(row.overtime_hours) > 0 ? `${row.overtime_hours}h` : "—"}
+                            {parseFloat(row.overtime_hours) > 0 ? fmtHours(parseFloat(row.overtime_hours)) : "—"}
                           </td>
                           <td className="px-3 py-1.5 text-right text-slate-500">
                             {parseInt(row.late_minutes) > 0 ? `${row.late_minutes}m` : "—"}
@@ -896,9 +903,9 @@ paid_leave    Y / N          (default: N)`}</code>
                             <td className="px-3 py-2 text-slate-400">{sched}</td>
                             <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
                             <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-emerald-400">{Number(row.regular_hours).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-emerald-400">{fmtHours(Number(row.regular_hours))}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-amber-400">
-                              {Number(row.overtime_hours) > 0 ? Number(row.overtime_hours).toFixed(2) : "—"}
+                              {Number(row.overtime_hours) > 0 ? fmtHours(Number(row.overtime_hours)) : "—"}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-slate-400">
                               {Number(row.late_minutes) > 0 ? `${row.late_minutes}m` : "—"}
