@@ -1,8 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 178 — Bug fixes + Payroll CSV Import)
+Last updated: 2026-07-28 (session 181 — Daily Inventory Dubai support)
 
 
+
+---
+
+## Recently Completed (2026-07-28 session 181 — Daily Inventory Dubai city support)
+
+### Daily Inventory: Dubai city selector (DEPLOYED ✅ Vercel c26ae53, Heroku b728127)
+- `AdminDailyInventoryTab.tsx`: added `CITY_BRANCHES` map (manila: PARANAQUE/CUBAO/TAFT, dubai: BUSINESS BAY/JLT/ARJAN/AL MINA/AL BARSHA)
+- Added `city` state derived from `auth.city`; `cityLock` prevents city switching for city-specific users
+- City selector added to header form (5-column grid: City / Branch / Date / Shift / Staff)
+- Switching city resets branch to first of new city and clears recovery banner
+- City selector disabled while editing an active report (to prevent losing context)
+- Staff-names API call now passes `city` param; Dubai users get all Dubai staff (no branch filter)
+- Continue ↩ and Auto-Recovery features work for Dubai reports via same branch-based logic
+- `daily_inventory_api.py`: `/staff-names` endpoint accepts optional `city` query param (manila|dubai); returns Dubai staff without Manila branch-code mapping
+
+---
+
+## Recently Completed (2026-07-28 session 180 — Daily Inventory Save-as-Draft + Auto-Recovery)
+
+### Daily Inventory: Save-as-Draft restore + Auto-Recovery (DEPLOYED ✅ Vercel commits 54e6481, 45e6d3c)
+- `AdminDailyInventoryTab.tsx`: implemented both staff-suggested options
+- **Option 1 — Continue from History**: DRAFT rows in the History table now show a "Continue ↩" amber badge button; clicking it calls `loadAndEditDraft(r.id)` to restore entries/date/shift/staff back into the form (SUBMITTED rows keep the existing chevron → detail view)
+- **Option 2 — Auto-Recovery banner**: on mount and on branch change, fetches today's reports for the current branch; if an unsubmitted (DRAFT) report exists, shows an amber "Unfinished entry found" banner with "Start fresh" (dismiss) and "Restore ↩" (load draft) buttons
+- `loadAndEditDraft()`: shared loader for both paths; restores all entries via `GET /api/daily-inventory/reports/{id}`, sets date/shift/branch, handles cross-branch staff resolution via `pendingStaffRestoreRef`
+- No backend changes needed — existing auto-save and report-detail API already provide the data
+- **Bug fixed (45e6d3c)**: recovery check re-runs on branch change (previously only ran on mount with PARANAQUE; CUBAO/TAFT users never saw banner)
+- **Tested ✅**: banner shows on load, Start fresh dismisses, Restore restores entries/date/staff, History Continue works, SUBMITTED detail view intact, branch switch clears/re-checks correctly
+
+---
+
+## Recently Completed (2026-07-28 session 179 — Payroll dark theme + Manila DTR Records view)
+
+### Payroll page dark theme (DEPLOYED ✅ Vercel commit 3e1babd)
+- `/admin/payroll/page.tsx`: full dark redesign matching OS design system
+- ConfigModal, EmployeeDetailPanel, nav, tables, tabs, KPI cards all converted to dark glass style
+
+### Manila DTR Records view (DEPLOYED ✅ Vercel commit 6299ddc)
+- `/admin/payroll/manila/dtr-upload/page.tsx`: added "Current DTR Records for this Period" section
+- New `ManilaAttRow` type, `manilaRowStatus()` helper, `downloadManilaAttCsv()` helper
+- Staff / Store / Status filters; CSV download button; Refresh button
+- Uses existing `GET /api/admin/manila-payroll/attendance/{period_id}` — no backend changes
+- **Tested ✅**: period dropdown shows 2 periods, records section renders, empty state correct, parse flow correct, filters hidden when empty, CSV All button hidden when empty
 
 ---
 
