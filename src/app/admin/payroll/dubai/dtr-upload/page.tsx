@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
-  FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye, Download,
+  FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye, Download, Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -245,7 +245,7 @@ export default function DubaiDtrUploadPage() {
   const [uploadResult, setUploadResult]     = useState<UploadResult | null>(null);
   const [insertOnly, setInsertOnly]         = useState(false);
 
-  const [activeTab, setActiveTab]           = useState<"csv" | "guide">("csv");
+  const [activeTab, setActiveTab]           = useState<"download" | "csv" | "guide">("download");
 
   const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
@@ -396,40 +396,59 @@ export default function DubaiDtrUploadPage() {
           </div>
         </div>
 
-        {/* ── Step 1: Download OS Attendance ────────────────────────────────── */}
-        <div className={GLASS_CARD + " p-5 space-y-4"}>
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Download size={16} className="text-sky-400" />
-            Step 1 — Download OS Attendance Data
-          </h3>
-          <p className="text-xs text-slate-400">
-            Fetch clock-in/out records from the OS and download as a DTR CSV.
-            Review and correct the file, then upload below.
+        {/* Shared Period Selector */}
+        <div className={GLASS_CARD + " p-4"}>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Payroll Period
           </p>
+          <SelectDark
+            value={selectedPeriodId}
+            onChange={v => { setSelectedPeriodId(v); setDownloadCount(null); setDownloadError(""); }}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-sky-500 focus:outline-none min-w-[280px]"
+            options={[
+              { value: "", label: "— Select a payroll period —" },
+              ...(periodsLoading
+                ? [{ value: "__loading__", label: "Loading…" }]
+                : periods.map(p => ({
+                    value: String(p.id),
+                    label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
+                  }))),
+            ]}
+          />
+          {selectedPeriod && (
+            <p className="mt-1 text-xs text-slate-500">
+              {selectedPeriod.start_date} → {selectedPeriod.end_date}
+            </p>
+          )}
+        </div>
 
-          {/* Period selector */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Payroll Period
-            </label>
-            <SelectDark
-              value={selectedPeriodId}
-              onChange={v => { setSelectedPeriodId(v); setDownloadCount(null); setDownloadError(""); }}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
-              options={[
-                { value: "", label: "— Select period —" },
-                ...(periodsLoading ? [] : periods.map(p => ({
-                  value: String(p.id),
-                  label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
-                }))),
-              ]}
-            />
-            {selectedPeriod && (
-              <p className="mt-1 text-xs text-slate-500">
-                {selectedPeriod.start_date} → {selectedPeriod.end_date}
-              </p>
-            )}
-          </div>
+        {/* Tabs */}
+        <div className={TAB_CONTAINER}>
+          <button onClick={() => setActiveTab("download")} className={activeTab === "download" ? TAB_ACTIVE : TAB_INACTIVE}>
+            <Download size={14} className="inline mr-1.5" />
+            Download OS CSV
+          </button>
+          <button onClick={() => setActiveTab("csv")} className={activeTab === "csv" ? TAB_ACTIVE : TAB_INACTIVE}>
+            <FileSpreadsheet size={14} className="inline mr-1.5" />
+            Manual CSV Upload
+          </button>
+          <button onClick={() => setActiveTab("guide")} className={activeTab === "guide" ? TAB_ACTIVE : TAB_INACTIVE}>
+            <Info size={14} className="inline mr-1.5" />
+            CSV Format Guide
+          </button>
+        </div>
+
+        {/* ── TAB: Download OS Attendance ───────────────────────────────────── */}
+        {activeTab === "download" && (
+          <div className={GLASS_CARD + " p-5 space-y-4"}>
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Download size={16} className="text-sky-400" />
+              Download OS Attendance Data
+            </h3>
+            <p className="text-xs text-slate-400">
+              Fetch clock-in/out records from the OS and download as a DTR CSV.
+              Review and correct the file, then upload via the Manual CSV Upload tab.
+            </p>
 
           {/* Custom date range toggle */}
           <div>
@@ -502,20 +521,8 @@ export default function DubaiDtrUploadPage() {
               <AlertCircle size={13} /> {downloadError}
             </div>
           )}
-        </div>
-
-        {/* Tabs */}
-        <div className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">Step 2 — Upload Corrected CSV</div>
-        <div className={TAB_CONTAINER}>
-          <button onClick={() => setActiveTab("csv")} className={activeTab === "csv" ? TAB_ACTIVE : TAB_INACTIVE}>
-            <FileSpreadsheet size={14} className="inline mr-1.5" />
-            CSV Upload
-          </button>
-          <button onClick={() => setActiveTab("guide")} className={activeTab === "guide" ? TAB_ACTIVE : TAB_INACTIVE}>
-            <Info size={14} className="inline mr-1.5" />
-            CSV Format Guide
-          </button>
-        </div>
+          </div>
+        )}
 
         {/* ── TAB: CSV Upload ───────────────────────────────────────────────── */}
         {activeTab === "csv" && (
