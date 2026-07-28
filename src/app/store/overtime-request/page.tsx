@@ -79,7 +79,10 @@ export default function OvertimeRequestPage() {
 
   // Form state
   const [branchCode, setBranchCode] = useState(staffBranch);
-  const [workDate, setWorkDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [workDate, setWorkDate] = useState(() => {
+    const tzOff = (getAuth()?.city || "dubai").toLowerCase() === "manila" ? 8 : 4;
+    return new Date(Date.now() + tzOff * 3600_000).toISOString().slice(0, 10);
+  });
   const [requestType, setRequestType] = useState<"pre" | "post">("post");
   const [otStart, setOtStart] = useState("21:00");
   const [otEnd, setOtEnd] = useState("23:00");
@@ -134,6 +137,8 @@ export default function OvertimeRequestPage() {
     setSubmitError("");
     setSubmitSuccess("");
     if (!branchCode) { setSubmitError("Please select a branch."); return; }
+    if (requestType === "post" && workDate > localToday) { setSubmitError("Post-report OT cannot have a future work date."); return; }
+    if (requestType === "post" && workDate < minPostDate) { setSubmitError("Post-report OT must be submitted within 48 hours of the work date."); return; }
     if (otMinutes <= 0) { setSubmitError("OT end time must be after start time."); return; }
     if (reason.trim().length < 5) { setSubmitError("Please enter a reason (at least 5 characters)."); return; }
     setSubmitting(true);
@@ -189,7 +194,10 @@ export default function OvertimeRequestPage() {
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setRequestType(t)}
+                    onClick={() => {
+                      setRequestType(t);
+                      if (t === "post" && workDate > localToday) setWorkDate(localToday);
+                    }}
                     className={`flex-1 rounded-lg py-3 text-sm font-semibold transition ${
                       requestType === t
                         ? "bg-purple-600 text-white"
