@@ -33,7 +33,7 @@ type PayRateRule = {
   day_type: string;
   worked: boolean;
   base_day_multiplier: string;
-  ot_hourly_multiplier: string;
+  ot_multiplier_on_day_rate: string;
   is_base_included_in_monthly: boolean;
   requires_cpa_confirmation: boolean;
   effective_from: string;
@@ -476,12 +476,12 @@ export default function GovTablesPage() {
                             {dec(r.base_day_multiplier, 2)}×
                           </td>
                           <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-mono"}>
-                            {dec(r.ot_hourly_multiplier, 2)}×
+                            {dec(r.ot_multiplier_on_day_rate, 2)}×
                           </td>
                           <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-mono"}>
                             {r.worked ? (
                               <span className="text-amber-300">
-                                {(parseFloat(r.base_day_multiplier) * parseFloat(r.ot_hourly_multiplier)).toFixed(2)}×
+                                {(parseFloat(r.base_day_multiplier) * parseFloat(r.ot_multiplier_on_day_rate)).toFixed(2)}×
                               </span>
                             ) : (
                               <span className="text-slate-600">—</span>
