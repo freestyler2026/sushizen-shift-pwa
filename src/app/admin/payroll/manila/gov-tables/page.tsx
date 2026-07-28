@@ -66,10 +66,9 @@ type SssUploadRow = {
 
 type PhilhealthRow = {
   id: number;
-  rate_percent: string;
-  basis_min: string;
-  basis_max: string;
-  ee_share_percent: string;
+  rate_pct: string;
+  premium_min: string;
+  premium_max: string;
   effective_from: string;
 };
 
@@ -77,11 +76,11 @@ type PagibigRow = {
   id: number;
   salary_min: string | null;
   salary_max: string | null;
-  ee_rate_percent: string;
-  er_rate_percent: string;
+  employee_rate: string;
+  employer_rate: string;
   fund_salary_cap: string;
-  max_ee_contribution: string;
-  max_er_contribution: string;
+  employee_max: string;
+  employer_max: string;
   effective_from: string;
 };
 
@@ -90,7 +89,7 @@ type BirBracket = {
   annual_from: string;
   annual_to: string | null;
   base_tax: string;
-  excess_rate_percent: string;
+  excess_rate_pct: string;
   effective_from: string;
 };
 
@@ -587,12 +586,12 @@ export default function GovTablesPage() {
                       {data.philhealth.map(r => (
                         <tr key={r.id} className={TABLE_ROW}>
                           <td className={TABLE_CELL + " px-4 py-2.5 text-right tabular-nums font-semibold text-violet-300"}>
-                            {dec(r.rate_percent, 1)}%
+                            {dec(parseFloat(String(r.rate_pct)) * 100, 1)}%
                           </td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>{php(r.basis_min)}</td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>{php(r.basis_max)}</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>{php(r.premium_min)}</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>{php(r.premium_max)}</td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-slate-400"}>
-                            {dec(r.ee_share_percent, 1)}% (50/50 split)
+                            {dec(parseFloat(String(r.rate_pct)) * 50, 1)}% (50/50 split)
                           </td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-slate-400"}>{r.effective_from}</td>
                         </tr>
@@ -632,11 +631,11 @@ export default function GovTablesPage() {
                           <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>
                             {r.salary_max ? php(r.salary_max) : <span className="text-slate-500">No limit</span>}
                           </td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-violet-300"}>{dec(r.ee_rate_percent, 1)}%</td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-slate-300"}>{dec(r.er_rate_percent, 1)}%</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-violet-300"}>{dec(parseFloat(String(r.employee_rate)) * 100, 1)}%</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-slate-300"}>{dec(parseFloat(String(r.employer_rate)) * 100, 1)}%</td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>{php(r.fund_salary_cap)}</td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-violet-300"}>{php(r.max_ee_contribution)}</td>
-                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-slate-300"}>{php(r.max_er_contribution)}</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-violet-300"}>{php(r.employee_max)}</td>
+                          <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-slate-300"}>{php(r.employer_max)}</td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-slate-400"}>{r.effective_from}</td>
                         </tr>
                       ))}
@@ -678,7 +677,7 @@ export default function GovTablesPage() {
                           </td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums text-violet-300"}>{php(r.base_tax)}</td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums font-semibold"}>
-                            {dec(r.excess_rate_percent, 1)}%
+                            {dec(parseFloat(String(r.excess_rate_pct)) * 100, 1)}%
                           </td>
                           <td className={TABLE_CELL + " px-3 py-2.5 text-slate-400"}>{r.effective_from}</td>
                         </tr>
