@@ -1,6 +1,36 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 181 — Daily Inventory Dubai support)
+Last updated: 2026-07-28 (session 183 — Manila Payroll OT auto-sync)
+
+---
+
+## Recently Completed (2026-07-28 session 183 — Manila Payroll OT Approval Auto-Sync)
+
+### Manila Payroll: OT Approval → DTR Auto-Sync (DEPLOYED ✅ Vercel 411ad5f, Heroku v1581)
+- **Auto-sync on approval**: When a Manila OT request is approved via `PATCH /api/admin/ot/review`, `auto_sync_manila_ot_on_approval()` is called best-effort (try/except, non-blocking) to immediately write `approved_ot_hours` into the matching `manila_attendance_daily` row
+- **Bulk sync endpoint**: `POST /api/admin/manila-payroll/sync-ot-approvals?period_id=N` — aggregates all approved OT minutes by staff+date for the period and updates `approved_ot_hours` in DTR records; returns `{synced, no_dtr, total_ot_records}`
+- **List endpoint**: `GET /api/admin/manila-payroll/ot-approvals?period_id=N` — returns approved OT requests for the period
+- **Frontend "OT Approvals" tab** in `dtr-upload/page.tsx`: table of approved OT requests (date, staff, branch, OT window, hours, reason, approved-by); "Sync to DTR" button; result summary card; auto-loads on period change
+- **DB functions added** to `db.py`: `get_manila_ot_approvals_for_period()`, `sync_manila_ot_approvals_to_dtr()`, `auto_sync_manila_ot_on_approval()`
+
+---
+
+## Recently Completed (2026-07-28 session 182 — Manila Payroll Phase 1+2)
+
+### Manila Payroll: Phase 1 — Approved OT Hours (DEPLOYED ✅ Vercel bc05a9f, Heroku v1579)
+- DB: `approved_ot_hours NUMERIC(5,2)` column added to `manila_attendance_daily` (migration in `ensure_manila_payroll_tables()`)
+- Engine (`manila_payroll_engine.py`): when `approved_ot_hours` is set, it overrides clock-based OT computation; NSD recalculated from `ot_start` through `ot_start + approved_ot_hours`
+- **Bug fix**: `ot_start` now respects `meal_break_paid` setting — was always adding break minutes even when break is paid
+- **Bug fix**: top-level `timedelta` import added (was missing from `from datetime import ...`)
+- **Bug fix**: bulk CSV upload uses `COALESCE(EXCLUDED.approved_ot_hours, existing)` so missing CSV column doesn't erase existing approved OT
+- API: `PATCH /api/admin/manila-payroll/attendance/{id}/approved-ot` — set or clear approved OT for one record
+- Frontend (`dtr-upload/page.tsx`): "Apprvd OT" column in DTR Records table with inline click-to-edit (violet highlight when set)
+
+### Manila Payroll: Phase 2 — Income Tax & Loan Deduction (DEPLOYED ✅ same commits)
+- DB: `chk_adj_item_type` constraint extended to include `INCOME_TAX` and `LOAN_DEDUCTION`
+- Engine: `load_manual_adjustments()` treats INCOME_TAX and LOAN_DEDUCTION as deductions (negative amounts); uses `ITEM_LABELS` for display
+- API: `POST /adjustments` validates `item_type` ∈ {MANUAL_ADDITION, MANUAL_DEDUCTION, INCOME_TAX, LOAN_DEDUCTION} — returns 400 on invalid type
+- Frontend (`[periodId]/page.tsx`): modal type buttons changed to 2×2 grid; added "Income Tax" (amber) and "Loan Repayment" (orange) buttons; badge label shown on existing adjustment rows
 
 
 
