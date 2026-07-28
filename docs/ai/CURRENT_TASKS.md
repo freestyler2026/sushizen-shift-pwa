@@ -1,6 +1,20 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 183 — Manila Payroll OT auto-sync)
+Last updated: 2026-07-28 (session 183 cont. — CK Par Level push-to-plan bug fixes)
+
+---
+
+## Recently Completed (2026-07-28 session 183 cont. — CK Par Level: Push to Production Plan bug fixes)
+
+### CK Par Level: Bug 1 — Finalized inventory not reflected (DEPLOYED ✅ Heroku d3572d1)
+- Root cause: `_get_latest_ck_stock()` in `ck_par_level_api.py` used plain cursor; calling `.get()` on tuples raised `AttributeError` silently caught → empty stock → full par level used instead of gap
+- Fix: added `from psycopg2.extras import RealDictCursor` and changed `conn.cursor()` to `conn.cursor(cursor_factory=RealDictCursor)` in `_get_latest_ck_stock()` (line ~106)
+
+### CK Par Level: Bug 2 — Cannot assign staff to auto-generated DRAFT plan (DEPLOYED ✅ Heroku d3572d1, Vercel cc155b8)
+- Root cause: `assigned_staff` only settable during plan creation; no DB function / API endpoint / frontend UI to update existing plan
+- Backend fix (`db.py`): added `update_ck_production_plan()` — PATCH assigned_staff and/or notes via parameterized SET clause with RealDictCursor
+- Backend fix (`main.py`): added `PATCH /api/store/ck-production-plan/plans/{plan_id}` endpoint
+- Frontend fix (`ck-production-plan/page.tsx`): "Edit Assignees" button on DRAFT plan header opens a modal with staff checklist + search filter; saves via PATCH; immediately updates activePlan and plans list
 
 ---
 
