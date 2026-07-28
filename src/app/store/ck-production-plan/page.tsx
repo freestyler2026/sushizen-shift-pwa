@@ -1005,26 +1005,30 @@ export default function CKProductionPlanPage() {
                 )}
                 <input
                   type="text"
-                  className={`${INPUT_CLASS} mb-1`}
-                  placeholder="Search staff to add…"
+                  className={INPUT_CLASS}
+                  placeholder="Type to search staff…"
                   value={staffFilter}
                   onChange={e => setStaffFilter(e.target.value)}
                 />
-                <div className="max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02]">
-                  {staffOptions
-                    .filter(n => !newPlanStaff.includes(n) && n.toLowerCase().includes(staffFilter.toLowerCase()))
-                    .slice(0, 30)
-                    .map(name => (
-                      <button
-                        key={name}
-                        onClick={() => { setNewPlanStaff(s => [...s, name]); setStaffFilter(""); }}
-                        className="block w-full px-3 py-1.5 text-left text-sm text-zinc-300 hover:bg-white/5"
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  {staffOptions.length === 0 && <p className="px-3 py-2 text-xs text-zinc-500">No staff list loaded.</p>}
-                </div>
+                {staffFilter.trim() && (
+                  <div className="mt-1 max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02]">
+                    {staffOptions
+                      .filter(n => !newPlanStaff.includes(n) && n.toLowerCase().includes(staffFilter.toLowerCase()))
+                      .slice(0, 30)
+                      .map(name => (
+                        <button
+                          key={name}
+                          onClick={() => { setNewPlanStaff(s => [...s, name]); setStaffFilter(""); }}
+                          className="block w-full px-3 py-1.5 text-left text-sm text-zinc-300 hover:bg-white/5"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    {staffOptions.filter(n => !newPlanStaff.includes(n) && n.toLowerCase().includes(staffFilter.toLowerCase())).length === 0 && (
+                      <p className="px-3 py-2 text-xs text-zinc-500">No staff found.</p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
