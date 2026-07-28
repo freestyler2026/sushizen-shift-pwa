@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
-  FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye,
+  FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye, Download,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,18 @@ type Period = {
   start_date: string;
   end_date: string;
   status: string;
+};
+
+type SyncPreviewRow = {
+  staff_name: string;
+  work_date: string;
+  actual_time_in: string | null;
+  actual_time_out: string | null;
+  regular_hours: number;
+  overtime_hours: number;
+  actual_break_minutes: number;
+  is_worked: boolean;
+  absent_without_pay: boolean;
 };
 
 type DtrRow = {
@@ -113,6 +125,14 @@ function fmtTime(iso: string | null) {
   } catch { return iso.slice(11, 16) || "—"; }
 }
 
+function fmtTimeCsv(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
+  } catch { return iso.slice(11, 16) || ""; }
+}
+
 function fmtHours(h: number) {
   if (!h) return "—";
   const hrs = Math.floor(h);
@@ -181,6 +201,13 @@ export default function DubaiDtrUploadPage() {
   const [periodsLoading, setPeriodsLoading] = useState(true);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
 
+  const [dlDateFrom, setDlDateFrom]         = useState("");
+  const [dlDateTo, setDlDateTo]             = useState("");
+  const [dlUseCustomRange, setDlUseCustomRange] = useState(false);
+  const [downloading, setDownloading]       = useState(false);
+  const [downloadError, setDownloadError]   = useState("");
+  const [downloadCount, setDownloadCount]   = useState<number | null>(null);
+
   const [csvText, setCsvText]               = useState("");
   const [csvPreview, setCsvPreview]         = useState<DtrRow[] | null>(null);
   const [parsError, setParsError]           = useState("");
@@ -225,6 +252,56 @@ export default function DubaiDtrUploadPage() {
 
   const selectedPeriod = periods.find(p => String(p.id) === selectedPeriodId);
 
+  async function downloadOsAttendance() {
+    setDownloadError(""); setDownloadCount(null); setDownloading(true);
+    try {
+      const payload: Record<string, unknown> = { preview_only: true, auto_create_staff: false };
+      if (selectedPeriodId) payload.period_id = parseInt(selectedPeriodId);
+      if (dlUseCustomRange) {
+        if (dlDateFrom) payload.date_from = dlDateFrom;
+        if (dlDateTo)   payload.date_to   = dlDateTo;
+      }
+      const r = await apiFetch(`${API}/sync-dtr`, { method: "POST", body: JSON.stringify(payload) });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as { preview?: SyncPreviewRow[]; would_sync?: number };
+      const rows = data.preview ?? [];
+      if (rows.length === 0) { setDownloadError("No attendance data found for this range."); return; }
+
+      const header = "work_date,staff_name,actual_time_in,actual_time_out,regular_hours,overtime_hours,late_minutes,undertime_minutes,day_type,is_scheduled_rest_day,absent_without_pay,annual_leave_flag";
+      const csvRows = rows.map(row => {
+        const isOff = !row.is_worked && !row.absent_without_pay;
+        return [
+          row.work_date,
+          row.staff_name,
+          isOff ? "" : fmtTimeCsv(row.actual_time_in),
+          isOff ? "" : fmtTimeCsv(row.actual_time_out),
+          isOff ? "0" : String(row.regular_hours ?? 0),
+          isOff ? "0" : String(row.overtime_hours ?? 0),
+          "0",
+          "0",
+          isOff ? "rest_day" : "ordinary_day",
+          isOff ? "Y" : "N",
+          row.absent_without_pay ? "Y" : "N",
+          "N",
+        ].join(",");
+      });
+
+      const label = selectedPeriod
+        ? selectedPeriod.period_label.replace(/\s+/g, "_")
+        : dlUseCustomRange && dlDateFrom && dlDateTo
+          ? `${dlDateFrom}_to_${dlDateTo}`
+          : "export";
+      const blob = new Blob(["﻿" + header + "\n" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `os_attendance_dtr_${label}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      setDownloadCount(rows.length);
+    } catch (e) { setDownloadError(String(e)); }
+    finally { setDownloading(false); }
+  }
+
   function handleParse() {
     setParsError(""); setCsvPreview(null); setUploadResult(null);
     if (!csvText.trim()) { setParsError("Please paste CSV data first."); return; }
@@ -253,6 +330,8 @@ export default function DubaiDtrUploadPage() {
 
   function resetCsv() { setCsvPreview(null); setCsvText(""); setParsError(""); setUploadResult(null); }
 
+  const canDownload = !!(selectedPeriodId || (dlUseCustomRange && dlDateFrom && dlDateTo));
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -274,7 +353,116 @@ export default function DubaiDtrUploadPage() {
           </div>
         </div>
 
+        {/* ── Step 1: Download OS Attendance ────────────────────────────────── */}
+        <div className={GLASS_CARD + " p-5 space-y-4"}>
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Download size={16} className="text-sky-400" />
+            Step 1 — Download OS Attendance Data
+          </h3>
+          <p className="text-xs text-slate-400">
+            Fetch clock-in/out records from the OS and download as a DTR CSV.
+            Review and correct the file, then upload below.
+          </p>
+
+          {/* Period selector */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Payroll Period
+            </label>
+            <SelectDark
+              value={selectedPeriodId}
+              onChange={v => { setSelectedPeriodId(v); setDownloadCount(null); setDownloadError(""); }}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
+              options={[
+                { value: "", label: "— Select period —" },
+                ...(periodsLoading ? [] : periods.map(p => ({
+                  value: String(p.id),
+                  label: `${p.period_label} (${p.start_date} – ${p.end_date}) [${p.status}]`,
+                }))),
+              ]}
+            />
+            {selectedPeriod && (
+              <p className="mt-1 text-xs text-slate-500">
+                {selectedPeriod.start_date} → {selectedPeriod.end_date}
+              </p>
+            )}
+          </div>
+
+          {/* Custom date range toggle */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="rounded"
+                checked={dlUseCustomRange}
+                onChange={e => { setDlUseCustomRange(e.target.checked); setDownloadCount(null); setDownloadError(""); }} />
+              <span className="text-sm text-slate-300">
+                Custom date range
+                <span className="ml-1 text-xs text-slate-500">(override period dates)</span>
+              </span>
+            </label>
+            {dlUseCustomRange && (
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-400">From</label>
+                  <input type="date" value={dlDateFrom}
+                    onChange={e => { setDlDateFrom(e.target.value); setDownloadCount(null); }}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none [color-scheme:dark]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-400">To</label>
+                  <input type="date" value={dlDateTo}
+                    onChange={e => { setDlDateTo(e.target.value); setDownloadCount(null); }}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none [color-scheme:dark]" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Jul 1–9",   from: "2026-07-01", to: "2026-07-09" },
+                    { label: "Jul 1–15",  from: "2026-07-01", to: "2026-07-15" },
+                    { label: "Jul 16–31", from: "2026-07-16", to: "2026-07-31" },
+                    { label: "Aug 1–15",  from: "2026-08-01", to: "2026-08-15" },
+                    { label: "Aug 16–31", from: "2026-08-16", to: "2026-08-31" },
+                  ].map(p => (
+                    <button key={p.label}
+                      onClick={() => { setDlDateFrom(p.from); setDlDateTo(p.to); setDownloadCount(null); }}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10 transition">
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action row */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              onClick={downloadOsAttendance}
+              disabled={downloading || !canDownload}
+              className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm disabled:opacity-40"}
+            >
+              {downloading
+                ? <><Loader2 size={15} className="animate-spin" /> Fetching…</>
+                : <><Download size={15} /> Download OS Attendance CSV</>}
+            </button>
+            {!canDownload && (
+              <p className="text-xs text-slate-500">Select a period or set a custom date range first.</p>
+            )}
+            {downloadCount !== null && !downloading && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-300">
+                <CheckCircle2 size={13} />
+                {downloadCount} rows downloaded — review the file, then upload below.
+              </div>
+            )}
+          </div>
+
+          {downloadError && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+              <AlertCircle size={13} /> {downloadError}
+            </div>
+          )}
+        </div>
+
         {/* Tabs */}
+        <div className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">Step 2 — Upload Corrected CSV</div>
         <div className={TAB_CONTAINER}>
           <button onClick={() => setActiveTab("csv")} className={activeTab === "csv" ? TAB_ACTIVE : TAB_INACTIVE}>
             <FileSpreadsheet size={14} className="inline mr-1.5" />
@@ -289,25 +477,6 @@ export default function DubaiDtrUploadPage() {
         {/* ── TAB: CSV Upload ───────────────────────────────────────────────── */}
         {activeTab === "csv" && (
           <div className="space-y-4">
-
-            {/* Period selector */}
-            <div className={GLASS_CARD + " p-5 space-y-3"}>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Link to Payroll Period (optional)
-              </label>
-              <SelectDark
-                value={selectedPeriodId}
-                onChange={setSelectedPeriodId}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none"
-                options={[
-                  { value: "", label: "— No specific period —" },
-                  ...periods.map(p => ({
-                    value: String(p.id),
-                    label: `${p.period_label} (${p.start_date} – ${p.end_date})`,
-                  })),
-                ]}
-              />
-            </div>
 
             {/* CSV textarea */}
             {!csvPreview && !uploadResult && (
