@@ -102,6 +102,28 @@ type SyncApiResult = {
   preview?: SyncPreviewRow[];
 };
 
+type OtApprovalRow = {
+  id: string;
+  staff_name: string;
+  branch_code: string;
+  work_date: string;
+  request_type: "pre" | "post";
+  ot_start_hour: number;
+  ot_end_hour: number;
+  ot_minutes: number;
+  reason: string;
+  reviewed_by: string;
+  reviewed_at: string | null;
+};
+
+type OtSyncResult = {
+  synced: number;
+  no_dtr: number;
+  total_ot_records: number;
+  period_id: number;
+  date_range: string;
+};
+
 function manilaRowStatus(row: ManilaAttRow): string {
   if (row.absent_without_pay) return "Absent";
   if (row.paid_leave_flag) return "Leave";
@@ -233,7 +255,7 @@ export default function DtrUploadPage() {
   const [uploadResult, setUploadResult]     = useState<UploadResult | null>(null);
   const [insertOnly, setInsertOnly]         = useState(false);
 
-  const [activeTab, setActiveTab]           = useState<"sync" | "csv" | "guide">("sync");
+  const [activeTab, setActiveTab]           = useState<"sync" | "ot" | "csv" | "guide">("sync");
 
   // Sync-from-OS state
   const [syncLoading, setSyncLoading]       = useState(false);
@@ -247,10 +269,17 @@ export default function DtrUploadPage() {
   const [dtrStaffFilter, setDtrStaffFilter] = useState("");
   const [dtrStoreFilter, setDtrStoreFilter] = useState("");
   const [dtrStatusFilter, setDtrStatusFilter] = useState("");
-  // Approved OT inline edit state
+  // Approved OT inline edit state (DTR Records table)
   const [otEditId, setOtEditId]   = useState<number | null>(null);
   const [otEditVal, setOtEditVal] = useState("");
   const [otSavingId, setOtSavingId] = useState<number | null>(null);
+
+  // OT Approvals tab state
+  const [otApprovals, setOtApprovals]       = useState<OtApprovalRow[]>([]);
+  const [otApprovalsLoading, setOtApprovalsLoading] = useState(false);
+  const [otSyncing, setOtSyncing]           = useState(false);
+  const [otSyncResult, setOtSyncResult]     = useState<OtSyncResult | null>(null);
+  const [otTabError, setOtTabError]         = useState("");
 
   const loadDtrRecords = useCallback(async (periodId: string) => {
     if (!periodId) { setDtrRecords([]); return; }
@@ -282,6 +311,42 @@ export default function DtrUploadPage() {
     finally { setOtSavingId(null); setOtEditId(null); }
   }
 
+  const loadOtApprovals = useCallback(async (periodId: string) => {
+    if (!periodId) { setOtApprovals([]); return; }
+    setOtApprovalsLoading(true);
+    setOtTabError("");
+    try {
+      const r = await apiFetch(`${API}/ot-approvals?period_id=${periodId}`);
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as OtApprovalRow[];
+      setOtApprovals(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setOtTabError(String(e));
+      setOtApprovals([]);
+    } finally {
+      setOtApprovalsLoading(false);
+    }
+  }, []);
+
+  const syncOtApprovals = async () => {
+    if (!selectedPeriodId) return;
+    setOtSyncing(true);
+    setOtTabError("");
+    setOtSyncResult(null);
+    try {
+      const r = await apiFetch(`${API}/sync-ot-approvals?period_id=${selectedPeriodId}`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const result = await r.json() as OtSyncResult;
+      setOtSyncResult(result);
+      // Refresh DTR records to show updated approved_ot_hours
+      void loadDtrRecords(selectedPeriodId);
+    } catch (e) {
+      setOtTabError(String(e));
+    } finally {
+      setOtSyncing(false);
+    }
+  };
+
   const loadPeriods = useCallback(async () => {
     setPeriodsLoading(true);
     try {
@@ -297,6 +362,7 @@ export default function DtrUploadPage() {
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
 
   useEffect(() => { void loadDtrRecords(selectedPeriodId); }, [selectedPeriodId, loadDtrRecords]);
+  useEffect(() => { void loadOtApprovals(selectedPeriodId); }, [selectedPeriodId, loadOtApprovals]);
 
   const selectedPeriod = periods.find(p => String(p.id) === selectedPeriodId);
 
@@ -395,6 +461,15 @@ export default function DtrUploadPage() {
           <button onClick={() => setActiveTab("sync")} className={activeTab === "sync" ? TAB_ACTIVE : TAB_INACTIVE}>
             <Zap size={14} className="inline mr-1.5" />
             Sync from OS Attendance
+          </button>
+          <button onClick={() => setActiveTab("ot")} className={activeTab === "ot" ? TAB_ACTIVE : TAB_INACTIVE}>
+            <CheckCircle2 size={14} className="inline mr-1.5" />
+            OT Approvals
+            {otApprovals.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {otApprovals.length}
+              </span>
+            )}
           </button>
           <button onClick={() => setActiveTab("csv")} className={activeTab === "csv" ? TAB_ACTIVE : TAB_INACTIVE}>
             <FileSpreadsheet size={14} className="inline mr-1.5" />
@@ -625,6 +700,153 @@ export default function DtrUploadPage() {
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/* TAB: OT Approvals                                           */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {activeTab === "ot" && (
+          <div className="space-y-4">
+            {!selectedPeriodId ? (
+              <div className={GLASS_CARD + " p-6 text-center"}>
+                <CheckCircle2 size={32} className="mx-auto mb-3 text-slate-600" />
+                <p className="text-sm text-slate-400">Select a payroll period above to view OT approvals.</p>
+              </div>
+            ) : (
+              <>
+                {/* Info banner */}
+                <div className="rounded-xl border border-violet-500/20 bg-violet-900/10 px-4 py-3 text-xs text-violet-300 flex items-start gap-2">
+                  <Info size={13} className="mt-0.5 flex-none" />
+                  <span>
+                    Approved OT requests from the OS Overtime page are listed below.
+                    Click <strong>Sync to DTR</strong> to write approved hours into each staff member&apos;s
+                    attendance record. OT is also auto-synced the moment it is approved.
+                  </span>
+                </div>
+
+                {/* Error */}
+                {otTabError && (
+                  <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+                    <AlertCircle size={12}/> {otTabError}
+                  </div>
+                )}
+
+                {/* Sync result */}
+                {otSyncResult && (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-4 flex flex-wrap gap-6">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-emerald-300">{otSyncResult.synced}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Records updated</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-amber-300">{otSyncResult.no_dtr}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">No DTR record (skipped)</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-slate-300">{otSyncResult.total_ot_records}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">OT entries in period</p>
+                    </div>
+                    <div className="flex-1 flex items-center justify-end">
+                      <button onClick={() => setOtSyncResult(null)} className="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => void loadOtApprovals(selectedPeriodId)}
+                    disabled={otApprovalsLoading}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={otApprovalsLoading ? "animate-spin" : ""}/> Refresh
+                  </button>
+                  <button
+                    onClick={() => void syncOtApprovals()}
+                    disabled={otSyncing || otApprovals.length === 0}
+                    className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+                  >
+                    {otSyncing
+                      ? <Loader2 size={12} className="animate-spin"/>
+                      : <Zap size={12}/>}
+                    Sync to DTR ({otApprovals.length} records)
+                  </button>
+                </div>
+
+                {/* OT Approvals table */}
+                {otApprovalsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 size={20} className="animate-spin text-violet-400"/>
+                  </div>
+                ) : otApprovals.length === 0 ? (
+                  <div className={GLASS_CARD + " p-8 text-center"}>
+                    <CheckCircle2 size={28} className="mx-auto mb-2 text-slate-600"/>
+                    <p className="text-sm text-slate-400">No approved OT requests for this period.</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Go to Admin → Overtime to approve pending requests.
+                    </p>
+                  </div>
+                ) : (
+                  <div className={GLASS_CARD + " overflow-hidden"}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs" style={{ minWidth: "640px" }}>
+                        <thead>
+                          <tr className="border-b border-white/10 bg-slate-800/60">
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">Date</th>
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">Staff</th>
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">Branch</th>
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">OT Window</th>
+                            <th className="px-3 py-2.5 text-center font-semibold text-slate-400">Hours</th>
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">Reason</th>
+                            <th className="px-3 py-2.5 text-left font-semibold text-slate-400">Approved By</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {otApprovals.map((row, idx) => {
+                            const hrs = row.ot_minutes / 60;
+                            const h = Math.floor(hrs);
+                            const m = Math.round((hrs - h) * 60);
+                            const hrsLabel = m > 0 ? `${h}h ${m}m` : `${h}h`;
+                            const startH = Math.floor(row.ot_start_hour);
+                            const startM = Math.round((row.ot_start_hour - startH) * 60);
+                            const endH   = Math.floor(row.ot_end_hour);
+                            const endM   = Math.round((row.ot_end_hour - endH) * 60);
+                            const fmt = (hh: number, mm: number) =>
+                              `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+                            return (
+                              <tr key={row.id} className={`border-b border-white/5 hover:bg-white/5 ${idx % 2 === 0 ? "" : "bg-slate-800/20"}`}>
+                                <td className="px-3 py-2 tabular-nums text-slate-300">{row.work_date}</td>
+                                <td className="px-3 py-2 text-slate-200 font-medium">{row.staff_name}</td>
+                                <td className="px-3 py-2 text-slate-400">{row.branch_code || "—"}</td>
+                                <td className="px-3 py-2 tabular-nums text-slate-300">
+                                  {fmt(startH, startM)} – {fmt(endH, endM)}
+                                  <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-slate-700 text-slate-500">
+                                    {row.request_type === "pre" ? "pre" : "post"}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <span className="font-bold text-violet-300">{hrsLabel}</span>
+                                </td>
+                                <td className="px-3 py-2 text-slate-400 max-w-[160px] truncate" title={row.reason}>{row.reason || "—"}</td>
+                                <td className="px-3 py-2 text-slate-500">
+                                  {row.reviewed_by || "—"}
+                                  {row.reviewed_at && (
+                                    <span className="block text-[10px] text-slate-600">
+                                      {new Date(row.reviewed_at).toLocaleDateString("en-PH")}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
