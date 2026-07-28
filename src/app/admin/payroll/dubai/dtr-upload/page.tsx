@@ -92,15 +92,43 @@ const DAY_TYPE_LABELS: Record<string, string> = {
 
 // ── CSV Parser ─────────────────────────────────────────────────────────────────
 
+function parseCsvLine(line: string): string[] {
+  // Handles quoted fields (e.g. "Smith, John") and plain comma-separated values
+  const cols: string[] = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if ((ch === "," || ch === "\t") && !inQ) {
+      cols.push(cur.trim()); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
 function parseDtrCsv(text: string): DtrRow[] {
-  const lines = text.trim().split("\n").filter(l => l.trim() && !l.trim().startsWith("#"));
+  // Strip BOM and split into lines
+  const cleaned = text.replace(/^﻿/, "");
+  const rawLines = cleaned.trim().split(/\r?\n/).filter(l => {
+    const t = l.trim();
+    return t && !t.startsWith("#");
+  });
+  // Skip header row if present (first column = "work_date")
+  const lines = rawLines[0] && parseCsvLine(rawLines[0])[0]?.toLowerCase() === "work_date"
+    ? rawLines.slice(1)
+    : rawLines;
   return lines.map((line, i) => {
-    const cols = line.split(/[,\t]/).map(c => c.trim());
+    const cols = parseCsvLine(line);
     if (cols.length < 2) throw new Error(`Row ${i + 1}: need at least 2 columns`);
     const [date, name, time_in = "", time_out = "", reg = "8", ot = "0",
            late = "0", ut = "0", day_type = "ordinary_day",
            rest_day = "N", awp = "N", leave = "N"] = cols;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Row ${i + 1}: date must be YYYY-MM-DD`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Row ${i + 1}: date must be YYYY-MM-DD (got "${date}")`);
     if (!name) throw new Error(`Row ${i + 1}: staff_name is required`);
     const isAWP = awp.toUpperCase() === "Y";
     return {
@@ -121,6 +149,7 @@ function fmtTime(iso: string | null) {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
     return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
   } catch { return iso.slice(11, 16) || "—"; }
 }
@@ -129,8 +158,9 @@ function fmtTimeCsv(iso: string | null): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
     return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
-  } catch { return iso.slice(11, 16) || ""; }
+  } catch { return ""; }
 }
 
 function fmtHours(h: number) {
@@ -267,12 +297,13 @@ export default function DubaiDtrUploadPage() {
       const rows = data.preview ?? [];
       if (rows.length === 0) { setDownloadError("No attendance data found for this range."); return; }
 
+      const csvQ = (s: string) => s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
       const header = "work_date,staff_name,actual_time_in,actual_time_out,regular_hours,overtime_hours,late_minutes,undertime_minutes,day_type,is_scheduled_rest_day,absent_without_pay,annual_leave_flag";
       const csvRows = rows.map(row => {
         const isOff = !row.is_worked && !row.absent_without_pay;
         return [
           row.work_date,
-          row.staff_name,
+          csvQ(row.staff_name),
           isOff ? "" : fmtTimeCsv(row.actual_time_in),
           isOff ? "" : fmtTimeCsv(row.actual_time_out),
           isOff ? "0" : String(row.regular_hours ?? 0),
@@ -323,7 +354,18 @@ export default function DubaiDtrUploadPage() {
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json() as UploadResult;
       setUploadResult(res);
-      if (res.errors.length === 0) { setCsvPreview(null); setCsvText(""); }
+      if (res.errors.length === 0) {
+        setCsvPreview(null); setCsvText("");
+        // Auto-refresh DTR records table
+        if (selectedPeriodId) {
+          setDtrLoading(true);
+          void apiFetch(`${API}/attendance-full?period_id=${selectedPeriodId}`)
+            .then(r2 => r2.json())
+            .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
+            .catch(() => {})
+            .finally(() => setDtrLoading(false));
+        }
+      }
     } catch (e) { setParsError(`Upload error: ${String(e)}`); }
     finally { setUploading(false); }
   }
@@ -481,10 +523,15 @@ export default function DubaiDtrUploadPage() {
             {/* CSV textarea */}
             {!csvPreview && !uploadResult && (
               <div className={GLASS_CARD + " p-5 space-y-3"}>
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <FileSpreadsheet size={16} className="text-sky-400" />
-                  Paste CSV Data
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <FileSpreadsheet size={16} className="text-sky-400" />
+                    Paste CSV Data
+                  </h3>
+                  {selectedPeriod
+                    ? <span className="text-xs text-sky-300">Linking to: <strong>{selectedPeriod.period_label}</strong></span>
+                    : <span className="text-xs text-amber-400">No period selected — upload will not be linked</span>}
+                </div>
                 <textarea
                   value={csvText}
                   onChange={e => { setCsvText(e.target.value); setParsError(""); }}

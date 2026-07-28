@@ -1,8 +1,31 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-27 (session 177 — Store Evaluation Follow-up Issue Tracker)
+Last updated: 2026-07-27 (session 178 — Bug fixes + Payroll CSV Import)
 
 
+
+---
+
+## Recently Completed (2026-07-27 session 178 — Bug fixes + Payroll CSV Import)
+
+### Overtime Request Page — 2 SelectDark bugs (DEPLOYED ✅ Vercel)
+- `/store/overtime-request`: Branch SelectDark used `{ value: "", label: "Select branch…" }` empty option → replaced with `placeholder=` prop
+- `/admin/overtime`: Branch + Status filters showed "— Select —" → replaced with `placeholder=` + `clearable={true}`
+
+### My Notices 500 Error — PostgreSQL ambiguous ORDER BY (DEPLOYED ✅ Heroku)
+- `db_nte.py`: `SELECT *, col::text AS col` creates duplicate column names; `ORDER BY col` is ambiguous
+- Fixed 3 queries: `list_staff_notices`, `list_nte_requests`, `list_staff_notifications` — prefixed with table name
+
+### Request Page (/request) — 4 bugs (DEPLOYED ✅ Vercel)
+- Bug 1: `parseFloat(otHours) || 0` sent 0 when blank → added `<= 0` validation, send actual parsed value
+- Bug 2: `absence`/`day_off` sent as `notification_type: "leave"` → mapped to correct type
+- Bug 3: `InboxTab.review()` missing `setError("")` on retry
+- Bug 4: negative `leaveDays` bypassed `|| 1` fallback → added `<= 0` validation
+
+### Payroll Adjustments CSV Import (DEPLOYED ✅ Heroku v1565, Vercel cd12758)
+- **Backend**: `POST /api/admin/payroll/adjustments/bulk-import` — accepts `List[AdjustmentIn]` rows, validates each (staff_name, adj_type, amount > 0, date format), calls `create_payroll_adjustment` per row with `source="csv_import"`, returns `{imported, skipped, errors}`
+- **Frontend**: `CsvImportModal` component — template download, file picker, CSV parser (handles quoted fields), row-level validation preview table, Import button with progress, result summary
+- "Import CSV" button added to Payroll Adjustments toolbar
 
 ---
 
