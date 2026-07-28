@@ -1441,7 +1441,6 @@ export default function AdminDailyInventoryTab() {
 
   // Option 2: auto-recovery banner state
   const [recoveryDraft, setRecoveryDraft] = useState<ReportHeader | null>(null);
-  const hasCheckedRecoveryRef = useRef(false);
   // When restoring a draft whose branch differs from current, staff names reload after setBranch.
   // Store the intended name here so the staff-loading effect can resolve it correctly.
   const pendingStaffRestoreRef = useRef<string | null>(null);
@@ -1690,10 +1689,11 @@ export default function AdminDailyInventoryTab() {
     } finally { setDetailLoading(false); }
   };
 
-  // Option 2: check for today's unsubmitted draft on mount (auto-recovery)
+  // Option 2: check for today's unsubmitted draft on mount + whenever branch changes (auto-recovery)
+  // currentReportId not in deps intentionally: if user is already editing, skip (batched with setBranch in cross-branch restore)
   useEffect(() => {
-    if (hasCheckedRecoveryRef.current || currentReportId) return;
-    hasCheckedRecoveryRef.current = true;
+    if (currentReportId) return; // already editing a report — don't disturb
+    setRecoveryDraft(null);     // clear any banner from the previous branch
     void (async () => {
       try {
         const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=10`);
@@ -1704,7 +1704,7 @@ export default function AdminDailyInventoryTab() {
         if (todayDraft) setRecoveryDraft(todayDraft);
       } catch { /* silent — non-critical */ }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sections = [...new Set(items.map((i) => i.section))].sort();
   const countBySection = (sec: string) => {
