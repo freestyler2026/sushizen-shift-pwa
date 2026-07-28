@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
-  FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X,
+  Download, FileSpreadsheet, Filter, Info, Loader2, RefreshCw, Upload, X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -49,6 +49,62 @@ type UploadResult = {
   inserted: number; updated: number; total: number;
   errors: { row_index: number; staff_name: string; work_date: string; message: string }[];
 };
+
+type ManilaAttRow = {
+  id: number;
+  staff_name: string;
+  work_date: string;
+  scheduled_store: string | null;
+  scheduled_shift_start: string | null;
+  scheduled_shift_end: string | null;
+  actual_time_in: string | null;
+  actual_time_out: string | null;
+  regular_hours: number;
+  overtime_hours: number;
+  night_regular_hours: number;
+  night_overtime_hours: number;
+  late_minutes: number;
+  undertime_minutes: number;
+  day_type: string;
+  is_scheduled_rest_day: boolean;
+  absent_without_pay: boolean;
+  paid_leave_flag: boolean;
+  approval_status: string;
+};
+
+function manilaRowStatus(row: ManilaAttRow): string {
+  if (row.absent_without_pay) return "Absent";
+  if (row.paid_leave_flag) return "Leave";
+  if (row.is_scheduled_rest_day && !row.actual_time_in) return "Day Off";
+  if (row.actual_time_in || row.regular_hours > 0) return "Worked";
+  return "No Data";
+}
+
+function downloadManilaAttCsv(rows: ManilaAttRow[], periodLabel: string) {
+  const header = ["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs","NSD Reg","NSD OT","Late","Day Type","Status"];
+  const csvRows = rows.map(r => {
+    const sched = r.scheduled_shift_start && r.scheduled_shift_end
+      ? `${r.scheduled_shift_start.slice(0,5)}–${r.scheduled_shift_end.slice(0,5)}`
+      : "";
+    return [
+      r.work_date, r.staff_name, r.scheduled_store ?? "",
+      sched,
+      r.actual_time_in ? fmtTime(r.actual_time_in) : "",
+      r.actual_time_out ? fmtTime(r.actual_time_out) : "",
+      r.regular_hours, r.overtime_hours,
+      r.night_regular_hours, r.night_overtime_hours,
+      r.late_minutes,
+      r.day_type, manilaRowStatus(r),
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(",");
+  });
+  const csv = [header.join(","), ...csvRows].join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `manila_dtr_${periodLabel.replace(/\s+/g,"_")}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
 
 const DAY_TYPE_OPTIONS = [
   "ordinary_day", "rest_day", "regular_holiday", "regular_holiday_and_rest_day",
@@ -142,6 +198,25 @@ export default function DtrUploadPage() {
 
   const [activeTab, setActiveTab]           = useState<"csv" | "guide">("csv");
 
+  // DTR Records view state
+  const [dtrRecords, setDtrRecords]         = useState<ManilaAttRow[]>([]);
+  const [dtrLoading, setDtrLoading]         = useState(false);
+  const [dtrStaffFilter, setDtrStaffFilter] = useState("");
+  const [dtrStoreFilter, setDtrStoreFilter] = useState("");
+  const [dtrStatusFilter, setDtrStatusFilter] = useState("");
+
+  const loadDtrRecords = useCallback(async (periodId: string) => {
+    if (!periodId) { setDtrRecords([]); return; }
+    setDtrLoading(true);
+    try {
+      const r = await apiFetch(`${API}/attendance/${periodId}`);
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as ManilaAttRow[];
+      setDtrRecords(Array.isArray(data) ? data : []);
+    } catch { setDtrRecords([]); }
+    finally { setDtrLoading(false); }
+  }, []);
+
   const loadPeriods = useCallback(async () => {
     setPeriodsLoading(true);
     try {
@@ -155,6 +230,8 @@ export default function DtrUploadPage() {
   }, []);
 
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
+
+  useEffect(() => { void loadDtrRecords(selectedPeriodId); }, [selectedPeriodId, loadDtrRecords]);
 
   const selectedPeriod = periods.find(p => String(p.id) === selectedPeriodId);
 
@@ -430,6 +507,141 @@ paid_leave    Y / N          (default: N)`}</code>
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── Current DTR Records for this Period ───────────────────────────── */}
+        {selectedPeriodId && (
+          <div className={GLASS_CARD + " overflow-hidden"}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <ClipboardList size={15} className="text-violet-400" />
+                <span className="text-sm font-semibold text-white">Current DTR Records for this Period</span>
+                {!dtrLoading && (
+                  <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-xs text-violet-300">
+                    {dtrRecords.length} rows
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { void loadDtrRecords(selectedPeriodId); }}
+                  className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10">
+                  <RefreshCw size={11} className={dtrLoading ? "animate-spin" : ""} /> Refresh
+                </button>
+                {dtrRecords.length > 0 && (
+                  <button
+                    onClick={() => downloadManilaAttCsv(dtrRecords, selectedPeriod?.period_label ?? selectedPeriodId)}
+                    className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20">
+                    <Download size={11} /> CSV All ({dtrRecords.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filters */}
+            {dtrRecords.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-b border-white/10 px-4 py-2 bg-white/[0.02]">
+                <Filter size={13} className="text-slate-500 self-center" />
+                <input
+                  type="text"
+                  placeholder="Staff name…"
+                  value={dtrStaffFilter}
+                  onChange={e => setDtrStaffFilter(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:border-violet-500 focus:outline-none w-40"
+                />
+                <SelectDark
+                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
+                  value={dtrStoreFilter}
+                  onChange={setDtrStoreFilter}
+                  options={[
+                    { value: "", label: "All Stores" },
+                    ...[...new Set(dtrRecords.map(r => r.scheduled_store).filter(Boolean) as string[])].sort()
+                      .map(s => ({ value: s, label: s })),
+                  ]}
+                />
+                <SelectDark
+                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
+                  value={dtrStatusFilter}
+                  onChange={setDtrStatusFilter}
+                  options={[
+                    { value: "", label: "All Status" },
+                    { value: "Worked", label: "Worked" },
+                    { value: "Day Off", label: "Day Off" },
+                    { value: "Absent", label: "Absent" },
+                    { value: "Leave", label: "Leave" },
+                  ]}
+                />
+              </div>
+            )}
+
+            {dtrLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 size={24} className="animate-spin text-violet-400" />
+              </div>
+            ) : dtrRecords.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-500">
+                No DTR records for this period yet.
+              </div>
+            ) : (() => {
+              const filtered = dtrRecords.filter(r => {
+                if (dtrStaffFilter && !r.staff_name.toLowerCase().includes(dtrStaffFilter.toLowerCase())) return false;
+                if (dtrStoreFilter && r.scheduled_store !== dtrStoreFilter) return false;
+                if (dtrStatusFilter && manilaRowStatus(r) !== dtrStatusFilter) return false;
+                return true;
+              });
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ minWidth: "900px" }}>
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5">
+                        {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs","Late","Type","Status"].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filtered.map((row, idx) => {
+                        const status = manilaRowStatus(row);
+                        const sched = row.scheduled_shift_start && row.scheduled_shift_end
+                          ? `${row.scheduled_shift_start.slice(0,5)}–${row.scheduled_shift_end.slice(0,5)}`
+                          : "—";
+                        return (
+                          <tr key={row.id ?? idx} className={`hover:bg-white/5 ${idx % 2 === 1 ? "bg-white/[0.02]" : ""}`}>
+                            <td className="px-3 py-2 font-mono text-slate-400">{row.work_date}</td>
+                            <td className="px-3 py-2 font-medium text-white">{row.staff_name}</td>
+                            <td className="px-3 py-2 text-slate-400">{row.scheduled_store || "—"}</td>
+                            <td className="px-3 py-2 text-slate-400">{sched}</td>
+                            <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
+                            <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-emerald-400">{Number(row.regular_hours).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-amber-400">
+                              {Number(row.overtime_hours) > 0 ? Number(row.overtime_hours).toFixed(2) : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-400">
+                              {Number(row.late_minutes) > 0 ? `${row.late_minutes}m` : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-slate-400">{DAY_TYPE_LABELS[row.day_type] ?? row.day_type}</td>
+                            <td className="px-3 py-2">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                status === "Worked"  ? "bg-emerald-500/20 text-emerald-400" :
+                                status === "Absent"  ? "bg-red-500/20 text-red-400" :
+                                status === "Leave"   ? "bg-blue-500/20 text-blue-400" :
+                                status === "Day Off" ? "bg-slate-500/20 text-slate-400" :
+                                "bg-white/10 text-slate-500"
+                              }`}>{status}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {filtered.length === 0 && (
+                    <p className="py-6 text-center text-sm text-slate-500">No records match filters.</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
