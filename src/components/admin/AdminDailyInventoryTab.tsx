@@ -26,7 +26,15 @@ import {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
-const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT"] as const;
+type CityKey = "manila" | "dubai";
+
+const CITY_BRANCHES: Record<CityKey, string[]> = {
+  manila: ["PARANAQUE", "CUBAO", "TAFT"],
+  dubai:  ["BUSINESS BAY", "JLT", "ARJAN", "AL MINA", "AL BARSHA"],
+};
+
+// Keep for backward compat (auto-save, par-pattern lookup etc. that only Manila uses)
+const BRANCHES = CITY_BRANCHES.manila;
 const SHIFTS = ["AM", "PM", "OVERNIGHT"] as const;
 const UNITS = [
   "kg", "g", "ml", "L",
@@ -1400,7 +1408,14 @@ export default function AdminDailyInventoryTab() {
   const auth = getAuth();
   const manager = isManager(auth);
 
-  const [branch, setBranch] = useState<string>(BRANCHES[0]);
+  // Derive initial city from auth; cityLock restricts switching
+  const authCity: CityKey = (auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+  const cityLocked = auth?.cityLock === "dubai" || auth?.cityLock === "manila";
+
+  const [city, setCity] = useState<CityKey>(authCity);
+  const cityBranches = CITY_BRANCHES[city];
+
+  const [branch, setBranch] = useState<string>(cityBranches[0]);
   const [reportDate, setReportDate] = useState(todayYmd());
   const [shift, setShift] = useState("AM");
   const [staffChoice, setStaffChoice] = useState<string>("");
@@ -1415,7 +1430,7 @@ export default function AdminDailyInventoryTab() {
   const entriesRef = useRef<EntryMap>({});
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
-  const headerRef = useRef<{ branch: string; reportDate: string; shift: string; staffChoice: string; customStaff: string }>({ branch: BRANCHES[0], reportDate: todayYmd(), shift: "AM", staffChoice: "", customStaff: "" });
+  const headerRef = useRef<{ branch: string; reportDate: string; shift: string; staffChoice: string; customStaff: string }>({ branch: cityBranches[0], reportDate: todayYmd(), shift: "AM", staffChoice: "", customStaff: "" });
   useEffect(() => { headerRef.current = { branch, reportDate, shift, staffChoice, customStaff }; }, [branch, reportDate, shift, staffChoice, customStaff]);
 
   const [saving, setSaving] = useState(false);
@@ -1488,13 +1503,22 @@ export default function AdminDailyInventoryTab() {
     })();
   }, []); // mount only
 
+  // Reset branch to first of new city when city changes; also clear any recovery banner
+  useEffect(() => {
+    if (currentReportId) return; // don't disrupt an active edit
+    setBranch(CITY_BRANCHES[city][0]);
+    setRecoveryDraft(null);
+  }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Staff names
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setStaffNamesLoading(true); setStaffListError("");
       try {
-        const res = await apiFetch(`/api/daily-inventory/staff-names?home_branch=${encodeURIComponent(branch)}`);
+        // For Manila: pass home_branch to filter by branch. For Dubai: skip branch filter (all Dubai staff).
+        const branchParam = city === "manila" ? encodeURIComponent(branch) : "";
+        const res = await apiFetch(`/api/daily-inventory/staff-names?home_branch=${branchParam}&city=${city}`);
         const text = await res.text();
         if (!res.ok) throw new Error(text || "Failed to load staff names");
         const data = JSON.parse(text || "{}") as { names?: string[] };
@@ -1523,7 +1547,7 @@ export default function AdminDailyInventoryTab() {
       } finally { if (!cancelled) setStaffNamesLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [branch]);
+  }, [branch, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Items by source tab
   useEffect(() => {
@@ -1917,11 +1941,23 @@ export default function AdminDailyInventoryTab() {
 
           {/* Header fields */}
           <div className={`${GLASS_CARD} mb-4 p-5`}>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+              {/* City — shown to all; disabled when cityLock prevents switching */}
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+                <select
+                  value={city}
+                  onChange={(e) => { if (!currentReportId) setCity(e.target.value as CityKey); }}
+                  disabled={cityLocked || Boolean(currentReportId)}
+                  className={`${SELECT_CLASS} disabled:opacity-60`}>
+                  <option value="manila">Manila</option>
+                  <option value="dubai">Dubai</option>
+                </select>
+              </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
                 <select value={branch} onChange={(e) => setBranch(e.target.value)} className={SELECT_CLASS}>
-                  {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+                  {cityBranches.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div className="min-w-0 overflow-hidden">
