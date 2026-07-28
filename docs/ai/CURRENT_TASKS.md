@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 183 cont. — OT 48h restriction)
+Last updated: 2026-07-28 (session 184 — Payroll channel audit + gov-tables NaN fixes)
+
+---
+
+## Recently Completed (2026-07-28 session 184 — Payroll audit / gov-tables NaN fixes)
+
+### Gov Tables: Fix NaN display in PhilHealth, Pag-IBIG, and BIR tabs (DEPLOYED ✅ Vercel b04a1b4 + prior 327f1d4)
+- Root cause: All rate fields in `ph_philhealth_table`, `ph_pagibig_contribution_rules`, `ph_bir_brackets` are stored as decimals (0.0500=5%), but frontend types used wrong field names → `parseFloat(undefined)` = NaN
+- **Pay Rate Rules OT MULT. (commit 327f1d4)**: `PayRateRule.ot_hourly_multiplier` → `ot_multiplier_on_day_rate`
+- **PhilHealth (commit b04a1b4)**: `rate_percent→rate_pct`, `basis_min→premium_min`, `basis_max→premium_max`; remove `ee_share_percent`; render rates `* 100` (0.0500 → 5.0%)
+- **Pag-IBIG (commit b04a1b4)**: `ee_rate_percent→employee_rate`, `er_rate_percent→employer_rate`, `max_ee_contribution→employee_max`, `max_er_contribution→employer_max`; render rates `* 100`
+- **BIR (commit b04a1b4)**: `excess_rate_percent→excess_rate_pct`; render `* 100`
+- **Lesson**: All PH gov contribution rates stored as decimals in DB (0.0500=5%); render with `parseFloat(String(val)) * 100` not bare `dec(val)`
+
+### Payroll Adjustments: 4 bugs fixed (session 184, DEPLOYED ✅ prior commits)
+- Bug 1: DTR table not refreshing after CSV upload → fixed by calling `loadDtrRecords` in `handleUpload`
+- Bug 2a: Staff name free-text → SelectDark dropdown with city-filtered staff list
+- Bug 2b/c/d: Type dropdown showed all 3 types regardless of button → replaced with read-only label
+- Bug 3: `?city=` URL param not read → fixed via `window.location.search` in `useState` initializer
 
 ---
 
