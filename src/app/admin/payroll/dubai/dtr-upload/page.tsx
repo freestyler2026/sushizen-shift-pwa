@@ -243,6 +243,7 @@ export default function DubaiDtrUploadPage() {
   const [parsError, setParsError]           = useState("");
   const [uploading, setUploading]           = useState(false);
   const [uploadResult, setUploadResult]     = useState<UploadResult | null>(null);
+  const [insertOnly, setInsertOnly]         = useState(false);
 
   const [activeTab, setActiveTab]           = useState<"csv" | "guide">("csv");
 
@@ -349,7 +350,7 @@ export default function DubaiDtrUploadPage() {
     try {
       const r = await apiFetch(`${API}/attendance/bulk-upload`, {
         method: "POST",
-        body: JSON.stringify({ period_id: selectedPeriodId ? parseInt(selectedPeriodId) : null, rows: csvPreview }),
+        body: JSON.stringify({ period_id: selectedPeriodId ? parseInt(selectedPeriodId) : null, rows: csvPreview, insert_only: insertOnly }),
       });
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json() as UploadResult;
@@ -613,13 +614,31 @@ export default function DubaiDtrUploadPage() {
                     <AlertCircle size={13} /> {parsError}
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <button onClick={handleUpload} disabled={uploading}
-                    className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm disabled:opacity-40"}>
-                    {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-                    {uploading ? "Uploading…" : `Upload ${csvPreview.length} rows`}
-                  </button>
-                  <button onClick={resetCsv} className="text-sm text-slate-400 hover:text-white">Cancel</button>
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+                    <input
+                      type="checkbox"
+                      checked={insertOnly}
+                      onChange={e => setInsertOnly(e.target.checked)}
+                      className="w-4 h-4 rounded accent-purple-500"
+                    />
+                    <span className="text-sm text-slate-300">
+                      Insert only — skip rows where (staff + date) already exists
+                    </span>
+                  </label>
+                  {insertOnly && (
+                    <p className="text-xs text-amber-400">
+                      Manually corrected records will not be overwritten.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button onClick={handleUpload} disabled={uploading}
+                      className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm disabled:opacity-40"}>
+                      {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                      {uploading ? "Uploading…" : `Upload ${csvPreview.length} rows`}
+                    </button>
+                    <button onClick={resetCsv} className="text-sm text-slate-400 hover:text-white">Cancel</button>
+                  </div>
                 </div>
               </div>
             )}
