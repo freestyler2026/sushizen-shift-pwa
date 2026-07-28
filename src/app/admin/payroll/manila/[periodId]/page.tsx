@@ -81,11 +81,13 @@ type AttendanceRow = {
   period_id: number | null;
 };
 
+type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION";
+
 type Adjustment = {
   id: number;
   period_id: number;
   staff_name: string;
-  item_type: "MANUAL_ADDITION" | "MANUAL_DEDUCTION";
+  item_type: AdjItemType;
   amount: number;
   reason: string | null;
   created_by: string | null;
@@ -411,7 +413,7 @@ function AdjustmentModal({
   const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState("");
   // new-item form
-  const [newType, setNewType] = useState<"MANUAL_ADDITION" | "MANUAL_DEDUCTION">("MANUAL_ADDITION");
+  const [newType, setNewType] = useState<AdjItemType>("MANUAL_ADDITION");
   const [newAmount, setNewAmount] = useState("");
   const [newReason, setNewReason] = useState("");
   const [adding, setAdding] = useState(false);
@@ -496,7 +498,7 @@ function AdjustmentModal({
               Manual Adjustments — {run.staff_name}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Add one-off additions or deductions (e.g. missed OT recognition, reimbursements).
+              Add one-off additions, deductions, income tax, or loan repayments.
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18}/></button>
@@ -530,6 +532,11 @@ function AdjustmentModal({
                       <span className={`text-sm font-medium ${adj.item_type === "MANUAL_ADDITION" ? "text-emerald-300" : "text-red-300"}`}>
                         {adj.item_type === "MANUAL_ADDITION" ? "+" : "−"}{fmtPHP(adj.amount)}
                       </span>
+                      {adj.item_type !== "MANUAL_ADDITION" && adj.item_type !== "MANUAL_DEDUCTION" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
+                          {adj.item_type === "INCOME_TAX" ? "Tax" : "Loan"}
+                        </span>
+                      )}
                     </div>
                     {adj.reason && <p className="text-xs text-slate-500 mt-0.5 ml-5">{adj.reason}</p>}
                     <p className="text-[10px] text-slate-600 mt-0.5 ml-5">
@@ -552,10 +559,10 @@ function AdjustmentModal({
           {/* Add form */}
           <div className="rounded-xl border border-violet-500/20 bg-violet-900/10 p-4 space-y-3">
             <p className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Add Adjustment</p>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setNewType("MANUAL_ADDITION")}
-                className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
                   newType === "MANUAL_ADDITION"
                     ? "border-emerald-500/40 bg-emerald-900/30 text-emerald-300"
                     : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
@@ -565,13 +572,33 @@ function AdjustmentModal({
               </button>
               <button
                 onClick={() => setNewType("MANUAL_DEDUCTION")}
-                className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
                   newType === "MANUAL_DEDUCTION"
                     ? "border-red-500/40 bg-red-900/30 text-red-300"
                     : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
                 }`}
               >
                 <MinusCircle size={12}/> Deduction
+              </button>
+              <button
+                onClick={() => setNewType("INCOME_TAX")}
+                className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                  newType === "INCOME_TAX"
+                    ? "border-amber-500/40 bg-amber-900/30 text-amber-300"
+                    : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <MinusCircle size={12}/> Income Tax
+              </button>
+              <button
+                onClick={() => setNewType("LOAN_DEDUCTION")}
+                className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                  newType === "LOAN_DEDUCTION"
+                    ? "border-orange-500/40 bg-orange-900/30 text-orange-300"
+                    : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <MinusCircle size={12}/> Loan Repayment
               </button>
             </div>
             <div className="flex gap-2">
