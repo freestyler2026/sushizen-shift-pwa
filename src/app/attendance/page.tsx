@@ -1741,18 +1741,29 @@ export default function AttendancePage() {
 
       {/* ── Clock Out confirmation modal ──────────────────────────────────────── */}
       {showClockOutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 p-5 space-y-4 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setShowClockOutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 p-5 space-y-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-2">
               <LogOut size={18} className="text-rose-400" />
-              <h3 className="text-base font-semibold text-white">Confirm Clock Out</h3>
+              <h3 className="text-base font-semibold text-white">
+                {multiBranch ? "Confirm End Work Day" : "Confirm Clock Out"}
+              </h3>
             </div>
 
-            {workedMinutes < 5 && (
+            {isCheckedIn && workedMinutes < 5 && (
               <div className="flex items-start gap-2 rounded-xl bg-amber-900/30 border border-amber-500/30 px-3 py-2.5">
                 <AlertCircle size={15} className="text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-300">
-                  You&apos;ve only been clocked in for <span className="font-semibold">{workedMinutes === 0 ? "less than 1 minute" : `${workedMinutes} minute${workedMinutes > 1 ? "s" : ""}`}</span>. Did you mean to clock in instead?
+                  You&apos;ve only been clocked in for{" "}
+                  <span className="font-semibold">
+                    {workedMinutes === 0 ? "less than 1 minute" : `${workedMinutes} minute${workedMinutes > 1 ? "s" : ""}`}
+                  </span>. Did you mean to clock in instead?
                 </p>
               </div>
             )}
@@ -1768,7 +1779,9 @@ export default function AttendancePage() {
               </div>
               <div className="border-t border-zinc-700 pt-1.5 flex justify-between text-xs text-zinc-400">
                 <span>Duration</span>
-                <span className={`font-semibold ${workedMinutes < 5 ? "text-amber-400" : "text-white"}`}>{fmtDuration(workedMinutes)}</span>
+                <span className={`font-semibold ${isCheckedIn && workedMinutes < 5 ? "text-amber-400" : "text-white"}`}>
+                  {workedMinutes === 0 ? "< 1m" : fmtDuration(workedMinutes)}
+                </span>
               </div>
             </div>
 
@@ -1783,7 +1796,7 @@ export default function AttendancePage() {
                 onClick={() => { setShowClockOutConfirm(false); void doAction("checkout"); }}
                 className="flex-1 rounded-xl bg-rose-700 py-3 text-sm font-bold text-white hover:bg-rose-600 transition-colors"
               >
-                Confirm Clock Out
+                {multiBranch ? "End Work Day" : "Confirm Clock Out"}
               </button>
             </div>
           </div>
