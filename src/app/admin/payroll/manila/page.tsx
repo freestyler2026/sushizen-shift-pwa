@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, Calculator, CalendarDays, CheckCircle2,
-  ChevronRight, Clock, Loader2, Plus, RefreshCw,
+  ChevronDown, ChevronRight, ChevronUp, Clock, Loader2, Plus, RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -51,6 +51,7 @@ export default function ManilaPayrollPage() {
   const [error, setError]       = useState("");
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   // Form state
   const [newYear, setNewYear]   = useState(new Date().getFullYear());
@@ -171,6 +172,85 @@ export default function ManilaPayrollPage() {
               <Plus size={16} /> New Period
             </button>
           </div>
+        </div>
+
+        {/* Monthly Checklist */}
+        <div className="rounded-xl border border-sky-500/20 bg-sky-950/30">
+          <button
+            onClick={() => setShowChecklist(v => !v)}
+            className="flex w-full items-center justify-between px-5 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-sky-300">
+              <CheckCircle2 size={15} />
+              Monthly Payroll Checklist
+            </span>
+            {showChecklist ? <ChevronUp size={15} className="text-sky-400" /> : <ChevronDown size={15} className="text-sky-400" />}
+          </button>
+          {showChecklist && (
+            <div className="border-t border-sky-500/20 px-5 py-4">
+              <div className="space-y-3 text-sm">
+                {[
+                  {
+                    when: "Period start前",
+                    tag: "One-time",
+                    color: "bg-violet-900/50 text-violet-300",
+                    step: "1",
+                    title: "Publish shift",
+                    desc: "Draft → Publish で全スタッフの定休日・シフト時間を確定する。これがPayrollの定休日判定の基準になる。",
+                  },
+                  {
+                    when: "期間中・毎日",
+                    tag: "Daily",
+                    color: "bg-amber-900/50 text-amber-300",
+                    step: "2",
+                    title: "Enter absences",
+                    desc: "欠勤者を Absences チャンネル (/admin/absences) に入力する。absence_type = ABSENT（無断欠勤）または VACATION_LEAVE / MEDICAL_LEAVE 等。",
+                  },
+                  {
+                    when: "期間中・毎日",
+                    tag: "Daily",
+                    color: "bg-amber-900/50 text-amber-300",
+                    step: "3",
+                    title: "Check clock-in data",
+                    desc: "OS Attendance で打刻漏れ・ミスを確認・修正する。特に closing shift（深夜帰宅）の翌日 check-out が翌日付になっていないか確認。",
+                  },
+                  {
+                    when: "期間終了後",
+                    tag: "Once",
+                    color: "bg-emerald-900/50 text-emerald-300",
+                    step: "4",
+                    title: "OS Attendance Sync",
+                    desc: "Period detail → \"Sync OS Attendance\" を実行。シフトデータ・打刻データ・欠勤データが一括で manila_attendance_daily に統合される。",
+                  },
+                  {
+                    when: "期間終了後",
+                    tag: "Once",
+                    color: "bg-emerald-900/50 text-emerald-300",
+                    step: "5",
+                    title: "Compute All",
+                    desc: "Period detail → \"Compute All\" を実行して全スタッフの給与を計算。結果を確認して Approve → Publish。",
+                  },
+                ].map(item => (
+                  <div key={item.step} className="flex gap-3">
+                    <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-800/60 text-xs font-bold text-sky-200">
+                      {item.step}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-white">{item.title}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-xs ${item.color}`}>{item.tag}</span>
+                        <span className="text-xs text-slate-500">{item.when}</span>
+                      </div>
+                      <p className="mt-0.5 text-slate-400">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-slate-600">
+                ※ Step 4（Sync）は Step 2・3 のデータをすべて取り込む。Sync前に欠勤・打刻修正を完了させること。
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Create Period Form */}
