@@ -266,6 +266,7 @@ export default function DtrUploadPage() {
   // DTR Records view state
   const [dtrRecords, setDtrRecords]         = useState<ManilaAttRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
+  const [dtrError, setDtrError]             = useState("");
   const [dtrStaffFilter, setDtrStaffFilter] = useState("");
   const [dtrStoreFilter, setDtrStoreFilter] = useState("");
   const [dtrStatusFilter, setDtrStatusFilter] = useState("");
@@ -282,14 +283,15 @@ export default function DtrUploadPage() {
   const [otTabError, setOtTabError]         = useState("");
 
   const loadDtrRecords = useCallback(async (periodId: string) => {
-    if (!periodId) { setDtrRecords([]); return; }
+    if (!periodId) { setDtrRecords([]); setDtrError(""); return; }
     setDtrLoading(true);
+    setDtrError("");
     try {
       const r = await apiFetch(`${API}/attendance/${periodId}`);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json() as ManilaAttRow[];
       setDtrRecords(Array.isArray(data) ? data : []);
-    } catch { setDtrRecords([]); }
+    } catch (e) { setDtrRecords([]); setDtrError(String(e)); }
     finally { setDtrLoading(false); }
   }, []);
 
@@ -1119,9 +1121,16 @@ paid_leave       Y / N          (default: N)`}</code>
               <div className="flex justify-center py-10">
                 <Loader2 size={24} className="animate-spin text-violet-400" />
               </div>
+            ) : dtrError ? (
+              <div className="flex items-center gap-2 m-4 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+                <AlertCircle size={13} /> Failed to load DTR records: {dtrError}
+              </div>
             ) : dtrRecords.length === 0 ? (
-              <div className="py-12 text-center text-sm text-slate-500">
-                No DTR records for this period yet.
+              <div className="py-10 text-center space-y-2">
+                <p className="text-sm text-slate-500">No DTR records for this period yet.</p>
+                <p className="text-xs text-slate-600">
+                  Use <span className="text-violet-400 font-medium">Sync from OS Attendance</span> or <span className="text-violet-400 font-medium">Manual CSV Upload</span> above to populate records.
+                </p>
               </div>
             ) : (() => {
               const filtered = dtrRecords.filter(r => {
