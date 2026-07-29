@@ -91,13 +91,14 @@ type SyncPreviewRow = {
 
 type SyncApiResult = {
   preview_only?: boolean;
+  total_os_rows?: number;
   total_rows?: number;
   total_bayzat_rows?: number;
   would_sync?: number;
   synced?: number;
   new_staff?: { staff_name: string; bayzat_employee_id: string; would_create?: boolean }[];
   new_staff_created?: number;
-  unmatched?: { employee_id: string; name_raw: string; work_date: string }[];
+  unmatched?: { employee_id?: string; staff_name?: string; name_raw?: string; work_date: string; reason?: string }[];
   errors?: { employee_id?: string; staff_name?: string; work_date: string; message: string }[];
   preview?: SyncPreviewRow[];
 };
@@ -405,7 +406,7 @@ export default function DtrUploadPage() {
     if (!selectedPeriodId) { setSyncError("Please select a payroll period first."); return; }
     setSyncLoading(true); setSyncError(""); setSyncResult(null);
     try {
-      const r = await apiFetch(`${API}/sync-dtr`, {
+      const r = await apiFetch(`${API}/sync-dtr-os`, {
         method: "POST",
         body: JSON.stringify({ period_id: parseInt(selectedPeriodId), preview_only: previewOnly }),
       });
@@ -502,10 +503,10 @@ export default function DtrUploadPage() {
                 <div>
                   <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                     <Zap size={15} className="text-violet-400" />
-                    Sync from OS Attendance (Bayzat)
+                    Sync from OS Attendance
                   </h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    Pulls attendance records from OS Attendance for the selected period and writes them directly to DTR.
+                    Pulls clock-in/clock-out records from the OS Attendance app (app打刻データ) for the selected period and writes them directly to DTR.
                     {selectedPeriod && (
                       <span className="ml-1 text-violet-300 font-medium">
                         Range: {selectedPeriod.start_date} – {selectedPeriod.end_date}
@@ -572,7 +573,7 @@ export default function DtrUploadPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
                         <p className="text-xl font-bold text-white tabular-nums">
-                          {syncResult.total_rows ?? syncResult.total_bayzat_rows ?? 0}
+                          {syncResult.total_os_rows ?? syncResult.total_rows ?? 0}
                         </p>
                         <p className="text-xs text-slate-400 mt-0.5">OS Records</p>
                       </div>
@@ -623,7 +624,7 @@ export default function DtrUploadPage() {
                           Unmatched Staff ({syncResult.unmatched!.length}) — not in Manila staff profiles:
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          {[...new Set(syncResult.unmatched!.map(u => u.name_raw || u.employee_id))].map(name => (
+                          {[...new Set(syncResult.unmatched!.map(u => u.name_raw || u.staff_name || u.employee_id || "?"))].map(name => (
                             <span key={name} className="rounded bg-amber-900/40 px-2 py-0.5 text-xs text-amber-200">{name}</span>
                           ))}
                         </div>
