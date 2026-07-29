@@ -55,7 +55,7 @@ type Run = {
 
 type PayrollItem = {
   id: number;
-  item_type: "earning" | "deduction" | "employer_cost";
+  item_type: "earning" | "deduction" | "employer_cost" | "warning";
   item_code: string;
   label: string;
   quantity: number | null;
@@ -827,6 +827,7 @@ function PayslipDetail({
   // ND items are always emitted (even ₱0) so they appear on payslip even with
   // incomplete DTR — include them regardless of amount.
   const ND_CODES = new Set(["NIGHT_DIFF_REGULAR", "NIGHT_DIFF_OT"]);
+  const warnings      = items.filter(i => i.item_type === "warning");
   const earnings      = items.filter(i => i.item_type === "earning" && i.item_code !== "13TH_MONTH_ACCRUAL" && (i.amount > 0 || ND_CODES.has(i.item_code)));
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
@@ -957,6 +958,20 @@ function PayslipDetail({
         {run.minimum_wage_compliant === false && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
             <AlertTriangle size={12} /> Daily rate is below minimum wage (₱695/day)
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {warnings.map((w, idx) => (
+              <div key={idx} className="flex items-start gap-2 rounded-lg border border-orange-500/30 bg-orange-900/20 px-3 py-2 text-xs text-orange-300">
+                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-semibold">{w.label}</span>
+                  {w.note && <p className="mt-0.5 text-orange-400/70">{w.note}</p>}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
