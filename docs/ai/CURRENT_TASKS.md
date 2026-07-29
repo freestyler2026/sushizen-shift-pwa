@@ -1,10 +1,32 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 196 — Manila Payroll: salary_divisor 313-day DOLE method)
+Last updated: 2026-07-29 (session 196 — Manila Payroll: 313-day divisor + bug sweep)
 
 ---
 
-## Recently Completed (2026-07-29 session 196 — Manila Payroll: 313-day divisor)
+## Recently Completed (2026-07-29 session 196 — Manila Payroll: 313-day divisor + bug sweep)
+
+### Manila Payroll: salary_divisor 313-day + 3 bugs found and fixed (DEPLOYED ✅ Heroku ac1f4ae, Vercel 9f0ff00)
+
+**Bugs found and fixed during testing:**
+
+**Bug 1 (CRITICAL): salary_divisor SMALLINT cannot store 26.083333**
+- `manila_payroll_runs.salary_divisor` column was SMALLINT → PostgreSQL silently truncates 26.083333 to 26 on INSERT
+- Fix: `ALTER COLUMN salary_divisor TYPE NUMERIC(8,6)` migration added to `ensure_manila_payroll_tables()`
+
+**Bug 2 (CRITICAL): Compute All hardcoded salary_divisor=26**
+- The INSERT into `manila_payroll_runs` had `salary_divisor` as a SQL literal `26`, not a parameter
+- ON CONFLICT DO UPDATE SET also omitted `salary_divisor` → existing runs never updated
+- Fix: `load_settings_from_db(conn)` called at start of `manila_compute_period()`; divisor passed as parameter; added `salary_divisor=EXCLUDED.salary_divisor` to conflict clause
+
+**Bug 3 (CRITICAL): Recompute single run also wrong**
+- The single-run UPDATE did not include `salary_divisor` or `daily_rate` columns
+- Fix: same pattern — load live settings, compute `daily_rate` with `ROUND_HALF_UP`, include both in UPDATE
+
+**Minor: divisor display formatting**
+- Frontend showed raw `26.083333` float → changed to `Number(run.salary_divisor).toFixed(2)` → shows `26.08`
+
+**Verification (browser JS)**: `₱20,000 ÷ 26.083333 = ₱766.77/day → ₱95.85/hr; 2-day absence = ₱1,533.55` — all match manual sheet ✓
 
 ### Manila Payroll: salary_divisor changed to DOLE 313-day annual method (DEPLOYED ✅ Heroku 3d1bb66)
 
