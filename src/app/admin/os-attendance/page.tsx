@@ -839,7 +839,6 @@ function EditModal({
 
 // ── Daily Report Tab ──────────────────────────────────────────────────────────
 
-const SELECT_CLS = "rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none cursor-pointer";
 
 function DailyReportTab({ city }: { city: string }) {
   // Initialize to today in the city's local timezone
@@ -1001,7 +1000,7 @@ function DailyReportTab({ city }: { city: string }) {
   }
 
   async function handleDelete(s: AttendanceSession) {
-    if (!confirm(`Delete attendance record for ${s.staff_name} on ${s.work_date}? This cannot be undone.`)) return;
+    if (!confirm(`Delete attendance record for ${s.staff_name} on ${s.work_date}?\n\nThis cannot be undone.`)) return;
     setDeletingId(s.id); setLoadErr("");
     try {
       const url = s.source === "bayzat"
@@ -1167,7 +1166,6 @@ function DailyReportTab({ city }: { city: string }) {
         <SelectDark
           value={staffFilter}
           onChange={setStaffFilter}
-          className={SELECT_CLS}
           options={[
             { value: "", label: "All Staff" },
             ...meta.staff_names.map(n => ({ value: n, label: n })),
@@ -1178,7 +1176,6 @@ function DailyReportTab({ city }: { city: string }) {
         <SelectDark
           value={branchFilter}
           onChange={setBranchFilter}
-          className={SELECT_CLS}
           options={[
             { value: "", label: "All Branches" },
             ...meta.branch_codes.map(b => ({ value: b, label: b })),
@@ -1189,7 +1186,6 @@ function DailyReportTab({ city }: { city: string }) {
         <SelectDark
           value={statusFilter}
           onChange={v => setStatusFilter(v as typeof statusFilter)}
-          className={SELECT_CLS}
           options={[
             { value: "", label: "All Status" },
             { value: "on_shift", label: "On Shift" },
@@ -1208,8 +1204,8 @@ function DailyReportTab({ city }: { city: string }) {
         </button>
       </div>
 
-      {/* ── Historical Bayzat CSV Import ──────────────────────────────────── */}
-      <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-3 space-y-2">
+      {/* ── Historical Bayzat CSV Import (Manila only) ───────────────────── */}
+      {city !== "dubai" && <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-3 space-y-2">
         <p className="text-xs font-semibold text-sky-300">Import Historical Attendance (Bayzat CSV)</p>
         <p className="text-xs text-zinc-400">
           Upload a Bayzat timesheet CSV for one branch at a time. Records over 14 h or under 0.5 h are skipped automatically.
@@ -1218,7 +1214,6 @@ function DailyReportTab({ city }: { city: string }) {
           <SelectDark
             value={csvImportBranch}
             onChange={setCsvImportBranch}
-            className={SELECT_CLS + " text-xs py-1"}
             options={[
               { value: "CUBAO", label: "Cubao" },
               { value: "PARANAQUE", label: "Paranaque" },
@@ -1246,7 +1241,7 @@ function DailyReportTab({ city }: { city: string }) {
             {csvImportMsg}
           </p>
         )}
-      </div>
+      </div>}
 
       <p className="text-xs text-white/30">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</p>
 
@@ -1359,7 +1354,7 @@ function DailyReportTab({ city }: { city: string }) {
                             className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
                             <Pencil size={12} />
                           </button>
-                          {!s.is_no_show && (
+                          {!s.is_no_show && sessionStatus(s) !== "on_shift" && (
                             <button onClick={() => { void handleDelete(s); }} disabled={deleting}
                               className="rounded-lg border border-red-500/30 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/60 transition-colors">
                               {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
@@ -1527,9 +1522,10 @@ function CorrectionsTab({ city }: { city: string }) {
   }
 
   function fmtRequestedTime(c: Correction): string {
+    const tz = cityTz(city);
     const parts: string[] = [];
-    if (c.requested_check_in) parts.push(`In: ${c.requested_check_in}`);
-    if (c.requested_check_out) parts.push(`Out: ${c.requested_check_out}`);
+    if (c.requested_check_in) parts.push(`In: ${fmtTime(c.requested_check_in, tz)}`);
+    if (c.requested_check_out) parts.push(`Out: ${fmtTime(c.requested_check_out, tz)}`);
     return parts.join(" · ") || "—";
   }
 
