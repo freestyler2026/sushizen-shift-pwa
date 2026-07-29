@@ -874,7 +874,8 @@ export default function NavBar() {
     const fetchAbsenceStale = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken || !canAccessAbsencesAdmin(auth)) {
+        const role = (auth?.role || "").toUpperCase();
+        if (!auth?.accessToken || (role !== "HQ" && role !== "ADMIN" && !canAccessAbsencesAdmin(auth))) {
           if (!cancelled) setAbsenceStaleBadge(false);
           return;
         }
