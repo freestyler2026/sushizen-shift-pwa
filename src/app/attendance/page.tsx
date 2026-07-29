@@ -300,6 +300,7 @@ export default function AttendancePage() {
   const [unclosedCorrBusy, setUnclosedCorrBusy] = useState(false);
   const [unclosedCorrDone, setUnclosedCorrDone] = useState(false);
   const [lateBannerDismissed, setLateBannerDismissed] = useState(false);
+  const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
@@ -1424,7 +1425,7 @@ export default function AttendancePage() {
               {/* Clock Out — hidden while on break; multi-branch staff see "End Work Day" */}
               {!isOnBreak && (
                 <button
-                  onClick={() => void doAction("checkout")}
+                  onClick={() => setShowClockOutConfirm(true)}
                   disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
                   className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
                 >
@@ -1735,6 +1736,57 @@ export default function AttendancePage() {
           {visits.length === 0 && !visitPickerOpen && (
             <p className="text-xs text-zinc-500">No visits recorded</p>
           )}
+        </div>
+      )}
+
+      {/* ── Clock Out confirmation modal ──────────────────────────────────────── */}
+      {showClockOutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2">
+              <LogOut size={18} className="text-rose-400" />
+              <h3 className="text-base font-semibold text-white">Confirm Clock Out</h3>
+            </div>
+
+            {workedMinutes < 5 && (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-900/30 border border-amber-500/30 px-3 py-2.5">
+                <AlertCircle size={15} className="text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-300">
+                  You&apos;ve only been clocked in for <span className="font-semibold">{workedMinutes === 0 ? "less than 1 minute" : `${workedMinutes} minute${workedMinutes > 1 ? "s" : ""}`}</span>. Did you mean to clock in instead?
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-xl bg-zinc-800/60 px-4 py-3 space-y-1.5">
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span>Clock In</span>
+                <span className="text-white font-medium">{session?.check_in_at ? fmtTime(session.check_in_at, tz) : "—"}</span>
+              </div>
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span>Clock Out</span>
+                <span className="text-white font-medium">Now</span>
+              </div>
+              <div className="border-t border-zinc-700 pt-1.5 flex justify-between text-xs text-zinc-400">
+                <span>Duration</span>
+                <span className={`font-semibold ${workedMinutes < 5 ? "text-amber-400" : "text-white"}`}>{fmtDuration(workedMinutes)}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowClockOutConfirm(false)}
+                className="flex-1 rounded-xl border border-zinc-600 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowClockOutConfirm(false); void doAction("checkout"); }}
+                className="flex-1 rounded-xl bg-rose-700 py-3 text-sm font-bold text-white hover:bg-rose-600 transition-colors"
+              >
+                Confirm Clock Out
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
