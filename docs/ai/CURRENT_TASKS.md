@@ -1,6 +1,89 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-28 (session 185 — CK Production Plan per-item assignee feature)
+Last updated: 2026-07-29 (session 190 — Supplier Confirmation Calls bug fixes + browser verification)
+
+---
+
+## Recently Completed (2026-07-29 session 190 — Supplier Confirmation Calls bug fixes)
+
+### Supplier Confirmation Calls: 2 bug fixes + full browser verification (DEPLOYED ✅ Vercel)
+- **Bug fix #1**: `resetStep3()` — switching Step 1 (Yes↔No) or Step 2 outcome didn't clear Step 3 fields (`itemsAffected`, `altSupplier`, `retryAt`, `escalatedTo`, `expDate`, `cancelReason`, `channel`). Fixed by calling `resetStep3()` inside `setStep1()` and `setStep2()` helpers. Verified: Items Affected field is empty after switching Out of Stock → Confirmed.
+- **Bug fix #2**: Out of Stock notes placeholder changed from "Which alternative supplier? Any workaround?" (redundant with the dedicated Alt Supplier field) to "Any mitigation plan? Partial delivery possible?"
+- **Browser verification**: All 4 modal flows tested via browser automation (mocked API): Yes→OOS, Yes→Confirmed (auto-close, KPI increment), No→No Answer, No→Message Sent. All pass.
+- **Discovered click-coordinate bug in test setup**: Browser screenshot is 800×450 but viewport is 1280×720 (scale 0.625×). Click coordinates must be CSS_px × 0.625.
+
+---
+
+## Recently Completed (2026-07-29 session 189 — Supplier Confirmation Calls redesign)
+
+### Supplier Confirmation Calls: Full redesign with 7-status taxonomy (DEPLOYED ✅ Vercel 8efcbea, Heroku 20a7129)
+- **Backend `db.py`**: `ensure_supplier_confirmation_tables()` adds v2 migration — 8 new columns: `connected BOOLEAN`, `items_affected TEXT`, `alt_supplier TEXT`, `retry_at TIME`, `escalated_to TEXT`, `channel TEXT`, `cancel_reason TEXT`, `call_attempt INTEGER DEFAULT 1`. `log_supplier_confirmation_call()` extended with all new params, attempt counter via SELECT COUNT, extended INSERT. `list_supplier_confirmation_calls()` returns all v2 columns. `list_pending_supplier_confirmations()` WHERE clause includes `partial / out_of_stock / cancelled / message_sent`.
+- **Backend `main.py`**: `SupplierConfirmationLogIn` extended with 7 optional fields. `api_supplier_confirmation_log` passes them to db.
+- **Frontend `page.tsx`**: Complete rewrite (343→423 lines):
+  - Step-by-step modal: Step 1 (Connected?), Step 2A (Confirmed/Partial/OOS/Rescheduled/Cancelled), Step 2B (No Answer / Message Sent)
+  - Context fields per outcome: items_affected + alt_supplier (partial/OOS), new date (rescheduled), cancel_reason + escalated_to (cancelled), retry_at + escalated_to (no_answer), channel (message_sent)
+  - 5 KPI cards: Pending / No Answer / Out of Stock / Rescheduled / Confirmed Today
+  - Sorted list: OOS > Cancelled > No Answer > Partial > Message Sent > Pending > Rescheduled
+  - Color-coded card borders per status
+  - Previous calls panel shows v2 fields (attempt count, items, alt supplier, retry-at, channel, notes)
+
+### Approved OT input format (DEPLOYED ✅ Vercel e648518, 060c46e)
+- `parseOtInput()` supports `2h45m`, `2h45`, `2:45`, `2.75` formats (not just decimal)
+- Input changed from `type="number"` to `type="text"` with placeholder `"2h45m"`
+- Approved OT cell button styling fixed: was nearly invisible (`text-slate-600`); now `text-slate-400` + cursor-pointer + hover violet + pencil icon
+
+### sync-dtr-os: 3 UTC/import bugs fixed (DEPLOYED ✅ Heroku c6daab0)
+- CRITICAL: UTC timestamps converted to Manila-local before storing to `manila_attendance_daily`
+- Removed unused `import traceback as _tb` and in-loop `from datetime import date`
+
+---
+
+## Recently Completed (2026-07-29 session 188 — OS Attendance sync fix + Clock Out confirmation)
+
+### sync-dtr-os: 3 bugs fixed (DEPLOYED ✅ Heroku c6daab0)
+- **CRITICAL fix**: UTC timestamps from `os_attendance_sessions.check_in_at` (true UTC) were stored as-is into `manila_attendance_daily`. Payroll engine `calc_night_hours()` uses `.hour` expecting Manila local time — storing UTC caused 8-hour NSD miscalculation. Fix: `_to_mnl_naive(dt)` converts `astimezone(UTC+8).replace(tzinfo=None)` before isoformat.
+- **Minor fix**: Removed `from datetime import date as _date` inside for-loop; uses top-level `date` directly.
+- **Minor fix**: Removed unused `import traceback as _tb` from function body.
+
+### Manila Payroll: Sync from OS Attendance now reads correct table (DEPLOYED ✅ Heroku a12ec13, Vercel 8b5cec1)
+- **Root cause**: "Sync from OS Attendance" was calling `sync-dtr` which queries `actual_attendance` (Bayzat Google Drive data). Manila stopped using Bayzat after 2026-07-11, so sync returned 0 rows.
+- **Fix**: New backend endpoint `POST /api/admin/manila-payroll/sync-dtr-os` reads from `os_attendance_sessions` (the app's own clock-in/out data)
+  - Calculates break minutes from `os_attendance_breaks` (completed breaks only)
+  - Determines `day_type`: holiday > holiday+rest_day > rest_day (Sunday) > ordinary_day using `ph_holiday_calendar`
+  - `is_scheduled_rest_day` = True for Sundays (no Bayzat schedule info available from OS)
+  - `late_minutes` = 0 (no shift schedule available from OS sessions)
+  - Upserts to `manila_attendance_daily` with `approved_ot_hours` preserved
+  - `preview_only` mode supported
+- **Frontend**: `handleSync` now calls `/sync-dtr-os`; heading updated from "Sync from OS Attendance (Bayzat)" to "Sync from OS Attendance"; `SyncApiResult` type updated; stat card uses `total_os_rows`
+
+### Attendance: Clock Out confirmation dialog (DEPLOYED ✅ Vercel ddc51fc → 09c5346)
+- Clock Out button now shows confirmation modal before proceeding (prevents accidental tap like Peter Villafuerte 2026-07-29 case)
+- Modal shows Clock In time, Clock Out (Now), Duration
+- If Duration < 5 minutes: amber warning "You've only been clocked in for X minutes. Did you mean to clock in instead?"
+- Duration shows "< 1m" when 0 minutes
+- Backdrop click closes modal; `e.stopPropagation()` prevents card clicks from closing
+- Multi-branch users see "Confirm End Work Day" / "End Work Day" instead of "Clock Out"
+- `isCheckedIn &&` guard on warning prevents edge-case false alarm
+
+---
+
+## Recently Completed (2026-07-29 session 187 — DTR Upload UX fix)
+
+### Manila DTR Upload: Error display + empty-state guidance (DEPLOYED ✅ Vercel a0fb980)
+- **Staff inquiry**: Period selected but "Current DTR Records" showed 0 rows with no guidance. Root cause: `manila_attendance_daily` table is empty until Sync from OS Attendance or Manual CSV Upload is run. Prior code silently showed 0 rows even on API errors (401/403).
+- **Fix (`dtr-upload/page.tsx`)**: Added `dtrError` state; `loadDtrRecords` now throws on non-OK response and sets `dtrError`; empty state now shows actionable text "Use Sync from OS Attendance or Manual CSV Upload above to populate records"; API error shows red banner with message instead of silent 0-row display
+- **Payroll Channel Manual** (artifact `5a9b4459-227d-49cb-9275-73023b815e66`): Added "Bottom Panel: Current DTR Records" subsection to section 3.1 Manila DTR Upload — amber warning box explaining records don't auto-populate, 3-state table (data loaded / no data yet / load error)
+- **Known issue (not fixed this session)**: `loadPeriods` catch block silently swallows API errors (same pattern) — period dropdown shows empty if auth is broken
+
+---
+
+## Recently Completed (2026-07-28 session 186 — CK Production Plan channel audit)
+
+### CK Production Plan: Full channel audit (DEPLOYED ✅ Heroku 84c954f)
+- **Audit scope**: All features operated manually via browser automation — plan list, Dubai/Manila toggle, plan detail, Add Item, per-item assignees, category collapse, item delete, item reset, publish plan, New Plan modal
+- **All features verified working**: plan list · Dubai/Manila toggle · plan detail KPIs · category collapse · Add Item end-to-end · per-item assignees (checkboxes → floating bar → modal → chips on rows) · item delete (inline confirm) · item reset · publish plan (confirm dialog → POST /publish → 200) · published plan restrictions (no Add/Edit/Remove/Reset/Publish buttons) · empty state message
+- **Bug found & fixed**: `POST /api/store/ck-production-plan/plans` returned 401 for all users without a valid JWT `accessToken` (HQ role, dev-token sessions). Root cause: this endpoint alone called `_actor_from_token_request` and hard-rejected on None, while all other CK plan endpoints have no auth check. Fix: removed the hard 401; falls back to `payload.created_by` (set by frontend to `auth.staffName`) when actor is None. `main.py` line 25727-25731.
+- **Minor observation**: Dubai plan has category "加工食材原価" (Japanese) — user-generated data, not UI text; no action needed
 
 ---
 

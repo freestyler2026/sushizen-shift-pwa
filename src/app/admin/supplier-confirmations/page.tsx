@@ -196,13 +196,25 @@ export default function SupplierConfirmationsPage() {
     } catch { setCallLog([]); }
   };
 
+  const resetStep3 = () => {
+    setItemsAffected("");
+    setAltSupplier("");
+    setRetryAt("");
+    setEscalatedTo("");
+    setExpDate("");
+    setCancelReason("Supplier issue");
+    setChannel("WhatsApp");
+  };
+
   const setStep1 = (c: boolean) => {
     setConnected(c);
     setSubResult(null);
+    resetStep3();
   };
 
   const setStep2 = (r: SubResult) => {
     setSubResult(r);
+    resetStep3();
   };
 
   const canSave = subResult !== null && !busy;
@@ -588,7 +600,7 @@ export default function SupplierConfirmationsPage() {
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder={
                         subResult === "confirmed"    ? "Contact person, agreed window, etc." :
-                        subResult === "out_of_stock" ? "Which alternative supplier? Any workaround?" :
+                        subResult === "out_of_stock" ? "Any mitigation plan? Partial delivery possible?" :
                         subResult === "cancelled"    ? "Details of cancellation, next steps…" :
                         subResult === "no_answer"    ? "Tried at what time? Other contact tried?" :
                         "Additional notes…"
