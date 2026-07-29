@@ -1,6 +1,153 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 196 — Manila Payroll: 313-day divisor + bug sweep)
+Last updated: 2026-07-29 (session 198 — ND fix + undertime auto-deduction + 1H period date fix + all 2H recompute)
+
+---
+
+## ⚠️ Known Issues (pending user decision)
+
+### LOW: Cristella Marie Tayor / Lowegie D. Dumangcas — 出勤テーブルに同一人物の重複名レコードあり
+- "Cristella Marie Tayor" と "Cristella Marie C. Tayor" が同一期間で重複登録。
+  給与エンジンは "Cristella Marie Tayor" (10行) を使用、 "C. Tayor" 版 (14行) は無視。
+  重複日付で労働状況が異なる行も存在 → 正しい行がどちらか確認してクリーンアップ要。
+- 同様に "Lowegie D. Dumangcas" (15行) + "Lowegie Dumangcas" (13行) が混在。
+  07-17/07-18 でデータ矛盾あり（D.版=not_worked、短縮版=worked）。
+  エンジンは "Lowegie D. Dumangcas" を使用しており計算上は機能しているが、データ整理が必要。
+- **対処**: 重複行のどちらが正しいか HR/管理者に確認 → 誤った行を DELETE → 必要なら再計算
+
+### LOW: Payroll status — 2H runs need re-approval
+- All 42 2H runs were recomputed (Heroku v1617–v1618) and status reset to 'computed'. Admin must Approve → Re-publish via UI for each run (or affected subset) to restore published status.
+- Aaron's run (run_id=3): final net = ₱7,763.88 after ND fix + 07-25 absence + UNDERTIME -₱91.06 (57min early leave 07-12). Previously published at ₱8,612.61.
+- Staffs with new UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), Louiela (-₱383.10), Angelica Regondola (-₱342.62), Abegail (-₱108.43)
+
+### LOW: 1H period (6/25–7/10) — attendance entry pending
+- Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
+- Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-29 session 198 continued — undertime auto-deduction + 1H period fix + final 2H recompute)
+
+### Early Leave (Undertime) auto-deduction for closing shift (DEPLOYED ✅ Heroku v1615)
+
+**Request**: For closing shift, if staff clocks out before 00:30, auto-compute undertime and generate UNDERTIME_DEDUCTION.
+
+**Implementation** (`manila_payroll_engine.py`, `_load_and_enrich_attendance()`):
+```python
+if row.actual_time_in.hour >= 14 and not row.approved_ot_hours:
+    closing_shift_end = (next day 00:30)
+    if row.actual_time_out < closing_shift_end:
+        auto_undertime = int(round((closing_shift_end - row.actual_time_out).total_seconds() / 60))
+        row.undertime_minutes = max(row.undertime_minutes, auto_undertime)
+```
+UNDERTIME_DEDUCTION line already existed in engine; uses `row.undertime_minutes`.
+
+**1H period date correction** (DB):
+```sql
+UPDATE manila_payroll_periods SET start_date='2026-06-25', end_date='2026-07-10' WHERE id=1
+```
+
+**All 42 2H runs recomputed** (Heroku v1617–v1618, `recompute_2h_v2.py`): 42 ok, 0 errors.
+Aaron final: gross ₱10,254.46 / net ₱7,763.88 (UNDERTIME -₱91.06 for 57min early leave 07-12).
+
+---
+
+## Recently Completed (2026-07-29 session 198 — ND engine fix + 07-25 absence + all 2H recompute + name mismatch fix)
+
+### Manila 2H 給与: 名前不一致による出勤データ欠落を修正 (DEPLOYED ✅)
+
+**問題**: `manila_attendance_daily` と `manila_payroll_runs` のスタッフ名が微妙に異なり、
+エンジンが9名分の出勤データを見つけられず全員が基本給のみで計算されていた。
+
+**修正内容**:
+1. `manila_attendance_daily` の名前を給与ラン側に統一 (9名、全期間対象)
+   - Anthony Plaza → Anthony Ricaplaza (15行)
+   - Anthony M. Tabios → Anthony Tabios (14行)
+   - Cherish Mapolon Galarosa → Cherish Galarosa (15行)
+   - Junowel Coronado Trespecios → Junowel C. Trespecios (15行)
+   - Lynde B. Ore → Lynde Ore (15行)
+   - Mary Jane Tegerero → Mary Jane D. Tegerero (15行)
+   - Regine L. Pedernal → Regine Pedernal (15行)
+   - Samantha Varca → Samantha Mae Varca - Sam (15行)
+   - Wallen Galisanao → Wallen Galasinao (15行)
+2. 9ランを再計算 (`recompute_9staff.py`, Heroku v1606–v1608)
+
+**再計算後の net_pay 変動:**
+| スタッフ | 旧 net | 新 net | 変化の主因 |
+|---|---|---|---|
+| Anthony Ricaplaza | 8,223.75 | 9,113.58 | OT+ND+出勤増 |
+| Anthony Tabios | 8,418.75 | 6,045.54 | 欠勤6日控除+REST_DAY加算 |
+| Cherish Galarosa | 8,662.50 | 9,353.54 | OT 6h追加 |
+| Junowel C. Trespecios | 8,662.50 | 9,425.25 | OT+ND+REST_DAY |
+| Lynde Ore | 9,612.50 | 10,083.52 | ND+出勤増 |
+| Mary Jane D. Tegerero | 8,223.75 | 8,906.40 | OT+ND |
+| Regine Pedernal | 8,223.75 | 8,223.75 | 影響なし（確認） |
+| Samantha Mae Varca - Sam | 8,223.75 | 8,047.94 | 欠勤3日控除+ND |
+| Wallen Galasinao | 8,662.50 | 7,349.80 | 欠勤控除 |
+
+**エンジン調査結果**: ロジック自体は正確。`paid_leave_flag` が paid leave 判定に使われる（`absent_without_pay` は参照されない）。NSD/rest_day/OT/WISP 計算はすべて正しい。
+
+**未解決**: 1H 期間 (07-01〜07-10) は出勤データなし → 全員が完全基本給計算。意図的かどうか確認要。
+
+### Night Differential engine: closing shift固定 00:30 終業に変更 (DEPLOYED ✅)
+
+**問題**: エンジンは `ot_start = clock_in + 8h + break` で残業開始時刻を計算していたため、
+クロッキン時刻によって ND時間が毎日変動していた (例: 15:31 in → 24:31 ot_start → ND=2.48h)。
+正しくは全 closing shift スタッフに固定 00:30 終業を適用し ND = 22:00〜00:30 = 2.5h とすべき。
+
+**修正内容** (`manila_payroll_engine.py` `_compute_ot_and_nsd`):
+```python
+# clock-in ≥ 14:00 → closing shift → fixed shift end 00:30 next day
+if actual_time_in.hour >= 14:
+    next_date = actual_time_in.date() + timedelta(days=1)
+    ot_start = actual_time_in.replace(year=next_date.year, month=next_date.month,
+                                       day=next_date.day, hour=0, minute=30, second=0, microsecond=0)
+else:
+    ot_start = actual_time_in + timedelta(hours=8, minutes=clock_break_min)
+```
+
+**Aaron 07-25 欠勤追加**: `manila_attendance_daily` に `is_worked=FALSE, absent_without_pay=TRUE` の行を INSERT。
+→ 2回目の ABSENT_DEDUCTION (₱766.77) が正しく生成される。
+
+**全42ランを再計算** (`recompute_all_2h.py`、Heroku v1609〜v1611):
+
+**Aaron (run_id=3) 最終検証結果:**
+| 項目 | 値 |
+|---|---|
+| gross | ₱10,254.46 |
+| net | ₱7,854.94 |
+| ABSENT_DEDUCTION | 07-18: ₱-766.77 + 07-25: ₱-766.77 (2日分 ✓) |
+| LATE_DEDUCTION | 10min ₱-15.98 ✓ |
+| NIGHT_DIFF_REGULAR | 全クロージングシフト日 2.5000h (07-20のみ 23:33退勤で 1.55h ✓) |
+
+**未解決**: Late deduction 計算方式の差異 — エンジン: 10/60×95.85=₱15.98 / 手計算: round(10/60,2)×95.85=0.17×95.85=₱16.29。
+質問者は「13分」と主張したが DB は10分。旧ペイスリップを参照していた可能性あり。確認要。
+
+---
+
+## Recently Completed (2026-07-29 session 197 — Aaron payroll deep audit + OS verification)
+
+### Aaron Jay Pamplona 2026-07-2H Payroll: fully corrected + deep audit (DEPLOYED ✅)
+
+**All 6 DB fixes applied and verified in production browser:**
+
+1. **07-12 Rest Day Pay** — `day_type='ordinary_day'` (was rest_day) → REST_DAY_PAY gone ✅
+2. **07-19 Rest Day Pay** — `day_type='ordinary_day'` (was rest_day) → REST_DAY_PAY gone ✅
+3. **07-13 Late Deduction** — `late_minutes=10` set + Edit DTR UI now has Late (min) field → LATE_DEDUCTION ₱15.98 ✅
+4. **OT Pay** — stale items recomputed, `approved_ot_hours=NULL` → OT = ₱0 ✅
+5. **07-15 and 07-22 incorrect absences** — changed to `day_type='rest_day', is_scheduled_rest_day=TRUE` → absence deductions removed ✅
+6. **07-18 missing absence** — new row added (`is_worked=FALSE, absent_without_pay=TRUE`) → ABSENT_DEDUCTION ₱766.77 added ✅
+
+**Recomputed twice** via `heroku run python recompute_aaron.py` (Heroku v1602, v1604).
+
+**Final verified state (production UI + heroku pg:psql):**
+- ✅ No REST_DAY_PAY
+- ✅ NIGHT_DIFF_OT = ₱0.00 (no OT)
+- ✅ LATE_DEDUCTION ₱15.98 for 07-13 (10 min)
+- ✅ No SSS_WISP (monthly_gross = 19,462.61 < ₱20,000)
+- ✅ ABSENT_DEDUCTION only on 07-18 (genuine absence)
+- ✅ 2 rest days: 07-15 and 07-22 (Wednesdays)
+- **Net pay: ₱8,612.61** (deductions: ₱1,632.75)
 
 ---
 
