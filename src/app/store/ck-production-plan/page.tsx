@@ -183,6 +183,11 @@ export default function CKProductionPlanPage() {
   const [itemAssignFilter, setItemAssignFilter] = useState("");
   const [savingItemAssignees, setSavingItemAssignees] = useState(false);
 
+  // Inline quantity edit
+  const [editingQtyItemId, setEditingQtyItemId] = useState<number | null>(null);
+  const [editingQtyVal, setEditingQtyVal] = useState("");
+  const [savingQty, setSavingQty] = useState(false);
+
   // QC Check modal
   const [showQcModal, setShowQcModal] = useState(false);
   const [qcTargetItem, setQcTargetItem] = useState<PlanItem | null>(null);
@@ -502,6 +507,34 @@ export default function CKProductionPlanPage() {
       showToast((e as Error).message, false);
     } finally {
       setSubmittingQc(false);
+    }
+  }
+
+  async function handleQtySave(item: PlanItem) {
+    const val = parseFloat(editingQtyVal);
+    if (isNaN(val) || val < 0) {
+      showToast("Enter a valid quantity (≥ 0).", false);
+      return;
+    }
+    setSavingQty(true);
+    try {
+      const data = await apiFetch(
+        `/api/store/ck-production-plan/plans/${item.plan_id}/items/${item.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ target_qty: val, actor: userName }),
+        }
+      );
+      setActivePlan(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).map(i => i.id === item.id ? data.item : i),
+      } : null);
+      setEditingQtyItemId(null);
+      showToast("Quantity updated.", true);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSavingQty(false);
     }
   }
 
@@ -845,7 +878,53 @@ export default function CKProductionPlanPage() {
                                     </div>
                                   </td>
                                   <td className={`${TABLE_CELL} text-right font-mono`}>
-                                    {item.target_qty > 0 ? `${item.target_qty % 1 === 0 ? item.target_qty : item.target_qty.toFixed(1)} ${item.unit}` : <span className="text-zinc-600">—</span>}
+                                    {editingQtyItemId === item.id ? (
+                                      <div className="flex items-center justify-end gap-1">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.5"
+                                          value={editingQtyVal}
+                                          onChange={e => setEditingQtyVal(e.target.value)}
+                                          onKeyDown={e => {
+                                            if (e.key === "Enter") handleQtySave(item);
+                                            if (e.key === "Escape") setEditingQtyItemId(null);
+                                          }}
+                                          autoFocus
+                                          className="w-16 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-right text-xs text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                        <span className="text-xs text-zinc-400">{item.unit}</span>
+                                        <button
+                                          onClick={() => handleQtySave(item)}
+                                          disabled={savingQty}
+                                          className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                                          title="Save"
+                                        >
+                                          ✓
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingQtyItemId(null)}
+                                          className="text-zinc-500 hover:text-zinc-300"
+                                          title="Cancel"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setEditingQtyItemId(item.id);
+                                          setEditingQtyVal(item.target_qty > 0 ? String(item.target_qty) : "");
+                                        }}
+                                        className="group inline-flex items-center gap-1 rounded px-1 hover:bg-zinc-700/60"
+                                        title="Click to edit quantity"
+                                      >
+                                        {item.target_qty > 0
+                                          ? `${item.target_qty % 1 === 0 ? item.target_qty : item.target_qty.toFixed(1)} ${item.unit}`
+                                          : <span className="text-zinc-600">—</span>}
+                                        <span className="text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100">✎</span>
+                                      </button>
+                                    )}
                                   </td>
                                   <td className={`${TABLE_CELL} text-center`}>
                                     <span className={PRIORITY_BADGE[item.priority]}>{item.priority}</span>
