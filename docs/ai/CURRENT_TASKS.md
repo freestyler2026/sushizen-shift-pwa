@@ -1,6 +1,34 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 194 — Manila Payroll ND/Late/Undertime fixes)
+Last updated: 2026-07-29 (session 195 — Manila Payroll UI: hourly rate + all-dates DTR modal)
+
+---
+
+## Recently Completed (2026-07-29 session 195 — Manila Payroll UI fixes)
+
+### Manila Payroll: Hourly rate display + all-dates DTR modal (DEPLOYED ✅ Vercel 9fb64a3)
+
+**① Hourly rate display**: Added `Hourly: ₱XX.XX/hr` to payroll panel header info line.
+- Formula: `monthly_rate ÷ salary_divisor ÷ 8`. Aaron: ₱20,000 ÷ 26 ÷ 8 = ₱96.15/hr.
+- Manual sheet shows ₱95.85/hr (slight rounding difference from different divisor method — expected discrepancy).
+
+**② Absence count bug root cause (Aaron: 3 absences shown, actual 2)**:
+- Engine reads only rows in `manila_attendance_daily`. Stale payroll was computed before OS sync updated 07-17 to is_worked=True.
+- 07-15, 07-22: rows exist with is_worked=False + day_type=ordinary_day → incorrectly deducted (should be rest_day).
+- 07-18, 07-25: no rows → engine never deducts (even though Aaron was actually absent).
+- Fix via Edit DTR modal: change 07-15/07-22 to Rest Day, click Absent for 07-18/07-25, then Recompute.
+
+**③ All-dates DTR modal (Dubai-style)**:
+- Edit DTR now shows ALL calendar dates in the period, not just rows that exist in manila_attendance_daily.
+- Missing dates: "Absent" button (creates ordinary_day absent row) + "Rest Day" button (creates rest_day row) — both call the existing upsert PUT endpoint.
+- Existing rows: Day Type dropdown (Ordinary / Rest Day / Regular Holiday / Special Holiday) alongside time editors. Row background color: green=worked, red=absent, violet=rest day.
+- Save writes the updated day_type and also corrects is_scheduled_rest_day accordingly.
+- Recompute button triggers payroll engine re-run with corrected data.
+
+**3 bugs found and fixed in self-review (deployed same session)**:
+1. **Timezone off-by-one**: `new Date("YYYY-MM-DD T00:00:00").toISOString().slice(0,10)` returns previous UTC day in any +UTC timezone (Dubai UTC+4, Manila UTC+8, Japan UTC+9). Confirmed in browser test: old code 2026-07-14 vs correct 2026-07-15. Fixed with local Date constructor + getFullYear/getMonth/getDate.
+2. **absent_without_pay not cleared on rest_day save**: When admin changed day_type → rest_day, AWP stayed true in DB. Fixed: `absent_without_pay = isRestDay ? false : row.absent_without_pay`.
+3. **Dead code**: `DAY_TYPE_BADGE` object removed.
 
 ---
 
