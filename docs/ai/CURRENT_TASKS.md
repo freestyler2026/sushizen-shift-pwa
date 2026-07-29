@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 193 — Absences staleness bug fix)
+Last updated: 2026-07-29 (session 194 — Manila Payroll ND/Late/Undertime fixes)
+
+---
+
+## Recently Completed (2026-07-29 session 194 — Manila Payroll ND/Late/Undertime fixes)
+
+### Manila Payroll: Night Differential, Late Arrival, Undertime fixes (DEPLOYED ✅ Heroku a5c43c2)
+
+**Bug 1 (engine, critical)**: `approved_ot_hours = 0` (numeric zero, not NULL) caused Night Differential = ₱0.00.
+- Root cause: engine line 376 `if row.approved_ot_hours is not None:` — when a DTR upload sets Approved OT to "0" explicitly, it stores 0.0 (not NULL). The if-branch then computed NSD as: regular window (09:00→18:00, 0 night hours) + OT window (18:00→18:00, 0 hours) = ₱0.00.
+- Fix: changed condition to `if row.approved_ot_hours is not None and row.approved_ot_hours > 0:` — `approved_ot_hours=0` now falls to else branch which correctly uses actual clock-in/out times.
+
+**Bug 2 (OS sync)**: `late_minutes` hardcoded to 0 in sync-dtr-os → Late Arrival Deduction always ₱0.00.
+- Fix: pre-fetch `scheduled_shift_start` from `manila_attendance_daily` (set by Bayzat sync or DTR upload). Compute `late_minutes = max(0, (ci_mnl - sched_start_dt).total_seconds() / 60)`. Handles overnight shift case (scheduled PM, actual AM = no deduction).
+
+**Bug 3 (OS sync)**: `undertime_minutes` never written by OS sync → Undertime Deduction always ₱0.00.
+- Fix: compute `undertime_minutes` from `scheduled_shift_end` similarly. Handles overnight shift end (e.g. 00:30 next day when schedule starts at 14:00). Added to INSERT and ON CONFLICT UPDATE.
+
+**Important note for users**: After deploying, re-run "Sync DTR (OS)" for the affected period, then re-run "Compute All" to recalculate payroll with the corrected values. For early departure (undertime) cases where the scheduled shift end is not in the DB (schedule not synced from Bayzat), use Manual Deduction instead.
 
 ---
 

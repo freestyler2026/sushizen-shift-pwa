@@ -5,7 +5,7 @@ import {
   ChevronUp, Clock, Download, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
   Play, Printer, Send, Trash2, Users, X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
@@ -181,33 +181,37 @@ function manilaInputToISO(manilaStr: string): string {
 function DTRModal({
   run,
   periodId,
+  period,
   onClose,
   onRecomputed,
 }: {
   run: Run;
   periodId: number;
+  period?: { start_date: string; end_date: string } | null;
   onClose: () => void;
   onRecomputed: () => void;
 }) {
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); // work_date being saved
+  const [creating, setCreating] = useState<string | null>(null); // work_date being created
   const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState("");
-  // editing state: work_date → {time_in, time_out}
-  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string }>>({});
+  // editing state: work_date → {time_in, time_out, day_type}
+  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string }>>({});
 
-  useEffect(() => {
+  const loadRows = useCallback(() => {
     setLoading(true);
     apiFetch(`${API}/attendance/${periodId}?staff_name=${encodeURIComponent(run.staff_name)}`)
       .then(r => r.json())
       .then(d => {
         setRows(d as AttendanceRow[]);
-        const initial: Record<string, { time_in: string; time_out: string }> = {};
+        const initial: Record<string, { time_in: string; time_out: string; day_type: string }> = {};
         (d as AttendanceRow[]).forEach(row => {
           initial[row.work_date] = {
             time_in:  isoToManilaInput(row.actual_time_in),
             time_out: isoToManilaInput(row.actual_time_out),
+            day_type: row.day_type,
           };
         });
         setEdits(initial);
@@ -216,16 +220,38 @@ function DTRModal({
       .finally(() => setLoading(false));
   }, [run.staff_name, periodId]);
 
+  useEffect(() => { loadRows(); }, [loadRows]);
+
+  // Generate all calendar dates in the period (YYYY-MM-DD strings)
+  const allDates: string[] = useMemo(() => {
+    if (!period?.start_date || !period?.end_date) return [];
+    const dates: string[] = [];
+    const cur = new Date(period.start_date + "T00:00:00");
+    const end = new Date(period.end_date + "T00:00:00");
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }, [period?.start_date, period?.end_date]);
+
+  const rowMap = useMemo(() => {
+    const m: Record<string, AttendanceRow> = {};
+    rows.forEach(r => { m[r.work_date] = r; });
+    return m;
+  }, [rows]);
+
   const saveRow = async (row: AttendanceRow) => {
     const ed = edits[row.work_date];
     if (!ed) return;
     setSaving(row.work_date);
     setError("");
+    const isRestDay = ed.day_type === "rest_day";
     try {
       const body: Record<string, unknown> = {
-        day_type:   row.day_type,
-        is_worked:  row.is_worked,
-        is_scheduled_rest_day: false,
+        day_type:             ed.day_type,
+        is_worked:            row.is_worked,
+        is_scheduled_rest_day: isRestDay,
         actual_time_in:  ed.time_in  ? manilaInputToISO(ed.time_in)  : null,
         actual_time_out: ed.time_out ? manilaInputToISO(ed.time_out) : null,
         late_minutes:    row.late_minutes,
@@ -240,13 +266,49 @@ function DTRModal({
         { method: "PUT", body: JSON.stringify(body) }
       );
       if (!r.ok) throw new Error(await r.text());
-      // update local row
       const updated = await r.json() as AttendanceRow;
       setRows(prev => prev.map(x => x.work_date === row.work_date ? { ...x, ...updated } : x));
+      setEdits(prev => ({ ...prev, [row.work_date]: { ...prev[row.work_date], day_type: updated.day_type } }));
     } catch (e) {
       setError(String(e));
     } finally {
       setSaving(null);
+    }
+  };
+
+  const createRow = async (workDate: string, dayType: "ordinary_day" | "rest_day") => {
+    setCreating(workDate);
+    setError("");
+    const isRestDay = dayType === "rest_day";
+    try {
+      const body: Record<string, unknown> = {
+        day_type: dayType,
+        is_worked: false,
+        is_scheduled_rest_day: isRestDay,
+        actual_time_in: null,
+        actual_time_out: null,
+        late_minutes: 0,
+        undertime_minutes: 0,
+        absent_without_pay: !isRestDay,
+        paid_leave_flag: false,
+        period_id: periodId,
+        approval_status: "approved",
+      };
+      const r = await apiFetch(
+        `${API}/attendance/${encodeURIComponent(run.staff_name)}/${workDate}`,
+        { method: "PUT", body: JSON.stringify(body) }
+      );
+      if (!r.ok) throw new Error(await r.text());
+      const created = await r.json() as AttendanceRow;
+      setRows(prev => [...prev, created].sort((a, b) => a.work_date.localeCompare(b.work_date)));
+      setEdits(prev => ({
+        ...prev,
+        [workDate]: { time_in: "", time_out: "", day_type: created.day_type },
+      }));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setCreating(null);
     }
   };
 
@@ -303,37 +365,89 @@ function DTRModal({
             <div className="flex justify-center py-12">
               <Loader2 size={24} className="animate-spin text-blue-400"/>
             </div>
-          ) : rows.length === 0 ? (
-            <p className="text-center text-sm text-slate-500 py-8">No attendance records found for this period.</p>
           ) : (
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/5 text-slate-500">
-                  <th className="py-2 text-left font-medium">Date</th>
-                  <th className="py-2 text-left font-medium">Type</th>
-                  <th className="py-2 text-left font-medium">Worked</th>
+                  <th className="py-2 text-left font-medium w-24">Date</th>
+                  <th className="py-2 text-left font-medium">Day Type</th>
+                  <th className="py-2 text-left font-medium w-12">Status</th>
                   <th className="py-2 text-left font-medium">Time In</th>
                   <th className="py-2 text-left font-medium">Time Out</th>
-                  <th className="py-2 text-center font-medium">Save</th>
+                  <th className="py-2 text-center font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => {
-                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "" };
+                {(allDates.length > 0 ? allDates : rows.map(r => r.work_date)).map(date => {
+                  const row = rowMap[date];
+                  const isCreating = creating === date;
+
+                  if (!row) {
+                    // Date has no record — show placeholder with create buttons
+                    return (
+                      <tr key={date} className="border-b border-white/5 bg-slate-800/30">
+                        <td className="py-2 pr-2 font-mono text-slate-500">{date}</td>
+                        <td className="py-2 pr-2 text-slate-600 italic" colSpan={3}>— no record —</td>
+                        <td className="py-2 pr-2" />
+                        <td className="py-2 text-center">
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              onClick={() => createRow(date, "ordinary_day")}
+                              disabled={isCreating}
+                              title="Mark as absent (ordinary day, no pay)"
+                              className="rounded border border-red-500/30 bg-red-900/20 px-2 py-1 text-red-300 hover:bg-red-900/40 disabled:opacity-40 text-[10px]"
+                            >
+                              {isCreating ? <Loader2 size={10} className="animate-spin inline" /> : "Absent"}
+                            </button>
+                            <button
+                              onClick={() => createRow(date, "rest_day")}
+                              disabled={isCreating}
+                              title="Mark as scheduled rest day (no deduction)"
+                              className="rounded border border-violet-500/30 bg-violet-900/20 px-2 py-1 text-violet-300 hover:bg-violet-900/40 disabled:opacity-40 text-[10px]"
+                            >
+                              {isCreating ? <Loader2 size={10} className="animate-spin inline" /> : "Rest Day"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  // Existing row — show editable fields
+                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "", day_type: row.day_type };
                   const isSaving = saving === row.work_date;
-                  const badge = DAY_TYPE_BADGE[row.day_type] ?? "text-slate-500";
+                  const currentDayType = ed.day_type;
+
+                  // Row background color by status
+                  let rowBg = "hover:bg-white/5";
+                  if (currentDayType === "rest_day") rowBg = "bg-violet-950/20 hover:bg-violet-950/30";
+                  else if (!row.is_worked && currentDayType === "ordinary_day") rowBg = "bg-red-950/20 hover:bg-red-950/30";
+                  else if (row.is_worked) rowBg = "bg-emerald-950/10 hover:bg-emerald-950/20";
+
                   return (
-                    <tr key={row.work_date} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="py-2 pr-2 font-mono text-slate-300">
-                        {row.work_date}
-                      </td>
-                      <td className={`py-2 pr-2 ${badge}`}>
-                        {row.day_type.replace(/_/g," ")}
+                    <tr key={row.work_date} className={`border-b border-white/5 ${rowBg}`}>
+                      <td className="py-2 pr-2 font-mono text-slate-300">{row.work_date}</td>
+                      <td className="py-2 pr-2">
+                        <select
+                          value={currentDayType}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], day_type: e.target.value },
+                          }))}
+                          className="rounded border border-white/10 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 focus:border-blue-500/60 focus:outline-none"
+                        >
+                          <option value="ordinary_day">Ordinary</option>
+                          <option value="rest_day">Rest Day</option>
+                          <option value="regular_holiday">Regular Holiday</option>
+                          <option value="special_non_working_holiday">Special Holiday</option>
+                        </select>
                       </td>
                       <td className="py-2 pr-2">
                         {row.is_worked
-                          ? <span className="text-emerald-400">✓</span>
-                          : <span className="text-red-400/60">—</span>}
+                          ? <span className="text-emerald-400 font-semibold">✓</span>
+                          : row.paid_leave_flag
+                            ? <span className="text-blue-400">SL/VL</span>
+                            : <span className="text-red-400/60">Abs</span>}
                       </td>
                       <td className="py-2 pr-2">
                         <input
@@ -736,6 +850,7 @@ function PayslipDetail({
         <DTRModal
           run={run}
           periodId={periodId}
+          period={period}
           onClose={() => setShowDTR(false)}
           onRecomputed={() => { setShowDTR(false); onRecomputed(); }}
         />
@@ -764,6 +879,9 @@ function PayslipDetail({
               &nbsp;·&nbsp;Monthly Rate: {fmtPHP(run.monthly_rate)}
               &nbsp;·&nbsp;Divisor: {run.salary_divisor ?? "—"}
               &nbsp;·&nbsp;Days Worked: {run.days_worked ?? "—"}
+              {run.monthly_rate != null && run.salary_divisor != null && (
+                <>&nbsp;·&nbsp;<span className="text-violet-300/80">Hourly: {fmtPHP(run.monthly_rate / run.salary_divisor / 8)}/hr</span></>
+              )}
             </p>
             {basisParts.length > 0 && (
               <p className="text-xs text-violet-300/70 mt-1 font-mono">
