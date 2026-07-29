@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
-  Download, FileSpreadsheet, Filter, Info, Loader2, RefreshCw, Upload, X, Zap,
+  Download, FileSpreadsheet, Filter, Info, Loader2, Pencil, RefreshCw, Upload, X, Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1145,7 +1145,13 @@ paid_leave       Y / N          (default: N)`}</code>
                   <table className="w-full text-xs" style={{ minWidth: "900px" }}>
                     <thead>
                       <tr className="border-b border-white/10 bg-white/5">
-                        {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs","Apprvd OT","Late","Type","Status"].map(h => (
+                        {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs"].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                        ))}
+                        <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-violet-400">
+                          <span className="flex items-center justify-end gap-1">Apprvd OT <Pencil size={9} /></span>
+                        </th>
+                        {["Late","Type","Status"].map(h => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                         ))}
                       </tr>
@@ -1189,12 +1195,13 @@ paid_leave       Y / N          (default: N)`}</code>
                                 <button
                                   onClick={() => { setOtEditId(row.id); setOtEditVal(row.approved_ot_hours != null ? String(row.approved_ot_hours) : ""); }}
                                   title="Click to set approved OT hours"
-                                  className={`min-w-[2.5rem] rounded px-1 py-0.5 text-right text-xs hover:bg-white/10 ${
+                                  className={`group flex items-center justify-end gap-1 min-w-[3.5rem] cursor-pointer rounded px-1.5 py-0.5 text-right text-xs hover:bg-violet-500/20 hover:border-violet-500/50 border border-transparent ${
                                     otSavingId === row.id ? "text-slate-500" :
-                                    row.approved_ot_hours != null ? "text-violet-400 font-semibold" : "text-slate-600"
+                                    row.approved_ot_hours != null ? "text-violet-400 font-semibold" : "text-slate-400"
                                   }`}
                                 >
                                   {otSavingId === row.id ? "…" : row.approved_ot_hours != null ? fmtHours(row.approved_ot_hours) : "—"}
+                                  <Pencil size={9} className="opacity-0 group-hover:opacity-60 flex-shrink-0" />
                                 </button>
                               )}
                             </td>
