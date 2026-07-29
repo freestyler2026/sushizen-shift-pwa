@@ -222,14 +222,20 @@ function DTRModal({
 
   useEffect(() => { loadRows(); }, [loadRows]);
 
-  // Generate all calendar dates in the period (YYYY-MM-DD strings)
+  // Generate all calendar dates in the period (YYYY-MM-DD strings).
+  // Uses local Date constructor (not ISO strings) to avoid UTC off-by-one in +8/+9 timezones.
   const allDates: string[] = useMemo(() => {
     if (!period?.start_date || !period?.end_date) return [];
     const dates: string[] = [];
-    const cur = new Date(period.start_date + "T00:00:00");
-    const end = new Date(period.end_date + "T00:00:00");
+    const [sy, sm, sd] = period.start_date.split('-').map(Number);
+    const [ey, em, ed] = period.end_date.split('-').map(Number);
+    const cur = new Date(sy, sm - 1, sd);
+    const end = new Date(ey, em - 1, ed);
     while (cur <= end) {
-      dates.push(cur.toISOString().slice(0, 10));
+      const y = cur.getFullYear();
+      const mo = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${mo}-${d}`);
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -256,7 +262,8 @@ function DTRModal({
         actual_time_out: ed.time_out ? manilaInputToISO(ed.time_out) : null,
         late_minutes:    row.late_minutes,
         undertime_minutes: row.undertime_minutes,
-        absent_without_pay: row.absent_without_pay,
+        // rest_day → no absent deduction regardless of is_worked; clear the AWP flag
+        absent_without_pay: isRestDay ? false : row.absent_without_pay,
         paid_leave_flag: row.paid_leave_flag,
         period_id:  row.period_id ?? periodId,
         approval_status: "approved",
@@ -325,13 +332,6 @@ function DTRModal({
     } finally {
       setRecomputing(false);
     }
-  };
-
-  const DAY_TYPE_BADGE: Record<string, string> = {
-    ordinary_day: "text-slate-500",
-    regular_holiday: "text-amber-400",
-    special_non_working_holiday: "text-blue-400",
-    rest_day: "text-violet-400",
   };
 
   return (
