@@ -777,7 +777,19 @@ function ReceivingForm({ city }: { city: string }) {
           {loadingBoxes ? (
             <p className={`${T_CAPTION} text-slate-500`}>Loading box data...</p>
           ) : dispatchBoxes.length === 0 ? (
-            <p className={`${T_CAPTION} text-amber-400`}>No box data found for this branch/dispatch.</p>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3 space-y-1.5">
+              <p className="text-sm font-semibold text-amber-300">No boxes found for {BRANCH_LABELS[branch] ?? branch}</p>
+              {selectedDispatch && !selectedDispatch.destination_branches?.includes(branch) ? (
+                <p className={`${T_CAPTION} text-amber-400/80`}>
+                  This dispatch was sent to <strong className="text-amber-300">{(selectedDispatch.destination_branches ?? []).map(b => BRANCH_LABELS[b] ?? b).join(", ") || "unknown"}</strong> — not {BRANCH_LABELS[branch] ?? branch}.
+                  Ask CK to create a separate dispatch for {BRANCH_LABELS[branch] ?? branch}, or check if the correct dispatch is listed above.
+                </p>
+              ) : (
+                <p className={`${T_CAPTION} text-amber-400/80`}>
+                  No box records were pre-entered for this dispatch. Try reloading, or ask CK to check the dispatch.
+                </p>
+              )}
+            </div>
           ) : (
             <>
               <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-sky-300">
