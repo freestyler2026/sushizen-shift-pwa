@@ -434,6 +434,12 @@ export default function AdminAbsencesPage() {
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pendingDeleteRow, setPendingDeleteRow] = useState<AbsenceRow | null>(null);
 
+  // ── Staleness tracking ───────────────────────────────────────────────────
+  type CheckStatus = { city: string; checked_by: string | null; checked_at: string | null; weekdays_since: number; stale: boolean };
+  const [checkStatus, setCheckStatus] = useState<CheckStatus[]>([]);
+  const [marking, setMarking] = useState(false);
+  const [markMsg, setMarkMsg] = useState<string | null>(null);
+
   const handleReportDateFromChange = (raw: string) => {
     const next = normalizeCalendarDateInput(raw);
     if (!next) return;
@@ -596,6 +602,43 @@ export default function AdminAbsencesPage() {
     loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAuth]);
+
+  // Fetch absence review staleness on mount
+  useEffect(() => {
+    const a = getAuth();
+    if (!a?.accessToken) return;
+    fetch(`${API_BASE}/api/admin/absences/check-status`, {
+      headers: { Authorization: `Bearer ${a.accessToken}` },
+      cache: "no-store",
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { cities?: CheckStatus[] } | null) => { if (d?.cities) setCheckStatus(d.cities); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function markAsReviewed() {
+    const nm = norm(approverName);
+    const p = norm(pin);
+    if (!nm || !p) { setMarkMsg("Set Approver Name and PIN in the Scope section first."); return; }
+    setMarking(true); setMarkMsg(null);
+    try {
+      await Promise.all(
+        ["manila", "dubai"].map(c =>
+          apiPost("/api/admin/absences/mark-checked", { city: c, approver_name: nm, pin: p })
+        )
+      );
+      const d = await apiGet<{ cities: CheckStatus[] }>("/api/admin/absences/check-status");
+      if (d?.cities) setCheckStatus(d.cities);
+      setMarkMsg("Marked as reviewed ✓");
+      window.dispatchEvent(new CustomEvent("sushizen:absences:stale:refresh"));
+      setTimeout(() => setMarkMsg(null), 3000);
+    } catch (e: any) {
+      setMarkMsg(e?.message || "Failed to mark as reviewed.");
+    } finally {
+      setMarking(false);
+    }
+  }
 
   const upsertSingle = async () => {
     setLoading(true);
@@ -792,6 +835,69 @@ export default function AdminAbsencesPage() {
             <p className={T_CAPTION}>View absence reports, register absences and leave, process bulk entries, and review history.</p>
           </div>
         </div>
+
+        {/* ── Staleness Alert Banner ───────────────────────────────────────── */}
+        {checkStatus.length > 0 && (
+          checkStatus.some(cs => cs.stale) ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-4">
+              <div className="flex flex-wrap items-start gap-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm font-semibold text-amber-300">Absence page has not been reviewed recently</p>
+                  {checkStatus.map(cs => (
+                    <p key={cs.city} className="text-xs">
+                      <span className="font-medium text-white/80">{cs.city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}</span>
+                      <span className="text-white/40 mx-1.5">—</span>
+                      {cs.stale ? (
+                        <span className="text-amber-400">
+                          {cs.weekdays_since >= 999 ? "Never reviewed" : `${cs.weekdays_since} weekday${cs.weekdays_since !== 1 ? "s" : ""} without a review`}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400">
+                          Up to date{cs.checked_by ? ` · ${cs.checked_by}` : ""}
+                          {cs.checked_at ? ` · ${new Date(cs.checked_at).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}` : ""}
+                        </span>
+                      )}
+                    </p>
+                  ))}
+                  {markMsg && (
+                    <p className={`text-xs ${markMsg.includes("✓") ? "text-emerald-400" : "text-amber-400"}`}>{markMsg}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => { void markAsReviewed(); }}
+                  disabled={marking || !canAuth}
+                  title={!canAuth ? "Set Approver Name and PIN in the Scope section first" : ""}
+                  className="shrink-0 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-40 transition-colors"
+                >
+                  {marking ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                  {marking ? "Saving…" : "Mark as Reviewed"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 flex items-center gap-3">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1">
+                {checkStatus.map(cs => (
+                  <p key={cs.city} className="text-xs text-white/50">
+                    <span className="font-medium text-white/70">{cs.city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}</span>
+                    {cs.checked_by ? ` · ${cs.checked_by}` : ""}
+                    {cs.checked_at ? ` · ${new Date(cs.checked_at).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}` : ""}
+                  </p>
+                ))}
+              </div>
+              <button
+                onClick={() => { void markAsReviewed(); }}
+                disabled={marking || !canAuth}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1 text-xs text-white/40 hover:text-white hover:border-white/20 disabled:opacity-40 transition-colors"
+              >
+                {marking ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                {marking ? "Saving…" : "Mark as Reviewed"}
+              </button>
+            </div>
+          )
+        )}
 
         {/* ── Absence Report (both cities, configurable date range) ───────── */}
         <motion.div

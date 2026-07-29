@@ -320,6 +320,7 @@ export default function NavBar() {
   const [spotPurchaseBadge, setSpotPurchaseBadge] = useState(0);
   const [nteCasesBadge, setNteCasesBadge] = useState(0);
   const [supplierBadge, setSupplierBadge] = useState(0);
+  const [absenceStaleBadge, setAbsenceStaleBadge] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -867,6 +868,39 @@ export default function NavBar() {
     };
   }, []);
 
+  // Absence staleness badge — polls hourly; red dot when either city unreviewd 2+ weekdays
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAbsenceStale = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken || !canAccessAbsencesAdmin(auth)) {
+          if (!cancelled) setAbsenceStaleBadge(false);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/admin/absences/check-status`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { cities?: { stale: boolean }[] };
+        const anyStale = (data.cities ?? []).some(c => c.stale);
+        if (!cancelled) setAbsenceStaleBadge(anyStale);
+      } catch { /* non-critical */ }
+    };
+    void fetchAbsenceStale();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchAbsenceStale();
+    }, 60 * 60 * 1000); // every hour
+    const onRefresh = () => void fetchAbsenceStale();
+    window.addEventListener("sushizen:absences:stale:refresh", onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener("sushizen:absences:stale:refresh", onRefresh);
+    };
+  }, []);
+
   const staffItems = useMemo(() => {
     return [...PRIMARY, ...SECONDARY_BASE]
       .filter((item) => {
@@ -944,9 +978,11 @@ export default function NavBar() {
             ? { ...item, badgeCount: nteCasesBadge, badgeWarning: nteCasesBadge > 0 }
           : item.href === "/admin/supplier-confirmations"
             ? { ...item, badgeCount: supplierBadge, badgeYellow: supplierBadge > 0 }
+          : item.href === "/admin/absences"
+            ? { ...item, badgeWarning: absenceStaleBadge }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
