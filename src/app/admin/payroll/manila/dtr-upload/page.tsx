@@ -296,10 +296,31 @@ export default function DtrUploadPage() {
     finally { setDtrLoading(false); }
   }, []);
 
+  function parseOtInput(val: string): number | null | undefined {
+    const s = val.trim();
+    if (s === "") return null;
+    // "2h45m" or "2h45"
+    const hm = s.match(/^(\d+)h(\d+)m?$/i);
+    if (hm) {
+      const m = parseInt(hm[2]);
+      if (m >= 60) return undefined;
+      return Math.round((parseInt(hm[1]) + m / 60) * 100) / 100;
+    }
+    // "2:45"
+    const colon = s.match(/^(\d+):(\d+)$/);
+    if (colon) {
+      const m = parseInt(colon[2]);
+      if (m >= 60) return undefined;
+      return Math.round((parseInt(colon[1]) + m / 60) * 100) / 100;
+    }
+    // plain decimal "2.75" or "2"
+    const n = parseFloat(s);
+    return (!isNaN(n) && n >= 0) ? n : undefined;
+  }
+
   async function saveApprovedOt(recordId: number, val: string) {
-    const trimmed = val.trim();
-    const hours = trimmed === "" ? null : parseFloat(trimmed);
-    if (hours !== null && (isNaN(hours) || hours < 0)) { setOtEditId(null); return; }
+    const hours = parseOtInput(val);
+    if (hours === undefined) { setOtEditId(null); return; }
     setOtSavingId(recordId);
     try {
       const r = await apiFetch(`${API}/attendance/${recordId}/approved-ot`, {
@@ -1179,9 +1200,8 @@ paid_leave       Y / N          (default: N)`}</code>
                               {otEditId === row.id ? (
                                 <input
                                   autoFocus
-                                  type="number"
-                                  min="0"
-                                  step="0.5"
+                                  type="text"
+                                  placeholder="2h45m"
                                   value={otEditVal}
                                   onChange={e => setOtEditVal(e.target.value)}
                                   onBlur={() => saveApprovedOt(row.id, otEditVal)}
@@ -1189,7 +1209,7 @@ paid_leave       Y / N          (default: N)`}</code>
                                     if (e.key === "Enter") saveApprovedOt(row.id, otEditVal);
                                     if (e.key === "Escape") setOtEditId(null);
                                   }}
-                                  className="w-16 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-right text-xs text-white focus:outline-none"
+                                  className="w-20 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-right text-xs text-white placeholder-slate-600 focus:outline-none"
                                 />
                               ) : (
                                 <button
