@@ -79,6 +79,7 @@ type AttendanceRow = {
   absent_without_pay: boolean;
   paid_leave_flag: boolean;
   period_id: number | null;
+  approved_ot_hours: number | null;
 };
 
 type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION";
@@ -198,7 +199,7 @@ function DTRModal({
   const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState("");
   // editing state: work_date → {time_in, time_out, day_type}
-  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string }>>({});
 
   const loadRows = useCallback(() => {
     setLoading(true);
@@ -206,12 +207,14 @@ function DTRModal({
       .then(r => r.json())
       .then(d => {
         setRows(d as AttendanceRow[]);
-        const initial: Record<string, { time_in: string; time_out: string; day_type: string }> = {};
+        const initial: Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string }> = {};
         (d as AttendanceRow[]).forEach(row => {
           initial[row.work_date] = {
             time_in:  isoToManilaInput(row.actual_time_in),
             time_out: isoToManilaInput(row.actual_time_out),
             day_type: row.day_type,
+            late_minutes: String(row.late_minutes ?? 0),
+            approved_ot_hours: row.approved_ot_hours != null ? String(row.approved_ot_hours) : "",
           };
         });
         setEdits(initial);
@@ -260,13 +263,14 @@ function DTRModal({
         is_scheduled_rest_day: isRestDay,
         actual_time_in:  ed.time_in  ? manilaInputToISO(ed.time_in)  : null,
         actual_time_out: ed.time_out ? manilaInputToISO(ed.time_out) : null,
-        late_minutes:    row.late_minutes,
+        late_minutes:    parseInt(ed.late_minutes || "0", 10) || 0,
         undertime_minutes: row.undertime_minutes,
         // rest_day → no absent deduction regardless of is_worked; clear the AWP flag
         absent_without_pay: isRestDay ? false : row.absent_without_pay,
         paid_leave_flag: row.paid_leave_flag,
         period_id:  row.period_id ?? periodId,
         approval_status: "approved",
+        approved_ot_hours: ed.approved_ot_hours !== "" ? parseFloat(ed.approved_ot_hours) : null,
       };
       const r = await apiFetch(
         `${API}/attendance/${encodeURIComponent(run.staff_name)}/${row.work_date}`,
@@ -310,7 +314,7 @@ function DTRModal({
       setRows(prev => [...prev, created].sort((a, b) => a.work_date.localeCompare(b.work_date)));
       setEdits(prev => ({
         ...prev,
-        [workDate]: { time_in: "", time_out: "", day_type: created.day_type },
+        [workDate]: { time_in: "", time_out: "", day_type: created.day_type, late_minutes: "0", approved_ot_hours: "" },
       }));
     } catch (e) {
       setError(String(e));
@@ -374,6 +378,8 @@ function DTRModal({
                   <th className="py-2 text-left font-medium w-12">Status</th>
                   <th className="py-2 text-left font-medium">Time In</th>
                   <th className="py-2 text-left font-medium">Time Out</th>
+                  <th className="py-2 text-left font-medium w-16" title="Late arrival in minutes">Late (min)</th>
+                  <th className="py-2 text-left font-medium w-16" title="Approved overtime hours">OT Appr. (h)</th>
                   <th className="py-2 text-center font-medium">Action</th>
                 </tr>
               </thead>
@@ -388,6 +394,7 @@ function DTRModal({
                       <tr key={date} className="border-b border-white/5 bg-slate-800/30">
                         <td className="py-2 pr-2 font-mono text-slate-500">{date}</td>
                         <td className="py-2 pr-2 text-slate-600 italic" colSpan={3}>— no record —</td>
+                        <td className="py-2 pr-2" />
                         <td className="py-2 pr-2" />
                         <td className="py-2 text-center">
                           <div className="flex gap-1 justify-center">
@@ -414,7 +421,7 @@ function DTRModal({
                   }
 
                   // Existing row — show editable fields
-                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "", day_type: row.day_type };
+                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "", day_type: row.day_type, late_minutes: String(row.late_minutes ?? 0), approved_ot_hours: row.approved_ot_hours != null ? String(row.approved_ot_hours) : "" };
                   const isSaving = saving === row.work_date;
                   const currentDayType = ed.day_type;
 
@@ -471,6 +478,36 @@ function DTRModal({
                           }))}
                           className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-white text-xs focus:border-blue-500/60 focus:outline-none"
                           style={{ colorScheme: "dark" }}
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="480"
+                          step="1"
+                          value={ed.late_minutes}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], late_minutes: e.target.value }
+                          }))}
+                          className="w-14 rounded border border-white/10 bg-slate-800 px-1.5 py-1 text-white text-xs focus:border-amber-500/60 focus:outline-none"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.25"
+                          value={ed.approved_ot_hours}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], approved_ot_hours: e.target.value }
+                          }))}
+                          className="w-16 rounded border border-white/10 bg-slate-800 px-1.5 py-1 text-white text-xs focus:border-violet-500/60 focus:outline-none"
+                          placeholder="—"
                         />
                       </td>
                       <td className="py-2 text-center">
