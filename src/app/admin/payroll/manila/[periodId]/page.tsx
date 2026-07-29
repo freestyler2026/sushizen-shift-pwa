@@ -877,7 +877,7 @@ function PayslipDetail({
             <p className="text-xs text-slate-400 mt-0.5">
               {run.salary_type === "monthly" ? "Monthly" : "Daily"}
               &nbsp;·&nbsp;Monthly Rate: {fmtPHP(run.monthly_rate)}
-              &nbsp;·&nbsp;Divisor: {run.salary_divisor ?? "—"}
+              &nbsp;·&nbsp;Divisor: {run.salary_divisor != null ? Number(run.salary_divisor).toFixed(2) : "—"}
               &nbsp;·&nbsp;Days Worked: {run.days_worked ?? "—"}
               {run.monthly_rate != null && run.salary_divisor != null && (
                 <>&nbsp;·&nbsp;<span className="text-violet-300/80">Hourly: {fmtPHP(run.monthly_rate / run.salary_divisor / 8)}/hr</span></>
