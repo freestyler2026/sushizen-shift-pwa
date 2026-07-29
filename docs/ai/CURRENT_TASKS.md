@@ -1,6 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 195 — Manila Payroll UI: hourly rate + all-dates DTR modal)
+Last updated: 2026-07-29 (session 196 — Manila Payroll: salary_divisor 313-day DOLE method)
+
+---
+
+## Recently Completed (2026-07-29 session 196 — Manila Payroll: 313-day divisor)
+
+### Manila Payroll: salary_divisor changed to DOLE 313-day annual method (DEPLOYED ✅ Heroku 3d1bb66)
+
+**Decision**: Changed global `salary_divisor` from `26` to `26.083333` (313÷12).
+
+**Reason**: ZEN Manila staff work 6 days/week with unpaid rest day — DOLE/NWPC 313-day annual method is the correct divisor for this structure. Manual payroll sheets were already using ₱766.77/day (₱95.85/hr), which is the 313-day result. The engine was using 26-day method (₱769.23/day, ₱96.15/hr) — now aligned.
+
+**Impact on all payroll calculations**:
+- Daily rate: ₱20,000 ÷ 26.083333 = ₱766.77 (was ₱769.23)
+- Hourly rate: ₱766.77 ÷ 8 = ₱95.85/hr (was ₱96.15/hr)
+- All derived rates (OT, ND, late, undertime, holiday) use the new lower base — consistent across all calculation types
+
+**Implementation**: One-time migration in `db.py` `ensure_manila_payroll_tables()` — updates `manila_payroll_settings.salary_divisor` from '26' to '26.083333' WHERE current value is still '26' (idempotent). Seed value also updated for new installations.
+
+**Action required**: After deploying, run "Compute All" for current payroll period to recalculate all staff with the new divisor. Aaron's 2-day absence will now show ₱1,533.54 deduction (was ₱1,538.46), matching the manual sheet.
 
 ---
 
