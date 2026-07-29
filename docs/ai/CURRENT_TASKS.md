@@ -1,6 +1,32 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 190 — Supplier Confirmation Calls bug fixes + browser verification)
+Last updated: 2026-07-29 (session 193 — Absences staleness bug fix)
+
+---
+
+## Recently Completed (2026-07-29 session 193 — Absences staleness bug test & fix)
+
+### NavBar: HQ/ADMIN staleness badge gate fix (DEPLOYED ✅ Vercel 412db1f)
+- **Bug**: `fetchAbsenceStale` in NavBar gated on `canAccessAbsencesAdmin(auth)` (checks `channel.admin.absences.view` perm), but `canSeeAdminItem` early-returns `true` for HQ/ADMIN at line 332. HQ users whose JWT was issued before permissions were normalized to `["*"]` would never see the orange stale dot.
+- **Fix**: `role !== "HQ" && role !== "ADMIN"` bypass added — mirrors `canSeeAdminItem` logic.
+- Static analysis confirmed no other bugs in the staleness implementation. Backend endpoints (`check-status`, `mark-checked`) verified correct: `_PooledConn.__exit__` calls psycopg2 commit, weekday calculation correct, `row.get()` fallback correct.
+
+## Recently Completed (2026-07-29 session 192 — Absences staleness alert)
+
+### Absences: Daily review staleness alert system (DEPLOYED ✅ Heroku 3470cba, Vercel f141a3c)
+- **DB table**: `absence_last_check (city PK, checked_by, updated_at)` — created lazily on first access
+- **Backend** `GET /api/admin/absences/check-status` — Bearer token auth; returns `weekdays_since` + `stale: true/false` for manila + dubai. Weekday-only calculation (Mon–Fri, excluding weekends).
+- **Backend** `POST /api/admin/absences/mark-checked` — PIN auth (same as other absences ops); upserts last-review record.
+- **AbsencesPage**: Amber alert banner (city-by-city breakdown) appears when either city has gone 2+ weekdays without a review. Green "up to date" bar shows reviewer name + date when fresh. "Mark as Reviewed" button POSTs for both cities, dispatches `sushizen:absences:stale:refresh` event.
+- **NavBar**: Polls `/check-status` hourly; orange warning dot appears on the Absences sidebar item when stale.
+
+## Recently Completed (2026-07-29 session 191 — OS Attendance bug fixes)
+
+### OS Attendance: 4 bug fixes (DEPLOYED ✅ Vercel e6a151f)
+- **Bug fix #1 (CRITICAL)**: Delete button now hidden for On Shift sessions (`sessionStatus(s) !== "on_shift"`). Previously, any non-no-show record could be deleted — including active clocked-in sessions. Verified: delete button absent for On Shift rows.
+- **Bug fix #2**: Bayzat CSV import section hidden when `city === "dubai"`. The Manila-only section (branches: CUBAO/PARANAQUE/TAFT) was always visible even on the Dubai tab.
+- **Bug fix #3**: `fmtRequestedTime()` in CorrectionsTab now formats timestamps via `fmtTime(ts, tz)` instead of showing raw ISO strings like "2026-07-28T01:00:00Z".
+- **Bug fix #4**: Removed `className={SELECT_CLS}` from all `SelectDark` instances in DailyReportTab. `className` applies to the wrapper `<div>`, not the inner styled button — passing SELECT_CLS caused double borders and extra wrapper padding.
 
 ---
 
