@@ -191,44 +191,44 @@ export default function ManilaPayrollPage() {
               <div className="space-y-3 text-sm">
                 {[
                   {
-                    when: "Period start前",
+                    when: "Before period start",
                     tag: "One-time",
                     color: "bg-violet-900/50 text-violet-300",
                     step: "1",
                     title: "Publish shift",
-                    desc: "Draft → Publish で全スタッフの定休日・シフト時間を確定する。これがPayrollの定休日判定の基準になる。",
+                    desc: "Finalize each staff member's rest day and shift hours via Draft → Publish. This is the ground truth the payroll engine uses for rest-day detection.",
                   },
                   {
-                    when: "期間中・毎日",
+                    when: "Daily during period",
                     tag: "Daily",
                     color: "bg-amber-900/50 text-amber-300",
                     step: "2",
                     title: "Enter absences",
-                    desc: "欠勤者を Absences チャンネル (/admin/absences) に入力する。absence_type = ABSENT（無断欠勤）または VACATION_LEAVE / MEDICAL_LEAVE 等。",
+                    desc: "Log absent staff in the Absences channel (/admin/absences). Use ABSENT for unauthorized absences, or VACATION_LEAVE / MEDICAL_LEAVE for paid leave.",
                   },
                   {
-                    when: "期間中・毎日",
+                    when: "Daily during period",
                     tag: "Daily",
                     color: "bg-amber-900/50 text-amber-300",
                     step: "3",
                     title: "Check clock-in data",
-                    desc: "OS Attendance で打刻漏れ・ミスを確認・修正する。特に closing shift（深夜帰宅）の翌日 check-out が翌日付になっていないか確認。",
+                    desc: "Review and correct any missed or incorrect clock-ins in OS Attendance. Pay special attention to closing shifts — verify the check-out date is correct.",
                   },
                   {
-                    when: "期間終了後",
+                    when: "After period ends",
                     tag: "Once",
                     color: "bg-emerald-900/50 text-emerald-300",
                     step: "4",
                     title: "OS Attendance Sync",
-                    desc: "Period detail → \"Sync OS Attendance\" を実行。シフトデータ・打刻データ・欠勤データが一括で manila_attendance_daily に統合される。",
+                    desc: "Run \"Sync OS Attendance\" from the Period detail page. This merges shift data, clock-in data, and absence records into attendance in one pass.",
                   },
                   {
-                    when: "期間終了後",
+                    when: "After period ends",
                     tag: "Once",
                     color: "bg-emerald-900/50 text-emerald-300",
                     step: "5",
                     title: "Compute All",
-                    desc: "Period detail → \"Compute All\" を実行して全スタッフの給与を計算。結果を確認して Approve → Publish。",
+                    desc: "Run \"Compute All\" from the Period detail page to calculate payroll for all staff. Review the results, then Approve → Publish.",
                   },
                 ].map(item => (
                   <div key={item.step} className="flex gap-3">
@@ -247,7 +247,7 @@ export default function ManilaPayrollPage() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-slate-600">
-                ※ Step 4（Sync）は Step 2・3 のデータをすべて取り込む。Sync前に欠勤・打刻修正を完了させること。
+                Note: Step 4 (Sync) pulls in all data from Steps 2 and 3. Complete all absence entries and clock-in corrections before running Sync.
               </p>
             </div>
           )}
