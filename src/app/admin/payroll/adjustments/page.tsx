@@ -690,6 +690,23 @@ export default function AdjustmentsPage() {
         </div>
       </div>
 
+      {city === "manila" && (
+        <div className="mb-5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm text-amber-200 flex gap-3">
+          <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-400" />
+          <div>
+            <p className="font-semibold text-amber-300 mb-1">This page does not affect Manila payroll runs.</p>
+            <p className="text-amber-200/80">
+              This Adjustments page uses a separate cycle-based table and is <strong>not read</strong> by the Manila payroll engine.
+              To add deductions or additions to a Manila staff member, go to{" "}
+              <Link href="/admin/payroll/manila" className="underline text-amber-300 hover:text-amber-100">
+                Admin → Payroll → Manila
+              </Link>
+              , open the payroll period, click the staff row, then click the <strong>Adjust</strong> button.
+            </p>
+          </div>
+        </div>
+      )}
+
       {err && (
         <div className={`${BADGE_ERROR} mb-4 w-full justify-center py-3 rounded-xl text-sm`}>
           <AlertCircle size={14} />{err}
