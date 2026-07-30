@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-30 (session 199 cont.5 — procurement bug fixes: nested-button hydration, CONFIRMED filter, DB columns, deployed)
+Last updated: 2026-07-30 (session 199 cont.8 — v1639: late day-shift misclassification as closing-shift for undertime; Louiela run_id=25 recomputed)
 
 ---
 
@@ -16,22 +16,96 @@ Last updated: 2026-07-30 (session 199 cont.5 — procurement bug fixes: nested-b
 - **対処**: 重複行のどちらが正しいか HR/管理者に確認 → 誤った行を DELETE → 必要なら再計算
 
 ### LOW: Payroll status — 2H runs need recompute + re-approval (UPDATED 2026-07-30)
-- All 42 2H runs need a **4th recompute** to pick up: (a) late_minutes engine fix, (b) Louiela NSD-OT approved-window fix
+- All 42 2H runs need a **5th recompute** to pick up: (a) late_minutes engine fix, (b) NSD-OT approved-window fix, (c) NSD Regular two-layer fix (v1637+v1638)
+- **Action**: Manila Payroll page → period 2026-07-2H → "Compute" button to recompute all. Then Approve → Re-publish per staff.
 - Lynde's run (run_id=20) already recomputed: late deduction ₱58.71 correct. Net ₱7,856.14.
-- Louiela's run (run_id=25) already recomputed: NSD-OT fix applied. 7/14 NSD-OT = 2.5h ✓. Net ₱8,166.64.
+- Louiela's run (run_id=25) recomputed (v1639 fix applied): Gross ₱10,801.56, **Net ₱8,499.10** (was ₱8,120.02).
+  - NSD Regular = ₱0 for all dates ✓
+  - NSD OT correct: 7/12=1h, 7/14=2.5h, 7/16=2.5h, 7/19=1.5h, 7/21=2.5h ✓
+  - 7/24 UNDERTIME_DEDUCTION: **₱0.00** (was spurious ₱391.58 — see Recently Completed) ✓
 - Status reset to 'computed' after each recompute. Admin must Approve → Re-publish via UI.
-- Key cumulative changes across all 4 recomputes vs original:
+- Key cumulative changes across all 5 recomputes vs original:
   - SSS: Staff with Basic ₱18,500 now pay ₱462.50/cutoff (was ₱500.00). e.g. Alex Delgado, Ricardo Lamis III.
   - Ricardo ND-OT: 7/12→₱11.08, 7/13→₱27.71, 7/21→₱22.17 (capped at approved OT hours)
-  - Cathrina 7/14: NIGHT_DIFF_OT = ₱0 (was ₱3.18); Rachelle 7/18: 1.5h (was 1.67h)
+  - Cathrina 7/14: NIGHT_DIFF_OT = ₱0inal (was ₱3.18); Rachelle 7/18: 1.5h (was 1.67h)
   - Late deductions: staff with `scheduled_shift_start` populated now auto-deducted (previously always ₱0)
   - Louiela 7/14: NSD-OT = 2.5h ✓ (was 1.88h — full approved window, not based on clock-out)
+  - NSD Regular: all spurious amounts eliminated (scheduled_end is now authoritative for ot_start)
 - Aaron's run net = ₱7,763.88 (unchanged)
-- Staffs with UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), Louiela (-₱383.10), Angelica Regondola (-₱342.62), Abegail (-₱108.43)
+- Staffs with UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), ~~Louiela (-₱391.58)~~ ✓ fixed to ₱0, Angelica Regondola (-₱342.62), Abegail (-₱108.43)
 
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.8 — v1639 undertime misclassification fix)
+
+### Louiela 7/24 spurious 265-min Undertime root cause + fix (DEPLOYED ✅ Heroku v1639)
+
+**Bug**: The engine's closing-shift undertime check (`ATI.hour >= 14`) was misclassifying late-arriving day-shift workers as closing-shift workers.
+- Louiela's 7/24: scheduled 10:00–19:00, arrived late at 15:44 → ATI.hour=15 ≥ 14 → closing-shift branch fired
+- Engine set `shift_end = 00:30 next day` → `ATO=20:04 < 00:30 next day` → `auto_undertime = 265 min = ₱391.58`
+- Correct answer: ATO=20:04 > scheduled_shift_end=19:00 → **no undertime**
+
+**Fix (v1639)**: In the undertime block, when `scheduled_shift_end` is set with `hour >= 12` (same-day end), use it as the boundary instead of 00:30. Only fall back to 00:30 for true closing shifts (no scheduled_shift_end, or midnight-class end).
+
+**Recompute**: run_id=25 recomputed directly via `heroku run`:
+- UNDERTIME_DEDUCTION: ₱391.58 → **₱0.00** ✓
+- Net pay: ₱8,120.02 → **₱8,499.10** ✓
+- Late Arrival 344min (₱508.32) remains correct ✓
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.7 — NSD test suite + v1636 regression fix)
+
+### 42-test pure NSD engine suite created + v1636 regression found and fixed (DEPLOYED ✅ Heroku v1638)
+
+**Test file**: `tests_pure/test_nsd_engine_pure.py` (42 tests, no DB required)
+- `TestCalcNightHours` (17 tests): boundaries, fractions, tz-aware datetimes, key 22:00 endpoint
+- `TestComputeOtAndNsdOtPath` (11 tests): Louiela 7/19 large-break scenario, 7/15 exact-22:00 boundary, closing-shift OT accumulation, anchoring behavior
+- `TestComputeOtAndNsdNoOtPath` (12 tests): early departure, overstay, closing-shift full/partial, meal break paid/unpaid
+- `TestDocstringAccuracy` (2 tests): confirms max() docstring was stale; code does direct assignment
+
+**Bug found**: v1636 `nd_cap_out = ot_start` regression in the no-OT path.
+- Closing-shift workers who leave early (ATO < 00:30, no OT) were getting NSD for the full 22:00–00:30 window even if they left at 23:30 (1h overcounted)
+- The `min(regular_hours)` cap did NOT protect against this because worked hours (4.5h) > NSD window (2.5h)
+- Root cause: the OT analogy ("approved hours regardless of clock-out") does not apply when no OT is approved — no entitlement beyond actual hours worked
+- The OLD `min(actual_time_out, ot_start)` was already correct:
+  - ATO > ot_start (overstay): caps at ot_start ✓
+  - ATO < ot_start (early departure): caps at ATO ✓
+
+**Fix (v1638)**: Restored `nd_cap_out = min(actual_time_out, ot_start)` + fixed stale docstring
+
+**Impact of v1638 vs previous recompute**: Any 2H staff who are closing-shift workers and left early (before 00:30) without approved OT will have their NSD Regular corrected downward. Louiela's OT-bearing dates (7/14, 7/16, 7/19, 7/21) are unaffected (they're in the OT path). Louiela's 7/24 is also unaffected (scheduled_shift_end=19:00 → ATO=20:04 > ot_start → same result either way).
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.6 — Louiela NSD Regular two-layer fix)
+
+### Louiela Chica NSD Regular Hours — two-layer engine bug fixed (DEPLOYED ✅ Heroku v1636 + v1637)
+
+**File**: `app/manila_payroll_engine.py`, function `_compute_ot_and_nsd()`
+
+**Reported issue**: 7/14, 7/15, 7/16, 7/19, 7/21 NSD Regular Hours were being calculated based on clock-out time instead of scheduled shift end.
+
+**Root cause — two separate bugs**:
+
+**Bug 1 (v1636, no-OT path)**: `nd_cap_out = min(actual_time_out, ot_start)` used clock-out when employee left early.
+- Fix: `nd_cap_out = ot_start` (always use schedule boundary, not clock-out)
+
+**Bug 2 (v1637, OT path — the real cause)**: `ot_start = max(engine_formula, scheduled_shift_end)` — when `actual_break_minutes` was large (e.g., 292 min on 7/19), engine formula `(ATI + 8h + 292min)` produced ot_start = 01:44 next day, which is later than scheduled_shift_end = 22:00. `max()` selected the engine value, yielding 3.74h spurious NSD Regular on a 13:00–22:00 shift (NSD window 22:00–01:44 = 3.74h).
+- Fix: `ot_start = scheduled_shift_end_dt` when scheduled_shift_end is available (hour ≥ 12). Schedule is authoritative; engine formula is fallback only when no schedule.
+
+**Verification of result** (Louiela run_id=25, period 2026-07-2H):
+- NSD Regular = ₱0 for all dates (correct — shift 13:00–22:00, `calc_night_hours(ATI, 22:00)` = 0 since 22:00 is loop-excluded)
+- NSD OT correct for 5 dates: 7/12=1h, 7/14=2.5h, 7/16=2.5h, 7/19=1.5h, 7/21=2.5h
+- 7/15 NSD OT eliminated: old code gave 0.47h from engine pushing ot_start to 19:28→ot_end 22:28; fixed to ot_start=19:00→ot_end=22:00=0h NSD ✓
+- 7/24 NSD Regular 2.5h also eliminated: ATI=15:44, ATO=20:04, no OT, shift 10:00–19:00 — no NSD window overlap ✓
+- Gross: ₱10,801.56 (was ₱10,870.35 before this session's fix, reduction ₱68.79)
+
+**Engine lesson**: When `scheduled_shift_end` is known (same-day, hour ≥ 12), use it directly as `ot_start`. Using `max(formula, schedule)` defeats the purpose when formula can exceed schedule due to large actual break minutes.
 
 ---
 
