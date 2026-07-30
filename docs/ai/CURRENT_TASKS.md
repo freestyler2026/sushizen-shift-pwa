@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-30 (session 199 cont.4 — procurement security hardening: management-only void + self-cancel prevention)
+Last updated: 2026-07-30 (session 199 cont.5 — procurement bug fixes: nested-button hydration, CONFIRMED filter, DB columns, deployed)
 
 ---
 
@@ -32,6 +32,37 @@ Last updated: 2026-07-30 (session 199 cont.4 — procurement security hardening:
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.5 — Procurement bug fixes, deployed)
+
+### 4 bugs found and fixed (DEPLOYED ✅ Frontend 969a3d3 + Heroku v1635)
+
+**Bug 1 — Void audit trail never rendered in Hub expanded view**
+- `list_proc_hub_requests` SELECT was missing `r.void_reason, r.voided_by, r.voided_at`
+- The audit trail block in the UI always received `undefined` for these fields → never shown
+- Fix: added the 3 columns to the SQL SELECT in `db.py`
+
+**Bug 2 — close_not_received didn't persist close_reason/closed_by**
+- `update_proc_request_phase2()` had no params for these fields
+- DB columns (`close_reason`, `closed_at`, `closed_by`) didn't exist in the table
+- Fix: added columns in migration, extended function with conditional SET clauses, added reason validation (400 if empty) and `closed_by` passthrough in endpoint
+
+**Bug 3 — Close Not Received button hidden by DRAFT receivings**
+- Condition `requestReceivings.length === 0` was TRUE only when zero receivings of ANY status
+- A DRAFT receiving (in-progress, not confirmed) would hide the button even with no confirmed items
+- Fix: changed condition to `requestReceivings.filter(r => r.status === "CONFIRMED").length === 0`
+
+**Bug 4 — Nested `<button>` HTML violation causing React hydration error**
+- The Delivery Exceptions panel header was `<button>` containing a Refresh `<button>`
+- HTML spec: buttons cannot contain interactive elements → browser logs hydration error, page may hang
+- Fix: outer panel toggle changed to `<div role="button" tabIndex={0}>` with `onKeyDown` handler
+- Cleared `.next-dev` stale SWC cache after fix (dev server was serving cached compiled output)
+
+**Also deployed (from previous uncommitted sessions):**
+- All proxy routes + client pages: support `NEXT_PUBLIC_API_BASE_URL` in dev mode
+- cashier-log: timezone-aware `fmtTime()` (UTC→local via Date API); `uploadPhoto()` returns boolean for failure tracking
 
 ---
 
