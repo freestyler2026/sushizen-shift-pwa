@@ -1357,7 +1357,7 @@ export default function StoreProcurementReceivingPage() {
                       <Ban className="h-3.5 w-3.5" />
                       Close Order – Not Received
                     </button>
-                    <p className="mt-1 text-[11px] text-zinc-600">Use when supplier did not deliver and no items will be received.</p>
+                    <p className="mt-1 text-[11px] text-zinc-600">Management PIN required. Requester cannot close their own order.</p>
                   </div>
                 )}
               </>
@@ -1654,7 +1654,7 @@ export default function StoreProcurementReceivingPage() {
               <div>
                 <h3 className="text-base font-semibold text-white">Close Order – Not Received</h3>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  This marks the order as closed with no items received. No delivery was recorded.
+                  Requires Management PIN. The original requester cannot close their own order. This action is logged for audit.
                 </p>
               </div>
             </div>

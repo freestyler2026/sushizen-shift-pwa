@@ -711,7 +711,7 @@ export default function DirectPurchasesAdminPage() {
               <div>
                 <h3 className="text-base font-semibold text-white">Void Direct Purchase</h3>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  <span className="font-mono text-zinc-200">{voidTarget.request_no}</span> will be cancelled and cannot be received.
+                  <span className="font-mono text-zinc-200">{voidTarget.request_no}</span> — Management PIN required. Requester cannot void their own order.
                 </p>
               </div>
             </div>

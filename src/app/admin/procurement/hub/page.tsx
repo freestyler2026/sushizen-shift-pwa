@@ -53,6 +53,9 @@ type HubRow = {
   current_assignee_role?: string;
   claimed_by?: string;
   approved_at?: string;
+  void_reason?: string;
+  voided_by?: string;
+  voided_at?: string;
 };
 
 type WhStockItem = {
@@ -119,7 +122,7 @@ function requestStatusBadge(s: string) {
   if (v === "RECEIVED")  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${BADGE_SUCCESS}`}>Received</span>;
   if (v === "REJECTED")  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${BADGE_ERROR}`}>Rejected</span>;
   if (v === "CLOSED")    return <span className="rounded-full border border-zinc-600/40 bg-zinc-800/25 px-2 py-0.5 text-[11px] font-medium text-zinc-500">Closed</span>;
-  if (v === "CANCELLED") return <span className="rounded-full border border-zinc-600/40 bg-zinc-800/25 px-2 py-0.5 text-[11px] font-medium text-zinc-500">Cancelled</span>;
+  if (v === "CANCELLED") return <span className="rounded-full border border-red-800/50 bg-red-950/25 px-2 py-0.5 text-[11px] font-medium text-red-400">⊘ Voided</span>;
   if (v === "PAYMENT_CONFIRMED") return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${BADGE_SUCCESS}`}>Payment Confirmed</span>;
   return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${BADGE_INFO}`}>{s}</span>;
 }
@@ -205,7 +208,8 @@ function rowHighlight(row: HubRow): string {
   if (rs === "APPROVED" && (row.purchase_type === "cash_purchase" || row.purchase_type === "ec_purchase" || row.purchase_type === "prepaid"))
     return "border-amber-600/30 bg-amber-950/10";
   if (cs === "ESCALATED") return "border-rose-700/30 bg-rose-950/10";
-  if (rs === "CLOSED" || rs === "REJECTED" || rs === "CANCELLED") return "border-zinc-700/20 bg-black/10 opacity-60";
+  if (rs === "CANCELLED") return "border-red-900/30 bg-red-950/8";
+  if (rs === "CLOSED" || rs === "REJECTED") return "border-zinc-700/20 bg-black/10 opacity-60";
   return "border-white/7 bg-white/3";
 }
 
@@ -798,6 +802,7 @@ export default function ProcurementHubPage() {
                 { value: "RECEIVED", label: "Received" },
                 { value: "CLOSED", label: "Closed" },
                 { value: "REJECTED", label: "Rejected" },
+                { value: "CANCELLED", label: "⚑ Voided / Cancelled" },
               ]}
             />
           </div>
@@ -1220,7 +1225,35 @@ export default function ProcurementHubPage() {
                         </div>
                       )}
 
-                      {/* Void Order — available for APPROVED/SUBMITTED orders not yet purchased */}
+                      {/* Voided order — show void audit trail */}
+                      {(row.request_status || "").toUpperCase() === "CANCELLED" && row.voided_by && (
+                        <div className="border-t border-red-900/30 pt-3">
+                          <div className="rounded-xl border border-red-900/30 bg-red-950/10 px-3 py-2.5 text-xs space-y-1">
+                            <div className="flex items-center gap-1.5 text-red-400 font-semibold">
+                              <Ban className="h-3.5 w-3.5" />
+                              Voided Order
+                            </div>
+                            <div className="text-zinc-400">
+                              <span className="text-zinc-500">Voided by: </span>
+                              <span className="text-zinc-200 font-medium">{row.voided_by}</span>
+                            </div>
+                            {row.voided_at && (
+                              <div className="text-zinc-400">
+                                <span className="text-zinc-500">Date: </span>
+                                {new Date(row.voided_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                              </div>
+                            )}
+                            {row.void_reason && (
+                              <div className="text-zinc-400">
+                                <span className="text-zinc-500">Reason: </span>
+                                <span className="text-zinc-300">{row.void_reason}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Void Order — management-level PIN required */}
                       {["APPROVED", "SUBMITTED"].includes((row.request_status || "").toUpperCase()) && (
                         <div className="border-t border-white/8 pt-3">
                           <button
@@ -1236,7 +1269,7 @@ export default function ProcurementHubPage() {
                             <Ban className="h-3.5 w-3.5" />
                             Void Order
                           </button>
-                          <p className="mt-1 text-[11px] text-zinc-600">Use when supplier cannot fulfill this order.</p>
+                          <p className="mt-1 text-[11px] text-zinc-600">Requires HQ / Management PIN. Requester cannot void their own order.</p>
                         </div>
                       )}
                     </div>
@@ -1264,7 +1297,7 @@ export default function ProcurementHubPage() {
             </div>
           </div>
           <p className="mb-4 text-xs text-zinc-400">
-            This will cancel the approved order and mark it as Voided. A reason is required for audit purposes.
+            This will cancel the order permanently. Management-level PIN required. The original requester cannot void their own order.
           </p>
           <div className="mb-4">
             <label className="mb-1.5 block text-xs font-medium text-zinc-400">Reason for voiding *</label>
