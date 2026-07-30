@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-29 (session 198 — ND fix + undertime auto-deduction + 1H period date fix + all 2H recompute)
+Last updated: 2026-07-30 (session 199 cont. — Lynde late deduction fix + DTR timezone fix + payroll adjustments wrong-table bug fix)
 
 ---
 
@@ -15,14 +15,119 @@ Last updated: 2026-07-29 (session 198 — ND fix + undertime auto-deduction + 1H
   エンジンは "Lowegie D. Dumangcas" を使用しており計算上は機能しているが、データ整理が必要。
 - **対処**: 重複行のどちらが正しいか HR/管理者に確認 → 誤った行を DELETE → 必要なら再計算
 
-### LOW: Payroll status — 2H runs need re-approval
-- All 42 2H runs were recomputed (Heroku v1617–v1618) and status reset to 'computed'. Admin must Approve → Re-publish via UI for each run (or affected subset) to restore published status.
-- Aaron's run (run_id=3): final net = ₱7,763.88 after ND fix + 07-25 absence + UNDERTIME -₱91.06 (57min early leave 07-12). Previously published at ₱8,612.61.
-- Staffs with new UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), Louiela (-₱383.10), Angelica Regondola (-₱342.62), Abegail (-₱108.43)
+### LOW: Payroll status — 2H runs need re-approval (UPDATED: Lynde recomputed 4th time 2026-07-30 for late deduction fix)
+- All 42 2H runs recomputed 3× (session 199): (1) SSS table migration, (2) ND-OT cap fix, (3) scheduled_shift_end NSD fix
+- Lynde's run (run_id=20) recomputed 4th time: late deduction ₱58.71 now correct. Net ₱7,856.14.
+- Status reset to 'computed'. Admin must Approve → Re-publish via UI.
+- **Other staff**: late_minutes engine fix now live — staff with `scheduled_shift_start` populated will have late deductions auto-computed on next recompute. Consider recomputing all 42 runs again.
+- Key changes vs previous compute:
+  - SSS: Staff with Basic ₱18,500 now pay ₱462.50/cutoff (was ₱500.00). e.g. Alex Delgado, Ricardo Lamis III.
+  - Ricardo ND-OT: 7/12→₱11.08, 7/13→₱27.71, 7/21→₱22.17 (capped at approved OT hours)
+  - Cathrina 7/14: NIGHT_DIFF_OT = ₱0 (was ₱3.18); Rachelle 7/18: 1.5h (was 1.67h)
+- Aaron's run net = ₱7,763.88 (unchanged — no SSS bracket change, no OT NSD)
+- Staffs with UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), Louiela (-₱383.10), Angelica Regondola (-₱342.62), Abegail (-₱108.43)
 
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont. — late deduction + DTR timezone + wrong-table bug)
+
+### Manila Payroll Adjustments wrong-table bug (DEPLOYED ✅ Heroku v1628 + Vercel)
+
+**Bug**: `load_manual_adjustments()` in `manila_payroll_engine.py` referenced `period.period_id` but `PayrollPeriod` dataclass uses `.id` → silent `AttributeError` caught by bare `except` → ALL manual deductions returned empty for ALL Manila staff.
+
+**Fix**: `period.period_id` → `period.id` (line 1084).
+
+**Immediate fix**: Lynde's ₱1,747.65 (Staff House Rent & Electricity) inserted directly into `manila_payroll_adjustments` via API. Wrong entry in `payroll_adjustments` (wrong table) deleted.
+
+**UI fix**: Warning banner added to `/admin/payroll/adjustments` when Manila is selected, explaining to use the Adjust button in `/admin/payroll/manila` instead.
+
+### DTR timestamp display 8-hour offset fix (DEPLOYED ✅ Vercel commit 3ce42d2)
+
+**Bug**: PHT timestamps are stored with +00 label (not actual UTC). Two components were treating them as UTC and converting to Asia/Manila (+8h):
+1. `dtr-upload/page.tsx` `fmtTime()`: `timeZone: "Asia/Manila"` → changed to `"UTC"`. Clock-in/out display now shows correct PHT time.
+2. `[periodId]/page.tsx` `isoToManilaInput()`: used `Intl.DateTimeFormat` with `Asia/Manila` → now uses `getUTCHours()/getUTCMinutes()`. Also fixed `manilaInputToISO()`: `manilaStr + "+08:00"` → `manilaStr + "Z"` so edited times are stored as PHT with +00 convention.
+
+**Impact**: Previously DTR Edit modal showed times 8 hours late (17:04 instead of 09:04), and if a user edited and saved, times were stored 8 hours wrong.
+
+### Late Arrival Deduction fix — engine now computes from timestamps (DEPLOYED ✅ Heroku v1629)
+
+**Root cause**: `manila_attendance_daily.late_minutes` column was never written by any attendance entry process — all rows had `late_minutes=0` → Late Arrival Deduction was always ₱0.00 for all Manila staff.
+
+**Fix** (`manila_payroll_engine.py`):
+1. Added `scheduled_shift_start: Optional[time]` to `AttendanceRow` dataclass
+2. Added `scheduled_shift_start` to SELECT query (index r[16])
+3. After building each row: `if late_minutes == 0 and scheduled_shift_start and actual_time_in: late_minutes = max(0, int((actual_time_in - combine(work_date, scheduled_shift_start, UTC)).total_seconds() / 60))`
+
+**Backfill**: `scheduled_shift_start` backfilled for 11 of 12 name-mismatched staff (78 rows). Wallen Galasinao matched to "Wallen Galasinao (PH)". Only 7/11-7/15 rows (wrong period assignment) remain NULL — no impact on 2H calculation.
+
+**Verified** (Lynde Ore, run_id=20, period_id=3):
+- 7/17 (4min late): -₱6.71 ✓
+- 7/21 (14min late): -₱23.48 ✓
+- 7/22 (1min late): -₱1.68 ✓
+- 7/23 (16min late): -₱26.84 ✓
+- Net Pay: ₱7,856.14 (₱10,500 - ₱58.71 late - ₱1,747.65 manual - ₱837.50 statutory)
+
+---
+
+## Recently Completed (2026-07-30 session 199 — SSS migration + ND-OT cap fix + full 2H recompute)
+
+### SSS contribution table migration (DEPLOYED ✅ Heroku DB + engine)
+
+**Problem**: `ph_sss_contribution_table` had only 8 coarse rows with ₱5,000 MSC steps. Staff with Basic ₱18,500 were being charged ₱500/cutoff (MSC ₱20,000 bracket) instead of ₱462.50 (MSC ₱18,500 bracket).
+
+**Fix**: Migrated to 33 fine-grained rows (₱500 MSC steps, ₱4,000–₱20,000) with `source_version='SSS 2025 v2'`. Old coarse rows deactivated. WISP rows (₱20,250+) unchanged.
+
+**Verified**: Alex Delgado ₱500→₱462.50 ✓, Ricardo Lamis III ₱500→₱475.00 (MSC ₱19,000 due to ND/OT income) ✓
+
+**Policy note**: SSS is computed on total monthly gross (Basic + ND + OT), per SSS 2025 rules. This is correct.
+
+### Ricardo ND-OT cap fix (DEPLOYED ✅ Heroku commit 524a9ad)
+
+**Problem**: `night_ot` in `_compute_ot_and_nsd()` used raw `actual_time_out`, so staff who worked past their approved OT hours had ND computed on full actual clock-out time (not just approved hours).
+
+**Fix** (`manila_payroll_engine.py`, line ~308):
+```python
+# Before
+night_ot = calc_night_hours(ot_start, actual_time_out)
+# After
+night_ot = min(
+    calc_night_hours(ot_start, actual_time_out),
+    approved_ot_hours,
+).quantize(FOUR_DP, ROUND_HALF_UP)
+```
+
+**Tested**: 23/24 cases PASS. 1 FAIL was test expectation error (closing-shift branch triggers hour≥14, not a code bug).
+
+### scheduled_shift_end NSD cap fix (DEPLOYED ✅ Heroku commits 5c75b8e + cc05f30)
+
+**Problem (pre-existing edge case)**: When a staff's approved OT window ends before 22:00 but they actually stay past 22:00, the `min()` cap on `night_ot` couldn't help — the approved hours were already consumed before NSD started. Staff like Cathrina (7/14: ₱3.18 spurious NSD), Louiela (7/15: excess 0.23h), Rachelle (7/18: 1.67h instead of 1.5h) were overpaid small amounts.
+
+**Root cause**: `_compute_ot_and_nsd()` had no concept of where the scheduled shift ended, so it couldn't anchor `ot_start` to the scheduled shift end.
+
+**Fix** (`manila_payroll_engine.py`):
+1. Added `scheduled_shift_end: Optional[time]` field to `AttendanceRow` dataclass
+2. Added `scheduled_shift_end` to SELECT query (index r[15])
+3. Updated `_compute_ot_and_nsd()` with new `scheduled_shift_end` + `work_date` params:
+   - Same-day shift ends (`scheduled_shift_end.hour >= 12`, e.g. 19:00, 22:00): push `ot_start = max(engine_default, scheduled_end_dt)` and apply **strict window cap** — NSD only within `[ot_start, ot_start + approved_hours]`
+   - Crossing-midnight shifts (`hour < 12`, e.g. 00:30): keep engine default + `min()` fallback (preserves Ricardo 2.5h case)
+4. Backfilled 743 rows in `manila_attendance_daily` from `shift_published_rows` for 2026-06-01 onwards
+
+**Key design decision**: `scheduled_shift_end.hour < 12` (e.g. 00:30) = next-day end → do NOT use strict window, to preserve Ricardo Lamis 7/13 2.5h NSD OT (closing shift, end=00:30).
+
+**Timezone fix**: `datetime.combine(work_date, scheduled_shift_end, tzinfo=actual_time_in.tzinfo)` — must pass `tzinfo` to avoid offset-naive vs offset-aware comparison error (commit cc05f30).
+
+**Verified results (2026-07-2H, period_id=3)**:
+- Cathrina 7/14: `NIGHT_DIFF_OT = 0.00h` ✓ (was ₱3.18 spurious)
+- Rachelle 7/18: `1.5000h` ✓ (was 1.67h)
+- Ricardo 7/13: `2.5000h` ✓ unchanged (crossing-midnight fallback preserved)
+
+### 2026-07-2H full recompute (42/42, no errors) — 3rd recompute
+
+Third recompute of all 42 Manila staff after: SSS migration → ND-OT cap fix → scheduled_shift_end NSD fix. All successful. Runs reset to 'computed'; Admin must Approve → Re-publish.
 
 ---
 
