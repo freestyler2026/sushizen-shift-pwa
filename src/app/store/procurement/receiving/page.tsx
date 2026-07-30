@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Camera, CheckCircle2, Circle, Clock, ExternalLink, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw, X } from "lucide-react";
+import { Ban, Camera, CheckCircle2, Circle, Clock, ExternalLink, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw, X } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -144,6 +144,12 @@ export default function StoreProcurementReceivingPage() {
   const [refreshing, setRefreshing] = useState(false);
   // On mobile: collapse Step 1 list when a request is pre-selected (from URL or after user picks one)
   const [step1Collapsed, setStep1Collapsed] = useState(false);
+
+  // Close Order – Not Received modal
+  const [closeNotReceivedOpen, setCloseNotReceivedOpen] = useState(false);
+  const [closeNotReceivedReason, setCloseNotReceivedReason] = useState("");
+  const [closeNotReceivedBusy, setCloseNotReceivedBusy] = useState(false);
+  const [closeNotReceivedError, setCloseNotReceivedError] = useState("");
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -506,6 +512,32 @@ export default function StoreProcurementReceivingPage() {
     }
   };
 
+  // ── Close Order – Not Received ────────────────────────────────────────────
+
+  const closeOrderNotReceived = useCallback(async () => {
+    if (!requestId) return;
+    setCloseNotReceivedBusy(true);
+    setCloseNotReceivedError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/requests/${requestId}/close-not-received`,
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, reason: closeNotReceivedReason.trim() }),
+        },
+        requestedBy,
+        pin,
+      );
+      setCloseNotReceivedOpen(false);
+      setCloseNotReceivedReason("");
+      await Promise.all([loadMyRequests(), loadReceivings()]);
+    } catch (e: any) {
+      setCloseNotReceivedError(String(e?.message || e || "Failed to close order"));
+    } finally {
+      setCloseNotReceivedBusy(false);
+    }
+  }, [requestId, requestedBy, pin, closeNotReceivedReason, loadMyRequests, loadReceivings]);
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -616,7 +648,7 @@ export default function StoreProcurementReceivingPage() {
     if (filterHideConfirmed) {
       list = list.filter((r) => {
         const rs = (r.receiving_status || "").toUpperCase();
-        return rs !== "CONFIRMED" && rs !== "RECEIVED";
+        return rs !== "CONFIRMED" && rs !== "RECEIVED" && rs !== "NOT_RECEIVED";
       });
     }
     if (filterSearch.trim()) {
@@ -1313,6 +1345,21 @@ export default function StoreProcurementReceivingPage() {
                 {computedTotals.checkedCount === 0 ? (
                   <p className="mt-2 text-center text-xs text-zinc-500">Tap the ○ circle next to each item you received, then press Record Delivery.</p>
                 ) : null}
+
+                {/* Close Order – Not Received: shown when no items are checked and order has no receiving records */}
+                {computedTotals.checkedCount === 0 && requestReceivings.length === 0 && (
+                  <div className="mt-3 border-t border-white/8 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => { setCloseNotReceivedOpen(true); setCloseNotReceivedReason(""); setCloseNotReceivedError(""); }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-red-800/40 bg-red-950/20 px-3 py-1.5 text-xs text-red-400 hover:bg-red-950/35 transition"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      Close Order – Not Received
+                    </button>
+                    <p className="mt-1 text-[11px] text-zinc-600">Use when supplier did not deliver and no items will be received.</p>
+                  </div>
+                )}
               </>
             ) : requestDetail && !requestDetail.items?.length ? (
               <div className="py-4 text-center text-sm text-zinc-500">No items found in this request.</div>
@@ -1595,6 +1642,74 @@ export default function StoreProcurementReceivingPage() {
         </div>{/* end right panel */}
         </div>{/* end two-column flex */}
       </div>
+
+      {/* ── Close Order – Not Received modal ── */}
+      {closeNotReceivedOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-950/40 border border-red-800/40">
+                <Ban className="h-4.5 w-4.5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">Close Order – Not Received</h3>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  This marks the order as closed with no items received. No delivery was recorded.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">Reason</label>
+                <SelectDark
+                  value={closeNotReceivedReason}
+                  onChange={(v) => setCloseNotReceivedReason(v)}
+                  className="w-full"
+                  options={[
+                    { value: "Out of Stock from Supplier", label: "Out of Stock from Supplier" },
+                    { value: "Supplier Did Not Deliver", label: "Supplier Did Not Deliver" },
+                    { value: "Supplier Unable to Fulfill", label: "Supplier Unable to Fulfill" },
+                    { value: "Order Cancelled", label: "Order Cancelled" },
+                    { value: "Other", label: "Other" },
+                  ]}
+                  placeholder="— Select reason —"
+                />
+              </div>
+
+              {closeNotReceivedError && (
+                <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  {closeNotReceivedError}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCloseNotReceivedOpen(false)}
+                  disabled={closeNotReceivedBusy}
+                  className="flex-1 rounded-xl border border-white/12 bg-white/5 py-2 text-sm text-zinc-300 transition hover:bg-white/10 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void closeOrderNotReceived()}
+                  disabled={closeNotReceivedBusy || !closeNotReceivedReason}
+                  className="flex-1 rounded-xl border border-red-800/50 bg-red-950/30 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
+                >
+                  {closeNotReceivedBusy ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Closing…
+                    </span>
+                  ) : "Close Order"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

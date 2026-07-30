@@ -18,7 +18,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check, TriangleAlert, PackageSearch, ChevronUp } from "lucide-react";
+import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check, TriangleAlert, PackageSearch, ChevronUp, Ban } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -289,6 +289,12 @@ export default function ProcurementHubPage() {
   // Local ack status overrides — applied immediately on success so UI updates without reload
   const [ackOverride, setAckOverride] = useState<Record<string, string>>({});
 
+  // Void order modal
+  const [voidTarget, setVoidTarget] = useState<{ id: string; request_no: string } | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidBusy, setVoidBusy] = useState(false);
+  const [voidError, setVoidError] = useState("");
+
   // Expandable rows — id → { items, receipt_url } cache
   type DetailItem = { id: string; item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number; line_total: number; category?: string };
   type DetailCache = { items: DetailItem[]; receipt_url: string; notes: string; loading: boolean };
@@ -418,6 +424,27 @@ export default function ProcurementHubPage() {
     }
   }, [requestedBy]);
 
+  const doVoidOrder = useCallback(async () => {
+    if (!voidTarget || !voidReason.trim()) return;
+    setVoidBusy(true);
+    setVoidError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/requests/${voidTarget.id}/void`,
+        { method: "POST", body: JSON.stringify({ approver_name: requestedBy, pin, void_reason: voidReason.trim() }) },
+        requestedBy,
+        pin,
+      );
+      setVoidTarget(null);
+      setVoidReason("");
+      void load();
+    } catch (e: any) {
+      setVoidError(String(e?.message || e || "Failed to void order"));
+    } finally {
+      setVoidBusy(false);
+    }
+  }, [voidTarget, voidReason, requestedBy, pin, load]);
+
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
@@ -494,6 +521,7 @@ export default function ProcurementHubPage() {
   }
 
   return (
+    <>
     <div className="space-y-5">
 
       {/* Header */}
@@ -1191,6 +1219,26 @@ export default function ProcurementHubPage() {
                           )}
                         </div>
                       )}
+
+                      {/* Void Order — available for APPROVED/SUBMITTED orders not yet purchased */}
+                      {["APPROVED", "SUBMITTED"].includes((row.request_status || "").toUpperCase()) && (
+                        <div className="border-t border-white/8 pt-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVoidTarget({ id: row.id, request_no: row.request_no });
+                              setVoidReason("");
+                              setVoidError("");
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-red-800/40 bg-red-950/20 px-3 py-1.5 text-xs text-red-400 hover:bg-red-950/35 transition"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            Void Order
+                          </button>
+                          <p className="mt-1 text-[11px] text-zinc-600">Use when supplier cannot fulfill this order.</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1200,5 +1248,62 @@ export default function ProcurementHubPage() {
         })}
       </div>
     </div>
+
+    {/* ── Void Order Modal ── */}
+
+    {voidTarget && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => !voidBusy && setVoidTarget(null)}>
+        <div className="w-full max-w-md rounded-2xl border border-red-800/40 bg-zinc-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-950/50 text-red-400">
+              <Ban className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Void Order</div>
+              <div className="text-xs text-zinc-400">{voidTarget.request_no}</div>
+            </div>
+          </div>
+          <p className="mb-4 text-xs text-zinc-400">
+            This will cancel the approved order and mark it as Voided. A reason is required for audit purposes.
+          </p>
+          <div className="mb-4">
+            <label className="mb-1.5 block text-xs font-medium text-zinc-400">Reason for voiding *</label>
+            <SelectDark
+              value={voidReason}
+              onChange={(v) => setVoidReason(v)}
+              className="w-full"
+              options={[
+                { value: "Out of Stock from Supplier", label: "Out of Stock from Supplier" },
+                { value: "Supplier Price Increased", label: "Supplier Price Increased" },
+                { value: "Switching to Alternative Supplier", label: "Switching to Alternative Supplier" },
+                { value: "Duplicate Order", label: "Duplicate Order" },
+                { value: "Other", label: "Other" },
+              ]}
+              placeholder="— Select reason —"
+            />
+          </div>
+          {voidError && <p className="mb-3 rounded-xl border border-red-800/40 bg-red-950/20 px-3 py-2 text-xs text-red-400">{voidError}</p>}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setVoidTarget(null)}
+              disabled={voidBusy}
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10 disabled:opacity-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void doVoidOrder()}
+              disabled={voidBusy || !voidReason}
+              className="flex-1 rounded-xl border border-red-800/40 bg-red-950/30 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/50 disabled:opacity-50 transition"
+            >
+              {voidBusy ? "Voiding…" : "Confirm Void"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

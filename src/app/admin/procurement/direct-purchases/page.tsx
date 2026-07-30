@@ -27,6 +27,7 @@ import {
 } from "@/lib/ui-tokens";
 import {
   AlertCircle,
+  Ban,
   CheckCircle2,
   ShoppingBag,
   RefreshCw,
@@ -82,6 +83,7 @@ function statusBadge(status: string) {
   const s = (status || "").toUpperCase();
   if (s === "APPROVED")   return <span className={BADGE_SUCCESS}>{s}</span>;
   if (s === "REJECTED")   return <span className={BADGE_ERROR}>{s}</span>;
+  if (s === "CANCELLED")  return <span className={BADGE_ERROR}>CANCELLED</span>;
   if (s === "IN_REVIEW")  return <span className={BADGE_WARNING}>IN REVIEW</span>;
   if (s === "SUBMITTED")  return <span className={BADGE_INFO}>SUBMITTED</span>;
   return <span className={BADGE_INFO}>{s || "DRAFT"}</span>;
@@ -136,6 +138,12 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Verify ──
   const [verifyBusy, setVerifyBusy] = useState("");
+
+  // ── Void ──
+  const [voidTarget, setVoidTarget]   = useState<{ id: string; request_no: string } | null>(null);
+  const [voidReason, setVoidReason]   = useState("");
+  const [voidBusy,   setVoidBusy]     = useState(false);
+  const [voidError,  setVoidError]    = useState("");
 
   // ── Catalog ──
   const [catalog, setCatalog]   = useState<CatalogItem[]>([]);
@@ -305,6 +313,30 @@ export default function DirectPurchasesAdminPage() {
       setVerifyBusy("");
     }
   };
+
+  // ─── Void handler ────────────────────────────────────────────────────────
+  const doVoidDirectPurchase = useCallback(async () => {
+    if (!voidTarget || !voidReason.trim()) return;
+    setVoidBusy(true);
+    setVoidError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/requests/${voidTarget.id}/void`,
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, void_reason: voidReason.trim() }),
+        },
+        requestedBy, pin,
+      );
+      setVoidTarget(null);
+      setVoidReason("");
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e: unknown) {
+      setVoidError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVoidBusy(false);
+    }
+  }, [voidTarget, voidReason, requestedBy, pin, cityFilter, statusFilter, verifiedFilter, load]);
 
   // ─── Guard ───────────────────────────────────────────────────────────────
   if (!allowed) {
@@ -476,6 +508,14 @@ export default function DirectPurchasesAdminPage() {
                           ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                           : <CheckCircle2 className="h-3.5 w-3.5" />}
                         Mark Verified
+                      </button>
+                    )}
+                    {(row.status || "").toUpperCase() === "APPROVED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setVoidTarget({ id: row.id, request_no: row.request_no || row.parent_case_no }); setVoidReason(""); setVoidError(""); }}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5 border-red-800/40 text-red-400 hover:bg-red-950/20`}>
+                        <Ban className="h-3.5 w-3.5" />
+                        Void
                       </button>
                     )}
                     <span className="text-xs text-zinc-500">{isExpanded ? "▲" : "▼"}</span>
@@ -659,6 +699,74 @@ export default function DirectPurchasesAdminPage() {
           );
         })}
       </div>
+
+      {/* ── Void confirmation modal ── */}
+      {voidTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-950/40 border border-red-800/40">
+                <Ban className="h-4.5 w-4.5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">Void Direct Purchase</h3>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  <span className="font-mono text-zinc-200">{voidTarget.request_no}</span> will be cancelled and cannot be received.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">Reason</label>
+                <SelectDark
+                  value={voidReason}
+                  onChange={(v) => setVoidReason(v)}
+                  className="w-full"
+                  options={[
+                    { value: "Out of Stock from Supplier", label: "Out of Stock from Supplier" },
+                    { value: "Supplier Price Increased", label: "Supplier Price Increased" },
+                    { value: "Switching to Alternative Supplier", label: "Switching to Alternative Supplier" },
+                    { value: "Duplicate Order", label: "Duplicate Order" },
+                    { value: "Other", label: "Other" },
+                  ]}
+                  placeholder="— Select reason —"
+                />
+              </div>
+
+              {voidError && (
+                <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {voidError}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setVoidTarget(null)}
+                  disabled={voidBusy}
+                  className="flex-1 rounded-xl border border-white/12 bg-white/5 py-2 text-sm text-zinc-300 transition hover:bg-white/10 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void doVoidDirectPurchase()}
+                  disabled={voidBusy || !voidReason}
+                  className="flex-1 rounded-xl border border-red-800/50 bg-red-950/30 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-950/50 disabled:opacity-50"
+                >
+                  {voidBusy ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Voiding…
+                    </span>
+                  ) : "Void Order"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
