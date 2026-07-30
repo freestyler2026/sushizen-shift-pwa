@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-30 (session 199 cont. — Lynde late deduction fix + DTR timezone fix + payroll adjustments wrong-table bug fix)
+Last updated: 2026-07-30 (session 199 cont.4 — procurement security hardening: management-only void + self-cancel prevention)
 
 ---
 
@@ -15,21 +15,106 @@ Last updated: 2026-07-30 (session 199 cont. — Lynde late deduction fix + DTR t
   エンジンは "Lowegie D. Dumangcas" を使用しており計算上は機能しているが、データ整理が必要。
 - **対処**: 重複行のどちらが正しいか HR/管理者に確認 → 誤った行を DELETE → 必要なら再計算
 
-### LOW: Payroll status — 2H runs need re-approval (UPDATED: Lynde recomputed 4th time 2026-07-30 for late deduction fix)
-- All 42 2H runs recomputed 3× (session 199): (1) SSS table migration, (2) ND-OT cap fix, (3) scheduled_shift_end NSD fix
-- Lynde's run (run_id=20) recomputed 4th time: late deduction ₱58.71 now correct. Net ₱7,856.14.
-- Status reset to 'computed'. Admin must Approve → Re-publish via UI.
-- **Other staff**: late_minutes engine fix now live — staff with `scheduled_shift_start` populated will have late deductions auto-computed on next recompute. Consider recomputing all 42 runs again.
-- Key changes vs previous compute:
+### LOW: Payroll status — 2H runs need recompute + re-approval (UPDATED 2026-07-30)
+- All 42 2H runs need a **4th recompute** to pick up: (a) late_minutes engine fix, (b) Louiela NSD-OT approved-window fix
+- Lynde's run (run_id=20) already recomputed: late deduction ₱58.71 correct. Net ₱7,856.14.
+- Louiela's run (run_id=25) already recomputed: NSD-OT fix applied. 7/14 NSD-OT = 2.5h ✓. Net ₱8,166.64.
+- Status reset to 'computed' after each recompute. Admin must Approve → Re-publish via UI.
+- Key cumulative changes across all 4 recomputes vs original:
   - SSS: Staff with Basic ₱18,500 now pay ₱462.50/cutoff (was ₱500.00). e.g. Alex Delgado, Ricardo Lamis III.
   - Ricardo ND-OT: 7/12→₱11.08, 7/13→₱27.71, 7/21→₱22.17 (capped at approved OT hours)
   - Cathrina 7/14: NIGHT_DIFF_OT = ₱0 (was ₱3.18); Rachelle 7/18: 1.5h (was 1.67h)
-- Aaron's run net = ₱7,763.88 (unchanged — no SSS bracket change, no OT NSD)
+  - Late deductions: staff with `scheduled_shift_start` populated now auto-deducted (previously always ₱0)
+  - Louiela 7/14: NSD-OT = 2.5h ✓ (was 1.88h — full approved window, not based on clock-out)
+- Aaron's run net = ₱7,763.88 (unchanged)
 - Staffs with UNDERTIME_DEDUCTION: Renzy (-₱309.57), Rhemar (-₱757.22), Ricardo (-₱469.90), Samantha (-₱368.65), Karen (-₱761.51), Anthony Tabios (-₱67.97), Louiela (-₱383.10), Angelica Regondola (-₱342.62), Abegail (-₱108.43)
 
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.4 — Procurement security hardening)
+
+### Procurement audit control strengthening (DEPLOYED ✅ Frontend 3848a96 + Heroku v1634)
+
+**Problem identified**: Both `void` and `close-not-received` endpoints used `action="procurement.request.submit"` — meaning ANY store staff with a valid PIN could void approved orders or close orders as not received. This hollowed out the intended controls.
+
+**Risks that were present:**
+1. Store staff could void their own PO → no accountability, covers unauthorized purchases
+2. Store staff could receive goods → mark as "Not Received" → goods disappear with no record
+3. Voided orders were visually indistinct from closed orders in management views
+
+**Fixes applied:**
+- Added `procurement.request.void` policy: restricted to `{HQ, ADMIN, DUBAI_MANAGEMENT, MANILA_MANAGEMENT}` + `step_up: pin_reauth` + city-scoped
+- Added `procurement.request.close_not_received` policy: same restrictions
+- **Self-void prevention**: `actor_name == requested_by` → HTTP 403 for both endpoints
+- Both actions now emit `_audit_security_event` for full traceability in security log
+- Hub page: CANCELLED orders now show red "⊘ Voided" badge (previously indistinct grey)
+- Hub page: CANCELLED filter added to status dropdown for management audit
+- Hub expanded view: voided orders show `voided_by`, `voided_at`, `void_reason` audit trail
+- All modals: descriptions updated to state "Management PIN required. Requester cannot void own order."
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.3 — Procurement Void + Close Not Received)
+
+### NSD-OT unified-path fix — 2nd person same issue (DEPLOYED ✅ Heroku commit bd7d220)
+
+**Problem**: 2nd staff (7/14: clock-in 13:05, clock-out 23:57, approved OT=2.5h) showed NSD-OT=1.88h. Root cause: previous fix (6b3293f) only fixed the `use_strict_ot_window=True` path. The `else` path (crossing-midnight or NULL scheduled_shift_end) still used `actual_time_out`.
+
+**Fix**: Removed `if use_strict_ot_window / else` branching entirely. Unified path always uses `ot_end = ot_start + approved_hours`, regardless of scheduled_shift_end.
+
+### Procurement: Void Order feature (DEPLOYED ✅ Frontend 2ca1db1 + Heroku 8d320bd)
+
+- **Backend**: `POST /api/admin/procurement/requests/{id}/void` — validates status is APPROVED/SUBMITTED/RETURNED/REJECTED/DRAFT, requires non-empty `void_reason`, sets `status=CANCELLED`, records `voided_at/voided_by/void_reason`
+- **Hub (Admin)**: Void Order button for APPROVED/SUBMITTED orders in expanded detail panel → reason dropdown modal (SelectDark)
+- **Direct Purchases (Admin)**: Void button for APPROVED entries in row header → same modal with CANCELLED badge in statusBadge
+
+### Procurement: Close Order – Not Received (DEPLOYED ✅ Frontend 2ca1db1 + Heroku 8d320bd)
+
+- **Backend**: `POST /api/admin/procurement/requests/{id}/close-not-received` — only for APPROVED orders, sets `receiving_status=NOT_RECEIVED` via `update_proc_request_phase2`
+- **Store Receiving**: "Close Order – Not Received" button shown when no items checked AND no existing receiving records → reason dropdown modal
+- **Filter**: filterHideConfirmed also hides `NOT_RECEIVED` orders (rs !== "NOT_RECEIVED" added)
+
+---
+
+## Recently Completed (2026-07-30 session 199 cont.2 — Louiela NSD-OT approved-window fix + 7/15 investigation)
+
+### Louiela NSD-OT: full approved window fix (DEPLOYED ✅ Heroku commit 6b3293f)
+
+**Problem**: For staff who clock out BEFORE their OT end time, NSD-OT was computed on `min(actual_time_out, ot_end)` — meaning early departure reduced NSD-OT even though OT_PAY still used full approved hours.
+
+**Example**: Louiela 7/14: actual clock-out 23:57, approved OT 2.5h → OT_END = 22:21 + 2.5h = 00:51. NSD-OT was computed on actual_time_out=23:57 → 1.88h instead of full 2.5h. But OT_PAY still paid 2.5h. Inconsistency.
+
+**Fix** (`manila_payroll_engine.py`, `_compute_ot_and_nsd()`, strict-window path):
+```python
+# Before: effective_out = min(actual_time_out, ot_end); night_ot = calc_night_hours(ot_start, effective_out)
+# After:  night_ot = calc_night_hours(ot_start, ot_end)  # full approved window always
+```
+- Overstay past ot_end: capped at ot_end → NSD doesn't grow ✓
+- Early departure before ot_end: full approved window → consistent with OT_PAY ✓
+
+**Verified** (Louiela run_id=25 recomputed):
+- 7/14: NSD_REGULAR = 0.0833h, NSD_OT = **2.5000h** ✓ (was 1.8799h)
+- 7/12: NSD_OT = 1.0000h ✓ (unchanged — correct all along)
+- Net: ₱8,166.64
+
+### Louiela 7/15 NSD-OT = 0.4672h — investigated, CORRECT
+
+**Concern**: After recompute, 7/15 showed NSD-OT = 0.4672h (~28 min). Initial hand-calc assuming 60-min break gave ~0.35h.
+
+**Root cause of discrepancy**: The engine uses `actual_break_minutes` from the DB when set (line 474), not just the 60-min settings default. For 7/15, `actual_break_minutes = 67`.
+
+**Trace**:
+- `clock_break_min = 67` → `ot_start = 10:21:02 + 8h + 67min = 19:28:02`
+- `max(19:28:02, 19:00:00 scheduled_end) = 19:28:02`
+- `ot_end = 22:28:02`
+- `calc_night_hours(19:28:02, 22:28:02)` = 22:00–22:28:02 = 28.03 min = **0.4672h ✓**
+- She clocked out at 22:35 (7 min past ot_end, correctly excluded from NSD)
+
+**No bug**. The engine correctly uses the actual break duration for that day.
 
 ---
 
