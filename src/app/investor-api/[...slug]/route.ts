@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
   const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
   if (configured) return configured;
   return "https://sushizen-shift-app-038d846023bc.herokuapp.com";

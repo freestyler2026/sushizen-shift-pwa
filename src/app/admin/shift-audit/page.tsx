@@ -8,7 +8,7 @@ import { GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, T_LABEL, T_PAGE_TITLE, TABLE_
 import SelectDark from "@/components/SelectDark";
 
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
   return "";
 }
 

@@ -541,10 +541,12 @@ export default function ProcurementHubPage() {
 
       {/* ── Overdue Delivery Exceptions Panel ── */}
       <div className={`overflow-hidden rounded-2xl border ${overdueRows.length > 0 ? "border-red-700/50 bg-red-950/8" : "border-white/8 bg-white/3"}`}>
-        <button
-          type="button"
-          className="w-full px-5 py-3.5 flex items-center justify-between gap-3"
+        <div
+          role="button"
+          tabIndex={0}
+          className="w-full px-5 py-3.5 flex items-center justify-between gap-3 cursor-pointer"
           onClick={() => setOverduePanelOpen((v) => !v)}
+          onKeyDown={(e) => e.key === "Enter" && setOverduePanelOpen((v) => !v)}
         >
           <div className="flex items-center gap-2.5">
             <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${overdueRows.length > 0 ? "bg-red-500/15 border border-red-500/40" : "bg-zinc-700/30 border border-zinc-600/30"}`}>
@@ -585,7 +587,7 @@ export default function ProcurementHubPage() {
               ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" />
               : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
           </div>
-        </button>
+        </div>
 
         {overduePanelOpen && (
           <div className="border-t border-white/8 px-5 pb-4 pt-3">

@@ -40,7 +40,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
 
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
   return "";
 }
 

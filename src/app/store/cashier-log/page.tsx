@@ -44,8 +44,14 @@ function todayIso() {
 
 function fmtTime(iso: string) {
   if (!iso) return "";
-  const t = iso.includes("T") ? iso.split("T")[1] : iso.split(" ")[1] || "";
-  return t.slice(0, 5);
+  // Normalize to ISO 8601 and parse as timezone-aware date so the browser
+  // converts UTC → local time (PHT = UTC+8 for Manila cashiers).
+  const d = new Date(iso.replace(" ", "T"));
+  if (isNaN(d.getTime())) {
+    const t = iso.includes("T") ? iso.split("T")[1] : iso.split(" ")[1] || "";
+    return t.slice(0, 5);
+  }
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 const fmtPHP = (n: number) => `₱${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -129,14 +135,17 @@ export default function CashierLogPage() {
 
   const resetForm = () => { setAmount(""); setRefNo(""); setReceipt(null); setIdFront(null); setIdBack(null); };
 
-  const uploadPhoto = async (entryId: string, slot: string, photo: Photo) => {
+  const uploadPhoto = async (entryId: string, slot: string, photo: Photo): Promise<boolean> => {
     const fd = new FormData();
     fd.append("branch", branch);
     fd.append("entry_date", entryDate);
     fd.append("entry_type", tab);
     fd.append("slot", slot);
     fd.append("file", photo.file);
-    await fetch(`${API}/entries/${entryId}/photo`, { method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store" }).catch(() => {});
+    try {
+      const res = await fetch(`${API}/entries/${entryId}/photo`, { method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store" });
+      return res.ok;
+    } catch { return false; }
   };
 
   const addEntry = async () => {
@@ -157,13 +166,17 @@ export default function CashierLogPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || "Failed to save.");
       const id = d.entry?.id;
+      let photoFailed = false;
       if (id) {
-        if (receipt) await uploadPhoto(id, "receipt", receipt);
-        if (tab === "SCPWD" && idFront) await uploadPhoto(id, "id_front", idFront);
-        if (tab === "SCPWD" && idBack) await uploadPhoto(id, "id_back", idBack);
+        const results = await Promise.all([
+          receipt ? uploadPhoto(id, "receipt", receipt) : true,
+          tab === "SCPWD" && idFront ? uploadPhoto(id, "id_front", idFront) : true,
+          tab === "SCPWD" && idBack ? uploadPhoto(id, "id_back", idBack) : true,
+        ]);
+        photoFailed = results.some((ok) => !ok);
       }
       resetForm();
-      setMsg({ ok: true, text: "Entry saved." });
+      setMsg({ ok: true, text: photoFailed ? "Entry saved — but photo upload failed. Try re-attaching the photo." : "Entry saved." });
       await load();
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
