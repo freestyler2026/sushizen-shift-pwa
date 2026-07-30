@@ -223,7 +223,7 @@ function fmtTime(iso: string | null) {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila" });
+    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
   } catch { return iso.slice(11, 16) || "—"; }
 }
 

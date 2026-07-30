@@ -147,36 +147,26 @@ const STATUS_BADGE: Record<string, string> = {
 
 // ─── DTR Correction Modal ─────────────────────────────────────────────────────
 
-// Display times in Manila timezone (Asia/Manila = UTC+8) for datetime-local inputs.
-// The user's browser may be in a different timezone (e.g. Japan UTC+9), so we must
-// explicitly format using Asia/Manila regardless of local browser offset.
+// PHT timestamps are stored with +00 label (not actual UTC). Read UTC fields directly
+// to get the correct Manila local time without applying a TZ conversion.
 function isoToManilaInput(ts: string | null): string {
   if (!ts) return "";
   try {
     const d = new Date(ts);
-    const getManilaParts = (date: Date) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", hour12: false,
-      }).formatToParts(date);
-    const parts = getManilaParts(d);
-    const g = (t: string) => parts.find(p => p.type === t)?.value ?? "00";
-    if (g("hour") === "24") {
-      // Some JS engines report midnight as hour=24 of the previous day.
-      // Advance by 1 minute to get the correct next-day date, then use 00:mm.
-      const next = getManilaParts(new Date(d.getTime() + 60_000));
-      const gn = (t: string) => next.find(p => p.type === t)?.value ?? "00";
-      return `${gn("year")}-${gn("month")}-${gn("day")}T00:${g("minute")}`;
-    }
-    return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
+    const yyyy = d.getUTCFullYear();
+    const mo   = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd   = String(d.getUTCDate()).padStart(2, "0");
+    const hh   = String(d.getUTCHours()).padStart(2, "0");
+    const mi   = String(d.getUTCMinutes()).padStart(2, "0");
+    return `${yyyy}-${mo}-${dd}T${hh}:${mi}`;
   } catch { return ""; }
 }
 
-// Convert a Manila-timezone datetime-local string back to UTC ISO for the API.
+// Store datetime-local as PHT with +00 label: append Z so the value is treated as UTC
+// (the DB convention stores PHT time in a UTC-labelled column).
 function manilaInputToISO(manilaStr: string): string {
   if (!manilaStr) return "";
-  return new Date(manilaStr + "+08:00").toISOString();
+  return new Date(manilaStr + "Z").toISOString();
 }
 
 function DTRModal({
