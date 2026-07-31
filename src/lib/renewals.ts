@@ -129,6 +129,7 @@ export type CustomAlert = {
   scheduled_renewal_date: string | null;
   notes: string;
   status: CustomAlertStatus;
+  notify_before_days: number;
   created_by: string;
   created_at: string | null;
   days_until_expiry: number | null;

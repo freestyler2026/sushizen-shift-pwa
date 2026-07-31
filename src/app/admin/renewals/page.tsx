@@ -520,6 +520,7 @@ export default function RenewalsAdminPage() {
   const [newScheduled, setNewScheduled] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [newStatus, setNewStatus] = useState<CustomAlertStatus>("PENDING");
+  const [newNotifyBeforeDays, setNewNotifyBeforeDays] = useState<number>(42);
   const [customSaving, setCustomSaving] = useState(false);
 
   useEffect(() => {
@@ -683,11 +684,12 @@ export default function RenewalsAdminPage() {
           scheduled_renewal_date: newScheduled || null,
           notes: newNotes,
           status: newStatus,
+          notify_before_days: newNotifyBeforeDays,
         }),
       });
       await loadCustomAlerts();
       setNewTitle(""); setNewBranch(""); setNewExpiry(""); setNewScheduled(""); setNewNotes("");
-      setNewCat("Tenant Contract"); setNewStatus("PENDING");
+      setNewCat("Tenant Contract"); setNewStatus("PENDING"); setNewNotifyBeforeDays(42);
       setToast({ kind: "success", text: "Alert created." });
     } catch (error: any) {
       setToast({ kind: "error", text: error?.message || "Failed to create alert." });
@@ -1303,6 +1305,22 @@ export default function RenewalsAdminPage() {
                     className={baseInputClass()}
                   />
                 </FormInput>
+                <FormInput label="Alert me before expiry">
+                  <SelectDark
+                    value={String(newNotifyBeforeDays)}
+                    onChange={(v) => setNewNotifyBeforeDays(Number(v))}
+                    className={baseInputClass()}
+                    options={[
+                      { value: "14", label: "14 days before" },
+                      { value: "30", label: "30 days before" },
+                      { value: "42", label: "42 days before (default)" },
+                      { value: "60", label: "60 days before" },
+                      { value: "90", label: "90 days before" },
+                      { value: "120", label: "120 days before" },
+                      { value: "180", label: "180 days before" },
+                    ]}
+                  />
+                </FormInput>
                 <div className="md:col-span-2">
                   <FormInput label="Notes">
                     <textarea
@@ -1382,6 +1400,7 @@ export default function RenewalsAdminPage() {
                         <div className="text-sm font-medium text-white">{ca.title}</div>
                         <div className="text-xs text-neutral-400">
                           Expiry: {ca.expiry_date ? ca.expiry_date.slice(0, 10) : "—"}
+                          <span className="ml-3 text-neutral-500">Alert: {ca.notify_before_days ?? 42}d before</span>
                           {ca.scheduled_renewal_date && (
                             <span className="ml-3 text-emerald-400">Scheduled: {ca.scheduled_renewal_date.slice(0, 10)}</span>
                           )}
