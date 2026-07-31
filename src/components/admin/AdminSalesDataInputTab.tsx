@@ -426,14 +426,15 @@ export default function AdminSalesDataInputTab() {
 
         {!loadingDate ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-[minmax(100px,140px)_repeat(8,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
+            <div className="grid grid-cols-[minmax(100px,140px)_repeat(9,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
               <div className="font-medium text-white/30">Branch</div>
               <div className="text-center text-white/30">Dine-in #</div>
               <div className="text-center text-white/30">Dine-in PHP</div>
               <div className="text-center text-white/30">Grab #</div>
               <div className="text-center text-white/30">Grab PHP</div>
               <div className="text-center text-white/30">FP #</div>
-              <div className="text-center text-white/30">FP PHP</div>
+              <div className="text-center text-white/30">FP Gross</div>
+              <div className="text-center text-white/30">FP Net</div>
               <div className="text-center text-white/30">Beep #</div>
               <div className="text-center text-white/30">Beep PHP</div>
               <div className="text-center text-white/30">Total #</div>
@@ -453,7 +454,7 @@ export default function AdminSalesDataInputTab() {
                     row.saved ? "border-emerald-500/40 bg-emerald-500/5" : row.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/5"
                   }`}
                 >
-                  <div className="grid grid-cols-[minmax(100px,140px)_repeat(8,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] items-center gap-2 px-1 py-3 sm:px-4">
+                  <div className="grid grid-cols-[minmax(100px,140px)_repeat(9,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] items-center gap-2 px-1 py-3 sm:px-4">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: colors?.dot }} />
                       <span className="text-sm font-medium" style={{ color: colors?.text }}>
@@ -466,6 +467,15 @@ export default function AdminSalesDataInputTab() {
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount />
                     <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} />
                     <InputCell value={row.foodpanda_amount} onChange={(v) => updateRow(idx, "foodpanda_amount", v)} isAmount />
+                    {(() => {
+                      const fpGross = floatOrNull(row.foodpanda_amount);
+                      const fpNet = fpGross != null ? fpGross * 0.70 : null;
+                      return (
+                        <div className="text-right text-sm text-emerald-400/80">
+                          {fpNet != null ? fmtPHP(fpNet) : <span className="text-white/20">—</span>}
+                        </div>
+                      );
+                    })()}
                     <InputCell value={row.beep_orders} onChange={(v) => updateRow(idx, "beep_orders", v)} />
                     <InputCell value={row.beep_amount} onChange={(v) => updateRow(idx, "beep_amount", v)} isAmount />
                     <div className="text-right text-sm font-semibold text-white">
