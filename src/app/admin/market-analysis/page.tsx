@@ -56,6 +56,12 @@ const BRAND_COLORS: Record<string, string> = {
   Other: "#6b7280",
 };
 
+const SUSHIZEN_BRANCHES = [
+  { name: "Taft Branch",       address: "2661 Dominga St, Malate, Manila",                  lat: 14.5648, lng: 120.9929 },
+  { name: "Parañaque Branch",  address: "88 Doña Soledad Ave, Better Living, Parañaque",    lat: 14.4872, lng: 121.0151 },
+  { name: "Cubao Branch",      address: "20 1st Ave, Bagong Lipunan ng Crame, Santolan, QC", lat: 14.6193, lng: 121.0527 },
+];
+
 function fmt(n: number) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -70,6 +76,7 @@ export default function MarketAnalysisPage() {
   const pinRef = useRef<unknown>(null);
   const spotMarkersRef = useRef<unknown[]>([]);
   const mallMarkersRef = useRef<unknown[]>([]);
+  const branchMarkersRef = useRef<unknown[]>([]);
 
   const [mode, setMode] = useState<"manual" | "bestspots">("manual");
   const [radiusM, setRadiusM] = useState(3000);
@@ -188,6 +195,36 @@ export default function MarketAnalysisPage() {
       mallMarkersRef.current.push(marker as unknown);
     });
   }, [mapReady, clearMallMarkers]);
+
+  const plotBranches = useCallback(() => {
+    if (!leafletRef.current || !mapInstanceRef.current) return;
+    const L = leafletRef.current as typeof import("leaflet");
+    const map = mapInstanceRef.current as import("leaflet").Map;
+    branchMarkersRef.current.forEach((m) => (m as import("leaflet").Layer).remove());
+    branchMarkersRef.current = [];
+    SUSHIZEN_BRANCHES.forEach((b) => {
+      const icon = L.divIcon({
+        html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+          <div style="background:#7c3aed;color:white;border-radius:8px;padding:2px 6px;font-size:10px;font-weight:700;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5);white-space:nowrap;">🍣 ZEN</div>
+          <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #7c3aed;"></div>
+        </div>`,
+        className: "",
+        iconSize: [56, 30],
+        iconAnchor: [28, 30],
+        popupAnchor: [0, -32],
+      });
+      const marker = L.marker([b.lat, b.lng], { icon, zIndexOffset: 1000 })
+        .bindPopup(`<b style="color:#7c3aed">🍣 Sushi ZEN — ${b.name}</b><br><span style="font-size:12px">${b.address}</span><br><span style="font-size:11px;color:#888">Current Branch</span>`)
+        .addTo(map);
+      branchMarkersRef.current.push(marker as unknown);
+    });
+  }, []);
+
+  // Plot SushiZEN branch markers once map is ready (always visible)
+  useEffect(() => {
+    if (!mapReady) return;
+    plotBranches();
+  }, [mapReady, plotBranches]);
 
   const plotSpots = useCallback((spotsData: SpotResult[]) => {
     if (!mapReady || !leafletRef.current || !mapInstanceRef.current) return;
@@ -567,6 +604,29 @@ export default function MarketAnalysisPage() {
                 )}
               </>
             )}
+
+            {/* Sushi ZEN Branches — always visible */}
+            <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-3">
+              <div className="text-xs font-medium text-purple-400 mb-2">🍣 Sushi ZEN — Current Branches</div>
+              <div className="space-y-1.5">
+                {SUSHIZEN_BRANCHES.map((b) => (
+                  <div
+                    key={b.name}
+                    className="flex items-start gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => {
+                      if (mapInstanceRef.current)
+                        (mapInstanceRef.current as import("leaflet").Map).setView([b.lat, b.lng], 16);
+                    }}
+                  >
+                    <div className="mt-0.5 h-3 w-3 rounded-sm shrink-0 bg-purple-600 border border-purple-300" />
+                    <div>
+                      <div className="text-[11px] font-medium text-purple-300">{b.name}</div>
+                      <div className="text-[10px] text-neutral-500">{b.address}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Mall legend */}
             {showMalls && malls.length > 0 && (
