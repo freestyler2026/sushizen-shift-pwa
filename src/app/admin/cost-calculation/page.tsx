@@ -134,7 +134,7 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending" | "price-audit";
 
 type PricePendingEntry = {
   id: number;
@@ -959,6 +959,7 @@ export default function CostCalculationPage() {
   const isInvoiceSection = activeSection === "invoice";
   const isRatioSection = activeSection === "cost-ratio";
   const isPendingSection = activeSection === "price-pending";
+  const isPriceAuditSection = activeSection === "price-audit";
   const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
   const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
@@ -1903,6 +1904,11 @@ export default function CostCalculationPage() {
     if (!allowed || !isPendingSection) return;
     void loadPricePending();
   }, [allowed, isPendingSection, loadPricePending]);
+
+  useEffect(() => {
+    if (!allowed || !isPriceAuditSection) return;
+    void loadPriceAudit();
+  }, [allowed, isPriceAuditSection, loadPriceAudit]);
 
   // 仕入連動チェックページの「商品マスタで編集」ボタンから飛んできた場合、
   // sessionStorage に保存された商品IDを読み取って自動でその商品を開く。
@@ -3756,6 +3762,7 @@ export default function CostCalculationPage() {
               { key: "invoice" as CostSection, label: "Invoice Mapping" },
               { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
               { key: "price-pending" as CostSection, label: "Price Pending" },
+              { key: "price-audit" as CostSection, label: "Price Audit" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -4142,16 +4149,6 @@ export default function CostCalculationPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {masterItemsLoading ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
-                    {(activeSection === "processed" || activeSection === "product") && (
-                      <button
-                        type="button"
-                        onClick={() => { setShowPriceAudit(true); void loadPriceAudit(); }}
-                        className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition-colors"
-                      >
-                        <Search className="h-3 w-3" />
-                        Price Audit
-                      </button>
-                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -5414,9 +5411,155 @@ export default function CostCalculationPage() {
                 </div>
               )}
             </div>
+          ) : isPriceAuditSection ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Price Audit</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Compare stored override prices vs. ingredient-computed prices for all Processed &amp; Product items.
+                    Items with <span className="text-amber-300 font-medium">Override Active</span> use the stored value instead of the recipe calculation.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadPriceAudit()}
+                  disabled={priceAuditLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                >
+                  <RefreshCcw className={cx("h-3.5 w-3.5", priceAuditLoading && "animate-spin")} />
+                  Refresh
+                </button>
+              </div>
+
+              {priceAuditLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-zinc-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Loading audit data…</span>
+                </div>
+              ) : !priceAuditItems || priceAuditItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] py-20 text-sm text-zinc-500">
+                  No items found.
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    const overrideCount = priceAuditItems.filter(i => i.has_override).length;
+                    const mismatchCount = priceAuditItems.filter(i => i.has_override && Math.abs(i.stored_cost_unit_price - i.computed_unit_cost) > 0.001).length;
+                    return (
+                      <div className="flex flex-wrap gap-3">
+                        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
+                          <div className="text-xs text-zinc-500">Total Items</div>
+                          <div className="text-lg font-semibold text-white">{priceAuditItems.length}</div>
+                        </div>
+                        <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-center">
+                          <div className="text-xs text-amber-400/70">Override Active</div>
+                          <div className="text-lg font-semibold text-amber-300">{overrideCount}</div>
+                        </div>
+                        <div className="rounded-lg border border-red-500/20 bg-red-500/8 px-3 py-2 text-center">
+                          <div className="text-xs text-red-400/70">Price Mismatch</div>
+                          <div className="text-lg font-semibold text-red-300">{mismatchCount}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-center">
+                          <div className="text-xs text-emerald-400/70">Auto-Calculated</div>
+                          <div className="text-lg font-semibold text-emerald-300">{priceAuditItems.length - overrideCount}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="overflow-x-auto rounded-xl border border-white/8">
+                    <table className="w-full text-sm">
+                      <thead className="bg-white/[0.03]">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Name</th>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Category</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Computed</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Override</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">In Use</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Status</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.04]">
+                        {priceAuditItems
+                          .slice()
+                          .sort((a, b) => {
+                            const aM = a.has_override && Math.abs(a.stored_cost_unit_price - a.computed_unit_cost) > 0.001;
+                            const bM = b.has_override && Math.abs(b.stored_cost_unit_price - b.computed_unit_cost) > 0.001;
+                            if (aM !== bM) return aM ? -1 : 1;
+                            if (a.has_override !== b.has_override) return a.has_override ? -1 : 1;
+                            return a.name.localeCompare(b.name);
+                          })
+                          .map((item) => {
+                            const isMismatch = item.has_override && Math.abs(item.stored_cost_unit_price - item.computed_unit_cost) > 0.001;
+                            const isClearing = priceAuditClearingId === item.id;
+                            const currSym = city === "manila" ? "PHP" : "AED";
+                            return (
+                              <tr key={item.id} className={isMismatch ? "bg-red-500/[0.04]" : item.has_override ? "bg-amber-500/[0.03]" : ""}>
+                                <td className="px-4 py-2.5 font-medium text-white">
+                                  {item.name}
+                                  {item.component_count === 0 && (
+                                    <span className="ml-1.5 rounded bg-zinc-700/50 px-1 py-0.5 text-[9px] text-zinc-500">no recipe</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 text-zinc-400">{item.category}</td>
+                                <td className="px-3 py-2.5 text-right font-mono text-zinc-300">
+                                  {item.component_count > 0 ? `${currSym} ${item.computed_unit_cost.toFixed(3)}` : <span className="text-zinc-600">—</span>}
+                                  <span className="ml-1 text-zinc-600">/{item.output_unit || "unit"}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-mono">
+                                  {item.has_override
+                                    ? <span className="text-amber-300">{currSym} {item.stored_cost_unit_price.toFixed(3)}</span>
+                                    : <span className="text-zinc-600">—</span>
+                                  }
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-mono text-white">
+                                  {currSym} {item.final_unit_cost.toFixed(3)}
+                                  <span className="ml-1 text-zinc-600">/{item.output_unit || "unit"}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  {isMismatch ? (
+                                    <span className="rounded-full border border-red-500/30 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                                      Mismatch
+                                    </span>
+                                  ) : item.has_override ? (
+                                    <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                                      Override
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                                      Auto
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  {item.has_override ? (
+                                    <button
+                                      type="button"
+                                      disabled={isClearing}
+                                      onClick={() => void clearPriceOverride(item)}
+                                      className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+                                    >
+                                      {isClearing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                      Clear Override
+                                    </button>
+                                  ) : (
+                                    <span className="text-zinc-700 text-xs">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
           ) : null}
 
-          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection) && "hidden")}>
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection || isPriceAuditSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
