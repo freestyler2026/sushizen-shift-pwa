@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-31 (session 199 cont.10 — Task 1: AOV revenue inputs + Task 2: WoW comparison for Dubai orders)
+Last updated: 2026-07-31 (session 199 cont.13 — Foodpanda Gross/Net feature browser-verified on production)
 
 ---
 
@@ -40,9 +40,37 @@ Last updated: 2026-07-31 (session 199 cont.10 — Task 1: AOV revenue inputs + T
 
 ---
 
+## Recently Completed (2026-07-31 session 199 cont.13 — Foodpanda Gross/Net browser-verified)
+
+### Task 4 — Foodpanda Gross Sales Input + FP Net Auto-Calculation (DEPLOYED ✅ Vercel ca18035 + Heroku f54b867)
+- **Verified on production** (sushizen-shift-pwa.vercel.app):
+  - Column headers: FP # | FP Gross | FP Net | ✓ (FP Net is read-only, auto-computed)
+  - FP Gross 3716.58 → FP Net ₱2,602 (= × 0.70) ✓
+  - Total PHP uses NET (₱2,602), not GROSS ✓
+  - Save → POST /api/admin/analytics/manila/daily-sales/upsert → 200 OK ✓
+  - DB response: foodpanda_gross=3716.58, foodpanda_amount=2601.61, total_amount=2601.61 ✓
+  - Load from DB after navigation: FP Gross=3716.58 correctly restored ✓
+  - No console errors ✓
+- Backend: `foodpanda_gross` column added to `manila_daily_sales` table; NET auto-computed as gross × 0.70; `total_amount` uses NET
+- Frontend: FP Gross editable input; FP Net read-only display; `calcTotal` uses NET for total
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.12)
+
+### ADMIN close-not-received access fix (DEPLOYED ✅ Heroku 6e97d60)
+- Bug 1: `_policy_allows` — roles in explicit `allowed_roles` whitelist were still blocked by permission check. Fixed: `allowed_roles` membership now bypasses permission check.
+- Bug 2: separation-of-duties check in `close_not_received` endpoint — ADMIN/HQ now exempt (they have system-wide oversight; store staff requester check still applies).
+- Also affects void endpoint (same `_policy_allows` fix applies).
+
 ## Recently Completed (2026-07-31 session 199 cont.10 — Task 1 + Task 2: Dubai orders AOV + WoW)
 
-### Task 1 — AOV (Average Order Value) + Task 2 — WoW Comparison (DEPLOYED ✅ Heroku v1642 + Vercel 743c208)
+### Task 1 — AOV (Average Order Value) + Task 2 — WoW Comparison (DEPLOYED ✅ Heroku v1642 + Vercel bc89461)
+- Browser verified (session cont.11): AOV shows "AOV 50 AED" (1000 AED / 20 orders), WoW shows "▼ -94.4% vs last week (360)" — both correct
+- Minor fix deployed: AOV display was showing "AOV 50" without unit → fixed to "AOV 50 AED" (Vercel bc89461)
+- No console errors observed
+
+### Task 1 — AOV (Average Order Value) + Task 2 — WoW Comparison (PREVIOUSLY: Vercel 743c208)
 
 **Task 1 — AOV**:
 - DB migration: `ALTER TABLE dubai_order_counts ADD COLUMN IF NOT EXISTS revenue_aed NUMERIC(14,2) NOT NULL DEFAULT 0`

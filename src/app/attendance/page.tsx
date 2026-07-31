@@ -301,6 +301,9 @@ export default function AttendancePage() {
   const [unclosedCorrDone, setUnclosedCorrDone] = useState(false);
   const [lateBannerDismissed, setLateBannerDismissed] = useState(false);
   const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
+  const [showOtPrompt, setShowOtPrompt] = useState(false);
+  const [otPromptMinutes, setOtPromptMinutes] = useState(0);
+  const pendingOtPromptRef = useRef<number | null>(null);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
@@ -537,6 +540,12 @@ export default function AttendancePage() {
           // Update probation status
           if (verJson?.probation && verJson.probation.is_probation) {
             setProbationStatus(verJson.probation);
+          }
+          // Show OT prompt if overtime was detected before checkout
+          if (pendingOtPromptRef.current !== null) {
+            setOtPromptMinutes(pendingOtPromptRef.current);
+            pendingOtPromptRef.current = null;
+            setTimeout(() => setShowOtPrompt(true), 800);
           }
         }
         if (action === "break_in") {
@@ -1739,6 +1748,49 @@ export default function AttendancePage() {
         </div>
       )}
 
+      {/* ── OT Request Prompt ─────────────────────────────────────────────────── */}
+      {showOtPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setShowOtPrompt(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 p-5 space-y-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <Clock size={18} className="text-amber-400" />
+              <h3 className="text-base font-semibold text-white">Overtime Detected</h3>
+            </div>
+            <div className="rounded-xl bg-amber-900/20 border border-amber-500/30 px-4 py-3">
+              <p className="text-sm text-amber-200">
+                You worked{" "}
+                <span className="font-bold text-white">
+                  {Math.floor(otPromptMinutes / 60) > 0
+                    ? `${Math.floor(otPromptMinutes / 60)}h ${otPromptMinutes % 60}m`
+                    : `${otPromptMinutes}m`}
+                </span>{" "}
+                beyond your scheduled shift. Would you like to submit an OT request?
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowOtPrompt(false)}
+                className="flex-1 rounded-xl border border-zinc-600 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+              >
+                Not Now
+              </button>
+              <button
+                onClick={() => { setShowOtPrompt(false); router.push("/store/overtime-request"); }}
+                className="flex-1 rounded-xl bg-amber-600 py-3 text-sm font-bold text-white hover:bg-amber-500 transition-colors"
+              >
+                Submit OT Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Clock Out confirmation modal ──────────────────────────────────────── */}
       {showClockOutConfirm && (
         <div
@@ -1793,7 +1845,19 @@ export default function AttendancePage() {
                 Cancel
               </button>
               <button
-                onClick={() => { setShowClockOutConfirm(false); void doAction("checkout"); }}
+                onClick={() => {
+                  setShowClockOutConfirm(false);
+                  // Detect OT: compare worked time vs scheduled shift duration
+                  const shift = data?.scheduled_shift;
+                  if (shift) {
+                    const scheduledDurationH = shift.end_hour >= shift.start_hour
+                      ? shift.end_hour - shift.start_hour
+                      : (24 - shift.start_hour) + shift.end_hour;
+                    const ot = workedMinutes - Math.round(scheduledDurationH * 60);
+                    if (ot > 15) pendingOtPromptRef.current = ot;
+                  }
+                  void doAction("checkout");
+                }}
                 className="flex-1 rounded-xl bg-rose-700 py-3 text-sm font-bold text-white hover:bg-rose-600 transition-colors"
               >
                 {multiBranch ? "End Work Day" : "Confirm Clock Out"}

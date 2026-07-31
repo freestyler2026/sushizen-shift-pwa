@@ -66,7 +66,11 @@ function formatMinutes(m: number): string {
 export default function AdminOvertimePage() {
   const [auth] = useState(getAuth);
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-  const city = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
+  const userCity = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
+  const role = (auth?.role || "").toUpperCase();
+  const canSwitchCity = ["ADMIN", "HQ"].includes(role);
+  const [activeCity, setActiveCity] = useState<"dubai" | "manila">(userCity);
+  const city = activeCity;
   const branches = BRANCHES[city] ?? BRANCHES.dubai;
 
   const tokenHeaders = useCallback(async () => {
@@ -197,14 +201,29 @@ export default function AdminOvertimePage() {
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className={T_PAGE_TITLE}>Overtime Management</h1>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className={`${SECONDARY_BUTTON} flex items-center gap-2`}
-          >
-            <Download className="h-4 w-4" />
-            {exporting ? "Exporting…" : "Export CSV"}
-          </button>
+          <div className="flex items-center gap-2">
+            {canSwitchCity && (
+              <div className="flex rounded-xl overflow-hidden border border-zinc-700">
+                {(["dubai", "manila"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => { setActiveCity(c); setFilterBranch(""); }}
+                    className={`px-4 py-2 text-xs font-semibold transition-colors ${activeCity === c ? TAB_ACTIVE : TAB_INACTIVE}`}
+                  >
+                    {c === "dubai" ? "Dubai" : "Manila"}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+          </div>
         </div>
 
         {/* KPI summary */}
