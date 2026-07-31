@@ -771,7 +771,7 @@ function BrandGrid({
                   })}
                   <td className="px-3 py-0.5 text-center">
                     {rowAov != null ? (
-                      <span className="text-[10px] font-medium text-amber-400">AOV {fmtAed(rowAov)}</span>
+                      <span className="text-[10px] font-medium text-amber-400">AOV {fmtAed(rowAov)} AED</span>
                     ) : (
                       <span className="text-[10px] text-gray-800">—</span>
                     )}
