@@ -47,10 +47,12 @@ const BRAND_COLORS: Record<string, string> = {
   SM: "#0057a8",
   Ayala: "#00843d",
   Robinsons: "#e41e26",
+  Megaworld: "#1565c0",
+  Araneta: "#e65100",
+  Starmall: "#2e7d32",
   BGC: "#7c3aed",
   Ortigas: "#f97316",
   Rockwell: "#374151",
-  Eastwood: "#0891b2",
   Other: "#6b7280",
 };
 
