@@ -94,6 +94,11 @@ npx tsc --noEmit
 - `/api/store/*` → `src/app/api/store/[...slug]/route.ts` → Heroku
 - 本番: Vercelの rewrite で全 `/api/*` を Heroku へ転送
 
+### ブラウザ操作時のログインアカウント
+- **必ずこのアカウントでログイン**: `Yukihiro Nishimura`（ロール: HQ）
+- PINはユーザーに確認する。ログインページ: https://sushizen-shift-pwa.vercel.app → "Log In" → Staff Name入力 → PIN入力
+- HQロールは全admin機能にアクセス可能
+
 ### 認証 (`src/lib/auth.ts`)
 - `localStorage["sushizen_shift_auth"]` に保存
 - ロール: `ADMIN`, `HQ`, `MANILA_MANAGEMENT`, `DUBAI_MANAGEMENT`, `HR_MANAGER`, `STAFF`

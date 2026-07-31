@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-31 (session 199 cont.15 — 5 staff feature requests fully implemented and deployed)
+Last updated: 2026-07-31 (session 199 cont.16 — 5 staff features browser-verified in production, no bugs found)
 
 ---
 
@@ -39,6 +39,15 @@ Last updated: 2026-07-31 (session 199 cont.15 — 5 staff feature requests fully
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
 
 ---
+
+## Recently Completed (2026-07-31 session 199 cont.16 — production browser verification)
+
+### Browser verification — all 5 staff features confirmed working in production
+- AdminCancellationInputTab: "Food Order Value (PHP)" label ✅, "PIC Notes" textarea ✅
+- Procurement Recent Requests: DATE filter works (list filtered to selected date), BRANCH "All Branches" dropdown present ✅, Clear button appears when filter active ✅
+- Manila modal: GF-815 shows FOOD ORDER VALUE (PHP)=100 and REFUND (PHP)=100 separately ✅ (refund_amount fix confirmed)
+- Resolution filter: Dubai 181 total → 96 when "Resolved" selected ✅; Manila 116 records loaded, filter present ✅
+- No bugs found across all 5 features
 
 ## Recently Completed (2026-07-31 session 199 cont.15 — staff feature PDF requests)
 

@@ -112,7 +112,7 @@ import {
   refreshAuthFromApi,
 } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
-import { RENEWALS_BADGE_EVENT, readRenewalsBadgeCount, setRenewalsBadgeCount } from "@/lib/renewals";
+import { RENEWALS_BADGE_EVENT, getRenewalsDismissedCount, readRenewalsBadgeCount, setRenewalsBadgeCount } from "@/lib/renewals";
 import { BADGE_EVENTS } from "@/lib/badgeEvents";
 
 type NavItem = {
@@ -410,7 +410,9 @@ export default function NavBar() {
         });
         if (!res.ok) return;
         const data = await res.json();
-        const next = Number(data?.badge_count ?? 0);
+        const serverCount = Number(data?.badge_count ?? 0);
+        const dismissed = getRenewalsDismissedCount();
+        const next = Math.max(0, serverCount - dismissed);
         if (!cancelled) {
           setRenewalBadge(next > 0 ? next : 0);
           setRenewalsBadgeCount(next);

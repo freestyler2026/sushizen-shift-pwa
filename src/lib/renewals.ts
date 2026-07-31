@@ -101,3 +101,36 @@ export function setRenewalsBadgeCount(count: number) {
   window.localStorage.setItem(RENEWALS_BADGE_STORAGE_KEY, String(next));
   window.dispatchEvent(new CustomEvent(RENEWALS_BADGE_EVENT, { detail: { badgeCount: next } }));
 }
+
+export const RENEWALS_DISMISSED_STORAGE_KEY = "sushizen_renewals_badge_dismissed_count";
+
+export function getRenewalsDismissedCount(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.localStorage.getItem(RENEWALS_DISMISSED_STORAGE_KEY);
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function dismissRenewalsBadge(serverCount: number) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(RENEWALS_DISMISSED_STORAGE_KEY, String(Math.max(0, serverCount)));
+  setRenewalsBadgeCount(0);
+}
+
+export type CustomAlertCategory = "Tenant Contract" | "License" | "Equipment" | "Other";
+export type CustomAlertStatus = "PENDING" | "IN_PROGRESS" | "DONE";
+
+export type CustomAlert = {
+  id: number;
+  category: CustomAlertCategory | string;
+  title: string;
+  branch: string;
+  expiry_date: string;
+  scheduled_renewal_date: string | null;
+  notes: string;
+  status: CustomAlertStatus;
+  created_by: string;
+  created_at: string | null;
+  days_until_expiry: number | null;
+  alert_level: "EXPIRED" | "CRITICAL" | "WARNING" | null;
+};

@@ -1,10 +1,13 @@
 "use client";
 
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Bell,
+  Building2,
+  Calendar,
   CheckCircle2,
   CircleAlert,
   Info,
@@ -12,6 +15,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Trash2,
   UserCheck,
   Users,
   X,
@@ -22,16 +26,19 @@ import {
   BRANCHES,
   DOC_LABELS,
   DOC_TYPES,
+  type CustomAlert,
+  type CustomAlertCategory,
+  type CustomAlertStatus,
   type DocType,
   type RenewalAlertItem,
   type RenewalDocument,
   type RenewalStaff,
   type RenewalStatus,
-  setRenewalsBadgeCount,
+  dismissRenewalsBadge,
 } from "@/lib/renewals";
 import SelectDark from "@/components/SelectDark";
 
-type PageTab = "alerts" | "regularization" | "staff" | "add";
+type PageTab = "alerts" | "scheduled" | "custom" | "regularization" | "staff" | "add";
 
 type RegularizationAlert = {
   id: string;
@@ -72,8 +79,12 @@ type DocumentFormState = Record<DocType, DocumentFormValue>;
 type ToastState = { kind: "success" | "error"; text: string } | null;
 
 const STATUS_OPTIONS: RenewalStatus[] = ["PENDING", "IN_PROGRESS", "RENEWED", "N/A"];
+const CUSTOM_CATEGORIES: CustomAlertCategory[] = ["Tenant Contract", "License", "Equipment", "Other"];
+const CUSTOM_STATUSES: CustomAlertStatus[] = ["PENDING", "IN_PROGRESS", "DONE"];
 const TAB_ITEMS: Array<{ id: PageTab; label: string; icon: typeof CircleAlert }> = [
   { id: "alerts", label: "Alerts", icon: CircleAlert },
+  { id: "scheduled", label: "Scheduled", icon: Calendar },
+  { id: "custom", label: "Contracts & Custom", icon: Building2 },
   { id: "regularization", label: "Regularization", icon: UserCheck },
   { id: "staff", label: "All Staff", icon: Users },
   { id: "add", label: "Add Staff", icon: Plus },
@@ -499,6 +510,18 @@ export default function RenewalsAdminPage() {
   const [regularizationSavingName, setRegularizationSavingName] = useState<string | null>(null);
   const [accessReady, setAccessReady] = useState(false);
 
+  // Custom alerts state
+  const [customAlerts, setCustomAlerts] = useState<CustomAlert[]>([]);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [newCat, setNewCat] = useState<CustomAlertCategory>("Tenant Contract");
+  const [newTitle, setNewTitle] = useState("");
+  const [newBranch, setNewBranch] = useState("");
+  const [newExpiry, setNewExpiry] = useState("");
+  const [newScheduled, setNewScheduled] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [newStatus, setNewStatus] = useState<CustomAlertStatus>("PENDING");
+  const [customSaving, setCustomSaving] = useState(false);
+
   useEffect(() => {
     const current = getAuth();
     if (!current) {
@@ -540,13 +563,25 @@ export default function RenewalsAdminPage() {
       const data = await requestJson<{ alerts: RenewalAlertItem[]; badge_count: number }>("/api/renewals/alerts");
       const nextAlerts = Array.isArray(data?.alerts) ? data.alerts : [];
       setAlerts(nextAlerts);
-      setRenewalsBadgeCount(nextAlerts.filter((item) => !isResignedStatus(item.active_status)).length);
+      // NavBar polling handles badge count — no setRenewalsBadgeCount here
     } catch (error: any) {
       setToast({ kind: "error", text: error?.message || "Failed to load alerts" });
     } finally {
       setAlertsLoading(false);
     }
   };
+
+  const loadCustomAlerts = useCallback(async () => {
+    setCustomLoading(true);
+    try {
+      const data = await requestJson<{ alerts: CustomAlert[] }>("/api/renewals/custom-alerts");
+      setCustomAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
+    } catch {
+      // silent — custom alerts are additive, don't block main view
+    } finally {
+      setCustomLoading(false);
+    }
+  }, []);
 
   const loadStaff = async () => {
     setStaffLoading(true);
@@ -565,6 +600,7 @@ export default function RenewalsAdminPage() {
     void loadAlerts();
     void loadStaff();
     void loadRegularizationAlerts();
+    void loadCustomAlerts();
     // Load staff master names for Add Staff autocomplete
     const auth = getAuth();
     const city = (auth?.city as string) || "dubai";
@@ -573,7 +609,7 @@ export default function RenewalsAdminPage() {
     )
       .then((data) => setStaffMasterNames((data?.names || []).sort((a, b) => a.localeCompare(b))))
       .catch(() => {/* ignore */});
-  }, [accessReady]);
+  }, [accessReady, loadCustomAlerts]);
 
   const summary = useMemo(
     () => ({
@@ -613,6 +649,85 @@ export default function RenewalsAdminPage() {
     }
     return groups;
   }, [alertGroups, alertStaffFilter, alertLevelFilter]);
+
+  const activeCustomAlerts = useMemo(
+    () => customAlerts.filter((a) => a.alert_level !== null && !a.scheduled_renewal_date && a.status !== "DONE"),
+    [customAlerts],
+  );
+  const scheduledCustomAlerts = useMemo(
+    () => customAlerts.filter((a) => a.scheduled_renewal_date && a.status !== "DONE"),
+    [customAlerts],
+  );
+  const alertTabBadge = alerts.filter((a) => !isResignedStatus(a.active_status)).length + activeCustomAlerts.length;
+  const scheduledTabBadge = scheduledCustomAlerts.length;
+
+  const handleCreateCustomAlert = async () => {
+    if (!newTitle.trim()) {
+      setToast({ kind: "error", text: "Title is required." });
+      return;
+    }
+    if (!newExpiry) {
+      setToast({ kind: "error", text: "Expiry date is required." });
+      return;
+    }
+    setCustomSaving(true);
+    try {
+      await requestJson("/api/renewals/custom-alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: newCat,
+          title: newTitle.trim(),
+          branch: newBranch,
+          expiry_date: newExpiry,
+          scheduled_renewal_date: newScheduled || null,
+          notes: newNotes,
+          status: newStatus,
+        }),
+      });
+      await loadCustomAlerts();
+      setNewTitle(""); setNewBranch(""); setNewExpiry(""); setNewScheduled(""); setNewNotes("");
+      setNewCat("Tenant Contract"); setNewStatus("PENDING");
+      setToast({ kind: "success", text: "Alert created." });
+    } catch (error: any) {
+      setToast({ kind: "error", text: error?.message || "Failed to create alert." });
+    } finally {
+      setCustomSaving(false);
+    }
+  };
+
+  const handlePatchCustomAlert = async (
+    id: number,
+    updates: { status?: CustomAlertStatus; scheduled_renewal_date?: string | null; clear_scheduled_date?: boolean },
+  ) => {
+    try {
+      await requestJson(`/api/renewals/custom-alerts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      await loadCustomAlerts();
+    } catch (error: any) {
+      setToast({ kind: "error", text: error?.message || "Failed to update." });
+    }
+  };
+
+  const handleDeleteCustomAlert = async (id: number, title: string) => {
+    if (!window.confirm(`Delete "${title}"?`)) return;
+    try {
+      await requestJson(`/api/renewals/custom-alerts/${id}`, { method: "DELETE" });
+      setCustomAlerts((prev) => prev.filter((a) => a.id !== id));
+      setToast({ kind: "success", text: "Alert deleted." });
+    } catch (error: any) {
+      setToast({ kind: "error", text: error?.message || "Failed to delete." });
+    }
+  };
+
+  const handleDismissBadge = () => {
+    // Use total count (staff + custom) matching server badge_count
+    dismissRenewalsBadge(alerts.length + activeCustomAlerts.length);
+    setToast({ kind: "success", text: "NavBar badge dismissed. It will reappear if new alerts arrive." });
+  };
 
   const saveDocuments = async (empId: string, docForms: DocumentFormState) => {
     await Promise.all(
@@ -696,11 +811,7 @@ export default function RenewalsAdminPage() {
         body: JSON.stringify({ renewal_status: renewalStatus }),
       });
       if (renewalStatus === "RENEWED") {
-        setAlerts((prev) => {
-          const next = prev.filter((item) => item.document_id !== documentId);
-          setRenewalsBadgeCount(next.filter((item) => !isResignedStatus(item.active_status)).length);
-          return next;
-        });
+        setAlerts((prev) => prev.filter((item) => item.document_id !== documentId));
       } else {
         setAlerts((prev) =>
           prev.map((item) => (item.document_id === documentId ? { ...item, renewal_status: renewalStatus } : item)),
@@ -725,11 +836,7 @@ export default function RenewalsAdminPage() {
         method: "PATCH",
         body: JSON.stringify({ active_status: "Resigned" }),
       });
-      setAlerts((prev) => {
-        const next = prev.map((item) => (item.emp_id === empId ? { ...item, active_status: "Resigned" } : item));
-        setRenewalsBadgeCount(next.filter((item) => !isResignedStatus(item.active_status)).length);
-        return next;
-      });
+      setAlerts((prev) => prev.map((item) => (item.emp_id === empId ? { ...item, active_status: "Resigned" } : item)));
       setStaff((prev) => prev.map((member) => (member.emp_id === empId ? { ...member, active_status: "Resigned" } : member)));
       setToast({ kind: "success", text: `${fullName} marked as Resigned. Their alerts have been removed from Active view.` });
     } catch (error: any) {
@@ -776,10 +883,14 @@ export default function RenewalsAdminPage() {
           </p>
         </div>
 
-        <div className="flex gap-6 border-b border-neutral-800">
+        <div className="flex flex-wrap gap-x-4 border-b border-neutral-800">
           {TAB_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = tab === item.id;
+            const badge =
+              item.id === "alerts" ? alertTabBadge
+              : item.id === "scheduled" ? scheduledTabBadge
+              : 0;
             return (
               <button
                 key={item.id}
@@ -792,6 +903,11 @@ export default function RenewalsAdminPage() {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
+                {badge > 0 && (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-black leading-none">
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -799,6 +915,19 @@ export default function RenewalsAdminPage() {
 
         {tab === "alerts" ? (
           <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-neutral-400">
+                Document renewals and active custom alerts.
+              </p>
+              <button
+                type="button"
+                onClick={handleDismissBadge}
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700"
+              >
+                <Bell className="h-3.5 w-3.5" />
+                Dismiss NavBar badge
+              </button>
+            </div>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -879,6 +1008,54 @@ export default function RenewalsAdminPage() {
               </button>
             </div>
 
+            {activeCustomAlerts.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-widest text-amber-400">
+                  Custom Alerts ({activeCustomAlerts.length})
+                </div>
+                {activeCustomAlerts.map((ca) => (
+                  <div key={ca.id} className={`rounded-2xl border bg-neutral-900 p-4 ${ca.alert_level === "EXPIRED" ? "border-red-500/50" : ca.alert_level === "CRITICAL" ? "border-orange-500/50" : "border-amber-500/50"}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ca.alert_level === "EXPIRED" ? "bg-red-900/50 border border-red-500 text-red-200" : ca.alert_level === "CRITICAL" ? "bg-orange-900/50 border border-orange-500 text-orange-200" : "bg-amber-900/50 border border-amber-500 text-amber-200"}`}>
+                        {ca.alert_level}
+                      </span>
+                      <span className="rounded-full border border-neutral-600 bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-200">
+                        {ca.category}
+                      </span>
+                      {ca.branch && (
+                        <span className="text-xs text-neutral-400">{ca.branch}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm font-medium text-white">{ca.title}</div>
+                    <div className="mt-1 text-sm text-neutral-400">
+                      Expiry: {ca.expiry_date ? ca.expiry_date.slice(0, 10) : "—"}
+                      {ca.days_until_expiry !== null && (
+                        <span className="ml-2">({ca.days_until_expiry < 0 ? `${Math.abs(ca.days_until_expiry)} days overdue` : ca.days_until_expiry === 0 ? "expires today" : `${ca.days_until_expiry} days left`})</span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-neutral-400">
+                        <span>Status:</span>
+                        <SelectDark
+                          value={ca.status}
+                          onChange={(v) => void handlePatchCustomAlert(ca.id, { status: v as CustomAlertStatus })}
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200"
+                          options={CUSTOM_STATUSES.map((s) => ({ value: s, label: s }))}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void handlePatchCustomAlert(ca.id, { status: "DONE" })}
+                        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white transition hover:bg-emerald-600"
+                      >
+                        Mark Done
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="max-h-[calc(100vh-240px)] space-y-5 overflow-y-auto pr-1">
               {alertsLoading ? (
                 <div className="flex items-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-300">
@@ -887,7 +1064,7 @@ export default function RenewalsAdminPage() {
                 </div>
               ) : visibleAlertGroups.length === 0 ? (
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-400">
-                  No renewal alerts right now.
+                  No staff document renewal alerts right now.
                 </div>
               ) : (
                 visibleAlertGroups.map((group) => (
@@ -985,6 +1162,267 @@ export default function RenewalsAdminPage() {
                       ))}
                     </div>
                   </section>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {tab === "scheduled" ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-amber-800/40 bg-amber-950/20 p-4 text-sm text-amber-200">
+              <strong>Scheduled Renewals</strong> — Items with a planned renewal date set. These have been acknowledged and scheduled for action.
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-neutral-400">{scheduledCustomAlerts.length} item(s) scheduled</div>
+              <button
+                type="button"
+                onClick={() => void loadCustomAlerts()}
+                disabled={customLoading}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-60"
+              >
+                {customLoading ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+            {customLoading ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading...
+              </div>
+            ) : scheduledCustomAlerts.length === 0 ? (
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-400">
+                No scheduled items. Set a scheduled renewal date on a custom alert to track it here.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {scheduledCustomAlerts.map((ca) => (
+                  <div key={ca.id} className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-neutral-600 bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-200">
+                            {ca.category}
+                          </span>
+                          {ca.branch && <span className="text-xs text-neutral-400">{ca.branch}</span>}
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ca.status === "IN_PROGRESS" ? "bg-blue-900/50 text-blue-200" : "bg-neutral-700 text-neutral-300"}`}>
+                            {ca.status}
+                          </span>
+                        </div>
+                        <div className="text-base font-semibold text-white">{ca.title}</div>
+                        <div className="text-sm text-neutral-400">
+                          Expiry: {ca.expiry_date ? ca.expiry_date.slice(0, 10) : "—"} &nbsp;·&nbsp;
+                          <span className="text-emerald-400">Scheduled: {ca.scheduled_renewal_date ? ca.scheduled_renewal_date.slice(0, 10) : "—"}</span>
+                        </div>
+                        {ca.notes && <div className="text-xs text-neutral-500">{ca.notes}</div>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <SelectDark
+                          value={ca.status}
+                          onChange={(v) => void handlePatchCustomAlert(ca.id, { status: v as CustomAlertStatus })}
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-neutral-200"
+                          options={CUSTOM_STATUSES.map((s) => ({ value: s, label: s }))}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handlePatchCustomAlert(ca.id, { status: "DONE" })}
+                          className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600"
+                        >
+                          ✓ Done
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handlePatchCustomAlert(ca.id, { clear_scheduled_date: true })}
+                          className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700"
+                          title="Remove scheduled date (move back to Alerts)"
+                        >
+                          Unschedule
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "custom" ? (
+          <div className="space-y-6">
+            {/* Add new custom alert form */}
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+              <h2 className="mb-4 text-lg font-semibold text-white">Add Custom Alert</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormInput label="Category">
+                  <SelectDark
+                    value={newCat}
+                    onChange={(v) => setNewCat(v as CustomAlertCategory)}
+                    className={baseInputClass()}
+                    options={CUSTOM_CATEGORIES.map((c) => ({ value: c, label: c }))}
+                  />
+                </FormInput>
+                <FormInput label="Title">
+                  <input
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className={baseInputClass()}
+                    placeholder="e.g. Tenant lease renewal — Main building"
+                  />
+                </FormInput>
+                <FormInput label="Branch / Location">
+                  <SelectDark
+                    value={newBranch}
+                    onChange={setNewBranch}
+                    className={baseInputClass()}
+                    options={[
+                      { value: "", label: "— None —" },
+                      ...BRANCHES.map((b) => ({ value: b, label: b })),
+                    ]}
+                  />
+                </FormInput>
+                <FormInput label="Status">
+                  <SelectDark
+                    value={newStatus}
+                    onChange={(v) => setNewStatus(v as CustomAlertStatus)}
+                    className={baseInputClass()}
+                    options={CUSTOM_STATUSES.map((s) => ({ value: s, label: s }))}
+                  />
+                </FormInput>
+                <FormInput label="Expiry Date *">
+                  <input
+                    type="date"
+                    value={newExpiry}
+                    onChange={(e) => setNewExpiry(e.target.value)}
+                    className={baseInputClass()}
+                  />
+                </FormInput>
+                <FormInput label="Scheduled Renewal Date">
+                  <input
+                    type="date"
+                    value={newScheduled}
+                    onChange={(e) => setNewScheduled(e.target.value)}
+                    className={baseInputClass()}
+                  />
+                </FormInput>
+                <div className="md:col-span-2">
+                  <FormInput label="Notes">
+                    <textarea
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      className={baseInputClass() + " min-h-[74px]"}
+                      placeholder="Optional notes"
+                    />
+                  </FormInput>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCreateCustomAlert()}
+                disabled={customSaving}
+                className="mt-4 w-full rounded-xl bg-violet-700 py-3 font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {customSaving ? "Saving..." : "Add Alert"}
+              </button>
+            </div>
+
+            {/* All custom alerts list */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-neutral-300">All Custom Alerts ({customAlerts.length})</div>
+                <button
+                  type="button"
+                  onClick={() => void loadCustomAlerts()}
+                  disabled={customLoading}
+                  className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-60"
+                >
+                  {customLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+              {customLoading && customAlerts.length === 0 ? (
+                <div className="flex items-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-300">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </div>
+              ) : customAlerts.length === 0 ? (
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-400">
+                  No custom alerts yet. Use the form above to add one.
+                </div>
+              ) : (
+                customAlerts.map((ca) => (
+                  <div
+                    key={ca.id}
+                    className={[
+                      "rounded-2xl border bg-neutral-900 p-4",
+                      ca.status === "DONE"
+                        ? "border-neutral-800 opacity-60"
+                        : ca.alert_level === "EXPIRED"
+                        ? "border-red-500/50"
+                        : ca.alert_level === "CRITICAL"
+                        ? "border-orange-500/50"
+                        : ca.alert_level === "WARNING"
+                        ? "border-amber-500/50"
+                        : "border-neutral-800",
+                    ].join(" ")}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-neutral-600 bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-neutral-200">
+                            {ca.category}
+                          </span>
+                          {ca.branch && <span className="text-xs text-neutral-400">{ca.branch}</span>}
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ca.status === "DONE" ? "bg-emerald-900/50 text-emerald-200" : ca.status === "IN_PROGRESS" ? "bg-blue-900/50 text-blue-200" : "bg-neutral-700 text-neutral-300"}`}>
+                            {ca.status}
+                          </span>
+                          {ca.alert_level && ca.status !== "DONE" && (
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ca.alert_level === "EXPIRED" ? "bg-red-900/50 border border-red-500 text-red-200" : ca.alert_level === "CRITICAL" ? "bg-orange-900/50 border border-orange-500 text-orange-200" : "bg-amber-900/50 border border-amber-500 text-amber-200"}`}>
+                              {ca.alert_level}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm font-medium text-white">{ca.title}</div>
+                        <div className="text-xs text-neutral-400">
+                          Expiry: {ca.expiry_date ? ca.expiry_date.slice(0, 10) : "—"}
+                          {ca.scheduled_renewal_date && (
+                            <span className="ml-3 text-emerald-400">Scheduled: {ca.scheduled_renewal_date.slice(0, 10)}</span>
+                          )}
+                        </div>
+                        {ca.notes && <div className="text-xs text-neutral-500">{ca.notes}</div>}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {ca.status !== "DONE" && (
+                          <>
+                            <SelectDark
+                              value={ca.status}
+                              onChange={(v) => void handlePatchCustomAlert(ca.id, { status: v as CustomAlertStatus })}
+                              className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-neutral-200"
+                              options={CUSTOM_STATUSES.map((s) => ({ value: s, label: s }))}
+                            />
+                            {!ca.scheduled_renewal_date && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = window.prompt("Set scheduled renewal date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
+                                  if (d) void handlePatchCustomAlert(ca.id, { scheduled_renewal_date: d });
+                                }}
+                                className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-300 transition hover:bg-emerald-900/50"
+                                title="Set scheduled renewal date"
+                              >
+                                Schedule
+                              </button>
+                            )}
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteCustomAlert(ca.id, ca.title)}
+                          className="rounded-lg border border-red-800/60 bg-red-950/30 p-1.5 text-red-300 transition hover:bg-red-900/50"
+                          title="Delete alert"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
