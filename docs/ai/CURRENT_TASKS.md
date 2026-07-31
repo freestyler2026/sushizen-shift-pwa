@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-30 (session 199 cont.8 — v1639: late day-shift misclassification as closing-shift for undertime; Louiela run_id=25 recomputed)
+Last updated: 2026-07-31 (session 199 cont.9 — Task 4: DUBAI/MANILA_MANAGEMENT close-order permission fix; Task 3: FP Net auto-calc column)
 
 ---
 
@@ -37,6 +37,38 @@ Last updated: 2026-07-30 (session 199 cont.8 — v1639: late day-shift misclassi
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.9 — staff feature requests: Task 3 + Task 4)
+
+### Task 4 — ADMIN/Management roles can now close procurement orders (DEPLOYED ✅ Heroku 202b1d1)
+
+**Bug**: `DUBAI_MANAGEMENT` and `MANILA_MANAGEMENT` lacked `procurement.approval.act` in `LEGACY_ROLE_PERMISSION_MAP` in `access_control.py`. The `_policy_allows()` function in `main.py` requires both a matching role AND the permission flag — even though these roles were in `allowed_roles` for `procurement.request.close_not_received`, the permission check still blocked them.
+
+**Fix**: Added `procurement.approval.act` to both roles. Also added `procurement.request.write` and `procurement.request.submit` to `DUBAI_MANAGEMENT` (MANILA_MANAGEMENT already had these).
+
+**Note**: `ADMIN` role already had `procurement.approval.act` — if the staff member reports they're using `ADMIN` role and still can't close, they may have a DB-level custom profile that overrides the legacy map. Check their `staff_access_profiles` DB record.
+
+### Task 3 — Foodpanda Net Sales auto-calc column in Sales Data Input (DEPLOYED ✅ Frontend 3b9514c)
+
+**Change**: `AdminSalesDataInputTab.tsx` — added read-only "FP Net" column after "FP Gross" (renamed from "FP PHP"). Shows `foodpanda_amount × 0.70` (70% after 30% commission) in emerald text. No DB changes.
+
+---
+
+## Pending staff feature requests (from PDF email, 2026-07-31)
+
+### Task 1 — AOV (Average Order Value) in Dubai Number of Orders tab
+- Requires new `order_amount` DB column in `dubai_order_counts` table (currently only `order_count`)
+- Backend: new column + migration + endpoint update for `GET /api/admin/analytics/dubai/order-counts/by-date`
+- Frontend: `OrderEntryTab.tsx` — add amount input field + AOV = amount/count computed display
+- Complexity: HIGH (DB migration)
+
+### Task 2 — Comparison Rate for Dubai (WoW like Manila)
+- Manila already has `ratio_to_prev_week` in `ManilaSalesDataTab.tsx`
+- Need same for Dubai order-counts: backend to compute prior-week data + ratio in API response
+- Frontend: `OrderEntryTab.tsx` or analytics view
+- Complexity: MEDIUM (backend computation, no DB change)
 
 ---
 
