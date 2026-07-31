@@ -8,7 +8,7 @@ import { GLASS_CARD, INPUT_CLASS, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
 import { useUnsavedGuard, saveDraft, loadDraft, clearDraft } from "@/lib/unsavedGuard";
 
 const orderEntryDraftKey = (date: string) => `order-entry-draft:${date}`;
-type OrderEntryDraft = { gridData: GridData; dirty: Partial<Record<Brand, boolean>> };
+type OrderEntryDraft = { gridData: GridData; revenueData: GridData; dirty: Partial<Record<Brand, boolean>> };
 
 export const BRAND_GRID_CONFIG = {
   "Sushi Zen": {
@@ -140,6 +140,8 @@ export default function OrderEntryTab() {
   const [saved, setSaved] = useState<Partial<Record<Brand, boolean>>>({});
   const [dirty, setDirty] = useState<Partial<Record<Brand, boolean>>>({});
   const [saveError, setSaveError] = useState("");
+  const [revenueData, setRevenueData] = useState<GridData>({});
+  const [wowPrevData, setWowPrevData] = useState<GridData>({});
 
   useEffect(() => {
     const a = getAuth();
@@ -166,23 +168,34 @@ export default function OrderEntryTab() {
           approver_name: nm,
           pin: p,
         });
-        const json = await apiGet<{ rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number }> }>(
-          `/api/admin/analytics/dubai/order-counts/by-date?${qs}`,
-        );
+        const json = await apiGet<{
+          rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number; revenue_aed?: number }>;
+          prev_rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number }>;
+        }>(`/api/admin/analytics/dubai/order-counts/by-date?${qs}`);
         const next: GridData = {};
+        const nextRevenue: GridData = {};
+        const nextWowPrev: GridData = {};
         for (const row of json.rows || []) {
           const k = cellKey(row.brand, row.aggregator, row.branch);
           next[k] = Number(row.order_count) || 0;
+          if (row.revenue_aed) nextRevenue[k] = Number(row.revenue_aed) || 0;
         }
+        for (const row of json.prev_rows || []) {
+          const k = cellKey(row.brand, row.aggregator, row.branch);
+          nextWowPrev[k] = Number(row.order_count) || 0;
+        }
+        setWowPrevData(nextWowPrev);
         // Restore any unsaved draft for this date (survives reloads), overlaying
         // the staff's in-progress edits on top of the latest saved server values.
         const draft = loadDraft<OrderEntryDraft>(orderEntryDraftKey(date));
         if (draft && draft.dirty && Object.values(draft.dirty).some(Boolean)) {
           setGridData({ ...next, ...draft.gridData });
+          setRevenueData({ ...nextRevenue, ...(draft.revenueData || {}) });
           setDirty(draft.dirty);
           setLoadError("Restored unsaved changes from your last session. Review and save.");
         } else {
           setGridData(next);
+          setRevenueData(nextRevenue);
         }
       } catch (e: unknown) {
         setGridData({});
@@ -206,6 +219,14 @@ export default function OrderEntryTab() {
     setSaved((prev) => ({ ...prev, [brand]: false }));
   };
 
+  const handleRevenueChange = (brand: Brand, agg: string, branch: string, val: string) => {
+    const num = parseFloat(val.replace(/[^0-9.]/g, ""));
+    const k = cellKey(brand, agg, branch);
+    setRevenueData((prev) => ({ ...prev, [k]: Number.isNaN(num) ? 0 : num }));
+    setDirty((prev) => ({ ...prev, [brand]: true }));
+    setSaved((prev) => ({ ...prev, [brand]: false }));
+  };
+
   const saveBrand = async (brand: Brand) => {
     const nm = approverName.trim();
     const p = pin.trim();
@@ -221,6 +242,7 @@ export default function OrderEntryTab() {
         aggregator: agg,
         branch,
         order_count: gridData[cellKey(brand, agg, branch)] ?? 0,
+        order_amount: revenueData[cellKey(brand, agg, branch)] ?? 0,
       })),
     );
     try {
@@ -319,9 +341,9 @@ export default function OrderEntryTab() {
   // B: persist the in-progress grid to sessionStorage so a reload never loses it.
   useEffect(() => {
     const key = orderEntryDraftKey(selectedDate);
-    if (anyDirty) saveDraft(key, { gridData, dirty });
+    if (anyDirty) saveDraft(key, { gridData, revenueData, dirty });
     else clearDraft(key);
-  }, [gridData, dirty, anyDirty, selectedDate]);
+  }, [gridData, revenueData, dirty, anyDirty, selectedDate]);
 
   return (
     <div className="space-y-6">
@@ -432,7 +454,10 @@ export default function OrderEntryTab() {
             brand={brand}
             selectedDate={selectedDate}
             gridData={gridData}
+            revenueData={revenueData}
+            wowPrevData={wowPrevData}
             onChange={handleCellChange}
+            onRevenueChange={handleRevenueChange}
             onKeyDown={handleKeyDown}
             onSave={() => void saveBrand(brand)}
             saving={saving[brand] ?? false}
@@ -453,7 +478,10 @@ interface BrandGridProps {
   brand: Brand;
   selectedDate: string;
   gridData: GridData;
+  revenueData: GridData;
+  wowPrevData: GridData;
   onChange: (brand: Brand, agg: string, branch: string, val: string) => void;
+  onRevenueChange: (brand: Brand, agg: string, branch: string, val: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>, brand: Brand, aggIdx: number, branchIdx: number) => void;
   onSave: () => void;
   saving: boolean;
@@ -590,11 +618,18 @@ function CombinedGrid({ gridData, selectedDate }: { gridData: GridData; selected
   );
 }
 
+function fmtAed(n: number) {
+  return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 function BrandGrid({
   brand,
   selectedDate,
   gridData,
+  revenueData,
+  wowPrevData,
   onChange,
+  onRevenueChange,
   onKeyDown,
   onSave,
   saving,
@@ -613,6 +648,13 @@ function BrandGrid({
     aggs.reduce((s, agg) => s + (gridData[cellKey(brand, agg, branch)] ?? 0), 0);
 
   const grandTotal = aggs.reduce((s, agg) => s + rowTotal(agg), 0);
+
+  const grandTotalPrev = aggs.reduce(
+    (s, agg) => s + branches.reduce((ss, br) => ss + (wowPrevData[cellKey(brand, agg, br)] ?? 0), 0),
+    0,
+  );
+  const wowRatio = grandTotalPrev > 0 && grandTotal > 0 ? grandTotal / grandTotalPrev : null;
+  const wowPct = wowRatio != null ? ((wowRatio - 1) * 100).toFixed(1) : null;
 
   return (
     <div className={`overflow-hidden rounded-xl border ${BRAND_COLOR[brand]}`}>
@@ -668,10 +710,12 @@ function BrandGrid({
             </tr>
           </thead>
           <tbody>
-            {aggs.map((agg, aggIdx) => {
+            {aggs.flatMap((agg, aggIdx) => {
               const rt = rowTotal(agg);
-              return (
-                <tr key={agg} className="border-b border-white/5 transition-colors hover:bg-white/[0.03]">
+              const rowRev = branches.reduce((s, br) => s + (revenueData[cellKey(brand, agg, br)] ?? 0), 0);
+              const rowAov = rt > 0 && rowRev > 0 ? rowRev / rt : null;
+              return [
+                <tr key={agg} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
                   <td className="sticky left-0 z-10 bg-[#0f1117] px-3 py-1.5 font-medium text-gray-400">{agg}</td>
                   {branches.map((branch, branchIdx) => {
                     const k = cellKey(brand, agg, branch);
@@ -699,8 +743,41 @@ function BrandGrid({
                   <td className="px-3 py-1.5 text-center font-bold">
                     <span className={rt > 0 ? "text-white" : "text-gray-700"}>{rt > 0 ? rt.toLocaleString() : "—"}</span>
                   </td>
-                </tr>
-              );
+                </tr>,
+                <tr key={`${agg}-aed`} className="border-b border-white/5">
+                  <td className="sticky left-0 z-10 bg-[#0f1117] px-3 py-0.5 text-[9px] font-medium tracking-wide text-amber-600/60">
+                    AED
+                  </td>
+                  {branches.map((branch) => {
+                    const k = cellKey(brand, agg, branch);
+                    const rev = revenueData[k] ?? 0;
+                    return (
+                      <td key={branch} className="px-1 py-0.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={rev === 0 ? "" : String(rev)}
+                          placeholder="0"
+                          onChange={(e) => onRevenueChange(brand, agg, branch, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className={`w-full rounded border px-1 py-0.5 text-center text-[11px] outline-none transition-all focus:ring-1 focus:ring-amber-500/30 ${
+                            rev > 0
+                              ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
+                              : "border-white/5 bg-transparent text-gray-700 placeholder:text-gray-800"
+                          } focus:border-amber-500/40 focus:bg-amber-500/8 focus:text-amber-100`}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-0.5 text-center">
+                    {rowAov != null ? (
+                      <span className="text-[10px] font-medium text-amber-400">AOV {fmtAed(rowAov)}</span>
+                    ) : (
+                      <span className="text-[10px] text-gray-800">—</span>
+                    )}
+                  </td>
+                </tr>,
+              ];
             })}
           </tbody>
           <tfoot>
@@ -729,10 +806,24 @@ function BrandGrid({
       </div>
 
       {grandTotal > 0 ? (
-        <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-2">
-          <span className="text-xs text-gray-500">
-            {selectedDate} · {aggs.length} aggregators · {branches.length} branches
-          </span>
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 px-4 py-2">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">
+              {selectedDate} · {aggs.length} aggregators · {branches.length} branches
+            </span>
+            {wowPct != null ? (
+              <span
+                className={`flex items-center gap-0.5 text-xs font-medium ${
+                  parseFloat(wowPct) >= 0 ? "text-emerald-400" : "text-red-400"
+                }`}
+              >
+                {parseFloat(wowPct) >= 0 ? "▲" : "▼"} {parseFloat(wowPct) >= 0 ? "+" : ""}
+                {wowPct}% vs last week ({grandTotalPrev.toLocaleString()})
+              </span>
+            ) : grandTotalPrev > 0 ? (
+              <span className="text-xs text-gray-600">Last week: {grandTotalPrev.toLocaleString()}</span>
+            ) : null}
+          </div>
           <span className="text-xs font-bold text-white">Grand Total: {grandTotal.toLocaleString()}</span>
         </div>
       ) : null}
