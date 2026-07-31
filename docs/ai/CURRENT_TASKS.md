@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-31 (session 199 cont.13 — Foodpanda Gross/Net feature browser-verified on production)
+Last updated: 2026-07-31 (session 199 cont.15 — 5 staff feature requests fully implemented and deployed)
 
 ---
 
@@ -37,6 +37,64 @@ Last updated: 2026-07-31 (session 199 cont.13 — Foodpanda Gross/Net feature br
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.15 — staff feature PDF requests)
+
+### Feature 1: Store Procurement — Date + Branch filter on Recent Requests (DEPLOYED ✅ Vercel 3e60639)
+- Added `filterDate` (date input) and `filterBranchHist` (SelectDark dropdown) state
+- Filter UI added to "Recent Requests" section header area
+- Branch options derived dynamically from actual `store_code` values in rows
+- Clear button appears when any filter is active
+- "No requests match filters" empty-state message
+- Filter applied inline in `rows.filter(...).map(...)`
+
+### Feature 2: Manila Cancellation Report — Refund Amount bug fix (DEPLOYED ✅ Vercel 3e60639)
+- Root cause: `normalizeManilaRow` was mapping `r.paid_price` to `refund_amount`
+- Fix: `basket_amount = r.paid_price` (food order value), `refund_amount = r.refund_amount` (actual refund)
+- `compensation_amount` and `pic_notes` also now mapped correctly
+- Backend DB always stored separate columns; bug was purely in frontend type mapping
+
+### Feature 3: Rename "Paid Price" → "Food Order Value" (DEPLOYED ✅)
+- `AdminCancellationInputTab.tsx`: form field label renamed
+- `cancellations/page.tsx`: detail modal Manila row now shows "Food Order Value (PHP)" for basket_amount
+- Column header already shows "Refund (PHP)" (amountLabel — was already correct)
+
+### Feature 4: PIC Notes field (DEPLOYED ✅ Backend v1645 + Vercel 3e60639)
+- Backend: `ALTER TABLE manila_cancellations ADD COLUMN IF NOT EXISTS pic_notes TEXT`
+- `get_manila_cancellations` and `fetch_manila_cancellation_by_platform_order` SELECT include pic_notes
+- `upsert_manila_cancellations` INSERT and ON CONFLICT DO UPDATE include pic_notes
+- `ManilaCancellationUpsertIn` model: `pic_notes: Optional[str] = None`
+- Frontend `AdminCancellationInputTab.tsx`: `pic_notes` in CancelRecord/EditableRecord/emptyRecord/dbToEditable, PIC Notes textarea added, included in save payloads
+- Frontend `cancellations/page.tsx`: pic_notes shown in detail modal (violet-tinted block), included in CSV export
+
+### Feature 5: Resolution filter in Cancellation Report (DEPLOYED ✅ Vercel 3e60639)
+- `filterResolution` state: "all" / "resolved" / "pending"
+- Filter logic: resolved = refund_status non-empty; pending = refund_status empty
+- Resolution dropdown added to filter bar between Ticket Status and Search
+- Filter resets to "all" when switching city
+
+## Recently Completed (2026-07-31 session 199 cont.14 — OT Prompt + Admin Overtime city toggle browser-verified)
+
+### OT Prompt after Clock-Out (DEPLOYED ✅ Vercel commit 9d96641)
+- **Verified on production**:
+  - Modal appears after checkout when worked time > scheduled + 15 min
+  - Time formatting: "1h 15m" for ≥60 min, "30m" for <60 min ✓
+  - "Not Now" dismisses modal ✓
+  - "Submit OT Request" navigates to `/store/overtime-request` (Post-report pre-selected, today's date pre-filled) ✓
+  - No console errors ✓
+- Implementation: `pendingOtPromptRef` set in Clock Out onClick before `doAction("checkout")`; shown 800ms after checkout completes; overnight shift duration handled correctly
+
+### Admin Overtime — Dubai/Manila City Toggle (DEPLOYED ✅ Vercel commit 9d96641)
+- **Verified on production**:
+  - Dubai/Manila toggle buttons visible for HQ role in page header ✓
+  - Dubai → shows Dubai branches (Business Bay, JLT, Arjan, Al Mina, Al Barsha, Central Kitchen — 8 of 8) ✓
+  - Manila → shows Manila branches (Paranaque, Cubao, Taft, Central Kitchen, Warehouse, Back Office — 6 of 6) ✓
+  - Branch filter resets to "All" when switching city ✓
+  - Data reloads automatically on city switch ✓
+  - No console errors ✓
+- Implementation: `canSwitchCity` = HQ|ADMIN; `activeCity` state; `city = activeCity` drives `load()` useCallback
 
 ---
 
