@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-31 (session 199 cont.9 — Task 4: DUBAI/MANILA_MANAGEMENT close-order permission fix; Task 3: FP Net auto-calc column)
+Last updated: 2026-07-31 (session 199 cont.10 — Task 1: AOV revenue inputs + Task 2: WoW comparison for Dubai orders)
 
 ---
 
@@ -40,6 +40,27 @@ Last updated: 2026-07-31 (session 199 cont.9 — Task 4: DUBAI/MANILA_MANAGEMENT
 
 ---
 
+## Recently Completed (2026-07-31 session 199 cont.10 — Task 1 + Task 2: Dubai orders AOV + WoW)
+
+### Task 1 — AOV (Average Order Value) + Task 2 — WoW Comparison (DEPLOYED ✅ Heroku v1642 + Vercel 743c208)
+
+**Task 1 — AOV**:
+- DB migration: `ALTER TABLE dubai_order_counts ADD COLUMN IF NOT EXISTS revenue_aed NUMERIC(14,2) NOT NULL DEFAULT 0`
+  (runs in `ensure_order_count_tables` on first API call — confirmed column present in production)
+- `upsert_order_count_rows` in db.py: now includes `revenue_aed` in INSERT and ON CONFLICT UPDATE
+- `get_dubai_order_counts_by_date` in db.py: SELECT now includes `revenue_aed`
+- `api_dubai_order_counts_save_day` in main.py: accepts `order_amount` or `revenue_aed` per row dict
+- `OrderEntryTab.tsx`: AED revenue sub-row rendered below each aggregator row (amber inputs), AOV displayed in row total column (amber, read-only) = total revenue / total orders
+
+**Task 2 — WoW**:
+- `api_dubai_order_counts_by_date` in main.py: fetches `prev_rows` (date − 7 days) and returns alongside `rows`
+  (verified: 55 prev_rows returned for 2026-07-31 lookup; keys include revenue_aed)
+- `OrderEntryTab.tsx`: `wowPrevData` state populated from prev_rows; WoW ratio = currentGrandTotal / prevGrandTotal; displayed as "▲ +5.2% vs last week (1,180)" in brand card footer
+
+**Data model**: `revenueData: GridData` (parallel to `gridData`), draft-persisted alongside counts. Save sends `order_amount` per row.
+
+---
+
 ## Recently Completed (2026-07-31 session 199 cont.9 — staff feature requests: Task 3 + Task 4)
 
 ### Task 4 — ADMIN/Management roles can now close procurement orders (DEPLOYED ✅ Heroku 202b1d1)
@@ -55,20 +76,6 @@ Last updated: 2026-07-31 (session 199 cont.9 — Task 4: DUBAI/MANILA_MANAGEMENT
 **Change**: `AdminSalesDataInputTab.tsx` — added read-only "FP Net" column after "FP Gross" (renamed from "FP PHP"). Shows `foodpanda_amount × 0.70` (70% after 30% commission) in emerald text. No DB changes.
 
 ---
-
-## Pending staff feature requests (from PDF email, 2026-07-31)
-
-### Task 1 — AOV (Average Order Value) in Dubai Number of Orders tab
-- Requires new `order_amount` DB column in `dubai_order_counts` table (currently only `order_count`)
-- Backend: new column + migration + endpoint update for `GET /api/admin/analytics/dubai/order-counts/by-date`
-- Frontend: `OrderEntryTab.tsx` — add amount input field + AOV = amount/count computed display
-- Complexity: HIGH (DB migration)
-
-### Task 2 — Comparison Rate for Dubai (WoW like Manila)
-- Manila already has `ratio_to_prev_week` in `ManilaSalesDataTab.tsx`
-- Need same for Dubai order-counts: backend to compute prior-week data + ratio in API response
-- Frontend: `OrderEntryTab.tsx` or analytics view
-- Complexity: MEDIUM (backend computation, no DB change)
 
 ---
 
