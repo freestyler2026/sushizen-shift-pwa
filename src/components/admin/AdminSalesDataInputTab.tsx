@@ -15,6 +15,7 @@ type SaleRow = {
   grabfood_orders: number | null;
   grabfood_amount: number | null;
   foodpanda_orders: number | null;
+  foodpanda_gross: number | null;
   foodpanda_amount: number | null;
   beep_orders: number | null;
   beep_amount: number | null;
@@ -30,7 +31,7 @@ type EditableRow = {
   grabfood_orders: string;
   grabfood_amount: string;
   foodpanda_orders: string;
-  foodpanda_amount: string;
+  foodpanda_gross: string;
   beep_orders: string;
   beep_amount: string;
   saving: boolean;
@@ -75,7 +76,8 @@ function floatOrNull(s: string): number | null {
 
 function calcTotal(row: EditableRow) {
   const orders = (intOrNull(row.dine_in_orders) ?? 0) + (intOrNull(row.grabfood_orders) ?? 0) + (intOrNull(row.foodpanda_orders) ?? 0) + (intOrNull(row.beep_orders) ?? 0);
-  const amount = (floatOrNull(row.dine_in_amount) ?? 0) + (floatOrNull(row.grabfood_amount) ?? 0) + (floatOrNull(row.foodpanda_amount) ?? 0) + (floatOrNull(row.beep_amount) ?? 0);
+  const fpNet = (floatOrNull(row.foodpanda_gross) ?? 0) * 0.70;
+  const amount = (floatOrNull(row.dine_in_amount) ?? 0) + (floatOrNull(row.grabfood_amount) ?? 0) + fpNet + (floatOrNull(row.beep_amount) ?? 0);
   return { orders, amount };
 }
 
@@ -91,7 +93,7 @@ function rowToEditable(r: SaleRow): EditableRow {
     grabfood_orders: r.grabfood_orders != null ? String(r.grabfood_orders) : "",
     grabfood_amount: r.grabfood_amount != null ? String(r.grabfood_amount) : "",
     foodpanda_orders: r.foodpanda_orders != null ? String(r.foodpanda_orders) : "",
-    foodpanda_amount: r.foodpanda_amount != null ? String(r.foodpanda_amount) : "",
+    foodpanda_gross: r.foodpanda_gross != null ? String(r.foodpanda_gross) : "",
     beep_orders: r.beep_orders != null ? String(r.beep_orders) : "",
     beep_amount: r.beep_amount != null ? String(r.beep_amount) : "",
     saving: false,
@@ -101,7 +103,7 @@ function rowToEditable(r: SaleRow): EditableRow {
 }
 
 function hasRowInput(row: EditableRow) {
-  return [row.dine_in_orders, row.dine_in_amount, row.grabfood_orders, row.grabfood_amount, row.foodpanda_orders, row.foodpanda_amount, row.beep_orders, row.beep_amount].some(
+  return [row.dine_in_orders, row.dine_in_amount, row.grabfood_orders, row.grabfood_amount, row.foodpanda_orders, row.foodpanda_gross, row.beep_orders, row.beep_amount].some(
     (v) => v.trim() !== "",
   );
 }
@@ -196,7 +198,7 @@ export default function AdminSalesDataInputTab() {
       grabfood_orders: "",
       grabfood_amount: "",
       foodpanda_orders: "",
-      foodpanda_amount: "",
+      foodpanda_gross: "",
       beep_orders: "",
       beep_amount: "",
       saving: false,
@@ -240,7 +242,7 @@ export default function AdminSalesDataInputTab() {
           grabfood_orders: "",
           grabfood_amount: "",
           foodpanda_orders: "",
-          foodpanda_amount: "",
+          foodpanda_gross: "",
           beep_orders: "",
           beep_amount: "",
           saving: false,
@@ -285,7 +287,7 @@ export default function AdminSalesDataInputTab() {
         grabfood_orders: intOrNull(row.grabfood_orders),
         grabfood_amount: floatOrNull(row.grabfood_amount),
         foodpanda_orders: intOrNull(row.foodpanda_orders),
-        foodpanda_amount: floatOrNull(row.foodpanda_amount),
+        foodpanda_gross: floatOrNull(row.foodpanda_gross),
         beep_orders: intOrNull(row.beep_orders),
         beep_amount: floatOrNull(row.beep_amount),
       });
@@ -323,7 +325,7 @@ export default function AdminSalesDataInputTab() {
           grabfood_orders: intOrNull(snapshot[i].grabfood_orders),
           grabfood_amount: floatOrNull(snapshot[i].grabfood_amount),
           foodpanda_orders: intOrNull(snapshot[i].foodpanda_orders),
-          foodpanda_amount: floatOrNull(snapshot[i].foodpanda_amount),
+          foodpanda_gross: floatOrNull(snapshot[i].foodpanda_gross),
           beep_orders: intOrNull(snapshot[i].beep_orders),
           beep_amount: floatOrNull(snapshot[i].beep_amount),
         });
@@ -466,9 +468,9 @@ export default function AdminSalesDataInputTab() {
                     <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} />
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount />
                     <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} />
-                    <InputCell value={row.foodpanda_amount} onChange={(v) => updateRow(idx, "foodpanda_amount", v)} isAmount />
+                    <InputCell value={row.foodpanda_gross} onChange={(v) => updateRow(idx, "foodpanda_gross", v)} isAmount />
                     {(() => {
-                      const fpGross = floatOrNull(row.foodpanda_amount);
+                      const fpGross = floatOrNull(row.foodpanda_gross);
                       const fpNet = fpGross != null ? fpGross * 0.70 : null;
                       return (
                         <div className="text-right text-sm text-emerald-400/80">
