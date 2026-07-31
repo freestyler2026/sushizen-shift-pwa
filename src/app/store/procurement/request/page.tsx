@@ -153,6 +153,9 @@ export default function StoreProcurementRequestPage() {
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string>("");
+  // Recent Requests history filters
+  const [filterDate, setFilterDate] = useState("");
+  const [filterBranchHist, setFilterBranchHist] = useState("All");
   // Daily inventory on-hand quantities: item_name (lowercase) → qty
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [stockReportDate, setStockReportDate] = useState<string>("");
@@ -1998,8 +2001,46 @@ export default function StoreProcurementRequestPage() {
           <div className="text-sm font-medium">Recent Requests ({cityLabel})</div>
           <div className="text-[11px] text-neutral-500">All staff · own orders shown first</div>
         </div>
+        {/* History filters */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex-1 min-w-[130px]">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Date</div>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
+            />
+          </div>
+          <div className="flex-1 min-w-[130px]">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Branch</div>
+            <SelectDark
+              value={filterBranchHist}
+              onChange={setFilterBranchHist}
+              options={[
+                { value: "All", label: "All Branches" },
+                ...Array.from(new Set(rows.map((r) => r.store_code).filter(Boolean))).map((s) => ({ value: s, label: s })),
+              ]}
+            />
+          </div>
+          {(filterDate || filterBranchHist !== "All") && (
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => { setFilterDate(""); setFilterBranchHist("All"); }}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
         <div className="mt-3 space-y-2">
-          {rows.map((row) => {
+          {rows.filter((row) => {
+            if (filterDate && row.request_date !== filterDate) return false;
+            if (filterBranchHist !== "All" && row.store_code !== filterBranchHist) return false;
+            return true;
+          }).map((row) => {
             const myName = requestedBy.trim().toLowerCase();
             const isOwn = (row.requested_by || "").toLowerCase() === myName;
             const isDraft = (row.status || "").toUpperCase() === "DRAFT";
@@ -2057,7 +2098,7 @@ export default function StoreProcurementRequestPage() {
               </div>
             );
           })}
-          {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : null}
+          {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : (filterDate || filterBranchHist !== "All") && rows.filter((r) => (!filterDate || r.request_date === filterDate) && (filterBranchHist === "All" || r.store_code === filterBranchHist)).length === 0 ? <div className="text-sm text-neutral-500">No requests match the current filters.</div> : null}
         </div>
       </div>
       </div>

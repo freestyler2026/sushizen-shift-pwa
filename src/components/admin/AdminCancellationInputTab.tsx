@@ -24,6 +24,7 @@ interface CancelRecord {
   refund_status: string | null;
   refund_amount: number | null;
   compensation_amount: number | null;
+  pic_notes: string | null;
 }
 
 interface EditableRecord extends CancelRecord {
@@ -31,6 +32,7 @@ interface EditableRecord extends CancelRecord {
   paid_price_str: string;
   refund_str: string;
   comp_str: string;
+  pic_notes_str: string;
   cancellation_reason_other: string;
   saving: boolean;
   saved: boolean;
@@ -124,6 +126,8 @@ function emptyRecord(date: string): EditableRecord {
     refund_str: "",
     compensation_amount: null,
     comp_str: "",
+    pic_notes: null,
+    pic_notes_str: "",
     cancellation_reason: "",
     cancellation_reason_other: "",
     kitchen_photo_provided: null,
@@ -146,6 +150,7 @@ function dbToEditable(r: CancelRecord): EditableRecord {
     paid_price_str: r.paid_price != null ? String(r.paid_price) : "",
     refund_str: r.refund_amount != null ? String(r.refund_amount) : "",
     comp_str: r.compensation_amount != null ? String(r.compensation_amount) : "",
+    pic_notes_str: r.pic_notes ?? "",
     cancellation_reason_other: "",
     saving: false,
     saved: true,
@@ -470,7 +475,7 @@ function RecordCard({
               />
             </div>
             <div>
-              <Label>Paid Price (PHP)</Label>
+              <Label>Food Order Value (PHP)</Label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -565,6 +570,15 @@ function RecordCard({
               options={REFUND_STATUS_OPTIONS}
               placeholder="Select status…"
               extraValues={rec.refund_status ? [rec.refund_status] : []}
+            />
+          </div>
+          <div>
+            <Label>PIC Notes</Label>
+            <TextArea
+              value={rec.pic_notes_str}
+              onChange={(v) => onUpdate("pic_notes_str", v)}
+              placeholder="Investigation findings, circumstances, follow-up actions…"
+              rows={3}
             />
           </div>
           {rec.error ? (
@@ -678,6 +692,7 @@ export default function AdminCancellationInputTab({
         refund_status: rec.refund_status?.trim() || null,
         refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
         compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
+        pic_notes: rec.pic_notes_str?.trim() || null,
       });
       if (data.record) {
         const row = data.record;
@@ -769,6 +784,7 @@ export default function AdminCancellationInputTab({
           refund_status: rec.refund_status?.trim() || null,
           refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
           compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
+          pic_notes: rec.pic_notes_str?.trim() || null,
         });
         if (data.record) {
           const row = data.record;

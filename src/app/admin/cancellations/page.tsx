@@ -67,7 +67,7 @@ type CancelRow = {
   order_id: string | null;
   time_reported: string | null;
   ordered_items: string | null;
-  basket_amount: number | null;
+  basket_amount: number | null;   // Manila: food order value (paid_price field)
   total_amount: number | null;
   refund_amount: number | null;
   compensation_amount: number | null;
@@ -80,6 +80,7 @@ type CancelRow = {
   kitchen_notes: string | null;
   platform_notes: string | null;
   refund_status: string | null;
+  pic_notes: string | null;
 };
 
 // Shape returned by Manila API (different field names)
@@ -94,11 +95,14 @@ type ManilaApiRow = {
   time_reported?: string | null;
   ordered_items?: string | null;
   paid_price?: number | null;
+  refund_amount?: number | null;
+  compensation_amount?: number | null;
   cancellation_reason?: string | null;
   kitchen_photo_provided?: boolean | null;
   ticket_status?: string | null;
   recorded_by?: string | null;
   refund_status?: string | null;
+  pic_notes?: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -114,10 +118,10 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     order_id: r.order_no ?? null,
     time_reported: r.time_reported ?? null,
     ordered_items: r.ordered_items ?? null,
-    basket_amount: null,
+    basket_amount: r.paid_price ?? null,     // food order value
     total_amount: null,
-    refund_amount: r.paid_price ?? null,
-    compensation_amount: null,
+    refund_amount: r.refund_amount ?? null,  // actual refund amount
+    compensation_amount: r.compensation_amount ?? null,
     cancellation_reason: r.cancellation_reason ?? null,
     encoded_by: r.recorded_by ?? null,
     customer_note: null,
@@ -130,6 +134,7 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     kitchen_notes: null,
     platform_notes: null,
     refund_status: r.refund_status ?? null,
+    pic_notes: r.pic_notes ?? null,
   };
 }
 
@@ -265,9 +270,10 @@ function DetailModal({
               <Field label="Refund (AED)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Field label="Time" value={row.time_reported} />
-              <Field label="Paid Price (PHP)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
+              <Field label="Food Order Value (PHP)" value={row.basket_amount != null ? String(row.basket_amount) : null} mono />
+              <Field label="Refund (PHP)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
             </div>
           )}
 
@@ -316,6 +322,16 @@ function DetailModal({
             <Field label="Ticket Status" value={row.email_status} />
             <Field label="Refund Status" value={row.refund_status} />
           </div>
+
+          {/* PIC Notes */}
+          {row.pic_notes && (
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">PIC Notes</p>
+              <p className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2.5 text-sm text-white/80 whitespace-pre-wrap">
+                {row.pic_notes}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -414,6 +430,7 @@ export default function CancellationReportPage() {
   const [filterPlatform, setFilterPlatform] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterTicket, setFilterTicket] = useState("all");
+  const [filterResolution, setFilterResolution] = useState("all");
   const [search, setSearch] = useState("");
 
   // Sort
@@ -436,7 +453,7 @@ export default function CancellationReportPage() {
   const activePlatformColors = city === "dubai" ? DUBAI_PLATFORM_COLORS : MANILA_PLATFORM_COLORS;
   const activeBranchColors = city === "dubai" ? DUBAI_BRANCH_COLORS : MANILA_BRANCH_COLORS;
   const fmtAmount = city === "dubai" ? fmtAed : fmtPhp;
-  const amountLabel = city === "dubai" ? "Refund (AED)" : "Amount (PHP)";
+  const amountLabel = city === "dubai" ? "Refund (AED)" : "Refund (PHP)";
 
   const canLoad = Boolean(approverName.trim() && pin.trim());
 
@@ -445,6 +462,7 @@ export default function CancellationReportPage() {
     setFilterBranch("All");
     setFilterPlatform("All");
     setFilterCategory("All");
+    setFilterResolution("all");
     setRecords([]);
     setLoaded(false);
     setError(null);
@@ -502,6 +520,8 @@ export default function CancellationReportPage() {
       }
       if (filterTicket === "pending" && !isPending(r)) return false;
       if (filterTicket === "none" && (isTicketSent(r.email_status) || (r.email_status ?? "").toLowerCase().includes("no need"))) return false;
+      if (filterResolution === "resolved" && !isResolved(r.refund_status)) return false;
+      if (filterResolution === "pending" && isResolved(r.refund_status)) return false;
       if (search) {
         const q = search.toLowerCase();
         return (
@@ -515,7 +535,7 @@ export default function CancellationReportPage() {
       }
       return true;
     });
-  }, [records, filterBranch, filterPlatform, filterCategory, filterTicket, search]);
+  }, [records, filterBranch, filterPlatform, filterCategory, filterTicket, filterResolution, search]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -551,7 +571,7 @@ export default function CancellationReportPage() {
 
   function downloadCsv() {
     const amtCol = city === "dubai" ? "refund_aed" : "amount_php";
-    const headers = ["date", "branch", "platform", "category", "order_id", amtCol, "reason", "ticket_status", "refund_status"];
+    const headers = ["date", "branch", "platform", "category", "order_id", amtCol, "reason", "ticket_status", "refund_status", "pic_notes"];
     const esc = (v: unknown) => {
       const s = String(v ?? "");
       return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
@@ -561,7 +581,7 @@ export default function CancellationReportPage() {
       ...sorted.map((r) => [
         r.incident_date, r.branch, r.platform, r.category ?? "",
         r.order_id ?? "", r.refund_amount ?? 0,
-        esc(r.cancellation_reason), esc(r.email_status), esc(r.refund_status),
+        esc(r.cancellation_reason), esc(r.email_status), esc(r.refund_status), esc(r.pic_notes),
       ].join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -750,6 +770,19 @@ export default function CancellationReportPage() {
                 onChange={setFilterTicket}
                 className={SELECT_CLASS}
                 options={TICKET_STATUSES}
+              />
+            </div>
+            <div className="min-w-[150px] flex-1">
+              <p className={`${T_LABEL} mb-1`}>Resolution</p>
+              <SelectDark
+                value={filterResolution}
+                onChange={setFilterResolution}
+                className={SELECT_CLASS}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "resolved", label: "Resolved" },
+                  { value: "pending", label: "Pending" },
+                ]}
               />
             </div>
             <div className="min-w-[180px] flex-1">
