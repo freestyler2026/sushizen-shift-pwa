@@ -12,6 +12,9 @@ import {
   INPUT_CLASS,
   SELECT_CLASS,
   TEXTAREA_CLASS,
+  TAB_CONTAINER,
+  TAB_ACTIVE,
+  TAB_INACTIVE,
   T_PAGE_TITLE,
   T_SECTION,
   T_BODY,
@@ -102,7 +105,10 @@ export default function ExpenseRequestPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
-  const city = (auth?.city || "").toLowerCase();
+  const authCity = ((auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila") as "dubai" | "manila";
+  const canSwitchCity = !auth?.cityLock; // cityLock="" = no restriction (Admin/HQ)
+  const [selectedCity, setSelectedCity] = useState<"dubai" | "manila">(authCity);
+  const city = canSwitchCity ? selectedCity : authCity;
   const currency = city === "dubai" ? "AED" : "PHP";
 
   useEffect(() => {
@@ -125,12 +131,13 @@ export default function ExpenseRequestPage() {
     return { Authorization: `Bearer ${accessToken}` };
   }, []);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (forCity?: string) => {
     setLoadingHistory(true);
     setHistoryError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/expense/requests?limit=50`, { headers, cache: "no-store" });
+      const cityParam = forCity ? `&city=${encodeURIComponent(forCity)}` : "";
+      const res = await fetch(`${apiBase}/api/expense/requests?limit=50${cityParam}`, { headers, cache: "no-store" });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.detail || `Error ${res.status}`);
       setRequests(Array.isArray(j?.requests) ? j.requests : []);
@@ -142,8 +149,8 @@ export default function ExpenseRequestPage() {
   }, [apiBase, tokenHeaders]);
 
   useEffect(() => {
-    if (auth?.staffName) void loadHistory();
-  }, [auth, loadHistory]);
+    if (auth?.staffName) void loadHistory(canSwitchCity ? city : undefined);
+  }, [auth, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +178,7 @@ export default function ExpenseRequestPage() {
       setDescription("");
       setReceiptImage("");
       setReceiptPreview("");
-      await loadHistory();
+      await loadHistory(canSwitchCity ? city : undefined);
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -197,6 +204,21 @@ export default function ExpenseRequestPage() {
           <h1 className={T_PAGE_TITLE}>Expense Reimbursement</h1>
           <p className={T_BODY}>Submit your work-related expense claims for review and reimbursement.</p>
         </div>
+
+        {/* City toggle — Admin/HQ only */}
+        {canSwitchCity && (
+          <div className={TAB_CONTAINER}>
+            {(["dubai", "manila"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setSelectedCity(c)}
+                className={city === c ? TAB_ACTIVE : TAB_INACTIVE}
+              >
+                {c === "dubai" ? "Dubai" : "Manila"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* KPIs */}
         <div className="grid grid-cols-3 gap-3">
@@ -335,7 +357,7 @@ export default function ExpenseRequestPage() {
               </button>
               <button
                 type="button"
-                onClick={loadHistory}
+                onClick={() => loadHistory(canSwitchCity ? city : undefined)}
                 disabled={loadingHistory}
                 className={SECONDARY_BUTTON}
               >
