@@ -2036,15 +2036,33 @@ function LateAlertsTab() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAlerts.map(a => (
-                  <tr key={a.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                {filteredAlerts.map(a => {
+                  const isOpening = a.alert_type === "OPENING";
+                  const isPending = !a.acknowledged_by && !!a.alert_sent_at;
+                  const isOpeningPending = isOpening && isPending;
+                  return (
+                  <tr
+                    key={a.id}
+                    className={[
+                      "border-b transition-colors",
+                      isOpening
+                        ? "border-red-500/20 bg-red-500/5 hover:bg-red-500/10"
+                        : "border-white/5 hover:bg-white/3",
+                    ].join(" ")}
+                    style={isOpening ? { boxShadow: "inset 3px 0 0 #ef4444" } : undefined}
+                  >
                     <td className="py-2.5 px-4 text-xs text-white/50">{cityLabel(a.city)}</td>
-                    <td className="py-2.5 px-4 text-white/80 font-mono">{a.branch_code}</td>
-                    <td className="py-2.5 px-4 text-white font-medium">{a.staff_name}</td>
-                    <td className="py-2.5 px-4 tabular-nums text-white/60">{fmtStartHour(a.scheduled_start)}</td>
+                    <td className={`py-2.5 px-4 font-mono ${isOpening ? "text-white font-semibold" : "text-white/80"}`}>{a.branch_code}</td>
+                    <td className={`py-2.5 px-4 font-medium ${isOpening ? "text-white text-base" : "text-white"}`}>
+                      {isOpening && <span className="mr-1.5 text-red-400">🚨</span>}
+                      {a.staff_name}
+                    </td>
+                    <td className={`py-2.5 px-4 tabular-nums ${isOpening ? "text-white/80 font-semibold" : "text-white/60"}`}>{fmtStartHour(a.scheduled_start)}</td>
                     <td className="py-2.5 px-4">
-                      {a.alert_type === "OPENING"
-                        ? <span className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5">OPENING</span>
+                      {isOpening
+                        ? <span className={`inline-flex items-center gap-1 text-xs font-bold text-red-300 bg-red-500/20 border border-red-500/40 rounded-full px-2.5 py-1 tracking-wide uppercase${isOpeningPending ? " animate-pulse" : ""}`}>
+                            🔴 OPENING
+                          </span>
                         : <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5">REGULAR</span>}
                     </td>
                     <td className="py-2.5 px-4 tabular-nums text-white/40 text-xs">
@@ -2057,7 +2075,9 @@ function LateAlertsTab() {
                           {a.ack_method === "DISCORD_DM" ? " (DM)" : ""}
                         </span>
                       ) : a.alert_sent_at ? (
-                        <span className="text-xs text-amber-400">Pending</span>
+                        <span className={`text-xs font-medium ${isOpening ? "text-red-400" : "text-amber-400"}`}>
+                          {isOpening ? "⚡ Pending" : "Pending"}
+                        </span>
                       ) : (
                         <span className="text-xs text-white/30">Not sent</span>
                       )}
@@ -2067,14 +2087,15 @@ function LateAlertsTab() {
                         <button
                           onClick={() => handleAck(a.id)}
                           disabled={acknowledging === a.id}
-                          className="text-xs font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors whitespace-nowrap"
+                          className={`text-xs font-medium disabled:opacity-40 transition-colors whitespace-nowrap ${isOpening ? "text-red-400 hover:text-red-300" : "text-emerald-400 hover:text-emerald-300"}`}
                         >
                           {acknowledging === a.id ? <Loader2 size={12} className="animate-spin inline" /> : "Mark Handled"}
                         </button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
