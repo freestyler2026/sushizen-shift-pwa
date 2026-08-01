@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-31 (session 199 cont.16 — 5 staff features browser-verified in production, no bugs found)
+Last updated: 2026-08-01 (session 199 cont.26 — Aliana feedback 5-item implementation)
 
 ---
 
@@ -39,6 +39,243 @@ Last updated: 2026-07-31 (session 199 cont.16 — 5 staff features browser-verif
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
 
 ---
+
+## Recently Completed (2026-08-01 session 199 cont.26 — Aliana feedback 5 items)
+
+### Aliana Manuel feedback — all 5 items implemented (DEPLOYED ✅ Vercel)
+
+**Changed files (frontend only):**
+- `src/app/store/procurement/receiving/page.tsx`
+- `src/app/attendance/page.tsx`
+- `src/components/admin/AdminSalesDataInputTab.tsx`
+- `src/components/admin/OrderEntryTab.tsx`
+- `src/components/analytics/dubai/NumberOfOrdersTab.tsx`
+- `src/app/admin/analytics/page.tsx`
+
+**① Close Orders with No Items Received (bug fix)**
+- Condition changed: button now shows even if CONFIRMED receiving records exist, as long as none have qty_received > 0
+- Previously: hidden whenever ANY confirmed record existed (even if quantity = 0)
+
+**② Comparison Rate placement (Dubai Sales Analytics)**
+- Added "Comparison Rate" section in Dubai Sales Analytics Period Summary
+- Shows Net Sales MoM and Order Count MoM with actual numbers (current vs previous)
+- Uses existing `posSalesRangeTotals` / `posSalesPriorTotals` data (no new API)
+- Removed old comparison cards from NumberOfOrdersTab (they required manual month selection)
+
+**③ AOV Monitoring Table**
+- Added per-aggregator AOV table below each brand grid in OrderEntryTab (Dubai)
+- Columns: Platform, Orders (auto), Atlas AOS (editable AED input), Weighted Contribution %
+- Footer shows Weighted AOV = SUMPRODUCT(orders, AOS) / total orders
+- Local state only (values reset on page reload — no backend persistence)
+
+**④ Gross Sales Input Table (Manila Sales Data)**
+- Added read-only "Gross Sales" section below net sales input table in AdminSalesDataInputTab
+- Shows: Dine-In, Grab, FP Gross, Beep per branch + totals
+- Footer shows FP commission deduction (−30%) and final Net Sales total
+
+**⑤ OT Calculation Fix**
+- Clock-out OT prompt now measures minutes past scheduled END time (not total worked − scheduled duration)
+- Early clock-in no longer inflates OT: e.g. clock-in 7:55, clock-out 17:20, scheduled 8:00-17:00 → shows 20 min OT (was 25 min)
+- Frontend only (attendance/page.tsx); backend DTR engine unchanged
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.25 — Transfer Branch column)
+
+### Google Sheets: Transfer Branch column added (DEPLOYED ✅ Heroku v1656)
+
+**Changed files:** `app/exporter.py`, `app/services/shift_sheet_sync.py`, `app/db.py`
+
+- **`exporter.py`**: Added `TRANSFER_BRANCH_COL` (col 60) between Note (59) and Final Preview (now starts at 61). Dropdown lists all other active branches for the same city (from `list_branch_codes()`). Column header: "Transfer Branch", width 120px, included in Edit Inputs section background + thick left-border separator stays on Final Preview. `change_flag_formula` now includes Transfer Branch in `OR(...)`.
+- **`shift_sheet_sync.py`**: Parses "transfer branch" column as **optional** (backward compatible with old sheets). Stored as `proposed_branch_code` in proposals; included in `is_changed` detection.
+- **`db.py`**: Added `proposed_branch_code TEXT` column migration (idempotent `ADD COLUMN IF NOT EXISTS`); updated INSERT/SELECT in all 3 proposal functions.
+
+**User action needed**: Re-export any branch to get the new column. Old sheets still work (transfer branch treated as absent/empty).
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.24 — :30-min dropdown for AY/AZ)
+
+### Google Sheets AY/AZ (Revised Start/End) — 30-minute increments added (DEPLOYED ✅ Heroku v1655)
+
+**Changed files:** `app/exporter.py`, `app/services/shift_sheet_sync.py`, `app/db.py`
+
+- **`exporter.py`**: `hour_choice_values` now includes both whole-hour (`08`, `09`…`05(+1)`) and half-hour (`08:30`, `09:30`…`05:30(+1)`) labels — 44 total values (was 22). Applied to AY/AZ/BA-BB columns (Revised Start, Revised End, Swap Start, Swap End).
+- **`shift_sheet_sync.py`**: `_parse_hour_label()` updated to return `float` and handle `HH:MM(+1)` format (e.g. `"08:30"` → 8.5, `"00:30(+1)"` → 24.5). `proposed_start_hour`/`proposed_end_hour` stored as float.
+- **`db.py`**: Added idempotent NUMERIC(4,1) migration for `shift_sheet_sync_proposals` table (was INT); insert uses `float()` instead of `int()`.
+
+**Note**: Re-export any branch after deploy to get the updated dropdown list (the old sheet has cached dropdowns). Info row updated: "HH:30 options available."
+
+**User action needed for Q1/Q2 (TAFT August):**
+- TAFT_2026-08_FINAL_MAIN has July dates (copy-paste from July)
+- Fix: Draft page → select TAFT, 2026-08, DRAFT mode → Export → creates TAFT_2026-08_DRAFT_MAIN + TAFT_2026-08_DRAFT_HEADCOUNT with correct August data
+- Or FINAL mode if August schedule is finalized
+
+**User action needed for Q3 (Francis):**
+- Francis is not in the Manila staff master → add via Staff Management before rows in sheet will be recognized by sync system
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.23 — Branch markers + Luzon mall expansion)
+
+### Market Analysis — Current branch markers + Luzon-wide malls (DEPLOYED ✅ Vercel 2b374ca / Heroku v1654)
+
+**Current branch markers (always visible):**
+- Added `SUSHIZEN_BRANCHES` constant with Taft / Parañaque / Cubao branch locations
+- Always-visible "🍣 ZEN" purple label markers on map (not toggled by Show Malls)
+- Right sidebar legend always shows all 3 branches with addresses (click to fly-to on map)
+
+**NCR candidate malls added:**
+- SM City Grand Central (Caloocan, EDSA / Grace Park area)
+- SM Center Sangandaan (Caloocan, Sangandaan area)
+- Ayala Malls Cloverleaf (Balintawak, QC)
+- (Robinsons Manila, Robinsons Malabon, SM San Lazaro, Lucky Chinatown were already in list)
+
+**Luzon-wide SM/Robinsons/Ayala:**
+- Added `LUZON_MALLS` list with 30 entries: SM (Pampanga, Clark, Olongapo, Marilao, SJDM, Baguio, Tarlac, Cabanatuan, Masinag, Taytay, Calamba, SantaRosa, Molino, Bacoor, Dasmarinas, Rosario, Lipa, Batangas, SanPablo, Lucena, Naga, Legazpi), Robinsons (Angeles, SJDM, Ilocos, StaTomas, Lipa, Naga), Ayala (Feliz, Solenad, HarborPoint, Legazpi)
+- `get_ncr_malls()` now appends LUZON_MALLS before caching; total malls ~87 across Luzon
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.22 — Price Audit tab + Min Wage floor + Mall expansion)
+
+### Cost Calculation — Price Audit promoted to standalone tab (DEPLOYED ✅ Vercel 6a28a52)
+
+Added "Price Audit" as a top-level tab in Cost Calculation (after "Price Pending"). Previously buried as a small button in Processed/Products tab headers.
+- Added `"price-audit"` to `CostSection` type
+- Added `isPriceAuditSection` flag + `useEffect` to auto-load when tab activates
+- Removed old Price Audit button from Processed/Products tab headers
+- Full inline section with summary cards + table rendered when tab is active
+- Browser verified: 526 items shown (522 override active, 79 mismatch, 4 auto)
+
+### Payroll — Minimum Wage floor applied (DEPLOYED ✅ Heroku 143d58e)
+
+17 staff with monthly rate ₱18,100 were getting daily_rate ₱693.93 (18100÷26.0833) which is below NCR minimum wage ₱695 (Wage Order NCR-26). Fixed by applying floor in `manila_payroll_engine.py`:
+- `compute_gross_pay`: `if daily_rate < settings.minimum_wage_ncr: daily_rate = settings.minimum_wage_ncr`
+- `compute_payroll_for_staff`: same floor applied
+- Affected staff now get ₱695.00/day and ₱86.875/hour instead of ₱693.93/₱86.74
+- **Action needed**: 2H recompute still pending (see Known Issues above)
+
+### Market Analysis — Mall list expanded 34→51 (DEPLOYED ✅ Heroku 21eb8e6 / Vercel 8591ae8)
+
+Added 17 new malls and fixed brand assignments:
+- **Backend** (`market_analysis.py`): NCR_MAJOR_MALLS expanded; Eastwood City Walk / Venice Grand Canal / Uptown BGC / Lucky Chinatown → brand "Megaworld"; added Robinsons Novaliches/Malabon/Cybergate/Las Piñas; Ayala Circuit/The 30th; Araneta Center Gateway/Ali Mall/Farmers Plaza; Starmall EDSA-Shaw/Las Piñas/Alabang/Novaliches; Newport Mall/Vista Taguig/Vista Parañaque/Landmark Makati
+- **Frontend** (`market-analysis/page.tsx`): BRAND_COLORS updated — added Megaworld (#1565c0), Araneta (#e65100), Starmall (#2e7d32); removed Eastwood
+- Browser verified: 51 malls shown ✓, legend shows all new brands correctly ✓
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.21 — Price Audit bug fixed)
+
+### Cost Calculation — Price Audit "No items found" bug fixed (DEPLOYED ✅ Heroku v1651)
+
+**Root cause**: `list_cost_price_audit` in `db.py` used `_sf(...)` inside the per-row loop, but `_sf` is a local alias (`_sf = _finite_float`) defined only inside `_compute_cost_master_item_totals`, not in `list_cost_price_audit`. Every row threw `NameError: name '_sf' is not defined`, silently caught by the `except Exception` handler, resulting in empty `items` list always returned.
+
+**Fix**: Added `_sf = _finite_float` at the top of the loop block in `list_cost_price_audit` (db.py line ~25441).
+
+**Browser verified**: Price Audit modal now correctly shows 526 items (Dubai), 522 Override Active, 79 Price Mismatch, 4 Auto-Calculated. Mismatch items display COMPUTED vs OVERRIDE vs IN USE prices with "Clear Override" action button.
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.20 — Cost auto-recompute removed)
+
+### Cost Calculation — auto-recompute on ingredient price change removed (DEPLOYED ✅ Heroku v1650)
+
+**Design decision**: Unit conversion complexity (1 dozen / 1 kg / 1 case → per gram / per item) makes
+automatic propagation of ingredient price changes to menu item costs unreliable and potentially incorrect.
+
+**Removed** `recompute_costs_for_ingredient()` from all 3 call sites:
+- `update_cost_ingredient` (manual price edit via UI)
+- `update_cost_ingredient_unit_price_from_sync` (invoice price sync cron at 05:00 / 08:00 PH)
+- `apply_ingredient_price_pending` (price pending approval)
+
+**Workflow going forward**:
+1. Ingredient price changes (via invoice sync or manual edit) → no automatic propagation
+2. Staff opens Cost Calculation → Products or Processed tab → click **Price Audit** button
+3. Price Audit shows items with "Mismatch" status (stored override ≠ live computed cost) in red
+4. Staff clicks into each mismatch item → adjusts cost (Auto-Fill + Save, or manual entry)
+
+**Retained** (used by the manual "Recompute All" button):
+- `_cost_recompute_frozen_in_order` with logging + formula update (v1649)
+- `_build_recompute_formula_string` helper
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.19 — Cost Calculation stale cost rates)
+
+### Cost Calculation — stale cost_unit_price after invoice sync fixed (DEPLOYED ✅ Heroku v1649)
+
+**Root cause identified:**
+- `update_cost_ingredient_unit_price_from_sync` (called by the daily invoice price sync cron at 05:00 and 08:00 PH) was NOT calling `recompute_costs_for_ingredient` after committing new prices.
+- `update_cost_ingredient` (manual UI edit) already calls `recompute_costs_for_ingredient` correctly — the sync path was missing it.
+- Result: ingredient prices updated by invoice sync never propagated to dependent menu items' `cost_unit_price`, causing stale cost rates in Cost Rate Overview.
+
+**Fixes applied (db.py):**
+
+1. **`update_cost_ingredient_unit_price_from_sync`** — added `recompute_costs_for_ingredient(ingredient_id)` call after the price commit (same pattern as `update_cost_ingredient`, best-effort wrapped in `try/except`).
+
+2. **`_cost_recompute_frozen_in_order`** — two improvements:
+   - Added `logging.warning(...)` for skipped items (was silently `continue`) so Heroku logs show why items are skipped
+   - Now also updates `cost_unit_price_formula` (as well as `cost_unit_price`) to keep formula text in sync with the newly computed cost — matches Auto-Fill format: `({raw:.4f}/{yield})*{buffer}`
+
+3. **`_build_recompute_formula_string`** — new helper that generates the formula string in Auto-Fill format (yield/buffer applied, output_qty shown if ≠ 1).
+
+**User action needed:**
+- Run "Recompute All" once from Cost Calculation page (any of: Processed / Products tab) to refresh all existing stale `cost_unit_price_formula` strings.
+- Going forward, the daily invoice sync will automatically propagate price changes to dependent items.
+
+---
+
+## Recently Completed (2026-07-31 session 199 cont.18 — Renewals E2E verification)
+
+### E2E browser verification — all Renewals custom alert features confirmed ✅
+
+Verified against production Vercel + Heroku v1647:
+
+1. **Tab structure** ✅ — All 6 tabs render: Alerts(46) | Scheduled(1) | Contracts & Custom | Regularization | All Staff | Add Staff
+2. **POST custom-alert** ✅ — Created test alerts via direct API fetch; fields returned correctly including `created_by`, `days_until_expiry`, `alert_level`
+3. **GET custom-alerts** ✅ — 3 test alerts listed correctly with proper sort order
+4. **PATCH status** ✅ — Updated status PENDING → IN_PROGRESS successfully
+5. **PATCH scheduled_renewal_date** ✅ — Set `scheduled_renewal_date`; Scheduled tab badge immediately showed "1"
+6. **PATCH clear_scheduled_date** ✅ — Backend correctly NULLs the field
+7. **DELETE** ✅ — Deleted test entries cleanly
+8. **Scheduled tab content** ✅ — Showed scheduled item with Unschedule / ✓ Done / status dropdown
+9. **Dismiss NavBar badge** ✅ — Clicked button: badge_count → 0, dismissed_count → 73 stored in localStorage
+10. **Contracts & Custom tab list** ✅ — `get_page_text` confirmed 3 alerts rendered below the form
+
+No bugs found. Test data cleaned up (deleted IDs 1, 2, 3).
+
+## Recently Completed (2026-07-31 session 199 cont.17 — Renewals custom alerts system)
+
+### Renewals custom alerts + scheduled tab + NavBar badge dismiss (DEPLOYED ✅ Vercel ac2a14a / Heroku v1647)
+
+**Backend (renewals_api.py):**
+- Added `renewal_custom_alerts` table via `ensure_renewals_schema()`
+  - Fields: id, category, title, branch, expiry_date, scheduled_renewal_date, notes, status, created_by, created_at, updated_at
+- Added `CUSTOM_ALERT_CATEGORIES = ("Tenant Contract", "License", "Equipment", "Other")`
+- Added `_row_to_custom_alert()` helper
+- 4 CRUD endpoints: `GET/POST/PATCH/DELETE /api/renewals/custom-alerts`
+  - PATCH supports `clear_scheduled_date: bool` to remove scheduled date
+- Badge count now includes active custom alerts (status≠DONE, no scheduled date, expiry≤42d)
+  - Uses separate DB connection per CLAUDE.md rule 7 (transaction abort chain)
+
+**Frontend (renewals.ts):**
+- Added `RENEWALS_DISMISSED_STORAGE_KEY = "sushizen_renewals_badge_dismissed_count"`
+- Added `getRenewalsDismissedCount()`, `dismissRenewalsBadge(serverCount)`
+- Added `CustomAlert`, `CustomAlertCategory`, `CustomAlertStatus` types
+
+**Frontend (NavBar.tsx):**
+- Badge now: `effective = max(0, server_count - dismissed_count)` — persists dismiss until new alerts arrive
+
+**Frontend (page.tsx):**
+- New tab structure: `Alerts | Scheduled | Contracts & Custom | Regularization | All Staff | Add Staff`
+- Tab badges: Alerts shows live count (staff docs + custom), Scheduled shows scheduled item count
+- "Dismiss NavBar badge" button in Alerts tab header
+- Active custom alerts shown at top of Alerts tab (near-expiry, no scheduled date, not DONE)
+- Scheduled tab: custom alerts with scheduled_renewal_date set, not DONE; supports Unschedule action
+- Contracts & Custom tab: full list + add form (category, title, branch, expiry, scheduled date, notes, status)
+- Inline status update and delete on all custom alerts
+- "Schedule" button on unscheduled alerts (prompt for date)
 
 ## Recently Completed (2026-07-31 session 199 cont.16 — production browser verification)
 
