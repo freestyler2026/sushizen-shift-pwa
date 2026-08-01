@@ -516,6 +516,76 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
+        {/* Gross Sales summary — shows gross breakdown before FP commission deduction */}
+        {!loadingDate && rows.some(r => hasRowInput(r)) ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <h3 className="mb-3 text-sm font-semibold text-white/70">Gross Sales</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                    <th className="pb-2 pr-4 text-left">Branch</th>
+                    <th className="pb-2 px-3 text-right">Dine-In</th>
+                    <th className="pb-2 px-3 text-right">Grab</th>
+                    <th className="pb-2 px-3 text-right">FP Gross</th>
+                    <th className="pb-2 px-3 text-right">Beep</th>
+                    <th className="pb-2 pl-3 text-right font-bold text-white/40">Total Gross</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {rows.map((row) => {
+                    if (!hasRowInput(row)) return null;
+                    const dine = floatOrNull(row.dine_in_amount) ?? 0;
+                    const grab = floatOrNull(row.grabfood_amount) ?? 0;
+                    const fpGross = floatOrNull(row.foodpanda_gross) ?? 0;
+                    const beep = floatOrNull(row.beep_amount) ?? 0;
+                    const totalGross = dine + grab + fpGross + beep;
+                    const colors = BRANCH_COLORS[row.branch];
+                    return (
+                      <tr key={row.branch}>
+                        <td className="py-2 pr-4">
+                          <span className="text-sm font-medium" style={{ color: colors?.text }}>{row.branch}</span>
+                        </td>
+                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{dine > 0 ? fmtPHP(dine) : <span className="text-white/20">—</span>}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{grab > 0 ? fmtPHP(grab) : <span className="text-white/20">—</span>}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{fpGross > 0 ? fmtPHP(fpGross) : <span className="text-white/20">—</span>}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{beep > 0 ? fmtPHP(beep) : <span className="text-white/20">—</span>}</td>
+                        <td className="py-2 pl-3 text-right tabular-nums font-semibold text-white">{totalGross > 0 ? fmtPHP(totalGross) : <span className="text-white/20">—</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t border-white/10">
+                  <tr>
+                    <td className="pt-2 pr-4 text-xs font-semibold uppercase tracking-wider text-white/40">Total</td>
+                    {(["dine_in_amount", "grabfood_amount", "foodpanda_gross", "beep_amount"] as const).map((field) => {
+                      const total = rows.reduce((s, r) => s + (floatOrNull(r[field]) ?? 0), 0);
+                      return (
+                        <td key={field} className="pt-2 px-3 text-right tabular-nums text-sm font-semibold text-white/60">
+                          {total > 0 ? fmtPHP(total) : <span className="text-white/20">—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="pt-2 pl-3 text-right tabular-nums text-sm font-bold text-emerald-400">
+                      {fmtPHP(rows.reduce((s, r) => s + (floatOrNull(r.dine_in_amount) ?? 0) + (floatOrNull(r.grabfood_amount) ?? 0) + (floatOrNull(r.foodpanda_gross) ?? 0) + (floatOrNull(r.beep_amount) ?? 0), 0))}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="pt-1 pr-4 text-[10px] text-white/25">FP commission (−30%)</td>
+                    <td colSpan={3} />
+                    <td className="pt-1 px-3 text-right tabular-nums text-[11px] text-red-400/70">
+                      {(() => { const fpG = rows.reduce((s, r) => s + (floatOrNull(r.foodpanda_gross) ?? 0), 0); return fpG > 0 ? `−${fmtPHP(fpG * 0.30)}` : ""; })()}
+                    </td>
+                    <td className="pt-1 pl-3 text-right tabular-nums text-[11px] text-white/40">
+                      Net: {fmtPHP(rows.reduce((s, r) => s + (floatOrNull(r.dine_in_amount) ?? 0) + (floatOrNull(r.grabfood_amount) ?? 0) + ((floatOrNull(r.foodpanda_gross) ?? 0) * 0.70) + (floatOrNull(r.beep_amount) ?? 0), 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
         {!loadingDate ? (
           <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
             {saveAllStatus === "done" ? <span className="text-sm font-medium text-emerald-400">All saved</span> : null}

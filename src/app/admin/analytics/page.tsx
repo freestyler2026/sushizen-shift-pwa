@@ -7130,6 +7130,47 @@ export default function AdminAnalyticsPage() {
                     })}
                   </div>
 
+                  {/* Comparison Rate — period-over-period for Net Sales and Order Count */}
+                  {salesSummaryPriorRangeMemo && posSalesRangeTotals && posSalesPriorTotals && (() => {
+                    const cNet = Number(posSalesRangeTotals.net_revenue || 0);
+                    const pNet = Number(posSalesPriorTotals.net_revenue || 0);
+                    const cOrd = Number(posSalesRangeTotals.order_count_non_cancelled || 0);
+                    const pOrd = Number(posSalesPriorTotals.order_count_non_cancelled || 0);
+                    const netPct = pNet > 0 ? ((cNet - pNet) / pNet) * 100 : null;
+                    const ordPct = pOrd > 0 ? ((cOrd - pOrd) / pOrd) * 100 : null;
+                    const prevLabel = `${salesSummaryPriorRangeMemo.from} → ${salesSummaryPriorRangeMemo.to}`;
+                    const pctTag = (pct: number | null) =>
+                      pct !== null
+                        ? <span className={`text-2xl font-bold ${pct > 0 ? "text-emerald-400" : pct < 0 ? "text-rose-400" : "text-neutral-300"}`}>{pct > 0 ? "+" : ""}{pct.toFixed(1)}%</span>
+                        : <span className="text-2xl font-bold text-neutral-500">—</span>;
+                    return (
+                      <div className="mb-6 border-t border-white/8 pt-5">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h4 className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Comparison Rate</h4>
+                          <span className="text-[10px] text-neutral-600">vs {prevLabel}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Net Sales MoM</p>
+                            {pctTag(netPct)}
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                              <div><span className="text-neutral-400">{fmtNum(cNet)}</span><br />Current</div>
+                              <div><span className="text-neutral-400">{fmtNum(pNet)}</span><br />Previous</div>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Order Count MoM</p>
+                            {pctTag(ordPct)}
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-neutral-600">
+                              <div><span className="text-neutral-400">{formatCount(cOrd)}</span><br />Current</div>
+                              <div><span className="text-neutral-400">{formatCount(pOrd)}</span><br />Previous</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Store breakdown — visual bars */}
                   <div className="border-t border-white/8 pt-5">
                     <div className="mb-4 flex items-center justify-between">

@@ -1346,8 +1346,8 @@ export default function StoreProcurementReceivingPage() {
                   <p className="mt-2 text-center text-xs text-zinc-500">Tap the ○ circle next to each item you received, then press Record Delivery.</p>
                 ) : null}
 
-                {/* Close Order – Not Received: shown when no items are checked and no CONFIRMED receiving records exist */}
-                {computedTotals.checkedCount === 0 && requestReceivings.filter(r => (r.status || "").toUpperCase() === "CONFIRMED").length === 0 && (
+                {/* Close Order – Not Received: shown when no items are checked and no CONFIRMED receiving with qty > 0 exists */}
+                {computedTotals.checkedCount === 0 && requestReceivings.filter(r => (r.status || "").toUpperCase() === "CONFIRMED" && (r.qty_received || 0) > 0).length === 0 && (
                   <div className="mt-3 border-t border-white/8 pt-3">
                     <button
                       type="button"

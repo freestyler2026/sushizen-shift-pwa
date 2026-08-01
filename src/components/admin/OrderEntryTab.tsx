@@ -641,6 +641,8 @@ function BrandGrid({
   const aggs = cfg.aggregators as readonly string[];
   const branches = cfg.branches as readonly string[];
 
+  const [atlasAos, setAtlasAos] = useState<Record<string, string>>({});
+
   const rowTotal = (agg: string) =>
     branches.reduce((s, br) => s + (gridData[cellKey(brand, agg, br)] ?? 0), 0);
 
@@ -827,6 +829,79 @@ function BrandGrid({
           <span className="text-xs font-bold text-white">Grand Total: {grandTotal.toLocaleString()}</span>
         </div>
       ) : null}
+
+      {/* AOV Monitoring Table */}
+      {grandTotal > 0 ? (() => {
+        const totalContrib = aggs.reduce((s, agg) => {
+          const orders = rowTotal(agg);
+          const aos = parseFloat(atlasAos[agg] || "0") || 0;
+          return s + orders * aos;
+        }, 0);
+        const weightedAov = grandTotal > 0 && totalContrib > 0 ? totalContrib / grandTotal : null;
+        return (
+          <div className="border-t border-white/10 p-4">
+            <h4 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-amber-400/80">AOV Monitoring</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="py-1.5 pr-3 text-left text-[10px] font-medium uppercase tracking-wide text-gray-500">Platform</th>
+                    <th className="py-1.5 px-3 text-right text-[10px] font-medium uppercase tracking-wide text-gray-500">Orders</th>
+                    <th className="py-1.5 px-3 text-right text-[10px] font-medium uppercase tracking-wide text-amber-500/70">Atlas AOS (AED)</th>
+                    <th className="py-1.5 pl-3 text-right text-[10px] font-medium uppercase tracking-wide text-gray-500">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {aggs.map((agg) => {
+                    const orders = rowTotal(agg);
+                    const aos = parseFloat(atlasAos[agg] || "0") || 0;
+                    const contrib = orders * aos;
+                    const contribPct = totalContrib > 0 ? (contrib / totalContrib) * 100 : null;
+                    return (
+                      <tr key={agg} className="hover:bg-white/[0.02]">
+                        <td className="py-1.5 pr-3 font-medium text-gray-400">{agg}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums text-gray-300">{orders > 0 ? orders.toLocaleString() : <span className="text-gray-700">—</span>}</td>
+                        <td className="py-1.5 px-3 text-right">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={atlasAos[agg] || ""}
+                            placeholder="0.00"
+                            onChange={(e) => setAtlasAos(prev => ({ ...prev, [agg]: e.target.value }))}
+                            onFocus={(e) => e.target.select()}
+                            className="w-24 rounded border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 text-right text-amber-200 outline-none focus:border-amber-500/50 focus:bg-amber-500/10"
+                          />
+                        </td>
+                        <td className="py-1.5 pl-3 text-right tabular-nums">
+                          {contribPct !== null ? (
+                            <span className="text-gray-300">{contribPct.toFixed(1)}%</span>
+                          ) : (
+                            <span className="text-gray-700">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t border-white/15">
+                  <tr>
+                    <td className="pt-2 pr-3 text-[10px] font-bold uppercase tracking-wide text-gray-400">Weighted AOV</td>
+                    <td className="pt-2 px-3 text-right tabular-nums text-white">{grandTotal.toLocaleString()}</td>
+                    <td className="pt-2 px-3" />
+                    <td className="pt-2 pl-3 text-right">
+                      {weightedAov !== null ? (
+                        <span className="font-bold text-amber-400">{fmtAed(weightedAov)} AED</span>
+                      ) : (
+                        <span className="text-[10px] text-gray-600">Enter AOS above</span>
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }

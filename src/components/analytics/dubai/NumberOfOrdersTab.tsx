@@ -1005,32 +1005,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
                 ))}
               </div>
 
-              {/* Month comparison cards */}
-              {selectedMonth && compLoading ? (
-                <div className="flex items-center gap-2 text-xs text-neutral-500">
-                  <Spinner size="sm" />
-                  <span>Loading comparisons…</span>
-                </div>
-              ) : selectedMonth && summary && (prevMonthOrders !== null || prevYearOrders !== null) ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {prevMonthOrders !== null ? (
-                    <ComparisonCard
-                      label="前月比 (MoM)"
-                      current={summary.total_orders}
-                      previous={prevMonthOrders}
-                      prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -1))}
-                    />
-                  ) : null}
-                  {prevYearOrders !== null ? (
-                    <ComparisonCard
-                      label="前年同期間比 (YoY)"
-                      current={summary.total_orders}
-                      previous={prevYearOrders}
-                      prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -12))}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
+              {/* Comparison Rate moved to Dubai Sales Analytics Summary section */}
 
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

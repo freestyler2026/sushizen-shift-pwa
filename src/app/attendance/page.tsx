@@ -1847,13 +1847,21 @@ export default function AttendancePage() {
               <button
                 onClick={() => {
                   setShowClockOutConfirm(false);
-                  // Detect OT: compare worked time vs scheduled shift duration
+                  // Detect OT: measure minutes past scheduled end time
+                  // Early clock-in does not inflate OT — only time after scheduled end counts
                   const shift = data?.scheduled_shift;
                   if (shift) {
-                    const scheduledDurationH = shift.end_hour >= shift.start_hour
-                      ? shift.end_hour - shift.start_hour
-                      : (24 - shift.start_hour) + shift.end_hour;
-                    const ot = workedMinutes - Math.round(scheduledDurationH * 60);
+                    const coDate = new Date();
+                    const tzParts = new Intl.DateTimeFormat("en-US", {
+                      timeZone: tz,
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    }).formatToParts(coDate);
+                    const coMin =
+                      parseInt(tzParts.find(p => p.type === "hour")!.value) * 60 +
+                      parseInt(tzParts.find(p => p.type === "minute")!.value);
+                    const ot = Math.max(0, coMin - shift.end_hour * 60);
                     if (ot > 15) pendingOtPromptRef.current = ot;
                   }
                   void doAction("checkout");
