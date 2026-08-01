@@ -1848,6 +1848,18 @@ type LateAlert = {
   ack_method: string | null;
 };
 
+type PublishedShift = {
+  city: string;
+  work_date: string;
+  branch_code: string;
+  staff_name: string;
+  role: string;
+  shift_time: string | null;
+  start_hour: number | null;
+  clocked_in: boolean;
+  is_work_shift: boolean;
+};
+
 function fmtStartHour(h: number) {
   const total = Math.round(h * 60);
   const hh = Math.floor(total / 60);
@@ -1867,6 +1879,10 @@ function LateAlertsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [alertCity, setAlertCity] = useState<"all" | "dubai" | "manila">("all");
+  const [expiring, setExpiring] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [schedule, setSchedule] = useState<PublishedShift[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -1896,6 +1912,33 @@ function LateAlertsTab() {
     const r = await lateApiFetch(`${LATE_API}/${alertId}/acknowledge`, { method: "POST" });
     if (r.ok) await loadData();
     setAcknowledging(null);
+  }
+
+  async function handleExpireAll() {
+    if (!confirm("Dismiss all pending late alerts for today? This cannot be undone.")) return;
+    setExpiring(true);
+    const r = await lateApiFetch(`${LATE_API}/expire-all`, {
+      method: "POST",
+      body: JSON.stringify({ date: today }),
+    });
+    if (r.ok) {
+      const d = await r.json() as { total: number };
+      alert(`Dismissed ${d.total} alert(s).`);
+      await loadData();
+    }
+    setExpiring(false);
+  }
+
+  async function handleLoadSchedule() {
+    if (showSchedule) { setShowSchedule(false); return; }
+    setScheduleLoading(true);
+    setShowSchedule(true);
+    const r = await lateApiFetch(`${LATE_API}/schedule`);
+    if (r.ok) {
+      const d = await r.json() as { items: PublishedShift[] };
+      setSchedule(d.items ?? []);
+    }
+    setScheduleLoading(false);
   }
 
   async function handleRemove(recipientId: number) {
@@ -1931,6 +1974,8 @@ function LateAlertsTab() {
     ? alerts
     : alerts.filter(a => a.city.toLowerCase() === alertCity);
 
+  const pendingCount = filteredAlerts.filter(a => !a.acknowledged_by && a.alert_sent_at).length;
+
   const cityLabel = (c: string) => c === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭";
 
   return (
@@ -1941,8 +1986,8 @@ function LateAlertsTab() {
           <h2 className="text-sm font-semibold text-white/70 uppercase tracking-widest">
             Late Alerts — {today}
           </h2>
-          <div className="flex items-center gap-2">
-            {/* City filter — independent of the page-level Manila/Dubai toggle */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* City filter */}
             {(["all", "manila", "dubai"] as const).map(c => (
               <button key={c} onClick={() => setAlertCity(c)}
                 className={alertCity === c
@@ -1951,9 +1996,19 @@ function LateAlertsTab() {
                 {c === "all" ? "All" : c === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"}
               </button>
             ))}
-            <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors ml-1">
+            <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
               <RefreshCw size={12} /> Refresh
             </button>
+            {pendingCount > 0 && (
+              <button
+                onClick={handleExpireAll}
+                disabled={expiring}
+                className="flex items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-1 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-40 transition-colors"
+              >
+                {expiring ? <Loader2 size={11} className="animate-spin" /> : null}
+                Dismiss All Pending ({pendingCount})
+              </button>
+            )}
           </div>
         </div>
 
@@ -2025,9 +2080,70 @@ function LateAlertsTab() {
           </div>
         )}
 
-        <p className="text-xs text-white/20 mt-2">
-          Opening shift (earliest shift of the day): 20 min threshold. Other shifts: 30 min threshold. Checked every 5 min.
-        </p>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-white/20">
+            Opening shift (earliest per branch): 20 min threshold. Other shifts: 30 min. Checked every 5 min.
+          </p>
+          <button
+            onClick={handleLoadSchedule}
+            className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors"
+          >
+            {showSchedule ? "Hide" : "View"} Published Schedule
+          </button>
+        </div>
+
+        {/* ── Published Schedule (what the late-alert engine reads) ── */}
+        {showSchedule && (
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/2 p-4">
+            <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-3">
+              Published Shifts — {today} (what the alert engine monitors)
+            </h3>
+            {scheduleLoading ? (
+              <div className="flex items-center gap-2 text-sm text-white/40 py-2">
+                <Loader2 size={14} className="animate-spin" /> Loading…
+              </div>
+            ) : schedule.length === 0 ? (
+              <p className="text-xs text-white/30">No published shifts found for today.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[620px]">
+                  <thead>
+                    <tr className="border-b border-white/10 text-left">
+                      <th className="pb-2 pr-4 text-white/30 font-medium">City</th>
+                      <th className="pb-2 pr-4 text-white/30 font-medium">Branch</th>
+                      <th className="pb-2 pr-4 text-white/30 font-medium">Staff</th>
+                      <th className="pb-2 pr-4 text-white/30 font-medium">Role</th>
+                      <th className="pb-2 pr-4 text-white/30 font-medium">Shift</th>
+                      <th className="pb-2 pr-4 text-white/30 font-medium">Clocked In</th>
+                      <th className="pb-2 text-white/30 font-medium">Monitored</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((s, i) => (
+                      <tr key={i} className={`border-b border-white/5 ${!s.is_work_shift ? "opacity-40" : ""}`}>
+                        <td className="py-1.5 pr-4 text-white/50">{cityLabel(s.city)}</td>
+                        <td className="py-1.5 pr-4 font-mono text-white/70">{s.branch_code}</td>
+                        <td className="py-1.5 pr-4 text-white/80">{s.staff_name}</td>
+                        <td className="py-1.5 pr-4 text-white/40">{s.role || "—"}</td>
+                        <td className="py-1.5 pr-4 tabular-nums text-white/70">{s.shift_time ?? "—"}</td>
+                        <td className="py-1.5 pr-4">
+                          {s.clocked_in
+                            ? <span className="text-emerald-400">✓ Yes</span>
+                            : <span className="text-white/30">No</span>}
+                        </td>
+                        <td className="py-1.5">
+                          {s.is_work_shift
+                            ? <span className="text-violet-400">Yes</span>
+                            : <span className="text-white/20">Skip ({s.role})</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Recipient Management ── */}
