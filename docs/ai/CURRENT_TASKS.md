@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-01 (session 199 cont.26 — Aliana feedback 5-item implementation)
+Last updated: 2026-08-01 (session 199 cont.30 — Break UX: countdown timer, checkout warning, HQ red display)
 
 ---
 
@@ -37,6 +37,117 @@ Last updated: 2026-08-01 (session 199 cont.26 — Aliana feedback 5-item impleme
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.30 — Break UX improvements)
+
+### Break countdown timer, checkout warning, HQ red display — DEPLOYED ✅
+
+**attendance/page.tsx** (staff-facing):
+- Break banner: replaced elapsed-only display with a large "Time remaining" countdown (green→amber→red as it approaches 0; elapsed shown small as secondary label). Fires notification at 50 min (Manila) / 110 min (Dubai) as before.
+- Checkout area: when on break, instead of silently hiding the Clock Out button, now shows a visible red warning card: "Break中です。先にBreak終了してください" with subtitle "End your break before clocking out."
+
+**admin/os-attendance/page.tsx** (HQ Daily Report):
+- Break column badge: unclosed breaks now show red 🔴 badge "break open" (was amber "⚠ open")
+- Expanded break table row: unclosed break_out shows red "🔴 open (not closed)" (was amber "⚠ open")
+- Individual Staff Report view: unclosed break_out shows red "🔴 open" text
+
+**Verified** live in browser: Anthony Plaza (CUB) — correct 🔴 red badge in table + "🔴 open (not closed)" in expanded detail.
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.28 — Payroll absence sync fix)
+
+### Absence sync automation fix — DEPLOYED v1658 ✅
+
+**Problem**: Absences in the `absences` table were silently skipped during `sync-dtr-os`
+if the published shift marked that date as DAY_OFF. Wallen Galasinao's 7/19 (Sunday=DAY_OFF
+in shift) was absent but invisible in payroll → Marithet manually added Manual Deduction.
+
+**Root Cause** (`main.py:37009`):
+```python
+if (ab_name, ab_date) in shift_day_off:
+    continue  # shift says it's a rest day; absence entered in error ← REMOVED
+```
+
+**Fix** (v1658, `manila_payroll_engine` unchanged):
+- Absences always sync, regardless of shift DAY_OFF
+- `is_scheduled_rest_day=True` days get `day_type='rest_day'` → engine computes $0 deduction
+- Reviewer sees "Absent" (red row) in DTR; changes day_type to `ordinary_day` if deduction needed
+- Preview + sync response now include `synced_absent_rest_day` count + note for reviewer
+
+**Also diagnosed (no code change needed)**:
+- Jerryboy 7/19 ND=2.0125h, Wallen 7/25 ND=2.2333h → CORRECT (actual clock-out, not fixed 2.5h)
+- Alex 7/19 ND=0 → CORRECT (rest day; manual was wrong)
+- Renzy SSS difference → intentional SSS table rate change
+
+**Pending ops for Wallen 2H** — COMPLETED (cont.29) ✅:
+1. ~~Enter 7/12 absence in Absences system~~ → DTR shows 7/12 is **Rest Day**, not absent
+2. ✅ Sync DTR from OS ran for 2H period — 779 rows synced, 0 errors
+3. DTR check result: 7/12 AND 7/19 are both **Rest Day / Day Off** for Wallen (4 rest days total in 2H)
+4. ✅ Deleted Manual Deduction (-₱1,456.87) — it was based on incorrect "2 days Absent" claim
+5. ✅ Recomputed Wallen's run: Net Pay ₱6,987.98 → **₱8,419.85**
+
+**⚠️ ACTION NEEDED — Wallen Galisanao name typo in OS Attendance app**:
+- OS Attendance app has "Wallen Galisanao" (typo: "alis" vs "ala")
+- Payroll system has "Wallen Galasinao" → names don't match → clock-in records NOT synced
+- Fix: correct the name in the OS Attendance staff profile to "Wallen Galasinao"
+- Also: delete duplicate "Wallen Galisanao" rows created by previous erroneous syncs in manila_attendance_daily
+
+**⚠️ ACTION NEEDED — Verify Wallen's 4 rest days in 2H**:
+- Warning: "Multiple rest days in week W29: Jul 17 (Fri), Jul 19 (Sun)"
+- Wallen has 4 rest days in the 2H period: 7/12 (Sun), 7/17 (Fri), 7/19 (Sun), 7/24 (Fri)
+- Standard = 1 rest day/week → HR must confirm if this schedule is correct
+- If 7/12 or 7/19 should be working days → change day_type to ordinary_day in Edit DTR → recompute
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.29 — Manual Deduction testing + Wallen payroll fix)
+
+### Test: Manual Deduction delete button — PASS ✅
+- Opened Wallen Galasinao's Adjustments panel (Adjust button) → -₱1,456.87 [MANUAL] row visible with Trash icon
+- Clicked Trash → deleted immediately with no confirmation dialog (immediate delete — no undo)
+- Recomputed payroll → deductions ₱2,600.63 → ₱1,168.76; Net Pay ₱6,987.98 → **₱8,419.85**
+
+### Test: Sync DTR from OS (v1658 absence fix) — PASS ✅
+- Selected 2026-07-2H → Sync from OS Attendance → Confirm Sync
+- Result: 779 synced, 227 unmatched, 0 errors
+- v1658 fix is deployed: absences on DAY_OFF shift dates now sync with day_type='rest_day'
+
+### Finding: Wallen Manual Deduction was incorrect ✅ (corrected)
+- The -₱1,456.87 for "2 days Absent" was wrong: 7/12 and 7/19 are both scheduled Rest Days in DTR
+- DTR breakdown: 4 rest days (7/12, 7/17, 7/19, 7/24), 11 worked days, 0 absent days
+- Deleting the manual deduction and recomputing gave the correct payroll
+
+### Finding + Fix: Wallen 7/25 AM/PM clock-in error (NSD ₱20.33 eliminated) ✅
+- **Root cause**: OS Attendance had 10:16 PM instead of 10:16 AM for 7/25 clock-in
+- **Why sync didn't fix it**: OS Attendance name "Wallen Galisanao" ≠ payroll "Wallen Galasinao" → Unmatched → corrected OS record ignored
+- **Fix**: Edit DTR → 7/25 Time In: 22:16 → 10:16, Time Out: 07/26 19:02 → 07/25 19:02 → Save → Recompute
+- **Result**: NSD ₱20.33 eliminated; Gross ₱9,588.61 → ₱9,568.28; Net Pay **₱8,399.52**
+
+### Finding: Wallen name typo in OS Attendance app (⚠️ unresolved)
+- OS Attendance has "Wallen Galisanao" (misspelling: "alis" vs "ala") → Unmatched every sync
+- Wallen's clock-in records are NOT automatically synced → manual DTR edit required each time
+- **Permanent fix needed**: correct name in OS Attendance staff profile to "Wallen Galasinao"
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.27 — Aliana 5-item browser verification)
+
+### Aliana 5 items — browser verification COMPLETE ✅
+
+All 5 implemented items verified live in production (https://sushizen-shift-pwa.vercel.app):
+
+| # | Feature | Result |
+|---|---------|--------|
+| ① | Close Orders bug fix | ✅ Button appears correctly when confirmed records have qty=0 |
+| ② | Comparison Rate → Dubai Summary | ✅ Net Sales MoM −9.2%, Order Count MoM −6.2% displayed correctly |
+| ③ | AOV Monitoring Table | ✅ Careem 50 orders × AOS 80 → Weighted AOV 80 AED, Contribution 100% |
+| ④ | Gross Sales Input Table | ✅ FP Gross 50,000 → commission −15,000, Net 35,000 calculated correctly |
+| ⑤ | OT Calculation fix | ✅ Code verified: `coMin - shift.end_hour * 60` ignores clock-in time |
+
+No bugs or display issues found.
 
 ---
 
