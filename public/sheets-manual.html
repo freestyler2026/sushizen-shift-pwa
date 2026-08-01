@@ -1,0 +1,914 @@
+<title>Google Sheets — Schedule Edit Manual</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0D0F1A;
+    --surface: #161827;
+    --surface2: #1E2035;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #E4E6F0;
+    --muted: #8891AD;
+    --faint: #4B5068;
+    --violet: #7C3AED;
+    --violet-lt: #A78BFA;
+    --violet-bg: rgba(124,58,237,0.12);
+    --violet-border: rgba(124,58,237,0.35);
+    --emerald: #10B981;
+    --emerald-lt: #6EE7B7;
+    --emerald-bg: rgba(16,185,129,0.10);
+    --emerald-border: rgba(16,185,129,0.30);
+    --amber: #F59E0B;
+    --amber-lt: #FCD34D;
+    --amber-bg: rgba(245,158,11,0.12);
+    --amber-border: rgba(245,158,11,0.35);
+    --sky: #0EA5E9;
+    --sky-bg: rgba(14,165,233,0.10);
+    --sky-border: rgba(14,165,233,0.30);
+    --rose: #F43F5E;
+    --rose-bg: rgba(244,63,94,0.10);
+    --rose-border: rgba(244,63,94,0.30);
+    --orange: #FB923C;
+    --orange-bg: rgba(251,146,60,0.12);
+    --orange-border: rgba(251,146,60,0.32);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #F3F4F8; --surface: #FFFFFF; --surface2: #F0F1F7;
+      --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.14);
+      --text: #1A1D2E; --muted: #5A6072; --faint: #9AA0B8;
+      --violet-bg: rgba(124,58,237,0.07); --emerald-bg: rgba(16,185,129,0.07);
+      --amber-bg: rgba(245,158,11,0.08); --sky-bg: rgba(14,165,233,0.07);
+      --rose-bg: rgba(244,63,94,0.07); --orange-bg: rgba(251,146,60,0.08);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D0F1A; --surface: #161827; --surface2: #1E2035;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #E4E6F0; --muted: #8891AD; --faint: #4B5068;
+    --violet-bg: rgba(124,58,237,0.12); --emerald-bg: rgba(16,185,129,0.10);
+    --amber-bg: rgba(245,158,11,0.12); --sky-bg: rgba(14,165,233,0.10);
+    --rose-bg: rgba(244,63,94,0.10); --orange-bg: rgba(251,146,60,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #F3F4F8; --surface: #FFFFFF; --surface2: #F0F1F7;
+    --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.14);
+    --text: #1A1D2E; --muted: #5A6072; --faint: #9AA0B8;
+    --violet-bg: rgba(124,58,237,0.07); --emerald-bg: rgba(16,185,129,0.07);
+    --amber-bg: rgba(245,158,11,0.08); --sky-bg: rgba(14,165,233,0.07);
+    --rose-bg: rgba(244,63,94,0.07); --orange-bg: rgba(251,146,60,0.08);
+  }
+
+  /* ─── Language toggle ─── */
+  .ja { display: none; }
+  span.ja { display: none; }
+  body.lang-ja .en { display: none; }
+  body.lang-ja .ja { display: block; }
+  body.lang-ja span.en { display: none; }
+  body.lang-ja span.ja { display: inline; }
+
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .doc { max-width: 880px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ─── Language switcher bar ─── */
+  .lang-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 24px;
+  }
+  .lang-switch {
+    display: flex;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    overflow: hidden;
+    gap: 0;
+  }
+  .lang-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 16px;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .lang-btn.active {
+    background: var(--violet);
+    color: #fff;
+  }
+  .lang-btn:not(.active):hover { color: var(--text); }
+
+  /* ─── Header ─── */
+  .doc-header { border-bottom: 1px solid var(--border2); padding-bottom: 28px; margin-bottom: 40px; }
+  .doc-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--violet-lt); margin-bottom: 8px; }
+  .doc-title { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 6px; }
+  .doc-sub { font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+  .doc-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+  .doc-meta span { font-size: 12px; color: var(--faint); background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 10px; }
+
+  /* ─── TOC ─── */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 40px; }
+  .toc-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .toc-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+  .toc-list li a { font-size: 13px; color: var(--violet-lt); text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .toc-list li a:hover { text-decoration: underline; }
+  .toc-num { font-size: 11px; font-weight: 700; color: var(--faint); min-width: 18px; }
+
+  /* ─── Section ─── */
+  .section { margin-bottom: 48px; scroll-margin-top: 20px; }
+  .section-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+  .step-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--violet); color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 3px; }
+  .step-badge.info { background: var(--surface2); color: var(--muted); border: 1px solid var(--border2); }
+  .section-title { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .section-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* ─── Card ─── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 14px; }
+
+  /* ─── Steps list ─── */
+  .steps { list-style: none; counter-reset: step-ctr; }
+  .steps li { counter-increment: step-ctr; display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before { content: counter(step-ctr); display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--violet); color: var(--violet-lt); font-size: 11px; font-weight: 700; margin-top: 2px; flex-shrink: 0; }
+  .steps li .step-body { flex: 1; }
+
+  /* ─── Buttons ─── */
+  .btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 7px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
+  .btn-violet { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet-lt); }
+  .btn-emerald { background: var(--emerald-bg); border-color: var(--emerald-border); color: var(--emerald-lt); }
+  .btn-amber { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber-lt); }
+  .btn-rose { background: var(--rose-bg); border-color: var(--rose-border); color: var(--rose); }
+  .btn-surface { background: var(--surface2); border-color: var(--border2); color: var(--muted); }
+
+  code { font-family: "SF Mono", "Fira Code", Consolas, monospace; font-size: 12px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 6px; color: var(--amber-lt); }
+
+  /* ─── Callouts ─── */
+  .callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid; margin: 14px 0; font-size: 13.5px; line-height: 1.5; }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout-tip { background: var(--violet-bg); border-color: var(--violet-border); }
+  .callout-warn { background: var(--amber-bg); border-color: var(--amber-border); }
+  .callout-info { background: var(--sky-bg); border-color: var(--sky-border); }
+  .callout-danger { background: var(--rose-bg); border-color: var(--rose-border); }
+
+  /* ─── Column layout diagram ─── */
+  .col-diagram { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--border2); margin: 16px 0; font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+  .col-seg { padding: 10px 6px; text-align: center; display: flex; align-items: center; justify-content: center; }
+  .col-seg-fixed { width: 180px; flex-shrink: 0; background: var(--surface2); color: var(--muted); border-right: 1px solid var(--border2); }
+  .col-seg-nm { flex: 1.8; background: rgba(14,165,233,0.12); color: var(--sky); border-right: 1px solid var(--border2); }
+  .col-seg-cm { flex: 1.8; background: rgba(124,58,237,0.12); color: var(--violet-lt); border-right: 1px solid var(--border2); }
+  .col-seg-edit { flex: 2; background: rgba(245,158,11,0.15); color: var(--amber-lt); border-right: 1px solid var(--border2); }
+  .col-seg-final { flex: 1.8; background: rgba(251,146,60,0.15); color: var(--orange); }
+
+  /* ─── Edit types ─── */
+  .edit-type { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 14px; }
+  .edit-type-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .edit-type-icon { font-size: 18px; }
+  .edit-type-body { padding: 14px 18px; }
+  .edit-type-field { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .edit-type-field:last-child { border-bottom: none; }
+  .field-label { min-width: 160px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+  .field-value { color: var(--muted); flex: 1; }
+
+  /* ─── Table ─── */
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; overflow-x: auto; display: block; }
+  .ref-table th { background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border2); white-space: nowrap; }
+  .ref-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .ref-table tr:last-child td { border-bottom: none; }
+  .ref-table tr:hover td { background: var(--surface2); }
+  .edit-yes { color: var(--emerald); font-weight: 600; }
+  .edit-no  { color: var(--faint); }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; vertical-align: middle; }
+  .badge-amber { background: var(--amber-bg); border: 1px solid var(--amber-border); color: var(--amber-lt); }
+  .badge-emerald { background: var(--emerald-bg); border: 1px solid var(--emerald-border); color: var(--emerald-lt); }
+  .badge-violet { background: var(--violet-bg); border: 1px solid var(--violet-border); color: var(--violet-lt); }
+
+  strong { color: var(--text); font-weight: 600; }
+  p { margin-bottom: 10px; }
+  p:last-child { margin-bottom: 0; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+</style>
+
+<div class="doc">
+
+  <!-- Language bar -->
+  <div class="lang-bar">
+    <div class="lang-switch">
+      <button class="lang-btn active" id="btn-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="btn-ja" onclick="setLang('ja')">日本語</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="doc-header">
+    <div class="doc-eyebrow">Sushi ZEN Workforce OS</div>
+    <div class="doc-title">
+      <span class="en">Google Sheets Schedule Edit Manual</span>
+      <span class="ja">Google Sheets スケジュール編集マニュアル</span>
+    </div>
+    <div class="doc-sub">
+      <span class="en">How to review, edit, and submit monthly schedule changes using the Google Sheets export.</span>
+      <span class="ja">毎月のスケジュールをGoogle Sheetsエクスポートで確認・修正・提出する手順。</span>
+    </div>
+    <div class="doc-meta">
+      <span>Manila Operations</span>
+      <span>
+        <span class="en">Updated: August 2026</span>
+        <span class="ja">更新: 2026年8月</span>
+      </span>
+      <span>Draft Generator / Edit / Apply</span>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-label">
+      <span class="en">Contents</span>
+      <span class="ja">目次</span>
+    </div>
+    <ul class="toc-list">
+      <li><a href="#overview"><span class="toc-num">—</span><span class="en">Overview</span><span class="ja">概要</span></a></li>
+      <li><a href="#step1"><span class="toc-num">1</span><span class="en">Export to Google Sheets</span><span class="ja">Google Sheetsへエクスポート</span></a></li>
+      <li><a href="#step2"><span class="toc-num">2</span><span class="en">Understanding the Spreadsheet</span><span class="ja">スプレッドシートのレイアウト</span></a></li>
+      <li><a href="#step3"><span class="toc-num">3</span><span class="en">Making Edits</span><span class="ja">編集する</span></a></li>
+      <li><a href="#step4"><span class="toc-num">4</span><span class="en">Sync Edits Back to System</span><span class="ja">編集内容をシステムへ反映</span></a></li>
+      <li><a href="#step5"><span class="toc-num">5</span><span class="en">HQ Approval</span><span class="ja">HQ承認</span></a></li>
+      <li><a href="#ref"><span class="toc-num">—</span><span class="en">Quick Reference</span><span class="ja">クイックリファレンス</span></a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <div class="section" id="overview">
+    <div class="section-header">
+      <div class="step-badge info">i</div>
+      <div>
+        <div class="section-title"><span class="en">Overview</span><span class="ja">概要</span></div>
+        <div class="section-desc"><span class="en">Purpose and workflow summary</span><span class="ja">目的とワークフロー概要</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="en">The Google Sheets export is the primary tool for reviewing and adjusting the monthly schedule after a draft is generated. Managers open the shared spreadsheet, make changes to the editable columns, and HQ syncs those changes back into the system for final approval.</p>
+      <p class="ja">Google Sheetsエクスポートは、月次スケジュールの草案（ドラフト）生成後に確認・調整するための主要ツールです。マネージャーが共有スプレッドシートを開き、編集可能な列に変更を入力すると、HQがその変更をシステムへ反映して最終承認を行います。</p>
+      <p class="en">There are <strong>two common change types</strong>: (1) <strong>Time changes</strong> — adjusting a staff member's start/end time for a specific day; and (2) <strong>Branch transfers</strong> — moving a staff member to work at a different branch for that day. Both are handled in the same Edit Inputs section of the spreadsheet.</p>
+      <p class="ja"><strong>2種類の変更が一般的です</strong>：（1）<strong>時間変更</strong> — 特定の日のスタッフの出退勤時間を調整；（2）<strong>ブランチ移動</strong> — スタッフをその日に別の店舗で勤務させる。どちらもスプレッドシートの同じ「Edit Inputs」セクションで対応します。</p>
+    </div>
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <span>
+        <span class="en"><strong>Rule of thumb for Manila:</strong> Most staff keep the same branch each month. Only a small number transfer branches for specific reasons. The spreadsheet is designed so time changes are quick (just pick from a dropdown), and branch transfers are easy to spot and specify.</span>
+        <span class="ja"><strong>マニラの基本ルール：</strong>ほとんどのスタッフは毎月同じ店舗勤務です。特別な理由がある少数のスタッフのみが店舗移動します。スプレッドシートは時間変更がドロップダウンで素早くできるよう設計されており、ブランチ移動も簡単に指定できます。</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="section" id="step1">
+    <div class="section-header">
+      <div class="step-badge">1</div>
+      <div>
+        <div class="section-title"><span class="en">Export the Schedule to Google Sheets</span><span class="ja">スケジュールをGoogle Sheetsにエクスポートする</span></div>
+        <div class="section-desc"><span class="en">Done once per branch, from the Draft Generator page (HQ/Admin only)</span><span class="ja">店舗ごとに1回実施。Draft Generatorページから（HQ/Admin のみ）</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <span class="en">Navigate to <strong>Draft Generator / Edit / Apply</strong> in the sidebar.</span>
+            <span class="ja">サイドバーから <strong>Draft Generator / Edit / Apply</strong> へ移動します。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Click the <strong>Schedule View</strong> tab. If no data appears, generate a draft first via the <strong>Draft Management</strong> tab.</span>
+            <span class="ja"><strong>Schedule View</strong> タブをクリックします。データが表示されない場合は、<strong>Draft Management</strong> タブでドラフトを先に生成してください。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Select the target <strong>branch tab</strong> (e.g. TAFT, CUB, PAR) at the top of the schedule view.</span>
+            <span class="ja">対象の<strong>店舗タブ</strong>（例：TAFT、CUB、PAR）をスケジュールビューの上部から選択します。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">In the Export toolbar, click <span class="btn btn-emerald">↗ Export to Sheet</span> (green button). The system writes the branch's schedule into the shared Google Spreadsheet in <strong>DRAFT mode</strong>.</span>
+            <span class="ja">Exportツールバーの <span class="btn btn-emerald">↗ Export to Sheet</span>（緑ボタン）をクリックします。その店舗のスケジュールが共有Google SpreadsheetにDRAFTモードで書き出されます。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">When complete, a <span class="btn btn-emerald">✓ Sheet updated — Open</span> link appears. Click it to open the spreadsheet directly.</span>
+            <span class="ja">完了すると <span class="btn btn-emerald">✓ Sheet updated — Open</span> リンクが表示されます。クリックすると書き出されたタブが直接開きます。</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <span>
+        <span class="en">Repeat steps 3–5 for each branch (CUB, TAFT, PAR, BO, CK) to export all branches. Each branch gets its own tab named <code>BRANCHCODE_YYYY-MM_DRAFT_MAIN</code> and a corresponding <code>HEADCOUNT</code> tab.</span>
+        <span class="ja">CUB・TAFT・PAR・BO・CK の各店舗について手順3〜5を繰り返すと全店舗をエクスポートできます。各店舗のタブ名は <code>BRANCHCODE_YYYY-MM_DRAFT_MAIN</code>、対応するHEADCOUNTタブも自動生成されます。</span>
+      </span>
+    </div>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <span>
+        <span class="en"><strong>Re-exporting overwrites the previous tab.</strong> If the branch tab already exists, clicking "Export to Sheet" again will delete the old tab and create a fresh one — all previous edits in the spreadsheet will be lost. Always sync edits back first before re-exporting.</span>
+        <span class="ja"><strong>再エクスポートすると前のタブが上書きされます。</strong>店舗タブが既に存在する場合、「Export to Sheet」を再度クリックすると古いタブは削除され新しいタブが作成されます — スプレッドシートへの編集内容はすべて失われます。再エクスポートの前に必ず編集内容をSyncしてください。</span>
+      </span>
+    </div>
+    <div class="card" style="font-size:13.5px;">
+      <div style="font-weight:600; color:var(--text); margin-bottom:10px;">
+        <span class="en">Opening the spreadsheet directly</span>
+        <span class="ja">スプレッドシートを直接開く</span>
+      </div>
+      <p class="en">Switch to the <strong>Draft Management</strong> tab and click <span class="btn btn-violet">↗ Open Manila draft spreadsheet</span> (purple button) to open the shared spreadsheet. This link always opens the spreadsheet — it does not trigger a new export.</p>
+      <p class="ja"><strong>Draft Management</strong> タブに切り替えて <span class="btn btn-violet">↗ Open Manila draft spreadsheet</span>（紫ボタン）をクリックすると共有スプレッドシートが開きます。このリンクはスプレッドシートを開くだけです — 新しいエクスポートは実行されません。</p>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="section" id="step2">
+    <div class="section-header">
+      <div class="step-badge">2</div>
+      <div>
+        <div class="section-title"><span class="en">Understanding the Spreadsheet Layout</span><span class="ja">スプレッドシートのレイアウトを理解する</span></div>
+        <div class="section-desc"><span class="en">Each branch has a MAIN tab (schedule) and a HEADCOUNT tab (counts per hour)</span><span class="ja">各店舗にはMAINタブ（スケジュール）とHEADCOUNTタブ（時間別人数）があります</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600; color:var(--text); margin-bottom:10px;">
+        <span class="en">Tab naming convention</span>
+        <span class="ja">タブの命名規則</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px;">
+        <span><code>CUB_2026-08_DRAFT_MAIN</code> — <span class="en">Cubao schedule, DRAFT mode</span><span class="ja">Cubaoのスケジュール（DRAFTモード）</span></span>
+        <span><code>CUB_2026-08_DRAFT_HEADCOUNT</code> — <span class="en">Cubao hourly count</span><span class="ja">Cubaoの時間別人数</span></span>
+      </div>
+      <p class="en" style="font-size:13px;color:var(--muted);">Open the <strong>MAIN</strong> tab to view and edit the schedule. The HEADCOUNT tab is read-only and shows how many staff are scheduled per hour per day.</p>
+      <p class="ja" style="font-size:13px;color:var(--muted);"><strong>MAIN</strong>タブを開いてスケジュールの確認・編集を行います。HEADCOUNTタブは読み取り専用で、日ごと・時間ごとのスタッフ人数を表示します。</p>
+    </div>
+    <div class="card">
+      <div style="font-weight:600; color:var(--text); margin-bottom:12px;">
+        <span class="en">MAIN tab — Column layout</span>
+        <span class="ja">MAINタブ — 列構成</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <div class="col-diagram" style="min-width:560px;">
+          <div class="col-seg col-seg-fixed">Date / Staff / Role<br>Current Source<br>Next Shift</div>
+          <div class="col-seg col-seg-nm">
+            <div><span class="en">Next Month<br>Schedule</span><span class="ja">来月<br>スケジュール</span><br><span style="font-size:9px;font-weight:400;">(08:00 – 05(+1))</span></div>
+          </div>
+          <div class="col-seg col-seg-cm">
+            <div><span class="en">Current Month<br>Schedule</span><span class="ja">今月<br>スケジュール</span><br><span style="font-size:9px;font-weight:400;">(08:00 – 05(+1))</span></div>
+          </div>
+          <div class="col-seg col-seg-edit">
+            <div>✏️ <span class="en">Edit Inputs<br><span style="font-size:9px;font-weight:400;">Revised Start / Revised End<br>Swap / Note / Transfer Branch</span></span><span class="ja">編集入力欄<br><span style="font-size:9px;font-weight:400;">変更後時刻 / スワップ / ブランチ移動 / メモ</span></span></div>
+          </div>
+          <div class="col-seg col-seg-final">
+            <div><span class="en">Final Preview<br><span style="font-size:9px;font-weight:400;">orange bars<br>+ Change Flag</span></span><span class="ja">最終プレビュー<br><span style="font-size:9px;font-weight:400;">オレンジバー<br>+ Change Flag</span></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="en" style="font-size:12px;color:var(--muted);margin-top:8px;">Columns increase left → right. Scroll right to reach Edit Inputs and Final Preview. The first 5 columns (Date through Next Shift) are <strong>frozen</strong> — they stay visible while scrolling.</p>
+      <p class="ja" style="font-size:12px;color:var(--muted);margin-top:8px;">列は左から右へ並んでいます。右にスクロールするとEdit InputsとFinal Previewに到達します。最初の5列（Date〜Next Shift）は<strong>固定</strong>されており、スクロール中も表示されます。</p>
+    </div>
+    <div class="card">
+      <div style="font-weight:600; color:var(--text); margin-bottom:12px;">
+        <span class="en">Color coding</span>
+        <span class="ja">色の意味</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:32px;height:16px;border-radius:4px;background:rgba(14,165,233,0.45);flex-shrink:0;"></div>
+          <span><strong><span class="en">Darker bars</span><span class="ja">濃い色のバー</span></strong> — <span class="en">current month schedule</span><span class="ja">今月のスケジュール</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:32px;height:16px;border-radius:4px;background:rgba(14,165,233,0.18);flex-shrink:0;"></div>
+          <span><strong><span class="en">Lighter bars</span><span class="ja">薄い色のバー</span></strong> — <span class="en">previous month reference</span><span class="ja">前月同曜日の参考</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:32px;height:16px;border-radius:4px;background:rgba(251,146,60,0.7);flex-shrink:0;"></div>
+          <span><strong><span class="en">Orange bars</span><span class="ja">オレンジのバー</span></strong> — <span class="en">Final Preview (after edits)</span><span class="ja">最終プレビュー（編集後）</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:32px;height:16px;border-radius:4px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.4);flex-shrink:0;"></div>
+          <span><strong><span class="en">Yellow row</span><span class="ja">黄色の行</span></strong> — <span class="en">CHANGED flag set</span><span class="ja">CHANGEDフラグ立中</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;grid-column:span 2;">
+          <div style="width:32px;height:16px;border-radius:4px;background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.35);flex-shrink:0;"></div>
+          <span><strong><span class="en">Light amber background</span><span class="ja">薄いアンバー背景</span></strong> — <span class="en">Edit Inputs area (where you type)</span><span class="ja">Edit Inputs入力エリア</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600; color:var(--text); margin-bottom:10px;">
+        <span class="en">Info rows (top of sheet)</span>
+        <span class="ja">情報行（シート上部）</span>
+      </div>
+      <p class="en" style="font-size:13.5px;color:var(--muted);">The first several rows show metadata: City, Branch, Month, Mode (DRAFT or FINAL), shift row counts, and instructions. <strong>Do not edit these rows.</strong> The editable schedule begins after the section header row and column header row.</p>
+      <p class="ja" style="font-size:13.5px;color:var(--muted);">最初の数行には、City・Branch・Month・Mode（DRAFTまたはFINAL）・シフト行数などのメタデータが表示されます。<strong>これらの行は編集しないでください。</strong>編集可能なスケジュールは、セクションヘッダー行と列ヘッダー行の後から始まります。</p>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="section" id="step3">
+    <div class="section-header">
+      <div class="step-badge">3</div>
+      <div>
+        <div class="section-title"><span class="en">Making Edits in the Spreadsheet</span><span class="ja">スプレッドシートで編集する</span></div>
+        <div class="section-desc">
+          <span class="en">All edits go in the <span class="badge badge-amber">Edit Inputs</span> section — never edit other columns</span>
+          <span class="ja">すべての編集は <span class="badge badge-amber">Edit Inputs</span> セクションへ — 他の列は絶対に直接編集しない</span>
+        </div>
+      </div>
+    </div>
+    <div class="callout callout-danger">
+      <span class="callout-icon">🚫</span>
+      <span>
+        <span class="en"><strong>Only edit columns in the Edit Inputs area (amber background).</strong> Do not type directly into the bar columns, Next Shift, Current Shift, or Final Preview. Only the 7 Edit Input columns accept input; all others are read-only or formula-driven.</span>
+        <span class="ja"><strong>Edit Inputs（アンバー色背景）の列のみ編集してください。</strong>バー列・Next Shift・Current Shift・Final Previewには直接入力しないでください。入力を受け付けるのは7つのEdit Input列のみで、それ以外は読み取り専用またはフォーミュラで自動計算されます。</span>
+      </span>
+    </div>
+
+    <!-- A: Time Change -->
+    <div class="edit-type">
+      <div class="edit-type-header" style="background:var(--amber-bg);border-color:var(--amber-border);">
+        <span class="edit-type-icon">🕐</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">
+            <span class="en">A — Time Change (Revised Start / Revised End)</span>
+            <span class="ja">A — 時間変更（Revised Start / Revised End）</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            <span class="en">Adjust a staff member's working hours for a specific day</span>
+            <span class="ja">特定の日のスタッフの勤務時間を調整する</span>
+          </div>
+        </div>
+      </div>
+      <div class="edit-type-body">
+        <div class="edit-type-field">
+          <div class="field-label"><code>Revised Start</code></div>
+          <div class="field-value">
+            <span class="en">Select the new start time from the dropdown. Options include whole hours (08, 09…) and half-hours (08:30, 09:30…). Overnight hours appear as <code>00(+1)</code>, <code>01(+1)</code>, etc.</span>
+            <span class="ja">ドロップダウンから新しい開始時刻を選択します。整時（08、09…）と30分単位（08:30、09:30…）が選べます。深夜を跨ぐ時間帯は <code>00(+1)</code>、<code>01(+1)</code> などと表示されます。</span>
+          </div>
+        </div>
+        <div class="edit-type-field">
+          <div class="field-label"><code>Revised End</code></div>
+          <div class="field-value">
+            <span class="en">Select the new end time from the same dropdown. <strong>Must be after Revised Start.</strong></span>
+            <span class="ja">同じドロップダウンから新しい終了時刻を選択します。<strong>Revised Start より後の時刻を選択してください。</strong></span>
+          </div>
+        </div>
+        <div class="callout callout-tip" style="margin-top:8px;">
+          <span class="callout-icon">💡</span>
+          <span>
+            <span class="en">After entering Revised Start and Revised End, the <strong>Final Preview</strong> bars (orange) on the right will automatically update to show the new schedule. The row turns yellow and <code>Change Flag</code> shows <strong>CHANGED</strong>.</span>
+            <span class="ja">Revised Start と Revised End を入力すると、右側の <strong>Final Preview</strong> バー（オレンジ）が自動的に更新され、新しいスケジュールが表示されます。行が黄色になり、<code>Change Flag</code> に <strong>CHANGED</strong> と表示されます。</span>
+          </span>
+        </div>
+        <div class="callout callout-info" style="margin-top:4px;">
+          <span class="callout-icon">ℹ️</span>
+          <span>
+            <span class="en"><strong>To clear a time change:</strong> delete the content of both Revised Start and Revised End cells. The row will revert to its original schedule.</span>
+            <span class="ja"><strong>時間変更を取り消す場合：</strong>Revised Start と Revised End の両セルの内容を削除してください。行は元のスケジュールに戻ります。</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- B: Swap -->
+    <div class="edit-type">
+      <div class="edit-type-header" style="background:var(--violet-bg);border-color:var(--violet-border);">
+        <span class="edit-type-icon">🔄</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">
+            <span class="en">B — Swap with Another Staff</span>
+            <span class="ja">B — 別スタッフとシフトを交換する</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            <span class="en">Exchange shifts between two staff members on a specific day</span>
+            <span class="ja">特定の日に2人のスタッフのシフトを交換する</span>
+          </div>
+        </div>
+      </div>
+      <div class="edit-type-body">
+        <div class="edit-type-field">
+          <div class="field-label"><code>Swap With Staff</code></div>
+          <div class="field-value">
+            <span class="en">Select the staff member to swap with from the dropdown (all active staff are listed).</span>
+            <span class="ja">ドロップダウンからシフト交換する相手のスタッフを選択します（全アクティブスタッフが一覧表示されます）。</span>
+          </div>
+        </div>
+        <div class="edit-type-field">
+          <div class="field-label"><code>Swap Start</code></div>
+          <div class="field-value">
+            <span class="en">The new start time for <em>this row's staff member</em> after the swap.</span>
+            <span class="ja">交換後、<em>この行のスタッフ</em>の新しい開始時刻を入力します。</span>
+          </div>
+        </div>
+        <div class="edit-type-field">
+          <div class="field-label"><code>Swap End</code></div>
+          <div class="field-value">
+            <span class="en">The new end time for <em>this row's staff member</em> after the swap.</span>
+            <span class="ja">交換後、<em>この行のスタッフ</em>の新しい終了時刻を入力します。</span>
+          </div>
+        </div>
+        <div class="callout callout-warn" style="margin-top:8px;">
+          <span class="callout-icon">⚠️</span>
+          <span>
+            <span class="en">All three Swap fields (Swap With Staff, Swap Start, Swap End) must be filled in together. Leaving any one empty means the swap will not be recognized. Use <code>Revised Start</code> / <code>Revised End</code> for simple time changes without swapping.</span>
+            <span class="ja">Swap With Staff・Swap Start・Swap End の3フィールドすべてをまとめて入力してください。1つでも空欄があるとスワップとして認識されません。スタッフを変えずに時間だけ変更する場合は <code>Revised Start</code> / <code>Revised End</code> を使用してください。</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- C: Transfer Branch -->
+    <div class="edit-type">
+      <div class="edit-type-header" style="background:var(--sky-bg);border-color:var(--sky-border);">
+        <span class="edit-type-icon">🏢</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">
+            <span class="en">C — Branch Transfer</span>
+            <span class="ja">C — ブランチ移動（Transfer Branch）</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            <span class="en">Move a staff member to work at a different branch for that day/period</span>
+            <span class="ja">スタッフを特定の日/期間、別の店舗で勤務させる</span>
+          </div>
+        </div>
+      </div>
+      <div class="edit-type-body">
+        <div class="edit-type-field">
+          <div class="field-label"><code>Transfer Branch</code></div>
+          <div class="field-value">
+            <span class="en">Select the destination branch from the dropdown. Only other active branches in the same city are shown (the current branch is excluded). Options for Manila: <code>CUB</code>, <code>TAFT</code>, <code>PAR</code>, <code>BO</code>, <code>CK</code>.</span>
+            <span class="ja">ドロップダウンから移動先の店舗を選択します。同じ都市のその他のアクティブ店舗のみ表示されます（現在の店舗は除外）。マニラの場合の選択肢：<code>CUB</code>、<code>TAFT</code>、<code>PAR</code>、<code>BO</code>、<code>CK</code>（このシートの店舗を除く）。</span>
+          </div>
+        </div>
+        <div class="callout callout-tip" style="margin-top:8px;">
+          <span class="callout-icon">💡</span>
+          <span>
+            <span class="en">You can combine a branch transfer with a time change by filling in both <code>Transfer Branch</code> and <code>Revised Start</code> / <code>Revised End</code> in the same row.</span>
+            <span class="ja"><code>Transfer Branch</code> と <code>Revised Start</code> / <code>Revised End</code> を同じ行に入力することで、ブランチ移動と時間変更を同時に指定できます。</span>
+          </span>
+        </div>
+        <div class="callout callout-info" style="margin-top:4px;">
+          <span class="callout-icon">ℹ️</span>
+          <span>
+            <span class="en">Most Manila staff do <strong>not</strong> transfer branches month-to-month. Only fill this column for the few staff who are moving locations. Leave it blank for all other rows.</span>
+            <span class="ja">マニラのスタッフの多くは月ごとの店舗移動はありません。移動するスタッフの行にのみこの列を入力してください。それ以外の行は空白のままにしてください。</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- D: Note -->
+    <div class="edit-type">
+      <div class="edit-type-header" style="background:var(--emerald-bg);border-color:var(--emerald-border);">
+        <span class="edit-type-icon">📝</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">
+            <span class="en">D — Note</span>
+            <span class="ja">D — メモ（Note）</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+            <span class="en">Free-text comment for HQ reference</span>
+            <span class="ja">HQ参照用の自由記述コメント</span>
+          </div>
+        </div>
+      </div>
+      <div class="edit-type-body">
+        <div class="edit-type-field">
+          <div class="field-label"><code>Note</code></div>
+          <div class="field-value">
+            <span class="en">Type any comment about the change — reason for transfer, special request, etc. Adding a note alone (without any time/swap change) will also trigger the <strong>CHANGED</strong> flag.</span>
+            <span class="ja">変更に関するコメントを自由に入力してください（移動の理由、特別なリクエストなど）。Note のみの入力（時間・スワップ変更なし）でも <strong>CHANGED</strong> フラグが立つため、HQがSync時に確認できます。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <div style="font-weight:600;color:var(--text);margin-bottom:10px;">
+        <span class="en">Change Flag column — how to know your edits were recorded</span>
+        <span class="ja">Change Flag 列 — 編集が記録されたか確認する方法</span>
+      </div>
+      <p class="en" style="font-size:13.5px;">The <code>Change Flag</code> column (far right, before the hidden columns) automatically shows <strong>CHANGED</strong> in any row where at least one Edit Inputs cell is non-empty. The entire row also highlights yellow. This is formula-driven — you do not type here.</p>
+      <p class="ja" style="font-size:13.5px;"><code>Change Flag</code> 列（右端、隠し列の前）は、Edit Inputs列のいずれかが空でない場合に自動的に <strong>CHANGED</strong> と表示されます。行全体も黄色になります。これはフォーミュラで自動計算されるため、ここには何も入力しないでください。</p>
+      <p class="en" style="font-size:13.5px;color:var(--muted);">If a row still shows <code>Change Flag</code> empty after your edit, check that you used the dropdown — do not type times manually.</p>
+      <p class="ja" style="font-size:13.5px;color:var(--muted);">編集後も <code>Change Flag</code> が空のままの場合、時刻はドロップダウンで入力したか確認してください — 手入力はしないでください。</p>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="section" id="step4">
+    <div class="section-header">
+      <div class="step-badge">4</div>
+      <div>
+        <div class="section-title"><span class="en">Sync Edits Back to the System</span><span class="ja">編集内容をシステムへ反映する</span></div>
+        <div class="section-desc"><span class="en">After all edits are done in the spreadsheet, HQ reads them back into the system</span><span class="ja">スプレッドシートの編集が完了したら、HQがシステムへ読み込みます</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <span class="en">Go to <strong>Draft Generator / Edit / Apply</strong> → <strong>Draft Management</strong> tab.</span>
+            <span class="ja"><strong>Draft Generator / Edit / Apply</strong> → <strong>Draft Management</strong> タブへ移動します。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Scroll down to the <strong>Pending Sheet Proposals</strong> section.</span>
+            <span class="ja"><strong>Pending Sheet Proposals</strong> セクションまでスクロールします。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Set the <strong>Month</strong> and <strong>Branch Filter</strong> fields to match the sheet you edited.</span>
+            <span class="ja"><strong>Month</strong> と <strong>Branch Filter</strong> を編集したシートに合わせて設定します。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">In the <strong>MAIN Tab Name</strong> dropdown, select the tab that was edited (e.g. <code>CUB_2026-08_DRAFT_MAIN</code>). If the dropdown is empty, click the <span class="btn btn-surface">↻</span> refresh button next to A1 Range to load the tab list.</span>
+            <span class="ja"><strong>MAIN Tab Name</strong> ドロップダウンで編集したタブを選択します（例：<code>CUB_2026-08_DRAFT_MAIN</code>）。ドロップダウンが空の場合は、A1 Range 横の <span class="btn btn-surface">↻</span> ボタンをクリックしてタブ一覧を読み込んでください。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Click <span class="btn btn-violet">↓ Sync Proposals From Sheet</span>. The system reads all rows where <code>Change Flag = CHANGED</code> and creates proposals for each one.</span>
+            <span class="ja"><span class="btn btn-violet">↓ Sync Proposals From Sheet</span> をクリックします。<code>Change Flag = CHANGED</code> のすべての行が読み込まれ、それぞれの提案が作成されます。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">The proposals appear in the table below with columns: DATE, BRANCH, BEFORE, AFTER, SWAP, NOTE. Review them to confirm they match your intended edits.</span>
+            <span class="ja">下の表に提案が表示されます（DATE・BRANCH・BEFORE・AFTER・SWAP・NOTE）。意図した変更内容と一致しているか確認してください。</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <span>
+        <span class="en"><strong>A1 Range</strong> can usually stay at the default <code>A1:CL2000</code>. Only change it if you need to limit which rows are scanned. The <span class="btn btn-surface">↻</span> button refreshes the tab list without changing the range.</span>
+        <span class="ja"><strong>A1 Range</strong> は通常デフォルト（<code>A1:CL2000</code>）のままで問題ありません。スキャン範囲を制限したい場合のみ変更してください。<span class="btn btn-surface">↻</span> ボタンはタブ一覧を更新するだけで、範囲は変更されません。</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="section" id="step5">
+    <div class="section-header">
+      <div class="step-badge">5</div>
+      <div>
+        <div class="section-title"><span class="en">HQ Approval</span><span class="ja">HQ承認</span></div>
+        <div class="section-desc"><span class="en">Review synced proposals and approve or reject them in bulk</span><span class="ja">Sync後の提案を確認し、まとめて承認または却下する</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <div class="step-body">
+            <span class="en">Click <span class="btn btn-surface">↻ Refresh Pending</span> (top right of Pending Sheet Proposals) to load the latest proposals.</span>
+            <span class="ja">Pending Sheet Proposals の右上の <span class="btn btn-surface">↻ Refresh Pending</span> をクリックして最新の提案を読み込みます。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Review each row in the proposals table. Verify that BEFORE and AFTER times look correct, and that branch transfers (if any) are going to the right destination.</span>
+            <span class="ja">提案一覧の各行を確認します。BEFORE・AFTER の時刻が正しいか、ブランチ移動（あれば）が正しい移動先になっているか確認してください。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Check the boxes next to the proposals you want to act on. Use the checkbox in the table header to select all.</span>
+            <span class="ja">対応したい提案のチェックボックスをオンにします。テーブルヘッダーのチェックボックスで全選択もできます。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Optionally fill in a <strong>Decision Note (optional)</strong> — a short reason for your decision.</span>
+            <span class="ja">必要に応じて <strong>Decision Note（optional）</strong> に短いコメントを入力します（例：「ブランチ移動 — 管理職承認済み」）。</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-body">
+            <span class="en">Click <span class="btn btn-emerald">✓ Approve Selected</span> to approve, or <span class="btn btn-rose">✕ Reject Selected</span> to reject. Approved proposals are applied to the draft.</span>
+            <span class="ja"><span class="btn btn-emerald">✓ Approve Selected</span> をクリックして承認、または <span class="btn btn-rose">✕ Reject Selected</span> で却下します。承認された提案はドラフトに反映されます。</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <span>
+        <span class="en">Approving a proposal <strong>does not</strong> automatically update the live (published) schedule. The draft must still go through the normal week-by-week publish process via the Schedule View tab. Approval here means "HQ has reviewed and confirmed this change for the draft."</span>
+        <span class="ja">提案を承認しても、スケジュールが即座に公開（ライブ）されるわけではありません。ドラフトは引き続き、Schedule Viewタブの通常の週ごとの公開プロセスを経る必要があります。ここでの承認は「HQがこの変更をドラフトとして確認・承認した」ことを意味します。</span>
+      </span>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Quick Reference -->
+  <div class="section" id="ref">
+    <div class="section-header">
+      <div class="step-badge info">→</div>
+      <div>
+        <div class="section-title">
+          <span class="en">Quick Reference — Edit Inputs Columns</span>
+          <span class="ja">クイックリファレンス — Edit Inputs 列一覧</span>
+        </div>
+        <div class="section-desc">
+          <span class="en">All 7 editable columns in the <span class="badge badge-amber">Edit Inputs</span> section</span>
+          <span class="ja"><span class="badge badge-amber">Edit Inputs</span> セクションの全7列</span>
+        </div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--border);">
+      <table class="ref-table">
+        <thead>
+          <tr>
+            <th><span class="en">Column Name</span><span class="ja">列名</span></th>
+            <th><span class="en">Input Type</span><span class="ja">入力方法</span></th>
+            <th><span class="en">What to Enter</span><span class="ja">入力内容</span></th>
+            <th><span class="en">Triggers CHANGED?</span><span class="ja">CHANGED表示</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Revised Start</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">New start time: <code>08</code>, <code>08:30</code>, …, <code>05(+1)</code></span><span class="ja">新しい開始時刻：<code>08</code>、<code>08:30</code>、…、<code>05(+1)</code></span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Revised End</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">New end time (same options as Revised Start)</span><span class="ja">新しい終了時刻（選択肢はRevised Startと同じ）</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Swap With Staff</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">Name of the staff member to swap with</span><span class="ja">シフト交換する相手のスタッフ名</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Swap Start</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">New start time for this staff after the swap</span><span class="ja">交換後、この行のスタッフの新しい開始時刻</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Swap End</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">New end time for this staff after the swap</span><span class="ja">交換後、この行のスタッフの新しい終了時刻</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Note</code></td>
+            <td><span class="en">Free text</span><span class="ja">自由入力</span></td>
+            <td><span class="en">Any comment or reason for the change</span><span class="ja">変更理由など自由記述</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+          <tr>
+            <td><code>Transfer Branch</code></td>
+            <td><span class="en">Dropdown</span><span class="ja">ドロップダウン</span></td>
+            <td><span class="en">Destination branch code: CUB, TAFT, PAR, BO, or CK (excluding current branch)</span><span class="ja">移動先店舗コード：CUB、TAFT、PAR、BO、CK（現在の店舗を除く）</span></td>
+            <td class="edit-yes">Yes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:24px;margin-bottom:14px;font-weight:600;color:var(--text);">
+      <span class="en">Read-only columns (do not edit)</span>
+      <span class="ja">読み取り専用列（編集しない）</span>
+    </div>
+    <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--border);">
+      <table class="ref-table">
+        <thead>
+          <tr>
+            <th><span class="en">Column Name</span><span class="ja">列名</span></th>
+            <th><span class="en">Description</span><span class="ja">内容</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Date</code></td>
+            <td><span class="en">Work date. Dates for multi-row days are merged and shown on the first row only.</span><span class="ja">勤務日。複数行の場合、日付は最初の行にのみ表示（マージ表示）。</span></td>
+          </tr>
+          <tr>
+            <td><code>Staff</code></td>
+            <td><span class="en">Staff member name.</span><span class="ja">スタッフ名。</span></td>
+          </tr>
+          <tr>
+            <td><code>Role</code></td>
+            <td><span class="en">Staff role (gold highlight). Read-only.</span><span class="ja">スタッフのロール（金色ハイライト）。読み取り専用。</span></td>
+          </tr>
+          <tr>
+            <td><code>Current Source</code></td>
+            <td><span class="en">Source of the current schedule entry (Base / Override / etc.).</span><span class="ja">現在のスケジュールエントリのソース（Base / Override など）。</span></td>
+          </tr>
+          <tr>
+            <td><code>Next Shift</code></td>
+            <td><span class="en">Current scheduled shift in HH:MM–HH:MM format (bold). This is what the draft has before edits.</span><span class="ja">編集前のドラフトのシフト時間（太字、HH:MM–HH:MM形式）。</span></td>
+          </tr>
+          <tr>
+            <td><code>Final Shift</code></td>
+            <td><span class="en">Auto-calculated: shows the final shift after applying Revised Start/End or Swap times.</span><span class="ja">自動計算：Revised Start/EndまたはSwap後の最終シフトを表示。</span></td>
+          </tr>
+          <tr>
+            <td><code>Change Flag</code></td>
+            <td><span class="en">Auto-shows <strong>CHANGED</strong> when any Edit Inputs cell in that row is non-empty. Drives the yellow row highlight.</span><span class="ja">Edit Inputs列のいずれかが空でない場合に自動的に <strong>CHANGED</strong> と表示。行の黄色ハイライトも自動。</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Tips -->
+  <div class="section">
+    <div class="section-header">
+      <div class="step-badge info">!</div>
+      <div>
+        <div class="section-title">
+          <span class="en">Tips &amp; Rules</span>
+          <span class="ja">注意事項</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="callout callout-tip" style="margin:0;">
+        <span class="callout-icon">✅</span>
+        <span>
+          <span class="en">Always use the <strong>dropdowns</strong> for time fields. Typing a time manually may not be recognized by the sync system.</span>
+          <span class="ja">時刻フィールドは常に<strong>ドロップダウン</strong>を使用してください。手入力はSyncシステムが認識しない場合があります。</span>
+        </span>
+      </div>
+      <div class="callout callout-tip" style="margin:0;">
+        <span class="callout-icon">✅</span>
+        <span>
+          <span class="en">Check the <strong>Final Preview</strong> orange bars after each edit — they immediately reflect your changes.</span>
+          <span class="ja">編集後は右側の<strong>Final Preview</strong>（オレンジバー）を確認してください。変更内容が即座に反映されます。</span>
+        </span>
+      </div>
+      <div class="callout callout-warn" style="margin:0;">
+        <span class="callout-icon">⚠️</span>
+        <span>
+          <span class="en">Do <strong>not</strong> add or delete rows. Do not merge cells. The sync reads rows by position.</span>
+          <span class="ja">行の追加・削除はしないでください。セルの結合もしないでください。Syncは行の位置を基準に読み取ります。</span>
+        </span>
+      </div>
+      <div class="callout callout-warn" style="margin:0;">
+        <span class="callout-icon">⚠️</span>
+        <span>
+          <span class="en">Overnight end times (e.g. <code>02(+1)</code>) are next-day hours. Use them for shifts that end after midnight.</span>
+          <span class="ja">深夜を跨ぐ終了時刻（例：<code>02(+1)</code>）は翌日の時刻です。深夜0時以降に終了するシフトに使用してください。</span>
+        </span>
+      </div>
+      <div class="callout callout-info" style="margin:0;">
+        <span class="callout-icon">ℹ️</span>
+        <span>
+          <span class="en">The <strong>HEADCOUNT tab</strong> updates automatically on re-export. It shows how many staff are on per hour each day — useful for confirming coverage.</span>
+          <span class="ja"><strong>HEADCOUNTタブ</strong>は再エクスポート時に自動更新されます。日ごと・時間ごとのスタッフ人数が表示され、カバレッジの確認に役立ちます。</span>
+        </span>
+      </div>
+      <div class="callout callout-info" style="margin:0;">
+        <span class="callout-icon">ℹ️</span>
+        <span>
+          <span class="en">A <strong>FINAL export</strong> (FINAL mode) happens automatically when weeks are published via the publish process. The DRAFT export is for manager review only.</span>
+          <span class="ja"><strong>FINALエクスポート</strong>（FINALモード）は、週を公開する際に自動実行されます。DRAFTエクスポートはマネージャーの確認用のみです。</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function setLang(lang) {
+    document.body.className = document.body.className.replace(/lang-\w+\s*/g, '').trim() + ' lang-' + lang;
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+  }
+</script>
