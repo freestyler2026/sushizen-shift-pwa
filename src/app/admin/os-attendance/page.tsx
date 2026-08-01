@@ -1980,6 +1980,21 @@ function LateAlertsTab() {
 
   return (
     <div className="space-y-8">
+      {/* ── Channel Description ── */}
+      <div className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-xs text-white/50 leading-relaxed space-y-1">
+        <p>
+          <span className="font-semibold text-white/70">Late Alerts</span> monitors clock-in compliance for all published shifts.
+          A staff member appears here when they have not clocked in within the threshold after their scheduled start time.
+        </p>
+        <p>
+          <span className="inline-flex items-center gap-1 font-semibold text-red-400">🔴 OPENING</span>
+          {" "}— the earliest-scheduled person per branch. Alert fires <span className="text-white/70 font-medium">20 minutes</span> after their shift start.
+          {" "}<span className="inline-flex items-center gap-1 font-semibold text-amber-400">REGULAR</span>
+          {" "}— all other shifts. Alert fires <span className="text-white/70 font-medium">30 minutes</span> after shift start.
+          Alerts are sent automatically via Discord DM and checked every 5 minutes.
+        </p>
+      </div>
+
       {/* ── Alert Status ── */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
