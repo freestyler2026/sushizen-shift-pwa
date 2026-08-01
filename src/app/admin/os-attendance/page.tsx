@@ -1879,6 +1879,7 @@ function LateAlertsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [alertCity, setAlertCity] = useState<"all" | "dubai" | "manila">("all");
+  const [showResolved, setShowResolved] = useState(false);
   const [expiring, setExpiring] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [schedule, setSchedule] = useState<PublishedShift[]>([]);
@@ -1970,9 +1971,13 @@ function LateAlertsTab() {
     setSaving(false);
   }
 
-  const filteredAlerts = alertCity === "all"
-    ? alerts
-    : alerts.filter(a => a.city.toLowerCase() === alertCity);
+  const filteredAlerts = alerts
+    .filter(a => alertCity === "all" || a.city.toLowerCase() === alertCity)
+    .filter(a => showResolved || !a.acknowledged_by);
+
+  const resolvedCount = alerts
+    .filter(a => alertCity === "all" || a.city.toLowerCase() === alertCity)
+    .filter(a => !!a.acknowledged_by).length;
 
   const pendingCount = filteredAlerts.filter(a => !a.acknowledged_by && a.alert_sent_at).length;
 
@@ -2014,6 +2019,14 @@ function LateAlertsTab() {
             <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
               <RefreshCw size={12} /> Refresh
             </button>
+            {resolvedCount > 0 && (
+              <button
+                onClick={() => setShowResolved(v => !v)}
+                className="text-xs text-white/30 hover:text-white/50 transition-colors"
+              >
+                {showResolved ? `Hide resolved (${resolvedCount})` : `Show resolved (${resolvedCount})`}
+              </button>
+            )}
             {pendingCount > 0 && (
               <button
                 onClick={handleExpireAll}
