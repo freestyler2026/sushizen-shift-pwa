@@ -1143,7 +1143,7 @@ export default function AdminDraftPage() {
   const auth = getAuth();
   const [city, setCity] = useState<City>(String(auth?.city || "").toLowerCase() === "manila" ? "manila" : "dubai");
   const draftBranches = useMemo(() => BRANCHES[city].map((b) => b.code as BranchCode), [city]);
-  const targetMonth = useMemo(() => nextMonthKey(new Date()), []);
+  const [targetMonth, setTargetMonth] = useState(nextMonthKey(new Date()));
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
@@ -2832,7 +2832,13 @@ export default function AdminDraftPage() {
           </div>
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>Target Month</label>
-            <input type="month" className={INPUT_CLASS} readOnly value={targetMonth} />
+            <input
+              type="month"
+              className={INPUT_CLASS}
+              value={targetMonth}
+              min={monthKey(new Date())}
+              onChange={(e) => { if (e.target.value) setTargetMonth(e.target.value); }}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} block mb-1.5`}>Approver</label>
