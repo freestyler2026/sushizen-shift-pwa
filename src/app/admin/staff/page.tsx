@@ -297,7 +297,9 @@ export default function AdminStaffPage() {
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
   const [gpsExemptSavingName, setGpsExemptSavingName] = useState("");
+  const [gpsExemptSavedName, setGpsExemptSavedName] = useState("");
   const [multiBranchSavingName, setMultiBranchSavingName] = useState("");
+  const [multiBranchSavedName, setMultiBranchSavedName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const hasLoaded = useRef(false);
   const canOpenRoleManagement = canAccessRoleManagement(authed);
@@ -734,6 +736,7 @@ export default function AdminStaffPage() {
         pin: p,
       });
       setMsg({ kind: "ok", text: `GPS exempt ${newValue ? "enabled" : "disabled"} for ${dn}` });
+      setGpsExemptSavedName(dn);
       await load();
     } catch (e: any) {
       setMsg({ kind: "err", text: String(e?.message || e || "") });
@@ -761,6 +764,7 @@ export default function AdminStaffPage() {
         pin: p,
       });
       setMsg({ kind: "ok", text: `Multi-branch ${newValue ? "enabled" : "disabled"} for ${dn}` });
+      setMultiBranchSavedName(dn);
       await load();
     } catch (e: any) {
       setMsg({ kind: "err", text: String(e?.message || e || "") });
@@ -1364,32 +1368,38 @@ export default function AdminStaffPage() {
                           <RotateCcw className="h-3 w-3" />
                           Reset PIN
                         </button>
-                        <button
-                          type="button"
-                          title={r.gps_exempt ? "GPS Exempt ON — click to disable" : "GPS Exempt OFF — click to enable (e.g. Work From Home)"}
-                          onClick={() => void saveGpsExempt(dn, !r.gps_exempt)}
-                          className={[
-                            SMALL_BUTTON,
-                            "flex items-center gap-1 text-xs",
-                            r.gps_exempt ? "border-emerald-500/60 text-emerald-300" : "opacity-50",
-                          ].join(" ")}
-                          disabled={loading || gpsExemptSavingName === dn}
-                        >
-                          📍 {gpsExemptSavingName === dn ? "..." : r.gps_exempt ? "GPS Exempt" : "GPS Req'd"}
-                        </button>
-                        <button
-                          type="button"
-                          title={r.multi_branch ? "Multi-Branch ON — click to disable" : "Multi-Branch OFF — click to enable (for area managers)"}
-                          onClick={() => void saveMultiBranch(dn, !r.multi_branch)}
-                          className={[
-                            SMALL_BUTTON,
-                            "flex items-center gap-1 text-xs",
-                            r.multi_branch ? "border-violet-500/60 text-violet-300" : "opacity-50",
-                          ].join(" ")}
-                          disabled={loading || multiBranchSavingName === dn}
-                        >
-                          🏢 {multiBranchSavingName === dn ? "..." : r.multi_branch ? "Multi-Branch" : "Single Branch"}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            title={r.gps_exempt ? "GPS Exempt ON — click to disable" : "GPS Exempt OFF — click to enable (e.g. Work From Home)"}
+                            onClick={() => void saveGpsExempt(dn, !r.gps_exempt)}
+                            className={[
+                              SMALL_BUTTON,
+                              "flex items-center gap-1 text-xs",
+                              r.gps_exempt ? "border-emerald-500/60 text-emerald-300" : "opacity-50",
+                            ].join(" ")}
+                            disabled={loading || gpsExemptSavingName === dn}
+                          >
+                            📍 {gpsExemptSavingName === dn ? "Saving..." : r.gps_exempt ? "GPS Exempt" : "GPS Req'd"}
+                          </button>
+                          {gpsExemptSavedName === dn ? <span className="text-[11px] text-emerald-300">Saved ✓</span> : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            title={r.multi_branch ? "Multi-Branch ON — click to disable" : "Multi-Branch OFF — click to enable (for area managers)"}
+                            onClick={() => void saveMultiBranch(dn, !r.multi_branch)}
+                            className={[
+                              SMALL_BUTTON,
+                              "flex items-center gap-1 text-xs",
+                              r.multi_branch ? "border-violet-500/60 text-violet-300" : "opacity-50",
+                            ].join(" ")}
+                            disabled={loading || multiBranchSavingName === dn}
+                          >
+                            🏢 {multiBranchSavingName === dn ? "Saving..." : r.multi_branch ? "Multi-Branch" : "Single Branch"}
+                          </button>
+                          {multiBranchSavedName === dn ? <span className="text-[11px] text-violet-300">Saved ✓</span> : null}
+                        </div>
                         {st === "ACTIVE" ? (
                           <button type="button" onClick={() => setStatusOnly(dn, "INACTIVE")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
                             Deactivate
