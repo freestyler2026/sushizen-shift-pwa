@@ -1812,9 +1812,316 @@ function ShiftComplianceTab({ city }: { city: string }) {
   );
 }
 
+// ── Late Alerts Tab ───────────────────────────────────────────────────────────
+
+const LATE_API = "/api/admin/late-alerts";
+
+function lateApiFetch(path: string, opts?: RequestInit) {
+  const auth = getAuth();
+  const method = (opts?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {};
+  if (method !== "GET" && method !== "HEAD") headers["Content-Type"] = "application/json";
+  if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
+  return fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers ?? {}) } });
+}
+
+type AlertRecipient = {
+  id: number;
+  display_name: string;
+  discord_user_id: string;
+  city: string | null;
+  is_active: boolean;
+};
+
+type LateAlert = {
+  id: number;
+  city: string;
+  branch_code: string;
+  staff_name: string;
+  work_date: string;
+  scheduled_start: number;
+  alert_type: "OPENING" | "REGULAR";
+  threshold_min: number;
+  alert_sent_at: string | null;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  ack_method: string | null;
+};
+
+function fmtStartHour(h: number) {
+  const total = Math.round(h * 60);
+  const hh = Math.floor(total / 60);
+  const mm = total % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function LateAlertsTab({ city }: { city: string }) {
+  const [alerts, setAlerts] = useState<LateAlert[]>([]);
+  const [recipients, setRecipients] = useState<AlertRecipient[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [acknowledging, setAcknowledging] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDiscordId, setNewDiscordId] = useState("");
+  const [newCity, setNewCity] = useState<"" | "dubai" | "manila">("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [ar, rr] = await Promise.all([
+        lateApiFetch(`${LATE_API}/today?date=${today}`),
+        lateApiFetch(`${LATE_API}/recipients`),
+      ]);
+      if (ar.ok) {
+        const d = await ar.json() as { items: LateAlert[] };
+        setAlerts((d.items ?? []).filter(a => a.city.toLowerCase() === city.toLowerCase() || true));
+      }
+      if (rr.ok) {
+        const d = await rr.json() as { items: AlertRecipient[] };
+        setRecipients(d.items ?? []);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  useEffect(() => { void loadData(); }, [city, today]);
+
+  async function handleAck(alertId: number) {
+    setAcknowledging(alertId);
+    const r = await lateApiFetch(`${LATE_API}/${alertId}/acknowledge`, { method: "POST" });
+    if (r.ok) await loadData();
+    setAcknowledging(null);
+  }
+
+  async function handleRemove(recipientId: number) {
+    if (!confirm("Remove this recipient?")) return;
+    await lateApiFetch(`${LATE_API}/recipients/${recipientId}`, { method: "DELETE" });
+    await loadData();
+  }
+
+  async function handleAdd() {
+    if (!newName.trim() || !newDiscordId.trim()) { setError("Name and Discord ID are required."); return; }
+    setSaving(true);
+    setError("");
+    const r = await lateApiFetch(`${LATE_API}/recipients`, {
+      method: "POST",
+      body: JSON.stringify({
+        display_name: newName.trim(),
+        discord_user_id: newDiscordId.trim(),
+        city: newCity || null,
+      }),
+    });
+    if (r.ok) {
+      setShowAddForm(false);
+      setNewName(""); setNewDiscordId(""); setNewCity("");
+      await loadData();
+    } else {
+      const d = await r.json().catch(() => ({})) as { detail?: string };
+      setError(d.detail ?? "Failed to add.");
+    }
+    setSaving(false);
+  }
+
+  const cityAlerts = alerts.filter(a => a.city.toLowerCase() === city.toLowerCase());
+
+  return (
+    <div className="space-y-8">
+      {/* ── Alert Status ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-widest">
+            Late Alerts — {city === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"} — {today}
+          </h2>
+          <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-white/40 py-4">
+            <Loader2 size={16} className="animate-spin" /> Loading…
+          </div>
+        ) : cityAlerts.length === 0 ? (
+          <div className="rounded-xl border border-white/5 bg-white/3 p-6 text-center text-sm text-white/30">
+            No late alerts for {city} today.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead>
+                <tr className="border-b border-white/10 text-left">
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Branch</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Staff</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Shift</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Type</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Alerted</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Status</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {cityAlerts.map(a => (
+                  <tr key={a.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                    <td className="py-2.5 px-4 text-white/80 font-mono">{a.branch_code}</td>
+                    <td className="py-2.5 px-4 text-white font-medium">{a.staff_name}</td>
+                    <td className="py-2.5 px-4 tabular-nums text-white/60">{fmtStartHour(a.scheduled_start)}</td>
+                    <td className="py-2.5 px-4">
+                      {a.alert_type === "OPENING"
+                        ? <span className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5">OPENING</span>
+                        : <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5">REGULAR</span>}
+                    </td>
+                    <td className="py-2.5 px-4 tabular-nums text-white/40 text-xs">
+                      {a.alert_sent_at ? new Date(a.alert_sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      {a.acknowledged_by ? (
+                        <span className="text-xs text-emerald-400">
+                          ✓ {a.acknowledged_by}
+                          {a.ack_method === "DISCORD_DM" ? " (DM)" : ""}
+                        </span>
+                      ) : a.alert_sent_at ? (
+                        <span className="text-xs text-amber-400">Pending</span>
+                      ) : (
+                        <span className="text-xs text-white/30">Not sent</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      {!a.acknowledged_by && a.alert_sent_at && (
+                        <button
+                          onClick={() => handleAck(a.id)}
+                          disabled={acknowledging === a.id}
+                          className="text-xs font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors whitespace-nowrap"
+                        >
+                          {acknowledging === a.id ? <Loader2 size={12} className="animate-spin inline" /> : "Mark Handled"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="text-xs text-white/20 mt-2">
+          Opening shift (earliest shift of the day): 20 min threshold. Other shifts: 30 min threshold. Checked every 5 min.
+        </p>
+      </div>
+
+      {/* ── Recipient Management ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white/70 uppercase tracking-widest">
+            Discord DM Recipients
+          </h2>
+          <button onClick={() => setShowAddForm(v => !v)}
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600/20 border border-violet-500/30 px-3 py-1.5 text-xs font-semibold text-violet-300 hover:bg-violet-600/30 transition-colors">
+            <Plus size={13} /> Add Recipient
+          </button>
+        </div>
+
+        {showAddForm && (
+          <div className="mb-4 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-xs text-white/40 mb-1">Display Name</label>
+                <input
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50"
+                  placeholder="e.g. Rafael"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-white/40 mb-1">Discord User ID</label>
+                <input
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white font-mono placeholder-white/20 focus:outline-none focus:border-violet-500/50"
+                  placeholder="e.g. 844419400240070656"
+                  value={newDiscordId}
+                  onChange={e => setNewDiscordId(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-white/40 mb-1">City (optional)</label>
+                <SelectDark
+                  value={newCity}
+                  onChange={v => setNewCity(v as "" | "dubai" | "manila")}
+                  options={[
+                    { value: "", label: "All cities" },
+                    { value: "dubai", label: "Dubai only" },
+                    { value: "manila", label: "Manila only" },
+                  ]}
+                />
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <div className="flex gap-2">
+              <button onClick={handleAdd} disabled={saving}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 px-4 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 disabled:opacity-40 transition-colors">
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                Save
+              </button>
+              <button onClick={() => { setShowAddForm(false); setError(""); }}
+                className="rounded-lg border border-white/10 px-4 py-1.5 text-xs text-white/40 hover:text-white/60 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {recipients.length === 0 ? (
+          <div className="rounded-xl border border-white/5 bg-white/3 p-4 text-center text-sm text-white/30">
+            No recipients configured.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="border-b border-white/10 text-left">
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Name</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Discord ID</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">City</th>
+                  <th className="py-2.5 px-4 text-white/40 font-medium">Status</th>
+                  <th className="py-2.5 px-4"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {recipients.map(r => (
+                  <tr key={r.id} className={`border-b border-white/5 transition-colors ${r.is_active ? "hover:bg-white/3" : "opacity-40"}`}>
+                    <td className="py-2.5 px-4 text-white font-medium">{r.display_name}</td>
+                    <td className="py-2.5 px-4 text-white/40 font-mono text-xs">{r.discord_user_id}</td>
+                    <td className="py-2.5 px-4 text-white/50 text-xs capitalize">{r.city ?? "All"}</td>
+                    <td className="py-2.5 px-4">
+                      {r.is_active
+                        ? <span className="text-xs text-emerald-400">Active</span>
+                        : <span className="text-xs text-white/30">Inactive</span>}
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      {r.is_active && (
+                        <button onClick={() => handleRemove(r.id)}
+                          className="text-white/30 hover:text-red-400 transition-colors p-1 rounded">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance";
+type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance" | "late_alerts";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -1896,6 +2203,9 @@ export default function OsAttendanceAdminPage() {
           <button onClick={() => setTab("compliance")} className={tab === "compliance" ? TAB_ACTIVE : TAB_INACTIVE}>
             Shift Compliance
           </button>
+          <button onClick={() => setTab("late_alerts")} className={`${tab === "late_alerts" ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}>
+            🔔 Late Alerts
+          </button>
         </div>
 
         {/* Content */}
@@ -1905,6 +2215,7 @@ export default function OsAttendanceAdminPage() {
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
           {tab === "compliance" && <ShiftComplianceTab key={city} city={city} />}
+          {tab === "late_alerts" && <LateAlertsTab key={city} city={city} />}
         </div>
       </div>
     </main>
