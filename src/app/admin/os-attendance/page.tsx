@@ -388,8 +388,8 @@ function StaffReportTab({ city }: { city: string }) {
                       <td className="py-2.5 pr-3 text-zinc-400">{s.branch_code || "—"}</td>
                       <td className="py-2.5 pr-3 tabular-nums text-zinc-300">{fmtTs(s.check_in_at, city)}</td>
                       <td className="py-2.5 pr-3 tabular-nums text-zinc-300">{firstBreak ? fmtTs(firstBreak.break_in_at, city) : "—"}</td>
-                      <td className={`py-2.5 pr-3 tabular-nums ${s.has_open_break ? "text-amber-400" : "text-zinc-300"}`}>
-                        {firstBreak ? (firstBreak.break_out_at ? fmtTs(firstBreak.break_out_at, city) : "⚠ open") : "—"}
+                      <td className={`py-2.5 pr-3 tabular-nums ${s.has_open_break ? "text-red-400 font-semibold" : "text-zinc-300"}`}>
+                        {firstBreak ? (firstBreak.break_out_at ? fmtTs(firstBreak.break_out_at, city) : "🔴 open") : "—"}
                       </td>
                       <td className={`py-2.5 pr-3 tabular-nums ${!s.check_out_at && s.check_in_at ? "text-orange-400" : "text-zinc-300"}`}>
                         {fmtTs(s.check_out_at, city)}
@@ -431,7 +431,7 @@ function StaffReportTab({ city }: { city: string }) {
                     <div key={bi} className="flex gap-4 text-xs text-zinc-400 pl-2">
                       <span>Break {bi + 1}</span>
                       <span>In: {fmtTs(b.break_in_at, city)}</span>
-                      <span>Out: {b.break_out_at ? fmtTs(b.break_out_at, city) : "⚠ open"}</span>
+                      <span className={!b.break_out_at ? "text-red-400 font-semibold" : ""}>Out: {b.break_out_at ? fmtTs(b.break_out_at, city) : "🔴 open"}</span>
                       <span>{b.duration_min !== null ? fmtMin(b.duration_min) : "—"}</span>
                     </div>
                   ))}
@@ -1330,8 +1330,8 @@ function DailyReportTab({ city }: { city: string }) {
                       <td className={`${cellCls}`}>
                         {breakCount > 0 ? (
                           <button onClick={() => toggleExpand(s.id)}
-                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-xs text-amber-300 hover:bg-amber-500/25 transition-colors">
-                            {s.breaks!.some(b => !b.break_out_at) ? "⚠ open" : fmtTotalMins(Math.round(s.break_min ?? 0))}
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors ${s.breaks!.some(b => !b.break_out_at) ? "bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 font-semibold" : "bg-amber-500/15 border border-amber-500/25 text-amber-300 hover:bg-amber-500/25"}`}>
+                            {s.breaks!.some(b => !b.break_out_at) ? "🔴 break open" : fmtTotalMins(Math.round(s.break_min ?? 0))}
                           </button>
                         ) : <span className="text-white/20 text-xs">—</span>}
                       </td>
@@ -1384,8 +1384,8 @@ function DailyReportTab({ city }: { city: string }) {
                                     <tr key={b.id}>
                                       <td className="py-1.5 pl-3 text-white/30 text-xs">{bi + 1}</td>
                                       <td className="py-1.5 pr-3 text-white/70">{fmtTime(b.break_in_at, cityTz(city))}</td>
-                                      <td className={`py-1.5 pr-3 ${!b.break_out_at ? "text-amber-400" : "text-white/70"}`}>
-                                        {b.break_out_at ? fmtTime(b.break_out_at, cityTz(city)) : "⚠ open"}
+                                      <td className={`py-1.5 pr-3 font-semibold ${!b.break_out_at ? "text-red-400" : "text-white/70"}`}>
+                                        {b.break_out_at ? fmtTime(b.break_out_at, cityTz(city)) : "🔴 open (not closed)"}
                                       </td>
                                       <td className="py-1.5 pr-3 text-white/50">
                                         {b.duration_min != null ? fmtTotalMins(Math.round(b.duration_min)) : "—"}

@@ -1392,20 +1392,31 @@ export default function AttendancePage() {
             <div className="space-y-2">
               {/* Break status banner */}
               {isOnBreak && (
-                <div className="rounded-xl bg-amber-950/50 border border-amber-500/40 px-4 py-3 space-y-1">
+                <div className="rounded-xl bg-amber-950/50 border border-amber-500/40 px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-amber-300">On Break</span>
                     {breakElapsedSec > 0 && (
-                      <span className={`text-sm font-bold tabular-nums ${breakElapsedSec >= breakLimitSec + 5 * 60 ? "text-red-400" : breakElapsedSec >= breakWarnSec ? "text-amber-300" : "text-white"}`}>
-                        {Math.floor(breakElapsedSec / 60)}:{String(breakElapsedSec % 60).padStart(2, "0")}
+                      <span className={`text-xs text-zinc-500 tabular-nums`}>
+                        elapsed {Math.floor(breakElapsedSec / 60)}:{String(breakElapsedSec % 60).padStart(2, "0")}
                       </span>
                     )}
                   </div>
-                  {breakElapsedSec >= breakWarnSec && breakElapsedSec < breakLimitSec && (
-                    <p className="text-[11px] text-amber-300">⚠ 10 minutes left on your break</p>
+                  {/* Countdown: time remaining */}
+                  {breakElapsedSec < breakLimitSec ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400">Time remaining</span>
+                      <span className={`text-xl font-bold tabular-nums ${breakLimitSec - breakElapsedSec <= 10 * 60 ? "text-red-400" : breakLimitSec - breakElapsedSec <= 20 * 60 ? "text-amber-300" : "text-green-400"}`}>
+                        {Math.floor((breakLimitSec - breakElapsedSec) / 60)}:{String((breakLimitSec - breakElapsedSec) % 60).padStart(2, "0")}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <AlertCircle size={13} className="text-red-400 shrink-0" />
+                      <p className="text-xs font-semibold text-red-400">Break overrun — please return to work</p>
+                    </div>
                   )}
-                  {breakElapsedSec >= breakLimitSec && (
-                    <p className="text-[11px] text-red-400">⛔ Break overrun — please return to work</p>
+                  {breakElapsedSec >= breakWarnSec && breakElapsedSec < breakLimitSec && (
+                    <p className="text-[11px] text-amber-300">⚠ 10 minutes left — time to head back!</p>
                   )}
                 </div>
               )}
@@ -1431,8 +1442,16 @@ export default function AttendancePage() {
                 </button>
               )}
 
-              {/* Clock Out — hidden while on break; multi-branch staff see "End Work Day" */}
-              {!isOnBreak && (
+              {/* Clock Out — show warning when on break; multi-branch staff see "End Work Day" */}
+              {isOnBreak ? (
+                <div className="rounded-xl bg-rose-950/50 border border-rose-500/30 px-4 py-3 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <AlertCircle size={14} className="text-rose-400 shrink-0" />
+                    <p className="text-sm font-semibold text-rose-300">Break中です。先にBreak終了してください</p>
+                  </div>
+                  <p className="text-[11px] text-zinc-500">End your break before clocking out.</p>
+                </div>
+              ) : (
                 <button
                   onClick={() => setShowClockOutConfirm(true)}
                   disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
