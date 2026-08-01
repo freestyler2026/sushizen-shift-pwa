@@ -1127,14 +1127,14 @@ export default function ManualShiftPage() {
   }
 
   const buildRows = useCallback(() => {
-    const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number; note: string }[] = [];
+    const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number; note: string; branch_code?: string }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         for (const c of cellsOf(cell)) {
           // Include shifts with valid times even if role is empty (e.g. Bayzat imports).
           // Fall back to "STAFF" so the row isn't silently dropped on publish.
           if (c.role || c.start_hour || c.end_hour) {
-            rows.push({ work_date: dateStr, staff_name: staffName, role: c.role || "STAFF", start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "" });
+            rows.push({ work_date: dateStr, staff_name: staffName, role: c.role || "STAFF", start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "", branch_code: c.branch_code || undefined });
           }
         }
       }
