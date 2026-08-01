@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-01 (session 199 cont.30 — Break UX: countdown timer, checkout warning, HQ red display)
+Last updated: 2026-08-02 (session 199 cont.34 — Late Alert: Dismiss All button + Published Schedule viewer)
 
 ---
 
@@ -37,6 +37,111 @@ Last updated: 2026-08-01 (session 199 cont.30 — Break UX: countdown timer, che
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.34 — Late Alert UI: Dismiss All + Schedule Viewer)
+
+### Late Alert: Dismiss All Pending + Published Schedule viewer — DEPLOYED v1669 (backend) + Vercel ✅
+
+**Root cause of "shifts don't exist" complaint**: The shifts at 10:00, 13:00, 15:30 ARE real published
+shifts in `shift_published_rows`. The alert misfired because initial deployment (23:51 Manila) had no
+`MAX_STALE_MINUTES` check — so ALL Aug 1 shifts triggered alerts 8-14h after they started.
+The shifts themselves are correct data; the timing of the alerts was wrong.
+
+**New backend endpoints** (`main.py`):
+- `GET /api/admin/late-alerts/schedule?city=&date=` — returns what `get_shift_compliance` reads for
+  that city+date: branch, staff, role, shift_time, clocked_in, is_work_shift (monitored vs skipped).
+  Useful for diagnosing why alerts fire or don't fire.
+- `POST /api/admin/late-alerts/expire-all` body `{city?, date?}` — HQ/Admin only. Bulk-expires all
+  pending alerts for the given date (or today if omitted). Used when initial deployment created stale
+  bogus alerts.
+
+**New frontend UI** (`os-attendance/page.tsx`):
+- "Dismiss All Pending (N)" red button — appears when pendingCount > 0; calls expire-all API
+- "View Published Schedule" toggle — shows a table of all published shifts the late-alert engine
+  monitors for today; columns: City, Branch, Staff, Role, Shift Time, Clocked In, Monitored (Yes/Skip)
+
+## Recently Completed (2026-08-02 session 199 cont.33 — Late Alert bugfixes)
+
+### Late Alert: auto-expire stale alerts + auto-resolve when staff clocks in — DEPLOYED v1668 ✅
+
+**Root cause of Aug 1 bogus alerts**: Initial deployment ran at 23:51 Manila (before MAX_STALE_MINUTES was added).
+First worker run generated alerts for ALL Aug 1 shifts regardless of how many hours had passed
+(10:00 shift alerted at 23:55 = 14h after start). Subsequent MAX_STALE_MINUTES fix prevented future stale alerts
+but existing DB records remained "Pending" indefinitely.
+
+**Fix 1 — Auto-expire past-date alerts** (`db.expire_late_alerts_before_date`):
+- Each `_check_city()` cycle calls this at startup
+- Expires all pending alerts where `work_date < current work_date` for that city
+- Aug 1 Manila alerts auto-expired on first cycle after Manila date becomes Aug 2 (06:00+ Manila)
+- Dubai alerts auto-expired on first cycle after Dubai date advances
+
+**Fix 2 — Auto-resolve when staff clocks in** (`_auto_resolve_late_alert`):
+- In `_check_city()` loop: if staff HAS clocked in AND there's a pending alert → auto-resolve
+- Sends "✅ Auto-Resolved — Clocked in at HH:MM" DM to all original alert recipients
+- Prevents "Pending forever" problem when staff arrives late but does eventually clock in
+
+**Late Alert bilingual guide**: Published as claude.ai Artifact
+- URL: https://claude.ai/code/artifact/996edb28-f51f-4ed3-a0f5-cea83013786f
+- Language tab switcher (JP/EN), sticky bar, dark+light mode support
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.32 — Late Staff Discord DM Alert)
+
+### Late Staff Alert System — DEPLOYED v1661 (backend) + Vercel (frontend) ✅
+
+**New feature**: Automatic Discord DM alerts when staff haven't clocked in past threshold.
+
+**Logic** (worker.py, every 5 min):
+- Opening shift = earliest shift of the day for that branch → 20 min threshold
+- All other shifts → 30 min threshold
+- Checks both Dubai and Manila
+- Alert fires once per staff per day; re-fires only if not already sent
+- Stores sent alert in `shift_late_alerts` table
+
+**Discord DM flow**:
+- `send_discord_dm()` (discord_webhook.py): Opens DM channel via Bot HTTP API → sends message
+- Alert message includes: 🚨/⚠️ tag, city, branch, staff name, scheduled time, minutes late
+- Any reply to a DM from a recipient → auto-acknowledges all today's pending alerts for that person
+- On acknowledge: remaining recipients receive "✅ Handled by [Name]" DM
+
+**Tables**: `shift_late_alert_recipients`, `shift_late_alerts`
+
+**Initial recipients seeded** (7 people): Rafael, Dubai Office, Dubai Office 2, Ayako Nishimura, Jay Nishimura, Yusuke Uejima, Yuri Yamada
+
+**UI** (`/admin/os-attendance` → 🔔 Late Alerts tab):
+- Alert status table: branch, staff, shift time, OPENING/REGULAR badge, alerted time, who handled
+- Mark Handled button → sends "handled by" DM to all other recipients
+- Discord DM Recipients management: Add (name + ID + city filter) / Remove
+
+---
+
+## Recently Completed (2026-08-01 session 199 cont.31 — Auto-shift generation bug fix)
+
+### Auto-shift: 3 backend bugs fixed — DEPLOYED v1660 ✅
+
+**Root cause**: 42 of 58 Manila staff (72%) had no rest days in the 8/1-8/15 Excel import.
+
+**Bug 1 — db.py** `fetch_draft_rows_for_branch_month`: used `ORDER BY created_at DESC` which
+picked a newer but PARTIAL draft version (28 rows, 8/1-8/2 only) over the correct full-month
+version (378 rows, 8/1-8/31 with proper 6-day weeks). Fixed to `ORDER BY rows_in_month DESC,
+created_at DESC`.
+
+**Bug 2 — draft_demand_planner.py**: added `_BRANCH_WORK_DAYS = {"BO": 5}` dict and updated
+`_enforce_fulltime_schedule(branch_code)` to use per-branch work days. BO now generates
+5-day/week; all other branches remain 6-day/week.
+
+**Bug 3 — exporter.py**: rest-day staff were invisible in the Excel (not included if no shift
+today). Fixed to include all active month staff; rest-day dates now show explicit
+`role=DAY_OFF, next_shift=00–00` rows for clear identification by editors.
+
+**Note**: The auto-generation algorithm itself was correct. The 378-row TAFT draft (created
+09:13 UTC) had proper 6-day weeks for all staff. Only the picker SQL and exporter had bugs.
+
+**Action needed**: Manager must manually confirm rest days with branch managers, then delete
+the incorrect 8/1-8/15 shifts from OS for the 42 affected staff.
 
 ---
 
