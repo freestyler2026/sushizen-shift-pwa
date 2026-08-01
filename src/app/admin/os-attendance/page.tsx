@@ -1855,7 +1855,7 @@ function fmtStartHour(h: number) {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-function LateAlertsTab({ city }: { city: string }) {
+function LateAlertsTab() {
   const [alerts, setAlerts] = useState<LateAlert[]>([]);
   const [recipients, setRecipients] = useState<AlertRecipient[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1866,6 +1866,7 @@ function LateAlertsTab({ city }: { city: string }) {
   const [newCity, setNewCity] = useState<"" | "dubai" | "manila">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [alertCity, setAlertCity] = useState<"all" | "dubai" | "manila">("all");
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -1878,7 +1879,7 @@ function LateAlertsTab({ city }: { city: string }) {
       ]);
       if (ar.ok) {
         const d = await ar.json() as { items: LateAlert[] };
-        setAlerts((d.items ?? []).filter(a => a.city.toLowerCase() === city.toLowerCase() || true));
+        setAlerts(d.items ?? []);
       }
       if (rr.ok) {
         const d = await rr.json() as { items: AlertRecipient[] };
@@ -1888,7 +1889,7 @@ function LateAlertsTab({ city }: { city: string }) {
     setLoading(false);
   }
 
-  useEffect(() => { void loadData(); }, [city, today]);
+  useEffect(() => { void loadData(); }, [today]);
 
   async function handleAck(alertId: number) {
     setAcknowledging(alertId);
@@ -1926,34 +1927,50 @@ function LateAlertsTab({ city }: { city: string }) {
     setSaving(false);
   }
 
-  const cityAlerts = alerts.filter(a => a.city.toLowerCase() === city.toLowerCase());
+  const filteredAlerts = alertCity === "all"
+    ? alerts
+    : alerts.filter(a => a.city.toLowerCase() === alertCity);
+
+  const cityLabel = (c: string) => c === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭";
 
   return (
     <div className="space-y-8">
       {/* ── Alert Status ── */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold text-white/70 uppercase tracking-widest">
-            Late Alerts — {city === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"} — {today}
+            Late Alerts — {today}
           </h2>
-          <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
-            <RefreshCw size={12} /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {/* City filter — independent of the page-level Manila/Dubai toggle */}
+            {(["all", "manila", "dubai"] as const).map(c => (
+              <button key={c} onClick={() => setAlertCity(c)}
+                className={alertCity === c
+                  ? "rounded-lg bg-violet-500/20 border border-violet-500/40 px-3 py-1 text-xs font-semibold text-violet-300"
+                  : "rounded-lg border border-white/10 px-3 py-1 text-xs text-white/40 hover:text-white/60 hover:border-white/20 transition-colors"}>
+                {c === "all" ? "All" : c === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"}
+              </button>
+            ))}
+            <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors ml-1">
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-white/40 py-4">
             <Loader2 size={16} className="animate-spin" /> Loading…
           </div>
-        ) : cityAlerts.length === 0 ? (
+        ) : filteredAlerts.length === 0 ? (
           <div className="rounded-xl border border-white/5 bg-white/3 p-6 text-center text-sm text-white/30">
-            No late alerts for {city} today.
+            No late alerts{alertCity !== "all" ? ` for ${alertCity}` : ""} today.
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-sm min-w-[700px]">
+            <table className="w-full text-sm min-w-[780px]">
               <thead>
                 <tr className="border-b border-white/10 text-left">
+                  <th className="py-2.5 px-4 text-white/40 font-medium">City</th>
                   <th className="py-2.5 px-4 text-white/40 font-medium">Branch</th>
                   <th className="py-2.5 px-4 text-white/40 font-medium">Staff</th>
                   <th className="py-2.5 px-4 text-white/40 font-medium">Shift</th>
@@ -1964,8 +1981,9 @@ function LateAlertsTab({ city }: { city: string }) {
                 </tr>
               </thead>
               <tbody>
-                {cityAlerts.map(a => (
+                {filteredAlerts.map(a => (
                   <tr key={a.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                    <td className="py-2.5 px-4 text-xs text-white/50">{cityLabel(a.city)}</td>
                     <td className="py-2.5 px-4 text-white/80 font-mono">{a.branch_code}</td>
                     <td className="py-2.5 px-4 text-white font-medium">{a.staff_name}</td>
                     <td className="py-2.5 px-4 tabular-nums text-white/60">{fmtStartHour(a.scheduled_start)}</td>
@@ -2215,7 +2233,7 @@ export default function OsAttendanceAdminPage() {
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
           {tab === "compliance" && <ShiftComplianceTab key={city} city={city} />}
-          {tab === "late_alerts" && <LateAlertsTab key={city} city={city} />}
+          {tab === "late_alerts" && <LateAlertsTab />}
         </div>
       </div>
     </main>
