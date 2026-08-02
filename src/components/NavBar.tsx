@@ -200,7 +200,6 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" },
-  { href: "/admin/bayzat-import", label: "Bayzat Import", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
@@ -373,7 +372,6 @@ export default function NavBar() {
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth);
-    if (href === "/admin/bayzat-import") return ["HQ", "ADMIN"].includes(role);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
