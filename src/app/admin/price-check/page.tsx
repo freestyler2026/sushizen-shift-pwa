@@ -1054,10 +1054,14 @@ function PriceTable({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  const [editInvalid, setEditInvalid] = useState(false);
 
   async function saveBaseline(row: PriceCheckResult) {
     const newPrice = parseFloat(editValue);
-    if (isNaN(newPrice) || newPrice <= 0) return;
+    if (isNaN(newPrice) || newPrice <= 0) {
+      setEditInvalid(true);
+      return;
+    }
     setEditBusy(true);
     try {
       const headers = await tokenHeaders();
@@ -1127,12 +1131,12 @@ function PriceTable({
                         min="0.01"
                         value={editValue}
                         autoFocus
-                        onChange={(e) => setEditValue(e.target.value)}
+                        onChange={(e) => { setEditValue(e.target.value); setEditInvalid(false); }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") void saveBaseline(row);
-                          if (e.key === "Escape") setEditingKey(null);
+                          if (e.key === "Escape") { setEditingKey(null); setEditInvalid(false); }
                         }}
-                        className="w-20 rounded border border-violet-500/50 bg-white/5 px-1.5 py-0.5 text-xs text-white text-right outline-none focus:border-violet-400"
+                        className={`w-20 rounded border ${editInvalid ? "border-red-500" : "border-violet-500/50 focus:border-violet-400"} bg-white/5 px-1.5 py-0.5 text-xs text-white text-right outline-none`}
                       />
                       <button
                         type="button"
@@ -1144,7 +1148,7 @@ function PriceTable({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditingKey(null)}
+                        onClick={() => { setEditingKey(null); setEditInvalid(false); }}
                         className="text-xs text-zinc-500 hover:text-zinc-300"
                       >
                         ✕
