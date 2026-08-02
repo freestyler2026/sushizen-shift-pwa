@@ -67,7 +67,7 @@ interface TodayData {
   visits: AttendanceVisit[];
   breaks: AttendanceBreak[];
   open_session_yesterday: AttendanceSession | null;
-  scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string } | null;
+  scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string; is_split?: boolean } | null;
   lateness_min: number | null;
   shift_elapsed_min: number | null;
 }
@@ -650,8 +650,8 @@ export default function AttendancePage() {
   // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
   const tz = cityTz(auth?.city);
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
-  // Dubai split schedules allow 2-hour breaks; Manila standard is 1 hour
-  const breakLimitSec = auth?.city === "dubai" ? 120 * 60 : 60 * 60;
+  // Split-shift staff get 2 hours; all others get 1 hour regardless of city
+  const breakLimitSec = data?.scheduled_shift?.is_split ? 120 * 60 : 60 * 60;
   const breakWarnSec = breakLimitSec - 10 * 60; // warn 10 min before limit
   const isCheckedIn = !!session?.check_in_at;
   const isCheckedOut = !!session?.check_out_at;
