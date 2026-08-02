@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-02 (session 199 cont.36 — Close-Not-Received manager PIN fix + Gross Sales label rename)
+Last updated: 2026-08-02 (session 199 cont.45 — break countdown timer bug fixed)
 
 ---
 
@@ -37,6 +37,216 @@ Last updated: 2026-08-02 (session 199 cont.36 — Close-Not-Received manager PIN
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.45)
+
+### Dubai Break Countdown Timer Bug — FIXED ✅
+- **Problem**: Regular-shift Dubai staff (e.g. Fahad Abdul Razzaq) getting 120-minute (2h) break countdown instead of 60-minute (1h)
+- **Root cause**: `attendance/page.tsx` line 654 used `auth?.city === "dubai"` as the split-shift proxy → ALL Dubai staff got 2h regardless of shift type
+- **Fix (backend)**: `api_attendance_today()` in `main.py` — added `"is_split": len(shifts) >= 2` to `scheduled_shift_info`. When staff has 2+ published shift rows for the same date, `is_split=True`.
+- **Fix (frontend)**: Changed `breakLimitSec` from city-based to `data?.scheduled_shift?.is_split ? 120 * 60 : 60 * 60`. Also added `is_split?: boolean` to `TodayData.scheduled_shift` type.
+- **Business rule**: split-shift staff = 2h break; all other staff = 1h break (regardless of city)
+- Deployed: Heroku v1683 (commit `1a48bc6`) + Vercel (commit `4953579`)
+
+## Recently Completed (2026-08-02 session 199 cont.44)
+
+### Staff Request B: Close Not Received — Role Permission Fix — DEPLOYED ✅
+- **Problem**: Store staff (STAFF role) could see "Close Order — Not Received" button but got 403 error
+- **Fix**: Added `STAFF`, `MANAGER`, `DUBAI_MANAGER`, `MANILA_MANAGER` to `_ACTION_POLICY["procurement.request.close_not_received"]["roles"]` in `app/main.py` line 1811
+- PIN re-authentication (`step_up: "pin_reauth"`) maintained
+- Separation-of-duties check (original requester cannot close own order) maintained
+- Deployed: Heroku v1681 (commit `984cf47`)
+- **E2E verified (session cont.44)**:
+  - Backend policy: STAFF in roles set confirmed (main.py line 1814)
+  - API auth test: fake req_id → 404 "request not found" (not 403) = auth passes, business logic reached
+  - UI: "Close Order — Not Received" button appears after selecting DUB-PR-202608-0040 (no checked items)
+  - Modal: opens with reason dropdown + PIN fields, HQ sees "You can authorize this yourself"
+
+### Staff Request A: Sales Data Input Gross/Net Separation — DEPLOYED ✅
+- **Staff request**: Grab/Beep/Dine-in need separate Net Sales + Gross Sales input fields
+- **Approach chosen**: Added Gross columns + field guide banner explaining Net vs Gross (no rename of existing Net columns)
+- **Frontend** (`src/components/admin/AdminSalesDataInputTab.tsx`): New grid with Net+Gross sub-headers per channel, indigo field guide banner, two summary tables (Net / Gross)
+- **Backend** (`app/main.py`): `ManilaSaleUpsertIn` + `upsert_one_manila_daily_sale()` updated for dine_in_gross, grabfood_gross, beep_gross
+- **DB** (`app/db_manila_daily_ops.py`): `ALTER TABLE IF NOT EXISTS` migration for 3 new NUMERIC(14,2) columns
+- Deployed: Heroku commit `fdd3488` + Vercel commit `e6f8458` + Vercel commit `1056909` (minmax fix)
+- **E2E verified (session cont.44)**:
+  - Grid columns: `gridTemplateColumns` = 100px + 60px×12 + 72px + 72px + 80px (no collapse)
+  - Field guide banner confirmed: "Net Sales = aggregator portal value. Gross Sales = same. FoodPanda = FP Gross; Net×0.70 auto-computed"
+  - Column headers: DINE-IN (#/Net/Gross), GRAB (#/Net/Gross), FOODPANDA (#/Gross/Net auto), BEEP (#/Net/Gross)
+  - Previous session: save API returned 200, FP auto-compute ×0.70 verified, summary tables correct
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.41 — EPR Cost Summary Phase 2 bug testing)
+
+### EPR Cost Summary Phase 2 — Bug Testing + Fixes — DEPLOYED ✅
+
+**Test scope**: Phase 2 full implementation — backend date filters, frontend KPI/table, Dubai path, empty states.
+
+**Testing method**: Direct API calls via browser JS (authenticated), network request inspection, city-switching, date-range variation.
+
+**Verified correct:**
+- ✅ CK + EPR parallel fetch: both APIs called with matching city/date params
+- ✅ Dubai city switch: EPR API called with `city=dubai → 200` (after backend role fix below)
+- ✅ Empty state (both 0): "No deliveries found. Select a period and press Load." shown correctly
+- ✅ KPI cards: CK Deliveries Cost | Emergency Fees (amber) | Combined Total (emerald) | Deliveries
+- ✅ CK table 47 rows for Jul 1–Aug 2, correct subtotal row
+- ✅ EPR section hidden when no Lalamove data (correct — 0 records with delivery_cost > 0 in DB)
+- ✅ Combined Grand Total banner visible in DOM
+
+**Bug 1 fixed** (`src/app/store/ck-delivery/page.tsx` — Vercel `ddfed88`):
+- "No deliveries found" message showed inside CK glass card even when EPR had Lalamove data
+- Fix: `eprCostRows.length > 0 ? "No CK deliveries in this period." : "No deliveries found..."`
+
+**Bug 2 fixed** (`app/main.py` — Heroku `babf8e3`):
+- `api_epr_admin_list` role check excluded `DUBAI_MANAGEMENT` / `DUBAI_MANAGER`
+- Dubai managers would silently get ₱0.00 emergency fees (403 → graceful fallback to [])
+- Fix: added both Dubai roles to the allowed list
+
+**Known limitation (not a bug):** EPR date filter uses `created_at`, not `dispatched_at`. An EPR created in July but dispatched in August with Lalamove would appear in July cost. Acceptable for now.
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.40 — EPR Cost Summary Phase 2)
+
+### EPR Cost Summary Integration — DEPLOYED Heroku + Vercel ✅
+
+**Phase 2**: Emergency Procurement delivery fees now appear in the CK Delivery Cost Summary tab.
+
+**Backend changes** (`app/db.py` + `app/main.py` — Heroku `1c952f4`):
+- `list_emergency_requests()` now accepts `from_date` / `to_date` params, filters on `created_at::date`
+- `api_epr_admin_list()` now accepts `from_date` / `to_date` Query params and passes through
+
+**Frontend changes** (`src/app/store/ck-delivery/page.tsx` — Vercel `b6cb6b7`):
+- New `EprCostRow` type: `{ id, store, dispatched_at, created_at, delivery_cost, delivery_method, status, requested_by, items }`
+- `loadCostSummary()` now uses `Promise.allSettled` to fetch CK and EPR in parallel with same period filters
+- EPR rows filtered client-side for `delivery_cost > 0`
+- KPI row redesigned: **CK Deliveries Cost** | **Emergency Fees** (amber) | **Combined Total** (emerald) | **Deliveries** count
+- New "Emergency Procurement — Lalamove Fees" table section (amber-coded): Date | Store | Items | Method | Fee | Status
+- "CK Subtotal" row replaces old "Grand Total" row in CK table
+- "Combined Grand Total" emerald banner at the bottom of the tab
+
+**Verified in browser**: 47 CK deliveries (Jul 1–Aug 2), ₱819,703.83 CK total, ₱0.00 EPR fees (no Lalamove EPR in July), Combined = ₱819,703.83. CK Subtotal and Combined Grand Total elements confirmed in DOM. EPR section hidden when no Lalamove deliveries (correct behavior).
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.39 — Emergency Request bug testing + admin override fix)
+
+### Emergency Request: Systematic Bug Testing + Admin Override Fix — DEPLOYED Vercel ✅
+
+**Bug found and fixed**: `dispatched` items had no admin action button. If store staff never confirmed receipt, the request was stuck indefinitely with no UI fallback.
+
+**Fix in** `src/app/admin/emergency-requests/page.tsx`:
+- Added `"receive"` to `confirmAction` type
+- Added "Mark as Received" button for `dispatched` status cards
+- Routes to `/api/store/emergency-request/${req.id}/receive` (any authenticated user can call)
+- Confirm panel: "Confirm store has received this delivery?" + Confirm Receipt / Cancel
+
+**Verified in browser** (full test suite):
+- ✅ Pending tab: empty (all processed)
+- ✅ Approved tab: 25 items, Start Arranging/Reject buttons
+- ✅ Dispatched tab: "Mark as Received" button renders, confirm panel works
+- ✅ Dispatched → Received: Cubao Tuna lion request moved to Received tab (badge 0→1), Dispatched now empty
+- ✅ Received tab: shows "Received" badge + "Mark Completed" button correctly
+- ✅ Completed tab: shows old completed items with audit trail
+- ✅ All tab: shows all requests sorted newest-first
+- ✅ Analytics tab: correct counts
+- ✅ Store page form: all fields render (Store, Urgency, Root Cause, Stock/Qty/Unit/Unit Price/Total)
+- ✅ Backend code review: all Pydantic models, endpoints, DB functions verified correct
+- ✅ current_stock field: included in EPRItemIn and stored in JSONB items column
+
+**No backend changes required.**
+
+## Recently Completed (2026-08-02 session 199 cont.38 — Emergency Request workflow expansion)
+
+### Emergency Request Full Workflow Expansion — DEPLOYED Heroku v1678 + Vercel ✅
+
+**New status flow**: `pending` → `approved` → `arranging` → `dispatched` → `received` → `completed` (or `rejected`)
+
+**Backend changes (db.py)**:
+- Added 8 new columns via `ensure_emergency_procurement_tables()`: `arranging_by`, `arranging_at`, `dispatched_by`, `dispatched_at`, `delivery_method`, `delivery_cost`, `received_by`, `received_at`
+- Extended `update_emergency_request_status()` to handle `arranging`, `dispatched`, `received` status transitions
+- New function `search_epr_catalog_items(city, q, limit)`: searches `proc_curated_catalog_items` by ILIKE
+- Updated `_serialize_epr_row()` with new timestamps
+
+**Backend changes (main.py)**:
+- New Pydantic models: `EPRArrangeIn`, `EPRDispatchIn`, `EPRReceiveIn`
+- Extended `EPRItemIn` with `current_stock: float = 0`
+- New endpoints: `GET /catalog-search` (moved BEFORE `/{request_id}` to avoid routing conflict), `POST /{request_id}/arrange`, `POST /{request_id}/dispatch`, `POST /store/emergency-request/{request_id}/receive`
+- **Bug fixed**: catalog-search was originally placed AFTER `GET /{request_id}` causing 422 (FastAPI matched "catalog-search" as integer request_id). Moved to before `{request_id}` route.
+
+**Frontend changes (admin/emergency-requests/page.tsx)**:
+- All 7 status badges (pending/approved/arranging/dispatched/received/completed/rejected)
+- `isOverdue()`: flags requests >24h old not yet received/completed/rejected
+- RequestCard action buttons: Start Arranging → Mark Dispatched (delivery method + cost) → Mark Completed
+- Dispatched panel: SelectDark dropdown for "In-house Driver" / "Lalamove (3rd party)" + optional cost
+- Detail panel shows full audit trail: approved_by, arranging_by, dispatched_by (with delivery method tag)
+- Tabs: Pending | Approved (includes `arranging`) | Dispatched | Received | Completed | All | Analytics
+- Analytics: added delivery cost KPI + overdue count
+
+**Frontend changes (store/emergency-request/page.tsx)**:
+- `CatalogItemInput` component: 250ms debounce autocomplete from catalog-search API
+- Item rows: Stock | Qty | Unit | Unit Price | Total columns
+- My Requests history tab: dispatched items show "Confirm Receipt" button → POST to /receive
+- `handleReceive()`: marks received_by = current user
+
+**Verified in browser**:
+- ✅ Approved tab (25 items) + "Start Arranging" button
+- ✅ Arranging → blue badge, "Mark Dispatched" appears
+- ✅ Mark Dispatched → violet badge, delivery method "(In-house)" in detail panel
+- ✅ Dispatched tab shows dispatched item with full audit trail
+- ✅ Catalog autocomplete: type "salmon" → 5 items with price/supplier/unit
+- ✅ Selecting catalog item auto-fills: item name, unit (KG), price (₱49), total (₱49)
+- ✅ 20 overdue requests banner visible
+
+**Pending (Phase 2 / future)**:
+- Integrate delivery costs into CK/WH Cost Summary
+- "Confirm Receipt" on store side: code verified correct; live test requires a Manila store staff login to see city=manila dispatched items
+
+## Recently Completed (2026-08-02 session 199 cont.37 — Close-Not-Received self-auth + OT 2-stage)
+
+### Close Order – Not Received: self-authorization for HQ/ADMIN/DUBAI_MGMT/MANILA_MGMT — DEPLOYED Vercel ✅
+
+**Context**: Aliana (Admin) reported the button still loading. Root cause: modal showed empty manager fields even for admins who can self-authorize.
+
+**Fix in** `src/app/store/procurement/receiving/page.tsx`:
+- Added `canSelfAuthorize` boolean: true for roles `HQ/ADMIN/DUBAI_MANAGEMENT/MANILA_MANAGEMENT`
+- When `canSelfAuthorize=true`, modal auto-populates Manager Name from session and shows "Confirm Your Identity" / "Authorizing as: [name]" UI instead of editable manager fields
+- Manager PIN field label changes to "Your PIN"
+- Subtitle and error messages updated accordingly
+- All manager/approver logic unchanged on backend
+
+### OT 2-Stage Approval: Pending → Mgr Confirmed → Paid — DEPLOYED Heroku v1675 + Vercel ✅
+
+**New flow** (replaces single-stage "approved"):
+- Stage 1 (Uejima / Yamada / Richard / Peter): `pending` → `manager_approved`, staff notified "Direct management confirmed"
+- Stage 2 (Yamada / Ayako): `manager_approved` → `paid`, staff notified via Inbox
+
+**Backend** (`app/db.py`, `app/main.py`):
+- `ensure_overtime_tables()` adds 5 new columns: `manager_approved_by`, `manager_approved_at`, `manager_note`, `paid_by`, `paid_at`
+- New DB functions: `manager_approve_overtime_request()`, `mark_overtime_paid()`
+- New endpoints: `PATCH /api/admin/overtime/{id}/manager-approve`, `PATCH /api/admin/overtime/{id}/mark-paid`
+- `_OT_STAGE1_ROLES = {ADMIN, HQ, MANILA_MANAGEMENT, HR_MANAGER}`, `_OT_STAGE2_ROLES = {ADMIN, HQ}`
+- HR_MANAGER added to `_OT_REVIEWER_ROLES`
+
+**Frontend admin** (`src/app/admin/overtime/page.tsx` — complete rewrite):
+- Flow banner: "Pending → Mgr Confirmed → Paid" with names per stage
+- KPIs: Awaiting Stage 1, Awaiting Payroll, Total Paid OT (hours)
+- Status filter: Pending (Stage 1), Mgr Confirmed (Stage 2), Paid, Rejected
+- Stage 1 roles see "Confirm (S1)" on pending; Stage 2 roles see "Mark Paid" on manager_approved
+- Both modals show full request details + optional comment; Stage 2 modal shows Stage 1 approver (audit trail)
+
+**Frontend staff** (`src/app/store/overtime-request/page.tsx`):
+- `paid` items filtered out from staff list (disappear after payroll)
+- `manager_approved` shows "Mgmt Confirmed" blue badge + "✓ Direct management confirmed. Awaiting payroll processing." text
+
+**Browser verification** — all steps passed:
+- Flow banner, KPIs, status filter (4 options) ✅
+- Stage 1 modal UI ✅; Stage 1 submit → Pending→Mgr Confirmed, KPIs update ✅
+- Stage 2 modal UI (shows Stage 1 approver) ✅; Stage 2 submit → Paid, Total OT hours ✅
+- Code-level: paid filter, Mgmt Confirmed badge, "awaiting payroll" text confirmed ✅
 
 ---
 
