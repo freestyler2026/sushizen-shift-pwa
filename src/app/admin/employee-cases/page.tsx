@@ -545,6 +545,10 @@ export default function EmployeeCasesPage() {
   const [casesSubmittedIrs, setCasesSubmittedIrs] = useState<IrRecord[]>([]);
   const [selectedCase, setSelectedCase] = useState<NteV2Case | null>(null);
   const [caseDetailLoading, setCaseDetailLoading] = useState(false);
+  // Letter (P6)
+  const [letterLoading, setLetterLoading] = useState(false);
+  const [actsBlockEdit, setActsBlockEdit] = useState<string | null>(null);
+  const [actsBlockSaving, setActsBlockSaving] = useState(false);
   // IR Review modal
   const [reviewTarget, setReviewTarget] = useState<IrRecord | null>(null);
   const [reviewAction, setReviewAction] = useState<"reject" | "dismiss" | "confirm_violation">("reject");
@@ -1147,6 +1151,45 @@ export default function EmployeeCasesPage() {
       setReviewError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewSubmitting(false);
+    }
+  }
+
+  async function downloadNteLetter(caseId: string, nteRef: string) {
+    setLetterLoading(true);
+    try {
+      const res = await fetch(`/api/admin/nte-v2/case/${caseId}/letter`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${nteRef}_NTE_Letter.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Letter generation failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLetterLoading(false);
+    }
+  }
+
+  async function saveActsBlock(caseId: string) {
+    if (actsBlockEdit === null) return;
+    setActsBlockSaving(true);
+    try {
+      const res = await fetch(`/api/admin/nte-v2/case/${caseId}/letter/acts-block`, {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ acts_block: actsBlockEdit }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setActsBlockEdit(null);
+    } catch (e) {
+      alert(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setActsBlockSaving(false);
     }
   }
 
@@ -3061,6 +3104,67 @@ export default function EmployeeCasesPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* ── NTE Letter (P6) ───────────────────────────────── */}
+                  <div className="border-t border-zinc-700 pt-3 space-y-3">
+                    <p className={`${T_LABEL} text-amber-400`}>NTE Letter</p>
+
+                    {/* acts_block editor */}
+                    {actsBlockEdit === null ? (
+                      <button
+                        type="button"
+                        className="text-xs text-zinc-400 underline hover:text-white"
+                        onClick={() => setActsBlockEdit("")}
+                      >
+                        + Customize acts_block (optional override)
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className={T_LABEL}>
+                          Alleged Acts (override)
+                          <span className="ml-2 text-zinc-500 font-normal">
+                            — leave blank to use catalog default
+                          </span>
+                        </label>
+                        <textarea
+                          className="w-full rounded bg-zinc-800 border border-zinc-600 text-sm text-white px-3 py-2 focus:outline-none focus:border-violet-500 min-h-[100px]"
+                          value={actsBlockEdit}
+                          onChange={(e) => setActsBlockEdit(e.target.value)}
+                          placeholder="Describe the specific acts/omissions for this employee (blank = use catalog template)…"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className={PRIMARY_BUTTON}
+                            disabled={actsBlockSaving}
+                            onClick={() => void saveActsBlock(selectedCase.id)}
+                          >
+                            {actsBlockSaving ? "Saving…" : "Save acts_block"}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-zinc-400 hover:text-white"
+                            onClick={() => setActsBlockEdit(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Generate PDF button */}
+                    <button
+                      type="button"
+                      className={PRIMARY_BUTTON}
+                      disabled={letterLoading}
+                      onClick={() => void downloadNteLetter(selectedCase.id, selectedCase.nte_ref)}
+                    >
+                      {letterLoading ? "Generating PDF…" : "Download NTE Letter (PDF)"}
+                    </button>
+                    <p className="text-xs text-zinc-500">
+                      SHA-256 of each download is recorded in the audit log.
+                    </p>
+                  </div>
                 </>
               )}
             </div>
