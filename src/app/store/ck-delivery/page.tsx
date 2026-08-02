@@ -868,7 +868,9 @@ export default function CKDeliveryPage() {
           <div className={GLASS_CARD}>
             {costLoading && <div className="p-6 text-center text-sm text-zinc-400"><Loader2 className="inline h-4 w-4 animate-spin mr-2" />Loading…</div>}
             {!costLoading && costRows.length === 0 && (
-              <div className="p-6 text-center text-sm text-zinc-500">No deliveries found. Select a period and press Load.</div>
+              <div className="p-6 text-center text-sm text-zinc-500">
+                {eprCostRows.length > 0 ? "No CK deliveries in this period." : "No deliveries found. Select a period and press Load."}
+              </div>
             )}
             {!costLoading && costRows.length > 0 && (
               <div className="overflow-x-auto">
