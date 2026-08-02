@@ -1459,7 +1459,20 @@ export default function EmployeeCasesPage() {
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Template</label>
               {templates.length === 0 ? (
-                <p className={T_CAPTION}>No templates available. Create one in the Templates tab.</p>
+                <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 space-y-2">
+                  <p className="text-sm text-amber-300">No templates available yet.</p>
+                  <p className="text-xs text-zinc-400">
+                    You can still type a custom reason in the field below, or{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIssueUseTemplate(false)}
+                      className="text-violet-400 underline"
+                    >
+                      switch to custom reason mode
+                    </button>
+                    . To create templates, go to the Templates tab.
+                  </p>
+                </div>
               ) : (
                 <SelectDark
                   value={issueTemplateId}
