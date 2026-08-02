@@ -1447,7 +1447,7 @@ export default function AttendancePage() {
                 <div className="rounded-xl bg-rose-950/50 border border-rose-500/30 px-4 py-3 text-center space-y-1">
                   <div className="flex items-center justify-center gap-1.5">
                     <AlertCircle size={14} className="text-rose-400 shrink-0" />
-                    <p className="text-sm font-semibold text-rose-300">Break中です。先にBreak終了してください</p>
+                    <p className="text-sm font-semibold text-rose-300">You are on break. Please end your break first.</p>
                   </div>
                   <p className="text-[11px] text-zinc-500">End your break before clocking out.</p>
                 </div>
