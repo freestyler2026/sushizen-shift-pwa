@@ -969,6 +969,9 @@ export default function PriceCheckPage() {
                   setConfirmMemos={setConfirmMemos}
                   onConfirm={confirmItem}
                   showConfirm
+                  apiBase={apiBase}
+                  tokenHeaders={tokenHeaders}
+                  onRefresh={loadStatus}
                 />
               </div>
             )}
@@ -988,6 +991,9 @@ export default function PriceCheckPage() {
                   setConfirmMemos={setConfirmMemos}
                   onConfirm={confirmItem}
                   showConfirm={false}
+                  apiBase={apiBase}
+                  tokenHeaders={tokenHeaders}
+                  onRefresh={loadStatus}
                 />
               </div>
             )}
@@ -1031,6 +1037,9 @@ function PriceTable({
   setConfirmMemos,
   onConfirm,
   showConfirm,
+  apiBase,
+  tokenHeaders,
+  onRefresh,
 }: {
   rows: PriceCheckResult[];
   confirmingIds: number[];
@@ -1038,7 +1047,41 @@ function PriceTable({
   setConfirmMemos: Dispatch<SetStateAction<Record<number, string>>>;
   onConfirm: (row: PriceCheckResult) => void;
   showConfirm: boolean;
+  apiBase: string;
+  tokenHeaders: () => Promise<Record<string, string>>;
+  onRefresh: () => void;
 }) {
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+
+  async function saveBaseline(row: PriceCheckResult) {
+    const newPrice = parseFloat(editValue);
+    if (isNaN(newPrice) || newPrice <= 0) return;
+    setEditBusy(true);
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/price-check/set-item-baseline`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          store_code: row.store_code,
+          product_id: row.product_id,
+          baseline_price: newPrice,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { detail?: string };
+        alert(err.detail || "Failed to update baseline");
+        return;
+      }
+      setEditingKey(null);
+      onRefresh();
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px]">
@@ -1076,7 +1119,53 @@ function PriceTable({
                   {row.category || "—"}
                 </td>
                 <td className={`${TABLE_CELL} text-right tabular-nums`}>
-                  {fmtPrice(row.baseline_price)}
+                  {editingKey === `${row.store_code}-${row.product_id}` ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editValue}
+                        autoFocus
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveBaseline(row);
+                          if (e.key === "Escape") setEditingKey(null);
+                        }}
+                        className="w-20 rounded border border-violet-500/50 bg-white/5 px-1.5 py-0.5 text-xs text-white text-right outline-none focus:border-violet-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={editBusy}
+                        onClick={() => void saveBaseline(row)}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingKey(null)}
+                        className="text-xs text-zinc-500 hover:text-zinc-300"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1 group">
+                      <span>{fmtPrice(row.baseline_price)}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingKey(`${row.store_code}-${row.product_id}`);
+                          setEditValue(String(row.baseline_price ?? ""));
+                        }}
+                        title="Edit baseline"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-violet-400"
+                      >
+                        <PencilLine className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                 </td>
                 <td className={`${TABLE_CELL} text-right tabular-nums font-medium`}>
                   {fmtPrice(row.current_price)}
