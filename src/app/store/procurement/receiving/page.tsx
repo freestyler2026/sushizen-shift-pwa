@@ -1374,7 +1374,9 @@ export default function StoreProcurementReceivingPage() {
                       <Ban className="h-3.5 w-3.5" />
                       Close Order – Not Received
                     </button>
-                    <p className="mt-1 text-[11px] text-zinc-600">Management PIN required. Requester cannot close their own order.</p>
+                    <p className="mt-1 text-[11px] text-zinc-600">
+                      {canSelfAuthorize ? "Enter your PIN to confirm. This action is logged for audit." : "Management PIN required. Requester cannot close their own order."}
+                    </p>
                   </div>
                 )}
               </>
