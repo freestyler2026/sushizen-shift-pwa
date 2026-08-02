@@ -131,12 +131,13 @@ type PageTab = "board" | "request" | "pending" | "issue" | "history" | "template
 
 type CatalogEntry = {
   code: string;
+  category_code: string;
   title_en: string;
   title_ja: string;
   severity_class: string;
   input_layer: string;
   scope: string;
-  sop_ref: string;
+  sop_ref: string | null;
   auto_detectable: boolean;
   requires_hq_review: boolean;
   market?: string | null;
