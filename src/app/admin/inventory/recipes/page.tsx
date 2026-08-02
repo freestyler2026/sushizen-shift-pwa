@@ -485,7 +485,7 @@ export default function InventoryRecipesPage() {
 
                 {detailRows.length === 0 ? (
                   <div className="py-8 text-center text-sm text-neutral-500">
-                    No ingredients found for this product. Run "Sync from Cost Calc" to populate.
+                    No ingredients found for this product. Run &ldquo;Sync from Cost Calc&rdquo; to populate.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
