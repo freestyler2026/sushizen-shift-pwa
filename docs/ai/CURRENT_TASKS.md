@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.56 — NTE Module v2 P4 State Machine + Permissions deployed)
+Last updated: 2026-08-03 (session 199 cont.57 — NTE Module v2 P5 SLA Engine deployed)
 
 ---
 
@@ -112,8 +112,43 @@ Last updated: 2026-08-03 (session 199 cont.56 — NTE Module v2 P4 State Machine
   - Case detail panel with audit trail
   - Case transition modal with role-appropriate form fields (serve method, response text, decision outcome etc.)
 
-### P5: SLA Engine — Pending P4
-### P6: Letter Renderer (PDF) — Pending P5
+### P5: SLA Engine ✅ COMPLETE (Heroku 75b5327 + Vercel 930247b, 2026-08-03)
+- Backend: `app/db_nte_v2_sla.py` — SLA engine
+  - `add_business_days(conn, market, start, n)` — skips weekends + holiday tables (ae_holiday_calendar / ph_holiday_calendar)
+  - AE weekends: Sat+Sun (post-2022 UAE change); PH weekends: Sat+Sun
+  - `assert_ph_min_response_days(market, days)` — 422 if PH < 5 (hard constraint spec §2.1)
+  - `compute_response_deadline(conn, market, served_date, response_days)` — AE=business days, PH=calendar days
+  - `compute_and_store_case_sla(conn, case_id)` — fills nte_issue_deadline, investigation_deadline, decision_deadline, nod_deadline per spec §2.1 table
+  - `get_case_sla_status()` / `get_cases_sla_batch()` — urgency: ok/warning (≤2d)/overdue + days_remaining
+- `db_nte_v2_case.py` updates:
+  - `ensure_case_tables()`: adds 4 SLA columns via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+  - `confirm_violation`: PH default response_days=5, AE default=3; guard enforced
+  - `serve`: uses `compute_response_deadline()` (AE=biz days, PH=calendar days); triggers `compute_and_store_case_sla()`
+- New API endpoints in `nte_v2_api.py`:
+  - `GET /api/admin/nte-v2/sla` — overview sorted overdue→warning→ok with SLA annotation
+  - `GET /api/admin/nte-v2/case/{id}/sla` — per-case SLA detail
+  - `POST /api/admin/nte-v2/case/{id}/sla/recompute` — force recompute (HQ only)
+- Frontend: Case Queue now loads from `/sla` endpoint; SLA badge on each row:
+  - 🔴 red = overdue ("Xd over"), 🟡 amber = warning (≤2d, "Xd left"), 🟢 green = on-track
+
+### P6: Letter Renderer (PDF) ✅ COMPLETE (Heroku v1700 + Vercel a937c39, 2026-08-03)
+- Backend: `app/db_nte_v2_letter.py` (new)
+  - `get_letter_context(conn, case_id)` — fetches nte_case + staff position + violation_catalog(market) acts_block + evidence list
+  - `render_nte_letter_pdf(ctx)` — A4 ReportLab PDF; sections: company header, addressee table, alleged acts, evidence, legal basis, proposed penalty, response instructions, signature blocks; per-page header: `{nte_ref}  |  Page N`
+  - `generate_and_log_letter(conn, case_id, actor, role)` — generates PDF, stores SHA-256 in nte_audit_log (action=`letter_generated`)
+  - `update_acts_block(conn, case_id, actor, role, new_text)` — saves acts_block_override to nte_case, writes unified diff to nte_audit_log (action=`acts_block_edited`)
+  - `ensure_letter_columns(conn)` — adds `acts_block_override TEXT` to nte_case
+- New API endpoints (nte_v2_api.py):
+  - `GET /api/admin/nte-v2/case/{id}/letter` — generate + return PDF as application/pdf (HR role)
+  - `GET /api/admin/nte-v2/case/{id}/letter/context` — preview all letter fields without rendering (HR)
+  - `PATCH /api/admin/nte-v2/case/{id}/letter/acts-block` — human-edit override + diff audit log (HR)
+- Frontend (employee-cases/page.tsx):
+  - `downloadNteLetter()` — fetches blob from GET /letter, triggers download as `{nte_ref}_NTE_Letter.pdf`
+  - `saveActsBlock()` — PATCHes acts_block override
+  - Case detail panel: "NTE Letter" section with acts_block editor (toggle on/off) + "Download NTE Letter (PDF)" button + SHA-256 audit note
+- AE response_unit = "business days"; PH = "calendar days"
+- reportlab 5.0.0 installed on Heroku (already in requirements.txt)
+
 ### P7: E2E Test ATT-001-006 — Pending P6
 ### P8: Auto-detect Batch — Pending P7
 ### P9: Categories ②-⑫ Catalogs — HQ definition needed
