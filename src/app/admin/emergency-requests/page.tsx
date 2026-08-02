@@ -132,16 +132,18 @@ function RequestCard({
   const [deliveryMethod, setDeliveryMethod] = useState("in_house");
   const [deliveryCost, setDeliveryCost] = useState("");
   const [confirmAction, setConfirmAction] = useState<
-    "approve" | "reject" | "arrange" | "dispatch" | "complete" | null
+    "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | null
   >(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "complete") {
+  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete") {
     setLoading(true);
     setError("");
     try {
-      const endpoint = `/api/admin/emergency-requests/${req.id}/${action}`;
+      const endpoint = action === "receive"
+        ? `/api/store/emergency-request/${req.id}/receive`
+        : `/api/admin/emergency-requests/${req.id}/${action}`;
       let body: Record<string, unknown> = {};
 
       if (action === "approve") {
@@ -156,6 +158,8 @@ function RequestCard({
           delivery_method: deliveryMethod,
           delivery_cost: deliveryMethod === "lalamove" ? (parseFloat(deliveryCost) || null) : null,
         };
+      } else if (action === "receive") {
+        body = { received_by: actorName };
       } else if (action === "complete") {
         body = { completed_by: actorName, final_amount: parseFloat(completeAmount) || null, completion_notes: completeNotes };
       }
@@ -288,6 +292,12 @@ function RequestCard({
         </button>
       )}
 
+      {req.status === "dispatched" && !confirmAction && (
+        <button className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("receive")}>
+          <PackageCheck className="h-4 w-4 inline mr-1" />Mark as Received
+        </button>
+      )}
+
       {req.status === "received" && !confirmAction && (
         <button className={`w-full ${PRIMARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("complete")}>
           <Banknote className="h-4 w-4 inline mr-1" />Mark Completed
@@ -353,6 +363,18 @@ function RequestCard({
           <div className="flex gap-2">
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("dispatch")}>
               {loading ? "…" : "Confirm Dispatch"}
+            </button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {confirmAction === "receive" && (
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-400">Confirm store has received this delivery?</p>
+          <div className="flex gap-2">
+            <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("receive")}>
+              {loading ? "…" : "Confirm Receipt"}
             </button>
             <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
           </div>
