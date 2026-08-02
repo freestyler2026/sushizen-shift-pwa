@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 import SelectDark from "@/components/SelectDark";
+import { ChevronDown, ChevronRight } from "lucide-react";
+
+const RECIPE_LIMIT = 2000;
 
 type RecipeRow = {
   id: string;
@@ -60,9 +63,14 @@ export default function InventoryRecipesPage() {
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState((auth?.city || "manila") as "manila" | "dubai");
   const [menuItemName, setMenuItemName] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<RecipeRow[]>([]);
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(false);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [ccBusy, setCcBusy] = useState(false);
   const [ccPreview, setCcPreview] = useState<CostCalcPreview | null>(null);
@@ -89,6 +97,17 @@ export default function InventoryRecipesPage() {
     return () => { cancelled = true; };
   }, [auth]);
 
+  // Debounce search input — wait 400ms after last keystroke before fetching
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(menuItemName);
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [menuItemName]);
+
   useEffect(() => {
     if (!ready || !allowed) return;
     let cancelled = false;
@@ -97,9 +116,14 @@ export default function InventoryRecipesPage() {
       setError("");
       try {
         const res = await inventoryGet<{ rows: RecipeRow[] }>(
-          `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=${encodeURIComponent(menuItemName)}&limit=500`,
+          `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=${encodeURIComponent(debouncedSearch)}&limit=${RECIPE_LIMIT}`,
         );
-        if (!cancelled) setRows(res.rows || []);
+        if (!cancelled) {
+          setRows(res.rows || []);
+          // Reset expansion state when data changes
+          setExpandedProducts(new Set());
+          setAllExpanded(false);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -108,9 +132,56 @@ export default function InventoryRecipesPage() {
     }
     void load();
     return () => { cancelled = true; };
-  }, [allowed, city, menuItemName, ready]);
+  }, [allowed, city, debouncedSearch, ready]);
 
-  const groupedCount = useMemo(() => new Set(rows.map((row) => row.menu_item_name)).size, [rows]);
+  // Group rows by product name, preserving alphabetical order
+  const groupedProducts = useMemo(() => {
+    const map = new Map<string, RecipeRow[]>();
+    for (const row of rows) {
+      const existing = map.get(row.menu_item_name);
+      if (existing) {
+        existing.push(row);
+      } else {
+        map.set(row.menu_item_name, [row]);
+      }
+    }
+    return map;
+  }, [rows]);
+
+  const productNames = useMemo(() => Array.from(groupedProducts.keys()), [groupedProducts]);
+  const activeLineCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
+  const atLimit = rows.length >= RECIPE_LIMIT;
+
+  function toggleProduct(name: string) {
+    setExpandedProducts((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allExpanded) {
+      setExpandedProducts(new Set());
+      setAllExpanded(false);
+    } else {
+      setExpandedProducts(new Set(productNames));
+      setAllExpanded(true);
+    }
+  }
+
+  async function fetchRows() {
+    const res = await inventoryGet<{ rows: RecipeRow[] }>(
+      `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=${RECIPE_LIMIT}`,
+    );
+    setRows(res.rows || []);
+    setExpandedProducts(new Set());
+    setAllExpanded(false);
+  }
 
   async function previewCostCalcSync() {
     setCcBusy(true);
@@ -137,10 +208,7 @@ export default function InventoryRecipesPage() {
     try {
       const res = await inventoryPost<CostCalcResult & { ok: boolean }>("/api/admin/inventory/recipes/cost-calc/apply", { city });
       setCcResult(res);
-      const updated = await inventoryGet<{ rows: RecipeRow[] }>(
-        `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=500`,
-      );
-      setRows(updated.rows || []);
+      await fetchRows();
     } catch (e: unknown) {
       setCcError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -173,10 +241,7 @@ export default function InventoryRecipesPage() {
     try {
       const res = await inventoryPost<DedupeResult>("/api/admin/inventory/recipes/deduplicate/apply", { city });
       setDedupeResult(res);
-      const updated = await inventoryGet<{ rows: RecipeRow[] }>(
-        `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=500`,
-      );
-      setRows(updated.rows || []);
+      await fetchRows();
     } catch (e: unknown) {
       setDedupeError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -280,7 +345,7 @@ export default function InventoryRecipesPage() {
           <div>
             <div className="text-base font-semibold text-neutral-100">Sales BOM — Recipe Lines</div>
             <div className="mt-1 text-sm text-neutral-400">
-              {city.toUpperCase()} · {rows.length} lines · {groupedCount} products
+              {city.toUpperCase()} · {rows.length} lines · {productNames.length} products
             </div>
           </div>
           <button
@@ -292,6 +357,13 @@ export default function InventoryRecipesPage() {
             {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
           </button>
         </div>
+
+        {/* Limit warning */}
+        {atLimit && (
+          <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2 text-sm text-amber-300">
+            ⚠ Showing {RECIPE_LIMIT.toLocaleString()} rows (display limit). Use the product search to filter, or contact admin to increase the limit.
+          </div>
+        )}
 
         {dedupePreview && (
           <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-900/10 px-4 py-3 text-sm text-amber-200">
@@ -337,21 +409,23 @@ export default function InventoryRecipesPage() {
           </div>
         )}
 
+        {/* KPI cards */}
         <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+            <div className="text-xs uppercase tracking-wide text-neutral-500">Products</div>
+            <div className="mt-1 text-lg font-semibold text-neutral-100">{productNames.length}</div>
+          </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">Recipe Lines</div>
             <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.length}</div>
           </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Products</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{groupedCount}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">Active Lines</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.filter((r) => r.active).length}</div>
+            <div className="mt-1 text-lg font-semibold text-neutral-100">{activeLineCount}</div>
           </div>
         </div>
 
+        {/* Filters */}
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
@@ -366,50 +440,119 @@ export default function InventoryRecipesPage() {
             value={menuItemName}
             onChange={(e) => setMenuItemName(e.target.value)}
             placeholder="Search product name"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-600"
           />
         </div>
 
         {error && <div className="mt-3 text-sm text-rose-300">{error}</div>}
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-3 py-2">Product (Cost Calc)</th>
-                <th className="px-3 py-2">Ingredient</th>
-                <th className="px-3 py-2">SKU</th>
-                <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">Yield</th>
-                <th className="px-3 py-2">Waste %</th>
-                <th className="px-3 py-2">Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-neutral-800 text-neutral-200">
-                  <td className="px-3 py-2">{row.menu_item_name}</td>
-                  <td className="px-3 py-2">
-                    {row.ingredient_item_name}
-                    {row.ingredient_unit && <div className="mt-0.5 text-xs text-neutral-500">{row.ingredient_unit}</div>}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-neutral-400">{row.sku || "—"}</td>
-                  <td className="px-3 py-2">{Number(row.ingredient_qty || 0).toFixed(3)}</td>
-                  <td className="px-3 py-2">{Number(row.yield_factor || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2">{Number(row.waste_factor || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2">{row.active ? "Yes" : "No"}</td>
-                </tr>
-              ))}
-              {!loading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
-                    No recipe lines. Click &ldquo;Sync from Cost Calc&rdquo; above to populate.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {loading && (
+          <div className="mt-6 text-center text-sm text-neutral-500">Loading...</div>
+        )}
+
+        {/* Product accordion list */}
+        {!loading && rows.length > 0 && (
+          <div className="mt-4">
+            {/* Expand / Collapse all */}
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-neutral-500">{productNames.length} product{productNames.length !== 1 ? "s" : ""}</span>
+              <button
+                type="button"
+                onClick={toggleAll}
+                className="text-xs text-neutral-400 hover:text-neutral-200 transition"
+              >
+                {allExpanded ? "Collapse all" : "Expand all"}
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              {productNames.map((productName) => {
+                const ingredients = groupedProducts.get(productName) ?? [];
+                const isExpanded = expandedProducts.has(productName);
+                const activeCount = ingredients.filter((r) => r.active).length;
+                const inactiveCount = ingredients.length - activeCount;
+
+                return (
+                  <div key={productName} className="rounded-xl border border-neutral-800 overflow-hidden">
+                    {/* Product header row — clickable */}
+                    <button
+                      type="button"
+                      onClick={() => toggleProduct(productName)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-neutral-900/60 hover:bg-neutral-800/60 transition text-left"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isExpanded
+                          ? <ChevronDown size={14} className="text-neutral-400 shrink-0" />
+                          : <ChevronRight size={14} className="text-neutral-400 shrink-0" />
+                        }
+                        <span className="text-sm font-medium text-neutral-100 truncate">{productName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <span className="text-xs text-neutral-400">
+                          {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
+                        </span>
+                        {inactiveCount > 0 && (
+                          <span className="rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] text-amber-400">
+                            {inactiveCount} inactive
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Ingredient rows — shown when expanded */}
+                    {isExpanded && (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-t border-neutral-800 bg-neutral-950/40">
+                              <th className="px-4 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Ingredient</th>
+                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">SKU</th>
+                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Qty</th>
+                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Yield</th>
+                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Waste %</th>
+                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Active</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ingredients.map((row) => (
+                              <tr
+                                key={row.id}
+                                className={`border-t border-neutral-800/60 ${row.active ? "text-neutral-200" : "text-neutral-500 opacity-60"}`}
+                              >
+                                <td className="px-4 py-2">
+                                  <span className="font-medium">{row.ingredient_item_name}</span>
+                                  {row.ingredient_unit && (
+                                    <span className="ml-1.5 text-neutral-500">{row.ingredient_unit}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 font-mono text-neutral-400">{row.sku || "—"}</td>
+                                <td className="px-3 py-2 tabular-nums">{Number(row.ingredient_qty || 0).toFixed(3)}</td>
+                                <td className="px-3 py-2 tabular-nums">{Number(row.yield_factor || 0).toFixed(2)}</td>
+                                <td className="px-3 py-2 tabular-nums">{Number(row.waste_factor || 0).toFixed(2)}</td>
+                                <td className="px-3 py-2">
+                                  {row.active
+                                    ? <span className="text-emerald-400">Yes</span>
+                                    : <span className="text-neutral-500">No</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {!loading && rows.length === 0 && (
+          <div className="mt-8 text-center text-sm text-neutral-500">
+            No recipe lines found. Click &ldquo;Sync from Cost Calc&rdquo; above to populate.
+          </div>
+        )}
       </section>
 
       <InventoryRegistrationHelp />
@@ -447,9 +590,10 @@ export default function InventoryRecipesPage() {
       {confirmDedupe && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-2xl border border-amber-700 bg-neutral-900 p-6 shadow-xl">
-            <h3 className="mb-2 text-base font-semibold text-white">Merge duplicate recipe names?</h3>
+            <h3 className="mb-2 text-base font-semibold text-white">Merge Duplicate Names?</h3>
             <p className="mb-4 text-sm text-neutral-300">
-              Duplicate name variants will be consolidated into a single canonical name. Conflicting ingredient rows will be removed. This cannot be undone.
+              Case-variant duplicate product names will be merged to a single canonical name.
+              Recipe rows with non-canonical names will be deleted. This cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
