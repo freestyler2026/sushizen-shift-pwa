@@ -354,7 +354,7 @@ export default function AdminSalesDataInputTab() {
             <div>
               <h2 className="text-lg font-semibold text-white">Sales Data Input</h2>
               <p className={`${T_CAPTION} mt-1`}>
-                Enter daily Dine-in / GrabFood / FoodPanda / Beep Delivery counts and PHP amounts. Data appears in Manila Sales Analytics → Sales Data after save.
+                Enter daily counts and <strong>Gross Sales</strong> (from your POS/aggregator portal) for each channel. FoodPanda Net (gross × 0.70) is auto-computed. Data appears in Manila Sales Analytics → Sales Data after save.
               </p>
             </div>
           </div>
@@ -431,14 +431,14 @@ export default function AdminSalesDataInputTab() {
             <div className="grid grid-cols-[minmax(100px,140px)_repeat(9,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
               <div className="font-medium text-white/30">Branch</div>
               <div className="text-center text-white/30">Dine-in #</div>
-              <div className="text-center text-white/30">Dine-in PHP</div>
+              <div className="text-center text-white/30">Dine-in Gross</div>
               <div className="text-center text-white/30">Grab #</div>
-              <div className="text-center text-white/30">Grab PHP</div>
+              <div className="text-center text-white/30">Grab Gross</div>
               <div className="text-center text-white/30">FP #</div>
               <div className="text-center text-white/30">FP Gross</div>
               <div className="text-center text-white/30">FP Net</div>
               <div className="text-center text-white/30">Beep #</div>
-              <div className="text-center text-white/30">Beep PHP</div>
+              <div className="text-center text-white/30">Beep Gross</div>
               <div className="text-center text-white/30">Total #</div>
               <div className="text-center text-white/30">Total PHP</div>
               <div />
