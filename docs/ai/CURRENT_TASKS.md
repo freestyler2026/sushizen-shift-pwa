@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-02 (session 199 cont.34 — Late Alert: Dismiss All button + Published Schedule viewer)
+Last updated: 2026-08-02 (session 199 cont.36 — Close-Not-Received manager PIN fix + Gross Sales label rename)
 
 ---
 
@@ -37,6 +37,60 @@ Last updated: 2026-08-02 (session 199 cont.34 — Late Alert: Dismiss All button
 ### LOW: 1H period (6/25–7/10) — attendance entry pending
 - Period dates corrected in DB: `start_date='2026-06-25', end_date='2026-07-10'` (was 7/1–7/15)
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.36 — Close-Not-Received fix + Gross Sales labels)
+
+### Close Order – Not Received: manager PIN fields added + z-index fix — DEPLOYED Vercel ✅
+
+**Root cause**: Modal sent session user's own credentials (`requestedBy`/`pin`) to the backend.
+Backend requires management-level role (`HQ/ADMIN/DUBAI_MANAGEMENT/MANILA_MANAGEMENT`) via `_require_action_with_pin`. Store-level staff always got 403. The error may have been hidden behind the bottom nav bar (`z-50` < nav `z-[70]`).
+
+**Fixes in** `src/app/store/procurement/receiving/page.tsx`:
+- Added `closeNotReceivedManagerName` + `closeNotReceivedManagerPin` state
+- Modal now has an amber "Manager Authorization" section with Manager Name + Manager PIN inputs
+- `closeOrderNotReceived()` now validates manager fields and sends manager credentials as `approver_name`/`pin` in the POST body (session credentials still used for the bearer token)
+- Fixed z-index: `z-50` → `z-[80]`, above nav bar's `z-[70]`
+- Cancel button now clears manager fields
+
+### Sales Data Input: Dine-in/Grab/Beep column headers relabeled as "Gross" — DEPLOYED Vercel ✅
+
+**Fix in** `src/components/admin/AdminSalesDataInputTab.tsx`:
+- "Dine-in PHP" → "Dine-in Gross", "Grab PHP" → "Grab Gross", "Beep PHP" → "Beep Gross"
+- Description updated to say "Enter Gross Sales from POS/aggregator portal"
+- These fields already stored whatever staff entered; labels now clarify intent
+- No DB schema change needed (`_amount` fields continue to store the gross values)
+
+---
+
+## Recently Completed (2026-08-02 session 199 cont.35 — Late Alert: OPENING-only DMs + dual-VL fix)
+
+### Late Alert: 3 fixes — DEPLOYED Heroku v1671-v1672 + Vercel ✅
+
+**Fix 1 — OPENING-only Discord DMs** (v1671, `late_alert_service.py`):
+- REGULAR alerts: recorded in DB for UI visibility but **no Discord DM sent**
+- OPENING alerts: DM behavior unchanged (sends to all configured recipients)
+- Auto-resolve still works for REGULAR (acknowledged silently when staff clocks in)
+- Description box in UI updated to reflect new DM policy
+
+**Fix 2 — Dual VL/STAFF record exclusion** (v1672, `late_alert_service.py`):
+- Root cause: Dubai staff (e.g. Bibek BK) have 2 rows in `shift_published_rows` per day:
+  - `role=VL, start_hour=0.0` (leave placeholder) → filtered by role
+  - `role=STAFF, start_hour=9.0` (working shift) → was slipping through ← bug
+- Fix: Build `leave_staff` set from ALL rows with leave roles first, then exclude
+  any staff in that set from `working_shifts` regardless of other rows
+- Manually dismissed Bibek BK's erroneous Aug-02 OPENING OPENING alert from DB
+
+**Fix 3 — City-local timezone display** (Vercel, `os-attendance/page.tsx`):
+- "Alerted" column now shows city-local time + label: e.g. "13:35 MNL", "09:35 DXB"
+- Previously showed browser timezone (UAE=UTC+4), making Manila 13:35 appear as "09:35"
+- Root cause of user confusion confirmed: browser in UAE timezone, Manila alerts 4h offset
+
+**Root cause of Aug 1 DMs showing vacation staff** (historical, not new code issue):
+- Old code (pre-v1669) had no `_NON_WORK_ROLES` filter and no `start_hour > 0` filter
+- VL records with `start_hour=0` were processed as OPENING at midnight
+- Fixed by current code; those specific patterns can no longer occur
 
 ---
 
