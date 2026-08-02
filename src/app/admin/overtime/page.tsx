@@ -382,7 +382,7 @@ export default function AdminOvertimePage() {
                           onClick={() => openModal(r, "manager_approve")}
                           className="flex-1 rounded-xl border border-blue-500/30 bg-blue-900/20 px-3 py-2 text-xs font-semibold text-blue-300 hover:bg-blue-900/40 transition"
                         >
-                          Confirm (Stage 1)
+                          Confirm (S1)
                         </button>
                       )}
                       {r.status === "manager_approved" && canStage2 && (
@@ -442,7 +442,7 @@ export default function AdminOvertimePage() {
                             <span className="block text-blue-400 text-xs mt-0.5">✓ {r.manager_approved_by}</span>
                           )}
                           {r.paid_by && (
-                            <span className="block text-green-400 text-xs mt-0.5">💴 {r.paid_by}</span>
+                            <span className="block text-green-400 text-xs mt-0.5">💳 {r.paid_by}</span>
                           )}
                         </td>
                         <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
