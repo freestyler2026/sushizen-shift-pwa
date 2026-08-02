@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 import SelectDark from "@/components/SelectDark";
-import { ChevronDown, ChevronRight } from "lucide-react";
 
-const RECIPE_LIMIT = 2000;
+type ProductSummary = {
+  menu_item_name: string;
+  total_ingredient_count: number;
+  active_ingredient_count: number;
+};
 
 type RecipeRow = {
   id: string;
@@ -62,15 +65,16 @@ export default function InventoryRecipesPage() {
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState((auth?.city || "manila") as "manila" | "dubai");
-  const [menuItemName, setMenuItemName] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [rows, setRows] = useState<RecipeRow[]>([]);
-  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
-  const [allExpanded, setAllExpanded] = useState(false);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
+  const [products, setProducts] = useState<ProductSummary[]>([]);
+
+  const [searchText, setSearchText] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [detailRows, setDetailRows] = useState<RecipeRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const [ccBusy, setCcBusy] = useState(false);
   const [ccPreview, setCcPreview] = useState<CostCalcPreview | null>(null);
@@ -83,6 +87,8 @@ export default function InventoryRecipesPage() {
   const [dedupeResult, setDedupeResult] = useState<DedupeResult | null>(null);
   const [dedupeError, setDedupeError] = useState("");
   const [confirmDedupe, setConfirmDedupe] = useState(false);
+
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,91 +103,59 @@ export default function InventoryRecipesPage() {
     return () => { cancelled = true; };
   }, [auth]);
 
-  // Debounce search input — wait 400ms after last keystroke before fetching
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(menuItemName);
-    }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [menuItemName]);
+  const fetchProducts = useCallback(async (c: "manila" | "dubai") => {
+    setProductsLoading(true);
+    setProductsError("");
+    try {
+      const res = await inventoryGet<{ products: ProductSummary[] }>(
+        `/api/admin/inventory/recipes/products?city=${encodeURIComponent(c)}`,
+      );
+      setProducts(res.products || []);
+    } catch (e: unknown) {
+      setProductsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setProductsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!ready || !allowed) return;
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await inventoryGet<{ rows: RecipeRow[] }>(
-          `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=${encodeURIComponent(debouncedSearch)}&limit=${RECIPE_LIMIT}`,
-        );
-        if (!cancelled) {
-          setRows(res.rows || []);
-          // Reset expansion state when data changes
-          setExpandedProducts(new Set());
-          setAllExpanded(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    setSelectedProduct(null);
+    setDetailRows([]);
+    void fetchProducts(city);
+  }, [ready, allowed, city, fetchProducts]);
+
+  const loadProductDetail = useCallback(async (productName: string, c: "manila" | "dubai") => {
+    setSelectedProduct(productName);
+    setDetailRows([]);
+    setDetailError("");
+    setDetailLoading(true);
+    try {
+      const res = await inventoryGet<{ rows: RecipeRow[] }>(
+        `/api/admin/inventory/recipes/product-ingredients?city=${encodeURIComponent(c)}&menu_item_name=${encodeURIComponent(productName)}`,
+      );
+      setDetailRows(res.rows || []);
+    } catch (e: unknown) {
+      setDetailError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDetailLoading(false);
     }
-    void load();
-    return () => { cancelled = true; };
-  }, [allowed, city, debouncedSearch, ready]);
+  }, []);
 
-  // Group rows by product name, preserving alphabetical order
-  const groupedProducts = useMemo(() => {
-    const map = new Map<string, RecipeRow[]>();
-    for (const row of rows) {
-      const existing = map.get(row.menu_item_name);
-      if (existing) {
-        existing.push(row);
-      } else {
-        map.set(row.menu_item_name, [row]);
-      }
-    }
-    return map;
-  }, [rows]);
+  const filteredProducts = useMemo(() => {
+    if (!searchText.trim()) return products;
+    const q = searchText.trim().toLowerCase();
+    return products.filter((p) => p.menu_item_name.toLowerCase().includes(q));
+  }, [products, searchText]);
 
-  const productNames = useMemo(() => Array.from(groupedProducts.keys()), [groupedProducts]);
-  const activeLineCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
-  const atLimit = rows.length >= RECIPE_LIMIT;
-
-  function toggleProduct(name: string) {
-    setExpandedProducts((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (allExpanded) {
-      setExpandedProducts(new Set());
-      setAllExpanded(false);
-    } else {
-      setExpandedProducts(new Set(productNames));
-      setAllExpanded(true);
-    }
-  }
-
-  async function fetchRows() {
-    const res = await inventoryGet<{ rows: RecipeRow[] }>(
-      `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=${RECIPE_LIMIT}`,
-    );
-    setRows(res.rows || []);
-    setExpandedProducts(new Set());
-    setAllExpanded(false);
-  }
+  const totalIngredients = useMemo(
+    () => products.reduce((s, p) => s + (p.total_ingredient_count || 0), 0),
+    [products],
+  );
+  const activeIngredients = useMemo(
+    () => products.reduce((s, p) => s + (p.active_ingredient_count || 0), 0),
+    [products],
+  );
 
   async function previewCostCalcSync() {
     setCcBusy(true);
@@ -208,7 +182,9 @@ export default function InventoryRecipesPage() {
     try {
       const res = await inventoryPost<CostCalcResult & { ok: boolean }>("/api/admin/inventory/recipes/cost-calc/apply", { city });
       setCcResult(res);
-      await fetchRows();
+      setSelectedProduct(null);
+      setDetailRows([]);
+      await fetchProducts(city);
     } catch (e: unknown) {
       setCcError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -241,7 +217,9 @@ export default function InventoryRecipesPage() {
     try {
       const res = await inventoryPost<DedupeResult>("/api/admin/inventory/recipes/deduplicate/apply", { city });
       setDedupeResult(res);
-      await fetchRows();
+      setSelectedProduct(null);
+      setDetailRows([]);
+      await fetchProducts(city);
     } catch (e: unknown) {
       setDedupeError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -262,8 +240,8 @@ export default function InventoryRecipesPage() {
           <div>
             <div className="text-base font-semibold text-emerald-200">Sync from Cost Calculation</div>
             <div className="mt-1 text-sm text-neutral-400 max-w-xl">
-              Imports all product recipes from Cost Calculation (menu_item_master + menu_item_components) into Sales BOM.
-              Each time Cost Calculation is updated, run this sync to keep Sales BOM current.
+              Imports all product recipes from Cost Calculation into Sales BOM.
+              Run this each time Cost Calculation is updated to keep Sales BOM current.
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -339,34 +317,44 @@ export default function InventoryRecipesPage() {
         )}
       </section>
 
-      {/* Recipe list */}
+      {/* Sales BOM master-detail */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Header + controls */}
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            <div className="text-base font-semibold text-neutral-100">Sales BOM — Recipe Lines</div>
+            <div className="text-base font-semibold text-neutral-100">Sales BOM — Products</div>
             <div className="mt-1 text-sm text-neutral-400">
-              {city.toUpperCase()} · {rows.length} lines · {productNames.length} products
+              {city.toUpperCase()} · {products.length} products · {totalIngredients} lines ({activeIngredients} active)
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void previewDedupe()}
-            disabled={dedupeBusy || ccBusy}
-            className="rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-1.5 text-xs text-amber-300 transition hover:bg-amber-900/30 disabled:opacity-60"
-          >
-            {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SelectDark
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={city}
+              onChange={v => {
+                setCity(v as "manila" | "dubai");
+                setSelectedProduct(null);
+                setDetailRows([]);
+                setSearchText("");
+              }}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
+            <button
+              type="button"
+              onClick={() => void previewDedupe()}
+              disabled={dedupeBusy || ccBusy}
+              className="rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-1.5 text-xs text-amber-300 transition hover:bg-amber-900/30 disabled:opacity-60"
+            >
+              {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
+            </button>
+          </div>
         </div>
 
-        {/* Limit warning */}
-        {atLimit && (
-          <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2 text-sm text-amber-300">
-            ⚠ Showing {RECIPE_LIMIT.toLocaleString()} rows (display limit). Use the product search to filter, or contact admin to increase the limit.
-          </div>
-        )}
-
         {dedupePreview && (
-          <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-900/10 px-4 py-3 text-sm text-amber-200">
+          <div className="mb-4 rounded-xl border border-amber-700/40 bg-amber-900/10 px-4 py-3 text-sm text-amber-200">
             {dedupePreview.duplicate_groups === 0 ? (
               <div className="font-semibold text-emerald-300">✅ No duplicate names found.</div>
             ) : (
@@ -400,159 +388,147 @@ export default function InventoryRecipesPage() {
           </div>
         )}
         {dedupeError && (
-          <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {dedupeError}</div>
+          <div className="mb-4 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {dedupeError}</div>
         )}
         {dedupeResult && (
-          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <div className="mb-4 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
             ✅ Deduplication complete — {dedupeResult.groups_merged} group{dedupeResult.groups_merged !== 1 ? "s" : ""} merged,{" "}
             {dedupeResult.rows_renamed} rows renamed, {dedupeResult.rows_deleted} duplicate rows removed.
           </div>
         )}
 
-        {/* KPI cards */}
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Products</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{productNames.length}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Recipe Lines</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{rows.length}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Active Lines</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{activeLineCount}</div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <SelectDark
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={city}
-            onChange={v => setCity(v as "manila" | "dubai")}
-            options={[
-              { value: "manila", label: "Manila" },
-              { value: "dubai", label: "Dubai" },
-            ]}
-          />
-          <input
-            value={menuItemName}
-            onChange={(e) => setMenuItemName(e.target.value)}
-            placeholder="Search product name"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-600"
-          />
-        </div>
-
-        {error && <div className="mt-3 text-sm text-rose-300">{error}</div>}
-
-        {loading && (
-          <div className="mt-6 text-center text-sm text-neutral-500">Loading...</div>
+        {productsError && (
+          <div className="mb-4 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {productsError}</div>
         )}
 
-        {/* Product accordion list */}
-        {!loading && rows.length > 0 && (
-          <div className="mt-4">
-            {/* Expand / Collapse all */}
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-neutral-500">{productNames.length} product{productNames.length !== 1 ? "s" : ""}</span>
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="text-xs text-neutral-400 hover:text-neutral-200 transition"
-              >
-                {allExpanded ? "Collapse all" : "Expand all"}
-              </button>
+        {/* Master-detail grid */}
+        <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+          {/* Left panel — product list */}
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+            <div className="mb-3">
+              <input
+                ref={searchRef}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search products..."
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-600"
+              />
             </div>
 
-            <div className="space-y-1">
-              {productNames.map((productName) => {
-                const ingredients = groupedProducts.get(productName) ?? [];
-                const isExpanded = expandedProducts.has(productName);
-                const activeCount = ingredients.filter((r) => r.active).length;
-                const inactiveCount = ingredients.length - activeCount;
-
-                return (
-                  <div key={productName} className="rounded-xl border border-neutral-800 overflow-hidden">
-                    {/* Product header row — clickable */}
-                    <button
-                      type="button"
-                      onClick={() => toggleProduct(productName)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-neutral-900/60 hover:bg-neutral-800/60 transition text-left"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {isExpanded
-                          ? <ChevronDown size={14} className="text-neutral-400 shrink-0" />
-                          : <ChevronRight size={14} className="text-neutral-400 shrink-0" />
-                        }
-                        <span className="text-sm font-medium text-neutral-100 truncate">{productName}</span>
+            {productsLoading ? (
+              <div className="py-8 text-center text-sm text-neutral-500">Loading...</div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="py-8 text-center text-sm text-neutral-500">
+                {products.length === 0
+                  ? 'No products found. Click "Sync from Cost Calc" above to populate.'
+                  : "No products match your search."}
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
+                <div className="mb-2 text-xs text-neutral-500 px-1">
+                  {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
+                  {searchText ? ` matching "${searchText}"` : ""}
+                </div>
+                {filteredProducts.map((p) => (
+                  <button
+                    key={p.menu_item_name}
+                    type="button"
+                    onClick={() => void loadProductDetail(p.menu_item_name, city)}
+                    className={[
+                      "w-full rounded-xl border px-4 py-3 text-left transition",
+                      selectedProduct === p.menu_item_name
+                        ? "border-violet-500/30 bg-violet-500/10"
+                        : "border-neutral-800/60 bg-neutral-900/40 hover:bg-neutral-800/60",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-neutral-100">{p.menu_item_name}</div>
                       </div>
-                      <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <span className="text-xs text-neutral-400">
-                          {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
-                        </span>
-                        {inactiveCount > 0 && (
-                          <span className="rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] text-amber-400">
-                            {inactiveCount} inactive
-                          </span>
+                      <div className="shrink-0 text-right">
+                        <div className="text-xs text-neutral-400">{p.active_ingredient_count} ingr.</div>
+                        {p.total_ingredient_count !== p.active_ingredient_count && (
+                          <div className="text-[10px] text-amber-500">
+                            {p.total_ingredient_count - p.active_ingredient_count} inactive
+                          </div>
                         )}
                       </div>
-                    </button>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-                    {/* Ingredient rows — shown when expanded */}
-                    {isExpanded && (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-left text-xs">
-                          <thead>
-                            <tr className="border-t border-neutral-800 bg-neutral-950/40">
-                              <th className="px-4 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Ingredient</th>
-                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">SKU</th>
-                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Qty</th>
-                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Yield</th>
-                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Waste %</th>
-                              <th className="px-3 py-1.5 font-medium text-neutral-500 uppercase tracking-wide">Active</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ingredients.map((row) => (
-                              <tr
-                                key={row.id}
-                                className={`border-t border-neutral-800/60 ${row.active ? "text-neutral-200" : "text-neutral-500 opacity-60"}`}
-                              >
-                                <td className="px-4 py-2">
-                                  <span className="font-medium">{row.ingredient_item_name}</span>
-                                  {row.ingredient_unit && (
-                                    <span className="ml-1.5 text-neutral-500">{row.ingredient_unit}</span>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 font-mono text-neutral-400">{row.sku || "—"}</td>
-                                <td className="px-3 py-2 tabular-nums">{Number(row.ingredient_qty || 0).toFixed(3)}</td>
-                                <td className="px-3 py-2 tabular-nums">{Number(row.yield_factor || 0).toFixed(2)}</td>
-                                <td className="px-3 py-2 tabular-nums">{Number(row.waste_factor || 0).toFixed(2)}</td>
-                                <td className="px-3 py-2">
-                                  {row.active
-                                    ? <span className="text-emerald-400">Yes</span>
-                                    : <span className="text-neutral-500">No</span>
-                                  }
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+          {/* Right panel — ingredient detail */}
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+            {!selectedProduct ? (
+              <div className="flex h-48 items-center justify-center text-sm text-neutral-500">
+                Select a product from the list to view its ingredients.
+              </div>
+            ) : detailLoading ? (
+              <div className="flex h-48 items-center justify-center text-sm text-neutral-500">
+                Loading ingredients...
+              </div>
+            ) : detailError ? (
+              <div className="text-sm text-red-300">❌ {detailError}</div>
+            ) : (
+              <div>
+                <div className="mb-4">
+                  <div className="text-lg font-semibold text-neutral-100">{selectedProduct}</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    {detailRows.length} ingredient{detailRows.length !== 1 ? "s" : ""}
+                    {" · "}
+                    {detailRows.filter((r) => r.active).length} active
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                </div>
 
-        {!loading && rows.length === 0 && (
-          <div className="mt-8 text-center text-sm text-neutral-500">
-            No recipe lines found. Click &ldquo;Sync from Cost Calc&rdquo; above to populate.
+                {detailRows.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-neutral-500">
+                    No ingredients found for this product. Run "Sync from Cost Calc" to populate.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-neutral-800">
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">Ingredient</th>
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">SKU</th>
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">Qty</th>
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">Unit</th>
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">Yield</th>
+                          <th className="pb-2 pr-4 font-medium uppercase tracking-wide text-neutral-500">Waste %</th>
+                          <th className="pb-2 font-medium uppercase tracking-wide text-neutral-500">Active</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailRows.map((row) => (
+                          <tr
+                            key={row.id}
+                            className={`border-b border-neutral-800/40 ${row.active ? "text-neutral-200" : "text-neutral-500 opacity-60"}`}
+                          >
+                            <td className="py-2 pr-4 font-medium">{row.ingredient_item_name}</td>
+                            <td className="py-2 pr-4 font-mono text-neutral-400">{row.sku || "—"}</td>
+                            <td className="py-2 pr-4 tabular-nums">{Number(row.ingredient_qty || 0).toFixed(3)}</td>
+                            <td className="py-2 pr-4 text-neutral-400">{row.ingredient_unit || "—"}</td>
+                            <td className="py-2 pr-4 tabular-nums">{Number(row.yield_factor || 0).toFixed(2)}</td>
+                            <td className="py-2 pr-4 tabular-nums">{(Number(row.waste_factor || 0) * 100).toFixed(1)}%</td>
+                            <td className="py-2">
+                              {row.active
+                                ? <span className="text-emerald-400">Yes</span>
+                                : <span className="text-neutral-500">No</span>
+                              }
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </section>
 
       <InventoryRegistrationHelp />
