@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.57 — NTE Module v2 P5 SLA Engine deployed)
+Last updated: 2026-08-03 (session 199 cont.58 — NTE Module v2 P7 pure test suite 141/141 PASS)
 
 ---
 
@@ -149,8 +149,17 @@ Last updated: 2026-08-03 (session 199 cont.57 — NTE Module v2 P5 SLA Engine de
 - AE response_unit = "business days"; PH = "calendar days"
 - reportlab 5.0.0 installed on Heroku (already in requirements.txt)
 
-### P7: E2E Test ATT-001-006 — Pending P6
-### P8: Auto-detect Batch — Pending P7
+### P7: E2E Test ATT-001-006 ✅ COMPLETE (backend commit 583fbb5, 2026-08-03)
+- `tests_pure/test_nte_v2_e2e.py` — 141 pure-Python tests, no DB/HTTP required, 141/141 PASS
+- 10 test classes: AE happy path, PH hearing path, permission guards, SLA business days,
+  SLA response deadline, SLA urgency, NTE ref format, letter context, ATT catalog attributes,
+  IR state machine, reject-then-resubmit, edge cases
+- Catalog attribute corrections: ATT-004=A/L1_AUTO/auto_detectable=True,
+  ATT-005=D/L2_STRUCTURED, ATT-006=A/L1_AUTO (matched actual seed JSON)
+- `scripts/verify_nte_v2_e2e.py` — live HTTP smoke script for Heroku E2E verification
+  (usage: `python scripts/verify_nte_v2_e2e.py --token <token>`)
+
+### P8: Auto-detect Batch — Pending P7 ✅
 ### P9: Categories ②-⑫ Catalogs — HQ definition needed
 
 ---
