@@ -209,7 +209,9 @@ export default function CKDeliveryPage() {
 
   // ── Cost Summary tab state ─────────────────────────────────────────────────
   type CostRow = { id: number; delivery_date: string; to_branch: string; status: string; proc_request_no: string; created_by: string; total_cost: number; item_count: number };
+  type EprCostRow = { id: number; store: string; dispatched_at: string | null; created_at: string; delivery_cost: number; delivery_method: string; status: string; requested_by: string; items: { item_name: string; qty: number; unit: string }[] };
   const [costRows, setCostRows] = useState<CostRow[]>([]);
+  const [eprCostRows, setEprCostRows] = useState<EprCostRow[]>([]);
   const [costLoading, setCostLoading] = useState(false);
   const [costFromDate, setCostFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); });
   const [costToDate, setCostToDate] = useState(todayIso());
@@ -222,18 +224,25 @@ export default function CKDeliveryPage() {
       const params = new URLSearchParams({ city, from_date: costFromDate, to_date: costToDate });
       if (costBranch) params.set("branch", costBranch);
       if (costStatus) params.set("status", costStatus);
-      const data = await apiFetch(`/api/store/ck-delivery/cost-summary?${params}`);
-      setCostRows((data as { rows?: CostRow[] }).rows || []);
+      const [ckData, eprData] = await Promise.allSettled([
+        apiFetch(`/api/store/ck-delivery/cost-summary?${params}`),
+        apiFetch(`/api/admin/emergency-requests?city=${encodeURIComponent(city)}&from_date=${encodeURIComponent(costFromDate)}&to_date=${encodeURIComponent(costToDate)}&limit=200`),
+      ]);
+      setCostRows(ckData.status === "fulfilled" ? ((ckData.value as { rows?: CostRow[] }).rows || []) : []);
+      if (eprData.status === "fulfilled") {
+        const rows = ((eprData.value as { requests?: EprCostRow[] }).requests || [])
+          .filter((r) => r.delivery_cost != null && r.delivery_cost > 0);
+        setEprCostRows(rows);
+      } else {
+        setEprCostRows([]);
+      }
     } catch { /* ignore */ }
     finally { setCostLoading(false); }
   }, [city, costFromDate, costToDate, costBranch, costStatus]);
 
   const costGrandTotal = useMemo(() => costRows.reduce((s, r) => s + r.total_cost, 0), [costRows]);
-  const costByBranch = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of costRows) map[r.to_branch] = (map[r.to_branch] || 0) + r.total_cost;
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [costRows]);
+  const eprDeliveryTotal = useMemo(() => eprCostRows.reduce((s, r) => s + (r.delivery_cost || 0), 0), [eprCostRows]);
+  const combinedTotal = useMemo(() => costGrandTotal + eprDeliveryTotal, [costGrandTotal, eprDeliveryTotal]);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const detailRef = useRef<HTMLDivElement>(null);
@@ -834,22 +843,24 @@ export default function CKDeliveryPage() {
           </div>
 
           {/* KPI row */}
-          {costRows.length > 0 && (
+          {(costRows.length > 0 || eprCostRows.length > 0) && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className={KPI_CARD}>
-                <p className={KPI_LABEL}>Total Cost (PHP)</p>
+                <p className={KPI_LABEL}>CK Deliveries Cost</p>
                 <p className={KPI_VALUE}>₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <div className={KPI_CARD}>
-                <p className={KPI_LABEL}>Deliveries</p>
-                <p className={KPI_VALUE}>{costRows.length}</p>
+                <p className={KPI_LABEL}>Emergency Fees</p>
+                <p className={`${KPI_VALUE} ${eprDeliveryTotal > 0 ? "text-amber-400" : ""}`}>₱ {eprDeliveryTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
-              {costByBranch.slice(0, 2).map(([branch, total]) => (
-                <div key={branch} className={KPI_CARD}>
-                  <p className={KPI_LABEL}>{branch}</p>
-                  <p className={KPI_VALUE}>₱ {total.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                </div>
-              ))}
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Combined Total</p>
+                <p className={`${KPI_VALUE} text-emerald-300`}>₱ {combinedTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Deliveries</p>
+                <p className={KPI_VALUE}>{costRows.length} CK {eprCostRows.length > 0 ? `+ ${eprCostRows.length} EPR` : ""}</p>
+              </div>
             </div>
           )}
 
@@ -891,10 +902,10 @@ export default function CKDeliveryPage() {
                         </td>
                       </tr>
                     ))}
-                    {/* Grand total row */}
-                    <tr className="border-t-2 border-white/15">
-                      <td className={`${TABLE_CELL} font-bold text-zinc-200`} colSpan={4}>Grand Total</td>
-                      <td className={`${TABLE_CELL} text-right tabular-nums font-bold text-emerald-300`}>
+                    {/* CK subtotal row */}
+                    <tr className="border-t border-white/10">
+                      <td className={`${TABLE_CELL} font-semibold text-zinc-300`} colSpan={4}>CK Subtotal</td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-semibold text-emerald-400`}>
                         ₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className={TABLE_CELL} />
@@ -904,6 +915,80 @@ export default function CKDeliveryPage() {
               </div>
             )}
           </div>
+
+          {/* EPR Emergency Delivery Fees section */}
+          {eprCostRows.length > 0 && (
+            <div className={GLASS_CARD}>
+              <div className="px-4 pt-3 pb-2 border-b border-white/8">
+                <h3 className="text-sm font-semibold text-amber-400">Emergency Procurement — Lalamove Fees</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/8">
+                      <th className={`${TABLE_HEADER} text-left`}>Date</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Store</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Items</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Method</th>
+                      <th className={`${TABLE_HEADER} text-right`}>Fee (PHP)</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eprCostRows.map(row => {
+                      const dateStr = row.dispatched_at
+                        ? row.dispatched_at.slice(0, 10)
+                        : row.created_at.slice(0, 10);
+                      const itemSummary = Array.isArray(row.items) && row.items.length > 0
+                        ? row.items.slice(0, 2).map(i => `${i.item_name} ×${i.qty}${i.unit}`).join(", ") + (row.items.length > 2 ? ` +${row.items.length - 2} more` : "")
+                        : "—";
+                      const statusColors: Record<string, string> = {
+                        dispatched: "text-blue-400",
+                        received: "text-violet-400",
+                        completed: "text-emerald-400",
+                        approved: "text-yellow-400",
+                        arranging: "text-orange-400",
+                        pending: "text-zinc-400",
+                      };
+                      return (
+                        <tr key={row.id} className={TABLE_ROW}>
+                          <td className={`${TABLE_CELL} tabular-nums`}>{dateStr}</td>
+                          <td className={TABLE_CELL}>{row.store}</td>
+                          <td className={`${TABLE_CELL} max-w-xs truncate`} title={Array.isArray(row.items) ? row.items.map(i => `${i.item_name} ×${i.qty}${i.unit}`).join(", ") : ""}>{itemSummary}</td>
+                          <td className={TABLE_CELL}><span className="capitalize">{row.delivery_method}</span></td>
+                          <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-amber-400`}>
+                            ₱ {(row.delivery_cost || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className={TABLE_CELL}>
+                            <span className={`capitalize text-xs font-semibold ${statusColors[row.status] || "text-zinc-400"}`}>{row.status}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t border-white/10">
+                      <td className={`${TABLE_CELL} font-semibold text-zinc-300`} colSpan={4}>EPR Subtotal</td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-semibold text-amber-400`}>
+                        ₱ {eprDeliveryTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className={TABLE_CELL} />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Combined grand total */}
+          {(costRows.length > 0 || eprCostRows.length > 0) && (
+            <div className="flex justify-end">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-3 flex items-center gap-6">
+                <span className="text-sm font-semibold text-zinc-300">Combined Grand Total</span>
+                <span className="text-xl font-bold tabular-nums text-emerald-300">
+                  ₱ {combinedTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
