@@ -190,7 +190,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
   { href: "/admin/business-events", label: "Business Events Log", icon: Globe, adminOnly: true, match: "prefix" },
-  { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
+  // { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" }, // Bayzat contract ended
   { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
