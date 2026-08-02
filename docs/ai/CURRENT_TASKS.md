@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-02 (session 199 cont.45 — break countdown timer bug fixed)
+Last updated: 2026-08-02 (session 199 cont.46 — Sales BOM accordion + limit fix)
 
 ---
 
@@ -39,6 +39,29 @@ Last updated: 2026-08-02 (session 199 cont.45 — break countdown timer bug fixe
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
 
 ---
+
+## Recently Completed (2026-08-02 session 199 cont.46)
+
+### Sales BOM — Accordion UI + Row Limit Fix — DEPLOYED ✅
+- **Problems found**:
+  1. `limit=500` hardcoded in 3 places → Dubai had 500+ rows, cutting off products silently (was showing 68 products instead of 311+)
+  2. Flat table repeated product name on every row → not usable
+  3. No warning when hitting the limit
+  4. No search debounce (API called on every keystroke)
+- **Fixes** (`src/app/admin/inventory/recipes/page.tsx`):
+  - Limit raised from 500 → 2000 (backend cap). Dubai now shows **311 products / 2000 lines** (was 68/500)
+  - Flat table replaced with collapsible accordion: click product → ingredient list expands (table with Ingredient/SKU/Qty/Yield/Waste%/Active)
+  - "Expand all / Collapse all" toggle added
+  - Ingredient count badge + inactive-line indicator per product header
+  - Warning banner shown when at 2000-row limit
+  - 400ms debounce on search input
+  - KPI cards reordered: Products / Recipe Lines / Active Lines
+- **Residual issue**: Dubai still hits 2000-row limit (2000+ rows total in DB). Products beyond the 2000th row (alphabetically) not shown. User can search by product name to see full data for any specific product. Backend architecture change (product-first grouping) needed for full fix.
+- Deployed: Vercel commit `25252b9`
+- **E2E verified locally**:
+  - Dubai: 311 products, 2000 lines, warning banner shown
+  - Accordion: "12pcs Box Delivery Set" → expands to 11 ingredients with correct SKU/Qty data
+  - 311 product buttons all rendering
 
 ## Recently Completed (2026-08-02 session 199 cont.45)
 
