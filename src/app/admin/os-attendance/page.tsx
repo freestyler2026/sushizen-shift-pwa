@@ -1867,6 +1867,18 @@ function fmtStartHour(h: number) {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+const CITY_TZ: Record<string, string> = { manila: "Asia/Manila", dubai: "Asia/Dubai" };
+const CITY_TZ_LABEL: Record<string, string> = { manila: "MNL", dubai: "DXB" };
+
+function fmtAlertTime(isoStr: string, city: string) {
+  const tz = CITY_TZ[city.toLowerCase()] ?? "UTC";
+  const label = CITY_TZ_LABEL[city.toLowerCase()] ?? "UTC";
+  const time = new Date(isoStr).toLocaleTimeString("en-US", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  return `${time} ${label}`;
+}
+
 function LateAlertsTab() {
   const [alerts, setAlerts] = useState<LateAlert[]>([]);
   const [recipients, setRecipients] = useState<AlertRecipient[]>([]);
@@ -1996,7 +2008,7 @@ function LateAlertsTab() {
           {" "}— the earliest-scheduled person per branch. Alert fires <span className="text-white/70 font-medium">20 minutes</span> after their shift start.
           {" "}<span className="inline-flex items-center gap-1 font-semibold text-amber-400">REGULAR</span>
           {" "}— all other shifts. Alert fires <span className="text-white/70 font-medium">30 minutes</span> after shift start.
-          Alerts are sent automatically via Discord DM and checked every 5 minutes.
+          🔔 OPENING alerts trigger a Discord DM automatically. REGULAR alerts are recorded here for visibility only — no DM is sent. Checked every 5 minutes.
         </p>
       </div>
 
@@ -2094,7 +2106,7 @@ function LateAlertsTab() {
                         : <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5">REGULAR</span>}
                     </td>
                     <td className="py-2.5 px-4 tabular-nums text-white/40 text-xs">
-                      {a.alert_sent_at ? new Date(a.alert_sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                      {a.alert_sent_at ? fmtAlertTime(a.alert_sent_at, a.city) : "—"}
                     </td>
                     <td className="py-2.5 px-4">
                       {a.acknowledged_by ? (
