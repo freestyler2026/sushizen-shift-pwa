@@ -1639,6 +1639,22 @@ export default function ManualShiftPage() {
                                         </button>
                                       );
                                     })}
+                                    {!paintMode && (
+                                      <button
+                                        type="button"
+                                        title="Add split shift"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                          setEditCellRect(rect);
+                                          loadShiftIntoForm(null, null);
+                                          setEditTarget({ staffName: name, dateStr: d });
+                                        }}
+                                        className="w-full rounded border border-dashed border-gray-200 py-0.5 text-[10px] text-gray-300 hover:border-indigo-300 hover:text-indigo-400 transition"
+                                      >
+                                        +
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       title="Delete shift"
