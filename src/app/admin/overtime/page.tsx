@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, Download } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertCircle, Download, Banknote, UserCheck } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
@@ -14,7 +14,6 @@ import {
   TEXTAREA_CLASS,
   T_PAGE_TITLE,
   T_SECTION,
-  T_BODY,
   T_CAPTION,
   T_LABEL,
   BADGE_SUCCESS,
@@ -38,18 +37,29 @@ type OTRequest = {
   ot_end_hour: number;
   ot_minutes: number;
   reason: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "manager_approved" | "paid" | "approved" | "rejected";
   reviewed_by: string;
   reviewed_at: string | null;
   review_note: string;
+  manager_approved_by: string;
+  manager_approved_at: string | null;
+  manager_note: string;
+  paid_by: string;
+  paid_at: string | null;
   submitted_at: string;
 };
 
-const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"]);
+type ModalAction = "manager_approve" | "mark_paid" | "reject";
+
+const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
+const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
+const STAGE2_ROLES   = new Set(["ADMIN", "HQ"]);
 
 function statusBadge(status: string) {
-  if (status === "approved") return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
-  if (status === "rejected") return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
+  if (status === "paid")             return <span className={BADGE_SUCCESS}><Banknote className="h-3 w-3" />Paid</span>;
+  if (status === "approved")         return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
+  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><UserCheck className="h-3 w-3" />Mgr Confirmed</span>;
+  if (status === "rejected")         return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Pending</span>;
 }
 
@@ -69,6 +79,9 @@ export default function AdminOvertimePage() {
   const userCity = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const role = (auth?.role || "").toUpperCase();
   const canSwitchCity = ["ADMIN", "HQ"].includes(role);
+  const canStage1 = STAGE1_ROLES.has(role);
+  const canStage2 = STAGE2_ROLES.has(role);
+
   const [activeCity, setActiveCity] = useState<"dubai" | "manila">(userCity);
   const city = activeCity;
   const branches = BRANCHES[city] ?? BRANCHES.dubai;
@@ -81,24 +94,20 @@ export default function AdminOvertimePage() {
     return { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
   }, []);
 
-  // Filters
   const [filterBranch, setFilterBranch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
-
-  // Data
   const [requests, setRequests] = useState<OTRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Review modal
+  // Modal state
   const [reviewing, setReviewing] = useState<OTRequest | null>(null);
-  const [reviewStatus, setReviewStatus] = useState<"approved" | "rejected">("approved");
-  const [reviewNote, setReviewNote] = useState("");
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState("");
+  const [modalAction, setModalAction] = useState<ModalAction>("manager_approve");
+  const [actionNote, setActionNote] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
-  // Export
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
@@ -109,7 +118,7 @@ export default function AdminOvertimePage() {
       const params = new URLSearchParams({ city, limit: "200" });
       if (filterBranch) params.set("branch_code", filterBranch);
       if (filterStatus) params.set("status", filterStatus);
-      if (filterMonth) params.set("month", filterMonth);
+      if (filterMonth)  params.set("month", filterMonth);
       const res = await fetch(`${apiBase}/api/admin/overtime/list?${params}`, {
         headers: new Headers(headers),
         cache: "no-store",
@@ -126,26 +135,44 @@ export default function AdminOvertimePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function submitReview() {
+  function openModal(r: OTRequest, action: ModalAction) {
+    setReviewing(r);
+    setModalAction(action);
+    setActionNote("");
+    setActionError("");
+  }
+
+  async function submitAction() {
     if (!reviewing) return;
-    setReviewSubmitting(true);
-    setReviewError("");
+    setActionBusy(true);
+    setActionError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/overtime/${reviewing.id}/review`, {
+      let endpoint = "";
+      let body: Record<string, string> = {};
+      if (modalAction === "manager_approve") {
+        endpoint = `/api/admin/overtime/${reviewing.id}/manager-approve`;
+        body = { note: actionNote };
+      } else if (modalAction === "mark_paid") {
+        endpoint = `/api/admin/overtime/${reviewing.id}/mark-paid`;
+        body = { note: actionNote };
+      } else {
+        endpoint = `/api/admin/overtime/${reviewing.id}/review`;
+        body = { status: "rejected", review_note: actionNote };
+      }
+      const res = await fetch(`${apiBase}${endpoint}`, {
         method: "PATCH",
         headers: new Headers(headers),
-        body: JSON.stringify({ status: reviewStatus, review_note: reviewNote }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Review failed");
+      if (!res.ok) throw new Error(data.detail || "Action failed");
       setReviewing(null);
-      setReviewNote("");
       await load();
     } catch (e) {
-      setReviewError(e instanceof Error ? e.message : "Review failed");
+      setActionError(e instanceof Error ? e.message : "Action failed");
     } finally {
-      setReviewSubmitting(false);
+      setActionBusy(false);
     }
   }
 
@@ -162,18 +189,18 @@ export default function AdminOvertimePage() {
       if (!res.ok) throw new Error(data.detail || "Export failed");
       const rows: OTRequest[] = data.rows ?? [];
       const csv = [
-        "Staff,Branch,Date,Type,OT Start,OT End,OT Minutes,Reason,Reviewed By",
+        "Staff,Branch,Date,Type,OT Start,OT End,OT Minutes,Reason,Mgr Approved By,Paid By",
         ...rows.map((r) =>
           [r.staff_name, r.branch_code, r.work_date, r.request_type,
            formatHour(r.ot_start_hour), formatHour(r.ot_end_hour),
-           r.ot_minutes, `"${r.reason}"`, r.reviewed_by].join(",")
+           r.ot_minutes, `"${r.reason}"`, r.manager_approved_by || "", r.paid_by || ""].join(",")
         ),
       ].join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `overtime_approved_${city}_${filterMonth}.csv`;
+      a.download = `overtime_paid_${city}_${filterMonth}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -191,10 +218,22 @@ export default function AdminOvertimePage() {
     );
   }
 
-  // Summary stats
-  const pending = requests.filter((r) => r.status === "pending");
-  const approved = requests.filter((r) => r.status === "approved");
-  const totalApprovedMin = approved.reduce((s, r) => s + r.ot_minutes, 0);
+  const pending         = requests.filter((r) => r.status === "pending");
+  const mgrApproved     = requests.filter((r) => r.status === "manager_approved");
+  const paid            = requests.filter((r) => r.status === "paid" || r.status === "approved");
+  const totalPaidMin    = paid.reduce((s, r) => s + r.ot_minutes, 0);
+
+  const modalTitle = modalAction === "manager_approve" ? "Confirm Direct Management Approval"
+    : modalAction === "mark_paid" ? "Mark as Paid (Payroll Processed)"
+    : "Reject OT Request";
+
+  const modalConfirmLabel = modalAction === "manager_approve" ? "Confirm Approval"
+    : modalAction === "mark_paid" ? "Mark Paid"
+    : "Reject";
+
+  const modalConfirmClass = modalAction === "reject"
+    ? "flex-1 rounded-xl border border-red-700/50 bg-red-950/40 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/60 transition disabled:opacity-50"
+    : `${PRIMARY_BUTTON} flex-1`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 p-4 pb-24">
@@ -215,23 +254,37 @@ export default function AdminOvertimePage() {
                 ))}
               </div>
             )}
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className={`${SECONDARY_BUTTON} flex items-center gap-2`}
-            >
-              <Download className="h-4 w-4" />
-              {exporting ? "Exporting…" : "Export CSV"}
-            </button>
+            {canStage2 && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+              >
+                <Download className="h-4 w-4" />
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Flow explanation */}
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-zinc-400 flex-wrap">
+          <span className="flex items-center gap-1 text-amber-300 font-medium"><Clock className="h-3 w-3" />Pending</span>
+          <span>→</span>
+          <span className="flex items-center gap-1 text-blue-300 font-medium"><UserCheck className="h-3 w-3" />Mgr Confirmed</span>
+          <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter)</span>
+          <span>→</span>
+          <span className="flex items-center gap-1 text-green-300 font-medium"><Banknote className="h-3 w-3" />Paid</span>
+          <span className="text-zinc-600">(Yamada / Ayako)</span>
+          <span className="ml-auto text-zinc-500">Staff notified at each stage via Inbox</span>
         </div>
 
         {/* KPI summary */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Pending", value: pending.length, color: "text-amber-400" },
-            { label: "Approved", value: approved.length, color: "text-green-400" },
-            { label: "Total Approved OT", value: formatMinutes(totalApprovedMin), color: "text-purple-300" },
+            { label: "Awaiting Stage 1", value: pending.length, color: "text-amber-400" },
+            { label: "Awaiting Payroll", value: mgrApproved.length, color: "text-blue-300" },
+            { label: "Total Paid OT", value: formatMinutes(totalPaidMin), color: "text-green-300" },
           ].map((k) => (
             <div key={k.label} className={`${GLASS_CARD} p-3 sm:p-4 text-center`}>
               <p className={`text-lg sm:text-2xl font-bold ${k.color}`}>{k.value}</p>
@@ -272,9 +325,10 @@ export default function AdminOvertimePage() {
                 placeholder="All"
                 clearable={true}
                 options={[
-                  { value: "pending", label: "Pending" },
-                  { value: "approved", label: "Approved" },
-                  { value: "rejected", label: "Rejected" },
+                  { value: "pending",          label: "Pending (Stage 1)" },
+                  { value: "manager_approved", label: "Mgr Confirmed (Stage 2)" },
+                  { value: "paid",             label: "Paid" },
+                  { value: "rejected",         label: "Rejected" },
                 ]}
               />
             </div>
@@ -312,25 +366,42 @@ export default function AdminOvertimePage() {
                       <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50 text-xs"}>
                         {r.request_type === "pre" ? "Pre" : "Post"}
                       </span>
-                      <span className="text-white">
-                        {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
-                      </span>
+                      <span className="text-white">{formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}</span>
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                     </div>
                     <p className="text-sm text-white/70 line-clamp-2">{r.reason}</p>
-                    {r.review_note && (
-                      <p className="text-xs text-white/50">Note: {r.review_note}</p>
+                    {r.manager_approved_by && (
+                      <p className="text-xs text-blue-400">Stage 1: {r.manager_approved_by}</p>
                     )}
-                    {r.status === "pending" ? (
-                      <button
-                        onClick={() => { setReviewing(r); setReviewStatus("approved"); setReviewNote(""); setReviewError(""); }}
-                        className="w-full mt-1 rounded-xl bg-purple-600/30 border border-purple-500/30 px-4 py-2.5 text-sm font-semibold text-purple-300 hover:bg-purple-600/50 transition"
-                      >
-                        Review
-                      </button>
-                    ) : r.reviewed_by ? (
-                      <p className="text-xs text-white/40">Reviewed by: {r.reviewed_by}</p>
-                    ) : null}
+                    {r.paid_by && (
+                      <p className="text-xs text-green-400">Paid by: {r.paid_by}</p>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      {r.status === "pending" && canStage1 && (
+                        <button
+                          onClick={() => openModal(r, "manager_approve")}
+                          className="flex-1 rounded-xl border border-blue-500/30 bg-blue-900/20 px-3 py-2 text-xs font-semibold text-blue-300 hover:bg-blue-900/40 transition"
+                        >
+                          Confirm (Stage 1)
+                        </button>
+                      )}
+                      {r.status === "manager_approved" && canStage2 && (
+                        <button
+                          onClick={() => openModal(r, "mark_paid")}
+                          className="flex-1 rounded-xl border border-green-500/30 bg-green-900/20 px-3 py-2 text-xs font-semibold text-green-300 hover:bg-green-900/40 transition"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+                      {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (
+                        <button
+                          onClick={() => openModal(r, "reject")}
+                          className="rounded-xl border border-red-500/20 bg-red-900/10 px-3 py-2 text-xs text-red-400 hover:bg-red-900/30 transition"
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -347,7 +418,7 @@ export default function AdminOvertimePage() {
                       <th className={TABLE_CELL}>OT Time</th>
                       <th className={TABLE_CELL}>Reason</th>
                       <th className={TABLE_CELL}>Status</th>
-                      <th className={TABLE_CELL}>Action</th>
+                      <th className={TABLE_CELL}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -363,28 +434,48 @@ export default function AdminOvertimePage() {
                         </td>
                         <td className={TABLE_CELL}>
                           {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
-                          <br />
-                          <span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
+                          <br /><span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
                         </td>
                         <td className={TABLE_CELL}>
-                          <span className="line-clamp-2 max-w-[200px]" title={r.reason}>{r.reason}</span>
-                          {r.review_note && (
-                            <span className="block text-white/50 text-xs mt-0.5">Note: {r.review_note}</span>
+                          <span className="line-clamp-2 max-w-[180px]" title={r.reason}>{r.reason}</span>
+                          {r.manager_approved_by && (
+                            <span className="block text-blue-400 text-xs mt-0.5">✓ {r.manager_approved_by}</span>
+                          )}
+                          {r.paid_by && (
+                            <span className="block text-green-400 text-xs mt-0.5">💴 {r.paid_by}</span>
                           )}
                         </td>
                         <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
                         <td className={TABLE_CELL}>
-                          {r.status === "pending" && (
-                            <button
-                              onClick={() => { setReviewing(r); setReviewStatus("approved"); setReviewNote(""); setReviewError(""); }}
-                              className="rounded-lg bg-purple-600/30 border border-purple-500/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-600/50 transition"
-                            >
-                              Review
-                            </button>
-                          )}
-                          {r.status !== "pending" && (
-                            <span className="text-white/40 text-xs">{r.reviewed_by || "—"}</span>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {r.status === "pending" && canStage1 && (
+                              <button
+                                onClick={() => openModal(r, "manager_approve")}
+                                className="rounded-lg border border-blue-500/30 bg-blue-900/20 px-2 py-1 text-xs text-blue-300 hover:bg-blue-900/40 transition whitespace-nowrap"
+                              >
+                                Confirm (S1)
+                              </button>
+                            )}
+                            {r.status === "manager_approved" && canStage2 && (
+                              <button
+                                onClick={() => openModal(r, "mark_paid")}
+                                className="rounded-lg border border-green-500/30 bg-green-900/20 px-2 py-1 text-xs text-green-300 hover:bg-green-900/40 transition whitespace-nowrap"
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                            {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (
+                              <button
+                                onClick={() => openModal(r, "reject")}
+                                className="rounded-lg border border-red-500/20 bg-red-900/10 px-2 py-1 text-xs text-red-400 hover:bg-red-900/30 transition"
+                              >
+                                Reject
+                              </button>
+                            )}
+                            {(r.status === "paid" || r.status === "approved" || r.status === "rejected") && (
+                              <span className="text-white/40 text-xs">{r.paid_by || r.reviewed_by || "—"}</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -396,63 +487,49 @@ export default function AdminOvertimePage() {
         </div>
       </div>
 
-      {/* Review Modal */}
+      {/* Action Modal */}
       {reviewing && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
           <div className={`${GLASS_CARD} w-full sm:max-w-md p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl pb-safe`}>
-            <h3 className={T_SECTION}>Review OT Request</h3>
+            <h3 className={T_SECTION}>{modalTitle}</h3>
             <div className="space-y-1 rounded-lg bg-white/5 p-3 text-sm">
               <p><span className="text-white/50">Staff:</span> <strong className="text-white">{reviewing.staff_name}</strong></p>
               <p><span className="text-white/50">Date:</span> {reviewing.work_date} ({reviewing.branch_code})</p>
               <p><span className="text-white/50">OT:</span> {formatHour(reviewing.ot_start_hour)}–{formatHour(reviewing.ot_end_hour)} ({formatMinutes(reviewing.ot_minutes)})</p>
               <p><span className="text-white/50">Reason:</span> {reviewing.reason}</p>
+              {reviewing.manager_approved_by && (
+                <p><span className="text-white/50">Stage 1 by:</span> <span className="text-blue-300">{reviewing.manager_approved_by}</span></p>
+              )}
             </div>
-            <div>
-              <label className={T_LABEL}>Decision</label>
-              <div className="mt-1 flex gap-2">
-                {(["approved", "rejected"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setReviewStatus(s)}
-                    className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
-                      reviewStatus === s
-                        ? s === "approved" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-                        : "bg-white/10 text-white/60 hover:bg-white/20"
-                    }`}
-                  >
-                    {s === "approved" ? "Approve" : "Reject"}
-                  </button>
-                ))}
+            {modalAction === "mark_paid" && (
+              <div className="flex items-start gap-2 rounded-lg border border-green-800/40 bg-green-950/20 p-3 text-xs text-green-300">
+                <Banknote className="h-4 w-4 shrink-0 mt-0.5" />
+                This will mark the OT as paid and added to payroll. The staff member will be notified via Inbox.
               </div>
-            </div>
+            )}
+            {modalAction === "manager_approve" && (
+              <div className="flex items-start gap-2 rounded-lg border border-blue-800/40 bg-blue-950/20 p-3 text-xs text-blue-300">
+                <UserCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                Confirming as direct management. Staff will be notified and the request will move to Stage 2 (payroll).
+              </div>
+            )}
             <div>
               <label className={T_LABEL}>Comment (optional)</label>
               <textarea
-                value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)}
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
                 rows={2}
                 placeholder="Add a comment…"
                 className={`${TEXTAREA_CLASS} mt-1`}
               />
             </div>
-            {reviewError && (
-              <p className="text-sm text-red-400">{reviewError}</p>
-            )}
+            {actionError && <p className="text-sm text-red-400">{actionError}</p>}
             <div className="flex gap-3">
-              <button
-                onClick={() => setReviewing(null)}
-                className={`${SECONDARY_BUTTON} flex-1`}
-                disabled={reviewSubmitting}
-              >
+              <button onClick={() => setReviewing(null)} className={`${SECONDARY_BUTTON} flex-1`} disabled={actionBusy}>
                 Cancel
               </button>
-              <button
-                onClick={submitReview}
-                disabled={reviewSubmitting}
-                className={`${PRIMARY_BUTTON} flex-1`}
-              >
-                {reviewSubmitting ? "Saving…" : "Confirm"}
+              <button onClick={submitAction} disabled={actionBusy} className={modalConfirmClass}>
+                {actionBusy ? "Saving…" : modalConfirmLabel}
               </button>
             </div>
           </div>

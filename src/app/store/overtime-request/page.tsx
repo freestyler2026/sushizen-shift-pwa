@@ -35,16 +35,19 @@ type OTRequest = {
   ot_end_hour: number;
   ot_minutes: number;
   reason: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "manager_approved" | "paid" | "approved" | "rejected";
   reviewed_by: string;
   reviewed_at: string | null;
   review_note: string;
+  manager_approved_by: string;
   submitted_at: string;
 };
 
 function statusBadge(status: string) {
-  if (status === "approved") return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
-  if (status === "rejected") return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
+  if (status === "paid")             return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Paid</span>;
+  if (status === "approved")         return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
+  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><Clock className="h-3 w-3" />Mgmt Confirmed</span>;
+  if (status === "rejected")         return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Pending</span>;
 }
 
@@ -120,7 +123,7 @@ export default function OvertimeRequestPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || `Error ${res.status}`);
-      setRequests(data.requests ?? []);
+      setRequests((data.requests ?? []).filter((r: OTRequest) => r.status !== "paid"));
     } catch (e) {
       setHistoryError(e instanceof Error ? e.message : "Failed to load history");
     } finally {
@@ -353,6 +356,9 @@ export default function OvertimeRequestPage() {
                         ({Math.floor(r.ot_minutes / 60)}h{r.ot_minutes % 60 > 0 ? `${r.ot_minutes % 60}m` : ""})
                       </span>
                     </p>
+                    {r.status === "manager_approved" && (
+                      <p className="text-xs text-blue-300 border-t border-white/10 pt-2">✓ Direct management confirmed. Awaiting payroll processing.</p>
+                    )}
                     {r.review_note && (
                       <p className="text-xs text-white/50 border-t border-white/10 pt-2">Note: {r.review_note}</p>
                     )}
