@@ -398,8 +398,8 @@ export default function AdminOvertimePage() {
 
       {/* Review Modal */}
       {reviewing && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-          <div className={`${GLASS_CARD} w-full sm:max-w-md p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl`}>
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div className={`${GLASS_CARD} w-full sm:max-w-md p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl pb-safe`}>
             <h3 className={T_SECTION}>Review OT Request</h3>
             <div className="space-y-1 rounded-lg bg-white/5 p-3 text-sm">
               <p><span className="text-white/50">Staff:</span> <strong className="text-white">{reviewing.staff_name}</strong></p>
