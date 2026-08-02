@@ -233,7 +233,7 @@ function InputCell({
 
 // Column layout: Branch | Dine#  DineNet  DineGross | Grab#  GrabNet  GrabGross | FP#  FPGross  FPNet | Beep#  BeepNet  BeepGross | Total#  TotalPHP | action
 const GRID_COLS =
-  "grid-cols-[minmax(100px,140px)_repeat(12,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px]";
+  "grid-cols-[minmax(100px,140px)_repeat(12,minmax(60px,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px]";
 
 export default function AdminSalesDataInputTab() {
   const [approverName, setApproverName] = useState("");
