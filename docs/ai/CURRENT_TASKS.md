@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.54 — NTE Module v2 P2 Violation Catalog Loader complete)
+Last updated: 2026-08-03 (session 199 cont.56 — NTE Module v2 P4 State Machine + Permissions deployed)
 
 ---
 
@@ -64,8 +64,54 @@ Last updated: 2026-08-03 (session 199 cont.54 — NTE Module v2 P2 Violation Cat
 - **Bugs fixed during implementation**: PyJWT not in requirements (use security_tokens); acts_block_en in violation_catalog_market not catalog; category_code required in catalog upsert
 - **Verified**: ATT-001〜006 + P1-TEST visible after Reload Seed; severity D (ATT-005) red badge + HQ review ⚠️ icon ✓
 
-### P3: IR Form (L1/L2/L3) — NEXT (Pending P2 ✅)
-### P4: State Machine + Permissions — Pending P3
+### P3: IR Form (L1/L2/L3) ✅ COMPLETE (Heroku + Vercel, 2026-08-03)
+- Backend: `app/db_nte_v2_ir.py` — IR CRUD (create_ir_draft, update_ir_draft, submit_ir, get_ir, list_irs, add_evidence, delete_evidence)
+  - L3 submit validation: observed_acts ≥120 chars, operational_impact ≥60 chars, evidence ≥1 (≥2 if 0 witnesses)
+  - IR ref generation: `IR-{MARKET}-{STORE}-{YYYYMM}-{seq}` via `nte_ir_seq` DB sequence
+  - `ensure_ir_tables()`: adds `input_layer` column + `nte_ir_seq` sequence (idempotent migration)
+- Backend API: `nte_v2_api.py` + IR endpoints:
+  - `POST /api/admin/nte-v2/ir` — create draft (HR roles)
+  - `GET /api/admin/nte-v2/ir` — list (HR roles)
+  - `GET/PATCH /api/admin/nte-v2/ir/{id}` — get/update draft
+  - `POST /api/admin/nte-v2/ir/{id}/submit` — submit with L3 validation
+  - `POST/DELETE /api/admin/nte-v2/ir/{id}/evidence/{ev_id}` — evidence CRUD
+  - `POST /api/admin/nte-v2/ir/validate-text` — banned word check (warning only)
+- Frontend: "New IR" tab in `/admin/employee-cases` (HR roles: ADMIN, HQ, HR_MANAGER)
+  - Step 1: Staff + Market + Store + Violation Code + Date/Time → Save Draft
+  - L3 fields: Observed Acts (120-char counter + banned word warning), Operational Impact (60-char counter), Witnesses, Verbatim Quote
+  - Evidence management: Add/delete evidence records (type, description, reference)
+  - Submit button with live validation checklist (char counts + evidence count)
+  - Recent IRs table with status badges
+- Banned words (frontend): BANNED_EN + BANNED_TL — warning only, does NOT block submit
+- Deployed: Heroku (126cf9b) + Vercel (98ffb6f)
+- **Browser verified**: Banned word warning banner (amber) shows "always, lazy" ✓; form opens with all L3 fields ✓
+### P4: State Machine + Permissions ✅ COMPLETE (Heroku v1698 + Vercel 5748de5, 2026-08-03)
+- Backend: `app/db_nte_v2_case.py` — state machine + permission logic
+  - `ensure_case_tables()`: creates nte_case, nte_v2_staff_roles, nte_ref_sequences, nte_audit_log if missing
+  - `ir_review_action()`: reject/dismiss/confirm_violation on IR_SUBMITTED IRs
+  - `transition_case()`: full 12-action state machine with all guards enforced:
+    - Self-approval guard: approved_by ≠ reviewed_by (422 on violation)
+    - Market scope: REVIEWER_AE → AE only; REVIEWER_PH → PH only (404 for cross-market)
+    - Own-case guard: actor == staff_name → 403
+    - TERMINATION: HQ only → 403 for HR_MANAGER
+    - APPROVAL_PENDING skip guard: APPROVED only reachable from APPROVAL_PENDING
+    - PH hearing guard: INVESTIGATION_DONE requires hearing held or waived
+  - `list_cases()`, `get_case()` (with audit log), role management helpers
+  - `_resolve_nte_role()`: maps main auth role → NTE role (ADMIN/HQ→HQ, HR_MANAGER→HR_MANAGER, else nte_v2_staff_roles lookup)
+- Backend API endpoints in `nte_v2_api.py`:
+  - `POST /api/admin/nte-v2/ir/{ir_id}/review` — reject/dismiss/confirm_violation
+  - `GET /api/admin/nte-v2/case` — list (market-scoped)
+  - `GET /api/admin/nte-v2/case/{case_id}` — detail + audit log
+  - `POST /api/admin/nte-v2/case/{case_id}/transition` — state machine
+  - `GET/POST /api/admin/nte-v2/roles` — role assignment (HQ only)
+  - `DELETE /api/admin/nte-v2/roles/{staff}/{role}` — revoke role
+- Frontend: "Case Queue" tab in `/admin/employee-cases` (HR roles)
+  - Shows submitted IRs awaiting review with "Review" button
+  - IR Review modal: reject / dismiss / confirm_violation with full violation details form
+  - Active cases table with status color badges + available action buttons per role/status
+  - Case detail panel with audit trail
+  - Case transition modal with role-appropriate form fields (serve method, response text, decision outcome etc.)
+
 ### P5: SLA Engine — Pending P4
 ### P6: Letter Renderer (PDF) — Pending P5
 ### P7: E2E Test ATT-001-006 — Pending P6
@@ -73,6 +119,14 @@ Last updated: 2026-08-03 (session 199 cont.54 — NTE Module v2 P2 Violation Cat
 ### P9: Categories ②-⑫ Catalogs — HQ definition needed
 
 ---
+
+## Recently Completed (2026-08-03 session 199 cont.56)
+
+### NTE Module v2 — P4 State Machine + Permissions ✅
+- Created `app/db_nte_v2_case.py`: full state machine, market scope isolation, self-approval ban, PH hearing guard, TERMINATION→HQ-only guard
+- Added 8 new API endpoints for IR review + case CRUD + transitions + role management
+- Added "Case Queue" tab to `/admin/employee-cases` with IR review modal + case transition modal
+- Deployed: Heroku v1698 + Vercel 5748de5
 
 ## Recently Completed (2026-08-03 session 199 cont.54)
 
