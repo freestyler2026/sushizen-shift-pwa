@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.58 — NTE Module v2 P7 pure test suite 141/141 PASS)
+Last updated: 2026-08-03 (session 199 cont.59 — NTE Module v2 P8 Auto-detect Batch deployed)
 
 ---
 
@@ -159,10 +159,47 @@ Last updated: 2026-08-03 (session 199 cont.58 — NTE Module v2 P7 pure test sui
 - `scripts/verify_nte_v2_e2e.py` — live HTTP smoke script for Heroku E2E verification
   (usage: `python scripts/verify_nte_v2_e2e.py --token <token>`)
 
-### P8: Auto-detect Batch — Pending P7 ✅
+### P8: Auto-detect Batch ✅ COMPLETE (Heroku v1701 + Vercel 1231447, 2026-08-03)
+- `app/db_nte_v2_autodetect.py` — batch detection engine (601 lines)
+  - Reuses `_comparison_query_base()` + `_effective_attendance_cte()` from db.py
+  - ATT-001 (late >6min or >15min): count_over_window; batch_late() per city
+  - ATT-002 (no-show): single_occurrence; batch_no_show() per city
+  - ATT-003 (unfiled absence): count_over_window; batch_no_show() (no_show=TRUE)
+  - ATT-004 (missing punch): count_over_window; batch_missing_punch() per city
+  - ATT-005: skipped (auto_detectable=False)
+  - ATT-006 (break overrun >15min): count_over_window; batch_break_overrun() per city using _effective_attendance_cte()
+  - Dedup: skips if non-DISMISSED AUTO_DETECT IR already exists for same staff+code+window
+  - dry_run=True for preview (no DB writes), dry_run=False creates DRAFT IRs with source=AUTO_DETECT, reported_by=SYSTEM_AUTO_DETECT
+  - Returns: {created, skipped_dedup, skipped_no_data, dry_run, details[]}
+- `app/nte_v2_api.py` — two new HQ-only endpoints
+  - `GET /api/admin/nte-v2/auto-detect/preview` — dry-run preview
+  - `POST /api/admin/nte-v2/auto-detect/run` — execute batch
+- Frontend: Auto-detect panel in Violation Catalog tab (`/admin/employee-cases`)
+  - Market selector (Both / AE / PH)
+  - Preview (dry run) button + Run Auto-Detect button (with confirm dialog)
+  - Results table: market, staff, violation code, incidents, action badge
+  - Reloads Cases tab automatically after real run
 ### P9: Categories ②-⑫ Catalogs — HQ definition needed
 
 ---
+
+## Recently Completed (2026-08-03 session 199 cont.59)
+
+### NTE Module v2 — P8 Auto-detect Batch ✅
+- Created `app/db_nte_v2_autodetect.py`: batch scan for ATT-001/002/003/004/006; single_occurrence for ATT-002, count_over_window for the rest; ATT-005 skipped (auto_detectable=False)
+- Reuses existing `_comparison_query_base()` + `_effective_attendance_cte()` CTEs from db.py for metrics
+- Dedup logic prevents duplicate AUTO_DETECT IRs per staff+code+window
+- IR creation: source=AUTO_DETECT, reported_by=SYSTEM_AUTO_DETECT, status=DRAFT
+- Frontend: Preview + Run buttons with results table in Violation Catalog tab
+- Deployed: Heroku v1701 + Vercel (main)
+
+## Recently Completed (2026-08-03 session 199 cont.58)
+
+### NTE Module v2 — P7 Pure E2E Test Suite ✅
+- 141/141 tests PASS in 0.10s (no DB/HTTP)
+- Catalog attribute corrections: ATT-004=A/L1_AUTO (auto_detectable=True), ATT-005=D/L2_STRUCTURED, ATT-006=A/L1_AUTO
+- Added `scripts/verify_nte_v2_e2e.py` — live HTTP smoke runner for Heroku
+- Deployed: backend commit 583fbb5
 
 ## Recently Completed (2026-08-03 session 199 cont.56)
 
