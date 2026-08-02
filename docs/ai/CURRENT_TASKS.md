@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-02 (session 199 cont.46 — Sales BOM accordion + limit fix)
+Last updated: 2026-08-03 (session 199 cont.54 — NTE Module v2 P2 Violation Catalog Loader complete)
 
 ---
 
@@ -39,6 +39,120 @@ Last updated: 2026-08-02 (session 199 cont.46 — Sales BOM accordion + limit fi
 - Camilla is entering attendance data → 1H runs need recompute after entry is complete
 
 ---
+
+## 🚧 Active: NTE Module v2 — In Progress
+
+### P1: DB Migration ✅ VERIFIED (Heroku v1691, 40/40 tests PASS, 2026-08-03)
+- 11 new tables: `violation_catalog`, `violation_catalog_market`, `nte_incident_report`, `nte_incident_evidence`, `nte_witness_statement`, `nte_case`, `nte_audit_log`, `nte_v2_staff_roles`, `ae_holiday_calendar`, `nte_ref_sequences` + `staff_master.employee_uuid`
+- `nte_audit_log` BEFORE UPDATE/DELETE trigger confirmed working ✓
+- `nte_case.chk_no_self_approval` constraint confirmed working ✓
+- FK chain (nte_case→IR, audit_log→case) confirmed enforced ✓
+- employee_uuid: all staff_master rows backfilled, unique ✓
+- AE holidays: 24 rows (12×2026, 12×2027); Islamic dates approx ±1 day (source: MOHRE)
+- PH holidays: 12 regular + 8 special-non-working in 2027; Eid 2026×2 + 2027×2 ✓
+- NTE roles: Peter→HR_MANAGER+REVIEWER_PH, Yukihiro→HQ ✓
+- Bug fixed: `append_audit_log(payload={})` was stored as NULL (now fixed with `is not None`)
+
+### P2: Violation Catalog Loader ✅ COMPLETE (Heroku v1696, 2026-08-03)
+- `seeds/violation_catalog/01_attendance.json`: ATT-001 to ATT-006 per spec §8.4
+  - ATT-005 `evidence_required` resolved from P0 audit (GPS=mandatory:true, device_id/selfie/edit_audit=false)
+- `app/db_nte_v2_catalog.py`: idempotent `load_catalog_json()` + `list_catalog()` + `list_available_seeds()`
+- `app/nte_v2_api.py`: `GET /api/admin/nte-v2/catalog` (HR roles) + `POST /api/admin/nte-v2/catalog/load` (HQ only)
+- Frontend: "Violation Catalog" tab in `/admin/employee-cases` (HQ/ADMIN only)
+  - Market filter (All / Dubai AE / Manila PH), Refresh button, Reload Seed button
+  - Severity badge (A/B/C/D with color coding), input_layer, auto_detectable, requires_hq_review
+- **Bugs fixed during implementation**: PyJWT not in requirements (use security_tokens); acts_block_en in violation_catalog_market not catalog; category_code required in catalog upsert
+- **Verified**: ATT-001〜006 + P1-TEST visible after Reload Seed; severity D (ATT-005) red badge + HQ review ⚠️ icon ✓
+
+### P3: IR Form (L1/L2/L3) — NEXT (Pending P2 ✅)
+### P4: State Machine + Permissions — Pending P3
+### P5: SLA Engine — Pending P4
+### P6: Letter Renderer (PDF) — Pending P5
+### P7: E2E Test ATT-001-006 — Pending P6
+### P8: Auto-detect Batch — Pending P7
+### P9: Categories ②-⑫ Catalogs — HQ definition needed
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.54)
+
+### NTE Module v2 — P2 Violation Catalog Loader ✅
+- Seed JSON + DB functions + API endpoints deployed to Heroku v1696 (3 commits: v1694→v1695→v1696 due to PyJWT + schema bugs)
+- ATT-001〜006 loaded and verified in browser; severity/layer/auto/HQ-review all correct
+- Bugs caught: (1) PyJWT not in requirements.txt → rewrote auth to use security_tokens; (2) acts_block_en lives in violation_catalog_market not violation_catalog; (3) category_code is required in violation_catalog upsert
+
+## Recently Completed (2026-08-03 session 199 cont.53)
+
+### NTE Module v2 — P1 Verification ✅
+- 40-test suite run on live Heroku DB; all PASS
+- Bug found + fixed: `append_audit_log(payload={})` stored `{}` as SQL NULL (falsy dict bug)
+- Design note confirmed: `nte_audit_log` FK to `nte_case` (RESTRICT) prevents case deletion once audited — correct behavior for legal compliance; test script now uses per-run unique IDs to avoid this in cleanup
+
+## Recently Completed (2026-08-03 session 199 cont.52)
+
+### NTE Module v2 — P0 OS Capability Audit + Implementation Plan ✅
+- Investigated all 14 P0 questions against existing timekeeping schema
+- Key findings: GPS+geofence YES, device_id NO, selfie NO, partial audit log, PH holidays YES, AE holidays NO
+- ATT-005: `gps_geofence_record: mandatory: true`, device_id/selfie: mandatory: false
+- Full implementation plan delivered (P0-P9 phases, gap analysis, blockers, timeline)
+
+## Recently Completed (2026-08-02 session 199 cont.51)
+
+### Price Check — Individual Baseline price editing ✅
+- **Feature**: Hover any row in the Baseline column → pencil icon appears → click to open inline number input (pre-filled with current baseline). Press ✓ or Enter to save, ✕ or Escape to cancel.
+- **Backend**: New endpoint `POST /api/admin/price-check/set-item-baseline` — updates `price_check_baselines` and recalculates `discount_rate` + `status` in `price_check_results` in one transaction.
+- **Frontend**: `PriceTable` component now accepts `apiBase`, `tokenHeaders`, `onRefresh` props; inline edit state managed locally per table instance.
+- **Deployed**: Vercel (09f9a82) + Heroku (570f456).
+- **Verified**: 111 edit buttons rendered, click triggers input with correct pre-fill, Escape cancels.
+
+## Recently Completed (2026-08-02 session 199 cont.50)
+
+### My Shift — Visibility fixed for Manila store staff ✅
+- **Root cause**: MANILA_STAFF (and STAFF) roles were missing `channel.my_shift.view` in DB after role system expanded. Staff tokens had `channel.*` perms, so `_canAccessStaffChannel()` enforced strict check and found the permission missing → My Shift hidden.
+- **Fix**: Admin → Role Management → "Resync System Channels" button clicked → success ("System channels resynced. All channels and permissions are now up to date.").
+- **Verified**: My Shift channel now shows 13 roles can view. MANILA STAFF = Manila access ✅, DUBAI STAFF = Dubai access ✅, HR Staff = All Cities ✅.
+- **Action for staff**: Mark Arvin Ocampo / Christella / Lowegie must **log out and log back in** to refresh token with new permission. After re-login, My Shift tab will appear.
+
+## Recently Completed (2026-08-02 session 199 cont.49)
+
+### EPR Catalog Search — 3 bugs found and fixed ✅
+- **Bug 1**: `search_epr_catalog_items()` SQL used `sm.name` but `supplier_master` column is `supplier_name` → 500 error on all catalog searches. Fixed `db.py:51166`. Deployed Heroku v1686.
+- **Bug 2**: Catalog search city used `auth.city` (e.g. "dubai" for HQ user) instead of the selected store's city. Manila stores (Taft/Paranaque/Cubao) were returning Dubai items. Fixed: added `catalogCity = MANILA_STORES.includes(store) ? "manila" : city` in `emergency-request/page.tsx`. Deployed Vercel c0c0443.
+- **Bug 3**: Vercel build Error for Sales BOM master-detail page (commit 822ebac) due to `react/no-unescaped-entities` — raw `"` in JSX. Fixed in `recipes/page.tsx:488`. Deployed Vercel 375114a.
+- **Verified in browser UI (local dev)**: "milk" → COCONUT MILK, MILK, MILK FISH (Seafood), MILK POEDER + curated items ✅. "truffle" → TRUFFLE OIL (Sauce/Condiment), TRUFFLE PASTE (Processed Goods), Rich Truffle Sauce + curated items ✅.
+
+## Recently Completed (2026-08-02 session 199 cont.48)
+
+### Sales BOM — Sync from Cost Calc executed + DB verified ✅
+- **Root cause confirmed**: Last BOM sync was 2026-07-24 (9 days old). 428 Dubai + 206 Manila menu_item_master items changed since then.
+- **Key issue**: "Edamame for Combo" (menu_item_master id=4900) created 2026-07-25, no MIM-4900 in inv_items → caused all Ramen Combo products to fail sync (only 1 ingredient instead of 16-19).
+- **Sync executed via browser UI** (Sales Menu BOM tab → Sync from Cost Calc):
+  - Dubai: 494 products synced, 2814 old lines removed, 2950 new lines added → 4531 total rows
+  - Manila: 458 products synced, 2519 old lines removed, 2530 new lines added → 2734 total rows
+- **DB verification after sync**:
+  - MIM-4900 (Edamame for Combo) created in inv_items ✅
+  - Volcano Ramen Combo: 1 → 16 ingredients ✅
+  - Rich Miso Ramen Combo: 1 → 17 ingredients ✅
+  - Tokyo Umami Shoyu Ramen Combo: 1 → 19 ingredients ✅
+  - Rich Miso Tokyo Set: 3 → 19 ingredients ✅
+  - BOM missing products (Cost Calc items not in BOM): Dubai 13 → 0, Manila 4 → 0 ✅
+- **Remaining known issue**: Orphan products (items in BOM but no longer active in Cost Calc) still exist. Dubai BOM now has 675 distinct products vs 494 active Cost Calc items → ~181 orphan entries remain. These do not affect sales calculations but represent stale data. No cleanup action needed unless explicitly requested.
+
+## Recently Completed (2026-08-02 session 199 cont.47)
+
+### Sales BOM — Master-Detail Rebuild (Cost Calc Products tab transplant) — DEPLOYED ✅
+- **Root cause of prior limitations**: Accordion loaded ALL ingredient rows at once (up to 2000); with 662 Dubai products × avg 6 ingredients = 4000+ rows, the row-limit truncated products. Architecture mismatch vs Cost Calc Products tab (which uses master-detail: product list left, components right).
+- **Fix — two-level API**:
+  - Added `list_inv_menu_recipe_products(city, search)` to `inventory_db.py` — returns distinct product names + counts (no row limit, GROUP BY query)
+  - Added `list_inv_menu_recipe_ingredients(city, menu_item_name)` — exact-match per-product ingredient fetch (no limit)
+  - Added `GET /api/admin/inventory/recipes/products` and `GET /api/admin/inventory/recipes/product-ingredients` to `inventory_api.py`
+- **Fix — frontend master-detail layout** (`src/app/admin/inventory/recipes/page.tsx`):
+  - Left panel (320px): searchable list of ALL products — Dubai: 662, Manila: 485 (previously cut off)
+  - Right panel: ingredient table for selected product (loaded on click, exact match)
+  - Client-side search filtering of product list
+  - City switch clears selection
+  - Retained: Sync from Cost Calc, Deduplicate Names, confirmation modals
+- Deployed: Heroku v1684, Vercel commit `822ebac`
 
 ## Recently Completed (2026-08-02 session 199 cont.46)
 
