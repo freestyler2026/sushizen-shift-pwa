@@ -127,7 +127,7 @@ type DashboardData = {
   requests?: NteRequest[];
 };
 
-type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog" | "ir";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog" | "ir" | "cases";
 
 type IrEvidence = {
   id: string;
@@ -180,6 +180,37 @@ type CatalogEntry = {
   threshold?: Record<string, unknown> | null;
   evidence_required?: Array<{ type: string; key: string; mandatory: boolean | string }> | null;
   legal_ground_ref?: string | null;
+};
+
+type NteV2Case = {
+  id: string;
+  nte_ref: string;
+  market: string;
+  store_code: string;
+  staff_name: string;
+  violation_code: string | null;
+  severity_class: string | null;
+  offense_count: number;
+  proposed_penalty: string | null;
+  status: string;
+  reviewed_by: string | null;
+  approved_by: string | null;
+  decision_outcome: string | null;
+  decided_by: string | null;
+  incident_id: string | null;
+  created_at: string;
+  updated_at: string;
+  response_deadline?: string | null;
+  audit_log?: Array<{
+    id: number;
+    actor_name: string;
+    actor_role: string;
+    action: string;
+    from_status: string | null;
+    to_status: string | null;
+    payload: Record<string, unknown> | null;
+    created_at: string;
+  }>;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -499,6 +530,31 @@ export default function EmployeeCasesPage() {
   const [irEvidenceDesc, setIrEvidenceDesc] = useState("");
   const [irEvidenceRef, setIrEvidenceRef] = useState("");
   const [irAddingEvidence, setIrAddingEvidence] = useState(false);
+
+  // Cases tab state (NTE v2)
+  const [casesLoading, setCasesLoading] = useState(false);
+  const [casesError, setCasesError] = useState("");
+  const [casesList, setCasesList] = useState<NteV2Case[]>([]);
+  const [casesNteRole, setCasesNteRole] = useState<string>("EMPLOYEE");
+  const [casesSubmittedIrs, setCasesSubmittedIrs] = useState<IrRecord[]>([]);
+  const [selectedCase, setSelectedCase] = useState<NteV2Case | null>(null);
+  const [caseDetailLoading, setCaseDetailLoading] = useState(false);
+  // IR Review modal
+  const [reviewTarget, setReviewTarget] = useState<IrRecord | null>(null);
+  const [reviewAction, setReviewAction] = useState<"reject" | "dismiss" | "confirm_violation">("reject");
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewViolationCode, setReviewViolationCode] = useState("");
+  const [reviewSeverity, setReviewSeverity] = useState<"A"|"B"|"C"|"D">("B");
+  const [reviewPenalty, setReviewPenalty] = useState("");
+  const [reviewOffenseCount, setReviewOffenseCount] = useState(1);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  // Case transition modal
+  const [transitionTarget, setTransitionTarget] = useState<NteV2Case | null>(null);
+  const [transitionAction, setTransitionAction] = useState("");
+  const [transitionPayload, setTransitionPayload] = useState<Record<string, string | number>>({});
+  const [transitionSubmitting, setTransitionSubmitting] = useState(false);
+  const [transitionError, setTransitionError] = useState("");
 
   // Board tab state
   const [panelStaff, setPanelStaff] = useState<string | null>(null);
@@ -1002,6 +1058,120 @@ export default function EmployeeCasesPage() {
     }
   }
 
+  // ── Cases tab (NTE v2) ─────────────────────────────────────────────────────
+
+  async function loadCasesTab() {
+    setCasesLoading(true);
+    setCasesError("");
+    try {
+      const auth = getAuth();
+      const h = getAuthHeaders(auth) as Record<string, string>;
+      const [casesRes, irsRes] = await Promise.all([
+        fetch("/api/admin/nte-v2/case?limit=100", { headers: h }),
+        fetch("/api/admin/nte-v2/ir?status=IR_SUBMITTED&limit=100", { headers: h }),
+      ]);
+      if (!casesRes.ok) throw new Error(await casesRes.text());
+      const casesData = await casesRes.json();
+      setCasesList(casesData.cases ?? []);
+      setCasesNteRole(casesData.your_nte_role ?? "EMPLOYEE");
+      if (irsRes.ok) {
+        const irsData = await irsRes.json();
+        setCasesSubmittedIrs(
+          (irsData.irs ?? []).filter((r: IrRecord) => r.status === "IR_SUBMITTED")
+        );
+      }
+    } catch (e) {
+      setCasesError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCasesLoading(false);
+    }
+  }
+
+  async function loadCaseDetail(caseId: string) {
+    setCaseDetailLoading(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/case/${caseId}`, {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setSelectedCase(data.case);
+    } catch {
+      // silently ignore detail load errors
+    } finally {
+      setCaseDetailLoading(false);
+    }
+  }
+
+  async function submitIrReview() {
+    if (!reviewTarget) return;
+    setReviewSubmitting(true);
+    setReviewError("");
+    try {
+      const auth = getAuth();
+      const body: Record<string, unknown> = {
+        action: reviewAction,
+        reviewer_note: reviewNote,
+      };
+      if (reviewAction === "confirm_violation") {
+        if (!reviewViolationCode.trim()) { setReviewError("Violation code is required."); setReviewSubmitting(false); return; }
+        if (!reviewPenalty.trim()) { setReviewError("Proposed penalty is required."); setReviewSubmitting(false); return; }
+        body.violation_code = reviewViolationCode.trim();
+        body.severity_class = reviewSeverity;
+        body.proposed_penalty = reviewPenalty.trim();
+        body.offense_count = reviewOffenseCount;
+      }
+      const res = await fetch(`/api/admin/nte-v2/ir/${reviewTarget.id}/review`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()) as Record<string, string>, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail || `HTTP ${res.status}`);
+      }
+      setReviewTarget(null);
+      setReviewNote("");
+      setReviewViolationCode("");
+      setReviewPenalty("");
+      void loadCasesTab();
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
+  async function submitCaseTransition() {
+    if (!transitionTarget || !transitionAction) return;
+    setTransitionSubmitting(true);
+    setTransitionError("");
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/case/${transitionTarget.id}/transition`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth) as Record<string, string>, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: transitionAction, ...transitionPayload }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail || `HTTP ${res.status}`);
+      }
+      setTransitionTarget(null);
+      setTransitionAction("");
+      setTransitionPayload({});
+      if (selectedCase?.id === transitionTarget.id) {
+        void loadCaseDetail(transitionTarget.id);
+      }
+      void loadCasesTab();
+    } catch (e) {
+      setTransitionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTransitionSubmitting(false);
+    }
+  }
+
   async function handleCreateIrDraft() {
     if (!irStaffName.trim()) { setIrFormError("Staff name is required."); return; }
     if (!irDate) { setIrFormError("Incident date is required."); return; }
@@ -1292,6 +1462,7 @@ export default function EmployeeCasesPage() {
             { id: "templates",label: "Templates" },
             ...(isHQ ? [{ id: "catalog" as PageTab, label: "Violation Catalog" }] : []),
             ...(isHR ? [{ id: "ir" as PageTab, label: "New IR" }] : []),
+            ...(isHR ? [{ id: "cases" as PageTab, label: "Case Queue" }] : []),
           ] as { id: PageTab; label: string }[]
         ).map(({ id, label }) => (
           <button
@@ -1304,6 +1475,7 @@ export default function EmployeeCasesPage() {
                 void loadIrList();
                 if (catalog.length === 0) void loadCatalog(catalogMarket);
               }
+              if (id === "cases") void loadCasesTab();
             }}
             className={tab === id ? TAB_ACTIVE : TAB_INACTIVE}
           >
@@ -2628,6 +2800,445 @@ export default function EmployeeCasesPage() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: Case Queue (NTE v2 State Machine) ──────────────────────────── */}
+      {tab === "cases" && isHR && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={T_SECTION}>Case Queue</p>
+              <p className={T_CAPTION}>Your NTE role: <span className="text-violet-300 font-semibold">{casesNteRole}</span></p>
+            </div>
+            <button type="button" className={SECONDARY_BUTTON} onClick={() => void loadCasesTab()} disabled={casesLoading}>
+              <RefreshCw className={`w-3.5 h-3.5 ${casesLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+
+          {casesError && <p className="text-red-400 text-sm">{casesError}</p>}
+
+          {/* IR Review Queue */}
+          {casesSubmittedIrs.length > 0 && (
+            <div className={GLASS_CARD}>
+              <p className={`${T_CARD_TITLE} mb-3 flex items-center gap-2`}>
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                Submitted IRs Awaiting Review ({casesSubmittedIrs.length})
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm border-collapse">
+                  <thead>
+                    <tr className={TABLE_HEADER}>
+                      <th className={`${TABLE_CELL} text-left`}>IR Ref</th>
+                      <th className={`${TABLE_CELL} text-left`}>Staff</th>
+                      <th className={`${TABLE_CELL} text-center`}>Market</th>
+                      <th className={`${TABLE_CELL} text-left`}>Incident Date</th>
+                      <th className={`${TABLE_CELL} text-left`}>Code</th>
+                      <th className={`${TABLE_CELL} text-center`}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {casesSubmittedIrs.map((ir) => (
+                      <tr key={ir.id} className={TABLE_ROW}>
+                        <td className={`${TABLE_CELL} font-mono text-violet-400`}>{ir.ir_ref}</td>
+                        <td className={TABLE_CELL}>{ir.staff_name}</td>
+                        <td className={`${TABLE_CELL} text-center`}>{ir.market}</td>
+                        <td className={TABLE_CELL}>{ir.incident_date}</td>
+                        <td className={`${TABLE_CELL} font-mono text-xs text-zinc-400`}>{ir.proposed_code ?? "—"}</td>
+                        <td className={`${TABLE_CELL} text-center`}>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded text-xs bg-amber-700 hover:bg-amber-600 text-white transition"
+                            onClick={() => {
+                              setReviewTarget(ir);
+                              setReviewAction("reject");
+                              setReviewNote("");
+                              setReviewViolationCode(ir.proposed_code ?? "");
+                              setReviewSeverity("B");
+                              setReviewPenalty("");
+                              setReviewOffenseCount(1);
+                              setReviewError("");
+                            }}
+                          >
+                            Review
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Active Cases */}
+          <div className={GLASS_CARD}>
+            <p className={`${T_CARD_TITLE} mb-3`}>Active Cases ({casesList.length})</p>
+            {casesLoading ? (
+              <p className={T_CAPTION}>Loading…</p>
+            ) : casesList.length === 0 ? (
+              <p className={T_CAPTION}>No cases found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm border-collapse">
+                  <thead>
+                    <tr className={TABLE_HEADER}>
+                      <th className={`${TABLE_CELL} text-left`}>NTE Ref</th>
+                      <th className={`${TABLE_CELL} text-left`}>Staff</th>
+                      <th className={`${TABLE_CELL} text-center`}>Mkt</th>
+                      <th className={`${TABLE_CELL} text-left`}>Violation</th>
+                      <th className={`${TABLE_CELL} text-center`}>Severity</th>
+                      <th className={`${TABLE_CELL} text-center`}>Status</th>
+                      <th className={`${TABLE_CELL} text-left`}>Reviewer</th>
+                      <th className={`${TABLE_CELL} text-center`}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {casesList.map((c) => {
+                      const statusColors: Record<string, string> = {
+                        REVIEW_PENDING: "bg-amber-900/60 text-amber-300",
+                        APPROVAL_PENDING: "bg-blue-900/60 text-blue-300",
+                        APPROVED: "bg-emerald-900/60 text-emerald-300",
+                        SERVED: "bg-teal-900/60 text-teal-300",
+                        RESPONSE_RECEIVED: "bg-cyan-900/60 text-cyan-300",
+                        RESPONSE_WAIVED: "bg-orange-900/60 text-orange-300",
+                        HEARING_PENDING: "bg-purple-900/60 text-purple-300",
+                        HEARING_DONE: "bg-violet-900/60 text-violet-300",
+                        INVESTIGATION_DONE: "bg-indigo-900/60 text-indigo-300",
+                        DECIDED: "bg-rose-900/60 text-rose-300",
+                        NOD_ISSUED: "bg-pink-900/60 text-pink-300",
+                        CLOSED: "bg-zinc-700 text-zinc-400",
+                        DISMISSED: "bg-zinc-700 text-zinc-400",
+                      };
+                      const availableActions: string[] = [];
+                      if (casesNteRole !== "EMPLOYEE") {
+                        if (c.status === "REVIEW_PENDING") availableActions.push("generate_nte_draft");
+                        if (c.status === "APPROVAL_PENDING" && ["HQ","HR_MANAGER"].includes(casesNteRole)) {
+                          availableActions.push("approve");
+                          availableActions.push("reject_approval");
+                        }
+                        if (c.status === "APPROVED") availableActions.push("serve");
+                        if (c.status === "SERVED") {
+                          availableActions.push("receive_response");
+                          availableActions.push("waive_response");
+                        }
+                        if (["RESPONSE_RECEIVED","RESPONSE_WAIVED"].includes(c.status) && c.market === "PH") {
+                          availableActions.push("start_hearing");
+                        }
+                        if (c.status === "HEARING_PENDING") availableActions.push("complete_hearing");
+                        if (["RESPONSE_RECEIVED","RESPONSE_WAIVED","HEARING_DONE"].includes(c.status)) {
+                          availableActions.push("complete_investigation");
+                        }
+                        if (c.status === "INVESTIGATION_DONE" && ["HQ","HR_MANAGER"].includes(casesNteRole)) {
+                          availableActions.push("decide");
+                        }
+                        if (c.status === "DECIDED" && ["HQ","HR_MANAGER"].includes(casesNteRole)) {
+                          availableActions.push("issue_nod");
+                        }
+                        if (c.status === "NOD_ISSUED" && ["HQ","HR_MANAGER"].includes(casesNteRole)) {
+                          availableActions.push("close");
+                        }
+                      }
+                      return (
+                        <tr
+                          key={c.id}
+                          className={`${TABLE_ROW} cursor-pointer`}
+                          onClick={() => {
+                            setSelectedCase(c);
+                            void loadCaseDetail(c.id);
+                          }}
+                        >
+                          <td className={`${TABLE_CELL} font-mono text-violet-400 text-xs`}>{c.nte_ref}</td>
+                          <td className={TABLE_CELL}>{c.staff_name}</td>
+                          <td className={`${TABLE_CELL} text-center`}>{c.market}</td>
+                          <td className={`${TABLE_CELL} font-mono text-xs`}>{c.violation_code ?? "—"}</td>
+                          <td className={`${TABLE_CELL} text-center font-bold`}>{c.severity_class ?? "—"}</td>
+                          <td className={`${TABLE_CELL} text-center`}>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusColors[c.status] ?? "bg-zinc-800 text-zinc-300"}`}>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className={`${TABLE_CELL} text-xs`}>{c.reviewed_by ?? "—"}</td>
+                          <td className={`${TABLE_CELL} text-center`}>
+                            <div className="flex gap-1 justify-center flex-wrap" onClick={(e) => e.stopPropagation()}>
+                              {availableActions.map((act) => (
+                                <button
+                                  key={act}
+                                  type="button"
+                                  className="px-2 py-0.5 rounded text-xs bg-indigo-700 hover:bg-indigo-600 text-white transition whitespace-nowrap"
+                                  onClick={() => {
+                                    setTransitionTarget(c);
+                                    setTransitionAction(act);
+                                    setTransitionPayload({});
+                                    setTransitionError("");
+                                  }}
+                                >
+                                  {act.replace(/_/g, " ")}
+                                </button>
+                              ))}
+                              {availableActions.length === 0 && (
+                                <span className={T_CAPTION}>—</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Case Detail Panel */}
+          {selectedCase && (
+            <div className={`${GLASS_CARD} space-y-3`}>
+              <div className="flex items-center justify-between">
+                <p className={T_CARD_TITLE}>{selectedCase.nte_ref} — Detail</p>
+                <button type="button" onClick={() => setSelectedCase(null)}>
+                  <X className="w-4 h-4 text-zinc-400 hover:text-white" />
+                </button>
+              </div>
+              {caseDetailLoading ? (
+                <p className={T_CAPTION}>Loading…</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className={T_LABEL}>Staff:</span> <span className={T_BODY}>{selectedCase.staff_name}</span></div>
+                    <div><span className={T_LABEL}>Market:</span> <span className={T_BODY}>{selectedCase.market}</span></div>
+                    <div><span className={T_LABEL}>Violation:</span> <span className="font-mono text-xs text-violet-300">{selectedCase.violation_code ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Severity:</span> <span className="font-bold">{selectedCase.severity_class ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Offense #:</span> <span>{selectedCase.offense_count}</span></div>
+                    <div><span className={T_LABEL}>Proposed Penalty:</span> <span>{selectedCase.proposed_penalty ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Reviewed by:</span> <span>{selectedCase.reviewed_by ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Approved by:</span> <span>{selectedCase.approved_by ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Decision:</span> <span className="text-rose-300">{selectedCase.decision_outcome ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Decided by:</span> <span>{selectedCase.decided_by ?? "—"}</span></div>
+                  </div>
+                  {selectedCase.audit_log && selectedCase.audit_log.length > 0 && (
+                    <div>
+                      <p className={`${T_LABEL} mb-2`}>Audit Trail</p>
+                      <div className="space-y-1">
+                        {selectedCase.audit_log.map((entry) => (
+                          <div key={entry.id} className="flex items-start gap-3 text-xs text-zinc-400 border-l-2 border-zinc-700 pl-3">
+                            <span className="text-zinc-500 shrink-0">{fmtDate(entry.created_at)}</span>
+                            <span className="font-semibold text-zinc-300">{entry.actor_name}</span>
+                            <span className="text-violet-400">{entry.action}</span>
+                            {entry.from_status && (
+                              <span>{entry.from_status} → {entry.to_status}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── IR Review Modal ─────────────────────────────────────────────────── */}
+      {reviewTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <p className={T_SECTION}>Review IR: {reviewTarget.ir_ref}</p>
+              <button type="button" onClick={() => setReviewTarget(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <p className={T_BODY}>Staff: <strong>{reviewTarget.staff_name}</strong> | {reviewTarget.market} | {reviewTarget.incident_date}</p>
+
+            <div>
+              <label className={T_LABEL}>Action</label>
+              <SelectDark
+                className="mt-1 w-full"
+                value={reviewAction}
+                onChange={(v) => setReviewAction(v as "reject" | "dismiss" | "confirm_violation")}
+                options={[
+                  { value: "reject", label: "Reject (Return to submitter)" },
+                  { value: "dismiss", label: "Dismiss (No violation found)" },
+                  { value: "confirm_violation", label: "Confirm Violation (Create NTE Case)" },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className={T_LABEL}>Reviewer Note {reviewAction !== "confirm_violation" && "(required)"}</label>
+              <textarea
+                className={`${TEXTAREA_CLASS} mt-1`}
+                rows={3}
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                placeholder="Explain your decision…"
+              />
+            </div>
+
+            {reviewAction === "confirm_violation" && (
+              <div className="space-y-3 border border-indigo-800/50 rounded-lg p-3">
+                <p className={T_LABEL}>Case Details</p>
+                <div>
+                  <label className={T_LABEL}>Violation Code</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={reviewViolationCode}
+                    onChange={(e) => setReviewViolationCode(e.target.value)}
+                    placeholder="e.g. ATT-001"
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Severity Class</label>
+                  <SelectDark
+                    className="mt-1 w-full"
+                    value={reviewSeverity}
+                    onChange={(v) => setReviewSeverity(v as "A"|"B"|"C"|"D")}
+                    options={[
+                      { value: "A", label: "A — Minor" },
+                      { value: "B", label: "B — Moderate" },
+                      { value: "C", label: "C — Serious" },
+                      { value: "D", label: "D — Critical" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Proposed Penalty</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={reviewPenalty}
+                    onChange={(e) => setReviewPenalty(e.target.value)}
+                    placeholder="e.g. Written Warning"
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Offense Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={reviewOffenseCount}
+                    onChange={(e) => setReviewOffenseCount(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {reviewError && <p className="text-red-400 text-sm">{reviewError}</p>}
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" className={SECONDARY_BUTTON} onClick={() => setReviewTarget(null)}>Cancel</button>
+              <button
+                type="button"
+                className={reviewAction === "confirm_violation" ? PRIMARY_BUTTON : DANGER_BUTTON}
+                onClick={() => void submitIrReview()}
+                disabled={reviewSubmitting}
+              >
+                {reviewSubmitting ? "Submitting…" : reviewAction === "reject" ? "Return IR" : reviewAction === "dismiss" ? "Dismiss IR" : "Confirm & Create Case"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Case Transition Modal ─────────────────────────────────────────── */}
+      {transitionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <p className={T_SECTION}>{transitionAction.replace(/_/g, " ").toUpperCase()}</p>
+              <button type="button" onClick={() => setTransitionTarget(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <p className={T_BODY}>Case: <strong>{transitionTarget.nte_ref}</strong> | Staff: {transitionTarget.staff_name}</p>
+            <p className={T_CAPTION}>Current status: {transitionTarget.status}</p>
+
+            {transitionAction === "approve" && (
+              <p className="text-amber-300 text-sm">Note: self-approval is prohibited. You must be a different person from the reviewer ({transitionTarget.reviewed_by}).</p>
+            )}
+
+            {transitionAction === "receive_response" && (
+              <div>
+                <label className={T_LABEL}>Response Text</label>
+                <textarea
+                  className={`${TEXTAREA_CLASS} mt-1`}
+                  rows={4}
+                  value={(transitionPayload.response_text as string) ?? ""}
+                  onChange={(e) => setTransitionPayload((p) => ({ ...p, response_text: e.target.value }))}
+                  placeholder="Employee's response…"
+                />
+              </div>
+            )}
+
+            {transitionAction === "serve" && (
+              <div>
+                <label className={T_LABEL}>Served Method</label>
+                <SelectDark
+                  className="mt-1 w-full"
+                  value={(transitionPayload.served_method as string) ?? "IN_PERSON"}
+                  onChange={(v) => setTransitionPayload((p) => ({ ...p, served_method: v }))}
+                  options={[
+                    { value: "IN_PERSON", label: "In Person" },
+                    { value: "EMAIL", label: "Email" },
+                    { value: "REGISTERED_MAIL", label: "Registered Mail" },
+                  ]}
+                />
+              </div>
+            )}
+
+            {transitionAction === "decide" && (
+              <div className="space-y-3">
+                <div>
+                  <label className={T_LABEL}>Decision Outcome</label>
+                  <SelectDark
+                    className="mt-1 w-full"
+                    value={(transitionPayload.decision_outcome as string) ?? ""}
+                    onChange={(v) => setTransitionPayload((p) => ({ ...p, decision_outcome: v }))}
+                    options={[
+                      { value: "DISMISSED", label: "Dismissed" },
+                      { value: "WRITTEN_WARNING", label: "Written Warning" },
+                      { value: "SUSPENSION", label: "Suspension" },
+                      { value: "TERMINATION", label: "Termination (HQ only)" },
+                    ]}
+                    placeholder="— Select —"
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Penalty Detail (optional)</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={(transitionPayload.decision_penalty_detail as string) ?? ""}
+                    onChange={(e) => setTransitionPayload((p) => ({ ...p, decision_penalty_detail: e.target.value }))}
+                    placeholder="e.g. 5-day suspension without pay"
+                  />
+                </div>
+              </div>
+            )}
+
+            {transitionAction === "reject_approval" && (
+              <div>
+                <label className={T_LABEL}>Rejection Note</label>
+                <textarea
+                  className={`${TEXTAREA_CLASS} mt-1`}
+                  rows={3}
+                  value={(transitionPayload.reviewer_note as string) ?? ""}
+                  onChange={(e) => setTransitionPayload((p) => ({ ...p, reviewer_note: e.target.value }))}
+                />
+              </div>
+            )}
+
+            {transitionError && <p className="text-red-400 text-sm">{transitionError}</p>}
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" className={SECONDARY_BUTTON} onClick={() => setTransitionTarget(null)}>Cancel</button>
+              <button
+                type="button"
+                className={["decide","reject_approval"].includes(transitionAction) ? DANGER_BUTTON : PRIMARY_BUTTON}
+                onClick={() => void submitCaseTransition()}
+                disabled={transitionSubmitting}
+              >
+                {transitionSubmitting ? "Submitting…" : "Confirm"}
+              </button>
+            </div>
           </div>
         </div>
       )}
