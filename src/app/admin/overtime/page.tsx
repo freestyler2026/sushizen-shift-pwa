@@ -272,7 +272,7 @@ export default function AdminOvertimePage() {
           <span className="flex items-center gap-1 text-amber-300 font-medium"><Clock className="h-3 w-3" />Pending</span>
           <span>→</span>
           <span className="flex items-center gap-1 text-blue-300 font-medium"><UserCheck className="h-3 w-3" />Mgr Confirmed</span>
-          <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter)</span>
+          <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter / Ayako)</span>
           <span>→</span>
           <span className="flex items-center gap-1 text-green-300 font-medium"><Banknote className="h-3 w-3" />Paid</span>
           <span className="text-zinc-600">(Yamada / Ayako)</span>
