@@ -92,6 +92,9 @@ export default function StoreProcurementReceivingPage() {
   const LAST_CREATED_MAX_AGE_MS = getRecentBadgeMaxAgeMs();
   const relativeNowMs = useRelativeAgeNow();
   const auth = useMemo(() => getAuth(), []);
+  const canSelfAuthorize = ["HQ", "ADMIN", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"].includes(
+    String(auth?.role || "").toUpperCase()
+  );
 
   // Auth fields
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
@@ -520,8 +523,8 @@ export default function StoreProcurementReceivingPage() {
     if (!requestId) return;
     const mgrName = closeNotReceivedManagerName.trim();
     const mgrPin = closeNotReceivedManagerPin.trim();
-    if (!mgrName) { setCloseNotReceivedError("Manager name is required."); return; }
-    if (!mgrPin) { setCloseNotReceivedError("Manager PIN is required."); return; }
+    if (!mgrName) { setCloseNotReceivedError("Approver name is required."); return; }
+    if (!mgrPin) { setCloseNotReceivedError("PIN is required."); return; }
     setCloseNotReceivedBusy(true);
     setCloseNotReceivedError("");
     try {
@@ -1359,7 +1362,13 @@ export default function StoreProcurementReceivingPage() {
                   <div className="mt-3 border-t border-white/8 pt-3">
                     <button
                       type="button"
-                      onClick={() => { setCloseNotReceivedOpen(true); setCloseNotReceivedReason(""); setCloseNotReceivedError(""); }}
+                      onClick={() => {
+  setCloseNotReceivedOpen(true);
+  setCloseNotReceivedReason("");
+  setCloseNotReceivedError("");
+  setCloseNotReceivedManagerName(canSelfAuthorize ? requestedBy : "");
+  setCloseNotReceivedManagerPin("");
+}}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-red-800/40 bg-red-950/20 px-3 py-1.5 text-xs text-red-400 hover:bg-red-950/35 transition"
                     >
                       <Ban className="h-3.5 w-3.5" />
@@ -1662,7 +1671,9 @@ export default function StoreProcurementReceivingPage() {
               <div>
                 <h3 className="text-base font-semibold text-white">Close Order – Not Received</h3>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  Requires a manager to authorize. The original requester cannot close their own order. This action is logged for audit.
+                  {canSelfAuthorize
+                    ? "You can authorize this yourself. Enter your PIN to confirm. This action is logged for audit."
+                    : "Requires a manager to authorize. The original requester cannot close their own order. This action is logged for audit."}
                 </p>
               </div>
             </div>
@@ -1686,19 +1697,30 @@ export default function StoreProcurementReceivingPage() {
               </div>
 
               <div className="rounded-xl border border-amber-800/30 bg-amber-950/10 p-3 space-y-2">
-                <p className="text-xs font-medium text-amber-300">Manager Authorization</p>
+                <p className="text-xs font-medium text-amber-300">
+                  {canSelfAuthorize ? "Confirm Your Identity" : "Manager Authorization"}
+                </p>
+                {canSelfAuthorize ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-zinc-300">
+                    <span className="text-zinc-500 text-xs">Authorizing as:</span>
+                    <span className="font-medium text-white">{closeNotReceivedManagerName}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="mb-1 block text-xs text-zinc-400">Manager Name</label>
+                    <input
+                      type="text"
+                      value={closeNotReceivedManagerName}
+                      onChange={(e) => setCloseNotReceivedManagerName(e.target.value)}
+                      placeholder="e.g. John Smith"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-600/50 focus:outline-none"
+                    />
+                  </div>
+                )}
                 <div>
-                  <label className="mb-1 block text-xs text-zinc-400">Manager Name</label>
-                  <input
-                    type="text"
-                    value={closeNotReceivedManagerName}
-                    onChange={(e) => setCloseNotReceivedManagerName(e.target.value)}
-                    placeholder="e.g. John Smith"
-                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-amber-600/50 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-zinc-400">Manager PIN</label>
+                  <label className="mb-1 block text-xs text-zinc-400">
+                    {canSelfAuthorize ? "Your PIN" : "Manager PIN"}
+                  </label>
                   <input
                     type="password"
                     value={closeNotReceivedManagerPin}
