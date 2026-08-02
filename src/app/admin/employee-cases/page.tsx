@@ -44,6 +44,8 @@ import {
   Edit2,
   Trash2,
   AlertTriangle,
+  BookOpen,
+  RotateCcw,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 
@@ -125,7 +127,24 @@ type DashboardData = {
   requests?: NteRequest[];
 };
 
-type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog";
+
+type CatalogEntry = {
+  code: string;
+  title_en: string;
+  title_ja: string;
+  severity_class: string;
+  input_layer: string;
+  scope: string;
+  sop_ref: string;
+  auto_detectable: boolean;
+  requires_hq_review: boolean;
+  market?: string | null;
+  definition_en?: string | null;
+  threshold?: Record<string, unknown> | null;
+  evidence_required?: Array<{ type: string; key: string; mandatory: boolean | string }> | null;
+  legal_ground_ref?: string | null;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -409,6 +428,12 @@ export default function EmployeeCasesPage() {
   const [staffList, setStaffList] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Violation Catalog state
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogMarket, setCatalogMarket] = useState<"" | "AE" | "PH">("");
+  const [catalogLoadMsg, setCatalogLoadMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   // Board tab state
@@ -828,6 +853,55 @@ export default function EmployeeCasesPage() {
 
   // HR visibility (can approve/reject)
   const isHR = ["ADMIN", "HQ", "HR_MANAGER"].includes(currentUserRole);
+  // HQ visibility (catalog management)
+  const isHQ = ["ADMIN", "HQ"].includes(currentUserRole);
+
+  async function loadCatalog(market: "" | "AE" | "PH" = catalogMarket) {
+    setCatalogLoading(true);
+    setCatalogLoadMsg("");
+    try {
+      const auth = getAuth();
+      const url = market
+        ? `/api/admin/nte-v2/catalog?market=${market}`
+        : "/api/admin/nte-v2/catalog";
+      const res = await fetch(url, {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setCatalog(data.catalog ?? []);
+    } catch (e) {
+      setCatalogLoadMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  async function handleReloadSeed() {
+    setCatalogLoading(true);
+    setCatalogLoadMsg("");
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/admin/nte-v2/catalog/load", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(getAuthHeaders(auth) as Record<string, string>),
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setCatalogLoadMsg(
+        `Seed loaded: ${data.total_inserted} inserted, ${data.total_updated} updated, ${data.total_markets} market rows.`
+      );
+      await loadCatalog(catalogMarket);
+    } catch (e) {
+      setCatalogLoadMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -965,12 +1039,16 @@ export default function EmployeeCasesPage() {
             { id: "issue",    label: "Issue Notice" },
             { id: "history",  label: "Case History" },
             { id: "templates",label: "Templates" },
+            ...(isHQ ? [{ id: "catalog" as PageTab, label: "Violation Catalog" }] : []),
           ] as { id: PageTab; label: string }[]
         ).map(({ id, label }) => (
           <button
             key={id}
             type="button"
-            onClick={() => setTab(id)}
+            onClick={() => {
+              setTab(id);
+              if (id === "catalog" && catalog.length === 0) void loadCatalog(catalogMarket);
+            }}
             className={tab === id ? TAB_ACTIVE : TAB_INACTIVE}
           >
             {label}
@@ -1738,6 +1816,126 @@ export default function EmployeeCasesPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Violation Catalog (HQ only) ── */}
+      {tab === "catalog" && isHQ && (
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <label className={T_LABEL}>Market:</label>
+              <SelectDark
+                value={catalogMarket}
+                onChange={(v) => {
+                  const m = v as "" | "AE" | "PH";
+                  setCatalogMarket(m);
+                  void loadCatalog(m);
+                }}
+                options={[
+                  { value: "", label: "All" },
+                  { value: "AE", label: "Dubai (AE)" },
+                  { value: "PH", label: "Manila (PH)" },
+                ]}
+                placeholder="All"
+                className="text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void loadCatalog(catalogMarket)}
+                disabled={catalogLoading}
+                className={`${SMALL_BUTTON} flex items-center gap-1`}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${catalogLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleReloadSeed()}
+                disabled={catalogLoading}
+                className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm`}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reload Seed
+              </button>
+            </div>
+          </div>
+
+          {catalogLoadMsg && (
+            <div className={`${GLASS_CARD} p-3 text-sm ${catalogLoadMsg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>
+              {catalogLoadMsg}
+            </div>
+          )}
+
+          {catalogLoading && <p className={T_BODY}>Loading catalog…</p>}
+
+          {!catalogLoading && catalog.length === 0 && (
+            <div className={`${GLASS_CARD} p-8 text-center`}>
+              <BookOpen className="mx-auto mb-2 h-8 w-8 text-zinc-600" />
+              <p className={T_BODY}>No violation catalog entries. Click &quot;Reload Seed&quot; to load the built-in ATT catalog.</p>
+            </div>
+          )}
+
+          {catalog.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm border-collapse">
+                <thead>
+                  <tr className={TABLE_HEADER}>
+                    <th className={`${TABLE_CELL} text-left`}>Code</th>
+                    <th className={`${TABLE_CELL} text-left`}>Title</th>
+                    <th className={`${TABLE_CELL} text-center`}>Severity</th>
+                    <th className={`${TABLE_CELL} text-center`}>Layer</th>
+                    <th className={`${TABLE_CELL} text-center`}>Auto</th>
+                    <th className={`${TABLE_CELL} text-center`}>HQ Review</th>
+                    {catalogMarket && <th className={`${TABLE_CELL} text-left`}>Legal Ref</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalog.map((entry) => (
+                    <tr key={entry.code} className={TABLE_ROW}>
+                      <td className={`${TABLE_CELL} font-mono font-semibold text-violet-400`}>{entry.code}</td>
+                      <td className={TABLE_CELL}>
+                        <p className="font-medium">{entry.title_en}</p>
+                        <p className="text-xs text-zinc-500">{entry.title_ja}</p>
+                        {catalogMarket && entry.definition_en && (
+                          <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{entry.definition_en}</p>
+                        )}
+                      </td>
+                      <td className={`${TABLE_CELL} text-center`}>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                          entry.severity_class === "D" ? "bg-red-900/60 text-red-300" :
+                          entry.severity_class === "C" ? "bg-orange-900/60 text-orange-300" :
+                          entry.severity_class === "B" ? "bg-yellow-900/60 text-yellow-300" :
+                          "bg-zinc-800 text-zinc-300"
+                        }`}>
+                          {entry.severity_class}
+                        </span>
+                      </td>
+                      <td className={`${TABLE_CELL} text-center font-mono text-xs`}>{entry.input_layer}</td>
+                      <td className={`${TABLE_CELL} text-center`}>
+                        {entry.auto_detectable
+                          ? <CheckCircle className="inline h-4 w-4 text-emerald-400" />
+                          : <X className="inline h-4 w-4 text-zinc-500" />}
+                      </td>
+                      <td className={`${TABLE_CELL} text-center`}>
+                        {entry.requires_hq_review
+                          ? <AlertTriangle className="inline h-4 w-4 text-amber-400" />
+                          : <span className="text-zinc-600">—</span>}
+                      </td>
+                      {catalogMarket && (
+                        <td className={`${TABLE_CELL} text-xs text-zinc-400 max-w-[200px]`}>
+                          {entry.legal_ground_ref ?? "—"}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
