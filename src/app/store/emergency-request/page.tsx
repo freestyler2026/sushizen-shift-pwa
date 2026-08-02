@@ -236,6 +236,7 @@ export default function EmergencyRequestPage() {
   const [receivingId, setReceivingId] = useState<number | null>(null);
 
   const city = (auth?.city || "manila").toLowerCase();
+  const catalogCity = MANILA_STORES.includes(store) ? "manila" : city;
   const actorName = auth?.staffName || "";
 
   const totalEstimated = items.reduce((s, i) => s + (Number(i.estimated_total) || 0), 0);
@@ -460,7 +461,7 @@ export default function EmergencyRequestPage() {
                   <div className="flex items-start gap-2">
                     <CatalogItemInput
                       value={item.item_name}
-                      city={city}
+                      city={catalogCity}
                       onChange={(v) => updateItem(idx, "item_name", v)}
                       onSelect={(cat) => selectCatalogItem(idx, cat)}
                     />
