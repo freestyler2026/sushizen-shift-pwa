@@ -46,6 +46,8 @@ import {
   AlertTriangle,
   BookOpen,
   RotateCcw,
+  Zap,
+  Eye,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 
@@ -549,6 +551,10 @@ export default function EmployeeCasesPage() {
   const [letterLoading, setLetterLoading] = useState(false);
   const [actsBlockEdit, setActsBlockEdit] = useState<string | null>(null);
   const [actsBlockSaving, setActsBlockSaving] = useState(false);
+  // P8 Auto-detect
+  const [autoDetectLoading, setAutoDetectLoading] = useState(false);
+  const [autoDetectResult, setAutoDetectResult] = useState<Record<string, unknown> | null>(null);
+  const [autoDetectMarket, setAutoDetectMarket] = useState<"" | "AE" | "PH">("");
   // IR Review modal
   const [reviewTarget, setReviewTarget] = useState<IrRecord | null>(null);
   const [reviewAction, setReviewAction] = useState<"reject" | "dismiss" | "confirm_violation">("reject");
@@ -1151,6 +1157,29 @@ export default function EmployeeCasesPage() {
       setReviewError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewSubmitting(false);
+    }
+  }
+
+  async function runAutoDetect(dryRun: boolean) {
+    setAutoDetectLoading(true);
+    setAutoDetectResult(null);
+    try {
+      const path = dryRun
+        ? `/api/admin/nte-v2/auto-detect/preview${autoDetectMarket ? `?market=${autoDetectMarket}` : ""}`
+        : `/api/admin/nte-v2/auto-detect/run`;
+      const res = await fetch(path, {
+        method: dryRun ? "GET" : "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        ...(dryRun ? {} : { body: JSON.stringify({ market: autoDetectMarket || null }) }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as Record<string, unknown>;
+      setAutoDetectResult(data);
+      if (!dryRun) void loadCasesTab();
+    } catch (e) {
+      alert(`Auto-detect failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAutoDetectLoading(false);
     }
   }
 
@@ -2356,6 +2385,98 @@ export default function EmployeeCasesPage() {
               <p className={T_BODY}>No violation catalog entries. Click &quot;Reload Seed&quot; to load the built-in ATT catalog.</p>
             </div>
           )}
+
+          {/* ── Auto-Detect Batch (P8) ── */}
+          <div className={`${GLASS_CARD} p-4 space-y-3`}>
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-violet-400" />
+              <span className="font-semibold text-sm text-white">Auto-Detect Batch</span>
+              <span className="text-xs text-zinc-500">Scans attendance data and creates DRAFT IRs where thresholds are breached</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className={T_LABEL}>Market:</label>
+                <SelectDark
+                  value={autoDetectMarket}
+                  onChange={(v) => setAutoDetectMarket(v as "" | "AE" | "PH")}
+                  options={[
+                    { value: "", label: "Both (AE + PH)" },
+                    { value: "AE", label: "Dubai (AE)" },
+                    { value: "PH", label: "Manila (PH)" },
+                  ]}
+                  placeholder="Both"
+                  className="text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void runAutoDetect(true)}
+                disabled={autoDetectLoading}
+                className={`${SMALL_BUTTON} flex items-center gap-1`}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Preview (dry run)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("Run auto-detect and create DRAFT IRs for all threshold breaches?")) return;
+                  void runAutoDetect(false);
+                }}
+                disabled={autoDetectLoading}
+                className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm`}
+              >
+                <Zap className={`h-4 w-4 ${autoDetectLoading ? "animate-pulse" : ""}`} />
+                {autoDetectLoading ? "Scanning…" : "Run Auto-Detect"}
+              </button>
+            </div>
+
+            {autoDetectResult && (
+              <div className="space-y-2 pt-1">
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="text-emerald-400 font-semibold">
+                    {(autoDetectResult as {created?: number}).created ?? 0} IR{(autoDetectResult as {created?: number}).created === 1 ? "" : "s"} {(autoDetectResult as {dry_run?: boolean}).dry_run ? "would be created" : "created"}
+                  </span>
+                  <span className="text-zinc-400">
+                    {(autoDetectResult as {skipped_dedup?: number}).skipped_dedup ?? 0} skipped (duplicate)
+                  </span>
+                  <span className="text-zinc-500 text-xs">as of {(autoDetectResult as {as_of?: string}).as_of}</span>
+                </div>
+                {((autoDetectResult as {details?: unknown[]}).details ?? []).length > 0 && (
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto rounded border border-zinc-700/50">
+                    <table className="w-full min-w-[500px] text-xs">
+                      <thead className="sticky top-0 bg-zinc-900">
+                        <tr>
+                          <th className="px-3 py-1.5 text-left text-zinc-400">Market</th>
+                          <th className="px-3 py-1.5 text-left text-zinc-400">Staff</th>
+                          <th className="px-3 py-1.5 text-left text-zinc-400">Code</th>
+                          <th className="px-3 py-1.5 text-right text-zinc-400">Incidents</th>
+                          <th className="px-3 py-1.5 text-left text-zinc-400">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {((autoDetectResult as {details?: {market: string; staff_name: string; violation_code: string; incidents_count: number; action: string; ir_id: string | null}[]}).details ?? []).map((d, i) => (
+                          <tr key={i} className={`border-t border-zinc-800 ${d.action === "SKIP_DEDUP" ? "opacity-40" : ""}`}>
+                            <td className="px-3 py-1 font-mono text-violet-400">{d.market}</td>
+                            <td className="px-3 py-1 text-white">{d.staff_name}</td>
+                            <td className="px-3 py-1 font-mono text-zinc-300">{d.violation_code}</td>
+                            <td className="px-3 py-1 text-right text-zinc-300">{d.incidents_count}</td>
+                            <td className="px-3 py-1">
+                              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                d.action === "CREATED" ? "bg-emerald-900/50 text-emerald-300" :
+                                d.action === "DRY_RUN" ? "bg-blue-900/50 text-blue-300" :
+                                "bg-zinc-800 text-zinc-500"
+                              }`}>{d.action}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {catalog.length > 0 && (
             <div className="overflow-x-auto">
