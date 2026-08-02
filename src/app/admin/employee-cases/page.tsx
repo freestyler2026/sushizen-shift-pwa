@@ -127,7 +127,42 @@ type DashboardData = {
   requests?: NteRequest[];
 };
 
-type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog" | "ir";
+
+type IrEvidence = {
+  id: string;
+  evidence_type: string;
+  file_path: string | null;
+  cctv_reference: string | null;
+  description: string;
+  captured_at: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+};
+
+type IrRecord = {
+  id: string;
+  ir_ref: string;
+  market: string;
+  store_code: string;
+  staff_name: string;
+  reported_by: string;
+  input_layer: string;
+  proposed_code: string | null;
+  status: string;
+  incident_date: string;
+  incident_time: string | null;
+  location_code: string | null;
+  witness_names: string[];
+  observed_acts: string | null;
+  verbatim_quote: string | null;
+  operational_impact: string | null;
+  prior_instruction: string | null;
+  prior_nte_refs: string[];
+  submitted_at: string | null;
+  created_at: string;
+  evidence?: IrEvidence[];
+};
 
 type CatalogEntry = {
   code: string;
@@ -436,6 +471,34 @@ export default function EmployeeCasesPage() {
   const [catalogMarket, setCatalogMarket] = useState<"" | "AE" | "PH">("");
   const [catalogLoadMsg, setCatalogLoadMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // IR form state
+  const [irList, setIrList] = useState<IrRecord[]>([]);
+  const [irListLoading, setIrListLoading] = useState(false);
+  const [irDraft, setIrDraft] = useState<IrRecord | null>(null);
+  const [irFormOpen, setIrFormOpen] = useState(false);
+  const [irFormError, setIrFormError] = useState("");
+  const [irFormMsg, setIrFormMsg] = useState("");
+  const [irSubmitting, setIrSubmitting] = useState(false);
+  // IR form fields
+  const [irStaffName, setIrStaffName] = useState("");
+  const [irMarket, setIrMarket] = useState<"AE" | "PH">("PH");
+  const [irStoreCode, setIrStoreCode] = useState("");
+  const [irDate, setIrDate] = useState(todayStr());
+  const [irTime, setIrTime] = useState("");
+  const [irLocation, setIrLocation] = useState("");
+  const [irProposedCode, setIrProposedCode] = useState("");
+  const [irWitnesses, setIrWitnesses] = useState("");
+  const [irObservedActs, setIrObservedActs] = useState("");
+  const [irVerbatimQuote, setIrVerbatimQuote] = useState("");
+  const [irOperationalImpact, setIrOperationalImpact] = useState("");
+  const [irPriorInstruction, setIrPriorInstruction] = useState("");
+  const [irBannedWords, setIrBannedWords] = useState<string[]>([]);
+  // Evidence form fields
+  const [irEvidenceType, setIrEvidenceType] = useState("PHOTO");
+  const [irEvidenceDesc, setIrEvidenceDesc] = useState("");
+  const [irEvidenceRef, setIrEvidenceRef] = useState("");
+  const [irAddingEvidence, setIrAddingEvidence] = useState(false);
 
   // Board tab state
   const [panelStaff, setPanelStaff] = useState<string | null>(null);
@@ -904,6 +967,193 @@ export default function EmployeeCasesPage() {
     }
   }
 
+  // ── IR helpers ─────────────────────────────────────────────────────────────
+
+  const BANNED_EN = ["always","never","lazy","attitude","unprofessional","disrespectful",
+    "bad worker","rude","incompetent","useless","stupid","careless","habitually","constantly","repeatedly"];
+  const BANNED_TL = ["palaging","lagi","tamad","walang kwenta","hindi marunong",
+    "bastos","pasaway","suplado","matigas ang ulo"];
+
+  function detectBannedWords(text: string): string[] {
+    const lower = text.toLowerCase();
+    return [...BANNED_EN, ...BANNED_TL].filter((t) => lower.includes(t));
+  }
+
+  function irInputLayer(): string {
+    if (!irProposedCode) return "L3_NARRATIVE";
+    const entry = catalog.find((c) => c.code === irProposedCode);
+    return entry?.input_layer ?? "L3_NARRATIVE";
+  }
+
+  async function loadIrList() {
+    setIrListLoading(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/admin/nte-v2/ir?limit=50", {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setIrList(data.irs ?? []);
+    } catch (e) {
+      setIrFormError(`Load error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIrListLoading(false);
+    }
+  }
+
+  async function handleCreateIrDraft() {
+    if (!irStaffName.trim()) { setIrFormError("Staff name is required."); return; }
+    if (!irDate) { setIrFormError("Incident date is required."); return; }
+    setIrSubmitting(true);
+    setIrFormError("");
+    setIrFormMsg("");
+    const layer = irInputLayer();
+    const banned = layer === "L3_NARRATIVE"
+      ? detectBannedWords(irObservedActs + " " + irOperationalImpact)
+      : [];
+    setIrBannedWords(banned);
+    try {
+      const auth = getAuth();
+      const body: Record<string, unknown> = {
+        market: irMarket,
+        store_code: irStoreCode.trim() || city.slice(0, 3).toUpperCase(),
+        staff_name: irStaffName.trim(),
+        incident_date: irDate,
+        incident_time: irTime || undefined,
+        location_code: irLocation || undefined,
+        proposed_code: irProposedCode || undefined,
+        input_layer: layer,
+        witness_names: irWitnesses.split(",").map((s) => s.trim()).filter(Boolean),
+        observed_acts: irObservedActs || undefined,
+        verbatim_quote: irVerbatimQuote || undefined,
+        operational_impact: irOperationalImpact || undefined,
+        prior_instruction: irPriorInstruction || undefined,
+      };
+      const res = await fetch("/api/admin/nte-v2/ir", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as any).detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const created: IrRecord = { ...data.ir, evidence: [] };
+      setIrDraft(created);
+      setIrFormMsg(`Draft created: ${data.ir_ref}`);
+      await loadIrList();
+    } catch (e: any) {
+      setIrFormError(e?.message || "Failed to create draft");
+    } finally {
+      setIrSubmitting(false);
+    }
+  }
+
+  async function handleSubmitIr() {
+    if (!irDraft) return;
+    setIrSubmitting(true);
+    setIrFormError("");
+    setIrFormMsg("");
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/ir/${irDraft.id}/submit`, {
+        method: "POST",
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as any).detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setIrFormMsg(`IR submitted: ${irDraft.ir_ref} → ${data.status}`);
+      setIrDraft({ ...irDraft, status: data.status });
+      await loadIrList();
+    } catch (e: any) {
+      setIrFormError(e?.message || "Failed to submit IR");
+    } finally {
+      setIrSubmitting(false);
+    }
+  }
+
+  async function handleAddEvidence() {
+    if (!irDraft) return;
+    if (!irEvidenceDesc.trim() && !irEvidenceRef.trim()) {
+      setIrFormError("Provide a description or reference for the evidence.");
+      return;
+    }
+    setIrAddingEvidence(true);
+    setIrFormError("");
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/ir/${irDraft.id}/evidence`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          evidence_type: irEvidenceType,
+          description: irEvidenceDesc.trim(),
+          file_path: irEvidenceRef.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as any).detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setIrDraft({
+        ...irDraft,
+        evidence: [...(irDraft.evidence ?? []), data.evidence],
+      });
+      setIrEvidenceDesc("");
+      setIrEvidenceRef("");
+    } catch (e: any) {
+      setIrFormError(e?.message || "Failed to add evidence");
+    } finally {
+      setIrAddingEvidence(false);
+    }
+  }
+
+  async function handleDeleteEvidence(evidenceId: string) {
+    if (!irDraft) return;
+    setIrFormError("");
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/nte-v2/ir/${irDraft.id}/evidence/${evidenceId}`,
+        { method: "DELETE", headers: getAuthHeaders(auth) as Record<string, string> }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setIrDraft({
+        ...irDraft,
+        evidence: (irDraft.evidence ?? []).filter((e) => e.id !== evidenceId),
+      });
+    } catch (e: any) {
+      setIrFormError(e?.message || "Failed to delete evidence");
+    }
+  }
+
+  function resetIrForm() {
+    setIrFormOpen(false);
+    setIrDraft(null);
+    setIrStaffName("");
+    setIrStoreCode("");
+    setIrDate(todayStr());
+    setIrTime("");
+    setIrLocation("");
+    setIrProposedCode("");
+    setIrWitnesses("");
+    setIrObservedActs("");
+    setIrVerbatimQuote("");
+    setIrOperationalImpact("");
+    setIrPriorInstruction("");
+    setIrBannedWords([]);
+    setIrEvidenceDesc("");
+    setIrEvidenceRef("");
+    setIrFormError("");
+    setIrFormMsg("");
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1041,6 +1291,7 @@ export default function EmployeeCasesPage() {
             { id: "history",  label: "Case History" },
             { id: "templates",label: "Templates" },
             ...(isHQ ? [{ id: "catalog" as PageTab, label: "Violation Catalog" }] : []),
+            ...(isHR ? [{ id: "ir" as PageTab, label: "New IR" }] : []),
           ] as { id: PageTab; label: string }[]
         ).map(({ id, label }) => (
           <button
@@ -1049,6 +1300,10 @@ export default function EmployeeCasesPage() {
             onClick={() => {
               setTab(id);
               if (id === "catalog" && catalog.length === 0) void loadCatalog(catalogMarket);
+              if (id === "ir") {
+                void loadIrList();
+                if (catalog.length === 0) void loadCatalog(catalogMarket);
+              }
             }}
             className={tab === id ? TAB_ACTIVE : TAB_INACTIVE}
           >
@@ -1937,6 +2192,443 @@ export default function EmployeeCasesPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* Tab: New IR (Incident Report)                                       */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {tab === "ir" && (
+        <div className="space-y-4">
+
+          {/* Feedback */}
+          {irFormError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{irFormError}</span>
+              <button type="button" onClick={() => setIrFormError("")} className="ml-auto shrink-0">
+                <X className="h-4 w-4 opacity-60 hover:opacity-100" />
+              </button>
+            </div>
+          )}
+          {irFormMsg && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+              <CheckCircle className="h-4 w-4 shrink-0" />
+              {irFormMsg}
+            </div>
+          )}
+
+          {/* Banned words warning */}
+          {irBannedWords.length > 0 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 space-y-1">
+              <p className="font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Evaluative language detected — please revise
+              </p>
+              <p className="text-xs text-amber-400">
+                Terms found: {irBannedWords.join(", ")}
+              </p>
+              <p className="text-xs text-amber-300/80">
+                Write only specific, observable acts with time, place, and direct quotes. Avoid judgments or character assessments.
+              </p>
+            </div>
+          )}
+
+          {/* Section header + toggle */}
+          <div className="flex items-center justify-between">
+            <h3 className={T_SECTION}>Create Incident Report</h3>
+            <button
+              type="button"
+              onClick={() => {
+                if (irDraft) { resetIrForm(); } else { setIrFormOpen((v) => !v); }
+              }}
+              className={`${irFormOpen || irDraft ? SECONDARY_BUTTON : PRIMARY_BUTTON} flex items-center gap-1.5 text-sm`}
+            >
+              {irDraft ? (
+                <><X className="h-4 w-4" /> Cancel / Reset</>
+              ) : irFormOpen ? (
+                <><X className="h-4 w-4" /> Cancel</>
+              ) : (
+                <><Plus className="h-4 w-4" /> New IR</>
+              )}
+            </button>
+          </div>
+
+          {/* ── Draft created: show detail + evidence ── */}
+          {irDraft && (
+            <div className={`${GLASS_CARD} space-y-4 p-5`}>
+              {/* IR summary header */}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-mono text-sm font-bold text-violet-400">{irDraft.ir_ref}</span>
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                  irDraft.status === "IR_SUBMITTED" ? "bg-emerald-900/60 text-emerald-300" :
+                  irDraft.status === "DRAFT" ? "bg-zinc-800 text-zinc-300" :
+                  "bg-amber-900/60 text-amber-300"
+                }`}>{irDraft.status}</span>
+                <span className={T_CAPTION}>{irDraft.staff_name} · {irDraft.market} · {irDraft.incident_date}</span>
+                <span className="ml-auto font-mono text-xs text-zinc-500">{irDraft.input_layer}</span>
+              </div>
+
+              {/* Evidence section */}
+              {irDraft.status === "DRAFT" && (
+                <div className="space-y-3">
+                  <p className={T_LABEL}>
+                    Evidence
+                    {irDraft.input_layer === "L3_NARRATIVE" && (
+                      <span className="ml-2 text-xs text-amber-400">
+                        {(irDraft.witness_names?.length ?? 0) === 0
+                          ? "Min 2 required (no witnesses)"
+                          : "Min 1 required"}
+                      </span>
+                    )}
+                  </p>
+
+                  {/* Existing evidence */}
+                  {(irDraft.evidence ?? []).length > 0 && (
+                    <div className="space-y-1.5">
+                      {(irDraft.evidence ?? []).map((ev) => (
+                        <div key={ev.id} className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm">
+                          <span className="font-mono text-xs text-zinc-500">{ev.evidence_type}</span>
+                          <span className="flex-1 text-zinc-300 truncate">{ev.description || ev.file_path || "—"}</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteEvidence(ev.id)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add evidence form */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                    <div>
+                      <label className={T_LABEL}>Type</label>
+                      <SelectDark
+                        value={irEvidenceType}
+                        onChange={setIrEvidenceType}
+                        options={[
+                          { value: "PHOTO", label: "Photo" },
+                          { value: "CCTV_REF", label: "CCTV Ref" },
+                          { value: "DOCUMENT", label: "Document" },
+                          { value: "WITNESS_STATEMENT", label: "Witness Statement" },
+                          { value: "OS_LOG", label: "System Log" },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>Description</label>
+                      <input
+                        className={`${INPUT_CLASS} mt-1`}
+                        value={irEvidenceDesc}
+                        onChange={(e) => setIrEvidenceDesc(e.target.value)}
+                        placeholder="e.g. CCTV cam 3, 14:30"
+                      />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>File path / reference</label>
+                      <input
+                        className={`${INPUT_CLASS} mt-1`}
+                        value={irEvidenceRef}
+                        onChange={(e) => setIrEvidenceRef(e.target.value)}
+                        placeholder="Optional URL or ref"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleAddEvidence()}
+                    disabled={irAddingEvidence}
+                    className={`${SECONDARY_BUTTON} flex items-center gap-1.5 text-sm`}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {irAddingEvidence ? "Adding…" : "Add Evidence"}
+                  </button>
+                </div>
+              )}
+
+              {/* Submit button (L3 validation summary) */}
+              {irDraft.status === "DRAFT" && (
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                  {irDraft.input_layer === "L3_NARRATIVE" && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      <div className={`rounded px-2 py-1 ${(irDraft.observed_acts?.length ?? 0) >= 120 ? "bg-emerald-900/30 text-emerald-300" : "bg-red-900/30 text-red-300"}`}>
+                        Observed Acts: {irDraft.observed_acts?.length ?? 0}/120
+                      </div>
+                      <div className={`rounded px-2 py-1 ${(irDraft.operational_impact?.length ?? 0) >= 60 ? "bg-emerald-900/30 text-emerald-300" : "bg-red-900/30 text-red-300"}`}>
+                        Impact: {irDraft.operational_impact?.length ?? 0}/60
+                      </div>
+                      <div className={`rounded px-2 py-1 ${(irDraft.evidence?.length ?? 0) >= ((irDraft.witness_names?.length ?? 0) === 0 ? 2 : 1) ? "bg-emerald-900/30 text-emerald-300" : "bg-red-900/30 text-red-300"}`}>
+                        Evidence: {irDraft.evidence?.length ?? 0} file(s)
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmitIr()}
+                    disabled={irSubmitting}
+                    className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    {irSubmitting ? "Submitting…" : "Submit IR"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── New IR form (before draft created) ── */}
+          {!irDraft && irFormOpen && (
+            <div className={`${GLASS_CARD} space-y-4 p-5`}>
+              {/* Row 1: Staff + Market + Store */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className={T_LABEL}>Staff Name *</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    list="ir-staff-list"
+                    value={irStaffName}
+                    onChange={(e) => setIrStaffName(e.target.value)}
+                    placeholder="Type staff name…"
+                  />
+                  <datalist id="ir-staff-list">
+                    {staffList.map((n) => <option key={n} value={n} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className={T_LABEL}>Market *</label>
+                  <SelectDark
+                    value={irMarket}
+                    onChange={(v) => setIrMarket(v as "AE" | "PH")}
+                    options={[
+                      { value: "PH", label: "PH (Philippines)" },
+                      { value: "AE", label: "AE (Dubai)" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Store Code</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={irStoreCode}
+                    onChange={(e) => setIrStoreCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. EWC"
+                    maxLength={8}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Violation Code + Date + Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className={T_LABEL}>Violation Code</label>
+                  <SelectDark
+                    value={irProposedCode}
+                    onChange={setIrProposedCode}
+                    options={[
+                      { value: "", label: "— Select violation —" },
+                      ...catalog.map((c) => ({
+                        value: c.code,
+                        label: `${c.code} · ${c.title_en}`,
+                      })),
+                    ]}
+                  />
+                  {irProposedCode && (
+                    <p className="mt-1 text-xs text-zinc-500 font-mono">{irInputLayer()}</p>
+                  )}
+                </div>
+                <div>
+                  <label className={T_LABEL}>Incident Date *</label>
+                  <input
+                    type="date"
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={irDate}
+                    max={todayStr()}
+                    onChange={(e) => setIrDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Incident Time</label>
+                  <input
+                    type="time"
+                    step="900"
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={irTime}
+                    onChange={(e) => setIrTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Location + Witnesses */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={T_LABEL}>Location</label>
+                  <SelectDark
+                    value={irLocation}
+                    onChange={setIrLocation}
+                    options={[
+                      { value: "", label: "— Select location —" },
+                      { value: "KITCHEN", label: "Kitchen" },
+                      { value: "HALL", label: "Hall" },
+                      { value: "CASHIER", label: "Cashier" },
+                      { value: "BACK_OFFICE", label: "Back Office" },
+                      { value: "DELIVERY_AREA", label: "Delivery Area" },
+                      { value: "CENTRAL_KITCHEN", label: "Central Kitchen" },
+                      { value: "WAREHOUSE", label: "Warehouse" },
+                      { value: "OTHER", label: "Other" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Witnesses (comma-separated names, leave blank if none)</label>
+                  <input
+                    className={`${INPUT_CLASS} mt-1`}
+                    value={irWitnesses}
+                    onChange={(e) => setIrWitnesses(e.target.value)}
+                    placeholder="e.g. Maria Santos, Juan dela Cruz"
+                  />
+                  {irWitnesses === "" && irProposedCode && irInputLayer() === "L3_NARRATIVE" && (
+                    <p className="mt-1 text-xs text-amber-400">No witnesses → 2 evidence files required</p>
+                  )}
+                </div>
+              </div>
+
+              {/* L3 narrative fields */}
+              {irInputLayer() === "L3_NARRATIVE" && (
+                <>
+                  <div>
+                    <label className={T_LABEL}>
+                      Observed Acts *
+                      <span className={`ml-2 font-mono ${irObservedActs.length >= 120 ? "text-emerald-400" : "text-red-400"}`}>
+                        {irObservedActs.length}/120
+                      </span>
+                    </label>
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-1`}
+                      rows={4}
+                      value={irObservedActs}
+                      onChange={(e) => {
+                        setIrObservedActs(e.target.value);
+                        setIrBannedWords(detectBannedWords(e.target.value + " " + irOperationalImpact));
+                      }}
+                      placeholder="Describe only what you directly observed: time, place, exact actions or words."
+                    />
+                  </div>
+
+                  <div>
+                    <label className={T_LABEL}>Verbatim Quote (if applicable)</label>
+                    <input
+                      className={`${INPUT_CLASS} mt-1`}
+                      value={irVerbatimQuote}
+                      onChange={(e) => setIrVerbatimQuote(e.target.value)}
+                      placeholder="Exact words spoken, in the original language"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={T_LABEL}>
+                      Operational Impact *
+                      <span className={`ml-2 font-mono ${irOperationalImpact.length >= 60 ? "text-emerald-400" : "text-red-400"}`}>
+                        {irOperationalImpact.length}/60
+                      </span>
+                    </label>
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-1`}
+                      rows={3}
+                      value={irOperationalImpact}
+                      onChange={(e) => {
+                        setIrOperationalImpact(e.target.value);
+                        setIrBannedWords(detectBannedWords(irObservedActs + " " + e.target.value));
+                      }}
+                      placeholder="How did this affect operations, customers, or team?"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={T_LABEL}>Prior Instructions / Warnings (optional)</label>
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-1`}
+                      rows={2}
+                      value={irPriorInstruction}
+                      onChange={(e) => setIrPriorInstruction(e.target.value)}
+                      placeholder="Reference any prior verbal/written warnings on this matter"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setIrFormOpen(false); setIrFormError(""); }}
+                  className={SECONDARY_BUTTON}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateIrDraft()}
+                  disabled={irSubmitting || !irStaffName.trim() || !irDate}
+                  className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                >
+                  {irSubmitting ? "Saving…" : "Save Draft"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Recent IRs list ── */}
+          <div>
+            <h3 className={`${T_SECTION} mb-2`}>Recent Incident Reports</h3>
+            {irListLoading && <p className={T_BODY}>Loading…</p>}
+            {!irListLoading && irList.length === 0 && (
+              <div className={`${GLASS_CARD} p-8 text-center`}>
+                <FileText className="mx-auto mb-2 h-8 w-8 text-zinc-600" />
+                <p className={T_BODY}>No IRs yet. Click &quot;New IR&quot; to start.</p>
+              </div>
+            )}
+            {irList.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm border-collapse">
+                  <thead>
+                    <tr className={TABLE_HEADER}>
+                      <th className={`${TABLE_CELL} text-left`}>IR Ref</th>
+                      <th className={`${TABLE_CELL} text-left`}>Staff</th>
+                      <th className={`${TABLE_CELL} text-center`}>Market</th>
+                      <th className={`${TABLE_CELL} text-center`}>Layer</th>
+                      <th className={`${TABLE_CELL} text-center`}>Status</th>
+                      <th className={`${TABLE_CELL} text-left`}>Date</th>
+                      <th className={`${TABLE_CELL} text-left`}>Code</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {irList.map((ir) => (
+                      <tr key={ir.id} className={TABLE_ROW}>
+                        <td className={`${TABLE_CELL} font-mono text-violet-400`}>{ir.ir_ref}</td>
+                        <td className={TABLE_CELL}>{ir.staff_name}</td>
+                        <td className={`${TABLE_CELL} text-center`}>{ir.market}</td>
+                        <td className={`${TABLE_CELL} text-center font-mono text-xs`}>{ir.input_layer}</td>
+                        <td className={`${TABLE_CELL} text-center`}>
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                            ir.status === "IR_SUBMITTED" ? "bg-emerald-900/60 text-emerald-300" :
+                            ir.status === "DRAFT" ? "bg-zinc-800 text-zinc-300" :
+                            "bg-amber-900/60 text-amber-300"
+                          }`}>
+                            {ir.status}
+                          </span>
+                        </td>
+                        <td className={TABLE_CELL}>{ir.incident_date}</td>
+                        <td className={`${TABLE_CELL} font-mono text-xs text-zinc-400`}>{ir.proposed_code ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
