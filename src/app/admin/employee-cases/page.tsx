@@ -201,6 +201,12 @@ type NteV2Case = {
   created_at: string;
   updated_at: string;
   response_deadline?: string | null;
+  // SLA fields (from /sla overview endpoint)
+  urgency?: "ok" | "warning" | "overdue" | "done";
+  days_remaining?: number | null;
+  next_deadline_type?: string | null;
+  next_deadline_at?: string | null;
+  all_deadlines?: Record<string, string | null>;
   audit_log?: Array<{
     id: number;
     actor_name: string;
@@ -1066,8 +1072,9 @@ export default function EmployeeCasesPage() {
     try {
       const auth = getAuth();
       const h = getAuthHeaders(auth) as Record<string, string>;
+      // Use SLA overview endpoint — returns cases pre-sorted by urgency with SLA data
       const [casesRes, irsRes] = await Promise.all([
-        fetch("/api/admin/nte-v2/case?limit=100", { headers: h }),
+        fetch("/api/admin/nte-v2/sla?limit=100", { headers: h }),
         fetch("/api/admin/nte-v2/ir?status=IR_SUBMITTED&limit=100", { headers: h }),
       ]);
       if (!casesRes.ok) throw new Error(await casesRes.text());
@@ -2889,8 +2896,9 @@ export default function EmployeeCasesPage() {
                       <th className={`${TABLE_CELL} text-left`}>Staff</th>
                       <th className={`${TABLE_CELL} text-center`}>Mkt</th>
                       <th className={`${TABLE_CELL} text-left`}>Violation</th>
-                      <th className={`${TABLE_CELL} text-center`}>Severity</th>
+                      <th className={`${TABLE_CELL} text-center`}>Sev</th>
                       <th className={`${TABLE_CELL} text-center`}>Status</th>
+                      <th className={`${TABLE_CELL} text-center`}>SLA</th>
                       <th className={`${TABLE_CELL} text-left`}>Reviewer</th>
                       <th className={`${TABLE_CELL} text-center`}>Actions</th>
                     </tr>
@@ -2959,6 +2967,25 @@ export default function EmployeeCasesPage() {
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusColors[c.status] ?? "bg-zinc-800 text-zinc-300"}`}>
                               {c.status}
                             </span>
+                          </td>
+                          <td className={`${TABLE_CELL} text-center`}>
+                            {c.urgency && c.urgency !== "done" ? (
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                                c.urgency === "overdue" ? "bg-red-900/70 text-red-300" :
+                                c.urgency === "warning" ? "bg-amber-900/70 text-amber-300" :
+                                "bg-emerald-900/60 text-emerald-400"
+                              }`}>
+                                {c.urgency === "overdue"
+                                  ? `${Math.abs(c.days_remaining ?? 0).toFixed(0)}d over`
+                                  : c.urgency === "warning"
+                                  ? `${(c.days_remaining ?? 0).toFixed(0)}d left`
+                                  : `${(c.days_remaining ?? 0).toFixed(0)}d`}
+                              </span>
+                            ) : c.urgency === "done" ? (
+                              <span className={T_CAPTION}>done</span>
+                            ) : (
+                              <span className={T_CAPTION}>—</span>
+                            )}
                           </td>
                           <td className={`${TABLE_CELL} text-xs`}>{c.reviewed_by ?? "—"}</td>
                           <td className={`${TABLE_CELL} text-center`}>
