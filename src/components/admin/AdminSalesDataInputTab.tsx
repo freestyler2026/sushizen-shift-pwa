@@ -12,13 +12,16 @@ type SaleRow = {
   branch: string;
   dine_in_orders: number | null;
   dine_in_amount: number | null;
+  dine_in_gross: number | null;
   grabfood_orders: number | null;
   grabfood_amount: number | null;
+  grabfood_gross: number | null;
   foodpanda_orders: number | null;
   foodpanda_gross: number | null;
   foodpanda_amount: number | null;
   beep_orders: number | null;
   beep_amount: number | null;
+  beep_gross: number | null;
   total_orders: number | null;
   total_amount: number | null;
   ratio_to_prev_week: number | null;
@@ -28,12 +31,15 @@ type EditableRow = {
   branch: string;
   dine_in_orders: string;
   dine_in_amount: string;
+  dine_in_gross: string;
   grabfood_orders: string;
   grabfood_amount: string;
+  grabfood_gross: string;
   foodpanda_orders: string;
   foodpanda_gross: string;
   beep_orders: string;
   beep_amount: string;
+  beep_gross: string;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -75,9 +81,18 @@ function floatOrNull(s: string): number | null {
 }
 
 function calcTotal(row: EditableRow) {
-  const orders = (intOrNull(row.dine_in_orders) ?? 0) + (intOrNull(row.grabfood_orders) ?? 0) + (intOrNull(row.foodpanda_orders) ?? 0) + (intOrNull(row.beep_orders) ?? 0);
-  const fpNet = (floatOrNull(row.foodpanda_gross) ?? 0) * 0.70;
-  const amount = (floatOrNull(row.dine_in_amount) ?? 0) + (floatOrNull(row.grabfood_amount) ?? 0) + fpNet + (floatOrNull(row.beep_amount) ?? 0);
+  const orders =
+    (intOrNull(row.dine_in_orders) ?? 0) +
+    (intOrNull(row.grabfood_orders) ?? 0) +
+    (intOrNull(row.foodpanda_orders) ?? 0) +
+    (intOrNull(row.beep_orders) ?? 0);
+  const fpNet = (floatOrNull(row.foodpanda_gross) ?? 0) * 0.7;
+  // total_amount is the Net total: dine_in_amount + grabfood_amount + fp_net + beep_amount
+  const amount =
+    (floatOrNull(row.dine_in_amount) ?? 0) +
+    (floatOrNull(row.grabfood_amount) ?? 0) +
+    fpNet +
+    (floatOrNull(row.beep_amount) ?? 0);
   return { orders, amount };
 }
 
@@ -85,17 +100,37 @@ function fmtPHP(n: number) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const EMPTY_ROW_FIELDS = {
+  dine_in_orders: "",
+  dine_in_amount: "",
+  dine_in_gross: "",
+  grabfood_orders: "",
+  grabfood_amount: "",
+  grabfood_gross: "",
+  foodpanda_orders: "",
+  foodpanda_gross: "",
+  beep_orders: "",
+  beep_amount: "",
+  beep_gross: "",
+  saving: false,
+  saved: false,
+  error: null,
+} as const;
+
 function rowToEditable(r: SaleRow): EditableRow {
   return {
     branch: r.branch,
     dine_in_orders: r.dine_in_orders != null ? String(r.dine_in_orders) : "",
     dine_in_amount: r.dine_in_amount != null ? String(r.dine_in_amount) : "",
+    dine_in_gross: r.dine_in_gross != null ? String(r.dine_in_gross) : "",
     grabfood_orders: r.grabfood_orders != null ? String(r.grabfood_orders) : "",
     grabfood_amount: r.grabfood_amount != null ? String(r.grabfood_amount) : "",
+    grabfood_gross: r.grabfood_gross != null ? String(r.grabfood_gross) : "",
     foodpanda_orders: r.foodpanda_orders != null ? String(r.foodpanda_orders) : "",
     foodpanda_gross: r.foodpanda_gross != null ? String(r.foodpanda_gross) : "",
     beep_orders: r.beep_orders != null ? String(r.beep_orders) : "",
     beep_amount: r.beep_amount != null ? String(r.beep_amount) : "",
+    beep_gross: r.beep_gross != null ? String(r.beep_gross) : "",
     saving: false,
     saved: false,
     error: null,
@@ -103,9 +138,19 @@ function rowToEditable(r: SaleRow): EditableRow {
 }
 
 function hasRowInput(row: EditableRow) {
-  return [row.dine_in_orders, row.dine_in_amount, row.grabfood_orders, row.grabfood_amount, row.foodpanda_orders, row.foodpanda_gross, row.beep_orders, row.beep_amount].some(
-    (v) => v.trim() !== "",
-  );
+  return [
+    row.dine_in_orders,
+    row.dine_in_amount,
+    row.dine_in_gross,
+    row.grabfood_orders,
+    row.grabfood_amount,
+    row.grabfood_gross,
+    row.foodpanda_orders,
+    row.foodpanda_gross,
+    row.beep_orders,
+    row.beep_amount,
+    row.beep_gross,
+  ].some((v) => v.trim() !== "");
 }
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -186,25 +231,16 @@ function InputCell({
   );
 }
 
+// Column layout: Branch | Dine#  DineNet  DineGross | Grab#  GrabNet  GrabGross | FP#  FPGross  FPNet | Beep#  BeepNet  BeepGross | Total#  TotalPHP | action
+const GRID_COLS =
+  "grid-cols-[minmax(100px,140px)_repeat(12,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px]";
+
 export default function AdminSalesDataInputTab() {
   const [approverName, setApproverName] = useState("");
   const [pin, setPin] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
   const [rows, setRows] = useState<EditableRow[]>(
-    BRANCHES.map((b) => ({
-      branch: b,
-      dine_in_orders: "",
-      dine_in_amount: "",
-      grabfood_orders: "",
-      grabfood_amount: "",
-      foodpanda_orders: "",
-      foodpanda_gross: "",
-      beep_orders: "",
-      beep_amount: "",
-      saving: false,
-      saved: false,
-      error: null,
-    })),
+    BRANCHES.map((b) => ({ branch: b, ...EMPTY_ROW_FIELDS })),
   );
   const [loadingDate, setLoadingDate] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -216,44 +252,32 @@ export default function AdminSalesDataInputTab() {
     if (a?.pin) setPin((p) => p.trim() || a.pin || "");
   }, []);
 
-  const loadDate = useCallback(async (date: string) => {
-    const nm = approverName.trim();
-    const p = pin.trim();
-    if (!nm || !p) {
-      setLoadError("Enter approver name and PIN (saved from login).");
-      return;
-    }
-    setLoadingDate(true);
-    setLoadError("");
-    try {
-      const qs = new URLSearchParams({ approver_name: nm, pin: p });
-      const res = await apiGet<{ ok?: boolean; items?: SaleRow[] }>(
-        `/api/admin/analytics/manila/daily-sales/by-date/${encodeURIComponent(date)}?${qs.toString()}`,
-      );
-      const items = Array.isArray(res?.items) ? res.items : [];
-      setRows(items.map(rowToEditable));
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "Failed to load");
-      setRows(
-        BRANCHES.map((b) => ({
-          branch: b,
-          dine_in_orders: "",
-          dine_in_amount: "",
-          grabfood_orders: "",
-          grabfood_amount: "",
-          foodpanda_orders: "",
-          foodpanda_gross: "",
-          beep_orders: "",
-          beep_amount: "",
-          saving: false,
-          saved: false,
-          error: null,
-        })),
-      );
-    } finally {
-      setLoadingDate(false);
-    }
-  }, [approverName, pin]);
+  const loadDate = useCallback(
+    async (date: string) => {
+      const nm = approverName.trim();
+      const p = pin.trim();
+      if (!nm || !p) {
+        setLoadError("Enter approver name and PIN (saved from login).");
+        return;
+      }
+      setLoadingDate(true);
+      setLoadError("");
+      try {
+        const qs = new URLSearchParams({ approver_name: nm, pin: p });
+        const res = await apiGet<{ ok?: boolean; items?: SaleRow[] }>(
+          `/api/admin/analytics/manila/daily-sales/by-date/${encodeURIComponent(date)}?${qs.toString()}`,
+        );
+        const items = Array.isArray(res?.items) ? res.items : [];
+        setRows(items.map(rowToEditable));
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : "Failed to load");
+        setRows(BRANCHES.map((b) => ({ branch: b, ...EMPTY_ROW_FIELDS })));
+      } finally {
+        setLoadingDate(false);
+      }
+    },
+    [approverName, pin],
+  );
 
   useEffect(() => {
     void loadDate(selectedDate);
@@ -266,31 +290,40 @@ export default function AdminSalesDataInputTab() {
     );
   };
 
+  function buildPayload(row: EditableRow, date: string, nm: string, p: string) {
+    return {
+      approver_name: nm,
+      pin: p,
+      date,
+      branch: row.branch,
+      dine_in_orders: intOrNull(row.dine_in_orders),
+      dine_in_amount: floatOrNull(row.dine_in_amount),
+      dine_in_gross: floatOrNull(row.dine_in_gross),
+      grabfood_orders: intOrNull(row.grabfood_orders),
+      grabfood_amount: floatOrNull(row.grabfood_amount),
+      grabfood_gross: floatOrNull(row.grabfood_gross),
+      foodpanda_orders: intOrNull(row.foodpanda_orders),
+      foodpanda_gross: floatOrNull(row.foodpanda_gross),
+      beep_orders: intOrNull(row.beep_orders),
+      beep_amount: floatOrNull(row.beep_amount),
+      beep_gross: floatOrNull(row.beep_gross),
+    };
+  }
+
   const saveRow = async (idx: number): Promise<boolean> => {
     const row = rows[idx];
     if (!hasRowInput(row)) return true;
     const nm = approverName.trim();
     const p = pin.trim();
     if (!nm || !p) {
-      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, error: "Approver name and PIN required", saved: false } : r)));
+      setRows((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, error: "Approver name and PIN required", saved: false } : r)),
+      );
       return false;
     }
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, saving: true, error: null } : r)));
     try {
-      await apiPostJson("/api/admin/analytics/manila/daily-sales/upsert", {
-        approver_name: nm,
-        pin: p,
-        date: selectedDate,
-        branch: row.branch,
-        dine_in_orders: intOrNull(row.dine_in_orders),
-        dine_in_amount: floatOrNull(row.dine_in_amount),
-        grabfood_orders: intOrNull(row.grabfood_orders),
-        grabfood_amount: floatOrNull(row.grabfood_amount),
-        foodpanda_orders: intOrNull(row.foodpanda_orders),
-        foodpanda_gross: floatOrNull(row.foodpanda_gross),
-        beep_orders: intOrNull(row.beep_orders),
-        beep_amount: floatOrNull(row.beep_amount),
-      });
+      await apiPostJson("/api/admin/analytics/manila/daily-sales/upsert", buildPayload(row, selectedDate, nm, p));
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, saving: false, saved: true, error: null } : r)));
       return true;
     } catch (e: unknown) {
@@ -315,20 +348,10 @@ export default function AdminSalesDataInputTab() {
       if (!hasRowInput(snapshot[i])) continue;
       setRows((prev) => prev.map((r, j) => (j === i ? { ...r, saving: true, error: null } : r)));
       try {
-        await apiPostJson("/api/admin/analytics/manila/daily-sales/upsert", {
-          approver_name: nm,
-          pin: p,
-          date: selectedDate,
-          branch: snapshot[i].branch,
-          dine_in_orders: intOrNull(snapshot[i].dine_in_orders),
-          dine_in_amount: floatOrNull(snapshot[i].dine_in_amount),
-          grabfood_orders: intOrNull(snapshot[i].grabfood_orders),
-          grabfood_amount: floatOrNull(snapshot[i].grabfood_amount),
-          foodpanda_orders: intOrNull(snapshot[i].foodpanda_orders),
-          foodpanda_gross: floatOrNull(snapshot[i].foodpanda_gross),
-          beep_orders: intOrNull(snapshot[i].beep_orders),
-          beep_amount: floatOrNull(snapshot[i].beep_amount),
-        });
+        await apiPostJson(
+          "/api/admin/analytics/manila/daily-sales/upsert",
+          buildPayload(snapshot[i], selectedDate, nm, p),
+        );
         setRows((prev) => prev.map((r, j) => (j === i ? { ...r, saving: false, saved: true, error: null } : r)));
       } catch {
         fail = true;
@@ -342,6 +365,7 @@ export default function AdminSalesDataInputTab() {
   return (
     <div className={GLASS_CARD}>
       <div className="space-y-6 p-4 pb-8">
+        {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <button
@@ -354,7 +378,7 @@ export default function AdminSalesDataInputTab() {
             <div>
               <h2 className="text-lg font-semibold text-white">Sales Data Input</h2>
               <p className={`${T_CAPTION} mt-1`}>
-                Enter daily counts and <strong>Gross Sales</strong> (from your POS/aggregator portal) for each channel. FoodPanda Net (gross × 0.70) is auto-computed. Data appears in Manila Sales Analytics → Sales Data after save.
+                Enter daily counts and sales amounts for each channel. Data appears in Manila Sales Analytics → Sales Data after save.
               </p>
             </div>
           </div>
@@ -381,6 +405,18 @@ export default function AdminSalesDataInputTab() {
           </div>
         </div>
 
+        {/* Field guide */}
+        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-xs leading-relaxed text-white/60">
+          <span className="font-semibold text-indigo-300">Field guide — </span>
+          <span className="text-sky-300 font-medium">Net Sales</span>
+          {" "}= the Net Sales figure shown directly in your aggregator portal (Grab Merchant, Beep, StoreHub). Copy this value as-is.{"  "}
+          <span className="text-amber-300 font-medium">Gross Sales</span>
+          {" "}= the Gross Sales figure from the same portal. Copy this value as-is.{"  "}
+          <span className="text-emerald-300 font-medium">FoodPanda</span>
+          {" "}= enter FP Gross; Net (×0.70) is auto-computed.
+        </div>
+
+        {/* Date picker */}
         <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
@@ -426,24 +462,59 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
+        {/* Input table */}
         {!loadingDate ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-[minmax(100px,140px)_repeat(9,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
-              <div className="font-medium text-white/30">Branch</div>
-              <div className="text-center text-white/30">Dine-in #</div>
-              <div className="text-center text-white/30">Dine-in Gross</div>
-              <div className="text-center text-white/30">Grab #</div>
-              <div className="text-center text-white/30">Grab Gross</div>
-              <div className="text-center text-white/30">FP #</div>
-              <div className="text-center text-white/30">FP Gross</div>
-              <div className="text-center text-white/30">FP Net</div>
-              <div className="text-center text-white/30">Beep #</div>
-              <div className="text-center text-white/30">Beep Gross</div>
-              <div className="text-center text-white/30">Total #</div>
-              <div className="text-center text-white/30">Total PHP</div>
+          <div className="space-y-3 overflow-x-auto">
+            {/* Column group labels */}
+            <div className={`grid ${GRID_COLS} gap-2 px-1 sm:px-4`}>
+              <div />
+              {/* Dine-in group */}
+              <div className="col-span-3 border-b border-white/10 pb-1 text-center text-[10px] font-semibold uppercase tracking-wider text-indigo-300/60">
+                Dine-in
+              </div>
+              {/* Grab group */}
+              <div className="col-span-3 border-b border-white/10 pb-1 text-center text-[10px] font-semibold uppercase tracking-wider text-green-300/60">
+                Grab
+              </div>
+              {/* FoodPanda group */}
+              <div className="col-span-3 border-b border-pink-500/20 pb-1 text-center text-[10px] font-semibold uppercase tracking-wider text-pink-300/60">
+                FoodPanda
+              </div>
+              {/* Beep group */}
+              <div className="col-span-3 border-b border-white/10 pb-1 text-center text-[10px] font-semibold uppercase tracking-wider text-amber-300/60">
+                Beep
+              </div>
+              <div />
+              <div />
               <div />
             </div>
 
+            {/* Column headers */}
+            <div className={`grid ${GRID_COLS} gap-2 px-1 text-xs sm:px-4`}>
+              <div className="font-medium text-white/30">Branch</div>
+              {/* Dine-in */}
+              <div className="text-center text-white/30">#</div>
+              <div className="text-center text-sky-300/60">Net</div>
+              <div className="text-center text-amber-300/60">Gross</div>
+              {/* Grab */}
+              <div className="text-center text-white/30">#</div>
+              <div className="text-center text-sky-300/60">Net</div>
+              <div className="text-center text-amber-300/60">Gross</div>
+              {/* FP */}
+              <div className="text-center text-white/30">#</div>
+              <div className="text-center text-amber-300/60">Gross</div>
+              <div className="text-center text-emerald-300/60">Net (auto)</div>
+              {/* Beep */}
+              <div className="text-center text-white/30">#</div>
+              <div className="text-center text-sky-300/60">Net</div>
+              <div className="text-center text-amber-300/60">Gross</div>
+              {/* Totals */}
+              <div className="text-center text-white/30">Total #</div>
+              <div className="text-center text-white/30">Total Net</div>
+              <div />
+            </div>
+
+            {/* Branch rows */}
             {rows.map((row, idx) => {
               const { orders, amount } = calcTotal(row);
               const colors = BRANCH_COLORS[row.branch];
@@ -453,39 +524,53 @@ export default function AdminSalesDataInputTab() {
                 <div
                   key={row.branch}
                   className={`rounded-2xl border transition-all ${
-                    row.saved ? "border-emerald-500/40 bg-emerald-500/5" : row.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/5"
+                    row.saved
+                      ? "border-emerald-500/40 bg-emerald-500/5"
+                      : row.error
+                        ? "border-red-500/40 bg-red-500/5"
+                        : "border-white/10 bg-white/5"
                   }`}
                 >
-                  <div className="grid grid-cols-[minmax(100px,140px)_repeat(9,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] items-center gap-2 px-1 py-3 sm:px-4">
+                  <div className={`grid ${GRID_COLS} items-center gap-2 px-1 py-3 sm:px-4`}>
+                    {/* Branch label */}
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: colors?.dot }} />
                       <span className="text-sm font-medium" style={{ color: colors?.text }}>
                         {row.branch}
                       </span>
                     </div>
+                    {/* Dine-in */}
                     <InputCell value={row.dine_in_orders} onChange={(v) => updateRow(idx, "dine_in_orders", v)} />
                     <InputCell value={row.dine_in_amount} onChange={(v) => updateRow(idx, "dine_in_amount", v)} isAmount />
+                    <InputCell value={row.dine_in_gross} onChange={(v) => updateRow(idx, "dine_in_gross", v)} isAmount />
+                    {/* Grab */}
                     <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} />
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount />
+                    <InputCell value={row.grabfood_gross} onChange={(v) => updateRow(idx, "grabfood_gross", v)} isAmount />
+                    {/* FoodPanda */}
                     <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} />
                     <InputCell value={row.foodpanda_gross} onChange={(v) => updateRow(idx, "foodpanda_gross", v)} isAmount />
                     {(() => {
                       const fpGross = floatOrNull(row.foodpanda_gross);
-                      const fpNet = fpGross != null ? fpGross * 0.70 : null;
+                      const fpNet = fpGross != null ? fpGross * 0.7 : null;
                       return (
                         <div className="text-right text-sm text-emerald-400/80">
                           {fpNet != null ? fmtPHP(fpNet) : <span className="text-white/20">—</span>}
                         </div>
                       );
                     })()}
+                    {/* Beep */}
                     <InputCell value={row.beep_orders} onChange={(v) => updateRow(idx, "beep_orders", v)} />
                     <InputCell value={row.beep_amount} onChange={(v) => updateRow(idx, "beep_amount", v)} isAmount />
+                    <InputCell value={row.beep_gross} onChange={(v) => updateRow(idx, "beep_gross", v)} isAmount />
+                    {/* Totals */}
                     <div className="text-right text-sm font-semibold text-white">
                       {hasData && orders > 0 ? orders.toLocaleString("en-PH") : <span className="text-white/20">—</span>}
                     </div>
                     <div className="text-right text-sm font-semibold text-white">
                       {hasData && amount > 0 ? fmtPHP(amount) : <span className="text-white/20">—</span>}
                     </div>
+                    {/* Save button */}
                     <div className="flex justify-center">
                       {row.saving ? (
                         <span className="animate-pulse text-xs text-white/30">…</span>
@@ -501,7 +586,9 @@ export default function AdminSalesDataInputTab() {
                           onClick={() => void saveRow(idx)}
                           disabled={!hasData}
                           className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                            hasData ? "bg-indigo-600 text-white hover:bg-indigo-500" : "cursor-not-allowed bg-white/5 text-white/20"
+                            hasData
+                              ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                              : "cursor-not-allowed bg-white/5 text-white/20"
                           }`}
                         >
                           Save
@@ -516,79 +603,208 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
-        {/* Gross Sales summary — shows gross breakdown before FP commission deduction */}
-        {!loadingDate && rows.some(r => hasRowInput(r)) ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <h3 className="mb-3 text-sm font-semibold text-white/70">Gross Sales</h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
-                    <th className="pb-2 pr-4 text-left">Branch</th>
-                    <th className="pb-2 px-3 text-right">Dine-In</th>
-                    <th className="pb-2 px-3 text-right">Grab</th>
-                    <th className="pb-2 px-3 text-right">FP Gross</th>
-                    <th className="pb-2 px-3 text-right">Beep</th>
-                    <th className="pb-2 pl-3 text-right font-bold text-white/40">Total Gross</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {rows.map((row) => {
-                    if (!hasRowInput(row)) return null;
-                    const dine = floatOrNull(row.dine_in_amount) ?? 0;
-                    const grab = floatOrNull(row.grabfood_amount) ?? 0;
-                    const fpGross = floatOrNull(row.foodpanda_gross) ?? 0;
-                    const beep = floatOrNull(row.beep_amount) ?? 0;
-                    const totalGross = dine + grab + fpGross + beep;
-                    const colors = BRANCH_COLORS[row.branch];
-                    return (
-                      <tr key={row.branch}>
-                        <td className="py-2 pr-4">
-                          <span className="text-sm font-medium" style={{ color: colors?.text }}>{row.branch}</span>
-                        </td>
-                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{dine > 0 ? fmtPHP(dine) : <span className="text-white/20">—</span>}</td>
-                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{grab > 0 ? fmtPHP(grab) : <span className="text-white/20">—</span>}</td>
-                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{fpGross > 0 ? fmtPHP(fpGross) : <span className="text-white/20">—</span>}</td>
-                        <td className="py-2 px-3 text-right tabular-nums text-white/70">{beep > 0 ? fmtPHP(beep) : <span className="text-white/20">—</span>}</td>
-                        <td className="py-2 pl-3 text-right tabular-nums font-semibold text-white">{totalGross > 0 ? fmtPHP(totalGross) : <span className="text-white/20">—</span>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="border-t border-white/10">
-                  <tr>
-                    <td className="pt-2 pr-4 text-xs font-semibold uppercase tracking-wider text-white/40">Total</td>
-                    {(["dine_in_amount", "grabfood_amount", "foodpanda_gross", "beep_amount"] as const).map((field) => {
-                      const total = rows.reduce((s, r) => s + (floatOrNull(r[field]) ?? 0), 0);
+        {/* Summary tables */}
+        {!loadingDate && rows.some((r) => hasRowInput(r)) ? (
+          <div className="space-y-4">
+            {/* Net Sales Summary */}
+            <div className="rounded-2xl border border-sky-500/20 bg-sky-500/[0.03] p-4">
+              <h3 className="mb-1 text-sm font-semibold text-sky-300/80">Net Sales Summary</h3>
+              <p className="mb-3 text-[11px] text-white/30">
+                Dine-in / Grab / Beep = Net from portal · FoodPanda = Gross × 0.70
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                      <th className="pb-2 pr-4 text-left">Branch</th>
+                      <th className="pb-2 px-3 text-right">Dine-In Net</th>
+                      <th className="pb-2 px-3 text-right">Grab Net</th>
+                      <th className="pb-2 px-3 text-right">FP Net</th>
+                      <th className="pb-2 px-3 text-right">Beep Net</th>
+                      <th className="pb-2 pl-3 text-right font-bold text-white/40">Total Net</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {rows.map((row) => {
+                      if (!hasRowInput(row)) return null;
+                      const dine = floatOrNull(row.dine_in_amount) ?? 0;
+                      const grab = floatOrNull(row.grabfood_amount) ?? 0;
+                      const fpNet = (floatOrNull(row.foodpanda_gross) ?? 0) * 0.7;
+                      const beep = floatOrNull(row.beep_amount) ?? 0;
+                      const totalNet = dine + grab + fpNet + beep;
+                      const colors = BRANCH_COLORS[row.branch];
                       return (
-                        <td key={field} className="pt-2 px-3 text-right tabular-nums text-sm font-semibold text-white/60">
-                          {total > 0 ? fmtPHP(total) : <span className="text-white/20">—</span>}
-                        </td>
+                        <tr key={row.branch}>
+                          <td className="py-2 pr-4">
+                            <span className="text-sm font-medium" style={{ color: colors?.text }}>
+                              {row.branch}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                            {dine > 0 ? fmtPHP(dine) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                            {grab > 0 ? fmtPHP(grab) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="py-2 px-3 text-right tabular-nums text-emerald-400/80">
+                            {fpNet > 0 ? fmtPHP(fpNet) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                            {beep > 0 ? fmtPHP(beep) : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="py-2 pl-3 text-right tabular-nums font-semibold text-white">
+                            {totalNet > 0 ? fmtPHP(totalNet) : <span className="text-white/20">—</span>}
+                          </td>
+                        </tr>
                       );
                     })}
-                    <td className="pt-2 pl-3 text-right tabular-nums text-sm font-bold text-emerald-400">
-                      {fmtPHP(rows.reduce((s, r) => s + (floatOrNull(r.dine_in_amount) ?? 0) + (floatOrNull(r.grabfood_amount) ?? 0) + (floatOrNull(r.foodpanda_gross) ?? 0) + (floatOrNull(r.beep_amount) ?? 0), 0))}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="pt-1 pr-4 text-[10px] text-white/25">FP commission (−30%)</td>
-                    <td colSpan={3} />
-                    <td className="pt-1 px-3 text-right tabular-nums text-[11px] text-red-400/70">
-                      {(() => { const fpG = rows.reduce((s, r) => s + (floatOrNull(r.foodpanda_gross) ?? 0), 0); return fpG > 0 ? `−${fmtPHP(fpG * 0.30)}` : ""; })()}
-                    </td>
-                    <td className="pt-1 pl-3 text-right tabular-nums text-[11px] text-white/40">
-                      Net: {fmtPHP(rows.reduce((s, r) => s + (floatOrNull(r.dine_in_amount) ?? 0) + (floatOrNull(r.grabfood_amount) ?? 0) + ((floatOrNull(r.foodpanda_gross) ?? 0) * 0.70) + (floatOrNull(r.beep_amount) ?? 0), 0))}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tbody>
+                  <tfoot className="border-t border-white/10">
+                    <tr>
+                      <td className="pt-2 pr-4 text-xs font-semibold uppercase tracking-wider text-white/40">Total</td>
+                      {(
+                        [
+                          { field: "dine_in_amount" as const, fp: false },
+                          { field: "grabfood_amount" as const, fp: false },
+                          { field: "foodpanda_gross" as const, fp: true },
+                          { field: "beep_amount" as const, fp: false },
+                        ] as const
+                      ).map(({ field, fp }) => {
+                        const total = rows.reduce(
+                          (s, r) =>
+                            s + (fp ? (floatOrNull(r[field]) ?? 0) * 0.7 : (floatOrNull(r[field]) ?? 0)),
+                          0,
+                        );
+                        return (
+                          <td
+                            key={field}
+                            className={`pt-2 px-3 text-right tabular-nums text-sm font-semibold ${fp ? "text-emerald-400/80" : "text-white/60"}`}
+                          >
+                            {total > 0 ? fmtPHP(total) : <span className="text-white/20">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="pt-2 pl-3 text-right tabular-nums text-sm font-bold text-sky-400">
+                        {fmtPHP(
+                          rows.reduce(
+                            (s, r) =>
+                              s +
+                              (floatOrNull(r.dine_in_amount) ?? 0) +
+                              (floatOrNull(r.grabfood_amount) ?? 0) +
+                              (floatOrNull(r.foodpanda_gross) ?? 0) * 0.7 +
+                              (floatOrNull(r.beep_amount) ?? 0),
+                            0,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
+
+            {/* Gross Sales Summary — only show if any gross data entered */}
+            {rows.some(
+              (r) =>
+                (floatOrNull(r.dine_in_gross) ?? 0) > 0 ||
+                (floatOrNull(r.grabfood_gross) ?? 0) > 0 ||
+                (floatOrNull(r.foodpanda_gross) ?? 0) > 0 ||
+                (floatOrNull(r.beep_gross) ?? 0) > 0,
+            ) ? (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+                <h3 className="mb-1 text-sm font-semibold text-amber-300/80">Gross Sales Summary</h3>
+                <p className="mb-3 text-[11px] text-white/30">
+                  Dine-in / Grab / Beep = Gross from portal · FoodPanda = same as FP Gross input
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                        <th className="pb-2 pr-4 text-left">Branch</th>
+                        <th className="pb-2 px-3 text-right">Dine-In Gross</th>
+                        <th className="pb-2 px-3 text-right">Grab Gross</th>
+                        <th className="pb-2 px-3 text-right">FP Gross</th>
+                        <th className="pb-2 px-3 text-right">Beep Gross</th>
+                        <th className="pb-2 pl-3 text-right font-bold text-white/40">Total Gross</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {rows.map((row) => {
+                        if (!hasRowInput(row)) return null;
+                        const dineG = floatOrNull(row.dine_in_gross) ?? 0;
+                        const grabG = floatOrNull(row.grabfood_gross) ?? 0;
+                        const fpG = floatOrNull(row.foodpanda_gross) ?? 0;
+                        const beepG = floatOrNull(row.beep_gross) ?? 0;
+                        const totalG = dineG + grabG + fpG + beepG;
+                        const colors = BRANCH_COLORS[row.branch];
+                        return (
+                          <tr key={row.branch}>
+                            <td className="py-2 pr-4">
+                              <span className="text-sm font-medium" style={{ color: colors?.text }}>
+                                {row.branch}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                              {dineG > 0 ? fmtPHP(dineG) : <span className="text-white/20">—</span>}
+                            </td>
+                            <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                              {grabG > 0 ? fmtPHP(grabG) : <span className="text-white/20">—</span>}
+                            </td>
+                            <td className="py-2 px-3 text-right tabular-nums text-amber-400/80">
+                              {fpG > 0 ? fmtPHP(fpG) : <span className="text-white/20">—</span>}
+                            </td>
+                            <td className="py-2 px-3 text-right tabular-nums text-white/70">
+                              {beepG > 0 ? fmtPHP(beepG) : <span className="text-white/20">—</span>}
+                            </td>
+                            <td className="py-2 pl-3 text-right tabular-nums font-semibold text-white">
+                              {totalG > 0 ? fmtPHP(totalG) : <span className="text-white/20">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="border-t border-white/10">
+                      <tr>
+                        <td className="pt-2 pr-4 text-xs font-semibold uppercase tracking-wider text-white/40">Total</td>
+                        {(["dine_in_gross", "grabfood_gross", "foodpanda_gross", "beep_gross"] as const).map((field) => {
+                          const total = rows.reduce((s, r) => s + (floatOrNull(r[field]) ?? 0), 0);
+                          return (
+                            <td
+                              key={field}
+                              className={`pt-2 px-3 text-right tabular-nums text-sm font-semibold ${field === "foodpanda_gross" ? "text-amber-400/80" : "text-white/60"}`}
+                            >
+                              {total > 0 ? fmtPHP(total) : <span className="text-white/20">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="pt-2 pl-3 text-right tabular-nums text-sm font-bold text-amber-400">
+                          {fmtPHP(
+                            rows.reduce(
+                              (s, r) =>
+                                s +
+                                (floatOrNull(r.dine_in_gross) ?? 0) +
+                                (floatOrNull(r.grabfood_gross) ?? 0) +
+                                (floatOrNull(r.foodpanda_gross) ?? 0) +
+                                (floatOrNull(r.beep_gross) ?? 0),
+                              0,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
+        {/* Save all */}
         {!loadingDate ? (
           <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-            {saveAllStatus === "done" ? <span className="text-sm font-medium text-emerald-400">All saved</span> : null}
+            {saveAllStatus === "done" ? (
+              <span className="text-sm font-medium text-emerald-400">All saved</span>
+            ) : null}
             {saveAllStatus === "error" ? (
               <span className="text-sm text-red-400">Some rows failed — check above.</span>
             ) : null}
@@ -607,12 +823,15 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
+        {/* How to use */}
         <div className="space-y-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs text-white/30">
           <p className="mb-2 font-medium text-white/50">How to use</p>
           <p>① Set approver + PIN (Manila management).</p>
-          <p>② Pick a date; load fills Paranaque / Taft / Cubao from the database.</p>
-          <p>③ Totals update as you type; WoW ratio is computed on save vs same branch 7 days earlier.</p>
-          <p>④ Use Save per row or Save all branches.</p>
+          <p>② Pick a date; existing data loads automatically for Paranaque / Taft / Cubao.</p>
+          <p>③ For Grab, Beep, Dine-in — enter <span className="text-sky-300">Net Sales</span> (portal Net) and <span className="text-amber-300">Gross Sales</span> (portal Gross) separately.</p>
+          <p>④ For FoodPanda — enter Gross only; Net (×0.70) is auto-computed.</p>
+          <p>⑤ <span className="text-white/40">Total Net</span> column = sum of all Net channels. WoW ratio is recomputed on save.</p>
+          <p>⑥ Use Save per row or Save all branches.</p>
           <p className="pt-1 text-white/20">Same date + branch overwrites the existing row.</p>
         </div>
       </div>
