@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.60 — NTE Module v2 P9 Categories + HR Catalog CRUD deployed)
+Last updated: 2026-08-03 (session 199 cont.61 — NTE Module v2 full state machine E2E browser test PASS)
 
 ---
 
@@ -200,6 +200,35 @@ Last updated: 2026-08-03 (session 199 cont.60 — NTE Module v2 P9 Categories + 
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
 
 ---
+
+## Recently Completed (2026-08-03 session 199 cont.61 — NTE v2 Full E2E Browser Test)
+
+### NTE Module v2 — Full State Machine Browser Test ✅ ALL PASS
+- **Bugs found and fixed during testing**:
+  1. **UUID cast error** in `get_cases_sla_batch()` (`db_nte_v2_sla.py`) — `WHERE id = ANY(%s)` rejected by Postgres (uuid ≠ text). Fixed with `WHERE id = ANY(%s::uuid[])`. Deployed Heroku v1703.
+  2. **`acts_block_en` never loaded** in Edit Template modal — `list_catalog()` SELECT queries didn't include the column; `CatalogEntry` TypeScript type also lacked it. Fixed backend (`db_nte_v2_catalog.py`: added `m.acts_block_en` to market SELECT, `NULL AS acts_block_en` to no-market SELECT) + frontend (type + `openEditTemplate`). Deployed Heroku + Vercel.
+  3. **PH serve fails when `response_days < 5`** — test case created with DB default `response_days=3`; `assert_ph_min_response_days()` raised `ValueError`. Fixed `db_nte_v2_case.py` serve action to auto-clamp: `if market == "PH" and response_days < 5: response_days = 5`. Deployed Heroku v1704.
+- **All 9 tabs verified in browser**:
+  - ✅ Staff Board — KPIs (Active 1, Total 1, Pending Review 1, Pending Issuance 0), Lyssa Rae card
+  - ✅ NTE Request — form (staff selector, date, document type, reason, evidence upload)
+  - ✅ Pending — "No approved requests pending issuance" (correct)
+  - ✅ Issue Notice — issuer auto-fills "Yukihiro Nishimura", Use Template radios
+  - ✅ Case History — Lyssa Rae NTE 2026-07-20, ACTIVE, Close/Delete actions
+  - ✅ Templates — empty state + "+ Add Template" button
+  - ✅ Violation Catalog — 25 items, AE adds LEGAL REF col, Edit Template modal loads acts_block_en (600 chars ATT-001)
+  - ✅ New IR — all L3 fields (Staff, Market, Store, Violation, Date/Time, Location, Witnesses, Observed Acts, Verbatim Quote, Operational Impact)
+  - ✅ Case Queue — UUID fix working, role HQ shown, full state machine
+- **Full PH state machine tested end-to-end (NTE-TEST-P1-000002)**:
+  - ✅ APPROVED → SERVED (serve modal, In Person method, SLA 6d)
+  - ✅ SERVED → RESPONSE_RECEIVED (response text submitted, SLA 10d)
+  - ✅ RESPONSE_RECEIVED → HEARING_PENDING (start hearing, SLA 10d)
+  - ✅ HEARING_PENDING → HEARING_DONE (complete hearing, SLA 4d)
+  - ✅ HEARING_DONE → INVESTIGATION_DONE (complete investigation, SLA 16d)
+  - ✅ INVESTIGATION_DONE → DECIDED (Written Warning selected, SLA amber 2d left)
+  - ✅ DECIDED → NOD_ISSUED (issue nod, SLA 0d)
+  - ✅ NOD_ISSUED → CLOSED (close, SLA done, actions —)
+- **SLA urgency correctly displayed** at each stage: green ok → amber warning (DECIDED 2d left) → grey done (CLOSED)
+- **SelectDark dropdown** portals to document.body; must click trigger by ref then click option by ref to interact
 
 ## Recently Completed (2026-08-03 session 199 cont.59)
 
