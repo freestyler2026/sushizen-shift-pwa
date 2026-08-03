@@ -203,6 +203,12 @@ Last updated: 2026-08-03 (session 199 cont.68 — PO Match ↔ Store Procurement
 
 ## Recently Completed (2026-08-03 session 199 cont.68 — PO Match ↔ Store Procurement integration)
 
+### PO Match: 5-phase integration — bug fixes ✅ DEPLOYED (Heroku d3a0715 + Vercel a7b241d, 2026-08-03)
+- **Bug 1 fixed**: `default_vat_rate` was clamped to [0,1] instead of [0,100] in `api_po_match_settings_update` (main.py line 40698). Saving 5% now persists as 5.0, not 1.0.
+- **Bug 2 fixed**: Quick Entry `vatRate` state was always "0" on mount (settings prop null at init). Added `useEffect` + `vatRateInitialized` ref to sync VAT rate when settings first loads.
+- **Bug 3 fixed**: All Records table header "BRANCHINVOICE NO." and "INVOICEVARIANCE" collisions fixed. Added `pr-3` to Supplier/Branch headers+cells; `pl-3` to PO/Invoice/Variance headers+cells; table `min-w` widened from 640px to 780px.
+- **Browser verified**: All columns properly spaced; Settings VAT=5 persists after reload; Quick Entry VAT field = 5 on mount.
+
 ### PO Match: 5-phase Store Procurement integration ✅ DEPLOYED (Heroku 01d107a + Vercel ff6090b)
 **Motivation**: Aliana Manuel's proposal — eliminate dual data entry between Store Procurement receiving and PO Match.
 
