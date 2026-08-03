@@ -175,7 +175,7 @@ type IngredientChangeRecord = {
   category: string;
   unit: string;
   old_price: number | null;
-  new_price: number;
+  new_price: number | null;
   old_formula: string;
   new_formula: string;
   formula_note: string;
@@ -5663,7 +5663,7 @@ export default function CostCalculationPage() {
                     <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-center">
                       <div className="text-xs text-sky-400/70">Price Changes</div>
                       <div className="text-lg font-semibold text-sky-300">
-                        {ingredientChanges.filter(r => r.old_price !== null && Math.abs((r.old_price ?? 0) - r.new_price) > 1e-6).length}
+                        {ingredientChanges.filter(r => r.old_price !== null && r.new_price !== null && Math.abs(r.old_price - r.new_price) > 1e-6).length}
                       </div>
                     </div>
                     <div className="rounded-lg border border-violet-500/20 bg-violet-500/8 px-3 py-2 text-center">
@@ -5691,7 +5691,7 @@ export default function CostCalculationPage() {
                       <tbody className="divide-y divide-white/[0.04]">
                         {ingredientChanges.map((rec) => {
                           const currSym = city === "manila" ? "PHP" : "AED";
-                          const priceDiff = rec.old_price !== null ? rec.new_price - (rec.old_price ?? 0) : null;
+                          const priceDiff = rec.old_price !== null && rec.new_price !== null ? rec.new_price - rec.old_price : null;
                           const pctChange = priceDiff !== null && (rec.old_price ?? 0) !== 0
                             ? (priceDiff / (rec.old_price ?? 1)) * 100
                             : null;
@@ -5706,7 +5706,7 @@ export default function CostCalculationPage() {
                                 {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-right font-mono text-white">
-                                {currSym} {rec.new_price.toFixed(6)}
+                                {rec.new_price !== null ? `${currSym} ${rec.new_price.toFixed(6)}` : <span className="text-zinc-600">—</span>}
                                 {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-center">
