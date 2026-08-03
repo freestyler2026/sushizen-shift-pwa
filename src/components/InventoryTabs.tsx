@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRightLeft,
-  BookOpen,
   Boxes,
   Building2,
   ChefHat,
@@ -36,7 +35,6 @@ const PRIMARY_ITEMS = [
 const SECONDARY_ITEMS = [
   { href: "/admin/inventory",                    label: "Overview",              icon: LayoutDashboard },
   { href: "/admin/inventory/items",              label: "Ingredients / Products", icon: Boxes },
-  { href: "/admin/inventory/recipes",            label: "Sales Menu BOM",         icon: BookOpen },
   { href: "/admin/inventory/count-sheets",       label: "Count Templates",        icon: ClipboardList },
   { href: "/admin/inventory/spot-checks",        label: "Quick Spot Check",       icon: ScanLine },
   { href: "/admin/inventory/quantity-adjustments", label: "Quantity Adjustments", icon: PackageMinus },

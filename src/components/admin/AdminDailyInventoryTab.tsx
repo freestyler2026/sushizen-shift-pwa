@@ -64,20 +64,25 @@ const isCkInternalSection = (section: string) =>
   CK_INTERNAL_SECTIONS.has((section || "").toUpperCase().replace(/_/g, " ").trim());
 
 const SOURCE_SECTION_LABELS: Record<string, string> = {
-  COLD_SUSHI:   "Cold Sushi",
-  HOT_GRILL:    "Hot Grill",
-  HOT_FRY:      "Hot Fry",
-  HOT_RAMEN:    "Hot Ramen",
-  HOT_SECTION:  "Hot Section",
-  FROZEN_ITEMS: "Frozen Items",
-  DRY_ITEMS:    "Dry Items",
-  INGREDIENTS:  "Ingredients",
-  OTHER_ITEMS:  "Other Items",
-  DRINK:        "Drink",
-  SUPPLIER:     "Supplier",
-  WAREHOUSE:    "Warehouse",
-  KITCHEN:      "Kitchen",
+  COLD_SUSHI:      "Cold Sushi",
+  COLD_SECTION:    "Cold Section",
+  HOT_GRILL:       "Hot Grill",
+  HOT_FRY:         "Hot Fry",
+  HOT_RAMEN:       "Hot Ramen",
+  HOT_SECTION:     "Hot Section",
+  FROZEN_ITEMS:    "Frozen Items",
+  DRY_ITEMS:       "Dry Items",
+  INGREDIENTS:     "Ingredients",
+  OTHER_ITEMS:     "Other Items",
+  DRINK:           "Drink",
+  SUPPLIER:        "Supplier",
+  WAREHOUSE:       "Warehouse",
+  KITCHEN:         "Kitchen",
 };
+function fmtSection(sec: string): string {
+  return SOURCE_SECTION_LABELS[sec] ??
+    sec.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const STAFF_OTHER = "Other";
 
@@ -558,7 +563,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         return (
           <div key={sec} className={GLASS_CARD}>
             <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-              <h3 className={T_SECTION}>{SOURCE_SECTION_LABELS[sec] ?? sec}</h3>
+              <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
               <span className="text-xs text-zinc-500">{sectionEntries.length} entries</span>
             </div>
             <div className="overflow-x-auto">
@@ -1199,7 +1204,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
         return (
           <div key={sec} className={GLASS_CARD}>
             <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-              <h3 className={T_SECTION}>{SOURCE_SECTION_LABELS[sec] ?? sec}</h3>
+              <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
               <span className="text-xs text-zinc-500">{secItems.length} items</span>
             </div>
             <div className="overflow-x-auto">
@@ -1804,10 +1809,10 @@ export default function AdminDailyInventoryTab() {
                 </button>
               )}
               {view === "form" && (
-                <button type="button" onClick={() => setView("history")} className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}>History</button>
+                <button type="button" onClick={() => { setView("history"); setError(""); }} className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}>History</button>
               )}
               {(view === "history" || view === "detail") && (
-                <button type="button" onClick={() => { setView("form"); setSelectedDetail(null); }} className={`${PRIMARY_BUTTON} touch-manipulation py-2 text-sm`}>Back to form</button>
+                <button type="button" onClick={() => { setView("form"); setSelectedDetail(null); setError(""); }} className={`${PRIMARY_BUTTON} touch-manipulation py-2 text-sm`}>Back to form</button>
               )}
             </div>
           </div>
@@ -2042,7 +2047,7 @@ export default function AdminDailyInventoryTab() {
             return (
               <div key={sec} className={`${GLASS_CARD} mb-5`}>
                 <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-                  <h2 className={T_SECTION}>{SOURCE_SECTION_LABELS[sec] ?? sec}</h2>
+                  <h2 className={T_SECTION}>{fmtSection(sec)}</h2>
                   <span className="text-xs text-zinc-500">{filled} / {total} filled</span>
                 </div>
                 <div className="overflow-x-auto">

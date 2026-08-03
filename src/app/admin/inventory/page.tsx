@@ -34,12 +34,6 @@ const MODULES: ModuleCard[] = [
     href: "/admin/inventory/items",
   },
   {
-    title: "Sales Menu BOM",
-    description: "Menu-to-ingredient mapping used to convert sales into theoretical stock consumption.",
-    status: "Backend ready",
-    href: "/admin/inventory/recipes",
-  },
-  {
     title: "POS Sync",
     description: "UrbanPiper orders-by-item CSV sync from Google Drive into branch-aware inventory staging.",
     status: "Backend ready",
