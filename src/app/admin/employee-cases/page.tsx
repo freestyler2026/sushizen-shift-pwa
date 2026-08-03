@@ -555,6 +555,22 @@ export default function EmployeeCasesPage() {
   const [autoDetectLoading, setAutoDetectLoading] = useState(false);
   const [autoDetectResult, setAutoDetectResult] = useState<Record<string, unknown> | null>(null);
   const [autoDetectMarket, setAutoDetectMarket] = useState<"" | "AE" | "PH">("");
+  // P9 Catalog CRUD
+  const [editTemplateOpen, setEditTemplateOpen] = useState(false);
+  const [editTemplateCode, setEditTemplateCode] = useState("");
+  const [editTemplateMarket, setEditTemplateMarket] = useState<"AE" | "PH" | "BOTH">("BOTH");
+  const [editTemplateText, setEditTemplateText] = useState("");
+  const [editTemplateSaving, setEditTemplateSaving] = useState(false);
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [addItemForm, setAddItemForm] = useState({
+    code: "", category_code: "", title_en: "", title_ja: "",
+    severity_class: "B" as "A"|"B"|"C"|"D",
+    input_layer: "L2_STRUCTURED" as "L1_AUTO"|"L2_STRUCTURED"|"L3_NARRATIVE",
+    scope: "ALL", sop_ref: "", requires_hq_review: false,
+    definition_en: "", legal_ground_ref_ae: "", legal_ground_ref_ph: "", acts_block_en: "",
+  });
+  const [addItemSaving, setAddItemSaving] = useState(false);
+  const [addItemError, setAddItemError] = useState("");
   // IR Review modal
   const [reviewTarget, setReviewTarget] = useState<IrRecord | null>(null);
   const [reviewAction, setReviewAction] = useState<"reject" | "dismiss" | "confirm_violation">("reject");
@@ -1180,6 +1196,89 @@ export default function EmployeeCasesPage() {
       alert(`Auto-detect failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setAutoDetectLoading(false);
+    }
+  }
+
+  function openEditTemplate(entry: CatalogEntry) {
+    setEditTemplateCode(entry.code);
+    setEditTemplateMarket("BOTH");
+    // Fetch current acts_block from the market row we have; fall back to empty
+    const text = (entry as unknown as Record<string, unknown>).acts_block_en as string ?? "";
+    setEditTemplateText(text);
+    setEditTemplateOpen(true);
+  }
+
+  async function saveEditTemplate() {
+    setEditTemplateSaving(true);
+    try {
+      const res = await fetch(`/api/admin/nte-v2/catalog/${editTemplateCode}/acts-block`, {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ market: editTemplateMarket, acts_block_en: editTemplateText }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setEditTemplateOpen(false);
+      await loadCatalog(catalogMarket);
+    } catch (e) {
+      alert(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setEditTemplateSaving(false);
+    }
+  }
+
+  async function deleteCatalogItem(code: string) {
+    if (!window.confirm(`Deactivate violation item "${code}"? It will no longer appear in the catalog or IR form.`)) return;
+    try {
+      const res = await fetch(`/api/admin/nte-v2/catalog/${code}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await loadCatalog(catalogMarket);
+    } catch (e) {
+      alert(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function submitAddItem() {
+    setAddItemSaving(true);
+    setAddItemError("");
+    try {
+      const body = {
+        code: addItemForm.code.trim().toUpperCase(),
+        category_code: addItemForm.category_code,
+        title_en: addItemForm.title_en.trim(),
+        title_ja: addItemForm.title_ja.trim(),
+        severity_class: addItemForm.severity_class,
+        input_layer: addItemForm.input_layer,
+        scope: addItemForm.scope,
+        sop_ref: addItemForm.sop_ref.trim(),
+        requires_hq_review: addItemForm.requires_hq_review,
+        definition_en: addItemForm.definition_en.trim(),
+        acts_block_en: addItemForm.acts_block_en.trim(),
+        markets: {
+          AE: { definition_en: addItemForm.definition_en.trim(), legal_ground_ref: addItemForm.legal_ground_ref_ae.trim() },
+          PH: { definition_en: addItemForm.definition_en.trim(), legal_ground_ref: addItemForm.legal_ground_ref_ph.trim() },
+        },
+      };
+      const res = await fetch("/api/admin/nte-v2/catalog/item", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setAddItemOpen(false);
+      setAddItemForm({
+        code: "", category_code: "", title_en: "", title_ja: "",
+        severity_class: "B", input_layer: "L2_STRUCTURED",
+        scope: "ALL", sop_ref: "", requires_hq_review: false,
+        definition_en: "", legal_ground_ref_ae: "", legal_ground_ref_ph: "", acts_block_en: "",
+      });
+      await loadCatalog(catalogMarket);
+    } catch (e) {
+      setAddItemError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAddItemSaving(false);
     }
   }
 
@@ -2368,6 +2467,14 @@ export default function EmployeeCasesPage() {
                 <RotateCcw className="h-4 w-4" />
                 Reload Seed
               </button>
+              <button
+                type="button"
+                onClick={() => { setAddItemError(""); setAddItemOpen(true); }}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}
+              >
+                <Plus className="h-4 w-4" />
+                Add Violation
+              </button>
             </div>
           </div>
 
@@ -2490,6 +2597,7 @@ export default function EmployeeCasesPage() {
                     <th className={`${TABLE_CELL} text-center`}>Auto</th>
                     <th className={`${TABLE_CELL} text-center`}>HQ Review</th>
                     {catalogMarket && <th className={`${TABLE_CELL} text-left`}>Legal Ref</th>}
+                    <th className={`${TABLE_CELL} text-center`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2529,10 +2637,217 @@ export default function EmployeeCasesPage() {
                           {entry.legal_ground_ref ?? "—"}
                         </td>
                       )}
+                      <td className={`${TABLE_CELL} text-center`}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            title="Edit Template"
+                            onClick={() => openEditTemplate(entry)}
+                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-violet-300 transition-colors"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Deactivate"
+                            onClick={() => void deleteCatalogItem(entry.code)}
+                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ── Edit Template Modal ── */}
+          {editTemplateOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={T_CARD_TITLE}>Edit NTE Template — <span className="font-mono text-violet-400">{editTemplateCode}</span></h3>
+                  <button type="button" onClick={() => setEditTemplateOpen(false)} className="text-zinc-400 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className={T_LABEL}>Apply to market:</label>
+                  <SelectDark
+                    value={editTemplateMarket}
+                    onChange={(v) => setEditTemplateMarket(v as "AE" | "PH" | "BOTH")}
+                    options={[
+                      { value: "BOTH", label: "Both (AE + PH)" },
+                      { value: "AE", label: "Dubai (AE) only" },
+                      { value: "PH", label: "Manila (PH) only" },
+                    ]}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className={`${T_LABEL} block mb-1`}>
+                    acts_block_en template
+                    <span className="ml-2 text-zinc-500 font-normal text-xs">Handlebars syntax supported: {"{{field}}"}, {"{{#each items}}…{{/each}}"}, {"{{#if flag}}…{{/if}}"}</span>
+                  </label>
+                  <textarea
+                    value={editTemplateText}
+                    onChange={(e) => setEditTemplateText(e.target.value)}
+                    rows={14}
+                    className={`${TEXTAREA_CLASS} font-mono text-xs w-full`}
+                    placeholder="Enter the acts_block_en template text…"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">{editTemplateText.length} chars</p>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setEditTemplateOpen(false)} className={SECONDARY_BUTTON}>Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => void saveEditTemplate()}
+                    disabled={editTemplateSaving || !editTemplateText.trim()}
+                    className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                  >
+                    {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    {editTemplateSaving ? "Saving…" : "Save Template"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Add New Violation Modal ── */}
+          {addItemOpen && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-y-auto">
+              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 my-8`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={T_CARD_TITLE}>Add New Violation</h3>
+                  <button type="button" onClick={() => setAddItemOpen(false)} className="text-zinc-400 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {addItemError && (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{addItemError}</div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Code <span className="text-red-400">*</span> <span className="font-normal text-zinc-500">(e.g. PERF-003)</span></label>
+                    <input
+                      className={INPUT_CLASS}
+                      value={addItemForm.code}
+                      onChange={(e) => setAddItemForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                      placeholder="XXX-NNN"
+                    />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Category Code <span className="text-red-400">*</span></label>
+                    <SelectDark
+                      value={addItemForm.category_code}
+                      onChange={(v) => setAddItemForm(f => ({ ...f, category_code: v }))}
+                      options={[
+                        { value: "", label: "— select —" },
+                        ...Array.from(new Set(catalog.map(c => c.category_code))).sort().map(cc => ({
+                          value: cc,
+                          label: cc + " — " + (catalog.find(c => c.category_code === cc)?.title_en.split(" ")[0] ?? ""),
+                        })),
+                      ]}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={`${T_LABEL} block mb-1`}>Title (EN) <span className="text-red-400">*</span></label>
+                    <input className={INPUT_CLASS} value={addItemForm.title_en} onChange={(e) => setAddItemForm(f => ({ ...f, title_en: e.target.value }))} placeholder="Violation title in English" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={`${T_LABEL} block mb-1`}>Title (JA) <span className="text-zinc-500 font-normal">optional</span></label>
+                    <input className={INPUT_CLASS} value={addItemForm.title_ja} onChange={(e) => setAddItemForm(f => ({ ...f, title_ja: e.target.value }))} placeholder="日本語タイトル（任意）" />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Severity <span className="text-red-400">*</span></label>
+                    <SelectDark
+                      value={addItemForm.severity_class}
+                      onChange={(v) => setAddItemForm(f => ({ ...f, severity_class: v as "A"|"B"|"C"|"D" }))}
+                      options={[
+                        { value: "A", label: "A — Minor" },
+                        { value: "B", label: "B — Moderate" },
+                        { value: "C", label: "C — Serious" },
+                        { value: "D", label: "D — Grave" },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Input Layer</label>
+                    <SelectDark
+                      value={addItemForm.input_layer}
+                      onChange={(v) => setAddItemForm(f => ({ ...f, input_layer: v as "L1_AUTO"|"L2_STRUCTURED"|"L3_NARRATIVE" }))}
+                      options={[
+                        { value: "L2_STRUCTURED", label: "L2 — Structured" },
+                        { value: "L3_NARRATIVE", label: "L3 — Narrative" },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>SOP Ref</label>
+                    <input className={INPUT_CLASS} value={addItemForm.sop_ref} onChange={(e) => setAddItemForm(f => ({ ...f, sop_ref: e.target.value }))} placeholder="HR-SOP-XX §X.X" />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Scope</label>
+                    <SelectDark
+                      value={addItemForm.scope}
+                      onChange={(v) => setAddItemForm(f => ({ ...f, scope: v }))}
+                      options={[
+                        { value: "ALL", label: "ALL" },
+                        { value: "AE", label: "AE only" },
+                        { value: "PH", label: "PH only" },
+                      ]}
+                    />
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="addItemHqReview"
+                      checked={addItemForm.requires_hq_review}
+                      onChange={(e) => setAddItemForm(f => ({ ...f, requires_hq_review: e.target.checked }))}
+                      className="h-4 w-4 rounded accent-violet-500"
+                    />
+                    <label htmlFor="addItemHqReview" className={T_LABEL}>Requires HQ Review</label>
+                  </div>
+                  <div className="col-span-2">
+                    <label className={`${T_LABEL} block mb-1`}>Definition (EN) — used for both AE &amp; PH</label>
+                    <textarea className={`${TEXTAREA_CLASS} text-sm`} rows={3} value={addItemForm.definition_en} onChange={(e) => setAddItemForm(f => ({ ...f, definition_en: e.target.value }))} placeholder="What constitutes this offense?" />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Legal Ground Ref (AE)</label>
+                    <input className={INPUT_CLASS} value={addItemForm.legal_ground_ref_ae} onChange={(e) => setAddItemForm(f => ({ ...f, legal_ground_ref_ae: e.target.value }))} placeholder="UAE Federal Decree-Law No. 33 of 2021, Art. XX" />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} block mb-1`}>Legal Ground Ref (PH)</label>
+                    <input className={INPUT_CLASS} value={addItemForm.legal_ground_ref_ph} onChange={(e) => setAddItemForm(f => ({ ...f, legal_ground_ref_ph: e.target.value }))} placeholder="Labor Code of the Philippines, Art. 297(x)" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={`${T_LABEL} block mb-1`}>
+                      NTE Template (acts_block_en)
+                      <span className="ml-2 font-normal text-zinc-500 text-xs">Handlebars: {"{{field}}"}, {"{{#each items}}"}, {"{{#if flag}}"}</span>
+                    </label>
+                    <textarea className={`${TEXTAREA_CLASS} font-mono text-xs`} rows={6} value={addItemForm.acts_block_en} onChange={(e) => setAddItemForm(f => ({ ...f, acts_block_en: e.target.value }))} placeholder="Describe the observed acts. Use {{placeholders}} for dynamic fields." />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setAddItemOpen(false)} className={SECONDARY_BUTTON}>Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => void submitAddItem()}
+                    disabled={addItemSaving || !addItemForm.code || !addItemForm.category_code || !addItemForm.title_en}
+                    className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                  >
+                    {addItemSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    {addItemSaving ? "Creating…" : "Create Violation"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.59 — NTE Module v2 P8 Auto-detect Batch deployed)
+Last updated: 2026-08-03 (session 199 cont.60 — NTE Module v2 P9 Categories + HR Catalog CRUD deployed)
 
 ---
 
@@ -179,7 +179,25 @@ Last updated: 2026-08-03 (session 199 cont.59 — NTE Module v2 P8 Auto-detect B
   - Preview (dry run) button + Run Auto-Detect button (with confirm dialog)
   - Results table: market, staff, violation code, incidents, action badge
   - Reloads Cases tab automatically after real run
-### P9: Categories ②-⑫ Catalogs — HQ definition needed
+### P9: Categories ②-⑫ + HR Catalog CRUD ✅ COMPLETE (Heroku + Vercel, 2026-08-03)
+- 11 new seed JSON files: PERF/COND/SAFE/CASH/UNIF/SRVC/HASS/THFT/PROP/SUBS/CONF
+  - 22 total items across 11 categories (2 per category, 1 for UNIF/SUBS)
+  - D/L3_NARRATIVE + requires_hq_review=true for: HASS, THFT, SUBS, CONF
+  - Dual jurisdiction: UAE Federal Decree-Law No.33/2021 + Philippines Labor Code + category-specific laws
+- `app/db_nte_v2_catalog.py`: 3 new functions
+  - `update_catalog_acts_block(conn, code, market, new_text)` — edit acts_block_en per market (BOTH/AE/PH)
+  - `deactivate_catalog_item(conn, code)` — soft-delete (is_active=FALSE)
+  - `create_catalog_item(conn, data)` — insert new item with code format validation + auto-resolve category names
+- `app/nte_v2_api.py`: 3 new endpoints (placed BEFORE /{code} catch-all per FastAPI ordering rule)
+  - `POST /api/admin/nte-v2/catalog/item` — HQ only: create new violation item
+  - `PATCH /api/admin/nte-v2/catalog/{code}/acts-block` — HR roles: edit template text
+  - `DELETE /api/admin/nte-v2/catalog/{code}` — HQ only: soft-delete item
+- Frontend (`employee-cases/page.tsx`):
+  - "+ Add Violation" button in catalog tab header
+  - ACTIONS column in catalog table: ✏️ (Edit Template) + 🗑️ (Deactivate) icon buttons
+  - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
+  - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
+- **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
 
 ---
 
