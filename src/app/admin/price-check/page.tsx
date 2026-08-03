@@ -772,7 +772,7 @@ export default function PriceCheckPage() {
         (r) =>
           DELIVERY_CHANNELS.has(r.channel) &&
           r.discount_pct != null &&
-          Math.abs(r.discount_pct - 0.5) > 0.05,
+          Math.abs(r.discount_pct - 0.5) > 0.01,
       ).length,
     [results],
   );
@@ -1263,12 +1263,9 @@ function PriceTable({
                       return <span className="text-zinc-600 text-xs">—</span>;
                     }
                     const pct = row.discount_pct;
-                    const diff = Math.abs(pct - 0.5);
                     const label = `${(pct * 100).toFixed(1)}%`;
-                    if (diff <= 0.05) {
+                    if (Math.abs(pct - 0.5) <= 0.01) {
                       return <span className="text-emerald-400 text-xs font-medium">✅ {label}</span>;
-                    } else if (diff <= 0.15) {
-                      return <span className="text-amber-400 text-xs font-medium">⚠️ {label}</span>;
                     } else {
                       return <span className="text-red-400 text-xs font-medium">❌ {label}</span>;
                     }
