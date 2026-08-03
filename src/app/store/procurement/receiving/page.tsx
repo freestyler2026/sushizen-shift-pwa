@@ -92,7 +92,7 @@ export default function StoreProcurementReceivingPage() {
   const LAST_CREATED_MAX_AGE_MS = getRecentBadgeMaxAgeMs();
   const relativeNowMs = useRelativeAgeNow();
   const auth = useMemo(() => getAuth(), []);
-  const canSelfAuthorize = ["HQ", "ADMIN", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"].includes(
+  const canSelfAuthorize = ["HQ", "ADMIN"].includes(
     String(auth?.role || "").toUpperCase()
   );
 
@@ -164,7 +164,7 @@ export default function StoreProcurementReceivingPage() {
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
-      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true" });
+      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true", exclude_not_received: "true" });
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
