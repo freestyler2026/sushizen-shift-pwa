@@ -394,6 +394,13 @@ function QuickEntryTab({
   const poLinesFetchRef = useRef<AbortController | null>(null);
   const isAmountOverriddenRef = useRef(false);
   const [vatRate, setVatRate] = useState(() => String(settings?.default_vat_rate ?? 0));
+  const vatRateInitialized = useRef(false);
+  useEffect(() => {
+    if (!vatRateInitialized.current && settings?.default_vat_rate != null) {
+      setVatRate(String(settings.default_vat_rate));
+      vatRateInitialized.current = true;
+    }
+  }, [settings]);
   const [notes, setNotes] = useState("");
   const [photoData, setPhotoData] = useState("");
   const [discrepancyType, setDiscrepancyType] = useState("OTHER");
@@ -1319,12 +1326,12 @@ function AllRecordsTab() {
       </div>
 
       <div className={`${GLASS_CARD} overflow-x-auto`}>
-        <table className="w-full min-w-[640px]">
+        <table className="w-full min-w-[780px]">
           <thead>
             <tr>
               <th className={`${TABLE_HEADER} py-3 pl-4 text-left`}>Date</th>
-              <th className={`${TABLE_HEADER} py-3 text-left`}>Supplier</th>
-              <th className={`${TABLE_HEADER} py-3 text-left`}>Branch</th>
+              <th className={`${TABLE_HEADER} py-3 pr-3 text-left`}>Supplier</th>
+              <th className={`${TABLE_HEADER} py-3 pr-3 text-left`}>Branch</th>
               <th className={`${TABLE_HEADER} py-3 text-left`}>Invoice No.</th>
               <th className={`${TABLE_HEADER} py-3 text-right`}>PO</th>
               <th className={`${TABLE_HEADER} py-3 text-right`}>Invoice</th>
@@ -1340,11 +1347,11 @@ function AllRecordsTab() {
             {rows.map(row => (
               <tr key={row.id} className={TABLE_ROW}>
                 <td className={`${TABLE_CELL} pl-4 text-zinc-400`}>{row.created_at?.slice(0, 10)}</td>
-                <td className={`${TABLE_CELL} font-medium text-zinc-200`}>
+                <td className={`${TABLE_CELL} pr-3 font-medium text-zinc-200`}>
                   {row.vendor_name}
                   {row.photo_data && <Camera size={11} className="ml-1 inline text-violet-400" />}
                 </td>
-                <td className={`${TABLE_CELL} text-zinc-400`}>{row.branch || "—"}</td>
+                <td className={`${TABLE_CELL} pr-3 text-zinc-400`}>{row.branch || "—"}</td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
                 <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount, currency)}</td>
                 <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount, currency)}</td>
