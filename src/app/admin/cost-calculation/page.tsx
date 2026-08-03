@@ -134,7 +134,7 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending" | "price-audit";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending" | "price-audit" | "ingredient-changes";
 
 type PricePendingEntry = {
   id: number;
@@ -166,6 +166,22 @@ type PriceAuditItem = {
   final_unit_cost: number;
   has_override: boolean;
   component_count: number;
+};
+
+type IngredientChangeRecord = {
+  id: string;
+  ingredient_id: string;
+  ingredient_name: string;
+  category: string;
+  unit: string;
+  old_price: number | null;
+  new_price: number;
+  old_formula: string;
+  new_formula: string;
+  formula_note: string;
+  changed_at: string;
+  changed_by: string;
+  notes: string;
 };
 
 type MasterComponentType = "ingredient" | "processed_item";
@@ -863,6 +879,9 @@ export default function CostCalculationPage() {
   const [priceAuditItems, setPriceAuditItems] = useState<PriceAuditItem[] | null>(null);
   const [priceAuditLoading, setPriceAuditLoading] = useState(false);
   const [priceAuditClearingId, setPriceAuditClearingId] = useState<string | null>(null);
+  const [ingredientChanges, setIngredientChanges] = useState<IngredientChangeRecord[] | null>(null);
+  const [ingredientChangesLoading, setIngredientChangesLoading] = useState(false);
+  const [ingredientChangesDays, setIngredientChangesDays] = useState(30);
   const [pricePendingItems, setPricePendingItems] = useState<PricePendingEntry[] | null>(null);
   const [pricePendingLoading, setPricePendingLoading] = useState(false);
   const [pricePendingActionId, setPricePendingActionId] = useState<number | null>(null);
@@ -960,6 +979,7 @@ export default function CostCalculationPage() {
   const isRatioSection = activeSection === "cost-ratio";
   const isPendingSection = activeSection === "price-pending";
   const isPriceAuditSection = activeSection === "price-audit";
+  const isIngredientChangesSection = activeSection === "ingredient-changes";
   const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
   const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
@@ -1495,6 +1515,21 @@ export default function CostCalculationPage() {
     }
   }, [city]);
 
+  const loadIngredientChanges = useCallback(async (days?: number) => {
+    const d = days ?? ingredientChangesDays;
+    setIngredientChangesLoading(true);
+    try {
+      const res = await costJson<{ items?: IngredientChangeRecord[] }>(
+        `/api/cost/ingredients/recent-changes?city=${encodeURIComponent(city)}&since_days=${d}`,
+      );
+      setIngredientChanges(Array.isArray(res?.items) ? res.items : []);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setIngredientChangesLoading(false);
+    }
+  }, [city, ingredientChangesDays]);
+
   const loadPricePending = useCallback(async () => {
     setPricePendingLoading(true);
     try {
@@ -1909,6 +1944,11 @@ export default function CostCalculationPage() {
     if (!allowed || !isPriceAuditSection) return;
     void loadPriceAudit();
   }, [allowed, isPriceAuditSection, loadPriceAudit]);
+
+  useEffect(() => {
+    if (!allowed || !isIngredientChangesSection) return;
+    void loadIngredientChanges();
+  }, [allowed, isIngredientChangesSection, loadIngredientChanges]);
 
   // 仕入連動チェックページの「商品マスタで編集」ボタンから飛んできた場合、
   // sessionStorage に保存された商品IDを読み取って自動でその商品を開く。
@@ -3763,6 +3803,7 @@ export default function CostCalculationPage() {
               { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
               { key: "price-pending" as CostSection, label: "Price Pending" },
               { key: "price-audit" as CostSection, label: "Price Audit" },
+              { key: "ingredient-changes" as CostSection, label: "Ingredient Changes" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -5557,9 +5598,157 @@ export default function CostCalculationPage() {
                 </>
               )}
             </div>
+          ) : isIngredientChangesSection ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Ingredient Change Log</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Price and formula changes to ingredient master entries. Use this to identify which ingredient triggered a Price Audit mismatch.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[7, 30, 90].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => { setIngredientChangesDays(d); void loadIngredientChanges(d); }}
+                      className={cx(
+                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition",
+                        ingredientChangesDays === d
+                          ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
+                          : "border-white/10 bg-white/[0.03] text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-200",
+                      )}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => void loadIngredientChanges()}
+                    disabled={ingredientChangesLoading}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                  >
+                    <RefreshCcw className={cx("h-3.5 w-3.5", ingredientChangesLoading && "animate-spin")} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {ingredientChangesLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-zinc-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Loading change history…</span>
+                </div>
+              ) : !ingredientChanges || ingredientChanges.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] py-20 text-sm text-zinc-500">
+                  No ingredient changes found in the last {ingredientChangesDays} days.
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
+                      <div className="text-xs text-zinc-500">Total Changes</div>
+                      <div className="text-lg font-semibold text-white">{ingredientChanges.length}</div>
+                    </div>
+                    <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-center">
+                      <div className="text-xs text-sky-400/70">Price Changes</div>
+                      <div className="text-lg font-semibold text-sky-300">
+                        {ingredientChanges.filter(r => r.old_price !== null && Math.abs((r.old_price ?? 0) - r.new_price) > 1e-6).length}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-violet-500/20 bg-violet-500/8 px-3 py-2 text-center">
+                      <div className="text-xs text-violet-400/70">Formula Changes</div>
+                      <div className="text-lg font-semibold text-violet-300">
+                        {ingredientChanges.filter(r => r.old_formula !== r.new_formula).length}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-white/8">
+                    <table className="w-full text-sm">
+                      <thead className="bg-white/[0.03]">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Ingredient</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Category</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Old Price</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">New Price</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Change</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Formula</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">By</th>
+                          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">When</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.04]">
+                        {ingredientChanges.map((rec) => {
+                          const currSym = city === "manila" ? "PHP" : "AED";
+                          const priceDiff = rec.old_price !== null ? rec.new_price - (rec.old_price ?? 0) : null;
+                          const pctChange = priceDiff !== null && (rec.old_price ?? 0) !== 0
+                            ? (priceDiff / (rec.old_price ?? 1)) * 100
+                            : null;
+                          const formulaChanged = rec.old_formula !== rec.new_formula;
+                          const priceChanged = priceDiff !== null && Math.abs(priceDiff) > 1e-6;
+                          return (
+                            <tr key={rec.id} className={priceChanged ? "bg-sky-500/[0.03]" : formulaChanged ? "bg-violet-500/[0.03]" : ""}>
+                              <td className="px-4 py-2.5 font-medium text-white">{rec.ingredient_name}</td>
+                              <td className="px-3 py-2.5 text-zinc-400">{rec.category || "—"}</td>
+                              <td className="px-3 py-2.5 text-right font-mono text-zinc-400">
+                                {rec.old_price !== null ? `${currSym} ${rec.old_price.toFixed(4)}` : <span className="text-zinc-600">—</span>}
+                                {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-mono text-white">
+                                {currSym} {rec.new_price.toFixed(4)}
+                                {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                {priceDiff !== null && Math.abs(priceDiff) > 1e-6 ? (
+                                  <span className={cx(
+                                    "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                    priceDiff > 0
+                                      ? "border border-red-500/30 bg-red-500/15 text-red-300"
+                                      : "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+                                  )}>
+                                    {priceDiff > 0 ? "▲" : "▼"}
+                                    {pctChange !== null ? ` ${Math.abs(pctChange).toFixed(1)}%` : ""}
+                                  </span>
+                                ) : formulaChanged ? (
+                                  <span className="rounded-full border border-violet-500/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
+                                    formula
+                                  </span>
+                                ) : (
+                                  <span className="text-zinc-600 text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 max-w-[200px]">
+                                {formulaChanged ? (
+                                  <div className="space-y-0.5">
+                                    {rec.old_formula && (
+                                      <div className="truncate font-mono text-[10px] text-zinc-500 line-through">{rec.old_formula}</div>
+                                    )}
+                                    {rec.new_formula && (
+                                      <div className="truncate font-mono text-[10px] text-violet-300">{rec.new_formula}</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-zinc-600 text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-zinc-400 text-xs">{rec.changed_by || "—"}</td>
+                              <td className="px-3 py-2.5 text-zinc-500 text-xs whitespace-nowrap">
+                                {rec.changed_at ? rec.changed_at.replace("T", " ").slice(0, 16) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
           ) : null}
 
-          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection || isPriceAuditSection) && "hidden")}>
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection || isPriceAuditSection || isIngredientChangesSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
