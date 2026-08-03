@@ -352,6 +352,9 @@ function normalizePasskeyUiError(raw: string): string {
   ) {
     return "No local passkey is available for this localhost session. Use Verify With PIN locally.";
   }
+  if (/notallowederror|timed out or was not allowed/i.test(text)) {
+    return "Passkey authentication was not completed. If a Google sign-in dialog appeared, please complete it and try again. Alternatively, use Verify With PIN below.";
+  }
   return text;
 }
 
