@@ -1232,7 +1232,7 @@ export default function StoreProcurementReceivingPage() {
 
                 {/* Invoice photo */}
                 <div className="mb-4">
-                  <label className="mb-1 block text-[11px] font-medium text-zinc-400">Invoice Photo (optional)</label>
+                  <label className="mb-1 block text-[11px] font-medium text-zinc-400">Invoice Photo <span className="text-red-400">*</span></label>
                   {invoicePhotoPreview ? (
                     <div className="relative overflow-hidden rounded-xl border border-violet-500/30 bg-black/20">
                       <img src={invoicePhotoPreview} alt="Invoice preview" className="max-h-48 w-full object-contain" />
@@ -1331,10 +1331,16 @@ export default function StoreProcurementReceivingPage() {
                 ) : null}
 
                 {/* Submit button */}
+                {computedTotals.checkedCount > 0 && !invoicePhotoPreview && (
+                  <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+                    <Camera className="h-3.5 w-3.5 shrink-0" />
+                    Invoice photo required before recording delivery.
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => void createReceiving()}
-                  disabled={busy === "create" || invoicePhotoUploading || computedTotals.checkedCount === 0}
+                  disabled={busy === "create" || invoicePhotoUploading || computedTotals.checkedCount === 0 || !invoicePhotoPreview}
                   className={`w-full ${BTN_PRIMARY}`}
                 >
                   {invoicePhotoUploading ? (

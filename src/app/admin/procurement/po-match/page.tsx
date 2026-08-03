@@ -69,6 +69,7 @@ type PoRow = {
   po_date: string;
   status: string;
   city?: string;
+  branch?: string;
 };
 
 type CheckRow = {
@@ -94,6 +95,11 @@ type CheckRow = {
   notes: string;
   photo_data: string;
   created_at: string;
+  branch?: string;
+  vat_rate?: number;
+  vat_amount?: number;
+  grand_total?: number;
+  receiving_id?: string;
 };
 
 type PoLineItem = {
@@ -154,6 +160,7 @@ type MatchSettings = {
   city: string;
   tolerance_aed: number;
   tolerance_pct: number;
+  default_vat_rate?: number;
   updated_by: string;
   updated_at: string | null;
 };
@@ -386,6 +393,7 @@ function QuickEntryTab({
   const [linesLoading, setLinesLoading] = useState(false);
   const poLinesFetchRef = useRef<AbortController | null>(null);
   const isAmountOverriddenRef = useRef(false);
+  const [vatRate, setVatRate] = useState(() => String(settings?.default_vat_rate ?? 0));
   const [notes, setNotes] = useState("");
   const [photoData, setPhotoData] = useState("");
   const [discrepancyType, setDiscrepancyType] = useState("OTHER");
@@ -517,6 +525,9 @@ function QuickEntryTab({
   const tolPct = settings?.tolerance_pct ?? 0.005;
   const poAmount = selectedPo ? selectedPo.po_amount : parseFloat(manualPoAmount || "0");
   const invAmount = parseFloat(invoiceAmount || "0");
+  const vatRateVal = parseFloat(vatRate || "0");
+  const vatAmountVal = Math.round(invAmount * vatRateVal) / 100;
+  const grandTotalVal = invAmount + vatAmountVal;
   const variance = invAmount - poAmount;
   const effectiveTol = poAmount > 0 ? Math.max(tolAed, poAmount * tolPct) : tolAed;
   const isMatch = poAmount > 0 && Math.abs(variance) <= effectiveTol;
@@ -558,6 +569,9 @@ function QuickEntryTab({
           invoice_date: invoiceDate,
           invoice_amount: invAmount,
           currency,
+          vat_rate: vatRateVal,
+          vat_amount: vatAmountVal,
+          grand_total: grandTotalVal,
           notes: notes.trim(),
           photo_data: photoData,
           discrepancy_type: !isMatch ? discrepancyType : "",
@@ -572,6 +586,7 @@ function QuickEntryTab({
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
       setDiscrepancyType("OTHER");
+      setVatRate(String(settings?.default_vat_rate ?? 0));
       setInvLineItems([]);
       isAmountOverriddenRef.current = false;
       poLinesFetchRef.current = null;
@@ -834,6 +849,36 @@ function QuickEntryTab({
               <p className={`mt-1 ${T_CAPTION}`}>← Auto-summed from line items. Edit to override.</p>
             )}
           </div>
+
+          {/* VAT fields */}
+          <div>
+            <label className={T_LABEL}>VAT Rate (%)</label>
+            <div className="relative mt-1.5">
+              <input
+                type="number" min="0" max="100" step="0.1"
+                className={INPUT_CLASS}
+                placeholder="0"
+                value={vatRate}
+                onChange={e => setVatRate(e.target.value)}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">%</span>
+            </div>
+            <p className={`mt-1 ${T_CAPTION}`}>0 = no VAT</p>
+          </div>
+
+          <div>
+            <label className={T_LABEL}>Grand Total ({currency})</label>
+            <div className="mt-1.5 flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <span className="text-zinc-200 font-mono">
+                {grandTotalVal > 0 ? grandTotalVal.toFixed(2) : "—"}
+              </span>
+              {vatAmountVal > 0 && (
+                <span className="ml-2 text-xs text-zinc-500">
+                  (incl. {currency} {vatAmountVal.toFixed(2)} VAT)
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Live match preview — only show after invoice number is entered */}
@@ -910,6 +955,9 @@ function DiscrepancyQueueTab() {
   const [resolveNote, setResolveNote] = useState("");
   const [resolving, setResolving] = useState<string | null>(null);
   const [contacting, setContacting] = useState<string | null>(null);
+  const [cnrId, setCnrId] = useState<string | null>(null);
+  const [cnrPin, setCnrPin] = useState("");
+  const [cnrBusy, setCnrBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [linesCache, setLinesCache] = useState<Record<string, CheckLine[]>>({});
 
@@ -951,6 +999,23 @@ function DiscrepancyQueueTab() {
       setRows(prev => prev.map(r => r.id === id ? d.row : r));
     } catch (e: unknown) { setMsg(String(e)); }
     finally { setContacting(null); }
+  };
+
+  const handleCloseNotReceived = async () => {
+    if (!cnrId || !cnrPin.trim()) { setMsg("Enter your PIN to confirm."); return; }
+    const auth = getAuth();
+    setCnrBusy(true);
+    setMsg("");
+    try {
+      await apiFetch(`/procurement/po-match/${cnrId}/close-not-received`, {
+        method: "POST",
+        body: JSON.stringify({ staff_name: auth?.staffName || "", pin: cnrPin.trim(), city }),
+      });
+      setCnrId(null); setCnrPin("");
+      setMsg("Order marked as Not Received.");
+      load();
+    } catch (e: unknown) { setMsg(String(e)); }
+    finally { setCnrBusy(false); }
   };
 
   const DiscrepancyList = ({ items, title }: { items: CheckRow[]; title: string }) => (
@@ -1002,6 +1067,15 @@ function DiscrepancyQueueTab() {
                 <div><p className={T_LABEL}>PO No.</p><p className="mt-0.5 text-zinc-300">{row.po_no || "—"}</p></div>
                 <div><p className={T_LABEL}>PO Date</p><p className="mt-0.5 text-zinc-300">{row.po_date?.slice(0, 10) || "—"}</p></div>
                 <div><p className={T_LABEL}>Invoice Date</p><p className="mt-0.5 text-zinc-300">{row.invoice_date?.slice(0, 10) || "—"}</p></div>
+                {row.branch && (
+                  <div><p className={T_LABEL}>Branch</p><p className="mt-0.5 text-zinc-300">{row.branch}</p></div>
+                )}
+                {(row.vat_rate ?? 0) > 0 && (
+                  <div>
+                    <p className={T_LABEL}>Grand Total (incl. VAT {row.vat_rate}%)</p>
+                    <p className="mt-0.5 text-zinc-200">{fmtAmount(row.grand_total, currency)}</p>
+                  </div>
+                )}
                 {row.notes && (
                   <div className="sm:col-span-3"><p className={T_LABEL}>Notes</p><p className="mt-0.5 text-zinc-300">{row.notes}</p></div>
                 )}
@@ -1038,6 +1112,41 @@ function DiscrepancyQueueTab() {
                       disabled={contacting === row.id}
                     >
                       {contacting === row.id ? "Recording…" : "📞 Contacted Supplier"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Phase 5: Close Order – Not Received (only for linked receivings) */}
+              {!row.resolved_by && row.receiving_id && (
+                <div className="mt-4">
+                  {cnrId === row.id ? (
+                    <div className="rounded-xl border border-red-500/25 bg-red-500/8 p-3 space-y-2">
+                      <p className="text-sm font-medium text-red-300">⚠️ Close Order – Not Received</p>
+                      <p className="text-xs text-zinc-400">This will mark the linked receiving request as NOT RECEIVED. Enter your PIN to confirm.</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          className={`${INPUT_CLASS} w-32`}
+                          placeholder="Your PIN"
+                          value={cnrPin}
+                          onChange={e => setCnrPin(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && handleCloseNotReceived()}
+                        />
+                        <button className={DANGER_BUTTON} onClick={handleCloseNotReceived} disabled={cnrBusy}>
+                          {cnrBusy ? "Processing…" : "Confirm"}
+                        </button>
+                        <button className={SECONDARY_BUTTON} onClick={() => { setCnrId(null); setCnrPin(""); setMsg(""); }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/15"
+                      onClick={() => { setCnrId(row.id); setCnrPin(""); setMsg(""); }}
+                    >
+                      <XCircle size={14} /> Close Order – Not Received
                     </button>
                   )}
                 </div>
@@ -1215,6 +1324,7 @@ function AllRecordsTab() {
             <tr>
               <th className={`${TABLE_HEADER} py-3 pl-4 text-left`}>Date</th>
               <th className={`${TABLE_HEADER} py-3 text-left`}>Supplier</th>
+              <th className={`${TABLE_HEADER} py-3 text-left`}>Branch</th>
               <th className={`${TABLE_HEADER} py-3 text-left`}>Invoice No.</th>
               <th className={`${TABLE_HEADER} py-3 text-right`}>PO</th>
               <th className={`${TABLE_HEADER} py-3 text-right`}>Invoice</th>
@@ -1225,7 +1335,7 @@ function AllRecordsTab() {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
+              <tr><td colSpan={9} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
             )}
             {rows.map(row => (
               <tr key={row.id} className={TABLE_ROW}>
@@ -1234,6 +1344,7 @@ function AllRecordsTab() {
                   {row.vendor_name}
                   {row.photo_data && <Camera size={11} className="ml-1 inline text-violet-400" />}
                 </td>
+                <td className={`${TABLE_CELL} text-zinc-400`}>{row.branch || "—"}</td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
                 <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount, currency)}</td>
                 <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount, currency)}</td>
@@ -1360,6 +1471,7 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
   const [settings, setSettings] = useState<MatchSettings | null>(null);
   const [tolAed, setTolAed] = useState("1.00");
   const [tolPct, setTolPct] = useState("0.5");
+  const [defaultVatRate, setDefaultVatRate] = useState("0");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -1370,6 +1482,7 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
       setSettings(s);
       setTolAed(String(s.tolerance_aed ?? 1.0));
       setTolPct(String(((s.tolerance_pct ?? 0.005) * 100).toFixed(2)));
+      setDefaultVatRate(String(s.default_vat_rate ?? 0));
     } catch { /* keep defaults */ }
   }, []);
 
@@ -1378,14 +1491,16 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
   const handleSave = async () => {
     const aed = parseFloat(tolAed || "1");
     const pct = parseFloat(tolPct || "0.5") / 100;
+    const dvat = parseFloat(defaultVatRate || "0");
     if (isNaN(aed) || aed < 0) { setMsg({ text: `${currency} tolerance must be ≥ 0.`, ok: false }); return; }
     if (isNaN(pct) || pct < 0 || pct > 1) { setMsg({ text: "Percentage must be between 0% and 100%.", ok: false }); return; }
+    if (isNaN(dvat) || dvat < 0 || dvat > 100) { setMsg({ text: "Default VAT rate must be between 0% and 100%.", ok: false }); return; }
     setSaving(true);
     setMsg(null);
     try {
       const d = await apiFetch("/procurement/po-match/settings", {
         method: "POST",
-        body: JSON.stringify({ city, tolerance_aed: aed, tolerance_pct: pct }),
+        body: JSON.stringify({ city, tolerance_aed: aed, tolerance_pct: pct, default_vat_rate: dvat }),
       });
       setSettings(d.settings);
       onSettingsChange(d.settings);
@@ -1433,6 +1548,20 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
                 className={INPUT_CLASS}
                 value={tolPct}
                 onChange={e => setTolPct(e.target.value)}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">%</span>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className={T_LABEL}>Default VAT Rate (%)</label>
+            <p className={`${T_CAPTION} mt-0.5`}>Pre-fills the VAT rate field in Quick Entry for this city. Set to 0 to disable.</p>
+            <div className="relative mt-2 max-w-xs">
+              <input
+                type="number" min="0" max="100" step="0.1"
+                className={INPUT_CLASS}
+                value={defaultVatRate}
+                onChange={e => setDefaultVatRate(e.target.value)}
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">%</span>
             </div>
