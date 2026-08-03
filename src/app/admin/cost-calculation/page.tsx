@@ -882,6 +882,7 @@ export default function CostCalculationPage() {
   const [ingredientChanges, setIngredientChanges] = useState<IngredientChangeRecord[] | null>(null);
   const [ingredientChangesLoading, setIngredientChangesLoading] = useState(false);
   const [ingredientChangesDays, setIngredientChangesDays] = useState(30);
+  const [ingredientChangesHitLimit, setIngredientChangesHitLimit] = useState(false);
   const [pricePendingItems, setPricePendingItems] = useState<PricePendingEntry[] | null>(null);
   const [pricePendingLoading, setPricePendingLoading] = useState(false);
   const [pricePendingActionId, setPricePendingActionId] = useState<number | null>(null);
@@ -1519,10 +1520,12 @@ export default function CostCalculationPage() {
     const d = days ?? ingredientChangesDays;
     setIngredientChangesLoading(true);
     try {
-      const res = await costJson<{ items?: IngredientChangeRecord[] }>(
+      const res = await costJson<{ items?: IngredientChangeRecord[]; count?: number }>(
         `/api/cost/ingredients/recent-changes?city=${encodeURIComponent(city)}&since_days=${d}`,
       );
-      setIngredientChanges(Array.isArray(res?.items) ? res.items : []);
+      const items = Array.isArray(res?.items) ? res.items : [];
+      setIngredientChanges(items);
+      setIngredientChangesHitLimit(items.length >= 500);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -5646,10 +5649,16 @@ export default function CostCalculationPage() {
                 </div>
               ) : (
                 <>
+                  {ingredientChangesHitLimit && (
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Showing the 500 most recent changes only. Use a shorter time range to see all changes.
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-3">
                     <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
                       <div className="text-xs text-zinc-500">Total Changes</div>
-                      <div className="text-lg font-semibold text-white">{ingredientChanges.length}</div>
+                      <div className="text-lg font-semibold text-white">{ingredientChanges.length}{ingredientChangesHitLimit ? "+" : ""}</div>
                     </div>
                     <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-center">
                       <div className="text-xs text-sky-400/70">Price Changes</div>
