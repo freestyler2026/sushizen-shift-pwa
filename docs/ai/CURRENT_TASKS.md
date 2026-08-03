@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.63 — Ingredient Change Log deployed)
+Last updated: 2026-08-03 (session 199 cont.63+ — Ingredient Change Log bugs fixed)
 
 ---
 
@@ -210,8 +210,12 @@ Last updated: 2026-08-03 (session 199 cont.63 — Ingredient Change Log deployed
   - Summary cards: Total Changes / Price Changes / Formula Changes
   - 7d / 30d / 90d filter buttons + Refresh
   - Table: ingredient name, category, old price, new price, % change badge (▲red/▼green), formula diff (strikethrough old + violet new), changed_by, timestamp
-- **Verified on production**: Dubai / 30d shows 90 changes (15 price, 86 formula changes) with correct data
+- **Verified on production**: Dubai 7d=83, 30d=90, 90d=500+ (LIMIT hit); Manila 7d=97 ✅
 - Deployed: Heroku (45c4a90) + Vercel (5d1c7a3)
+
+**Bugs fixed (2026-08-03 testing session)**:
+1. **Backend NaN serialization crash** — `ingredient_price_history` contains PostgreSQL `NaN` float8 values in `old_price`/`unit_price`. FastAPI JSON serializer rejected them with "Out of range float values are not JSON compliant: nan". Fixed by adding `_safe_float()` in `list_recent_ingredient_price_changes()` (db.py) to convert NaN/Infinity → None. Heroku v1708.
+2. **Frontend null `.toFixed()` crash** — `new_price` type was `number` (non-nullable) but backend now returns null for NaN rows. JSX called `rec.new_price.toFixed(6)` → TypeError → React crashed, resetting tab to Ingredient Master. Fixed: `new_price: number | null` type + null guards in display, priceDiff calculation, and Price Changes filter. Vercel (26f36a9).
 
 ---
 
