@@ -206,11 +206,21 @@ function statusBadge(status: PriceCheckResult["status"]) {
 
 // ─── Dubai Tab Component ─────────────────────────────────────────────────────
 
+const DUBAI_BRANCHES = [
+  { value: "", label: "All Branches" },
+  { value: "JLT", label: "JLT" },
+  { value: "BUSINESSBAY", label: "Business Bay" },
+  { value: "ARJAN", label: "Arjan" },
+  { value: "ALBARSHA", label: "Al Barsha" },
+  { value: "ALMINA", label: "Al Mina" },
+];
+
 function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: () => Promise<Record<string, string>> }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [checkDate, setCheckDate] = useState(yesterday());
+  const [branch, setBranch] = useState("");
   const [dubaiData, setDubaiData] = useState<DubaiStatus | null>(null);
 
   // Overall confirmation state
@@ -224,8 +234,9 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
     setError("");
     try {
       const headers = await tokenHeaders();
+      const branchParam = branch ? `&branch=${encodeURIComponent(branch)}` : "";
       const res = await fetch(
-        `${apiBase}/api/admin/price-check/dubai/status?date=${date}`,
+        `${apiBase}/api/admin/price-check/dubai/status?date=${date}${branchParam}`,
         { headers, cache: "no-store" }
       );
       const text = await res.text();
@@ -240,7 +251,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
     } finally {
       setLoading(false);
     }
-  }, [apiBase, tokenHeaders]);
+  }, [apiBase, tokenHeaders, branch]);
 
   useEffect(() => {
     void loadDubai(checkDate);
@@ -320,15 +331,30 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
       <div className={`${GLASS_CARD} p-4`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className={T_SECTION}>Dubai — Controls</div>
-          <div className="flex items-center gap-2">
-            <label className={T_LABEL}>Date</label>
-            <input
-              type="date"
-              value={checkDate}
-              onChange={(e) => setCheckDate(e.target.value)}
-              className={INPUT_CLASS}
-              style={{ width: "160px" }}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className={T_LABEL}>Date</label>
+              <input
+                type="date"
+                value={checkDate}
+                onChange={(e) => setCheckDate(e.target.value)}
+                className={INPUT_CLASS}
+                style={{ width: "160px" }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className={T_LABEL}>Branch</label>
+              <select
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                className={INPUT_CLASS}
+                style={{ width: "140px" }}
+              >
+                {DUBAI_BRANCHES.map((b) => (
+                  <option key={b.value} value={b.value}>{b.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <button
@@ -343,7 +369,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
           </span>
         </button>
         <p className={`mt-2 ${T_CAPTION}`}>
-          Dubai sells at a fixed 50% discount. Prices are derived from Atlas/Foodics POS data.
+          Dubai sells at a fixed 50% discount. Prices are derived from UrbanPiper POS data.
         </p>
 
         {error && (
@@ -362,7 +388,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
       {dubaiData && dubaiData.items.length > 0 && (
         <div className={`${GLASS_CARD} p-4`}>
           <div className="mb-3">
-            <div className={T_SECTION}>Menu &amp; Prices — {checkDate} (Atlas/Foodics)</div>
+            <div className={T_SECTION}>Menu &amp; Prices — {checkDate} (UrbanPiper)</div>
             <p className={T_CAPTION}>
               Actual selling prices from POS. Dubai discount: 50% off standard price.
             </p>
