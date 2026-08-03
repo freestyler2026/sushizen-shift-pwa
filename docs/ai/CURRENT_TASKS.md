@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.67 — Close Order Not Received bug fix)
+Last updated: 2026-08-03 (session 199 cont.68 — PO Match ↔ Store Procurement integration)
 
 ---
 
@@ -198,6 +198,25 @@ Last updated: 2026-08-03 (session 199 cont.67 — Close Order Not Received bug f
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.68 — PO Match ↔ Store Procurement integration)
+
+### PO Match: 5-phase Store Procurement integration ✅ DEPLOYED (Heroku 01d107a + Vercel ff6090b)
+**Motivation**: Aliana Manuel's proposal — eliminate dual data entry between Store Procurement receiving and PO Match.
+
+**Phase 1 (Auto-sync)**: When a store receiving is confirmed via `api_admin_proc_receiving_confirm`, the backend now auto-creates a linked `proc_po_invoice_checks` record (best-effort, no error thrown on failure). Links via `receiving_id` FK.
+
+**Phase 2 (Branch)**: `proc_po_invoice_checks.branch` column added (ALTER TABLE). Auto-populated from `proc_receivings.store_code` on confirm. Shown in All Records table (new "Branch" column) and Discrepancy Queue expanded view.
+
+**Phase 3 (VAT fields)**: Added `vat_rate`, `vat_amount`, `grand_total` columns to `proc_po_invoice_checks`. Added `default_vat_rate` to `proc_po_match_settings`. Quick Entry form: new VAT Rate + Grand Total fields (auto-computed). Settings tab: new Default VAT Rate field per city.
+
+**Phase 4 (Invoice photo required)**: `receiving/page.tsx` — Invoice Photo field now shows * (required). Record Delivery button disabled + amber warning shown if no photo is attached.
+
+**Phase 5 (Close-Not-Received from PO Match)**: New endpoint `POST /api/admin/procurement/po-match/{check_id}/close-not-received`. Discrepancy Queue: "Close Order – Not Received" button (red) appears for entries with a linked `receiving_id`. Requires PIN confirmation. Enforces separation-of-duties (same as receiving side).
+
+**Role fix (deployed in same backend commit)**: `resolve_staff_access_profile` fallback priority fixed — `staff_master.role` (admin-managed) now checked BEFORE `staff_auth.role` (legacy stale record). This resolves Aliana Manuel ADMIN role not being recognized in close-not-received.
 
 ---
 
@@ -7056,6 +7075,8 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Cash Management カレンダー全ダッシュ修正 (FastAPI route ordering) | ✅ live (Heroku 2017bc4) |
 | Draft Force-Replace 後 Google Sheets 自動エクスポートが実行されないバグ修正 | ✅ live (Vercel 54814dd) |
 | Draft PIN 未入力時 Google Sheets 警告バナー追加 | ✅ live (Vercel 54814dd) |
+| Role resolution: staff_master checked before staff_auth in fallback chain (fixes ADMIN users being downgraded to STAFF when staff_auth.role is stale) | ✅ live (Heroku v1715 e153976) |
+| _role_or_staff: exceptions now logged to Heroku logs instead of silently returning STAFF | ✅ live (Heroku v1715 e153976) |
 
 ---
 
