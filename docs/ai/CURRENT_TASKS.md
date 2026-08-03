@@ -1,6 +1,37 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.68 — PO Match ↔ Store Procurement integration)
+Last updated: 2026-08-03 (session 199 cont.72 — POS→MIM name normalization for Dubai/Manila)
+
+---
+
+## 🔜 NEXT SESSION: Dubai POS Name Alignment (明日着手予定)
+
+### 背景
+理論在庫減算の精度を上げるため、UrbanPiper(Dubai)のエクスポート品名と Cost Calc の `menu_item_master.name` を合わせる作業。
+- **Manila**: ~92% カバー済み ✅（残りは `(4pcs/8pcs)` サイズ不明 + [Lunch]コンボ未登録）
+- **Dubai**: ~73% カバー済み（残り~27%は品名ズレ）
+
+### Dubai未マッチ TOP（数量多い順、直近14日）
+| UrbanPiper品名 | 数量/週 | MIMの候補 | 対処方針 |
+|---|---|---|---|
+| `Chicken Dumpling` | 264 | `Chicken Dumpling (1pc)` / `Chicken Dumplings (5pcs)` | UrbanPiperの表記を「Chicken Dumplings (5pcs)」に統一 か、MIMに「Chicken Dumpling」を追加 |
+| `Dynamite Shrimp` | 100 | `Dynamite Shrimp 1pc`、`Dynamite Shrimp Base Roll` | UrbanPiper品名確認 → MIMに合わせる |
+| `Juicy Chicken Momo` | 52 | `Juicy Chicken Shumai (5pcs)` | 同一品ならUrbanPiper品名を修正 |
+| `Crispy Shrimp Tempura 3 pcs` | 46 | MIMに「Crispy Shrimp Tempura」なし | MIMに追加 or UrbanPiperの「Shrimp Tempura」に変更 |
+| `Edamame` | 40 | `Edamame 80g (Side Dish)` / `Edamame for Combo` | どちらが正か確認 → MIMに「Edamame」追加か |
+| `Fried Rice (Egg)` | 25 | `Egg Fried Rice` | UrbanPiper側を「Egg Fried Rice」に変更 |
+
+### 作業手順（次セッション開始時）
+1. **UrbanPiperバックオフィス**で各品のカテゴリ/正式名を確認
+2. 選択肢A: **UrbanPiperの品名をMIMに合わせる** → UrbanPiper側の表示名を変更（推奨：表示名の変更はPOSエクスポートに反映される）
+3. 選択肢B: **MIMにAlias/新品目を追加** → Cost Calc管理画面でUrbanPiperの品名と同じ名前で新エントリを作成し、BOMを設定
+4. 変更反映後、POS syncを再実行 → `rebuild_inv_order_consumptions_from_pos(city='dubai')` で確認
+
+### 技術的な注意点
+- UrbanPiperは **Careem / Keeta / Noon / Talabat / Deliveroo / Smiles** をアグリゲート（GrabFood/FoodPandaはManila専用）
+- コード側の正規化ロジック（`_norm_pos_name_candidates`）は既に最大限実装済み（Heroku 530ec75）
+- **MIMの `menu_item_master.name` はCOST CALC側から変更** — DBを直接書き換えない（Cost Calc UIから操作）
+- `(カトラリー込み)`サフィックスはMIM内部用なので変更不要
 
 ---
 
@@ -198,6 +229,49 @@ Last updated: 2026-08-03 (session 199 cont.68 — PO Match ↔ Store Procurement
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.72 — POS→MIM name normalization)
+
+### Dubai/Manila POS→BOM名前マッチング強化 ✅ (Heroku 530ec75)
+- **問題**: GrabFood(Manila)とUrbanPiper(Dubai)のエクスポート品名がCost Calc `menu_item_master.name` と一致しないケースが多く、減算が発生しないアイテムがあった
+- **修正 (`_norm_pos_name_candidates` in inventory_db.py)**:
+  1. `【NEW】`/`【Lunch】` プレフィックス除去（Dubai UrbanPiper）
+  2. `[Lunch]`/`[New]` プレフィックス除去（Manila GrabFood）
+  3. `N pcs` ↔ `Npcs` 双方向正規化（スペース有無の差）
+  4. 末尾の`(フレーバー説明)`括弧除去
+  5. 末尾の`Npcs`サフィックス除去
+- **修正 (`_mim_lookup`)**:
+  - MIM側に`(カトラリー込み)`等のサフィックスがある場合のLIKE fallback
+  - ただし複数マッチ(サイズ違い品)がある場合はスキップ（誤減算防止）
+- **結果**:
+  - Manila: 79.7% → **92%** カバー（38,150件、エラー0件）
+  - Dubai: 26.8% → **~73%** カバー
+- **意図的な未マッチ**: `(4pcs/8pcs)`サイズ不明品（誤減算より未減算を優先）
+- **残課題**: Dubai品名のUrbanPiper↔MIM統一作業（明日着手）→ 上記「NEXT SESSION」参照
+
+## Recently Completed (2026-08-03 session 199 cont.71 — Manila POS GrabFood sync)
+
+### Manila POS data fix: erroneous Dubai data deleted + GrabFood CSV parser implemented ✅ (Heroku 3eaf670)
+- **Root cause**: All 1,515 Manila `inv_pos_menu_sales_daily` rows were duplicated from Dubai AL_BARSHA branch (UAE-specific items like "ZEN Ramadan Box" confirmed the contamination). No real Manila branch data existed.
+- **Data fix**: Deleted 1,515 contaminated POS rows + 87 derived consumption entries + 87 ledger entries from all 3 tables.
+- **Real Manila POS source found**: GrabFood "Menu Sales" CSVs in Manila Drive subfolder `1J1ep-HvIoSCKTpmed_ma8g6cLL8efbHo`. Format: `{Branch}_Menu Sales - dd_mm_yy - dd_mm_yy.csv`, 7-day rolling window, columns: Date/Country/City/Merchant/Grab Service/Item/Units Sold/Item Gross Sales (₱).
+- **New functions in `pos_sync.py`**: `_is_grabfood_menu_sales_file`, `_extract_branch_from_grabfood_filename`, `_parse_grabfood_menu_sales_csv_bytes`, `_sync_single_grabfood_menu_sales_file`
+- **`sync_latest_inventory_pos_from_drive` updated**: max_depth raised 2→3 (to reach subfolder), now processes both UrbanPiper and GrabFood files; picks newest file per branch slug
+- **`add_inv_pos_sync_job` updated** (inventory_db.py): added `source_type` parameter, defaults to `URBANPIPER_ORDERS_BY_ITEM`, GrabFood uses `GRABFOOD_MENU_SALES`
+- **Verified in DB**: PARANAQUE 347 rows Jul27–Aug2, QC 318 rows Jul27–Aug2, TAFT 371 rows Jul27–Aug2, CUBAO 238 rows Jul26–Jul30 ✓
+- **Note**: `PARANQUE` (misspelled Drive filename) and `CK` (old Central Kitchen file in Manila folder) also imported — these are Drive-side naming issues, not code bugs.
+
+## Recently Completed (2026-08-03 session 199 cont.70 — Sales Menu BOM expansion fix)
+
+### Sales Menu BOM: recursive Cost Calc expansion — critical calculation bug fixed ✅ (Heroku 03926cd)
+- **Architecture**: Replaced flat `inv_menu_recipes` lookup with recursive `_expand_cost_calc_bom()` that follows `menu_item_components` → `ingredient_master` tree, handling multi-level processed items (component_menu_item_id). Both Manila and Dubai.
+- **Critical bug fixed (this session)**: `_expand_cost_calc_bom` was ignoring `menu_item_master.output_qty` when scaling processed item BOM quantities. Since `mc.quantity` in the parent is the amount of OUTPUT consumed (not the fraction of batch), the correct scale factor is `comp_qty / output_qty`. Without this, batch-level ingredient amounts were multiplied by per-serving usage, e.g. JAPONICA RICE = 288,225,000g instead of ~30g for one Salmon Hosomaki.
+- **Fix**: In the processed_item branch of `_expand_cost_calc_bom`, fetch `output_qty` from `menu_item_master` and pass `recipe_qty = comp_qty / output_qty` to the recursive call (inventory_db.py lines 5593–5613).
+- **Verified**: Manila 2026-03-01 rebuild: Salmon Hosomaki = JAPONICA RICE 30g, SALMON 30g, SUSHI NORI 0.5pc, seasonings proportional ✓
+- **Unmatched items**: 68/82 Manila menu items have no Cost Calc BOM match on 2026-03-01 (beverages, add-ons, items not configured in Cost Calc). These generate no consumption records.
+- **Performance note**: Phase 3+4 open one connection per (ingredient / pos_row × ingredient). For Dubai's 31K rows this could be slow — if timeout observed, optimize by batching.
 
 ---
 
