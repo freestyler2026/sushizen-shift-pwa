@@ -179,6 +179,7 @@ type CatalogEntry = {
   requires_hq_review: boolean;
   market?: string | null;
   definition_en?: string | null;
+  acts_block_en?: string | null;
   threshold?: Record<string, unknown> | null;
   evidence_required?: Array<{ type: string; key: string; mandatory: boolean | string }> | null;
   legal_ground_ref?: string | null;
@@ -1201,9 +1202,8 @@ export default function EmployeeCasesPage() {
 
   function openEditTemplate(entry: CatalogEntry) {
     setEditTemplateCode(entry.code);
-    setEditTemplateMarket("BOTH");
-    // Fetch current acts_block from the market row we have; fall back to empty
-    const text = (entry as unknown as Record<string, unknown>).acts_block_en as string ?? "";
+    setEditTemplateMarket((catalogMarket as "AE" | "PH" | "BOTH") || "BOTH");
+    const text = entry.acts_block_en ?? "";
     setEditTemplateText(text);
     setEditTemplateOpen(true);
   }
@@ -2692,6 +2692,9 @@ export default function EmployeeCasesPage() {
                     acts_block_en template
                     <span className="ml-2 text-zinc-500 font-normal text-xs">Handlebars syntax supported: {"{{field}}"}, {"{{#each items}}…{{/each}}"}, {"{{#if flag}}…{{/if}}"}</span>
                   </label>
+                  {!catalogMarket && !editTemplateText && (
+                    <p className="mb-1 text-xs text-amber-400">Switch the catalog to AE or PH market filter to load the current template text.</p>
+                  )}
                   <textarea
                     value={editTemplateText}
                     onChange={(e) => setEditTemplateText(e.target.value)}
