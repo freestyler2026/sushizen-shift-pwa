@@ -3848,7 +3848,7 @@ export default function CostCalculationPage() {
 
         <div className="shrink-0 border-b border-white/10 bg-black/10 px-6 py-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <div ref={searchRef} className="relative min-w-0 flex-1">
+            <div ref={searchRef} className={cx("relative min-w-0 flex-1", isIngredientChangesSection && "hidden")}>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                 <input
@@ -5693,11 +5693,11 @@ export default function CostCalculationPage() {
                               <td className="px-4 py-2.5 font-medium text-white">{rec.ingredient_name}</td>
                               <td className="px-3 py-2.5 text-zinc-400">{rec.category || "—"}</td>
                               <td className="px-3 py-2.5 text-right font-mono text-zinc-400">
-                                {rec.old_price !== null ? `${currSym} ${rec.old_price.toFixed(4)}` : <span className="text-zinc-600">—</span>}
+                                {rec.old_price !== null ? `${currSym} ${rec.old_price.toFixed(6)}` : <span className="text-zinc-600">—</span>}
                                 {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-right font-mono text-white">
-                                {currSym} {rec.new_price.toFixed(4)}
+                                {currSym} {rec.new_price.toFixed(6)}
                                 {rec.unit ? <span className="ml-1 text-zinc-600">/{rec.unit}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-center">
@@ -5725,9 +5725,11 @@ export default function CostCalculationPage() {
                                     {rec.old_formula && (
                                       <div className="truncate font-mono text-[10px] text-zinc-500 line-through">{rec.old_formula}</div>
                                     )}
-                                    {rec.new_formula && (
+                                    {rec.new_formula ? (
                                       <div className="truncate font-mono text-[10px] text-violet-300">{rec.new_formula}</div>
-                                    )}
+                                    ) : rec.old_formula ? (
+                                      <div className="text-[10px] text-zinc-600 italic">deleted</div>
+                                    ) : null}
                                   </div>
                                 ) : (
                                   <span className="text-zinc-600 text-xs">—</span>
