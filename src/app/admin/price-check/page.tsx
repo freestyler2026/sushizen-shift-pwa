@@ -54,6 +54,7 @@ type PriceCheckResult = {
   baseline_price: number | null;
   current_price: number | null;
   discount_rate: number | null;
+  discount_pct: number | null;
   status: "ok" | "changed" | "confirmed" | "pending_manual";
   confirmed_by: string | null;
   confirmed_at: string | null;
@@ -63,6 +64,8 @@ type PriceCheckResult = {
   source: string;
   channel: string;
 };
+
+const DELIVERY_CHANNELS = new Set(["GRABFOOD", "FOODPANDA", "BEEP_ORDERS", "ONLINE_PAYMENTS", "SHOPEEFOOD"]);
 
 const CHANNEL_LABELS: Record<string, string> = {
   OFFLINE_PAYMENTS: "Dine-in",
@@ -763,6 +766,17 @@ export default function PriceCheckPage() {
   const confirmedRows = useMemo(() => results.filter((r) => r.status === "confirmed"), [results]);
   const okRows = useMemo(() => results.filter((r) => r.status === "ok"), [results]);
 
+  const discountIssueCount = useMemo(
+    () =>
+      results.filter(
+        (r) =>
+          DELIVERY_CHANNELS.has(r.channel) &&
+          r.discount_pct != null &&
+          Math.abs(r.discount_pct - 0.5) > 0.05,
+      ).length,
+    [results],
+  );
+
   const isParanaque = activeTab === "PAR";
   const isDubai = activeTab === "DUBAI";
 
@@ -825,7 +839,7 @@ export default function PriceCheckPage() {
         {!isDubai && (
           <>
             {/* KPI row */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <div className={KPI_CARD}>
                 <div className={KPI_LABEL}>Flagged</div>
                 <div className={`${KPI_VALUE} ${flaggedCount > 0 ? "text-red-400" : "text-emerald-400"}`}>
@@ -839,6 +853,12 @@ export default function PriceCheckPage() {
               <div className={KPI_CARD}>
                 <div className={KPI_LABEL}>Monitored Items</div>
                 <div className={KPI_VALUE}>{results.length}</div>
+              </div>
+              <div className={KPI_CARD}>
+                <div className={KPI_LABEL}>Discount Issues</div>
+                <div className={`${KPI_VALUE} ${discountIssueCount > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                  {discountIssueCount}
+                </div>
               </div>
               <div className={KPI_CARD}>
                 <div className={KPI_LABEL}>Last Check</div>
@@ -1142,6 +1162,7 @@ function PriceTable({
             <th className={`${TABLE_HEADER} text-right`}>Current</th>
             <th className={`${TABLE_HEADER} text-right`}>Change</th>
             <th className={`${TABLE_HEADER} text-center`}>Status</th>
+            <th className={`${TABLE_HEADER} text-center hidden lg:table-cell`}>Discount</th>
             <th className={`${TABLE_HEADER} text-left hidden md:table-cell`}>Last Confirmed</th>
             {showConfirm && <th className={`${TABLE_HEADER} text-left`}>Confirm</th>}
           </tr>
@@ -1236,6 +1257,23 @@ function PriceTable({
                   </span>
                 </td>
                 <td className={`${TABLE_CELL} text-center`}>{statusBadge(row.status)}</td>
+                <td className={`${TABLE_CELL} text-center hidden lg:table-cell`}>
+                  {(() => {
+                    if (!DELIVERY_CHANNELS.has(row.channel) || row.discount_pct == null) {
+                      return <span className="text-zinc-600 text-xs">—</span>;
+                    }
+                    const pct = row.discount_pct;
+                    const diff = Math.abs(pct - 0.5);
+                    const label = `${(pct * 100).toFixed(1)}%`;
+                    if (diff <= 0.05) {
+                      return <span className="text-emerald-400 text-xs font-medium">✅ {label}</span>;
+                    } else if (diff <= 0.15) {
+                      return <span className="text-amber-400 text-xs font-medium">⚠️ {label}</span>;
+                    } else {
+                      return <span className="text-red-400 text-xs font-medium">❌ {label}</span>;
+                    }
+                  })()}
+                </td>
                 <td className={`${TABLE_CELL} hidden md:table-cell`}>
                   {row.confirmed_by ? (
                     <div>
