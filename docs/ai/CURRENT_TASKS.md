@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.62 — Sales BOM: dedup, Cost Calc diff, POS BOM Coverage UI deployed)
+Last updated: 2026-08-03 (session 199 cont.63 — Ingredient Change Log deployed)
 
 ---
 
@@ -198,6 +198,20 @@ Last updated: 2026-08-03 (session 199 cont.62 — Sales BOM: dedup, Cost Calc di
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.63 — Ingredient Change Log)
+
+### B案: Ingredient Price Change History ✅
+- **Backend db.py**: Added `list_recent_ingredient_price_changes(*, city, since_days=30)` — cross-ingredient query joining `ingredient_price_history` + `ingredient_master`, returns all price/formula changes in the last N days
+- **Backend cost_api.py**: Added `GET /api/cost/ingredients/recent-changes?city=&since_days=` (placed BEFORE `/{ingredient_id}` per FastAPI route ordering rule)
+- **Frontend** (`/admin/cost-calculation` → "Ingredient Changes" tab):
+  - Summary cards: Total Changes / Price Changes / Formula Changes
+  - 7d / 30d / 90d filter buttons + Refresh
+  - Table: ingredient name, category, old price, new price, % change badge (▲red/▼green), formula diff (strikethrough old + violet new), changed_by, timestamp
+- **Verified on production**: Dubai / 30d shows 90 changes (15 price, 86 formula changes) with correct data
+- Deployed: Heroku (45c4a90) + Vercel (5d1c7a3)
 
 ---
 
