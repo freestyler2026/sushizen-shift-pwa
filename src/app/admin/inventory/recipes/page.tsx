@@ -25,12 +25,16 @@ type RecipeRow = {
   active: boolean;
 };
 
+type CostCalcPreviewItem = { name: string; category: string; components: number };
+
 type CostCalcPreview = {
   source_menu_item_count?: number;
   source_component_count?: number;
   existing_recipe_row_count?: number;
   existing_menu_item_count?: number;
-  items_preview?: { name: string; category: string; components: number }[];
+  missing_in_bom_count?: number;
+  missing_in_bom?: CostCalcPreviewItem[];
+  items_preview?: CostCalcPreviewItem[];
 };
 
 type CostCalcResult = {
@@ -60,6 +64,37 @@ type DedupeResult = {
   canonical_names: string[];
 };
 
+type PosUnmatchedItem = {
+  item_name: string;
+  category: string;
+  total_qty: number;
+  total_net_sales: number;
+  days_sold: number;
+  branches_sold: number;
+  branch_list: string[];
+  first_date: string;
+  last_date: string;
+};
+
+type PosBomCoverage = {
+  city: string;
+  date_from: string;
+  date_to: string;
+  total_pos_items: number;
+  unregistered_count: number;
+  registered_count: number;
+  items: PosUnmatchedItem[];
+};
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function daysAgoStr(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function InventoryRecipesPage() {
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -81,12 +116,21 @@ export default function InventoryRecipesPage() {
   const [ccResult, setCcResult] = useState<CostCalcResult | null>(null);
   const [ccError, setCcError] = useState("");
   const [confirmCc, setConfirmCc] = useState(false);
+  const [missingExpanded, setMissingExpanded] = useState(false);
 
   const [dedupeBusy, setDedupeBusy] = useState(false);
   const [dedupePreview, setDedupePreview] = useState<DedupePreview | null>(null);
   const [dedupeResult, setDedupeResult] = useState<DedupeResult | null>(null);
   const [dedupeError, setDedupeError] = useState("");
   const [confirmDedupe, setConfirmDedupe] = useState(false);
+
+  // POS BOM Coverage
+  const [posDateFrom, setPosDateFrom] = useState(() => daysAgoStr(7));
+  const [posDateTo, setPosDateTo] = useState(() => todayStr());
+  const [posBusy, setPosBusy] = useState(false);
+  const [posCoverage, setPosCoverage] = useState<PosBomCoverage | null>(null);
+  const [posError, setPosError] = useState("");
+  const [posFilter, setPosFilter] = useState("");
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -163,6 +207,7 @@ export default function InventoryRecipesPage() {
     setCcPreview(null);
     setCcResult(null);
     setConfirmCc(false);
+    setMissingExpanded(false);
     try {
       const res = await inventoryPost<CostCalcPreview & { ok: boolean }>("/api/admin/inventory/recipes/cost-calc/preview", { city });
       setCcPreview(res);
@@ -227,6 +272,36 @@ export default function InventoryRecipesPage() {
     }
   }
 
+  async function fetchPosCoverage() {
+    setPosBusy(true);
+    setPosError("");
+    setPosCoverage(null);
+    setPosFilter("");
+    try {
+      const res = await inventoryGet<PosBomCoverage & { ok: boolean }>(
+        `/api/admin/inventory/pos-bom-coverage?city=${encodeURIComponent(city)}&date_from=${posDateFrom}&date_to=${posDateTo}`,
+      );
+      setPosCoverage(res);
+    } catch (e: unknown) {
+      setPosError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPosBusy(false);
+    }
+  }
+
+  const filteredPosItems = useMemo(() => {
+    if (!posCoverage) return [];
+    if (!posFilter.trim()) return posCoverage.items;
+    const q = posFilter.trim().toLowerCase();
+    return posCoverage.items.filter(
+      (i) => i.item_name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q),
+    );
+  }, [posCoverage, posFilter]);
+
+  const coveragePct = posCoverage && posCoverage.total_pos_items > 0
+    ? Math.round((posCoverage.registered_count / posCoverage.total_pos_items) * 100)
+    : null;
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading recipes...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -234,7 +309,7 @@ export default function InventoryRecipesPage() {
     <div className="space-y-6">
       <InventoryTabs />
 
-      {/* Sync from Cost Calculation */}
+      {/* ── Sync from Cost Calculation ── */}
       <section className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -267,14 +342,56 @@ export default function InventoryRecipesPage() {
         {ccPreview && !ccResult && (
           <div className="mt-4 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm">
             <div className="font-semibold text-emerald-200 mb-2">Preview — {city.toUpperCase()}</div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-emerald-300">
-              <div>Products with recipes: <span className="font-bold text-white">{ccPreview.source_menu_item_count ?? "?"}</span></div>
+
+            {/* Counts */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-emerald-300 mb-3">
+              <div>Products with recipes in Cost Calc: <span className="font-bold text-white">{ccPreview.source_menu_item_count ?? "?"}</span></div>
               <div>Total ingredient lines: <span className="font-bold text-white">{ccPreview.source_component_count ?? "?"}</span></div>
-              <div>Current BOM rows: <span className="font-bold text-neutral-300">{ccPreview.existing_recipe_row_count ?? "?"}</span></div>
               <div>Current BOM products: <span className="font-bold text-neutral-300">{ccPreview.existing_menu_item_count ?? "?"}</span></div>
+              <div>Current BOM rows: <span className="font-bold text-neutral-300">{ccPreview.existing_recipe_row_count ?? "?"}</span></div>
             </div>
+
+            {/* Missing in BOM */}
+            {(ccPreview.missing_in_bom_count ?? 0) === 0 ? (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-700/30 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-300">
+                <span>✅</span>
+                <span>All Cost Calc products with recipes are present in Sales BOM.</span>
+              </div>
+            ) : (
+              <div className="mb-3 rounded-lg border border-rose-700/40 bg-rose-950/20 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="font-semibold text-rose-300">
+                    ⚠️ {ccPreview.missing_in_bom_count} product{ccPreview.missing_in_bom_count !== 1 ? "s" : ""} in Cost Calc but missing from Sales BOM
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMissingExpanded((v) => !v)}
+                    className="shrink-0 text-neutral-400 hover:text-neutral-200 transition"
+                  >
+                    {missingExpanded ? "▲ hide" : "▼ show all"}
+                  </button>
+                </div>
+                {missingExpanded && (
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5">
+                    {(ccPreview.missing_in_bom ?? []).map((item) => (
+                      <div key={item.name} className="flex items-center gap-2 text-rose-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                        <span className="font-medium">{item.name}</span>
+                        {item.category && <span className="text-neutral-500">{item.category}</span>}
+                        <span className="ml-auto text-neutral-500">{item.components} ingr.</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 text-neutral-400">
+                  Click <strong>Apply sync now</strong> to add these products to Sales BOM.
+                </div>
+              </div>
+            )}
+
+            {/* First 50 preview chips */}
             {(ccPreview.items_preview?.length ?? 0) > 0 && (
-              <div className="mt-3">
+              <div className="mt-2">
                 <div className="text-xs text-neutral-500 mb-1">Items to sync (first 50):</div>
                 <div className="flex flex-wrap gap-1">
                   {ccPreview.items_preview?.map((item) => (
@@ -285,6 +402,7 @@ export default function InventoryRecipesPage() {
                 </div>
               </div>
             )}
+
             <button
               type="button"
               onClick={() => setConfirmCc(true)}
@@ -317,7 +435,7 @@ export default function InventoryRecipesPage() {
         )}
       </section>
 
-      {/* Sales BOM master-detail */}
+      {/* ── Sales BOM master-detail ── */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         {/* Header + controls */}
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -336,6 +454,11 @@ export default function InventoryRecipesPage() {
                 setSelectedProduct(null);
                 setDetailRows([]);
                 setSearchText("");
+                setCcPreview(null);
+                setCcResult(null);
+                setDedupePreview(null);
+                setDedupeResult(null);
+                setPosCoverage(null);
               }}
               options={[
                 { value: "manila", label: "Manila" },
@@ -529,6 +652,141 @@ export default function InventoryRecipesPage() {
             )}
           </div>
         </div>
+      </section>
+
+      {/* ── POS BOM Coverage ── */}
+      <section className="rounded-2xl border border-sky-800/40 bg-sky-950/15 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+          <div>
+            <div className="text-base font-semibold text-sky-200">POS BOM Coverage</div>
+            <div className="mt-1 text-sm text-neutral-400 max-w-xl">
+              Shows POS menu items sold in the selected period that have <strong className="text-amber-300">no matching BOM entry</strong> — these items&apos; ingredients are never deducted from inventory.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={posDateFrom}
+              onChange={(e) => setPosDateFrom(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-600"
+            />
+            <span className="text-neutral-500 text-sm">→</span>
+            <input
+              type="date"
+              value={posDateTo}
+              onChange={(e) => setPosDateTo(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-600"
+            />
+            <button
+              type="button"
+              onClick={() => void fetchPosCoverage()}
+              disabled={posBusy || !posDateFrom || !posDateTo}
+              className="rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:opacity-60"
+            >
+              {posBusy ? "Checking..." : "Check Coverage"}
+            </button>
+          </div>
+        </div>
+
+        {posError && (
+          <div className="mb-4 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {posError}</div>
+        )}
+
+        {posCoverage && (
+          <>
+            {/* Summary bar */}
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3">
+                <div className="text-xs text-neutral-500 mb-1">Total POS items</div>
+                <div className="text-xl font-bold text-neutral-100 tabular-nums">{posCoverage.total_pos_items}</div>
+              </div>
+              <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-4 py-3">
+                <div className="text-xs text-emerald-400 mb-1">With BOM ✓</div>
+                <div className="text-xl font-bold text-emerald-300 tabular-nums">{posCoverage.registered_count}</div>
+              </div>
+              <div className="rounded-xl border border-rose-800/40 bg-rose-950/20 px-4 py-3">
+                <div className="text-xs text-rose-400 mb-1">Missing BOM ✗</div>
+                <div className="text-xl font-bold text-rose-300 tabular-nums">{posCoverage.unregistered_count}</div>
+              </div>
+              <div className="rounded-xl border border-sky-800/40 bg-sky-950/20 px-4 py-3">
+                <div className="text-xs text-sky-400 mb-1">Coverage</div>
+                <div className="text-xl font-bold text-sky-300 tabular-nums">
+                  {coveragePct !== null ? `${coveragePct}%` : "—"}
+                </div>
+              </div>
+            </div>
+
+            {/* Coverage progress bar */}
+            {coveragePct !== null && (
+              <div className="mb-4 h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${coveragePct >= 90 ? "bg-emerald-500" : coveragePct >= 70 ? "bg-amber-500" : "bg-rose-500"}`}
+                  style={{ width: `${coveragePct}%` }}
+                />
+              </div>
+            )}
+
+            {posCoverage.unregistered_count === 0 ? (
+              <div className="rounded-xl border border-emerald-700/30 bg-emerald-950/20 px-4 py-3 text-sm font-semibold text-emerald-300">
+                ✅ 100% coverage — all POS items have a BOM entry. Ingredients are being deducted for all sales.
+              </div>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="text-sm font-semibold text-rose-300">
+                    {posCoverage.unregistered_count} unmatched item{posCoverage.unregistered_count !== 1 ? "s" : ""} — ingredients NOT being deducted:
+                  </div>
+                  <input
+                    value={posFilter}
+                    onChange={(e) => setPosFilter(e.target.value)}
+                    placeholder="Filter by name..."
+                    className="ml-auto rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-600 w-48"
+                  />
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-neutral-800">
+                  <table className="min-w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-neutral-800 bg-neutral-900/60">
+                        <th className="px-4 py-2.5 font-medium uppercase tracking-wide text-neutral-500">POS Item Name</th>
+                        <th className="px-3 py-2.5 font-medium uppercase tracking-wide text-neutral-500">Category</th>
+                        <th className="px-3 py-2.5 text-right font-medium uppercase tracking-wide text-neutral-500">Qty Sold</th>
+                        <th className="px-3 py-2.5 text-right font-medium uppercase tracking-wide text-neutral-500">Net Sales</th>
+                        <th className="px-3 py-2.5 text-right font-medium uppercase tracking-wide text-neutral-500">Days</th>
+                        <th className="px-3 py-2.5 font-medium uppercase tracking-wide text-neutral-500">Last Sold</th>
+                        <th className="px-3 py-2.5 font-medium uppercase tracking-wide text-neutral-500">Branches</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPosItems.map((item) => (
+                        <tr key={item.item_name} className="border-b border-neutral-800/40 hover:bg-neutral-900/40">
+                          <td className="px-4 py-2.5 font-medium text-rose-200">{item.item_name}</td>
+                          <td className="px-3 py-2.5 text-neutral-400">{item.category || "—"}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-neutral-200">{Number(item.total_qty || 0).toFixed(0)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-neutral-300">
+                            {Number(item.total_net_sales || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-neutral-400">{item.days_sold}</td>
+                          <td className="px-3 py-2.5 text-neutral-400">{item.last_date || "—"}</td>
+                          <td className="px-3 py-2.5 text-neutral-400">
+                            {(item.branch_list || []).join(", ") || `${item.branches_sold} branch${item.branches_sold !== 1 ? "es" : ""}`}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredPosItems.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-6 text-center text-neutral-500">No items match filter.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-2 text-xs text-neutral-500">
+                  To fix: run <strong>Sync from Cost Calc</strong> (if the item exists in Cost Calculation) or add a BOM entry manually for POS items that have a different name.
+                </div>
+              </>
+            )}
+          </>
+        )}
       </section>
 
       <InventoryRegistrationHelp />
