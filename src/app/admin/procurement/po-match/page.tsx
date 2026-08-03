@@ -1333,9 +1333,9 @@ function AllRecordsTab() {
               <th className={`${TABLE_HEADER} py-3 pr-3 text-left`}>Supplier</th>
               <th className={`${TABLE_HEADER} py-3 pr-3 text-left`}>Branch</th>
               <th className={`${TABLE_HEADER} py-3 text-left`}>Invoice No.</th>
-              <th className={`${TABLE_HEADER} py-3 text-right`}>PO</th>
-              <th className={`${TABLE_HEADER} py-3 text-right`}>Invoice</th>
-              <th className={`${TABLE_HEADER} py-3 text-right`}>Variance</th>
+              <th className={`${TABLE_HEADER} py-3 pl-3 text-right`}>PO</th>
+              <th className={`${TABLE_HEADER} py-3 pl-3 text-right`}>Invoice</th>
+              <th className={`${TABLE_HEADER} py-3 pl-3 text-right`}>Variance</th>
               <th className={`${TABLE_HEADER} py-3 pr-4 text-center`}>Status</th>
               <th className={`${TABLE_HEADER} py-3 pr-4`}></th>
             </tr>
@@ -1353,9 +1353,9 @@ function AllRecordsTab() {
                 </td>
                 <td className={`${TABLE_CELL} pr-3 text-zinc-400`}>{row.branch || "—"}</td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount, currency)}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount, currency)}</td>
-                <td className={`${TABLE_CELL} text-right font-mono ${row.variance_amount !== 0 ? "text-amber-400" : "text-zinc-500"}`}>
+                <td className={`${TABLE_CELL} pl-3 text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount, currency)}</td>
+                <td className={`${TABLE_CELL} pl-3 text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount, currency)}</td>
+                <td className={`${TABLE_CELL} pl-3 text-right font-mono ${row.variance_amount !== 0 ? "text-amber-400" : "text-zinc-500"}`}>
                   {row.variance_amount === 0 ? "—" : (row.variance_amount > 0 ? "+" : "") + row.variance_amount.toFixed(2)}
                 </td>
                 <td className={`${TABLE_CELL} pr-4 text-center`}>
