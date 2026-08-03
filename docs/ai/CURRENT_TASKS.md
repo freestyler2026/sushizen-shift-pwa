@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.61 — NTE Module v2 full state machine E2E browser test PASS)
+Last updated: 2026-08-03 (session 199 cont.62 — Sales BOM: dedup, Cost Calc diff, POS BOM Coverage UI deployed)
 
 ---
 
@@ -198,6 +198,19 @@ Last updated: 2026-08-03 (session 199 cont.61 — NTE Module v2 full state machi
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.62 — Sales BOM)
+
+### Sales BOM: Dedup + Cost Calc Diff + POS BOM Coverage ✅
+- **Backend**: `preview_sales_bom_from_cost_calc()` in `inventory_db.py` now returns `missing_in_bom_count` + `missing_in_bom[]` — items in Cost Calc with components but NOT yet in Sales BOM
+- **Frontend** (`/admin/inventory/recipes` Sales Menu BOM tab):
+  - Preview panel: shows "✅ All Cost Calc products present" or "⚠️ N missing" with expandable list
+  - **POS BOM Coverage section**: Check Coverage by date range → shows Total/With BOM/Missing BOM stat cards, progress bar, filter + table of unmatched POS items
+- **Deduplication executed**: 2 duplicate groups merged, 2 rows removed — `extra soy sauce (bottle)` and `extra sweet sauce` unified to canonical names
+- **Coverage check (Dubai, 07/27–08/03)**: 133 POS items, 116 with BOM (87%), **17 missing** — mainly new 【NEW】 product variants not yet registered in Sales BOM
+- Deployed: Heroku (621f66e) + Vercel (c3746bc)
 
 ---
 
