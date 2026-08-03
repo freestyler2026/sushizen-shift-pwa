@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.63+ — Ingredient Change Log bugs fixed)
+Last updated: 2026-08-03 (session 199 cont.67 — Close Order Not Received bug fix)
 
 ---
 
@@ -198,6 +198,78 @@ Last updated: 2026-08-03 (session 199 cont.63+ — Ingredient Change Log bugs fi
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.67 — Close Order Not Received bug fix)
+
+### Close Order – Not Received: order reappeared after close ✅ FIXED (Heroku b5656a9 + Vercel e4fad54)
+- **Root cause A (primary)**: After `close-not-received` succeeded, `update_proc_request_phase2` correctly set `receiving_status='NOT_RECEIVED'` but did NOT change `status` (remains `'APPROVED'`). `loadMyRequests()` fetches `status=APPROVED` → finds the order again → re-adds it to the UI list → looks like the close had no effect.
+  - Fix (backend `db.py`): Added `exclude_not_received: bool = False` parameter to `list_proc_requests`. When `True`, adds `AND (receiving_status IS NULL OR receiving_status != 'NOT_RECEIVED')` to WHERE clause.
+  - Fix (backend `main.py`): Added `exclude_not_received: bool = Query(False)` to `GET /api/admin/procurement/requests` endpoint.
+  - Fix (frontend `receiving/page.tsx`): `loadMyRequests` now passes `exclude_not_received=true` in the query string.
+- **Root cause B (secondary)**: `canSelfAuthorize` on frontend included `DUBAI_MANAGEMENT`/`MANILA_MANAGEMENT`, but backend separation-of-duties only exempts `ADMIN`/`HQ`. These management roles could not self-close their own orders even though the UI said "You can authorize this yourself." The modal pre-filled their name, they entered their PIN, backend returned 403. Fix: `canSelfAuthorize` now only includes `["HQ", "ADMIN"]`.
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.66 — Price Check 下代 fix + Dubai branch selector)
+
+### Price Check: 下代 (actual selling price) tracking ✅ DEPLOYED (Heroku + Vercel, 2026-08-03)
+- **Root cause**: `fetch_prices_by_channel_for_store()` was recording `item.unitPrice` = 上代 (listed price shown with red strikethrough on delivery apps). The actual selling price is 下代 = `item.total / quantity`. Because baselines also stored 上代, price comparisons always showed ~0% change even if GrabFood secretly changed the discount rate (the incident that caused this page to be built).
+- **Fix (`storehub_api.py`)**: Added `_DELIVERY_CHANNELS = {"GRABFOOD", "FOODPANDA", "BEEP_ORDERS", "ONLINE_PAYMENTS", "SHOPEEFOOD"}`. For these channels: `unit_price = item.total / qty` (下代). For OFFLINE_PAYMENTS (Dine-in): keep `unitPrice` (no discount structure, single price).
+- **Fix (`main.py` — Dubai status)**: 
+  - Fixed broken table name `pos_menu_item_daily` → `inv_pos_menu_sales_daily` (the old name never existed → Dubai tab always showed empty/error)
+  - Added `brand_key = 'sushizen'` filter
+  - Added optional `?branch=` query param — aggregates all branches when empty/ALL, filters to specific branch when set
+- **Fix (`price-check/page.tsx`)**: 
+  - Added `DUBAI_BRANCHES` constant (All / JLT / Business Bay / Arjan / Al Barsha / Al Mina)
+  - Dubai tab: new branch selector dropdown; branch state triggers auto-reload via useCallback dep
+  - Fixed note text: "Atlas/Foodics" → "UrbanPiper" (correct aggregator platform)
+- **⚠️ REQUIRED POST-DEPLOY ACTION**: Go to Price Check → Taft → "Reset Baseline to Current Prices". This re-fetches all GrabFood/FoodPanda prices using the new 下代 logic. Without this, all items will show ~-50% variance (old baselines stored 上代 ≈ 2x the new 下代).
+- Deployed: Heroku (2b71896) + Vercel (ae4732b)
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.65 — Price Check investigation)
+
+### Price Check: Cheese Gyudon ₱240.18 investigation ✅ RESOLVED (no action needed)
+- **Investigated**: `price_check_baselines` for TAFT showed multiple products with ₱240.18 at Dine-in (OFFLINE_PAYMENTS) — Cheese Gyudon Beef Bowl and Classic Shoyu Tonkotsu Ramen (Rich & Creamy)
+- **Finding**: ₱240.18 is the **legitimate regular Dine-in menu price** for both products, not a discounted/anomalous price
+  - Cheese Gyudon GrabFood/Dine-in ratio = 2.57x — within normal range (2.14x–3.25x across all Taft items)
+  - Classic Shoyu Ramen GrabFood/Dine-in ratio = 3.04x — in range (comparable to Tuna Sashimi 3.25x, Salmon Sashimi 3.18x)
+  - Sharing the same price is consistent with Sushi ZEN's price tier system (e.g. Tokyo Umami Shoyu Ramen + Chicken Teriyaki Bento both ₱177.68; Shrimp Tempura 3pcs + Dynamite Shrimp 6pcs both ₱133.04)
+- **Outlier flagged for follow-up**: Tuna Mayonnaise Onigiri Dine-in=₱58.04 vs GrabFood=₱353 (6.08x ratio) — spawned as separate investigation task
+
+---
+
+## Recently Completed (2026-08-03 session 199 cont.64 — Price Check per-channel)
+
+### Price Check: per-channel baseline & comparison ✅
+- **Root cause fixed**: `fetch_current_prices_for_store()` mixed GrabFood/FoodPanda/Dine-in prices by taking the most recent transaction across ALL channels → false positives (e.g. GrabFood ₱578 vs FoodPanda baseline ₱412 triggering +40% alert)
+- **Backend `storehub_api.py`**: Added `fetch_prices_by_channel_for_store()` — returns `Dict[channel, Dict[product_id, info]]` keyed by StoreHub channel string (GRABFOOD, FOODPANDA, OFFLINE_PAYMENTS, etc.)
+- **Backend `main.py`**:
+  - `ensure_price_check_tables()`: added `channel VARCHAR(50) NOT NULL DEFAULT ''` column + migrated unique constraint from `(store_code, product_id)` → `(store_code, product_id, channel)` for both `price_check_baselines` and `price_check_results`
+  - All price check functions updated for per-channel: `_price_check_upsert_baselines`, `_price_check_force_baseline`, `_price_check_run_for_store`, `_price_check_get_status`
+  - Legacy `channel = ''` row cleanup: deleted on run (if same product now has per-channel rows) and on Reset Baseline (deletes all `channel = ''` rows)
+  - `PriceCheckConfirmIn` + `PriceCheckSetItemBaselineIn`: added `channel: str = ""`; confirm/set-baseline WHERE clauses include `AND channel = %s`
+- **Frontend `price-check/page.tsx`**: added `channel` to `PriceCheckResult` type, Channel badge column (hidden on mobile), row/editingKey keyed by `(store_code, product_id, channel)`, API calls include channel
+- **Result**: FLAGGED 0 (was 25), MONITORED 232 (was 111 — now counts per-channel combos), "All OK" ✅
+- **Lesson**: psycopg2 cursor-already-closed — migration ALTER TABLE DDL must be INSIDE `with conn.cursor() as cur:` block; cursor closes on `with` exit even though `cur` stays in scope
+- Deployed: Heroku (63114f1) + Vercel (322c98f)
+
+**Post-deploy bug fixes (same session, browser E2E test)**:
+1. **Bug: confirmed items re-flagged on next run** — ON CONFLICT CASE preserved 'confirmed' ONLY when new status='ok', so items confirmed while price was still > threshold got overwritten to 'changed' on every subsequent run (re-flagged every 3 hours). Fix: remove `AND EXCLUDED.status='ok'` condition → preserve 'confirmed' regardless of computed status. Verified: "Ramen + Sushi Roll Combo (4pcs)" FoodPanda +28.26% confirmed, then Run Check Now → stayed Confirmed, FLAGGED=0.
+2. **Bug: items_flagged counter inflated** — pre-INSERT counter counted confirmed items as flagged, so "Check complete — X items checked, Y flagged" message was inaccurate. Fix: after all inserts, re-query DB `COUNT(*) WHERE status IN ('changed','pending_manual')` for accurate count. Verified: "0 flagged" message after confirmed items preserved.
+- Heroku v1712 (d4c3fd3)
+
+**Browser E2E test results**:
+- ✅ Taft: Run Check Now → 214 items checked, 0 flagged; Channel badges (FoodPanda/GrabFood/Dine-in/—) displayed correctly
+- ✅ Confirm button: marks item confirmed, moves to Monitored Items; "Ramen + Sushi Roll Combo" confirmed
+- ✅ confirmed → re-run → stays Confirmed (Bug 1 fix verified)
+- ✅ Edit baseline: JS-triggered hover→click, enter ₱584.51, save → Ramen item becomes 0.00% OK, CONFIRMED resets to 0
+- ✅ Parañaque (manual): Manual Price Entry form shown, "Never run", StoreHub not connected
+- ✅ Dubai: No POS data for 08/02, Daily Confirmation section visible
+- ℹ️ 18 legacy channel='' rows remain (products not in recent 7-day transactions); not causing false positives (all status='ok'); will auto-clean on next Reset Baseline or when products appear in transactions
 
 ---
 
