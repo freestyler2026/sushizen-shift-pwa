@@ -61,7 +61,23 @@ type PriceCheckResult = {
   last_seen: string | null;
   checked_at: string;
   source: string;
+  channel: string;
 };
+
+const CHANNEL_LABELS: Record<string, string> = {
+  OFFLINE_PAYMENTS: "Dine-in",
+  ONLINE_PAYMENTS: "Online",
+  GRABFOOD: "GrabFood",
+  SHOPEEFOOD: "ShopeeFood",
+  FOODPANDA: "FoodPanda",
+  BEEP_ORDERS: "Beep",
+  UNKNOWN: "Unknown",
+  "": "Manual",
+};
+
+function channelLabel(ch: string): string {
+  return CHANNEL_LABELS[ch] ?? ch;
+}
 
 type LastRun = {
   run_at: string | null;
@@ -633,6 +649,7 @@ export default function PriceCheckPage() {
         body: JSON.stringify({
           store_code: row.store_code,
           product_id: row.product_id,
+          channel: row.channel || "",
           memo: confirmMemos[row.id] || "",
         }),
       });
@@ -1071,6 +1088,7 @@ function PriceTable({
         body: JSON.stringify({
           store_code: row.store_code,
           product_id: row.product_id,
+          channel: row.channel || "",
           baseline_price: newPrice,
         }),
       });
@@ -1093,6 +1111,7 @@ function PriceTable({
           <tr>
             <th className={`${TABLE_HEADER} text-left`}>Product</th>
             <th className={`${TABLE_HEADER} text-left hidden sm:table-cell`}>Category</th>
+            <th className={`${TABLE_HEADER} text-left hidden sm:table-cell`}>Channel</th>
             <th className={`${TABLE_HEADER} text-right`}>Baseline</th>
             <th className={`${TABLE_HEADER} text-right`}>Current</th>
             <th className={`${TABLE_HEADER} text-right`}>Change</th>
@@ -1114,7 +1133,7 @@ function PriceTable({
                 : "text-emerald-400";
 
             return (
-              <tr key={`${row.store_code}-${row.product_id}`} className={TABLE_ROW}>
+              <tr key={`${row.store_code}-${row.product_id}-${row.channel}`} className={TABLE_ROW}>
                 <td className={TABLE_CELL}>
                   <div className="font-medium text-white">{row.product_name}</div>
                   <div className="mt-0.5 text-xs text-zinc-500">{row.product_id}</div>
@@ -1122,8 +1141,17 @@ function PriceTable({
                 <td className={`${TABLE_CELL} hidden sm:table-cell text-zinc-400`}>
                   {row.category || "—"}
                 </td>
+                <td className={`${TABLE_CELL} hidden sm:table-cell`}>
+                  {row.channel ? (
+                    <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-white/10 text-zinc-300">
+                      {channelLabel(row.channel)}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-600 text-xs">—</span>
+                  )}
+                </td>
                 <td className={`${TABLE_CELL} text-right tabular-nums`}>
-                  {editingKey === `${row.store_code}-${row.product_id}` ? (
+                  {editingKey === `${row.store_code}-${row.product_id}-${row.channel}` ? (
                     <div className="flex items-center justify-end gap-1">
                       <input
                         type="number"
@@ -1160,7 +1188,7 @@ function PriceTable({
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingKey(`${row.store_code}-${row.product_id}`);
+                          setEditingKey(`${row.store_code}-${row.product_id}-${row.channel}`);
                           setEditValue(String(row.baseline_price ?? ""));
                         }}
                         title="Edit baseline"
