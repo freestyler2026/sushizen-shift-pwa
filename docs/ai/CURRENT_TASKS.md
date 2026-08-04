@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Manual Shift: 7 bugs fixed, SelectDark light variant added ✅)
+Last updated: 2026-08-04 (session — Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
 
 ---
 
