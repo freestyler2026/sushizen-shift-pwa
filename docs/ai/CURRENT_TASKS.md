@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — EPR staff permissions + Lowegie payroll fix + PO Match sync fix)
+Last updated: 2026-08-04 (session — Manual Shift branch_code bug fixed + deployed ✅)
 
 ---
 
@@ -232,6 +232,16 @@ Last updated: 2026-08-04 (session — EPR staff permissions + Lowegie payroll fi
 
 ---
 
+## Recently Completed (2026-08-04 — Manual Shift branch_code bug)
+
+### Manual Shift: per-row branch_code not saved/displayed correctly ✅ (Heroku 1d7a0b7 / Vercel 3c58c53)
+- **Bug**: On the AB page, selecting BB branch for a staff's shift showed AB after publish
+- **Root cause 1 (backend)**: `/api/published/week` selected `v.branch_code` (version-level = always AB) instead of `COALESCE(r.branch_code, v.branch_code)` (per-row = BB). Fixed in `main.py` lines 11231+11244 — both the branch-filtered and unfiltered queries.
+- **Root cause 2 (frontend)**: `loadExistingShifts()` in `manual-shift/page.tsx` at line 562–567 omitted `branch_code` when constructing `ShiftCell` from server data. Fixed to include `branch_code: r.branch_code ? String(r.branch_code) : undefined`.
+- **My Shift / Week / Calendar pages**: Already correct — `fetch_published_rows_for_day` and `fetch_published_rows_for_week` in `db.py` both used `COALESCE(r.branch_code, v.branch_code)` all along. No changes needed there.
+
+---
+
 ## Recently Completed (2026-08-04 — PO Match Phase 1-4 E2E testing)
 
 ### PO Match Phase 1-4 Browser-verified E2E test ✅ (Vercel commit below)
@@ -289,6 +299,15 @@ Last updated: 2026-08-04 (session — EPR staff permissions + Lowegie payroll fi
 - **DB直接修正**: id=4453 の名前を `[Archived] Bouquet Box For 2 people` にリネーム（既存UIから見えない状態で明示化）
 - **スタッフへの説明文**: archiveされた同名商品が存在したためエラーが発生していた旨と対処内容を日本語で返信
 
+### ① (追加修正) Cost Calc: draft商品名の重複チェック修正 ✅ (Heroku d491f45, browser-verified 2026-08-04)
+- **問題**: 前回の修正（`status <> 'archived'`）はarchived除外のみで、draft (`status='draft'`) が引き続き重複扱いになった
+  - 例: "New Product Costing" タブに "Radish Kimchi" ドラフトが存在 → Products/Processed Items タブの active "Radish Kimchi" を保存しようとするとエラー
+- **修正 (`db.py` line 24691-24696)**: `AND status <> 'archived'` → `AND status = 'active'` に変更（activeのみ重複チェック対象、draftは除外）
+- **追加修正**: `_get_cost_menu_item_record_by_name` ORDER BY に `CASE WHEN status <> 'archived' THEN 0 ELSE 1 END` 追加（同名のactive/archiveが共存する場合、activeを優先取得）
+- **ブラウザ検証 (2026-08-04)**: Processed Items タブ → "Shrimp Tempura Bouquet" (id=4445) → Save → エラーなし ✅
+  - API直接テスト: `PATCH /api/cost/master-items/4445` → `{ok: true, status: 200}` ✅
+  - 重複conflict確認: DB上に draft アイテムは0件、archived/activeペア4件は全てsave成功 ✅
+
 ### ② Sita Gurmachhan シフト修正 (8/24〜8/31週) ✅ (DB直接)
 - **問題**: My Shiftページで8/24〜8/31のシフトが表示されない
 - **原因**: `shift_published_rows` の `staff_name` が "Sita Gurmachan"（h×1）→ `staff_master` + APIの "Sita Gurmachhan"（h×2）と不一致。`_build_effective_staff_rows_for_day()` が完全一致検索のため表示ゼロに
@@ -323,12 +342,14 @@ Last updated: 2026-08-04 (session — EPR staff permissions + Lowegie payroll fi
 - 結果: Net ₱7,093.00 → ₱9,864.37 (07-17/07-18の虚偽欠席解消 + 日曜休日出勤手当 + 正しいNSD計算)
 - 注意: 07-18の16:42退勤によるundertime ₱677.66が計上 → 実際にその時間に退勤したか確認要
 
-### ③ PO Match ↔ Store Procurement 同期修正 ✅ (Heroku v1738 + Vercel 6f7415d)
+### ③ PO Match ↔ Store Procurement 同期修正 ✅ (Heroku v1738 + Vercel 6f7415d) — Browser verified 2026-08-04
 - 問題①: Tier 1 Quick Entryで`linked_request_id`が送られておらず、Store Procurementのステータスが更新されなかった
   - `po-match/page.tsx`の`selectedPo?.request_id`を`linked_request_id`としてペイロードに追加
+  - **検証**: デプロイ済みJSバンドルに`linked_request_id`ロジック確認 ✓ / DB: PO-CASE-2026-002613-01 → request_id → DUB-PR-202608-0070 (PENDING) ✓
 - 問題②: Tier 2 Manual Linkのsuggestionが最新3件のみ（古い発注が表示されなかった）
   - フロント: limit 3 → 20 に拡大
   - バックエンド `lookup_proc_requests_for_po_match()`: 上限 20 → 100、ORDER BY created_at DESC → ASC（古い未受領注文を上位表示）
+  - **検証**: ブラウザ操作で確認 ✓ — SAFCO検索で20件表示（上限通り）、DUB-PR-202605-0016(2026-05-28)が先頭・DUB-PR-202606-0191(2026-06-08)が末尾のASC順 ✓
 
 ---
 
