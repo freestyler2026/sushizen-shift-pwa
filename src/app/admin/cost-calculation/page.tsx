@@ -1707,8 +1707,8 @@ export default function CostCalculationPage() {
     try {
       await doSave(false);
     } catch (e: any) {
-      if (e instanceof ApiError && e.status === 409 && e.body?.conflict) {
-        setDupNameConflict({ message: e.message, conflict: e.body.conflict, onForce: () => doSave(true) });
+      if (e instanceof ApiError && e.status === 409 && e.body?.detail?.conflict) {
+        setDupNameConflict({ message: e.body.detail.message || e.message, conflict: e.body.detail.conflict, onForce: () => doSave(true) });
       } else {
         setError(e?.message || String(e));
       }
@@ -3683,12 +3683,12 @@ export default function CostCalculationPage() {
             });
           }
         } catch (rowErr: any) {
-          if (rowErr instanceof ApiError && rowErr.status === 409 && rowErr.body?.conflict) {
+          if (rowErr instanceof ApiError && rowErr.status === 409 && rowErr.body?.detail?.conflict) {
             const capturedRow = row;
             const capturedPayload = payload;
             setDupNameConflict({
-              message: rowErr.message,
-              conflict: rowErr.body.conflict,
+              message: rowErr.body.detail.message || rowErr.message,
+              conflict: rowErr.body.detail.conflict,
               onForce: async () => {
                 if (capturedRow._new) {
                   await costJson("/api/cost/ingredients", {

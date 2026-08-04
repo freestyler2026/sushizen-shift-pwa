@@ -32,9 +32,9 @@ function parseApiErrorDetail(text: string, fallback: string): string {
       }).filter(Boolean);
       return msgs.length ? msgs.join("; ") : fallback;
     }
-    // detail is an object (but not array)
+    // detail is an object (but not array) — may have detail.message (e.g. 409 conflict responses)
     if (detail !== null && typeof detail === "object") {
-      return parsed?.message ? String(parsed.message) : fallback;
+      return String(detail?.message || parsed?.message || fallback);
     }
     return String(detail || parsed?.message || fallback);
   } catch {
