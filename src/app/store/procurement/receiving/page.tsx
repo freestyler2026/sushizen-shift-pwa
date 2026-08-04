@@ -22,6 +22,7 @@ type RequestRow = {
   request_date: string;
   receiving_status?: string;
   vendor_summary?: string;
+  po_match_status?: string | null;
 };
 
 type RequestItem = {
@@ -858,6 +859,13 @@ export default function StoreProcurementReceivingPage() {
                     ) : null}
                     {row.vendor_summary ? (
                       <div className="text-[11px] text-amber-400/80">Supplier: {row.vendor_summary}</div>
+                    ) : null}
+                    {row.po_match_status === "MATCHED" ? (
+                      <div className="text-[11px] font-medium text-emerald-400">✓ Invoice Matched</div>
+                    ) : row.po_match_status === "RESOLVED" ? (
+                      <div className="text-[11px] font-medium text-violet-400">✓ Invoice Checked</div>
+                    ) : row.po_match_status === "DISCREPANCY" ? (
+                      <div className="text-[11px] font-medium text-amber-400">⚠ Invoice Discrepancy</div>
                     ) : null}
                   </div>
                 </button>
