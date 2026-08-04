@@ -1264,12 +1264,24 @@ export default function AdminStaffPage() {
                         </div>
                         <div className="space-y-1">
                           <span className="font-medium text-white">{dn}</span>
-                          <input
-                            className={INPUT_CLASS + " py-1 text-xs max-w-[220px]"}
-                            placeholder="rename staff..."
-                            value={nameDrafts[dn] ?? dn}
-                            onChange={(e) => setNameDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              className={INPUT_CLASS + " py-1 text-xs max-w-[180px]"}
+                              placeholder="rename staff..."
+                              value={nameDrafts[dn] ?? dn}
+                              onChange={(e) => setNameDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
+                            />
+                            {(nameDrafts[dn] ?? dn) !== dn && (
+                              <button
+                                type="button"
+                                onClick={() => void saveAll(dn)}
+                                className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/25 transition-colors"
+                                disabled={loading}
+                              >
+                                Rename
+                              </button>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-2 text-xs text-zinc-400">
                             {r.notes ? <span>{norm(r.notes)}</span> : null}
                             <span className={setupBadgeClass(setupRequired, setupCompleted)}>
