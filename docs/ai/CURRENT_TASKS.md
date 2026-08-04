@@ -232,6 +232,25 @@ Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup
 
 ---
 
+## Recently Completed (2026-08-04 — PO Match auto Google Drive upload)
+
+### PO Match: invoice photos auto-saved to Google Drive ✅ (Heroku 81a3a1e)
+
+**New feature — 集中インボイスリポジトリ:**
+- When a photo is uploaded via `/po-match/{id}/photo` or `/add-photo`, a background thread immediately uploads it to the market's Google Drive
+- **Folder structure**: `{Existing invoice root} / PO Match Invoices / YYYY-MM-DD / {vendor}_{invoice_no}_{NN}.ext`
+- Dubai and Manila each use their own Drive root (same credentials as supplier invoice uploads)
+- Multiple photos per PO numbered sequentially: `_01`, `_02`, etc.
+- Drive upload failure is non-fatal — API response is unaffected
+- **No frontend changes needed** — transparent to the user
+
+**Files changed:**
+- `app/db.py`: added `get_po_invoice_check(check_id)` to fetch check details for upload
+- `app/services/procurement_drive_chain.py`: added `upload_po_match_invoice_to_drive()`
+- `app/main.py`: both photo endpoints now call `_bg_upload_po_match_invoice()` after DB write
+
+---
+
 ## Recently Completed (2026-08-04 — Kimchi 500 fix verified)
 
 ### Cost Calc: Kimchi inactive-duplicate 500 → clean 409 modal ✅ (Heroku 6d57b29)
