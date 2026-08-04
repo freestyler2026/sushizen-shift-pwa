@@ -823,8 +823,33 @@ function PayslipDetail({
   period: Period | null;
   profileMonthlyRate?: number | null;
 }) {
-  const [showDTR, setShowDTR]     = useState(false);
-  const [showAdj, setShowAdj]     = useState(false);
+  const [showDTR, setShowDTR]         = useState(false);
+  const [showAdj, setShowAdj]         = useState(false);
+  const [deletingId, setDeletingId]   = useState<number | null>(null);
+
+  async function deleteManualItem(item: PayrollItem) {
+    if (!confirm(`Delete manual ${item.item_type === "earning" ? "addition" : "deduction"}: "${item.label}" (₱${Math.abs(item.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })})?`)) return;
+    setDeletingId(item.id);
+    try {
+      // Fetch all adjustments for this staff/period to find the matching one
+      const adjType = item.item_type === "earning" ? "MANUAL_ADDITION" : "MANUAL_DEDUCTION";
+      const res = await apiFetch(`${API}/adjustments?period_id=${periodId}&staff_name=${encodeURIComponent(run.staff_name)}`);
+      if (!res.ok) throw new Error("Failed to load adjustments");
+      const adjs: { id: number; item_type: string; amount: number }[] = await res.json();
+      const match = adjs.find(a => a.item_type === adjType && Math.abs(a.amount - Math.abs(item.amount)) < 0.01);
+      if (!match) { alert("Could not find matching adjustment record. Please use the Adjust button to delete it."); return; }
+      const del = await apiFetch(`${API}/adjustments/${match.id}`, { method: "DELETE" });
+      if (!del.ok) throw new Error("Delete failed");
+      // Recompute to reflect the deletion
+      const recomp = await apiFetch(`${API}/runs/${run.id}/compute`, { method: "POST" });
+      if (!recomp.ok) throw new Error("Recompute failed");
+      onRecomputed();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Error deleting adjustment");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   function itemFormula(code: string): string | null {
     const mr = run.monthly_rate;
@@ -1087,9 +1112,21 @@ function PayslipDetail({
                           <span className="text-[10px] text-slate-600">Taxable</span>
                         )}
                       </div>
-                      <span className="ml-4 tabular-nums text-sm font-semibold text-emerald-300">
-                        {fmtPHP(item.amount)}
-                      </span>
+                      <div className="ml-4 flex items-center gap-2 shrink-0">
+                        <span className="tabular-nums text-sm font-semibold text-emerald-300">
+                          {fmtPHP(item.amount)}
+                        </span>
+                        {item.source === "manual" && (
+                          <button
+                            onClick={() => deleteManualItem(item)}
+                            disabled={deletingId === item.id}
+                            className="text-slate-600 hover:text-red-400 disabled:opacity-50"
+                            title="Delete this manual addition"
+                          >
+                            {deletingId === item.id ? <Loader2 size={13} className="animate-spin"/> : <Trash2 size={13}/>}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {/* Earnings subtotal */}
@@ -1134,9 +1171,21 @@ function PayslipDetail({
                             <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
                           )}
                         </div>
-                        <span className="ml-4 tabular-nums text-sm font-semibold text-red-300 shrink-0">
-                          ({fmtPHPAbs(item.amount)})
-                        </span>
+                        <div className="ml-4 flex items-center gap-2 shrink-0">
+                          <span className="tabular-nums text-sm font-semibold text-red-300">
+                            ({fmtPHPAbs(item.amount)})
+                          </span>
+                          {item.source === "manual" && (
+                            <button
+                              onClick={() => deleteManualItem(item)}
+                              disabled={deletingId === item.id}
+                              className="text-slate-600 hover:text-red-400 disabled:opacity-50"
+                              title="Delete this manual deduction"
+                            >
+                              {deletingId === item.id ? <Loader2 size={13} className="animate-spin"/> : <Trash2 size={13}/>}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
