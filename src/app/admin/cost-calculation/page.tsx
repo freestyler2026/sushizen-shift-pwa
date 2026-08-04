@@ -3702,6 +3702,8 @@ export default function CostCalculationPage() {
                   });
                 }
                 await loadIngredients();
+                setDirtyRows(new Set());
+                setImportMessage(`${sheetName(activeSheet)} saved.`);
               },
             });
             return;
