@@ -592,6 +592,7 @@ function QuickEntryTab({
   // Lookup proc_request candidates for Tier-2 sync (manual Quick Entry without a formal PO)
   useEffect(() => {
     if (linkedRequest || linkDismissed) return;
+    if (selectedPo) { setLinkSuggestions([]); return; } // Tier-1 PO selected — sync is automatic
     if (linkDebounce.current) clearTimeout(linkDebounce.current);
     const pn = manualPoNo.trim();
     const vn = vendorQ.trim();
@@ -611,7 +612,7 @@ function QuickEntryTab({
       setLinkSuggestions([]);
     }
     return () => { if (linkDebounce.current) clearTimeout(linkDebounce.current); };
-  }, [manualPoNo, vendorQ, city, linkedRequest, linkDismissed]);
+  }, [manualPoNo, vendorQ, city, linkedRequest, linkDismissed, selectedPo]);
 
   const selectPo = async (po: PoRow) => {
     setSelectedPo(po);
@@ -775,6 +776,7 @@ function QuickEntryTab({
       setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); setCnrMsg(null);
       setMsg({ text: "✅ Order closed as Not Received.", ok: true });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
+      setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
       onSaved();
     } catch (e: unknown) {
       setCnrMsg({ text: String(e), ok: false });
@@ -862,7 +864,7 @@ function QuickEntryTab({
           </div>
 
           {/* Tier-2 link suggestion: match to an existing proc_request */}
-          {!linkedRequest && !linkDismissed && linkSuggestions.length > 0 && (
+          {!selectedPo && !linkedRequest && !linkDismissed && linkSuggestions.length > 0 && (
             <div className="sm:col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="mb-2 text-xs font-medium text-amber-300">
                 🔗 Possible procurement order match — link to sync receiving status automatically:
