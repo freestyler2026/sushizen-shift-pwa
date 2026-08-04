@@ -7225,7 +7225,7 @@ export default function CostCalculationPage() {
             <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3 text-xs space-y-1">
               <p><span className="text-zinc-400">Conflicting item:</span> <span className="text-white font-medium">{dupNameConflict.conflict.name}</span></p>
               <p><span className="text-zinc-400">Category:</span> <span className="text-zinc-200">{dupNameConflict.conflict.category}</span></p>
-              <p><span className="text-zinc-400">Status:</span> <span className="text-zinc-200">{dupNameConflict.conflict.status ?? (dupNameConflict.conflict.is_active ? "Active" : "Inactive")}</span></p>
+              <p><span className="text-zinc-400">Status:</span> <span className="text-zinc-200">{dupNameConflict.conflict.status ? String(dupNameConflict.conflict.status).charAt(0).toUpperCase() + String(dupNameConflict.conflict.status).slice(1) : (dupNameConflict.conflict.is_active ? "Active" : "Inactive")}</span></p>
             </div>
             <p className="mb-5 text-sm text-zinc-400">
               Click <span className="text-amber-300 font-medium">Proceed</span> to rename the conflicting item to{" "}
