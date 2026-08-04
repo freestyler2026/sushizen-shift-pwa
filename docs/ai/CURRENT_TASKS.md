@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Manual Shift branch_code bug fixed + deployed ✅)
+Last updated: 2026-08-04 (session — Manual Shift: 7 bugs fixed, SelectDark light variant added ✅)
 
 ---
 
