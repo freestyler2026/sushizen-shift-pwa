@@ -105,6 +105,19 @@ function ConfigModal({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  // Load active staff from staff_master for the name dropdown (new config only)
+  useEffect(() => {
+    if (config) return; // editing existing — name is fixed
+    const auth = getAuth();
+    const headers: Record<string, string> = {};
+    if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
+    fetch(`/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=5000`, { headers })
+      .then(r => r.ok ? r.json() : { names: [] })
+      .then((d: { names?: string[] }) => setStaffNames(d.names ?? []))
+      .catch(() => {});
+  }, [city, config]);
 
   function set(k: keyof typeof form, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -160,8 +173,20 @@ function ConfigModal({
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className={labelCls}>Staff Name *</label>
-            <input className={inputCls} value={form.staff_name} onChange={e => set("staff_name", e.target.value)}
-              placeholder="Full name (matching OS Attendance)" disabled={!!config} />
+            {config ? (
+              // Editing existing — name is locked (unique key in DB)
+              <input className={inputCls} value={form.staff_name} disabled />
+            ) : (
+              // New config — pick from staff_master so name is always consistent
+              <SelectDark
+                className={selectCls}
+                value={form.staff_name}
+                onChange={v => set("staff_name", v)}
+                placeholder={staffNames.length === 0 ? "Loading..." : "Select staff member"}
+                options={staffNames.map(n => ({ value: n, label: n }))}
+                clearable
+              />
+            )}
           </div>
           <div>
             <label className={labelCls}>Bayzat ID</label>
