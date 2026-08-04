@@ -164,7 +164,7 @@ export default function StoreProcurementReceivingPage() {
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
-      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true", exclude_not_received: "true" });
+      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true", exclude_not_received: "false" });
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
@@ -541,6 +541,7 @@ export default function StoreProcurementReceivingPage() {
       setCloseNotReceivedReason("");
       setCloseNotReceivedManagerName("");
       setCloseNotReceivedManagerPin("");
+      setInfo("Order closed as Not Received. It will remain in the list with status 'NOT_RECEIVED'.");
       await Promise.all([loadMyRequests(), loadReceivings()]);
     } catch (e: any) {
       setCloseNotReceivedError(String(e?.message || e || "Failed to close order"));
@@ -659,7 +660,7 @@ export default function StoreProcurementReceivingPage() {
     if (filterHideConfirmed) {
       list = list.filter((r) => {
         const rs = (r.receiving_status || "").toUpperCase();
-        return rs !== "CONFIRMED" && rs !== "RECEIVED" && rs !== "NOT_RECEIVED";
+        return rs !== "CONFIRMED" && rs !== "RECEIVED";
       });
     }
     if (filterSearch.trim()) {
@@ -832,6 +833,8 @@ export default function StoreProcurementReceivingPage() {
                     <div className="flex items-center gap-1">
                       {rcvStatus === "CONFIRMED" || rcvStatus === "RECEIVED" ? (
                         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">✓ Confirmed</span>
+                      ) : rcvStatus === "NOT_RECEIVED" ? (
+                        <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300">Closed – Not Received</span>
                       ) : rcvStatus === "DRAFT" ? (
                         <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">Draft</span>
                       ) : null}

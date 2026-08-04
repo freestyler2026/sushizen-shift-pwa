@@ -70,6 +70,7 @@ type PoRow = {
   status: string;
   city?: string;
   branch?: string;
+  request_id?: string;
 };
 
 type CheckRow = {
@@ -409,6 +410,12 @@ function QuickEntryTab({
   const [showPoList, setShowPoList] = useState(false);
   const vendorDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const poNoDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Close Order – Not Received
+  const [cnrOpen, setCnrOpen] = useState(false);
+  const [cnrApproverName, setCnrApproverName] = useState("");
+  const [cnrPin, setCnrPin] = useState("");
+  const [cnrReason, setCnrReason] = useState("");
+  const [cnrBusy, setCnrBusy] = useState(false);
 
   const searchPos = useCallback(async (q: string) => {
     if (!q.trim()) { setPoRows([]); setShowPoList(false); return; }
@@ -602,6 +609,26 @@ function QuickEntryTab({
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
     } finally { setSaving(false); }
+  };
+
+  const handleCnrSubmit = async () => {
+    if (!selectedPo?.request_id) { setMsg({ text: "No procurement request linked to this PO. Close from Store Procurement → Receiving instead.", ok: false }); return; }
+    if (!cnrApproverName.trim()) { setMsg({ text: "Enter approver name.", ok: false }); return; }
+    if (!cnrPin.trim()) { setMsg({ text: "Enter PIN.", ok: false }); return; }
+    setCnrBusy(true);
+    setMsg(null);
+    try {
+      await apiFetch(`/procurement/requests/${selectedPo.request_id}/close-not-received`, {
+        method: "POST",
+        body: JSON.stringify({ approver_name: cnrApproverName.trim(), pin: cnrPin.trim(), reason: cnrReason.trim() }),
+      });
+      setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason("");
+      setMsg({ text: "✅ Order closed as Not Received.", ok: true });
+      setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
+      onSaved();
+    } catch (e: unknown) {
+      setMsg({ text: String(e), ok: false });
+    } finally { setCnrBusy(false); }
   };
 
   return (
@@ -954,6 +981,67 @@ function QuickEntryTab({
           )}
         </div>
       </div>
+
+      {/* Close Order – Not Received (only when a PO with a request_id is selected) */}
+      {selectedPo?.request_id && (
+        <div className={`${GLASS_CARD} p-5`}>
+          {cnrOpen ? (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-red-300">⚠️ Close Order – Not Received</p>
+              <p className="text-xs text-zinc-400">
+                This will mark the procurement request linked to <span className="text-white font-medium">{selectedPo.po_no || selectedPo.vendor_name}</span> as NOT RECEIVED.
+                A manager PIN is required.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={T_LABEL}>Approver Name *</label>
+                  <input
+                    className={`mt-1.5 ${INPUT_CLASS}`}
+                    placeholder="Manager name"
+                    value={cnrApproverName}
+                    onChange={e => setCnrApproverName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL}>PIN *</label>
+                  <input
+                    type="password"
+                    className={`mt-1.5 ${INPUT_CLASS}`}
+                    placeholder="Manager PIN"
+                    value={cnrPin}
+                    onChange={e => setCnrPin(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleCnrSubmit()}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={T_LABEL}>Reason (optional)</label>
+                <input
+                  className={`mt-1.5 ${INPUT_CLASS}`}
+                  placeholder="e.g. Supplier did not deliver"
+                  value={cnrReason}
+                  onChange={e => setCnrReason(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button className={DANGER_BUTTON} onClick={handleCnrSubmit} disabled={cnrBusy}>
+                  {cnrBusy ? "Processing…" : "Confirm – Close Not Received"}
+                </button>
+                <button className={SECONDARY_BUTTON} onClick={() => { setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/15"
+              onClick={() => setCnrOpen(true)}
+            >
+              <XCircle size={14} /> Close Order – Not Received
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
