@@ -467,6 +467,8 @@ export default function ManualShiftPage() {
   const [searchResults, setSearchResults] = useState<SearchResultRow[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchRan, setSearchRan] = useState(false);
+  const searchTokenRef = useRef(0);
+  const monthlyTokenRef = useRef(0);
 
   // ─── Monthly View state ───────────────────────────────────────────────────
   const [monthVal, setMonthVal] = useState(() => {
@@ -525,15 +527,21 @@ export default function ManualShiftPage() {
     bayzatAppliedRef.current = {};
     setEditTarget(null);
     setView("edit");
+    setPublishedCount(0);
+    setSearchResults([]);
+    setSearchRan(false);
+    setMonthlyData({});
+    setMonthlyWeeks([]);
   }, [city]);
 
-  const loadStaff = useCallback(async (): Promise<boolean> => {
+  const loadStaff = useCallback(async (cancelledRef?: { current: boolean }): Promise<boolean> => {
     setLoading(true);
     setError("");
     try {
       const data = await apiFetch<{ names?: string[] }>(
         `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&home_branch=${encodeURIComponent(branchCode)}&exclude_role=HQ&limit=5000`
       );
+      if (cancelledRef?.current) return false;
       const names = (data.names || []).sort((a, b) => a.localeCompare(b));
       setStaffList(names);
       staffListRef.current = names;
@@ -546,20 +554,21 @@ export default function ManualShiftPage() {
       });
       return true;
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!cancelledRef?.current) setError(e instanceof Error ? e.message : String(e));
       return false;
     } finally {
-      setLoading(false);
+      if (!cancelledRef?.current) setLoading(false);
     }
   }, [city, branchCode]);
 
-  const loadExistingShifts = useCallback(async (forceOverwrite = false) => {
+  const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setError("");
     try {
       const data = await apiFetch<{ rows?: any[] }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
+      if (cancelledRef?.current) return;
       const rows = (data.rows || []);
 
       setGridData((prev) => {
@@ -628,34 +637,34 @@ export default function ManualShiftPage() {
         setStaffList(merged);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!cancelledRef?.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!cancelledRef?.current) setLoading(false);
     }
   }, [city, weekStart, branchCode]);
 
   useEffect(() => {
     if (staffList.length === 0) return;
-    // Cancellation flag: if week/branch changes again before this async sequence
-    // completes, the cleanup sets cancelled=true and state updates are suppressed
-    // so stale data from a superseded load never overwrites newer results.
-    let cancelled = false;
+    // cancelledRef is shared with loadStaff/loadExistingShifts so they can check
+    // it before each setState call — prevents stale fetches from overwriting newer results.
+    const cancelledRef = { current: false };
     const savedDraft = loadDraft(city, branchCode, weekStart);
     bayzatAppliedRef.current = {};
     setServerDraftCells(new Set());
     setServerDraftSavedAt(null);
+    setPublishedCount(0);
     void (async () => {
-      const staffOk = await loadStaff();
-      if (cancelled) return;
+      const staffOk = await loadStaff(cancelledRef);
+      if (cancelledRef.current) return;
       if (!staffOk) return; // staff load failed — keep the error visible
-      await loadExistingShifts(true);
-      if (cancelled) return;
+      await loadExistingShifts(true, cancelledRef);
+      if (cancelledRef.current) return;
       // Load server draft rows and apply on top of published shifts
       try {
         const draftData = await apiFetch<{ version_id: string | null; rows: any[] }>(
           `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
         );
-        if (!cancelled && draftData.rows.length > 0) {
+        if (!cancelledRef.current && draftData.rows.length > 0) {
           // Manual (published) shifts take priority over draft shifts.
           // Draft rows only fill slots where no published shift exists.
           let appliedDraftKeys = new Set<string>();
@@ -681,7 +690,7 @@ export default function ManualShiftPage() {
             appliedDraftKeys = applied;
             return next;
           });
-          if (!cancelled) {
+          if (!cancelledRef.current) {
             setServerDraftCells(appliedDraftKeys);
             setServerDraftSavedAt("loaded");
           }
@@ -689,7 +698,7 @@ export default function ManualShiftPage() {
       } catch {
         // Server draft is optional — ignore load errors silently
       }
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (Object.keys(savedDraft).length > 0) {
         setGridData((prev) => {
           const next: GridData = {};
@@ -703,9 +712,9 @@ export default function ManualShiftPage() {
           return next;
         });
       }
-      if (!cancelled) setView("edit");
+      if (!cancelledRef.current) setView("edit");
     })();
-    return () => { cancelled = true; };
+    return () => { cancelledRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
 
@@ -1235,6 +1244,7 @@ export default function ManualShiftPage() {
   async function handleEmployeeSearch() {
     const q = searchQuery.trim();
     if (!q) return;
+    const token = ++searchTokenRef.current;
     setSearchLoading(true);
     setSearchResults([]);
     setSearchRan(false);
@@ -1252,6 +1262,7 @@ export default function ManualShiftPage() {
           }
         })
       );
+      if (token !== searchTokenRef.current) return; // superseded by a newer search
       const qLower = q.toLowerCase();
       const matched: SearchResultRow[] = [];
       for (const { branch, rows } of fetched) {
@@ -1285,12 +1296,13 @@ export default function ManualShiftPage() {
       setSearchResults(matched);
       setSearchRan(true);
     } finally {
-      setSearchLoading(false);
+      if (token === searchTokenRef.current) setSearchLoading(false);
     }
   }
 
   // ─── Monthly View ─────────────────────────────────────────────────────────
   async function handleLoadMonthly() {
+    const token = ++monthlyTokenRef.current;
     setMonthlyLoading(true);
     setMonthlyData({});
     try {
@@ -1305,6 +1317,7 @@ export default function ManualShiftPage() {
         mondays.push(localDateStr(cur));
         cur.setDate(cur.getDate() + 7);
       }
+      if (token !== monthlyTokenRef.current) return;
       setMonthlyWeeks(mondays);
 
       const branchList = BRANCHES[city];
@@ -1330,6 +1343,7 @@ export default function ManualShiftPage() {
         })
       );
 
+      if (token !== monthlyTokenRef.current) return;
       const data: MonthlyData = {};
       for (const { bCode, week, count } of results) {
         if (!data[bCode]) data[bCode] = {};
@@ -1337,7 +1351,7 @@ export default function ManualShiftPage() {
       }
       setMonthlyData(data);
     } finally {
-      setMonthlyLoading(false);
+      if (token === monthlyTokenRef.current) setMonthlyLoading(false);
     }
   }
 
@@ -1345,8 +1359,8 @@ export default function ManualShiftPage() {
     setBranchCode(bCode as BranchCode);
     setWeekStart(week);
     setView("edit");
-    setStaffList([]);
-    setGridData({});
+    // Don't clear staffList/gridData here — if previously populated, the
+    // [weekStart, branchCode] effect will auto-reload the correct data.
   }
 
   const branches = BRANCHES[city];
@@ -1417,6 +1431,7 @@ export default function ManualShiftPage() {
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">City</label>
               <SelectDark
                 className={W_SELECT}
+                variant="light"
                 value={city}
                 onChange={v => setCity(v as City)}
                 options={[
@@ -1616,7 +1631,7 @@ export default function ManualShiftPage() {
           </button>
           <button
             type="button"
-            onClick={() => setView("search")}
+            onClick={() => { setView("search"); setPaintMode(false); }}
             className={[
               "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
               view === "search"
@@ -1628,7 +1643,7 @@ export default function ManualShiftPage() {
           </button>
           <button
             type="button"
-            onClick={() => setView("monthly")}
+            onClick={() => { setView("monthly"); setPaintMode(false); }}
             className={[
               "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
               view === "monthly"
@@ -1664,21 +1679,24 @@ export default function ManualShiftPage() {
                     <SelectDark
                       value={String(paintStart)}
                       onChange={v => setPaintStart(Number(v))}
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                      variant="light"
+                      className="rounded-lg px-2 py-1 text-xs"
                       options={START_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
                     />
                     <label className="text-xs text-gray-500">End</label>
                     <SelectDark
                       value={String(paintEnd)}
                       onChange={v => setPaintEnd(Number(v))}
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                      variant="light"
+                      className="rounded-lg px-2 py-1 text-xs"
                       options={END_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
                     />
                     <label className="text-xs text-gray-500">Role</label>
                     <SelectDark
                       value={paintRole}
                       onChange={setPaintRole}
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                      variant="light"
+                      className="rounded-lg px-2 py-1 text-xs"
                       options={getRoleOptions(city).map((r) => ({ value: r, label: r }))}
                     />
                     <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs font-medium text-violet-700">
@@ -1697,14 +1715,16 @@ export default function ManualShiftPage() {
                         <SelectDark
                           value={String(paintStart2)}
                           onChange={v => setPaintStart2(Number(v))}
-                          className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
+                          variant="light"
+                          className="rounded-lg px-2 py-1 text-xs"
                           options={START_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
                         />
                         <label className="text-xs text-gray-500">End</label>
                         <SelectDark
                           value={String(paintEnd2)}
                           onChange={v => setPaintEnd2(Number(v))}
-                          className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
+                          variant="light"
+                          className="rounded-lg px-2 py-1 text-xs"
                           options={END_HOUR_OPTIONS.map((h) => ({ value: String(h), label: fmtHour(h) }))}
                         />
                       </>

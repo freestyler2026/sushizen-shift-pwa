@@ -12,6 +12,8 @@ type Props = {
   options: (string | OptionItem)[];
   placeholder?: string;
   className?: string;
+  /** "dark" (default) = dark-glass trigger; "light" = white-mode trigger for light-bg pages */
+  variant?: "dark" | "light";
   // When false (default), the X clear button is hidden — use for required fields
   // like city/branch selectors where an empty value is invalid.
   clearable?: boolean;
@@ -28,6 +30,7 @@ export default function SelectDark({
   options,
   placeholder = "— Select —",
   className = "",
+  variant = "dark",
   clearable = false,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -118,9 +121,16 @@ export default function SelectDark({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+        className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer ${
+          variant === "light"
+            ? "border border-gray-200 bg-white"
+            : "border border-white/10 bg-white/6"
+        }`}
       >
-        <span className={value ? "text-white" : "text-zinc-500"}>
+        <span className={value
+          ? (variant === "light" ? "text-gray-800" : "text-white")
+          : (variant === "light" ? "text-gray-400" : "text-zinc-500")
+        }>
           {value ? selectedLabel : placeholder}
         </span>
         <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -130,12 +140,12 @@ export default function SelectDark({
               tabIndex={0}
               onClick={clear}
               onKeyDown={(e) => e.key === "Enter" && clear(e as unknown as React.MouseEvent)}
-              className="text-zinc-500 hover:text-zinc-200 cursor-pointer"
+              className={variant === "light" ? "text-gray-400 hover:text-gray-600 cursor-pointer" : "text-zinc-500 hover:text-zinc-200 cursor-pointer"}
             >
               <X className="h-3.5 w-3.5" />
             </span>
           )}
-          <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""} ${variant === "light" ? "text-gray-400" : "text-zinc-400"}`} />
         </div>
       </button>
 
