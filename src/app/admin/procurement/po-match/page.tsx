@@ -416,6 +416,7 @@ function QuickEntryTab({
   const [cnrPin, setCnrPin] = useState("");
   const [cnrReason, setCnrReason] = useState("");
   const [cnrBusy, setCnrBusy] = useState(false);
+  const [cnrMsg, setCnrMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const searchPos = useCallback(async (q: string) => {
     if (!q.trim()) { setPoRows([]); setShowPoList(false); return; }
@@ -612,22 +613,22 @@ function QuickEntryTab({
   };
 
   const handleCnrSubmit = async () => {
-    if (!selectedPo?.request_id) { setMsg({ text: "No procurement request linked to this PO. Close from Store Procurement → Receiving instead.", ok: false }); return; }
-    if (!cnrApproverName.trim()) { setMsg({ text: "Enter approver name.", ok: false }); return; }
-    if (!cnrPin.trim()) { setMsg({ text: "Enter PIN.", ok: false }); return; }
+    if (!selectedPo?.request_id) { setCnrMsg({ text: "No procurement request linked to this PO. Close from Store Procurement → Receiving instead.", ok: false }); return; }
+    if (!cnrApproverName.trim()) { setCnrMsg({ text: "Enter approver name.", ok: false }); return; }
+    if (!cnrPin.trim()) { setCnrMsg({ text: "Enter PIN.", ok: false }); return; }
     setCnrBusy(true);
-    setMsg(null);
+    setCnrMsg(null);
     try {
       await apiFetch(`/procurement/requests/${selectedPo.request_id}/close-not-received`, {
         method: "POST",
         body: JSON.stringify({ approver_name: cnrApproverName.trim(), pin: cnrPin.trim(), reason: cnrReason.trim() }),
       });
-      setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason("");
+      setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); setCnrMsg(null);
       setMsg({ text: "✅ Order closed as Not Received.", ok: true });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       onSaved();
     } catch (e: unknown) {
-      setMsg({ text: String(e), ok: false });
+      setCnrMsg({ text: String(e), ok: false });
     } finally { setCnrBusy(false); }
   };
 
@@ -1027,10 +1028,13 @@ function QuickEntryTab({
                 <button className={DANGER_BUTTON} onClick={handleCnrSubmit} disabled={cnrBusy}>
                   {cnrBusy ? "Processing…" : "Confirm – Close Not Received"}
                 </button>
-                <button className={SECONDARY_BUTTON} onClick={() => { setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); }}>
+                <button className={SECONDARY_BUTTON} onClick={() => { setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); setCnrMsg(null); }}>
                   Cancel
                 </button>
               </div>
+              {cnrMsg && (
+                <p className={`text-sm ${cnrMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{cnrMsg.text}</p>
+              )}
             </div>
           ) : (
             <button
