@@ -600,7 +600,7 @@ function QuickEntryTab({
       linkDebounce.current = setTimeout(async () => {
         setLinkLoading(true);
         try {
-          const params = new URLSearchParams({ city, limit: "3" });
+          const params = new URLSearchParams({ city, limit: "20" });
           if (pn) params.set("po_no", pn);
           if (vn) params.set("vendor_name", vn);
           const d = await apiFetch(`/procurement/po-match/lookup-request?${params}`);
@@ -741,14 +741,18 @@ function QuickEntryTab({
           photo_data: photos[0] ?? "",
           extra_photos: photos.slice(1),
           discrepancy_type: !isMatch ? discrepancyType : "",
-          ...(linkedRequest && !selectedPo ? { linked_request_id: linkedRequest.id } : {}),
+          ...(linkedRequest && !selectedPo
+            ? { linked_request_id: linkedRequest.id }
+            : selectedPo?.request_id
+            ? { linked_request_id: selectedPo.request_id }
+            : {}),
           ...(linesPayload ? { lines: linesPayload } : {}),
         }),
       });
       const matchMsg = isMatch
         ? "✅ Matched — no further action needed."
         : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${currency}). Added to review queue.`;
-      const syncMsg = linkedRequest && isMatch ? " Store Procurement order status updated to Confirmed." : "";
+      const syncMsg = (linkedRequest || selectedPo?.request_id) && isMatch ? " Store Procurement order status updated to Confirmed." : "";
       setMsg({ text: matchMsg + syncMsg, ok: isMatch });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotos([]);
