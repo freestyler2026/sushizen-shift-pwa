@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
+Last updated: 2026-08-04 (session — Cost Calc dup-name modal E2E tested + 2 bugs fixed ✅; Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
 
 ---
 
@@ -229,6 +229,25 @@ Last updated: 2026-08-04 (session — Cost Calc duplicate name 2-step confirmati
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-04 — Cost Calc duplicate name modal E2E test + bug fixes)
+
+### Cost Calc duplicate name 2-step confirmation — full E2E browser test + 2 bugs fixed ✅ (Vercel bdea40d + 5a9e8f9)
+
+**Test coverage (all passed ✅):**
+- Ingredient Master tab: editing "16pcs Box" → rename to "12pcs Box" → Save → 409 modal appears
+  - Modal shows: ⚠️ Name Already In Use, conflict details (name/category/status), bold "Proceed" in instructions
+  - Cancel: dismisses modal, dirty row remains (correct — user can re-edit)
+  - Proceed: calls PATCH with `force_rename: true` → "16pcs Box" renamed to "12pcs Box", "12pcs Box" renamed to "12pcs Box [old]" ✅
+- Products tab: editing "2 Onigiri of Your Choice" → rename to "7 UP" → Save → 409 modal appears ✅
+  - Cancel: dismisses modal (correct) ✅
+  - Proceed: "2 Onigiri" renamed to "7 UP", original "7 UP" renamed to "7 UP [old]" ✅
+
+**Bug 1 fixed (Vercel bdea40d):** `onForce` in ingredient grid didn't call `setDirtyRows(new Set())` or `setImportMessage` after force_rename succeeded. After Proceed, the grid still showed Save:1 (dirty indicator) even though the data was saved correctly. Fixed by adding those two calls after `await loadIngredients()`.
+
+**Bug 2 fixed (Vercel 5a9e8f9):** `conflict.status` from master-items API returns lowercase "active". Modal displayed "Status: active" while ingredient path showed "Status: Active". Fixed by applying `charAt(0).toUpperCase() + slice(1)` normalization.
 
 ---
 
