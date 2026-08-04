@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-03 (session 199 cont.72 — POS→MIM name normalization for Dubai/Manila)
+Last updated: 2026-08-04 (session — PO Match UX improvements: branch display, invoice required, pending deliveries filter + Sita shift DB fix)
 
 ---
 
@@ -229,6 +229,40 @@ Last updated: 2026-08-03 (session 199 cont.72 — POS→MIM name normalization f
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-04 — PO Match UX + Sita shift fix)
+
+### ① Sita Gurmachhan シフト修正 ✅ (DB直接)
+- Dubai AM branch week 2026-08-03: `shift_published_rows.staff_name` の "Sita Gurmachan" → "Sita Gurmachhan" を直接SQL修正（7行更新）
+- `_build_effective_staff_rows_for_day()` が完全一致で検索するため、名前のタイポがMy Shiftページ表示を阻んでいた
+
+### ② PO Match Quick Entry: Branch/Location 表示 ✅ (Vercel fb0e3b6)
+- PO選択時に Branch / Location フィールドを表示（`selectedPo?.branch` が存在する場合のみ）
+- スタッフが配送先支店を即座に確認できるように
+
+### ③ PO Match: Invoice Photo を必須化 ✅ (Vercel fb0e3b6)
+- `handleSubmit()` に `photoData` チェックを追加 → 写真なしで Submit ボタンを押すとエラーメッセージ
+- ラベル: "Invoice Photo (optional)" → "Invoice Photo *"
+- ボタン: "Attach Invoice Photo (optional)" → "Attach Invoice Photo"
+
+### ④ Pending Deliveries: 確認済み/クローズ済みPOを除外 ✅ (Heroku v1727)
+- `db.py` の `list_overdue_deliveries_admin()` に `AND UPPER(COALESCE(r.request_status,'')) NOT IN ('RECEIVED','CLOSED','CANCELLED')` を追加
+- 調達ハブの「Pending Deliveries」バッジが既処理POを数えなくなった
+
+---
+
+## Recently Completed (2026-08-04 — Inventory UI fixes)
+
+### ① Sales Menu BOM タブ非表示 ✅ (Vercel 4d9ee6f)
+- `InventoryTabs.tsx` の SECONDARY_ITEMS から "Sales Menu BOM" エントリを削除（`BookOpen` import も削除）
+- `admin/inventory/page.tsx` の MODULES 配列から Sales Menu BOM カードを削除
+
+### ② Daily Inventory Input バグ修正 ✅ (Vercel 4d9ee6f)
+- **セクション名表示バグ**: `COLD_SECTION` が "COLD_SECTION" そのまま表示されていた → `fmtSection()` ヘルパーを追加し、未登録セクションキーを自動フォーマット（`_` → スペース + タイトルケース）
+- **エラーバナー残留バグ**: History/Back to form ボタン押下時にフォームのエラーメッセージが残り続けていた → ナビゲーション時に `setError("")` を追加
+- **動作確認**: QTY入力→STATUS更新✓ / タブ切替時エントリ保持✓ / スタッフ未選択バリデーション✓ / 全タブ切替✓
 
 ---
 
