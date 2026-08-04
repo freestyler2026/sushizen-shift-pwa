@@ -564,6 +564,7 @@ export default function ManualShiftPage() {
             end_hour: Number(r.end_hour),
             role: String(r.role || ""),
             note: r.note ? String(r.note) : undefined,
+            branch_code: r.branch_code ? String(r.branch_code) : undefined,
           });
         }
         for (const [key, shifts] of Object.entries(grouped)) {
