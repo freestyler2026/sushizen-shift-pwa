@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Cost Calc archived name fix + PO Match multiple invoice photos)
+Last updated: 2026-08-04 (session — PO Match Phase 1-4 E2E testing + 3 frontend bug fixes)
 
 ---
 
@@ -229,6 +229,22 @@ Last updated: 2026-08-04 (session — Cost Calc archived name fix + PO Match mul
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-04 — PO Match Phase 1-4 E2E testing)
+
+### PO Match Phase 1-4 Browser-verified E2E test ✅ (Vercel commit below)
+- **Tier-1 path**: SAFCO PO selected → auto-fill + "Auto-filled from PO" banner → Tier-2 widget hidden ✓
+- **Tier-2 lookup**: vendor "Sunberry" → 3 APPROVED Dubai requests returned with Link buttons ✓
+- **Tier-2 link**: clicked Link on DUB-PR-202608-0058 → emerald banner "🔗 Linked to procurement order" + Unlink button ✓
+- **Tier-2 sync**: POST with `linked_request_id` + matching amounts → `match_status: "MATCHED"`, `DUB-PR-202608-0058.receiving_status: PENDING → CONFIRMED` ✓
+- **Lookup filter**: confirmed request no longer appears in lookup after CONFIRMED ✓
+- **3 frontend bugs found and fixed** (Vercel commit — see below):
+  - Bug A: `selectPo()` didn't clear `linkedRequest`/`linkDismissed`/`linkSuggestions` → Tier-1 selection while Tier-2 linked would send both `receiving_id` and `linked_request_id` in submit payload
+  - Bug B: Linked banner missing `!selectedPo` guard → both "Auto-filled from PO" and "Linked to procurement order" banners could show simultaneously
+  - Bug C: Submit payload `linked_request_id` guard missing `!selectedPo` safety check
+- **Photo validation**: correctly blocks submission with "Invoice photo is required" when no photo attached ✓
 
 ---
 

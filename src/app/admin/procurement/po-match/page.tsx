@@ -616,6 +616,9 @@ function QuickEntryTab({
 
   const selectPo = async (po: PoRow) => {
     setSelectedPo(po);
+    setLinkedRequest(null);
+    setLinkDismissed(false);
+    setLinkSuggestions([]);
     setVendorQ(po.vendor_name);
     setManualPoNo(po.po_no);
     setManualPoAmount(String(po.po_amount));
@@ -738,7 +741,7 @@ function QuickEntryTab({
           photo_data: photos[0] ?? "",
           extra_photos: photos.slice(1),
           discrepancy_type: !isMatch ? discrepancyType : "",
-          ...(linkedRequest ? { linked_request_id: linkedRequest.id } : {}),
+          ...(linkedRequest && !selectedPo ? { linked_request_id: linkedRequest.id } : {}),
           ...(linesPayload ? { lines: linesPayload } : {}),
         }),
       });
@@ -895,7 +898,7 @@ function QuickEntryTab({
               </button>
             </div>
           )}
-          {linkedRequest && (
+          {linkedRequest && !selectedPo && (
             <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5">
               <div>
                 <p className="text-xs font-medium text-emerald-400">🔗 Linked to procurement order</p>
