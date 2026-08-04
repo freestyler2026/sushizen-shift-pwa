@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  ExternalLink,
+  FolderOpen,
   RefreshCw,
   Save,
   Search,
@@ -1976,6 +1978,7 @@ export default function PoMatchPage() {
   const [discrepancyCount, setDiscrepancyCount] = useState(0);
   const [settings, setSettings] = useState<MatchSettings | null>(null);
   const [city, setCity] = useState<string>(getInitialCity);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
 
   const handleCityChange = (newCity: string) => {
     if (typeof window !== "undefined") {
@@ -2002,7 +2005,11 @@ export default function PoMatchPage() {
   useEffect(() => {
     refreshBadge();
     loadSettings();
-  }, [refreshBadge, loadSettings]);
+    setDriveUrl(null);
+    apiFetch(`/procurement/po-match/drive-folder?city=${city}`)
+      .then((d: any) => { if (d?.web_view_link) setDriveUrl(d.web_view_link); })
+      .catch(() => { /* Drive link is non-critical */ });
+  }, [refreshBadge, loadSettings, city]);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "entry", label: "Quick Entry", icon: <ClipboardList size={15} /> },
@@ -2028,6 +2035,19 @@ export default function PoMatchPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {driveUrl && (
+                <a
+                  href={driveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10 hover:text-white transition-colors"
+                  title="Open PO Match Invoices folder in Google Drive"
+                >
+                  <FolderOpen size={13} />
+                  <span>Drive Folder</span>
+                  <ExternalLink size={11} className="text-zinc-500" />
+                </a>
+              )}
               <label className={T_LABEL}>City</label>
               <SelectDark
                 className={SELECT_CLASS + " w-auto"}
