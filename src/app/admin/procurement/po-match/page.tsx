@@ -95,6 +95,7 @@ type CheckRow = {
   entered_by: string;
   notes: string;
   photo_data: string;
+  extra_photos?: string[];
   created_at: string;
   branch?: string;
   vat_rate?: number;
@@ -368,6 +369,104 @@ function PhotoUpload({
   );
 }
 
+// ─── Multi-photo upload ───────────────────────────────────────────────────────
+
+function MultiPhotoUpload({
+  photos,
+  onChange,
+  checkId,
+  maxPhotos = 5,
+}: {
+  photos: string[];
+  onChange: (photos: string[]) => void;
+  checkId?: string;
+  maxPhotos?: number;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { setMsg("File must be under 8 MB."); return; }
+    setUploading(true);
+    setMsg("");
+    try {
+      const b64 = await fileToBase64(file);
+      if (checkId) {
+        // 既存レコードへの追加：add-photo エンドポイントを呼ぶ
+        if (photos.length === 0) {
+          await apiFetch(`/procurement/po-match/${checkId}/photo`, {
+            method: "POST",
+            body: JSON.stringify({ photo_data: b64 }),
+          });
+        } else {
+          await apiFetch(`/procurement/po-match/${checkId}/add-photo`, {
+            method: "POST",
+            body: JSON.stringify({ photo_data: b64 }),
+          });
+        }
+      }
+      onChange([...photos, b64]);
+    } catch { setMsg("Upload failed. Try again."); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  };
+
+  const removePhoto = (index: number) => {
+    onChange(photos.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-3">
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {photos.map((src, i) => (
+            <div key={i} className="relative inline-block">
+              <img
+                src={src}
+                alt={`Invoice photo ${i + 1}`}
+                className="h-32 rounded-xl border border-white/10 object-contain"
+              />
+              <button
+                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-zinc-400 hover:text-red-400"
+                onClick={() => removePhoto(i)}
+                title="Remove photo"
+              >
+                <XCircle size={14} />
+              </button>
+              {i === 0 && (
+                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                  Main
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {photos.length < maxPhotos && (
+        <button
+          className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+        >
+          <Camera size={13} />
+          {uploading ? "Uploading…" : photos.length === 0 ? "Attach Invoice Photo" : "Add Another Invoice"}
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFile}
+      />
+      {msg && <p className="text-xs text-red-400">{msg}</p>}
+    </div>
+  );
+}
+
 // ─── Tab 1: Quick Entry ───────────────────────────────────────────────────────
 
 function QuickEntryTab({
@@ -403,7 +502,7 @@ function QuickEntryTab({
     }
   }, [settings]);
   const [notes, setNotes] = useState("");
-  const [photoData, setPhotoData] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [discrepancyType, setDiscrepancyType] = useState("OTHER");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -552,7 +651,7 @@ function QuickEntryTab({
     if (!(poAmount > 0)) { setMsg({ text: "Enter PO amount.", ok: false }); return; }
     if (!invoiceNo.trim()) { setMsg({ text: "Enter invoice number.", ok: false }); return; }
     if (!(invAmount > 0)) { setMsg({ text: "Enter invoice amount.", ok: false }); return; }
-    if (!photoData) { setMsg({ text: "Invoice photo is required. Please attach the supplier invoice before submitting.", ok: false }); return; }
+    if (photos.length === 0) { setMsg({ text: "Invoice photo is required. Please attach the supplier invoice before submitting.", ok: false }); return; }
     setSaving(true);
     setMsg(null);
     try {
@@ -589,7 +688,8 @@ function QuickEntryTab({
           vat_amount: vatAmountVal,
           grand_total: grandTotalVal,
           notes: notes.trim(),
-          photo_data: photoData,
+          photo_data: photos[0] ?? "",
+          extra_photos: photos.slice(1),
           discrepancy_type: !isMatch ? discrepancyType : "",
           ...(linesPayload ? { lines: linesPayload } : {}),
         }),
@@ -599,7 +699,7 @@ function QuickEntryTab({
         : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${currency}). Added to review queue.`;
       setMsg({ text: matchMsg, ok: isMatch });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
-      setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
+      setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotos([]);
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
       setDiscrepancyType("OTHER");
       setVatRate(String(settings?.default_vat_rate ?? 0));
@@ -969,8 +1069,11 @@ function QuickEntryTab({
 
         {/* Photo upload */}
         <div className="mt-5">
-          <label className={`${T_LABEL} mb-1.5 block`}>Invoice Photo *</label>
-          <PhotoUpload value={photoData} onChange={setPhotoData} />
+          <label className={`${T_LABEL} mb-1.5 block`}>
+            Invoice Photo(s) *
+            {photos.length > 1 && <span className="ml-2 text-xs font-normal text-zinc-400">{photos.length} photos attached</span>}
+          </label>
+          <MultiPhotoUpload photos={photos} onChange={setPhotos} />
         </div>
 
         <div className="mt-5 flex items-center gap-3">
@@ -1197,10 +1300,25 @@ function DiscrepancyQueueTab() {
               )}
 
               {/* Photo display */}
-              {row.photo_data && (
+              {(row.photo_data || (row.extra_photos?.length ?? 0) > 0) && (
                 <div className="mt-4">
-                  <p className={`${T_LABEL} mb-1.5`}>Invoice Photo</p>
-                  <img src={row.photo_data} alt="Invoice" className="max-h-64 rounded-xl border border-white/10 object-contain" />
+                  <p className={`${T_LABEL} mb-1.5`}>
+                    Invoice Photo{((row.extra_photos?.length ?? 0) > 0) ? `s (${1 + (row.extra_photos?.length ?? 0)})` : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {row.photo_data && (
+                      <div className="relative inline-block">
+                        <img src={row.photo_data} alt="Invoice 1" className="max-h-48 rounded-xl border border-white/10 object-contain" />
+                        <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">1</span>
+                      </div>
+                    )}
+                    {(row.extra_photos ?? []).map((src, i) => (
+                      <div key={i} className="relative inline-block">
+                        <img src={src} alt={`Invoice ${i + 2}`} className="max-h-48 rounded-xl border border-white/10 object-contain" />
+                        <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">{i + 2}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1288,19 +1406,25 @@ function DiscrepancyQueueTab() {
                     />
                   </div>
                   {/* Photo upload for existing check */}
-                  {!row.photo_data && (
-                    <div>
-                      <label className={`${T_LABEL} mb-1`}>Attach Photo</label>
-                      <PhotoUpload
-                        value=""
-                        onChange={async (v) => {
-                          setRows(prev => prev.map(r => r.id === row.id ? { ...r, photo_data: v } : r));
-                        }}
-                        checkId={row.id}
-                        compact
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className={`${T_LABEL} mb-1`}>
+                      {row.photo_data ? "Add Invoice Photo" : "Attach Invoice Photo *"}
+                    </label>
+                    <MultiPhotoUpload
+                      photos={[
+                        ...(row.photo_data ? [row.photo_data] : []),
+                        ...(row.extra_photos ?? []),
+                      ]}
+                      onChange={(newPhotos) => {
+                        setRows(prev => prev.map(r =>
+                          r.id === row.id
+                            ? { ...r, photo_data: newPhotos[0] ?? "", extra_photos: newPhotos.slice(1) }
+                            : r
+                        ));
+                      }}
+                      checkId={row.id}
+                    />
+                  </div>
                   {msg && <p className="text-sm text-red-400">{msg}</p>}
                   <button
                     className={PRIMARY_BUTTON}
@@ -1449,7 +1573,14 @@ function AllRecordsTab() {
                 <td className={`${TABLE_CELL} pl-4 text-zinc-400`}>{row.created_at?.slice(0, 10)}</td>
                 <td className={`${TABLE_CELL} pr-3 font-medium text-zinc-200`}>
                   {row.vendor_name}
-                  {row.photo_data && <Camera size={11} className="ml-1 inline text-violet-400" />}
+                  {row.photo_data && (
+                    <span title={`${1 + (row.extra_photos?.length ?? 0)} photo(s)`}>
+                      <Camera size={11} className="ml-1 inline text-violet-400" />
+                      {(row.extra_photos?.length ?? 0) > 0 && (
+                        <span className="ml-0.5 text-[10px] text-violet-400">{1 + (row.extra_photos?.length ?? 0)}</span>
+                      )}
+                    </span>
+                  )}
                 </td>
                 <td className={`${TABLE_CELL} pr-3 text-zinc-400`}>{row.branch || "—"}</td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
