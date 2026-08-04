@@ -234,20 +234,33 @@ Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup
 
 ## Recently Completed (2026-08-04 — PO Match auto Google Drive upload)
 
-### PO Match: invoice photos auto-saved to Google Drive ✅ (Heroku 81a3a1e)
+### PO Match: invoice photos auto-saved to Google Drive ✅ (Heroku v1745 d9e01e3)
 
 **New feature — 集中インボイスリポジトリ:**
-- When a photo is uploaded via `/po-match/{id}/photo` or `/add-photo`, a background thread immediately uploads it to the market's Google Drive
+- When a photo is uploaded, a background thread immediately uploads it to the market's Google Drive
 - **Folder structure**: `{Existing invoice root} / PO Match Invoices / YYYY-MM-DD / {vendor}_{invoice_no}_{NN}.ext`
 - Dubai and Manila each use their own Drive root (same credentials as supplier invoice uploads)
 - Multiple photos per PO numbered sequentially: `_01`, `_02`, etc.
 - Drive upload failure is non-fatal — API response is unaffected
 - **No frontend changes needed** — transparent to the user
 
+**Bug fixed in same session (v1745):**
+- Quick Entry form (POST /po-match) did NOT trigger Drive upload — only the photo-update endpoints did
+- Fixed: `api_po_match_create` now calls `_bg_upload_po_match_invoice()` for primary + extra photos after record is committed
+
 **Files changed:**
 - `app/db.py`: added `get_po_invoice_check(check_id)` to fetch check details for upload
 - `app/services/procurement_drive_chain.py`: added `upload_po_match_invoice_to_drive()`
-- `app/main.py`: both photo endpoints now call `_bg_upload_po_match_invoice()` after DB write
+- `app/main.py`: all 3 photo paths now call `_bg_upload_po_match_invoice()`:
+  - POST /po-match (Quick Entry create)
+  - POST /po-match/{id}/photo (primary photo update)
+  - POST /po-match/{id}/add-photo (add extra photo)
+
+**E2E verified (2026-08-04):**
+- Submitted Quick Entry form (SAFCO, INV-TEST-DRIVE-001, AED 500 matched)
+- Heroku `heroku run python` confirmed: Drive folder "PO Match Invoices" created (ID: 1nuh0XpQhZ-…)
+- Full upload test: `SAFCO_INV-TEST-DRIVE-001_01.jpg` uploaded to `2026-08-04/` subfolder (Drive ID: 1kbJbwy9w7s…) ✅
+- `get_po_invoice_check()` correctly returns city/vendor/invoice_date for background thread ✅
 
 ---
 
