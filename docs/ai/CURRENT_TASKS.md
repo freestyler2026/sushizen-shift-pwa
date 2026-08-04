@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — PO Match Phase 1-4 E2E testing + 3 frontend bug fixes)
+Last updated: 2026-08-04 (session — EPR staff permissions + Lowegie payroll fix + PO Match sync fix)
 
 ---
 
@@ -307,6 +307,28 @@ Last updated: 2026-08-04 (session — PO Match Phase 1-4 E2E testing + 3 fronten
   - Quick Entryラベル: "Invoice Photo(s) *"（複数時は枚数バッジ表示）
 - **後方互換**: 既存の `photo_data` 列はメイン写真として維持（既存レコードへの影響なし）
 - **検証**: DOM確認で "Invoice Photo(s) *" ラベル + "Attach Invoice Photo" ボタン表示 ✓
+
+---
+
+## Recently Completed (2026-08-04 — PO Match sync + EPR staff permissions + Lowegie payroll)
+
+### ① Emergency Request staff permissions ✅ (Heroku v1737 + Vercel 48de2d6)
+- 問題: arrange/dispatch/complete が `/api/admin/` のみで、スタッフがステータス変更できなかった
+- 修正: 新規 `/api/store/emergency-request/{id}/arrange|dispatch|complete` エンドポイントを追加（基本auth認証のみ）
+- フロント: approved→"Start Arranging Delivery" / arranging→"Mark as Dispatched" + フォーム / received→"Mark as Completed" + フォームを追加
+
+### ② Lowegie Dumangcas payroll fix ✅ (Heroku psql + API)
+- 問題: "Lowegie D. Dumangcas"（誤）と"Lowegie Dumangcas"（正）の2重名が原因でPayroll計算が誤っていた
+- 修正: 誤レコード15行DELETE + 正レコードにscheduled_shift_end追加 + Payroll run staff_name更新 + 再計算
+- 結果: Net ₱7,093.00 → ₱9,864.37 (07-17/07-18の虚偽欠席解消 + 日曜休日出勤手当 + 正しいNSD計算)
+- 注意: 07-18の16:42退勤によるundertime ₱677.66が計上 → 実際にその時間に退勤したか確認要
+
+### ③ PO Match ↔ Store Procurement 同期修正 ✅ (Heroku v1738 + Vercel 6f7415d)
+- 問題①: Tier 1 Quick Entryで`linked_request_id`が送られておらず、Store Procurementのステータスが更新されなかった
+  - `po-match/page.tsx`の`selectedPo?.request_id`を`linked_request_id`としてペイロードに追加
+- 問題②: Tier 2 Manual Linkのsuggestionが最新3件のみ（古い発注が表示されなかった）
+  - フロント: limit 3 → 20 に拡大
+  - バックエンド `lookup_proc_requests_for_po_match()`: 上限 20 → 100、ORDER BY created_at DESC → ASC（古い未受領注文を上位表示）
 
 ---
 
