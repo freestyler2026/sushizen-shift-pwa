@@ -351,7 +351,7 @@ function PhotoUpload({
           disabled={uploading}
         >
           <Camera size={13} />
-          {uploading ? "Uploading…" : compact ? "Add Photo" : "Attach Invoice Photo (optional)"}
+          {uploading ? "Uploading…" : compact ? "Add Photo" : "Attach Invoice Photo"}
         </button>
       )}
       <input
@@ -544,6 +544,7 @@ function QuickEntryTab({
     if (!(poAmount > 0)) { setMsg({ text: "Enter PO amount.", ok: false }); return; }
     if (!invoiceNo.trim()) { setMsg({ text: "Enter invoice number.", ok: false }); return; }
     if (!(invAmount > 0)) { setMsg({ text: "Enter invoice amount.", ok: false }); return; }
+    if (!photoData) { setMsg({ text: "Invoice photo is required. Please attach the supplier invoice before submitting.", ok: false }); return; }
     setSaving(true);
     setMsg(null);
     try {
@@ -708,8 +709,15 @@ function QuickEntryTab({
             )}
           </div>
 
-          {/* Spacer */}
-          <div />
+          {/* Branch / Location — shown when a PO is selected */}
+          {selectedPo?.branch ? (
+            <div>
+              <label className={T_LABEL}>Branch / Location</label>
+              <div className="mt-1.5 flex items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <span className="text-zinc-200">{selectedPo.branch}</span>
+              </div>
+            </div>
+          ) : <div />}
 
           {/* Phase 2: Line Items Table */}
           {(invLineItems.length > 0 || linesLoading) && (
@@ -933,7 +941,7 @@ function QuickEntryTab({
 
         {/* Photo upload */}
         <div className="mt-5">
-          <label className={`${T_LABEL} mb-1.5 block`}>Invoice Photo (optional)</label>
+          <label className={`${T_LABEL} mb-1.5 block`}>Invoice Photo *</label>
           <PhotoUpload value={photoData} onChange={setPhotoData} />
         </div>
 
