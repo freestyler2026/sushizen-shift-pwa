@@ -28,7 +28,7 @@ function cellsOf(c: ShiftCell | ShiftCell[] | null | undefined): ShiftCell[] {
   return Array.isArray(c) ? c : [c];
 }
 type EditTarget = { staffName: string; dateStr: string } | null;
-type PageView = "edit" | "published";
+type PageView = "edit" | "published" | "search" | "monthly";
 
 type BayzatRow = {
   work_date: string;
@@ -49,6 +49,15 @@ type BayzatResult = {
   unmatched_names: string[];
   rows: BayzatRow[];
 };
+
+type SearchResultRow = {
+  staff_name: string;
+  branch_code: string;
+  branch_label: string;
+  dates: Record<string, ShiftCell | ShiftCell[] | null>;
+};
+type MonthlyCell = { count: number };
+type MonthlyData = Record<string, Record<string, MonthlyCell>>; // branchCode → weekStart → cell
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -452,6 +461,21 @@ export default function ManualShiftPage() {
   const [paintSplit, setPaintSplit] = useState(false);
   const [paintStart2, setPaintStart2] = useState(16);
   const [paintEnd2, setPaintEnd2] = useState(21);
+
+  // ─── Employee Search state ────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResultRow[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchRan, setSearchRan] = useState(false);
+
+  // ─── Monthly View state ───────────────────────────────────────────────────
+  const [monthVal, setMonthVal] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [monthlyData, setMonthlyData] = useState<MonthlyData>({});
+  const [monthlyWeeks, setMonthlyWeeks] = useState<string[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
 
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
@@ -1207,6 +1231,124 @@ export default function ManualShiftPage() {
     }
   }
 
+  // ─── Employee Search ──────────────────────────────────────────────────────
+  async function handleEmployeeSearch() {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearchLoading(true);
+    setSearchResults([]);
+    setSearchRan(false);
+    try {
+      const branchList = BRANCHES[city];
+      const fetched = await Promise.all(
+        branchList.map(async (b) => {
+          try {
+            const data = await apiFetch<{ rows?: any[] }>(
+              `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(b.code)}`
+            );
+            return { branch: b, rows: (data.rows || []) as any[] };
+          } catch {
+            return { branch: b, rows: [] as any[] };
+          }
+        })
+      );
+      const qLower = q.toLowerCase();
+      const matched: SearchResultRow[] = [];
+      for (const { branch, rows } of fetched) {
+        const staffMap = new Map<string, Record<string, ShiftCell | ShiftCell[]>>();
+        for (const r of rows) {
+          const name = String(r.staff_name);
+          if (!stripRoleSuffix(name).toLowerCase().includes(qLower) && !name.toLowerCase().includes(qLower)) continue;
+          if (!staffMap.has(name)) staffMap.set(name, {});
+          const dateMap = staffMap.get(name)!;
+          const shift: ShiftCell = {
+            start_hour: Number(r.start_hour),
+            end_hour: Number(r.end_hour),
+            role: String(r.role || ""),
+            note: r.note ? String(r.note) : undefined,
+          };
+          const existing = dateMap[r.work_date];
+          if (existing) {
+            dateMap[r.work_date] = Array.isArray(existing) ? [...existing, shift] : [existing, shift];
+          } else {
+            dateMap[r.work_date] = shift;
+          }
+        }
+        for (const [name, dates] of staffMap) {
+          matched.push({ staff_name: name, branch_code: branch.code, branch_label: branch.name, dates });
+        }
+      }
+      matched.sort((a, b) =>
+        stripRoleSuffix(a.staff_name).localeCompare(stripRoleSuffix(b.staff_name)) ||
+        a.branch_label.localeCompare(b.branch_label)
+      );
+      setSearchResults(matched);
+      setSearchRan(true);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  // ─── Monthly View ─────────────────────────────────────────────────────────
+  async function handleLoadMonthly() {
+    setMonthlyLoading(true);
+    setMonthlyData({});
+    try {
+      const [year, month] = monthVal.split("-").map(Number);
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      const mondays: string[] = [];
+      const cur = new Date(firstDay);
+      const dow = cur.getDay();
+      cur.setDate(cur.getDate() + (dow === 0 ? -6 : 1 - dow));
+      while (cur <= lastDay) {
+        mondays.push(localDateStr(cur));
+        cur.setDate(cur.getDate() + 7);
+      }
+      setMonthlyWeeks(mondays);
+
+      const branchList = BRANCHES[city];
+      const combos: Array<{ bCode: string; week: string }> = [];
+      for (const b of branchList) {
+        for (const w of mondays) {
+          combos.push({ bCode: b.code, week: w });
+        }
+      }
+
+      const results = await Promise.all(
+        combos.map(async ({ bCode, week }) => {
+          try {
+            const data = await apiFetch<{ rows?: any[] }>(
+              `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(week)}&branch_code=${encodeURIComponent(bCode)}`
+            );
+            const rows = (data.rows || []) as any[];
+            const staffSet = new Set(rows.map((r: any) => String(r.staff_name)));
+            return { bCode, week, count: staffSet.size };
+          } catch {
+            return { bCode, week, count: 0 };
+          }
+        })
+      );
+
+      const data: MonthlyData = {};
+      for (const { bCode, week, count } of results) {
+        if (!data[bCode]) data[bCode] = {};
+        data[bCode][week] = { count };
+      }
+      setMonthlyData(data);
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }
+
+  function handleEditWeek(bCode: string, week: string) {
+    setBranchCode(bCode as BranchCode);
+    setWeekStart(week);
+    setView("edit");
+    setStaffList([]);
+    setGridData({});
+  }
+
   const branches = BRANCHES[city];
   const shiftCount = useMemo(() => buildRows().length, [buildRows]);
 
@@ -1441,40 +1583,62 @@ export default function ManualShiftPage() {
           </div>
         )}
 
-        {/* View tabs */}
-        {staffList.length > 0 && (
-          <div className="flex items-center gap-1 border-b border-gray-200 pb-0">
-            <button
-              type="button"
-              onClick={() => setView("edit")}
-              className={[
-                "px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
-                view === "edit"
-                  ? "border-indigo-500 text-indigo-600"
-                  : "border-transparent text-gray-400 hover:text-gray-700",
-              ].join(" ")}
-            >
-              ✏️ Edit Grid
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("published")}
-              className={[
-                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
-                view === "published"
-                  ? "border-emerald-500 text-emerald-600"
-                  : "border-transparent text-gray-400 hover:text-gray-700",
-              ].join(" ")}
-            >
-              📋 Published View
-              {publishedCount > 0 && (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  {publishedCount}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
+        {/* View tabs — always visible */}
+        <div className="flex items-center gap-0.5 border-b border-gray-200 pb-0 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setView("edit")}
+            className={[
+              "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "edit"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-400 hover:text-gray-700",
+            ].join(" ")}
+          >
+            ✏️ Edit Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("published")}
+            className={[
+              "whitespace-nowrap flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "published"
+                ? "border-emerald-500 text-emerald-600"
+                : "border-transparent text-gray-400 hover:text-gray-700",
+            ].join(" ")}
+          >
+            📋 Published View
+            {publishedCount > 0 && staffList.length > 0 && (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                {publishedCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("search")}
+            className={[
+              "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "search"
+                ? "border-violet-500 text-violet-600"
+                : "border-transparent text-gray-400 hover:text-gray-700",
+            ].join(" ")}
+          >
+            🔍 Employee Search
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("monthly")}
+            className={[
+              "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "monthly"
+                ? "border-sky-500 text-sky-600"
+                : "border-transparent text-gray-400 hover:text-gray-700",
+            ].join(" ")}
+          >
+            📅 Monthly View
+          </button>
+        </div>
 
         {/* ── Edit view ── */}
         {staffList.length > 0 && view === "edit" && (
@@ -1745,12 +1909,232 @@ export default function ManualShiftPage() {
           />
         )}
 
-        {/* Empty state */}
-        {staffList.length === 0 && (
+        {/* Empty state for Edit/Published only */}
+        {staffList.length === 0 && (view === "edit" || view === "published") && (
           <div className={`${W_CARD} flex flex-col items-center justify-center py-16 text-center`}>
             <div className="mb-3 text-4xl">📅</div>
             <p className="text-sm font-medium text-gray-600">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
             <p className="mt-1 text-xs text-gray-400">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
+          </div>
+        )}
+
+        {/* ── Employee Search View ── */}
+        {view === "search" && (
+          <div className="space-y-4">
+            <div className={W_CTRL}>
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+                Search an employee&apos;s schedule across all {city === "dubai" ? "Dubai" : "Manila"} branches for the selected week
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Staff Name</label>
+                  <input
+                    type="text"
+                    placeholder="Type name to search…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleEmployeeSearch(); }}
+                    className={W_INPUT}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleEmployeeSearch()}
+                  disabled={searchLoading || !searchQuery.trim()}
+                  className={`${PRIMARY_BUTTON} min-w-[120px]`}
+                >
+                  {searchLoading ? "Searching…" : "🔍 Search"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-400">
+                Week: <span className="font-medium text-gray-600">{weekStart}</span> · Change the week selector above to search a different week.
+              </p>
+            </div>
+
+            {searchLoading && (
+              <div className={`${W_CARD} flex items-center justify-center py-12`}>
+                <p className="text-sm text-gray-400">Searching across all branches…</p>
+              </div>
+            )}
+
+            {!searchLoading && searchRan && searchResults.length === 0 && (
+              <div className={`${W_CARD} flex flex-col items-center justify-center py-12 text-center`}>
+                <div className="mb-2 text-3xl">🔍</div>
+                <p className="text-sm font-medium text-gray-600">No results found for &ldquo;{searchQuery}&rdquo;</p>
+                <p className="mt-1 text-xs text-gray-400">Try a different name or select a different week</p>
+              </div>
+            )}
+
+            {!searchLoading && searchResults.length > 0 && (
+              <div className={`${W_CARD} overflow-hidden p-0`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-500 whitespace-nowrap">Staff</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-500 whitespace-nowrap">Branch</th>
+                        {weekDates.map((d) => (
+                          <th key={d} className="min-w-[90px] px-2 py-3 text-center text-xs font-semibold text-gray-600">{formatDate(d)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {searchResults.map((row, idx) => (
+                        <tr key={`${row.staff_name}|${row.branch_code}`} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
+                          <td className="sticky left-0 z-10 bg-inherit px-4 py-2 text-xs font-semibold text-gray-800 whitespace-nowrap">
+                            {stripRoleSuffix(row.staff_name)}
+                          </td>
+                          <td className="px-4 py-2 text-xs whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleEditWeek(row.branch_code, weekStart)}
+                              className="text-indigo-600 hover:text-indigo-500 hover:underline font-medium"
+                              title={`Open ${row.branch_label} – ${weekStart} in Edit mode`}
+                            >
+                              {row.branch_label}
+                            </button>
+                          </td>
+                          {weekDates.map((d) => {
+                            const raw = row.dates[d];
+                            const shifts = cellsOf(raw);
+                            if (shifts.length === 0) return (
+                              <td key={d} className="px-2 py-2 text-center text-[11px] text-gray-300">—</td>
+                            );
+                            return (
+                              <td key={d} className="px-1 py-1 text-center align-top">
+                                {shifts.map((s, si) => {
+                                  if (isSpecialRole(s.role)) {
+                                    return (
+                                      <div key={si} className={`rounded-lg border px-1.5 py-1 text-[10px] font-semibold mb-0.5 ${specialStyle(s.role)}`}>
+                                        {specialLabel(s.role)}
+                                      </div>
+                                    );
+                                  }
+                                  const tc = timeColor(s.start_hour);
+                                  return (
+                                    <div key={si} className={`rounded-lg border px-1.5 py-1 mb-0.5 ${tc.cell.split(" ").filter((c) => !c.startsWith("hover:")).join(" ")}`}>
+                                      <div className={`text-[10px] font-semibold leading-tight ${tc.time}`}>{fmtHour(s.start_hour)}–{fmtHour(s.end_hour)}</div>
+                                      {s.role && <div className={`text-[9px] ${tc.role}`}>{s.role}</div>}
+                                    </div>
+                                  );
+                                })}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-between">
+                  <p className="text-xs text-gray-400">
+                    {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} · Click a branch name to open that week in Edit mode
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Monthly View ── */}
+        {view === "monthly" && (
+          <div className="space-y-4">
+            <div className={W_CTRL}>
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+                Monthly overview — all {city === "dubai" ? "Dubai" : "Manila"} branches · click a cell to edit that week
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Month</label>
+                  <input
+                    type="month"
+                    value={monthVal}
+                    onChange={(e) => setMonthVal(e.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleLoadMonthly()}
+                  disabled={monthlyLoading}
+                  className={`${PRIMARY_BUTTON} min-w-[140px]`}
+                >
+                  {monthlyLoading ? "Loading…" : "📅 Load Month"}
+                </button>
+              </div>
+            </div>
+
+            {monthlyLoading && (
+              <div className={`${W_CARD} flex items-center justify-center py-12`}>
+                <p className="text-sm text-gray-400">Loading schedules for all branches…</p>
+              </div>
+            )}
+
+            {!monthlyLoading && monthlyWeeks.length > 0 && Object.keys(monthlyData).length > 0 && (
+              <div className={`${W_CARD} overflow-hidden p-0`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="sticky left-0 z-10 bg-gray-50 w-44 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-500">Branch</th>
+                        {monthlyWeeks.map((w) => (
+                          <th key={w} className="min-w-[100px] px-2 py-3 text-center text-xs font-semibold text-gray-600">
+                            <div>{formatDate(w)}</div>
+                            <div className="text-[10px] text-gray-400 font-normal">– {formatDate(addDays(w, 6))}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {BRANCHES[city].map((b, idx) => (
+                        <tr key={b.code} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
+                          <td className="sticky left-0 z-10 bg-inherit px-4 py-2 text-xs font-semibold text-gray-700 whitespace-nowrap">{b.name}</td>
+                          {monthlyWeeks.map((w) => {
+                            const count = monthlyData[b.code]?.[w]?.count ?? 0;
+                            return (
+                              <td key={w} className="px-1.5 py-1.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditWeek(b.code, w)}
+                                  title={`Edit ${b.name} – week of ${w}`}
+                                  className={`w-full rounded-xl border px-2 py-2.5 text-xs transition hover:ring-2 hover:ring-offset-1 ${
+                                    count > 0
+                                      ? "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:ring-indigo-300"
+                                      : "border-gray-200 bg-gray-50 text-gray-400 hover:bg-white hover:ring-gray-300"
+                                  }`}
+                                >
+                                  {count > 0 ? (
+                                    <>
+                                      <div className="text-lg font-bold leading-none">{count}</div>
+                                      <div className="mt-0.5 text-[9px] text-indigo-500">staff</div>
+                                    </>
+                                  ) : (
+                                    <div className="text-gray-300 text-sm">—</div>
+                                  )}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-gray-100 px-4 py-2.5">
+                  <p className="text-xs text-gray-400">
+                    Numbers show distinct staff scheduled · Click any cell to open that branch + week in Edit mode
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!monthlyLoading && monthlyWeeks.length === 0 && (
+              <div className={`${W_CARD} flex flex-col items-center justify-center py-16 text-center`}>
+                <div className="mb-3 text-4xl">📅</div>
+                <p className="text-sm font-medium text-gray-600">Select a month and click &ldquo;Load Month&rdquo;</p>
+                <p className="mt-1 text-xs text-gray-400">Shows staff count per branch per week. Click a cell to open Edit mode.</p>
+              </div>
+            )}
           </div>
         )}
 
