@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Cost Calc dup-name modal E2E tested + 2 bugs fixed ✅; Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
+Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup-name modal E2E tested + 2 bugs fixed ✅; Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
 
 ---
 
@@ -229,6 +229,22 @@ Last updated: 2026-08-04 (session — Cost Calc dup-name modal E2E tested + 2 bu
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-04 — Kimchi 500 fix verified)
+
+### Cost Calc: Kimchi inactive-duplicate 500 → clean 409 modal ✅ (Heroku 6d57b29)
+
+**Root cause**: `_assert_unique_cost_menu_item_name` in `db.py` had `AND status = 'active'` filter, so an archived/inactive "Kimchi" item was invisible to the check. Save hit the raw DB unique constraint `(city, name)` → 500. Same issue existed in `_assert_unique_cost_ingredient_name` with `AND is_active = TRUE`.
+
+**Fix**: Removed active-only filters from both functions so ALL rows (any status) trigger the proper 409 + conflict modal. The `exclude_menu_item_id`/`exclude_ingredient_id` exclusion still works correctly.
+
+**Browser-verified** (2026-08-04):
+- Renamed "Cucumber Kimchi" → "Kimchi" and clicked Save
+- Modal appears: "⚠️ Name Already In Use — Kimchi is already in use (category: 加工品マスタ)"
+- Conflicting item: **Kimchi**, Category: 加工品マスタ, Status: **Archived** ✅ (capitalized correctly)
+- Cancel dismisses without saving ✅
 
 ---
 
