@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { costJson } from "@/lib/costClient";
+import { ApiError, costJson } from "@/lib/costClient";
 import SelectDark from "@/components/SelectDark";
 
 type SheetKey = string;
@@ -872,6 +872,11 @@ export default function CostCalculationPage() {
   const [masterDetailLoadingId, setMasterDetailLoadingId] = useState<string | null>(null);
   const [masterDetailSaving, setMasterDetailSaving] = useState(false);
   const [masterActionBusy, setMasterActionBusy] = useState(false);
+  const [dupNameConflict, setDupNameConflict] = useState<{
+    message: string;
+    conflict: { id: number; name: string; category: string; is_active?: boolean; status?: string };
+    onForce: () => Promise<void>;
+  } | null>(null);
   const [ingredientPromotionKey, setIngredientPromotionKey] = useState<string | null>(null);
   const [activeIngredientActionMenuId, setActiveIngredientActionMenuId] = useState<string | null>(null);
   const [categoryActionBusy, setCategoryActionBusy] = useState(false);
@@ -1657,47 +1662,56 @@ export default function CostCalculationPage() {
       setError("At least one component is required.");
       return;
     }
-    try {
+    const doSave = async (forceRename: boolean) => {
       setMasterDetailSaving(true);
-      const endpoint = masterEditor.id
-        ? (masterEditor.item_type === "draft" ? `/api/cost/product-drafts/${masterEditor.id}` : `/api/cost/master-items/${masterEditor.id}`)
-        : (masterEditor.item_type === "draft" ? "/api/cost/product-drafts" : "/api/cost/master-items");
-      const method = masterEditor.id ? "PATCH" : "POST";
-      const res = await costJson<{ item?: any }>(endpoint, {
-        method,
-        body: JSON.stringify(payload),
-      });
-      if (res?.item) {
-        const detail = mapMasterItemDetail(res.item);
-        setMasterEditor({
-          id: detail.id,
-          city: detail.city || city,
-          category: detail.category,
-          name: detail.name,
-          description: detail.description,
-          item_type: detail.item_type,
-          source_type: detail.source_type,
-          status: detail.status,
-          display_order: detail.display_order,
-          output_unit: detail.output_unit,
-          output_qty: detail.output_qty,
-          buffer_rate: detail.buffer_rate,
-          yield_rate: detail.yield_rate,
-          yield_configured: detail.yield_configured,
-          cost_unit_price: detail.cost_unit_price,
-          cost_unit_price_formula: detail.cost_unit_price_formula,
-          cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
-          selling_price: detail.selling_price,
-          components: detail.components,
+      try {
+        const endpoint = masterEditor.id
+          ? (masterEditor.item_type === "draft" ? `/api/cost/product-drafts/${masterEditor.id}` : `/api/cost/master-items/${masterEditor.id}`)
+          : (masterEditor.item_type === "draft" ? "/api/cost/product-drafts" : "/api/cost/master-items");
+        const method = masterEditor.id ? "PATCH" : "POST";
+        const res = await costJson<{ item?: any }>(endpoint, {
+          method,
+          body: JSON.stringify(forceRename ? { ...payload, force_rename: true } : payload),
         });
-        setSelectedMasterItemId(detail.id);
-        await loadMasterItems(detail.item_type);
-        await loadComponentOptions();
+        if (res?.item) {
+          const detail = mapMasterItemDetail(res.item);
+          setMasterEditor({
+            id: detail.id,
+            city: detail.city || city,
+            category: detail.category,
+            name: detail.name,
+            description: detail.description,
+            item_type: detail.item_type,
+            source_type: detail.source_type,
+            status: detail.status,
+            display_order: detail.display_order,
+            output_unit: detail.output_unit,
+            output_qty: detail.output_qty,
+            buffer_rate: detail.buffer_rate,
+            yield_rate: detail.yield_rate,
+            yield_configured: detail.yield_configured,
+            cost_unit_price: detail.cost_unit_price,
+            cost_unit_price_formula: detail.cost_unit_price_formula,
+            cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+            selling_price: detail.selling_price,
+            components: detail.components,
+          });
+          setSelectedMasterItemId(detail.id);
+          await loadMasterItems(detail.item_type);
+          await loadComponentOptions();
+        }
+      } finally {
+        setMasterDetailSaving(false);
       }
+    };
+    try {
+      await doSave(false);
     } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setMasterDetailSaving(false);
+      if (e instanceof ApiError && e.status === 409 && e.body?.conflict) {
+        setDupNameConflict({ message: e.message, conflict: e.body.conflict, onForce: () => doSave(true) });
+      } else {
+        setError(e?.message || String(e));
+      }
     }
   }, [city, loadComponentOptions, loadMasterItems, masterEditor]);
 
@@ -3656,16 +3670,43 @@ export default function CostCalculationPage() {
           yield_rate: row.yield_rate == null ? null : Number(row.yield_rate || 0),
           notes: row.notes,
         };
-        if (row._new) {
-          await costJson("/api/cost/ingredients", {
-            method: "POST",
-            body: JSON.stringify({ city, ...payload }),
-          });
-        } else {
-          await costJson(`/api/cost/ingredients/${row.id}`, {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-          });
+        try {
+          if (row._new) {
+            await costJson("/api/cost/ingredients", {
+              method: "POST",
+              body: JSON.stringify({ city, ...payload }),
+            });
+          } else {
+            await costJson(`/api/cost/ingredients/${row.id}`, {
+              method: "PATCH",
+              body: JSON.stringify(payload),
+            });
+          }
+        } catch (rowErr: any) {
+          if (rowErr instanceof ApiError && rowErr.status === 409 && rowErr.body?.conflict) {
+            const capturedRow = row;
+            const capturedPayload = payload;
+            setDupNameConflict({
+              message: rowErr.message,
+              conflict: rowErr.body.conflict,
+              onForce: async () => {
+                if (capturedRow._new) {
+                  await costJson("/api/cost/ingredients", {
+                    method: "POST",
+                    body: JSON.stringify({ city, ...capturedPayload, force_rename: true }),
+                  });
+                } else {
+                  await costJson(`/api/cost/ingredients/${capturedRow.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ ...capturedPayload, force_rename: true }),
+                  });
+                }
+                await loadIngredients();
+              },
+            });
+            return;
+          }
+          throw rowErr;
         }
       }
       await loadIngredients();
@@ -7169,6 +7210,50 @@ export default function CostCalculationPage() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Duplicate name conflict warning modal */}
+      {dupNameConflict && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl border border-amber-500/40 bg-zinc-900 p-6 shadow-2xl">
+            <h3 className="mb-3 flex items-center gap-2 text-base font-semibold text-amber-300">
+              <span className="text-xl">⚠️</span> Name Already In Use
+            </h3>
+            <p className="mb-3 text-sm text-zinc-300">{dupNameConflict.message}</p>
+            <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3 text-xs space-y-1">
+              <p><span className="text-zinc-400">Conflicting item:</span> <span className="text-white font-medium">{dupNameConflict.conflict.name}</span></p>
+              <p><span className="text-zinc-400">Category:</span> <span className="text-zinc-200">{dupNameConflict.conflict.category}</span></p>
+              <p><span className="text-zinc-400">Status:</span> <span className="text-zinc-200">{dupNameConflict.conflict.status ?? (dupNameConflict.conflict.is_active ? "Active" : "Inactive")}</span></p>
+            </div>
+            <p className="mb-5 text-sm text-zinc-400">
+              Click <span className="text-amber-300 font-medium">Proceed</span> to rename the conflicting item to{" "}
+              <span className="font-mono text-amber-200">{dupNameConflict.conflict.name} [old]</span>{" "}
+              and apply your new name.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDupNameConflict(null)}
+                className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const fn = dupNameConflict.onForce;
+                  setDupNameConflict(null);
+                  try {
+                    await fn();
+                  } catch (e: any) {
+                    setError(e?.message || String(e));
+                  }
+                }}
+                className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
+              >
+                Proceed
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

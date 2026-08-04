@@ -2,6 +2,17 @@
 
 import { getAuth, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: any,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 function parseApiErrorDetail(text: string, fallback: string): string {
   const trimmed = String(text || "").trim();
   if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<html")) {
@@ -127,7 +138,9 @@ export async function costJson<T>(url: string, init: RequestInit = {}): Promise<
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(parseApiErrorDetail(text, `Request failed (${res.status})`));
+    let body: any = null;
+    try { body = JSON.parse(text || "{}"); } catch { /* ignore */ }
+    throw new ApiError(parseApiErrorDetail(text, `Request failed (${res.status})`), res.status, body);
   }
   return JSON.parse(text || "{}") as T;
 }
