@@ -234,6 +234,11 @@ export default function EmergencyRequestPage() {
   const [history, setHistory] = useState<EPRRequest[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [receivingId, setReceivingId] = useState<number | null>(null);
+  const [arrangingId, setArrangingId] = useState<number | null>(null);
+  const [dispatchingId, setDispatchingId] = useState<number | null>(null);
+  const [dispatchForm, setDispatchForm] = useState<{ id: number; method: string; cost: string } | null>(null);
+  const [completingId, setCompletingId] = useState<number | null>(null);
+  const [completeForm, setCompleteForm] = useState<{ id: number; notes: string; finalAmount: string } | null>(null);
 
   const city = (auth?.city || "manila").toLowerCase();
   const catalogCity = MANILA_STORES.includes(store) ? "manila" : city;
@@ -316,6 +321,87 @@ export default function EmergencyRequestPage() {
       setToast({ msg: "Network error.", ok: false });
     } finally {
       setReceivingId(null);
+    }
+  }
+
+  // ─── Arrange ──────────────────────────────────────────────────────────────
+  async function handleArrange(reqId: number) {
+    setArrangingId(reqId);
+    try {
+      const res = await fetch(`/api/store/emergency-request/${reqId}/arrange`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ arranged_by: actorName }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setToast({ msg: "Status updated to Arranging.", ok: true });
+        loadHistory();
+      } else {
+        setToast({ msg: data.detail || "Failed to update status.", ok: false });
+      }
+    } catch {
+      setToast({ msg: "Network error.", ok: false });
+    } finally {
+      setArrangingId(null);
+    }
+  }
+
+  // ─── Dispatch ─────────────────────────────────────────────────────────────
+  async function handleDispatch() {
+    if (!dispatchForm) return;
+    setDispatchingId(dispatchForm.id);
+    try {
+      const res = await fetch(`/api/store/emergency-request/${dispatchForm.id}/dispatch`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dispatched_by: actorName,
+          delivery_method: dispatchForm.method,
+          delivery_cost: dispatchForm.cost ? parseFloat(dispatchForm.cost) : null,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setToast({ msg: "Marked as dispatched.", ok: true });
+        setDispatchForm(null);
+        loadHistory();
+      } else {
+        setToast({ msg: data.detail || "Failed to update status.", ok: false });
+      }
+    } catch {
+      setToast({ msg: "Network error.", ok: false });
+    } finally {
+      setDispatchingId(null);
+    }
+  }
+
+  // ─── Complete ─────────────────────────────────────────────────────────────
+  async function handleComplete() {
+    if (!completeForm) return;
+    setCompletingId(completeForm.id);
+    try {
+      const res = await fetch(`/api/store/emergency-request/${completeForm.id}/complete`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          completed_by: actorName,
+          final_amount: completeForm.finalAmount ? parseFloat(completeForm.finalAmount) : null,
+          completion_notes: completeForm.notes,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setToast({ msg: "Request marked as completed.", ok: true });
+        setCompleteForm(null);
+        loadHistory();
+      } else {
+        setToast({ msg: data.detail || "Failed to update status.", ok: false });
+      }
+    } catch {
+      setToast({ msg: "Network error.", ok: false });
+    } finally {
+      setCompletingId(null);
     }
   }
 
@@ -569,12 +655,84 @@ export default function EmergencyRequestPage() {
                 {req.status === "rejected" && req.rejection_reason && (
                   <p className="text-xs text-red-400">Rejected: {req.rejection_reason}</p>
                 )}
+
+                {/* approved → staff can start arranging */}
                 {req.status === "approved" && (
-                  <p className="text-xs text-emerald-400">✓ Approved by {req.approved_by}. Procurement is arranging.</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-emerald-400">✓ Approved by {req.approved_by}.</p>
+                    <button
+                      className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`}
+                      disabled={arrangingId === req.id}
+                      onClick={() => handleArrange(req.id)}
+                    >
+                      <Package className="h-4 w-4 inline mr-1" />
+                      {arrangingId === req.id ? "Updating…" : "Start Arranging Delivery"}
+                    </button>
+                  </div>
                 )}
+
+                {/* arranging → staff can mark dispatched */}
                 {req.status === "arranging" && (
-                  <p className="text-xs text-blue-400">📦 Procurement is arranging delivery ({req.arranging_by}).</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-blue-400">📦 Arranging delivery ({req.arranging_by}).</p>
+                    {dispatchForm?.id === req.id ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-zinc-300">Dispatch Details</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className={T_LABEL}>Delivery Method</label>
+                            <SelectDark
+                              className={`mt-0.5 ${SELECT_CLASS}`}
+                              value={dispatchForm.method}
+                              onChange={(v) => setDispatchForm((f) => f ? { ...f, method: v } : f)}
+                              options={[
+                                { value: "in_house", label: "In-House" },
+                                { value: "lalamove", label: "Lalamove" },
+                                { value: "other", label: "Other" },
+                              ]}
+                            />
+                          </div>
+                          <div>
+                            <label className={T_LABEL}>Delivery Cost (₱)</label>
+                            <input
+                              type="number" min={0} step="0.01"
+                              className={`mt-0.5 ${INPUT_CLASS}`}
+                              placeholder="0.00"
+                              value={dispatchForm.cost}
+                              onChange={(e) => setDispatchForm((f) => f ? { ...f, cost: e.target.value } : f)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`}
+                            disabled={dispatchingId === req.id}
+                            onClick={handleDispatch}
+                          >
+                            <Truck className="h-4 w-4 inline mr-1" />
+                            {dispatchingId === req.id ? "Updating…" : "Confirm Dispatch"}
+                          </button>
+                          <button
+                            className={`${SECONDARY_BUTTON} py-2 text-sm`}
+                            onClick={() => setDispatchForm(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`}
+                        onClick={() => setDispatchForm({ id: req.id, method: "in_house", cost: "" })}
+                      >
+                        <Truck className="h-4 w-4 inline mr-1" />
+                        Mark as Dispatched
+                      </button>
+                    )}
+                  </div>
                 )}
+
+                {/* dispatched → staff confirms receipt */}
                 {req.status === "dispatched" && (
                   <div className="space-y-2">
                     <p className="text-xs text-violet-400">
@@ -592,9 +750,65 @@ export default function EmergencyRequestPage() {
                     </button>
                   </div>
                 )}
+
+                {/* received → staff can mark completed */}
                 {req.status === "received" && (
-                  <p className="text-xs text-emerald-400">✅ Received by {req.received_by} — awaiting payroll/completion.</p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-emerald-400">✅ Received by {req.received_by}.</p>
+                    {completeForm?.id === req.id ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-zinc-300">Completion Details</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className={T_LABEL}>Final Amount (₱)</label>
+                            <input
+                              type="number" min={0} step="0.01"
+                              className={`mt-0.5 ${INPUT_CLASS}`}
+                              placeholder="Optional"
+                              value={completeForm.finalAmount}
+                              onChange={(e) => setCompleteForm((f) => f ? { ...f, finalAmount: e.target.value } : f)}
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className={T_LABEL}>Completion Notes</label>
+                            <textarea
+                              className={`mt-0.5 ${TEXTAREA_CLASS}`}
+                              rows={2}
+                              placeholder="Optional notes…"
+                              value={completeForm.notes}
+                              onChange={(e) => setCompleteForm((f) => f ? { ...f, notes: e.target.value } : f)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`}
+                            disabled={completingId === req.id}
+                            onClick={handleComplete}
+                          >
+                            <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                            {completingId === req.id ? "Updating…" : "Mark Completed"}
+                          </button>
+                          <button
+                            className={`${SECONDARY_BUTTON} py-2 text-sm`}
+                            onClick={() => setCompleteForm(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`}
+                        onClick={() => setCompleteForm({ id: req.id, notes: "", finalAmount: "" })}
+                      >
+                        <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                        Mark as Completed
+                      </button>
+                    )}
+                  </div>
                 )}
+
                 {req.status === "completed" && req.completion_notes && (
                   <p className="text-xs text-violet-400">✓ Completed: {req.completion_notes}</p>
                 )}
