@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — PO Match UX improvements: branch display, invoice required, pending deliveries filter + Sita shift DB fix)
+Last updated: 2026-08-04 (session — Cost Calc archived name fix + PO Match multiple invoice photos)
 
 ---
 
@@ -229,6 +229,68 @@ Last updated: 2026-08-04 (session — PO Match UX improvements: branch display, 
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-04 — PO Match bidirectional sync Phase 1+2+3+4)
+
+### ① PO Match → Store Procurement 双方向同期 Phase 1+2+3+4 ✅ (Heroku 074a87a / Vercel 656030a)
+- **背景**: Store Procurement確認 → PO Matchの一方向同期のみだったが、逆方向も追加
+- **Phase 1+2 実装 (`db.py`)**: `_sync_po_match_to_procurement(check_id)` を追加
+  - `proc_po_invoice_checks → proc_receivings → proc_requests` のFK chainをJOINで辿る（Tier 1）
+  - `match_status = MATCHED` → `proc_requests.receiving_status = CONFIRMED`
+  - `match_status = DISCREPANCY` + `resolved_by` あり → `receiving_status = INVOICE_CHECKED`（新しいステータス値）
+  - `receiving_status = NOT_RECEIVED` は絶対に上書きしない（意図的なクローズを保護）
+  - best-effort — 失敗してもPO Match本体操作に影響なし
+- **Phase 2 実装 (`main.py`)**: 3エンドポイントに `try: _sync_po_match_to_procurement(id) except: pass` を追加
+  - `POST /api/admin/procurement/po-match` (create)
+  - `POST /api/admin/procurement/po-match/{id}/resolve`
+  - `PUT /api/admin/procurement/po-match/{id}/lines`
+- **Phase 3 実装 (Store Procurement Receiving page)**: `po_match_status` フィールドをバッジ表示
+  - `list_proc_requests` に LEFT JOIN LATERAL で最新の `proc_po_invoice_checks` ステータスを結合
+  - MATCHED → emerald "✓ Invoice Matched" / RESOLVED → violet "✓ Invoice Checked" / DISCREPANCY → amber "⚠ Invoice Discrepancy"
+- **Phase 4 実装 (Tier-2 Quick Entry link)**: 手動入力レコードを `proc_requests` にリンクする仕組み
+  - `db.py`: `linked_request_id UUID REFERENCES proc_requests(id)` 列を `proc_po_invoice_checks` に追加
+  - `db.py`: `create_po_invoice_check()` が `linked_request_id` を受け取り保存
+  - `db.py`: `_sync_po_match_to_procurement()` に Tier-2 フォールバック（`linked_request_id` 経由）を追加
+  - `db.py`: `lookup_proc_requests_for_po_match()` — vendor/PO番号でAPPROVED requestを検索する新関数
+  - `main.py`: `PoInvoiceCheckIn.linked_request_id` フィールド追加 + `api_po_match_create` で渡す
+  - `main.py`: `GET /api/admin/procurement/po-match/lookup-request` 新エンドポイント（settingsの前）
+  - `po-match/page.tsx`: Quick Entry フォームにリンク候補ウィジェット（amber）を追加
+    - `manualPoNo` (≥4文字) または `vendorQ` (≥2文字) 変更から600msデバウンスでlookupを実行
+    - マッチしたrequest候補をLink/Skipボタン付きで表示
+    - リンク済み時は emerald チップで表示・Unlinkボタンあり
+    - POST時に `linked_request_id` を送信、成功メッセージに同期確認を付記
+
+---
+
+## Recently Completed (2026-08-04 — Cost Calc archived name fix + PO Match multiple invoice photos)
+
+### ① Cost Calc: archived商品名の重複チェック修正 ✅ (Heroku ad0873f)
+- **問題**: `_assert_unique_cost_menu_item_name` が archived (`status='archived'`) 商品を含めてUNIQUEチェックしていたため、一度アーカイブされた商品と同名の商品を登録できなかった
+- **原因特定**: `menu_item_master` に id=4453 "Bouquet Box For 2 people" が archived状態で残存 → 同名商品登録時にエラー
+- **修正 (`db.py`)**: UNIQUEチェックのSQLに `AND status <> 'archived'` を追加 → 論理削除済み商品と同名の登録を許可
+- **DB直接修正**: id=4453 の名前を `[Archived] Bouquet Box For 2 people` にリネーム（既存UIから見えない状態で明示化）
+- **スタッフへの説明文**: archiveされた同名商品が存在したためエラーが発生していた旨と対処内容を日本語で返信
+
+### ② Sita Gurmachhan シフト修正 (8/24〜8/31週) ✅ (DB直接)
+- **問題**: My Shiftページで8/24〜8/31のシフトが表示されない
+- **原因**: `shift_published_rows` の `staff_name` が "Sita Gurmachan"（h×1）→ `staff_master` + APIの "Sita Gurmachhan"（h×2）と不一致。`_build_effective_staff_rows_for_day()` が完全一致検索のため表示ゼロに
+- **修正**: 8/24週（version `ffcc78ed`）+ 8/31週（version `3e30bdef`）の2バージョンを直接SQL UPDATE。計7行＋別日分修正
+- **確認**: API確認で 8/24〜8/31 全8日分のシフトが正常返却 ✓
+
+### ③ PO Match: 1POに複数インボイス添付 ✅ (Heroku e99263d + Vercel 149a0a6)
+- **背景**: Safco・CMEなど1POで複数インボイスを発行するベンダーへの対応
+- **DB変更**: `proc_po_invoice_checks.extra_photos JSONB DEFAULT '[]'` カラム追加（Heroku ALTER TABLE）
+- **バックエンド (`db.py`)**: `create_po_invoice_check` / `list_po_invoice_checks` / `update_po_invoice_check_photo` に `extra_photos` 対応追加。新関数 `add_po_invoice_check_photo()` を追加（JSONBアペンド: `extra_photos = extra_photos || %s::jsonb`）
+- **バックエンド (`main.py`)**: `PoInvoiceCheckIn.extra_photos: List[str] = []` 追加。新エンドポイント `POST /api/admin/procurement/po-match/{check_id}/add-photo`
+- **フロントエンド (`po-match/page.tsx`)**: `MultiPhotoUpload` コンポーネント追加
+  - 最初の写真は既存 `/photo` エンドポイント、2枚目以降は `/add-photo` エンドポイントを呼び出し
+  - サムネイル一覧（flex-wrap）に番号バッジ + 個別削除ボタン(×)
+  - ボタンテキスト: 0枚→「Attach Invoice Photo」、1枚以上→「Add Another Invoice」
+  - Quick Entryラベル: "Invoice Photo(s) *"（複数時は枚数バッジ表示）
+- **後方互換**: 既存の `photo_data` 列はメイン写真として維持（既存レコードへの影響なし）
+- **検証**: DOM確認で "Invoice Photo(s) *" ラベル + "Attach Invoice Photo" ボタン表示 ✓
 
 ---
 
