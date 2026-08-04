@@ -376,11 +376,13 @@ function MultiPhotoUpload({
   onChange,
   checkId,
   maxPhotos = 5,
+  allowRemove,
 }: {
   photos: string[];
   onChange: (photos: string[]) => void;
   checkId?: string;
   maxPhotos?: number;
+  allowRemove?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -428,13 +430,15 @@ function MultiPhotoUpload({
                 alt={`Invoice photo ${i + 1}`}
                 className="h-32 rounded-xl border border-white/10 object-contain"
               />
-              <button
-                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-zinc-400 hover:text-red-400"
-                onClick={() => removePhoto(i)}
-                title="Remove photo"
-              >
-                <XCircle size={14} />
-              </button>
+              {(allowRemove ?? !checkId) && (
+                <button
+                  className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-zinc-400 hover:text-red-400"
+                  onClick={() => removePhoto(i)}
+                  title="Remove photo"
+                >
+                  <XCircle size={14} />
+                </button>
+              )}
               {i === 0 && (
                 <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">
                   Main
