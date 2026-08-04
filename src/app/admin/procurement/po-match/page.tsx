@@ -158,6 +158,18 @@ type SupplierStat = {
   last_check_at: string;
 };
 
+type LinkedRequest = {
+  id: string;
+  request_no: string;
+  po_no: string;
+  branch: string;
+  total_amount: number;
+  currency: string;
+  request_date: string;
+  receiving_status: string;
+  vendor_summary: string;
+};
+
 type MatchSettings = {
   city: string;
   tolerance_aed: number;
@@ -520,6 +532,12 @@ function QuickEntryTab({
   const [cnrReason, setCnrReason] = useState("");
   const [cnrBusy, setCnrBusy] = useState(false);
   const [cnrMsg, setCnrMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  // Tier-2 link: find a matching proc_request for manual Quick Entry records
+  const [linkedRequest, setLinkedRequest] = useState<LinkedRequest | null>(null);
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkedRequest[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkDismissed, setLinkDismissed] = useState(false);
+  const linkDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchPos = useCallback(async (q: string) => {
     if (!q.trim()) { setPoRows([]); setShowPoList(false); return; }
@@ -570,6 +588,30 @@ function QuickEntryTab({
     }
     return () => { if (poNoDebounce.current) clearTimeout(poNoDebounce.current); };
   }, [manualPoNo, city, selectedPo]);
+
+  // Lookup proc_request candidates for Tier-2 sync (manual Quick Entry without a formal PO)
+  useEffect(() => {
+    if (linkedRequest || linkDismissed) return;
+    if (linkDebounce.current) clearTimeout(linkDebounce.current);
+    const pn = manualPoNo.trim();
+    const vn = vendorQ.trim();
+    if (pn.length >= 4 || vn.length >= 2) {
+      linkDebounce.current = setTimeout(async () => {
+        setLinkLoading(true);
+        try {
+          const params = new URLSearchParams({ city, limit: "3" });
+          if (pn) params.set("po_no", pn);
+          if (vn) params.set("vendor_name", vn);
+          const d = await apiFetch(`/procurement/po-match/lookup-request?${params}`);
+          setLinkSuggestions(d.rows || []);
+        } catch { /* ignore */ }
+        finally { setLinkLoading(false); }
+      }, 600);
+    } else {
+      setLinkSuggestions([]);
+    }
+    return () => { if (linkDebounce.current) clearTimeout(linkDebounce.current); };
+  }, [manualPoNo, vendorQ, city, linkedRequest, linkDismissed]);
 
   const selectPo = async (po: PoRow) => {
     setSelectedPo(po);
@@ -695,19 +737,22 @@ function QuickEntryTab({
           photo_data: photos[0] ?? "",
           extra_photos: photos.slice(1),
           discrepancy_type: !isMatch ? discrepancyType : "",
+          ...(linkedRequest ? { linked_request_id: linkedRequest.id } : {}),
           ...(linesPayload ? { lines: linesPayload } : {}),
         }),
       });
       const matchMsg = isMatch
         ? "✅ Matched — no further action needed."
         : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${currency}). Added to review queue.`;
-      setMsg({ text: matchMsg, ok: isMatch });
+      const syncMsg = linkedRequest && isMatch ? " Store Procurement order status updated to Confirmed." : "";
+      setMsg({ text: matchMsg + syncMsg, ok: isMatch });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotos([]);
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
       setDiscrepancyType("OTHER");
       setVatRate(String(settings?.default_vat_rate ?? 0));
       setInvLineItems([]);
+      setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
       isAmountOverriddenRef.current = false;
       poLinesFetchRef.current = null;
       onSaved();
@@ -815,6 +860,61 @@ function QuickEntryTab({
               {poLoading && <RefreshCw size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-zinc-500" />}
             </div>
           </div>
+
+          {/* Tier-2 link suggestion: match to an existing proc_request */}
+          {!linkedRequest && !linkDismissed && linkSuggestions.length > 0 && (
+            <div className="sm:col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="mb-2 text-xs font-medium text-amber-300">
+                🔗 Possible procurement order match — link to sync receiving status automatically:
+              </p>
+              <div className="space-y-1.5">
+                {linkSuggestions.map(req => (
+                  <div key={req.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-zinc-200">{req.vendor_summary || req.po_no}</p>
+                      <p className="text-xs text-zinc-500">
+                        {req.request_no} · {req.branch} · {req.total_amount.toLocaleString()} {req.currency} · {req.request_date?.slice(0, 10)}
+                      </p>
+                    </div>
+                    <button
+                      className="shrink-0 rounded-lg bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/30"
+                      onClick={() => { setLinkedRequest(req); setLinkSuggestions([]); }}
+                    >
+                      Link
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                onClick={() => { setLinkDismissed(true); setLinkSuggestions([]); }}
+              >
+                Skip — no match
+              </button>
+            </div>
+          )}
+          {linkedRequest && (
+            <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5">
+              <div>
+                <p className="text-xs font-medium text-emerald-400">🔗 Linked to procurement order</p>
+                <p className="text-xs text-zinc-400">
+                  {linkedRequest.request_no} · {linkedRequest.vendor_summary || linkedRequest.po_no} · {linkedRequest.branch}
+                </p>
+              </div>
+              <button
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+                onClick={() => { setLinkedRequest(null); setLinkDismissed(false); }}
+              >
+                Unlink
+              </button>
+            </div>
+          )}
+          {linkLoading && !linkedRequest && !linkDismissed && (
+            <div className="sm:col-span-2 flex items-center gap-2 text-xs text-zinc-500">
+              <RefreshCw size={11} className="animate-spin" />
+              Searching for matching procurement orders…
+            </div>
+          )}
 
           {/* PO Date */}
           <div>
