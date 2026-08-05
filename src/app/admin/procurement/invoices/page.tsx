@@ -313,10 +313,6 @@ const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
 const MANILA_EXTRA_BRANCH_OPTIONS = ["Central Kitchen", "Warehouse"];
 const UNKNOWN_BRANCH_OPTION = "branch name unknown";
 
-const DRIVE_FOLDER_URLS: Record<"dubai" | "manila", string> = {
-  dubai:  "https://drive.google.com/drive/folders/0AOmrrcv_o5d4Uk9PVA",
-  manila: "https://drive.google.com/drive/folders/0AJz4tWZwU5jVUk9PVA",
-};
 
 const SUMMARY_EDIT_FIELDS: FieldConfig[] = [
   { key: "invoice_date", label: "Invoice Date", type: "date" },
@@ -455,6 +451,7 @@ export default function ProcurementInvoicesPage() {
   const [paymentBucketOpen, setPaymentBucketOpen] = useState<Record<string, boolean>>({});
   const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
   const [vendorOptions, setVendorOptions] = useState<string[]>([]);
+  const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [noticeLink, setNoticeLink] = useState("");
   const [alertBannerOpen, setAlertBannerOpen] = useState(false);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
@@ -1018,6 +1015,16 @@ export default function ProcurementInvoicesPage() {
   }, [city, resetUploadDraft]);
 
   useEffect(() => {
+    const auth = getAuth();
+    fetch(`/api/admin/procurement/po-match/drive-folder?city=${city}`, {
+      headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+    })
+      .then((r) => r.json())
+      .then((d: { web_view_link?: string }) => { if (d?.web_view_link) setDriveFolderUrl(d.web_view_link); })
+      .catch(() => { /* non-critical */ });
+  }, [city]);
+
+  useEffect(() => {
     async function init() {
       const currentAuth = getAuth();
       const refreshed = await refreshAuthFromApi(currentAuth);
@@ -1180,15 +1187,17 @@ export default function ProcurementInvoicesPage() {
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
                 </button>
-                <a
-                  href={DRIVE_FOLDER_URLS[city]}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Invoice Drive
-                </a>
+                {driveFolderUrl && (
+                  <a
+                    href={driveFolderUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Invoice Drive
+                  </a>
+                )}
                 <a
                   href={SUPPLIER_SPREADSHEET_URLS[city]}
                   target="_blank"
