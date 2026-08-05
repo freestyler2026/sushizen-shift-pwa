@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (fix: debounce verify API in Request Check — PIN typing caused Export section (1400+px) to collapse/expand on each keystroke, making form inputs appear unresponsive)
+Last updated: 2026-08-05 (fix: store-opening Create button — cursor_factory=RealDictCursor missing from all DB functions caused silent 500 errors; modal now surfaces errors)
+
+---
+
+## ✅ Recently Deployed: Store Opening Checklist (2026-08-05)
+
+- **Route**: `/admin/store-opening` (HQ/ADMIN + `channel.admin.store_opening.view`)
+- **NavBar**: Building2 icon, after Market Analysis; overdue badge polls every 15 min
+- **DB**: `store_opening_projects` + `store_opening_task_status` (auto-created on first API call)
+- **Backend**: Heroku v1764 — fixed `cursor_factory=RealDictCursor` on all 6 store-opening DB functions (was returning tuples → 500 error on every call)
+- **Frontend**: 100-day / 146-task checklist; modal now shows error messages instead of silently swallowing failures
+- **Post-deploy action**: Role Management → "Resync System Channels" to sync new channel to DB
+- **Staff-auth rename T6 fix**: NOT EXISTS guard in `update_staff_branch_name()` — Heroku v1762
+- **DB state**: "Eastwood" project (id=2) active; duplicates id=1,3,4 cancelled (were created by failed-but-committed inserts before the fix)
 
 ---
 
