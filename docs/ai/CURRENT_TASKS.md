@@ -256,6 +256,12 @@ Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup
   - POST /po-match/{id}/photo (primary photo update)
   - POST /po-match/{id}/add-photo (add extra photo)
 
+**Drive Folder link button added to PO Match page ✅ (Heroku v1746 d10623d + Vercel 1b5ea8c):**
+- New `GET /api/admin/procurement/po-match/drive-folder?city=dubai` endpoint returns the "PO Match Invoices" Google Drive folder URL (creates folder if missing)
+- Drive Folder button appears in PO Match page header (before City selector) — FolderOpen icon + "Drive Folder" text + ExternalLink icon
+- Opens the Google Drive folder in a new tab; hidden until URL is fetched (non-critical, silently ignored on error)
+- Browser verified: button visible and styled correctly ✅
+
 **E2E verified (2026-08-04):**
 - Submitted Quick Entry form (SAFCO, INV-TEST-DRIVE-001, AED 500 matched)
 - Heroku `heroku run python` confirmed: Drive folder "PO Match Invoices" created (ID: 1nuh0XpQhZ-…)

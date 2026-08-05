@@ -35,6 +35,16 @@ const LEAVE_TYPES: { value: ReqType; label: string }[] = [
   { value: "swap",             label: "Swap" },
 ];
 
+const REASON_CATEGORIES: { value: string; label: string }[] = [
+  { value: "medical",    label: "🏥 Medical appointment / Health check" },
+  { value: "school",     label: "🎓 School / Exam / Graduation" },
+  { value: "government", label: "🏛️ Government / Admin errand (passport, ID, etc.)" },
+  { value: "family",     label: "💒 Family event (wedding / funeral / important ceremony)" },
+  { value: "religious",  label: "🕌 Religious observance" },
+  { value: "work",       label: "🔄 Work-related (training, interview, etc.)" },
+  { value: "other",      label: "📋 Other — please specify in Reason" },
+];
+
 type LeaveBalance = {
   id: number;
   leave_type: string;
@@ -352,6 +362,7 @@ export default function RequestPage() {
   const [workDate, setWorkDate] = useState(todayIso());
   const [requestType, setRequestType] = useState<ReqType>("time_change");
   const [reason, setReason] = useState("");
+  const [reasonCategory, setReasonCategory] = useState("medical");
   const [medicalDoc, setMedicalDoc] = useState(false);
   const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null);
   const medicalFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -472,6 +483,7 @@ export default function RequestPage() {
           target_date: workDate,
           leave_days: parseFloat(leaveDays) || 1,
           reason: reason.trim(),
+          reason_category: reasonCategory,
         };
         if (notifyType === "leave") notifyBody.leave_type = leaveSubType;
         await apiFetch("/api/request/notify", {
@@ -483,6 +495,7 @@ export default function RequestPage() {
       let payload: Record<string, string> = {};
       if (requestType === "time_change") payload = { from, to };
       else if (requestType === "swap") payload = { with_staff: withStaff, my_to: myTo, their_to: theirTo };
+      payload.reason_category = reasonCategory;
 
       const form = new FormData();
       form.set("city", city);
@@ -624,6 +637,20 @@ export default function RequestPage() {
                   <DatePicker value={workDate} onChange={setWorkDate} />
                 </Field>
 
+                {/* 14-day advance notice warning */}
+                {(() => {
+                  const daysLeft = Math.ceil((new Date(workDate).getTime() - Date.now()) / 86400000);
+                  return daysLeft < 14 ? (
+                    <div className="col-span-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+                      <span className="mt-0.5 shrink-0">⚠️</span>
+                      <span>
+                        Requests should be submitted at least <strong>14 days in advance</strong>.
+                        This request is only {daysLeft <= 0 ? "overdue" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} away`} — approval is at management's discretion.
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
+
                 <Field label="Request type">
                   <SelectDark
                     className={SELECT_CLASS}
@@ -701,6 +728,16 @@ export default function RequestPage() {
                     </Field>
                   </>
                 )}
+
+                <div className="col-span-2">
+                  <Field label="Reason category">
+                    <SelectDark
+                      value={reasonCategory}
+                      onChange={setReasonCategory}
+                      options={REASON_CATEGORIES}
+                    />
+                  </Field>
+                </div>
 
                 <div className="col-span-2">
                   <label className={T_LABEL}>Reason</label>
