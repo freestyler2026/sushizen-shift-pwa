@@ -129,6 +129,8 @@ type NavItem = {
   badgeSuccess?: boolean;
   badgeYellow?: boolean;
   badgePink?: boolean;
+  badge2Count?: number;
+  badge2Violet?: boolean;
 };
 
 const PRIMARY: NavItem[] = [
@@ -277,6 +279,11 @@ function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
           ].join(" ")}
         >
           {badge > 99 ? "99+" : String(badge)}
+        </span>
+      )}
+      {Number(item.badge2Count || 0) > 0 && (
+        <span className="inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none bg-violet-500 text-white">
+          {Number(item.badge2Count) > 99 ? "99+" : String(item.badge2Count)}
         </span>
       )}
       {showDot && (
@@ -952,7 +959,7 @@ export default function NavBar() {
       .filter((item) => canSeeAdminItem(item.href, resolvedAuth))
       .map((item) =>
         item.href === "/admin"
-          ? { ...item, badgeCount: adminRequestBadge, badgeYellow: adminRequestBadge > 0 }
+          ? { ...item, badge2Count: adminRequestBadge, badge2Violet: adminRequestBadge > 0 }
           : item.href === "/admin/private-reports"
             ? { ...item, badgeCount: privateReportBadge, badgePink: privateReportBadge > 0 }
             : item.href === "/admin/procurement"
