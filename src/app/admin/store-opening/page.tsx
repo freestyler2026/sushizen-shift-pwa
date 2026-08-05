@@ -319,10 +319,12 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
   const [notes, setNotes] = useState(project?.notes ?? "");
   const [status, setStatus] = useState(project?.status ?? "active");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const save = async () => {
     if (!storeName.trim() || !startDate) return;
     setSaving(true);
+    setSaveError("");
     try {
       if (isNew) {
         const res = await fetch(`${API_BASE}/api/admin/store-opening/projects`, {
@@ -333,6 +335,9 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
         if (res.ok) {
           const data = await res.json();
           onCreated(data.project);
+        } else {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          setSaveError(err.detail || "Failed to create project");
         }
       } else {
         const res = await fetch(`${API_BASE}/api/admin/store-opening/projects/${project!.id}`, {
@@ -343,10 +348,16 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
         if (res.ok) {
           const data = await res.json();
           onUpdated(data.project);
+        } else {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          setSaveError(err.detail || "Failed to update project");
         }
       }
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } catch (e) {
+      setSaveError(String(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -412,6 +423,9 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
               onChange={e => setNotes(e.target.value)}
             />
           </div>
+          {saveError && (
+            <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{saveError}</p>
+          )}
           <button
             className={`${PRIMARY_BUTTON} w-full`}
             onClick={save}
