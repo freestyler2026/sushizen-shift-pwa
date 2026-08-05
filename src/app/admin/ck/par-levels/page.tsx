@@ -84,6 +84,20 @@ export default function CkParLevelsPage() {
   const [pushingToPlan, setPushingToPlan] = useState(false);
   const [pushResult, setPushResult] = useState<{ ok: boolean; msg: string; planId?: number } | null>(null);
 
+  // vendor list for supplier dropdown
+  const [vendors, setVendors] = useState<string[]>([]);
+
+  // supplier inline edit
+  const [editingSupId, setEditingSupId] = useState<string | null>(null);
+  const [suppValue, setSuppValue] = useState<string>("");
+  const [savingSup, setSavingSup] = useState(false);
+
+  // create direct purchase orders modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createPin, setCreatePin] = useState("");
+  const [creatingOrders, setCreatingOrders] = useState(false);
+  const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -110,6 +124,139 @@ export default function CkParLevelsPage() {
     setSeedResult("");
     setImportResult(null);
   }, [loadRows]);
+
+  // ── load vendors ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const auth = getAuth();
+    fetch(`${API_BASE}/api/admin/ck/par-levels/vendors?city=${cityParam(city)}`, {
+      headers: getAuthHeaders(auth),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d.vendors) setVendors(d.vendors); })
+      .catch(() => {});
+  }, [city]);
+
+  // ── supplier inline save ──────────────────────────────────────────────────
+  const saveSupplier = async (row: ParLevelRow, value: string) => {
+    setSavingSup(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({ supplier: value || null }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      setRows((prev) =>
+        prev.map((r) => r.id === row.id ? { ...r, supplier: data.row.supplier } : r)
+      );
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingSup(false);
+      setEditingSupId(null);
+    }
+  };
+
+  // ── create direct purchase orders ─────────────────────────────────────────
+  const handleCreateOrders = async () => {
+    if (!createPin.trim()) { alert("Please enter your PIN."); return; }
+    setCreatingOrders(true);
+    setCreateResult(null);
+    try {
+      const auth = getAuth();
+      if (!auth) throw new Error("Not authenticated");
+
+      // Group items by supplier where TO ORDER > 0
+      const toOrder = rows.filter((r) => {
+        if (!r.supplier || r.par_level == null || r.current_stock == null) return false;
+        return Math.max(0, r.par_level - r.current_stock) > 0;
+      });
+
+      const bySupplier: Record<string, ParLevelRow[]> = {};
+      for (const r of toOrder) {
+        const sup = r.supplier!;
+        if (!bySupplier[sup]) bySupplier[sup] = [];
+        bySupplier[sup].push(r);
+      }
+
+      const supplierNames = Object.keys(bySupplier);
+      if (supplierNames.length === 0) {
+        setCreateResult({ ok: false, msg: "No items with supplier and quantity to order." });
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const vendorName of supplierNames) {
+        const items = bySupplier[vendorName].map((r) => ({
+          item_name: r.item_name,
+          category: r.category || "General",
+          qty: Math.max(0, (r.par_level ?? 0) - (r.current_stock ?? 0)),
+          unit: r.unit || "pc",
+          unit_price: 0,
+        }));
+
+        const fd = new FormData();
+        fd.append("approver_name", auth.staffName || "");
+        fd.append("pin", createPin);
+        fd.append("city", cityParam(city));
+        fd.append("store_code", "CK");
+        fd.append("vendor_name", vendorName);
+        fd.append("request_date", today);
+        fd.append("notes", `Auto-created from CK Par Level (${today})`);
+        fd.append("items_json", JSON.stringify(items));
+
+        const res = await fetch(`${API_BASE}/api/admin/procurement/direct-purchase`, {
+          method: "POST",
+          headers: getUploadHeaders(auth),
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errors.push(`${vendorName}: ${data.detail || "Failed"}`);
+        } else {
+          successCount++;
+        }
+      }
+
+      if (errors.length === 0) {
+        setCreateResult({ ok: true, msg: `${successCount} purchase order${successCount !== 1 ? "s" : ""} created successfully. Unit prices are set to 0 — please update before approving.` });
+      } else if (successCount > 0) {
+        setCreateResult({ ok: false, msg: `${successCount} created, ${errors.length} failed: ${errors.join("; ")}` });
+      } else {
+        setCreateResult({ ok: false, msg: errors.join("; ") });
+      }
+      setCreatePin("");
+    } catch (e: any) {
+      setCreateResult({ ok: false, msg: e.message });
+    } finally {
+      setCreatingOrders(false);
+    }
+  };
+
+  // ── create order summary ──────────────────────────────────────────────────
+  const orderGroups = (() => {
+    const toOrder = rows.filter((r) => {
+      if (tab !== "supplier") return false;
+      if (!r.supplier || r.par_level == null || r.current_stock == null) return false;
+      return Math.max(0, r.par_level - r.current_stock) > 0;
+    });
+    const bySupplier: Record<string, { items: ParLevelRow[]; totalItems: number }> = {};
+    for (const r of toOrder) {
+      const sup = r.supplier!;
+      if (!bySupplier[sup]) bySupplier[sup] = { items: [], totalItems: 0 };
+      bySupplier[sup].items.push(r);
+      bySupplier[sup].totalItems++;
+    }
+    return bySupplier;
+  })();
 
   // ── seed from Cost Calc ───────────────────────────────────────────────────
   const handleSeed = async () => {
@@ -421,6 +568,18 @@ export default function CkParLevelsPage() {
             </button>
           )}
 
+          {/* Create Direct Purchase Orders (Supplier tab only) */}
+          {tab === "supplier" && (
+            <button
+              onClick={() => { setShowCreateModal(true); setCreateResult(null); setCreatePin(""); }}
+              disabled={Object.keys(orderGroups).length === 0}
+              className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-4 py-2 text-sm font-medium text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title={Object.keys(orderGroups).length === 0 ? "No items with supplier + quantity to order" : ""}
+            >
+              🛒 Create Direct Purchase Orders ({Object.keys(orderGroups).length} supplier{Object.keys(orderGroups).length !== 1 ? "s" : ""})
+            </button>
+          )}
+
           {/* Download template link */}
           <a
             href="/CK_ParLevel_Template.xlsx"
@@ -623,7 +782,44 @@ export default function CkParLevelsPage() {
                         </td>
 
                         {tab === "supplier" && (
-                          <td className="px-4 py-2.5 text-zinc-500 text-xs">{row.supplier || "—"}</td>
+                          <td className="px-4 py-2.5 text-xs">
+                            {editingSupId === row.id ? (
+                              <div className="flex items-center gap-1">
+                                <select
+                                  autoFocus
+                                  value={suppValue}
+                                  onChange={(e) => setSuppValue(e.target.value)}
+                                  className="rounded bg-zinc-800 border border-teal-500/50 px-2 py-0.5 text-xs text-white outline-none max-w-[160px]"
+                                >
+                                  <option value="">— None —</option>
+                                  {vendors.map((v) => (
+                                    <option key={v} value={v}>{v}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => saveSupplier(row, suppValue)}
+                                  disabled={savingSup}
+                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-teal-500/20 text-teal-300 hover:bg-teal-500/35 disabled:opacity-60"
+                                >
+                                  {savingSup ? "…" : "✓"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingSupId(null)}
+                                  className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingSupId(row.id); setSuppValue(row.supplier || ""); }}
+                                className={`rounded px-2 py-0.5 text-xs transition-colors hover:bg-teal-500/10 ${row.supplier ? "text-teal-300" : "text-zinc-600 hover:text-teal-500"}`}
+                                title="Click to assign supplier"
+                              >
+                                {row.supplier || "— Assign —"}
+                              </button>
+                            )}
+                          </td>
                         )}
                         <td className="px-4 py-2.5 text-right text-zinc-600 text-xs">
                           {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "—"}
@@ -668,6 +864,87 @@ export default function CkParLevelsPage() {
         </div>
 
       </div>
+
+      {/* ── Create Direct Purchase Orders Modal ─────────────────────────── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-5`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Create Direct Purchase Orders</h2>
+              <button
+                onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
+                className="rounded p-1 text-zinc-400 hover:text-white hover:bg-white/10"
+              >✕</button>
+            </div>
+
+            {/* Order summary by supplier */}
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-400">
+                Orders will be created per supplier for items with quantity to order. Unit prices will be set to 0 — update them in Procurement before approving.
+              </p>
+              <div className="rounded-lg border border-white/10 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-white/5 text-zinc-500 uppercase tracking-wide">
+                      <th className="px-3 py-2 text-left">Supplier</th>
+                      <th className="px-3 py-2 text-center">Items</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(orderGroups).map(([sup, group], i) => (
+                      <tr key={sup} className={`border-t border-white/5 ${i % 2 === 0 ? "bg-white/[0.01]" : ""}`}>
+                        <td className="px-3 py-2 text-teal-300 font-medium">{sup}</td>
+                        <td className="px-3 py-2 text-center text-white">{group.totalItems}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* PIN input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs text-zinc-400">Your PIN (required to create orders)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                placeholder="Enter PIN"
+                value={createPin}
+                onChange={(e) => setCreatePin(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateOrders(); }}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-teal-500/50"
+              />
+            </div>
+
+            {/* Result */}
+            {createResult && (
+              <div className={`rounded-lg px-3 py-2 text-sm ${createResult.ok ? "bg-teal-500/10 border border-teal-500/30 text-teal-300" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+                {createResult.msg}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
+                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:bg-white/10 transition-all"
+              >
+                {createResult?.ok ? "Close" : "Cancel"}
+              </button>
+              {!createResult?.ok && (
+                <button
+                  onClick={handleCreateOrders}
+                  disabled={creatingOrders || !createPin.trim()}
+                  className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-5 py-2 text-sm font-semibold text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  {creatingOrders ? "Creating…" : `Create ${Object.keys(orderGroups).length} Order${Object.keys(orderGroups).length !== 1 ? "s" : ""}`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
