@@ -1802,6 +1802,27 @@ export default function AdminDailyInventoryTab() {
     return () => { cancelled = true; };
   }, [sourceTab, view]);
 
+  // Refresh supplier items when entering detail view so supplier_names are never stale
+  useEffect(() => {
+    if (view !== "detail" || !selectedDetail) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiFetch(`/api/daily-inventory/items?source_type=supplier&active_only=false`);
+        const text = await res.text();
+        if (!res.ok || cancelled) return;
+        const data = JSON.parse(text || "[]") as InvItem[];
+        if (!Array.isArray(data) || cancelled) return;
+        setAllItems((prev) => {
+          const map = new Map(prev.map((i) => [i.item_code, i]));
+          data.forEach((i) => map.set(i.item_code, i));
+          return [...map.values()];
+        });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [view, selectedDetail]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const doSave = useCallback(async (showMsg: boolean): Promise<number | null> => {
     const h = headerRef.current;
     const name = effectiveStaffName(h.staffChoice, h.customStaff);
