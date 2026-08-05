@@ -38,6 +38,7 @@ import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
 import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancellationInputTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
+import RequestAlertsTab from "@/components/admin/RequestAlertsTab";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
@@ -68,6 +69,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, ""
 // Admin Dashboard sub-tabs: single source of truth (?tab= ↔ in-app view)
 type AdminDashView =
   | "requests"
+  | "requestAlerts"
   | "lowRatings"
   | "orderEntry"
   | "ratingEntry"
@@ -83,6 +85,7 @@ type OrderEntrySub = "dubai" | "manila";
 /** Tab row uses nowrap + overflow-x so trailing tabs stay reachable. */
 const ADMIN_DASH_TABS = [
   { view: "requests" as const, label: "Request Check", icon: "📋", tabQuery: null as string | null },
+  { view: "requestAlerts" as const, label: "Request Alerts", icon: "🔔", tabQuery: "request-alerts" },
   { view: "lowRatings" as const, label: "Low Ratings Input", icon: "⚠️", tabQuery: "low-ratings" },
   { view: "ratingEntry" as const, label: "Ratings Input", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
@@ -1243,7 +1246,9 @@ function AdminPageInner() {
         </div>
       </div>
 
-      {dashView === "lowRatings" ? (
+      {dashView === "requestAlerts" ? (
+        <RequestAlertsTab />
+      ) : dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
       ) : dashView === "ratingEntry" ? (
         <div className="space-y-4">
