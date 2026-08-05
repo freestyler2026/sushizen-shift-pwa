@@ -557,6 +557,22 @@ export default function PayrollPage() {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 
+  const [syncBusy, setSyncBusy] = useState(false);
+
+  async function syncFromStaff() {
+    setSyncBusy(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/sync-salary-configs?city=${encodeURIComponent(city)}`, { method: "POST" });
+      const data = await r.json() as { ok?: boolean; seeded?: number; deactivated?: number; active_staff_count?: number; detail?: string };
+      if (!r.ok) { setErr(data.detail || "Sync failed"); return; }
+      void loadConfigs(city);
+    } catch {
+      setErr("Network error — please try again");
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
   function onConfigSaved(c: SalaryConfig) {
     setShowConfigModal(false);
     setEditingConfig(null);
@@ -961,11 +977,20 @@ export default function PayrollPage() {
           <div className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
               <p className="text-sm font-semibold text-slate-300">{configs.length} employees configured</p>
-              <button
-                className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition"
-                onClick={() => { setEditingConfig(null); setShowConfigModal(true); }}>
-                <Plus size={13} /> Add Employee
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={syncBusy}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 transition disabled:opacity-50"
+                  onClick={syncFromStaff}>
+                  {syncBusy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  Sync from Staff
+                </button>
+                <button
+                  className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition"
+                  onClick={() => { setEditingConfig(null); setShowConfigModal(true); }}>
+                  <Plus size={13} /> Add Employee
+                </button>
+              </div>
             </div>
 
             {busy && configs.length === 0 ? (
