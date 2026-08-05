@@ -546,14 +546,7 @@ export default function AdjustmentsPage() {
     if (!ok) router.replace("/week");
   }, [role, router]);
 
-  const [city, setCity] = useState<"dubai" | "manila">(() => {
-    if (typeof window !== "undefined") {
-      const param = new URLSearchParams(window.location.search).get("city");
-      if (param === "dubai" || param === "manila") return param;
-    }
-    const a = getAuth();
-    return (a as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila";
-  });
+  const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
@@ -570,6 +563,17 @@ export default function AdjustmentsPage() {
 
   const cycleLoadRef = useRef(0);
   const loadCountRef = useRef(0);
+
+  // Read city from URL param on mount (avoids SSR/client hydration mismatch)
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("city");
+    if (param === "dubai" || param === "manila") setCity(param);
+    else {
+      const a = getAuth();
+      const authCity = (a as { city?: string } | null)?.city?.toLowerCase();
+      if (authCity === "manila") setCity("manila");
+    }
+  }, []);
 
   const loadCycles = useCallback(async (c: string) => {
     const id = ++cycleLoadRef.current;
