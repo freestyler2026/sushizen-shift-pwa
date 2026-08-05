@@ -610,6 +610,7 @@ export default function EmployeeCasesPage() {
   const [issueStaffName, setIssueStaffName] = useState("");
   const [issueDate, setIssueDate] = useState(todayStr());
   const [issueIssuedBy, setIssueIssuedBy] = useState("");
+  const [issueApprovedBy, setIssueApprovedBy] = useState("");
   const [issueCaseType, setIssueCaseType] = useState<CaseType>("NTE");
   const [issueUseTemplate, setIssueUseTemplate] = useState(false);
   const [issueTemplateId, setIssueTemplateId] = useState("");
@@ -873,7 +874,7 @@ export default function EmployeeCasesPage() {
 
   // ── Issue Notice ───────────────────────────────────────────────────────────
   const handleIssueNte = async () => {
-    if (!issueStaffName.trim() || !issueReason.trim()) return;
+    if (!issueStaffName.trim() || !issueReason.trim() || !issueApprovedBy.trim()) return;
     setIssuing(true);
     setError("");
     setSuccessMsg("");
@@ -888,6 +889,7 @@ export default function EmployeeCasesPage() {
           issued_by: issueIssuedBy || currentUser,
           issued_date: issueDate || todayStr(),
           case_type: issueCaseType,
+          approved_by: issueApprovedBy.trim(),
         }),
       });
       const resData = await res.json();
@@ -901,6 +903,7 @@ export default function EmployeeCasesPage() {
       setIssueDate(todayStr());
       setIssueReason("");
       setIssueCaseType("NTE");
+      setIssueApprovedBy("");
       setIssueUseTemplate(false);
       setIssueTemplateId("");
       setTab("board");
@@ -2093,6 +2096,17 @@ export default function EmployeeCasesPage() {
             </div>
           </div>
 
+          {/* Approved By */}
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approved By <span className="text-red-400">*</span></label>
+            <input
+              value={issueApprovedBy}
+              onChange={(e) => setIssueApprovedBy(e.target.value)}
+              placeholder="Name of manager or HQ who approved this notice"
+              className={INPUT_CLASS}
+            />
+          </div>
+
           {/* Document Type */}
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Document Type</label>
@@ -2192,7 +2206,8 @@ export default function EmployeeCasesPage() {
               disabled={
                 issuing ||
                 !issueStaffName.trim() ||
-                !issueReason.trim()
+                !issueReason.trim() ||
+                !issueApprovedBy.trim()
               }
               className={`${PRIMARY_BUTTON} flex items-center gap-2`}
             >
@@ -2267,6 +2282,7 @@ export default function EmployeeCasesPage() {
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Staff Name</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Reason</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Issued By</th>
+                    <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Approved By</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Explanation</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Status</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Actions</th>
@@ -2294,6 +2310,9 @@ export default function EmployeeCasesPage() {
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-zinc-400`}>
                         {nte.issued_by || "—"}
+                      </td>
+                      <td className={`${TABLE_CELL} px-4 text-zinc-400`}>
+                        {nte.approved_by || "—"}
                       </td>
                       <td className={`${TABLE_CELL} px-4`}>
                         {nte.explanation_text ? (
