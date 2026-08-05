@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (session — Dubai penalty auto-calc + night premium engine deployed Heroku v1757, Vercel 2ffc9d0 ✅; Expense→Payroll auto-link deployed ✅; NTE Approver TS type fix ✅)
+Last updated: 2026-08-05 (session — Dubai payroll engine full test suite completed; Payroll Adjustments hydration bug fixed; Expense→Payroll auto-link verified end-to-end)
 
 ---
 
@@ -229,6 +229,36 @@ Last updated: 2026-08-05 (session — Dubai penalty auto-calc + night premium en
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-05 — Dubai Payroll Engine E2E Testing + Hydration Fix)
+
+### Dubai Payroll Engine: Full E2E test + bug fixes ✅ (Vercel ae9e72d)
+
+**Testing scope:** Dubai penalty auto-calc, night premium (22:00–04:00), Expense→Payroll auto-link
+
+**Confirmed working:**
+- Auto-Calculate Jul 2026 → 195 attendance_auto adjustments for 37 staff (200 OK)
+- Night premium amounts verified mathematically correct (e.g. AED 1500 basic → AED 7.21/hr)
+- Missing punch admin fee: -7.21 AED = 1hr × AED 7.21/hr ✓
+- Apr 2026 Auto-Calculate → 0 adjustments (correct — no Apr attendance data)
+- "Get / Create Cycle" → Aug 2026 cycle created as ID #38 ✓
+- Expense→Payroll auto-link: approval of Rafael Lagahit AED 399 → inserted to cycle #36 ✓
+- Idempotency: second approval of same expense → no duplicate row ✓
+- Rejection: expense rejected → payroll_adjustment deleted ✓
+- Payroll Adjustments page: 366 records visible for Jul 2026 (195 attendance_auto + 171 manual)
+- Deductions filter: 90 records showing missing_punch, Tardiness, Other Deduction ✓
+
+**Bug fixed — Payroll Adjustments SSR hydration mismatch:**
+- `city` state initializer read `window.location.search` causing server/client mismatch
+- Fix: default `"dubai"` + read URL in `useEffect` after mount
+- File: `src/app/admin/payroll/adjustments/page.tsx`
+- Verified: "1 Issue" badge gone after fix ✓
+
+**Note on late_minutes = 0 in Jul 2026:**
+- Not a bug. `dubai_attendance_daily.late_minutes` is 0 for all Jul records (OS sync doesn't populate it)
+- Late penalty engine correctly returns 0 deductions when input data is 0
 
 ---
 
