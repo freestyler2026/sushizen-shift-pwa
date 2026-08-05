@@ -179,7 +179,7 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
 
 // ── Tab 3: Inbox ───────────────────────────────────────────────────────────────
 
-function InboxTab({ city }: { city: string }) {
+function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: number) => void }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -198,14 +198,16 @@ function InboxTab({ city }: { city: string }) {
       if (seq !== loadRef.current) return;
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json() as { items: Notification[] };
-      setItems(d.items ?? []);
+      const next = d.items ?? [];
+      setItems(next);
+      onCountChange?.(next.length);
       setLastLoaded(new Date());
     } catch (e) {
       if (seq === loadRef.current) setError(String(e));
     } finally {
       if (seq === loadRef.current) setLoading(false);
     }
-  }, [city]);
+  }, [city, onCountChange]);
 
   useEffect(() => {
     void load();
@@ -229,7 +231,11 @@ function InboxTab({ city }: { city: string }) {
         }),
       });
       if (!r.ok) throw new Error(await r.text());
-      setItems(prev => prev.filter(i => i.id !== id));
+      setItems(prev => {
+        const next = prev.filter(i => i.id !== id);
+        onCountChange?.(next.length);
+        return next;
+      });
       setReviewingId(null);
       setReviewNote("");
     } catch (e) {
@@ -527,6 +533,7 @@ export default function RequestPage() {
   const router = useRouter();
   const [auth, setAuth] = useState(() => getAuth());
   const [activeTab, setActiveTab] = useState<Tab>("form");
+  const [inboxCount, setInboxCount] = useState(0);
 
   // Form state
   const [city, setCity] = useState<"dubai" | "manila">("manila");
@@ -609,6 +616,20 @@ export default function RequestPage() {
       .then(d => setLeaveBalances(d.balances ?? []))
       .catch(() => setLeaveBalances([]));
   }, [staffName, city]);
+
+  // Poll inbox count so the badge is live on any tab
+  useEffect(() => {
+    if (!isInbox) return;
+    const poll = () => {
+      apiFetch(`/api/request/notifications/inbox?city=${encodeURIComponent(city)}&status=pending&limit=100`)
+        .then(r => r.ok ? r.json() as Promise<{ items: unknown[] }> : Promise.resolve({ items: [] }))
+        .then(d => setInboxCount((d.items ?? []).length))
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [isInbox, city]);
 
   const branchOptions = BRANCHES[city] ?? [];
 
@@ -757,6 +778,11 @@ export default function RequestPage() {
               className={activeTab === "inbox" ? TAB_ACTIVE : TAB_INACTIVE}
               onClick={() => setActiveTab("inbox")}>
               <BellRing size={14} className="inline mr-1.5" />Inbox
+              {inboxCount > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-black">
+                  {inboxCount}
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -993,7 +1019,7 @@ export default function RequestPage() {
 
           {/* ── Tab 3: Inbox ─────────────────────────────────────────── */}
           {activeTab === "inbox" && isInbox && (
-            <InboxTab city={city} />
+            <InboxTab city={city} onCountChange={setInboxCount} />
           )}
         </div>
       </div>
