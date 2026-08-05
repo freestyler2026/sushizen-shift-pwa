@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (session — Request page enhancements: reason categories + 14-day warning + Discord DM notifications (Request Alerts tab) ✅; PO Match Drive Folder button verified ✅)
+Last updated: 2026-08-05 (session — Swap integration: SwapInboxBanner on Request page + GET /api/shift_change/counterparty/pending endpoint ✅; Request Alerts moved to Admin Dashboard ✅; All Cities SelectDark fix ✅; Discord announcement artifact created ✅)
 
 ---
 
