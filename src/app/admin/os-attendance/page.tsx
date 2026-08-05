@@ -2047,7 +2047,7 @@ function RequestAlertsTab() {
 
       <div className="rounded-xl border border-white/5 bg-white/3 px-4 py-3 text-xs text-zinc-500 space-y-1">
         <p><strong className="text-zinc-400">DM content includes:</strong> Request type, Staff name, City, Date, Reason category, Reason text</p>
-        <p><strong className="text-zinc-400">City filter:</strong> "Dubai only" recipients receive Dubai requests. "Manila only" receive Manila requests. "All cities" receive both.</p>
+        <p><strong className="text-zinc-400">City filter:</strong> &quot;Dubai only&quot; recipients receive Dubai requests. &quot;Manila only&quot; receive Manila requests. &quot;All cities&quot; receive both.</p>
         <p><strong className="text-zinc-400">Triggered by:</strong> All request types (Day Off, Leave, Time Change, Swap, Overtime, etc.)</p>
       </div>
     </div>

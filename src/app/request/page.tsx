@@ -645,7 +645,7 @@ export default function RequestPage() {
                       <span className="mt-0.5 shrink-0">⚠️</span>
                       <span>
                         Requests should be submitted at least <strong>14 days in advance</strong>.
-                        This request is only {daysLeft <= 0 ? "overdue" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} away`} — approval is at management's discretion.
+                        This request is only {daysLeft <= 0 ? "overdue" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} away`} — approval is at management&apos;s discretion.
                       </span>
                     </div>
                   ) : null;
