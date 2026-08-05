@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Building2, Plus, ChevronDown, ChevronRight, Check, Pencil, X, AlertTriangle } from "lucide-react";
+import { Building2, Plus, ChevronDown, ChevronRight, Check, Pencil, X, AlertTriangle, Trash2 } from "lucide-react";
 import { getAuth, canAccessStoreOpeningAdmin } from "@/lib/auth";
 import { GLASS_CARD, T_PAGE_TITLE, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 import { API_BASE } from "@/lib/api";
@@ -309,9 +309,10 @@ interface ProjectModalProps {
   onClose: () => void;
   onCreated: (p: Project) => void;
   onUpdated: (p: Project) => void;
+  onDeleted: (id: number) => void;
 }
 
-function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdated }: ProjectModalProps) {
+function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdated, onDeleted }: ProjectModalProps) {
   const isNew = !project;
   const [storeName, setStoreName] = useState(project?.store_name ?? "");
   const [city, setCity] = useState(project?.city ?? "MANILA");
@@ -319,6 +320,8 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
   const [notes, setNotes] = useState(project?.notes ?? "");
   const [status, setStatus] = useState(project?.status ?? "active");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   const save = async () => {
@@ -429,10 +432,54 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
           <button
             className={`${PRIMARY_BUTTON} w-full`}
             onClick={save}
-            disabled={saving || !storeName.trim() || !startDate}
+            disabled={saving || deleting || !storeName.trim() || !startDate}
           >
             {saving ? "Saving…" : isNew ? "Create" : "Save"}
           </button>
+          {!isNew && !confirmDelete && (
+            <button
+              className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-red-500/30 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              onClick={() => setConfirmDelete(true)}
+              disabled={saving || deleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete Project
+            </button>
+          )}
+          {!isNew && confirmDelete && (
+            <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 space-y-2">
+              <p className="text-xs text-red-300 text-center">Delete <strong>{storeName}</strong>? This cannot be undone.</p>
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 rounded-lg border border-white/10 py-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="flex-1 rounded-lg bg-red-600 hover:bg-red-500 py-1.5 text-xs text-white font-semibold transition-colors disabled:opacity-60"
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      const res = await fetch(`${API_BASE}/api/admin/store-opening/projects/${project!.id}`, {
+                        method: "DELETE",
+                        headers,
+                      });
+                      if (res.ok) onDeleted(project!.id);
+                      else setSaveError("Failed to delete project");
+                    } catch (e) {
+                      setSaveError(String(e));
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -742,6 +789,7 @@ export default function StoreOpeningPage() {
           onClose={() => setShowCreateModal(false)}
           onCreated={p => { setProjects(prev => [p, ...prev]); setSelectedId(p.id); setShowCreateModal(false); }}
           onUpdated={() => {}}
+          onDeleted={() => {}}
         />
       )}
       {editingProject && (
@@ -752,6 +800,11 @@ export default function StoreOpeningPage() {
           onClose={() => setEditingProject(null)}
           onCreated={() => {}}
           onUpdated={p => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); setEditingProject(null); }}
+          onDeleted={id => {
+            setProjects(prev => prev.filter(x => x.id !== id));
+            setSelectedId(prev => prev === id ? null : prev);
+            setEditingProject(null);
+          }}
         />
       )}
     </div>
