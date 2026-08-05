@@ -98,6 +98,7 @@ interface InvItem {
   is_commissary: boolean;
   is_active: boolean;
   source_type: string;
+  supplier_name?: string;
 }
 
 interface EntryState {
@@ -194,6 +195,12 @@ function formatDate(d: string) {
   return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
 }
 
+function cityFromBranch(branch: string): CityKey {
+  const b = branch.toUpperCase();
+  return (["BUSINESS BAY", "JLT", "ARJAN", "AL MINA", "AL BARSHA"].some((d) => b.includes(d)))
+    ? "dubai" : "manila";
+}
+
 type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string };
 
 function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; items: InvItem[]; onBack: () => void }) {
@@ -207,6 +214,12 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [generatedPRs, setGeneratedPRs] = useState<GeneratedPR[]>([]);
+
+  // Direct Purchase from supplier WARN/LOW items
+  const [dpModalOpen, setDpModalOpen] = useState(false);
+  const [dpCreatePin, setDpCreatePin] = useState("");
+  const [dpCreating, setDpCreating] = useState(false);
+  const [dpCreateResult, setDpCreateResult] = useState<{ vendor: string; ok: boolean; msg: string }[]>([]);
 
   // Par patterns
   const [patterns, setPatterns] = useState<string[]>([]);
@@ -344,6 +357,64 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     } finally { setOrderBusy(false); }
   }
 
+  const dpOrderGroups = (() => {
+    const groups: Record<string, { item: InvItem; qty: number }[]> = {};
+    [...lowItems, ...warnItems].forEach(({ item, entry }) => {
+      if (item.source_type !== "supplier") return;
+      const sup = (item.supplier_name || "").trim();
+      if (!sup || sup === "—" || sup === "-") return;
+      if (entry.qty === null) return;
+      const par = getEffectivePar(item);
+      if (par === null) return;
+      const toOrder = Math.max(0, Math.round((par - Number(entry.qty)) * 1000) / 1000);
+      if (toOrder <= 0) return;
+      if (!groups[sup]) groups[sup] = [];
+      groups[sup].push({ item, qty: toOrder });
+    });
+    return groups;
+  })();
+
+  async function handleDpCreateOrders() {
+    if (!dpCreatePin) return;
+    const auth = getAuth();
+    const today = todayYmd();
+    setDpCreating(true);
+    const results: { vendor: string; ok: boolean; msg: string }[] = [];
+    for (const [vendorName, group] of Object.entries(dpOrderGroups)) {
+      const fd = new FormData();
+      fd.append("approver_name", auth?.staffName || "");
+      fd.append("pin", dpCreatePin);
+      fd.append("city", cityFromBranch(detail.branch));
+      fd.append("store_code", detail.branch.toUpperCase().replace(/\s+/g, "_").slice(0, 20));
+      fd.append("vendor_name", vendorName);
+      fd.append("request_date", today);
+      fd.append("notes", `Auto-created from Daily Inventory ${detail.branch} (${today})`);
+      fd.append("items_json", JSON.stringify(
+        group.map(({ item, qty }) => ({
+          item_name: item.item_name,
+          category: item.section,
+          qty,
+          unit: item.default_unit,
+          unit_price: 0,
+        }))
+      ));
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/procurement/direct-purchase`, {
+          method: "POST",
+          headers: new Headers(getUploadHeaders()),
+          body: fd,
+        });
+        const data = await res.json() as { request_no?: string; detail?: string };
+        if (!res.ok) throw new Error(data.detail || "Failed");
+        results.push({ vendor: vendorName, ok: true, msg: data.request_no || "Created" });
+      } catch (e) {
+        results.push({ vendor: vendorName, ok: false, msg: e instanceof Error ? e.message : "Error" });
+      }
+    }
+    setDpCreating(false);
+    setDpCreateResult(results);
+  }
+
   const filteredItems = items.filter((i) => i.source_type === detailSourceTab);
   const sections = [...new Set(filteredItems.map((i) => i.section))];
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
@@ -405,6 +476,12 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                 <button onClick={openOrderModal} className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">
                   Generate Purchase Request
                 </button>
+                {Object.keys(dpOrderGroups).length > 0 && (
+                  <button onClick={() => { setDpCreatePin(""); setDpCreateResult([]); setDpModalOpen(true); }}
+                    className="rounded-lg border border-sky-400/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25">
+                    Create Direct Purchase ({Object.keys(dpOrderGroups).length} supplier{Object.keys(dpOrderGroups).length > 1 ? "s" : ""})
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -527,6 +604,73 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         document.body
       )}
 
+      {/* Direct Purchase modal */}
+      {dpModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
+            <div className="border-b border-white/8 px-6 py-4">
+              <h3 className="text-base font-semibold text-white">Create Direct Purchase Orders</h3>
+              <p className="mt-0.5 text-xs text-zinc-400">{detail.branch} · {formatDate(detail.report_date)} · {Object.keys(dpOrderGroups).length} supplier{Object.keys(dpOrderGroups).length > 1 ? "s" : ""}</p>
+            </div>
+            {dpCreateResult.length > 0 ? (
+              <div className="px-6 py-5 space-y-3">
+                <p className="text-sm font-semibold text-emerald-300">Orders processed!</p>
+                <p className="text-xs text-amber-300/80">Unit prices are set to 0 — update them in Procurement before approving.</p>
+                {dpCreateResult.map((r) => (
+                  <div key={r.vendor} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-300">{r.vendor}</p>
+                      <p className={`text-xs ${r.ok ? "text-emerald-400" : "text-red-400"}`}>{r.ok ? `✓ ${r.msg}` : `✕ ${r.msg}`}</p>
+                    </div>
+                    {r.ok && <a href="/admin/procurement/hub" className="rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-500/25">Review →</a>}
+                  </div>
+                ))}
+                <div className="pt-2 flex justify-end"><button onClick={() => setDpModalOpen(false)} className={SECONDARY_BUTTON}>Close</button></div>
+              </div>
+            ) : (
+              <>
+                <div className="px-6 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+                  {Object.entries(dpOrderGroups).map(([vendor, group]) => (
+                    <div key={vendor} className="rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+                      <p className="text-sm font-semibold text-sky-300 mb-2">{vendor}</p>
+                      {group.map(({ item, qty }) => (
+                        <div key={item.item_code} className="flex items-center justify-between text-xs text-zinc-300 py-0.5">
+                          <span className="truncate flex-1">{item.item_name}</span>
+                          <span className="ml-3 font-mono text-zinc-400">{qty} {item.default_unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div className="space-y-1 pt-2">
+                    <p className="text-xs text-zinc-400">PIN (required)</p>
+                    <input
+                      type="password"
+                      value={dpCreatePin}
+                      onChange={(e) => setDpCreatePin(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && dpCreatePin) void handleDpCreateOrders(); }}
+                      placeholder="Enter your PIN"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      autoFocus
+                    />
+                  </div>
+                  <p className="text-xs text-zinc-500">Unit prices will be set to 0 — update before approving in Procurement.</p>
+                </div>
+                <div className="flex justify-end gap-3 border-t border-white/8 px-6 py-4">
+                  <button onClick={() => setDpModalOpen(false)} className={SECONDARY_BUTTON} disabled={dpCreating}>Cancel</button>
+                  <button
+                    onClick={() => void handleDpCreateOrders()}
+                    className="rounded-xl border border-sky-500/40 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:opacity-50"
+                    disabled={dpCreating || !dpCreatePin}
+                  >
+                    {dpCreating ? "Creating…" : `Create ${Object.keys(dpOrderGroups).length} Order${Object.keys(dpOrderGroups).length > 1 ? "s" : ""}`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Source type tabs */}
       <div className="flex gap-1.5">
@@ -615,9 +759,10 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
 
 interface ItemMasterProps {
   onBack: () => void;
+  city: CityKey;
 }
 
-function ItemMasterView({ onBack }: ItemMasterProps) {
+function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [sourceFilter, setSourceFilter] = useState<SourceType>("ck");
   const [items, setItems] = useState<InvItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -662,6 +807,12 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   const weekdayImportRef = useRef<HTMLInputElement>(null);
   const [weekdayImportBusy, setWeekdayImportBusy] = useState(false);
 
+  // Supplier name inline edit (supplier source type only)
+  const [vendors, setVendors] = useState<string[]>([]);
+  const [editingSupCode, setEditingSupCode] = useState<string | null>(null);
+  const [suppValue, setSuppValue] = useState("");
+  const [savingSup, setSavingSup] = useState(false);
+
   async function loadItems() {
     setLoading(true); setError("");
     try {
@@ -676,6 +827,14 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   }
 
   useEffect(() => { void loadItems(); }, [sourceFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (sourceFilter !== "supplier") return;
+    apiFetch(`/api/admin/ck/par-levels/vendors?city=${city}`)
+      .then((r) => r.json())
+      .then((d: { vendors?: string[] }) => setVendors(d.vendors || []))
+      .catch(() => {});
+  }, [sourceFilter, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     apiFetch("/api/daily-inventory/par-patterns")
@@ -843,6 +1002,22 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
     } finally { setAddBusy(false); }
+  }
+
+  async function handleSaveSupplierName(itemCode: string, value: string) {
+    setSavingSup(true);
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_name: value || null }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Update failed");
+      setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, supplier_name: value } : it));
+      setEditingSupCode(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed");
+    } finally { setSavingSup(false); }
   }
 
   async function handleSaveParLevel(itemCode: string) {
@@ -1215,6 +1390,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Unit</th>
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Min</th>
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Par Level</th>
+                    {sourceFilter === "supplier" && <th className={`${TABLE_HEADER} px-3 py-2 text-left`}>Supplier</th>}
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Active</th>
                     <th className={`${TABLE_HEADER} px-4 py-2 text-center`}></th>
                   </tr>
@@ -1258,6 +1434,38 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                           </button>
                         )}
                       </td>
+                      {sourceFilter === "supplier" && (
+                        <td className={`${TABLE_CELL} px-3`}>
+                          {editingSupCode === item.item_code ? (
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={suppValue}
+                                onChange={(e) => setSuppValue(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") void handleSaveSupplierName(item.item_code, suppValue); if (e.key === "Escape") setEditingSupCode(null); }}
+                                className="flex-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs text-white focus:outline-none"
+                                autoFocus
+                              >
+                                <option value="">— None —</option>
+                                {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
+                              </select>
+                              <button onClick={() => void handleSaveSupplierName(item.item_code, suppValue)} disabled={savingSup}
+                                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20">
+                                {savingSup ? "…" : "✓"}
+                              </button>
+                              <button onClick={() => setEditingSupCode(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingSupCode(item.item_code); setSuppValue(item.supplier_name || ""); }}
+                              className="rounded-lg px-2 py-1 text-left text-xs hover:bg-white/5"
+                            >
+                              {item.supplier_name
+                                ? <span className="text-sky-300">{item.supplier_name}</span>
+                                : <span className="text-zinc-600">— assign —</span>}
+                            </button>
+                          )}
+                        </td>
+                      )}
                       <td className={`${TABLE_CELL} px-3 text-center`}>
                         <button
                           onClick={() => void handleToggleActive(item.item_code, item.is_active)}
@@ -1789,7 +1997,7 @@ export default function AdminDailyInventoryTab() {
   if (view === "items") {
     return (
       <div className="relative mx-auto max-w-4xl pb-10 text-white">
-        <ItemMasterView onBack={() => setView("form")} />
+        <ItemMasterView onBack={() => setView("form")} city={city} />
       </div>
     );
   }
