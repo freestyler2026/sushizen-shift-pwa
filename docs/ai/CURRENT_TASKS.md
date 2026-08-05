@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (session — Dubai payroll engine full test suite completed; Payroll Adjustments hydration bug fixed; Expense→Payroll auto-link verified end-to-end)
+Last updated: 2026-08-05 (Daily Inventory supplier assignment + Direct Purchase auto-create deployed) (session — Dubai payroll engine full test suite completed; Payroll Adjustments hydration bug fixed; Expense→Payroll auto-link verified end-to-end)
 
 ---
 
@@ -229,6 +229,31 @@ Last updated: 2026-08-05 (session — Dubai payroll engine full test suite compl
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-05 — Daily Inventory Supplier Assignment + Direct Purchase Auto-Create)
+
+### Daily Inventory: Supplier name per item + Create Direct Purchase Orders ✅ (Heroku v1760 + Vercel ae6d1b2)
+
+**Features deployed:**
+- `daily_inv_report_items` table: `supplier_name TEXT NOT NULL DEFAULT ''` column (migration in `ensure_daily_inventory_tables()`)
+- Backend PATCH API supports updating `supplier_name` via `update_daily_inv_item()`
+- **ItemMasterView (Manage Items)**: Supplier tab shows new "Supplier" column with click-to-edit vendor dropdown
+  - Vendors loaded from `GET /api/admin/ck/par-levels/vendors?city=...` (reuses CK vendor endpoint)
+  - Click "— assign —" → select vendor from dropdown → ✓ to save
+- **ReportDetailView (Report Detail)**: "Create Direct Purchase Orders (N suppliers)" button
+  - Appears when there are WARN/LOW supplier items with `supplier_name` assigned and TO ORDER > 0
+  - Groups items by supplier_name → one `POST /api/admin/procurement/direct-purchase` per vendor
+  - PIN modal shows order summary (items + qty per vendor)
+  - Unit prices set to 0 (update in Procurement before approving)
+  - Result shows request numbers + "Review →" link to Procurement Hub
+
+**Workflow:**
+1. Go to Daily Inventory → Manage Items → Supplier tab → assign vendors to items
+2. Store staff submit Daily Inventory report
+3. Manager opens report → if WARN/LOW supplier items exist with vendors → "Create Direct Purchase Orders" button appears
+4. Enter PIN → orders created in Procurement Hub as DRAFT → review and approve
 
 ---
 
