@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle, Bell, BellRing, CalendarDays, CheckCircle2,
+  AlertCircle, ArrowRightLeft, Bell, BellRing, CalendarDays, CheckCircle2,
   ClipboardList, Clock, FileText, Loader2, RefreshCw,
   Send, XCircle,
 } from "lucide-react";
@@ -348,6 +348,179 @@ function InboxTab({ city }: { city: string }) {
   );
 }
 
+// ── Swap Inbox Banner ─────────────────────────────────────────────────────────
+
+type PendingSwap = {
+  id: string;
+  requester_name: string;
+  work_date: string;
+  requester_new_time: string;
+  counterparty_new_time: string;
+  reason: string;
+  requested_at: string;
+};
+
+function SwapInboxBanner({ staffName }: { staffName: string }) {
+  const [swaps, setSwaps] = useState<PendingSwap[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Confirm modal state
+  const [confirming, setConfirming] = useState<{ id: string; action: "APPROVED" | "REJECTED" } | null>(null);
+  const [pin, setPin] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const load = useCallback(async () => {
+    if (!staffName) return;
+    setLoading(true);
+    try {
+      const r = await apiFetch(`/api/shift_change/counterparty/pending?staff_name=${encodeURIComponent(staffName)}`);
+      if (r.ok) {
+        const d = await r.json() as { items: PendingSwap[] };
+        setSwaps(d.items ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [staffName]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function respond(id: string, action: "APPROVED" | "REJECTED") {
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const q = new URLSearchParams({ req_id: id, staff_name: staffName, action, note, pin }).toString();
+      const r = await apiFetch(`/api/shift_change/counterparty/respond?${q}`, { method: "POST" });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({})) as { detail?: string };
+        throw new Error(d.detail ?? "Failed");
+      }
+      setConfirming(null);
+      setPin(""); setNote("");
+      setSwaps(prev => prev.filter(s => s.id !== id));
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (swaps.length === 0 && !loading) return null;
+
+  return (
+    <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ArrowRightLeft size={16} className="text-violet-400 shrink-0" />
+          <span className="text-sm font-semibold text-violet-300">
+            Swap Requests for You
+          </span>
+          {swaps.length > 0 && (
+            <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-bold text-white">
+              {swaps.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => void load()}
+            className="rounded-lg p-1.5 text-violet-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Refresh">
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button onClick={() => setCollapsed(v => !v)}
+            className="text-xs text-violet-400 hover:text-violet-200 transition-colors px-2 py-1">
+            {collapsed ? "Show" : "Hide"}
+          </button>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <div className="space-y-2">
+          {swaps.map(s => (
+            <div key={s.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white">{s.requester_name}</span>
+                    <span className={BADGE_INFO}>Swap request</span>
+                    <span className="text-xs text-zinc-400">{s.work_date}</span>
+                  </div>
+                  <div className="text-xs text-zinc-400 flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+                    {s.requester_new_time && <span>Their new shift: <span className="text-zinc-200">{s.requester_new_time}</span></span>}
+                    {s.counterparty_new_time && <span>Your new shift: <span className="text-violet-300 font-semibold">{s.counterparty_new_time}</span></span>}
+                  </div>
+                  {s.reason && <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{s.reason}&rdquo;</p>}
+                </div>
+                {confirming?.id !== s.id && (
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => { setConfirming({ id: s.id, action: "APPROVED" }); setPin(""); setNote(""); setSubmitError(""); }}
+                      className="flex items-center gap-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 transition">
+                      <CheckCircle2 size={12} /> Approve
+                    </button>
+                    <button
+                      onClick={() => { setConfirming({ id: s.id, action: "REJECTED" }); setPin(""); setNote(""); setSubmitError(""); }}
+                      className="flex items-center gap-1 rounded-lg bg-red-500/15 border border-red-500/25 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition">
+                      <XCircle size={12} /> Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Inline confirm form */}
+              {confirming?.id === s.id && (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-300">
+                    {confirming.action === "APPROVED" ? "✅ Confirm approval" : "❌ Confirm rejection"} — enter your PIN
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      placeholder="PIN"
+                      value={pin}
+                      onChange={e => setPin(e.target.value)}
+                      className="w-32 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500/50"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Note (optional)"
+                      value={note}
+                      onChange={e => setNote(e.target.value)}
+                      className="flex-1 min-w-[140px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500/50"
+                    />
+                  </div>
+                  {submitError && <p className="text-xs text-red-400">{submitError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      disabled={submitting || !pin.trim()}
+                      onClick={() => void respond(s.id, confirming.action)}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 transition ${
+                        confirming.action === "APPROVED"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                          : "bg-red-600 text-white hover:bg-red-500"
+                      }`}>
+                      {submitting ? <Loader2 size={12} className="animate-spin" /> : null}
+                      {confirming.action === "APPROVED" ? "Confirm Approve" : "Confirm Reject"}
+                    </button>
+                    <button onClick={() => { setConfirming(null); setPin(""); setNote(""); setSubmitError(""); }}
+                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function RequestPage() {
@@ -563,6 +736,9 @@ export default function RequestPage() {
             </div>
           )}
         </div>
+
+        {/* ── Swap Inbox Banner ────────────────────────────────────────── */}
+        {staffName && <SwapInboxBanner staffName={staffName} />}
 
         {/* ── Tab bar ─────────────────────────────────────────────────── */}
         <div className={TAB_CONTAINER}>
