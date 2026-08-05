@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (session — NTE Approver feature deployed: approved_by column in staff_nte_records, Approved By input in Issue Notice form (required), Approved By column in Case History table, auto-populated from reviewed_by on request-based issuance; backend Heroku v1756, frontend Vercel ed3859a ✅; also: Payroll/Staff sync bugs fixed ✅; Google Drive invoice folder access fixed ✅)
+Last updated: 2026-08-05 (session — Dubai penalty auto-calc + night premium engine deployed Heroku v1757, Vercel 2ffc9d0 ✅; Expense→Payroll auto-link deployed ✅; NTE Approver TS type fix ✅)
 
 ---
 
