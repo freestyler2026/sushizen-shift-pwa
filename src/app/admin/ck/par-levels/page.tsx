@@ -173,7 +173,8 @@ export default function CkParLevelsPage() {
 
       // Group items by supplier where TO ORDER > 0
       const toOrder = rows.filter((r) => {
-        if (!r.supplier || r.par_level == null || r.current_stock == null) return false;
+        const sup = (r.supplier || "").trim();
+        if (!sup || sup === "—" || sup === "-" || r.par_level == null || r.current_stock == null) return false;
         return Math.max(0, r.par_level - r.current_stock) > 0;
       });
 
@@ -245,7 +246,8 @@ export default function CkParLevelsPage() {
   const orderGroups = (() => {
     const toOrder = rows.filter((r) => {
       if (tab !== "supplier") return false;
-      if (!r.supplier || r.par_level == null || r.current_stock == null) return false;
+      const sup = (r.supplier || "").trim();
+      if (!sup || sup === "—" || sup === "-" || r.par_level == null || r.current_stock == null) return false;
       return Math.max(0, r.par_level - r.current_stock) > 0;
     });
     const bySupplier: Record<string, { items: ParLevelRow[]; totalItems: number }> = {};
