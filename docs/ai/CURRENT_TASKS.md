@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup-name modal E2E tested + 2 bugs fixed ✅; Cost Calc duplicate name 2-step confirmation ✅; Staff rename inline button ✅; Payroll Salary Config staff name → staff_master dropdown ✅)
+Last updated: 2026-08-05 (session — Request page enhancements: reason categories + 14-day warning + Discord DM notifications (Request Alerts tab) ✅; PO Match Drive Folder button verified ✅)
 
 ---
 
@@ -229,6 +229,46 @@ Last updated: 2026-08-04 (session — Kimchi 500 fix verified ✅; Cost Calc dup
   - Edit Template modal: textarea for acts_block_en, market selector (Both/AE/PH), Save button
   - Add New Violation modal: full form (code, category, title EN/JA, severity, input layer, SOP ref, scope, requires_hq_review, definition EN, legal ground refs AE+PH, acts_block template)
 - **Next after deploy**: Click "Reload Seed" on live app to load the 11 new categories into DB
+
+---
+
+## Recently Completed (2026-08-05 — Request page enhancements + Discord DM notifications)
+
+### Request page: reason categories + 14-day warning + Discord DM ✅ (Heroku 1aedaab + Vercel 291e45d)
+
+**New features:**
+
+**Reason Category selector (all request types):**
+- 7 predefined categories: Medical, School/Exam, Government errand, Family event, Religious observance, Work-related, Other
+- SelectDark dropdown appears above the Reason textarea in the Request form
+- `reason_category` sent in both API payloads: `payload_json` (shift_change path) + top-level JSON (notify/leave path)
+
+**14-day advance warning:**
+- Yellow amber banner appears below Work Date when submission is less than 14 days away
+- Warning only — no hard block. Text shows exact days remaining or "overdue"
+- Visible in browser: overdue banner confirmed ✅
+
+**Discord DM notifications:**
+- New `shift_request_dm_recipients` table (same structure as `shift_late_alert_recipients`)
+- `city` filter: NULL = all cities, "dubai" = Dubai only, "manila" = Manila only
+- `_bg_send_request_dm()` — background thread (non-blocking), fires on both submit paths
+- Message format: "📋 New Request — {type} | {staff} | {city} | Date: {work_date} | Category: {cat} | Reason: {reason} | Status: ⏳ Pending"
+- 3 REST endpoints: `GET/POST/DELETE /api/admin/request-notifications/recipients`
+
+**Request Alerts tab (OS Attendance page):**
+- New "📋 Request Alerts" tab added after "🔔 Late Alerts"
+- Manage DM recipients: Add (name + Discord ID + city filter), Remove (trash icon)
+- City options: All cities / Dubai only / Manila only
+
+**Files changed:**
+- `app/db.py`: 5 new functions (`ensure_request_notification_tables`, `list_request_dm_recipients`, `list_all_request_dm_recipients`, `add_request_dm_recipient`, `remove_request_dm_recipient`)
+- `app/main.py`: startup call, `_bg_send_request_dm()`, 3 endpoints, DM hooks in `submit_shift_change` + `submit_notification`
+- `src/app/request/page.tsx`: REASON_CATEGORIES, reasonCategory state, SelectDark dropdown, 14-day warning
+- `src/app/admin/os-attendance/page.tsx`: RequestAlertsTab component, REQUEST_NOTIF_API const, new tab + panel
+
+**Setup required (first time):**
+- Go to OS Attendance → "📋 Request Alerts" tab
+- Add Rafael (Discord ID from Late Alerts, city = Dubai) and Peter (Manila)
 
 ---
 
