@@ -553,6 +553,16 @@ export function canAccessMarketAnalysisAdmin(a?: Auth | null): boolean {
   return hasChannelAccess("admin.market_analysis", ["view"], x);
 }
 
+/** Store Opening Checklist — matches `admin.store_opening` channel in `app/access_control.py`.
+ *  HQ/ADMIN always have access. Other roles can be granted `channel.admin.store_opening.view`. */
+export function canAccessStoreOpeningAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  if (!x) return false;
+  const role = String(x.role || "").toUpperCase();
+  if (role === "HQ" || role === "ADMIN") return true;
+  return hasChannelAccess("admin.store_opening", ["view"], x);
+}
+
 /** Management P&L page — matches `admin.finance` channel in `app/access_control.py`.
  *  HQ always has access. Other roles can be granted `channel.admin.finance.view` via Role Management. */
 export function canAccessFinancePage(a?: Auth | null): boolean {

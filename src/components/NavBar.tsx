@@ -66,6 +66,7 @@ import {
   Clock,
   History,
   Laptop,
+  Building2,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -98,6 +99,7 @@ import {
   canAccessMealAllowanceAdmin,
   canAccessProbationAdmin,
   canAccessMarketAnalysisAdmin,
+  canAccessStoreOpeningAdmin,
   canAccessHrClearanceAdmin,
   canAccessAttendancePage,
   canAccessWeekPage,
@@ -229,6 +231,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },
+  { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" },
   { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
 
@@ -327,6 +330,7 @@ export default function NavBar() {
   const [nteCasesBadge, setNteCasesBadge] = useState(0);
   const [supplierBadge, setSupplierBadge] = useState(0);
   const [absenceStaleBadge, setAbsenceStaleBadge] = useState(false);
+  const [storeOpeningBadge, setStoreOpeningBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -385,6 +389,7 @@ export default function NavBar() {
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
     if (href === "/admin/market-analysis") return canAccessMarketAnalysisAdmin(auth);
+    if (href === "/admin/store-opening") return canAccessStoreOpeningAdmin(auth);
     return false;
   }
 
@@ -909,6 +914,32 @@ export default function NavBar() {
     };
   }, []);
 
+  // Store Opening overdue badge — poll every 15 min
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStoreOpeningBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken || !canAccessStoreOpeningAdmin(auth)) {
+          if (!cancelled) setStoreOpeningBadge(0);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/admin/store-opening/badge`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setStoreOpeningBadge(Number(data?.badge_count ?? 0));
+      } catch { /* non-critical */ }
+    };
+    void fetchStoreOpeningBadge();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchStoreOpeningBadge();
+    }, 15 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   const staffItems = useMemo(() => {
     return [...PRIMARY, ...SECONDARY_BASE]
       .filter((item) => {
@@ -988,9 +1019,11 @@ export default function NavBar() {
             ? { ...item, badgeCount: supplierBadge, badgeYellow: supplierBadge > 0 }
           : item.href === "/admin/absences"
             ? { ...item, badgeWarning: absenceStaleBadge }
+          : item.href === "/admin/store-opening"
+            ? { ...item, badgeCount: storeOpeningBadge, badgeYellow: storeOpeningBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
