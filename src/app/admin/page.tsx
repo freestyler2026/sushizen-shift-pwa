@@ -819,13 +819,16 @@ function AdminPageInner() {
   };
 
   useEffect(() => {
-    const run = async () => {
-      const nm = approverName.trim();
-      const p = pin.trim();
-      if (!nm || !p) {
-        setMyRole("");
-        return;
-      }
+    const nm = approverName.trim();
+    const p = pin.trim();
+    if (!nm || !p) {
+      setMyRole("");
+      return;
+    }
+    // Debounce: wait 400 ms after the last change before calling the API.
+    // Firing on every keystroke collapses/expands the Export section (1400+ px shift)
+    // while the user is typing, making the PIN/Note inputs jump and appear unresponsive.
+    const timer = setTimeout(async () => {
       try {
         const r = await apiPost<AuthVerifyResp>(`/api/auth/verify${qs({ staff_name: nm, pin: p })}`);
         if (r?.ok) setMyRole(r.role || "");
@@ -833,8 +836,8 @@ function AdminPageInner() {
       } catch {
         setMyRole("");
       }
-    };
-    run();
+    }, 400);
+    return () => clearTimeout(timer);
   }, [approverName, pin]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (Daily Inventory supplier assignment + Direct Purchase auto-create deployed) (session — Dubai payroll engine full test suite completed; Payroll Adjustments hydration bug fixed; Expense→Payroll auto-link verified end-to-end)
+Last updated: 2026-08-05 (fix: debounce verify API in Request Check — PIN typing caused Export section (1400+px) to collapse/expand on each keystroke, making form inputs appear unresponsive)
 
 ---
 
@@ -234,7 +234,7 @@ Last updated: 2026-08-05 (Daily Inventory supplier assignment + Direct Purchase 
 
 ## Recently Completed (2026-08-05 — Daily Inventory Supplier Assignment + Direct Purchase Auto-Create)
 
-### Daily Inventory: Supplier name per item + Create Direct Purchase Orders ✅ (Heroku v1760 + Vercel ae6d1b2)
+### Daily Inventory: Supplier name per item + Create Direct Purchase Orders ✅ (Heroku v1760 + Vercel ae6d1b2 → b3898df)
 
 **Features deployed:**
 - `daily_inv_report_items` table: `supplier_name TEXT NOT NULL DEFAULT ''` column (migration in `ensure_daily_inventory_tables()`)
@@ -254,6 +254,17 @@ Last updated: 2026-08-05 (Daily Inventory supplier assignment + Direct Purchase 
 2. Store staff submit Daily Inventory report
 3. Manager opens report → if WARN/LOW supplier items exist with vendors → "Create Direct Purchase Orders" button appears
 4. Enter PIN → orders created in Procurement Hub as DRAFT → review and approve
+
+**Bug fixed (commit b3898df — E2E test session 2026-08-05):**
+- **Stale `allItems` in ReportDetailView**: `allItems` was only loaded when `view === "form"` (items-load useEffect). When user opened History (view="detail") without visiting the form first, the `allItems` had stale/empty `supplier_name` fields → DP button never appeared.
+- **Fix**: Added a second `useEffect` in `AdminDailyInventoryTab.tsx` that fetches fresh supplier items (`source_type=supplier&active_only=false`) whenever `view === "detail" && selectedDetail` is set. Merges via item_code Map to avoid duplicates.
+- **File**: `src/components/admin/AdminDailyInventoryTab.tsx` (after line 1803)
+
+**Test orders created in production (2026-08-05 — verify/clean up):**
+- MAN-PR-202608-0097 (Fresh Produce PH: Avocado 2.72 KG, Baguio Beans qty TBD) — unit price PHP 0.00
+- MAN-PR-202608-0096 (Ocean Fisheries LLC: Fresh Salmon Fillet 17.9 KG, Tuna Loin qty TBD) — unit price PHP 0.00
+- Both created as "Needs Review" in Procurement Hub for PARANAQUE branch, 2026-08-05
+- Unit prices must be updated before approving, or delete these test orders if not needed
 
 ---
 
