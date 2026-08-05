@@ -72,6 +72,7 @@ type NteRecord = {
   case_type: CaseType;
   explanation_text: string | null;
   explanation_submitted_at: string | null;
+  approved_by: string;
   created_at: string;
 };
 
@@ -2220,6 +2221,8 @@ export default function EmployeeCasesPage() {
                 setIssueStaffName("");
                 setIssueDate(todayStr());
                 setIssueReason("");
+                setIssueIssuedBy("");
+                setIssueApprovedBy("");
                 setIssueUseTemplate(false);
                 setIssueTemplateId("");
               }}

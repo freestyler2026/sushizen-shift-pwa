@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  AlertCircle, ArrowRight, ClipboardList, Database,
-  Loader2, RefreshCw, Users,
+  AlertCircle, Calculator, CheckCircle2, ClipboardList, Database,
+  Loader2, RefreshCw, Users, Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,8 @@ import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 
-const API = "/api/admin/dubai-payroll";
+const API      = "/api/admin/dubai-payroll";
+const PAY_API  = "/api/admin/payroll";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const auth = getAuth();
@@ -32,6 +33,31 @@ type Period = {
   status: string;
 };
 
+type PayrollCycle = {
+  id: number;
+  city: string;
+  year: number;
+  month: number;
+  status: string;
+  closed_at: string | null;
+  created_at: string;
+};
+
+type CalcResult = {
+  ok: boolean;
+  adjustments_inserted: number;
+  staff_processed: number;
+  night_premium_count: number;
+  late_deduction_count: number;
+  late_surcharge_count: number;
+  absent_deduction_count: number;
+  undertime_deduction_count: number;
+  missing_punch_count: number;
+  break_excess_count: number;
+  monthly_late_penalty_count: number;
+  message?: string;
+};
+
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default function DubaiPayrollPage() {
@@ -43,18 +69,26 @@ export default function DubaiPayrollPage() {
     if (!auth || (role !== "ADMIN" && role !== "HQ")) router.replace("/week");
   }, [router]);
 
-  const [periods, setPeriods]               = useState<Period[]>([]);
-  const [loading, setLoading]               = useState(true);
-  const [err, setErr]                       = useState("");
-  const [creating, setCreating]             = useState(false);
+  const [periods, setPeriods]     = useState<Period[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [err, setErr]             = useState("");
+  const [creating, setCreating]   = useState(false);
 
   // New period form
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const [newStart, setNewStart]             = useState(todayStr);
-  const [newEnd, setNewEnd]                 = useState(todayStr);
-  const [newLabel, setNewLabel]             = useState("");
-  const [showCreate, setShowCreate]         = useState(false);
+  const [newStart, setNewStart]   = useState(todayStr);
+  const [newEnd, setNewEnd]       = useState(todayStr);
+  const [newLabel, setNewLabel]   = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Payroll cycles state
+  const [cycles, setCycles]           = useState<PayrollCycle[]>([]);
+  const [cyclesLoading, setCyclesLoading] = useState(true);
+  const [cycleErr, setCycleErr]       = useState("");
+  const [calcLoading, setCalcLoading] = useState<number | null>(null);
+  const [calcResults, setCalcResults] = useState<Record<number, CalcResult>>({});
+  const [creatingCycle, setCreatingCycle] = useState(false);
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setErr("");
@@ -67,7 +101,18 @@ export default function DubaiPayrollPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void loadPeriods(); }, [loadPeriods]);
+  const loadCycles = useCallback(async () => {
+    setCyclesLoading(true); setCycleErr("");
+    try {
+      const r = await apiFetch(`${PAY_API}/cycles?city=dubai`);
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json() as { cycles: PayrollCycle[] };
+      setCycles(d.cycles ?? []);
+    } catch (e) { setCycleErr(String(e)); }
+    finally { setCyclesLoading(false); }
+  }, []);
+
+  useEffect(() => { void loadPeriods(); void loadCycles(); }, [loadPeriods, loadCycles]);
 
   async function handleCreate() {
     if (!newStart || !newEnd) { setErr("Please select both start and end dates"); return; }
@@ -95,10 +140,40 @@ export default function DubaiPayrollPage() {
     finally { setCreating(false); }
   }
 
-  const statusColor = (s: string) =>
+  async function handleGetOrCreateCycle() {
+    setCreatingCycle(true); setCycleErr("");
+    try {
+      const r = await apiFetch(
+        `${PAY_API}/cycles?city=dubai&year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
+        { method: "POST" },
+      );
+      if (!r.ok) throw new Error(await r.text());
+      await loadCycles();
+    } catch (e) { setCycleErr(String(e)); }
+    finally { setCreatingCycle(false); }
+  }
+
+  async function handleAutoCalculate(cycle: PayrollCycle) {
+    setCalcLoading(cycle.id); setCycleErr("");
+    try {
+      const r = await apiFetch(`${API}/auto-adjustments`, {
+        method: "POST",
+        body: JSON.stringify({ cycle_id: cycle.id, year: cycle.year, month: cycle.month }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as CalcResult;
+      setCalcResults(prev => ({ ...prev, [cycle.id]: data }));
+    } catch (e) { setCycleErr(String(e)); }
+    finally { setCalcLoading(null); }
+  }
+
+  const periodStatusColor = (s: string) =>
     s === "paid"     ? "bg-emerald-900/30 text-emerald-300" :
     s === "approved" ? "bg-blue-900/30 text-blue-300" :
     "bg-zinc-800 text-zinc-400";
+
+  const cycleStatusColor = (s: string) =>
+    s === "closed" ? "bg-zinc-700/50 text-zinc-400" : "bg-sky-900/30 text-sky-300";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
@@ -108,16 +183,15 @@ export default function DubaiPayrollPage() {
         <div className="flex items-center justify-between">
           <div>
             <Link href="/admin/payroll" className="text-sm text-slate-400 hover:text-slate-200">
-              ← Payroll
+              &larr; Payroll
             </Link>
             <h1 className="mt-2 text-3xl font-light tracking-tight text-white flex items-center gap-3">
               <span className="text-2xl">🇦🇪</span>
               Dubai Payroll
             </h1>
-            <p className="mt-1 text-sm text-slate-400">Manage Dubai staff attendance and payroll periods</p>
+            <p className="mt-1 text-sm text-slate-400">Manage Dubai staff attendance, penalties, and payroll cycles</p>
           </div>
 
-          {/* Quick links */}
           <div className="flex flex-col gap-2">
             <Link href="/admin/payroll/dubai/dtr-upload"
               className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}>
@@ -165,14 +239,14 @@ export default function DubaiPayrollPage() {
                 {creating ? "Creating…" : "Create"}
               </button>
             </div>
-            <p className="text-xs text-slate-500">Label is auto-generated from dates if left blank (e.g. &ldquo;Jul 2026 (01 – 31)&rdquo;).</p>
+            <p className="text-xs text-slate-500">Label is auto-generated from dates if left blank.</p>
           </div>
         )}
 
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Link href="/admin/payroll/dubai/dtr-upload"
-            className={GLASS_CARD + " p-4 hover:border-sky-500/40 transition-colors group"}>
+            className={GLASS_CARD + " p-4 hover:border-sky-500/40 transition-colors"}>
             <ClipboardList size={20} className="text-sky-400 mb-2" />
             <div className="text-sm font-medium text-white">DTR Sync</div>
             <div className="text-xs text-slate-400">Sync from OS Attendance or upload CSV</div>
@@ -182,19 +256,123 @@ export default function DubaiPayrollPage() {
             <div className="text-sm font-medium text-white">Staff Profiles</div>
             <div className="text-xs text-slate-400">Coming soon</div>
           </div>
-          <div className={GLASS_CARD + " p-4 opacity-50"}>
-            <ArrowRight size={20} className="text-emerald-400 mb-2" />
+          <div className={GLASS_CARD + " p-4"}>
+            <Calculator size={20} className="text-emerald-400 mb-2" />
             <div className="text-sm font-medium text-white">Payroll Compute</div>
-            <div className="text-xs text-slate-400">Coming soon</div>
+            <div className="text-xs text-slate-400">Auto-calculate penalties &amp; night premium below</div>
           </div>
         </div>
 
-        {/* Periods list */}
+        {/* Payroll Cycles */}
+        <div className={GLASS_CARD + " overflow-hidden"}>
+          <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Zap size={15} className="text-emerald-400" />
+                Payroll Cycles &amp; Auto-Calculate
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Auto-calculates night premium (22:00–04:00 +10%), late deductions, absent, undertime, missing punch, and break excess from attendance data.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={loadCycles} className="text-slate-400 hover:text-white transition-colors">
+                <RefreshCw size={14} className={cyclesLoading ? "animate-spin" : ""} />
+              </button>
+              <button
+                onClick={handleGetOrCreateCycle}
+                disabled={creatingCycle}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-900/20 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-40 transition-colors"
+              >
+                {creatingCycle ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+                {creatingCycle ? "Creating…" : "Get / Create Cycle"}
+              </button>
+            </div>
+          </div>
+
+          {cycleErr && (
+            <div className="mx-5 mt-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+              <AlertCircle size={13} /> {cycleErr}
+            </div>
+          )}
+
+          {cyclesLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+            </div>
+          ) : cycles.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-500">
+              No payroll cycles yet. Click &ldquo;Get / Create Cycle&rdquo; to create the current month&rsquo;s cycle.
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {cycles.map(c => {
+                const res = calcResults[c.id];
+                const isCalcing = calcLoading === c.id;
+                return (
+                  <div key={c.id} className="px-5 py-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-white">
+                          {MONTHS[c.month - 1]} {c.year}
+                        </span>
+                        <span className={`ml-3 rounded-full px-2 py-0.5 text-xs font-medium ${cycleStatusColor(c.status)}`}>
+                          {c.status}
+                        </span>
+                        <span className="ml-2 text-xs text-slate-500">ID #{c.id}</span>
+                      </div>
+                      <button
+                        onClick={() => handleAutoCalculate(c)}
+                        disabled={isCalcing || c.status === "closed"}
+                        className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
+                        title={c.status === "closed" ? "Cycle is closed" : "Recalculate all attendance-based adjustments for this cycle"}
+                      >
+                        {isCalcing
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <Calculator size={12} />}
+                        {isCalcing ? "Calculating…" : "Auto-Calculate"}
+                      </button>
+                    </div>
+
+                    {/* Calculation result */}
+                    {res && (
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 size={13} className="text-emerald-400" />
+                          <span className="text-xs font-semibold text-emerald-300">
+                            {res.message ?? `${res.adjustments_inserted} adjustments inserted for ${res.staff_processed} staff`}
+                          </span>
+                        </div>
+                        {res.adjustments_inserted > 0 && (
+                          <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-xs text-slate-400">
+                            <span>Night premium: <span className="text-emerald-300">{res.night_premium_count}</span></span>
+                            <span>Late deductions: <span className="text-amber-300">{res.late_deduction_count}</span></span>
+                            <span>Late surcharge: <span className="text-amber-300">{res.late_surcharge_count}</span></span>
+                            <span>Absent: <span className="text-red-300">{res.absent_deduction_count}</span></span>
+                            <span>Undertime: <span className="text-red-300">{res.undertime_deduction_count}</span></span>
+                            <span>Missing punch: <span className="text-red-300">{res.missing_punch_count}</span></span>
+                            <span>Break excess: <span className="text-red-300">{res.break_excess_count}</span></span>
+                            <span>Monthly late penalty: <span className="text-orange-300">{res.monthly_late_penalty_count}</span></span>
+                          </div>
+                        )}
+                        <p className="mt-2 text-xs text-slate-500">
+                          Previous auto-calculated adjustments for this cycle were replaced. View in Payroll &gt; Adjustments.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Attendance Periods list */}
         <div className={GLASS_CARD + " overflow-hidden"}>
           <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Database size={15} className="text-sky-400" />
-              Payroll Periods
+              Attendance Periods
             </h2>
             <button onClick={loadPeriods} className="text-slate-400 hover:text-white transition-colors">
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -207,7 +385,7 @@ export default function DubaiPayrollPage() {
             </div>
           ) : periods.length === 0 ? (
             <div className="py-12 text-center text-sm text-slate-500">
-              No periods yet — create the first one above.
+              No periods yet &mdash; create the first one above.
             </div>
           ) : (
             <div className="divide-y divide-white/5">
@@ -215,15 +393,15 @@ export default function DubaiPayrollPage() {
                 <div key={p.id} className="flex items-center justify-between px-5 py-3 hover:bg-white/3 transition-colors">
                   <div>
                     <span className="text-sm font-medium text-white">{p.period_label}</span>
-                    <span className="ml-3 text-xs text-slate-400 font-mono">{p.start_date} – {p.end_date}</span>
+                    <span className="ml-3 text-xs text-slate-400 font-mono">{p.start_date} &ndash; {p.end_date}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(p.status)}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${periodStatusColor(p.status)}`}>
                       {p.status}
                     </span>
                     <Link href={`/admin/payroll/dubai/dtr-upload?period_id=${p.id}`}
                       className="text-xs text-sky-400 hover:text-sky-200 transition-colors">
-                      DTR →
+                      DTR &rarr;
                     </Link>
                   </div>
                 </div>
