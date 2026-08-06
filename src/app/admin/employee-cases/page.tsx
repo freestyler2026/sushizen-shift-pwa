@@ -601,6 +601,8 @@ export default function EmployeeCasesPage() {
   // Catalog tab — category filter + collapsed sections
   const [catalogCategoryFilter, setCatalogCategoryFilter] = useState("");
   const [catalogCollapsedCats, setCatalogCollapsedCats] = useState<Set<string>>(new Set());
+  // IR detail modal (Recent Incident Reports row click)
+  const [irDetailModal, setIrDetailModal] = useState<IrRecord | null>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addItemForm, setAddItemForm] = useState({
     code: "", category_code: "", title_en: "", title_ja: "",
@@ -1344,12 +1346,26 @@ export default function EmployeeCasesPage() {
     }
   }
 
-  function openEditTemplate(entry: CatalogEntry) {
+  async function openEditTemplate(entry: CatalogEntry) {
     setEditTemplateCode(entry.code);
     setEditTemplateMarket((catalogMarket as "AE" | "PH" | "BOTH") || "BOTH");
-    const text = entry.acts_block_en ?? "";
-    setEditTemplateText(text);
-    setEditTemplateOpen(true);
+    if (entry.acts_block_en) {
+      setEditTemplateText(entry.acts_block_en);
+      setEditTemplateOpen(true);
+    } else {
+      // Market=All → acts_block_en is NULL from API; fetch raw from PH market
+      setEditTemplateText("");
+      setEditTemplateOpen(true);
+      try {
+        const res = await fetch(`/api/admin/nte-v2/catalog/${entry.code}/render?market=PH`, {
+          headers: authHeaders() as Record<string, string>,
+        });
+        if (res.ok) {
+          const data = await res.json() as { raw?: string };
+          setEditTemplateText(data.raw ?? "");
+        }
+      } catch { /* silent */ }
+    }
   }
 
   async function saveEditTemplate() {
@@ -1784,7 +1800,7 @@ export default function EmployeeCasesPage() {
             { id: "pending",  label: `Pending${pendingIssuance > 0 ? ` (${pendingIssuance})` : ""}` },
             { id: "issue",    label: "Issue Notice" },
             { id: "history",  label: "Case History" },
-            ...(isHQ ? [{ id: "catalog" as PageTab, label: "Violation Catalog" }] : []),
+            ...(isHQ ? [{ id: "catalog" as PageTab, label: "Templates" }] : []),
             ...(isHR ? [{ id: "ir" as PageTab, label: "New IR" }] : []),
             ...(isHR ? [{ id: "cases" as PageTab, label: "Case Queue" }] : []),
           ] as { id: PageTab; label: string }[]
@@ -3178,6 +3194,7 @@ export default function EmployeeCasesPage() {
       {/* Tab: New IR (Incident Report)                                       */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       {tab === "ir" && (
+        <>
         <div className="space-y-4">
 
           {/* Feedback */}
@@ -3735,7 +3752,10 @@ export default function EmployeeCasesPage() {
                   </thead>
                   <tbody>
                     {irList.map((ir) => (
-                      <tr key={ir.id} className={TABLE_ROW}>
+                      <tr key={ir.id}
+                        className={`${TABLE_ROW} cursor-pointer hover:bg-zinc-700/40`}
+                        onClick={() => setIrDetailModal(ir)}
+                      >
                         <td className={`${TABLE_CELL} font-mono text-violet-400`}>{ir.ir_ref}</td>
                         <td className={TABLE_CELL}>{ir.staff_name}</td>
                         <td className={`${TABLE_CELL} text-center`}>{ir.market}</td>
@@ -3759,6 +3779,108 @@ export default function EmployeeCasesPage() {
             )}
           </div>
         </div>
+
+        {/* ── IR Detail Modal ── */}
+        {irDetailModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) setIrDetailModal(null); }}>
+            <div className={`${GLASS_CARD} w-full max-w-2xl p-6 max-h-[85vh] flex flex-col gap-4`}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-mono text-lg font-bold text-violet-400">{irDetailModal.ir_ref}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                      irDetailModal.status === "IR_SUBMITTED" ? "bg-emerald-900/60 text-emerald-300" :
+                      irDetailModal.status === "DRAFT" ? "bg-zinc-800 text-zinc-300" :
+                      "bg-amber-900/60 text-amber-300"
+                    }`}>{irDetailModal.status}</span>
+                    <span className="text-xs text-zinc-500">{irDetailModal.market} · {irDetailModal.input_layer}</span>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setIrDetailModal(null)} className="text-zinc-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+                {/* Core info */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Staff", value: irDetailModal.staff_name },
+                    { label: "Reported By", value: irDetailModal.reported_by || "—" },
+                    { label: "Incident Date", value: irDetailModal.incident_date },
+                    { label: "Incident Time", value: irDetailModal.incident_time ?? "—" },
+                    { label: "Location", value: irDetailModal.location_code ?? "—" },
+                    { label: "Violation Code", value: irDetailModal.proposed_code ?? "—" },
+                    { label: "Submitted At", value: irDetailModal.submitted_at ? irDetailModal.submitted_at.slice(0,16).replace("T"," ") : "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-zinc-800/40 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
+                      <p className="text-sm text-zinc-100">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Text fields */}
+                {[
+                  { label: "Observed Acts / Description", value: irDetailModal.observed_acts },
+                  { label: "Verbatim Quote", value: irDetailModal.verbatim_quote },
+                  { label: "Operational Impact", value: irDetailModal.operational_impact },
+                  { label: "Prior Instruction Given", value: irDetailModal.prior_instruction },
+                ].map(({ label, value }) => value ? (
+                  <div key={label}>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
+                    <div className="bg-zinc-800/40 rounded-lg px-3 py-2.5 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                      {value}
+                    </div>
+                  </div>
+                ) : null)}
+
+                {/* Witnesses */}
+                {(irDetailModal.witness_names ?? []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Witnesses</p>
+                    <p className="text-sm text-zinc-200">{irDetailModal.witness_names.join(", ")}</p>
+                  </div>
+                )}
+
+                {/* Prior NTE refs */}
+                {(irDetailModal.prior_nte_refs ?? []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Prior NTE References</p>
+                    <p className="text-sm font-mono text-violet-300">{irDetailModal.prior_nte_refs.join(", ")}</p>
+                  </div>
+                )}
+
+                {/* Evidence */}
+                {(irDetailModal.evidence ?? []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Evidence ({irDetailModal.evidence!.length})</p>
+                    <div className="space-y-1">
+                      {irDetailModal.evidence!.map((ev) => (
+                        <div key={ev.id} className="flex items-center gap-2 text-sm text-zinc-300">
+                          <span className="text-zinc-600">·</span>
+                          <span>{ev.evidence_type}</span>
+                          {ev.file_path && (
+                            <a href={ev.file_path} target="_blank" rel="noreferrer" className="text-violet-400 hover:underline text-xs ml-auto">
+                              View ↗
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-zinc-700">
+                <button type="button" onClick={() => setIrDetailModal(null)} className={SECONDARY_BUTTON}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* ── Tab: Case Queue (NTE v2 State Machine) ──────────────────────────── */}
