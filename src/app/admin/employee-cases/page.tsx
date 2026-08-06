@@ -590,6 +590,20 @@ export default function EmployeeCasesPage() {
   const [reviewPickerSearch, setReviewPickerSearch] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  // Offense history / penalty suggestion
+  type EscalationStep = { offense: number; penalty: string };
+  type PenaltySuggestion = {
+    same_code_count: number;
+    same_category_count: number;
+    current_offense_number: number;
+    proposed_penalty: string;
+    severity_class: string;
+    escalation_path: EscalationStep[];
+    prior_cases: { nte_ref: string; violation_code: string; status: string; created_at: string }[];
+  };
+  const [penaltySuggestion, setPenaltySuggestion] = useState<PenaltySuggestion | null>(null);
+  const [penaltyLoading, setPenaltyLoading] = useState(false);
+  const [penaltyOverridden, setPenaltyOverridden] = useState(false);
   // Case transition modal
   const [transitionTarget, setTransitionTarget] = useState<NteV2Case | null>(null);
   const [transitionAction, setTransitionAction] = useState("");
@@ -1203,11 +1217,39 @@ export default function EmployeeCasesPage() {
       setReviewNote("");
       setReviewViolationCode("");
       setReviewPenalty("");
+      setPenaltySuggestion(null);
+      setPenaltyOverridden(false);
       void loadCasesTab();
     } catch (e) {
       setReviewError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewSubmitting(false);
+    }
+  }
+
+  async function fetchPenaltySuggestion(
+    violationCode: string,
+    staffName: string,
+    market: string,
+  ) {
+    if (!violationCode || !staffName) return;
+    setPenaltyLoading(true);
+    setPenaltySuggestion(null);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/nte-v2/staff/${encodeURIComponent(staffName)}/offense-history?violation_code=${encodeURIComponent(violationCode)}&market=${market}`,
+        { headers: getAuthHeaders(auth) as Record<string, string> },
+      );
+      if (!res.ok) return;
+      const data = await res.json() as PenaltySuggestion;
+      setPenaltySuggestion(data);
+      if (!penaltyOverridden) {
+        setReviewPenalty(data.proposed_penalty);
+        setReviewOffenseCount(data.current_offense_number);
+      }
+    } catch { /* best-effort */ } finally {
+      setPenaltyLoading(false);
     }
   }
 
@@ -3556,6 +3598,8 @@ export default function EmployeeCasesPage() {
                               setReviewError("");
                               setReviewPickerOpen(false);
                               setReviewPickerSearch("");
+                              setPenaltySuggestion(null);
+                              setPenaltyOverridden(false);
                             }}
                           >
                             Review
@@ -3911,6 +3955,14 @@ export default function EmployeeCasesPage() {
                                     setReviewSeverity(entry.severity_class as "A"|"B"|"C"|"D");
                                     setReviewPickerOpen(false);
                                     setReviewPickerSearch("");
+                                    setPenaltyOverridden(false);
+                                    if (reviewTarget) {
+                                      void fetchPenaltySuggestion(
+                                        entry.code,
+                                        reviewTarget.staff_name,
+                                        reviewTarget.market,
+                                      );
+                                    }
                                   }}
                                   className={`w-full text-left px-3 py-2.5 hover:bg-white/5 flex items-start gap-3 transition-colors ${reviewViolationCode === entry.code ? "bg-violet-500/10" : ""}`}
                                 >
@@ -3936,7 +3988,7 @@ export default function EmployeeCasesPage() {
                       </div>
                       {reviewViolationCode && (
                         <div className="border-t border-white/10 px-3 py-2">
-                          <button type="button" onClick={() => { setReviewViolationCode(""); setReviewPickerOpen(false); setReviewPickerSearch(""); }} className="text-xs text-zinc-500 hover:text-zinc-300">Clear selection</button>
+                          <button type="button" onClick={() => { setReviewViolationCode(""); setReviewPickerOpen(false); setReviewPickerSearch(""); setPenaltySuggestion(null); setPenaltyOverridden(false); setReviewPenalty(""); setReviewOffenseCount(1); }} className="text-xs text-zinc-500 hover:text-zinc-300">Clear selection</button>
                         </div>
                       )}
                     </div>
@@ -3957,25 +4009,142 @@ export default function EmployeeCasesPage() {
                     ]}
                   />
                 </div>
-                <div>
-                  <label className={T_LABEL}>Proposed Penalty</label>
-                  <input
-                    className={`${INPUT_CLASS} mt-1`}
-                    value={reviewPenalty}
-                    onChange={(e) => setReviewPenalty(e.target.value)}
-                    placeholder="e.g. Written Warning"
-                  />
-                </div>
-                <div>
-                  <label className={T_LABEL}>Offense Count</label>
-                  <input
-                    type="number"
-                    min={1}
-                    className={`${INPUT_CLASS} mt-1`}
-                    value={reviewOffenseCount}
-                    onChange={(e) => setReviewOffenseCount(parseInt(e.target.value) || 1)}
-                  />
-                </div>
+
+                {/* ── Offense History + Progressive Penalty ─────────────── */}
+                {reviewViolationCode && (
+                  <div className="rounded-lg border border-white/10 bg-white/3 overflow-hidden">
+                    <div className="px-3 py-2 flex items-center justify-between border-b border-white/10 bg-white/5">
+                      <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wide">Progressive Penalty</span>
+                      {penaltyLoading && <span className="text-xs text-zinc-500 animate-pulse">Loading history…</span>}
+                      {penaltySuggestion && !penaltyLoading && (
+                        <span className="text-xs text-zinc-400">
+                          {penaltySuggestion.same_code_count} prior offense{penaltySuggestion.same_code_count !== 1 ? "s" : ""} for {reviewViolationCode}
+                          {penaltySuggestion.same_category_count > penaltySuggestion.same_code_count && (
+                            <span className="text-zinc-500"> ({penaltySuggestion.same_category_count} same category)</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+
+                    {penaltySuggestion && !penaltyLoading && (
+                      <div className="px-3 py-2.5 space-y-2.5">
+                        {/* Escalation path */}
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          {penaltySuggestion.escalation_path.map((step) => (
+                            <span
+                              key={step.offense}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                                step.offense === penaltySuggestion.current_offense_number
+                                  ? "bg-violet-600/30 border-violet-500/60 text-violet-200"
+                                  : step.offense < penaltySuggestion.current_offense_number
+                                  ? "bg-zinc-700/60 border-zinc-600/40 text-zinc-400 line-through"
+                                  : "bg-zinc-800/40 border-zinc-700/30 text-zinc-500"
+                              }`}
+                            >
+                              <span className="text-[9px] font-bold opacity-70">#{step.offense}</span>
+                              {step.penalty}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Prior cases list */}
+                        {penaltySuggestion.prior_cases.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-semibold">Prior Cases</p>
+                            {penaltySuggestion.prior_cases.map((pc) => (
+                              <div key={pc.nte_ref} className="flex items-center gap-2 text-xs text-zinc-400">
+                                <span className="font-mono text-violet-400">{pc.nte_ref}</span>
+                                <span className="text-zinc-500">·</span>
+                                <span>{pc.violation_code}</span>
+                                <span className="text-zinc-500">·</span>
+                                <span className="text-zinc-500">{pc.status}</span>
+                                <span className="text-zinc-500">·</span>
+                                <span className="text-zinc-600">{pc.created_at?.slice(0, 10)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Override toggle */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={penaltyOverridden}
+                            onChange={(e) => {
+                              setPenaltyOverridden(e.target.checked);
+                              if (!e.target.checked && penaltySuggestion) {
+                                setReviewPenalty(penaltySuggestion.proposed_penalty);
+                                setReviewOffenseCount(penaltySuggestion.current_offense_number);
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-xs text-zinc-400">Override suggestion</span>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Editable fields — always shown, locked unless overridden */}
+                    <div className="px-3 pb-3 space-y-2 border-t border-white/10 pt-2">
+                      <div>
+                        <label className={T_LABEL}>
+                          Proposed Penalty
+                          {penaltySuggestion && !penaltyOverridden && (
+                            <span className="ml-2 text-violet-400 text-[10px] font-normal">(auto-suggested)</span>
+                          )}
+                        </label>
+                        <input
+                          className={`${INPUT_CLASS} mt-1`}
+                          value={reviewPenalty}
+                          readOnly={!!penaltySuggestion && !penaltyOverridden}
+                          onChange={(e) => setReviewPenalty(e.target.value)}
+                          placeholder="e.g. Written Warning"
+                        />
+                      </div>
+                      <div>
+                        <label className={T_LABEL}>
+                          Offense Count
+                          {penaltySuggestion && !penaltyOverridden && (
+                            <span className="ml-2 text-violet-400 text-[10px] font-normal">(auto)</span>
+                          )}
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          className={`${INPUT_CLASS} mt-1`}
+                          value={reviewOffenseCount}
+                          readOnly={!!penaltySuggestion && !penaltyOverridden}
+                          onChange={(e) => setReviewOffenseCount(parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fallback fields when no code selected yet */}
+                {!reviewViolationCode && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className={T_LABEL}>Proposed Penalty</label>
+                      <input
+                        className={`${INPUT_CLASS} mt-1`}
+                        value={reviewPenalty}
+                        onChange={(e) => setReviewPenalty(e.target.value)}
+                        placeholder="e.g. Written Warning"
+                      />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>Offense Count</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className={`${INPUT_CLASS} mt-1`}
+                        value={reviewOffenseCount}
+                        onChange={(e) => setReviewOffenseCount(parseInt(e.target.value) || 1)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
