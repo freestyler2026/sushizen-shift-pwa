@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { clearAuth } from "@/lib/auth";
+import { clearProcurementSession } from "@/lib/procurementClient";
 
 export default function LogoutButton({ className = "" }: { className?: string }) {
   const router = useRouter();
@@ -9,6 +10,8 @@ export default function LogoutButton({ className = "" }: { className?: string })
   const logout = () => {
     // Clear auth
     clearAuth();
+    // Clear procurement session so stale sessionStorage PIN doesn't persist
+    clearProcurementSession();
 
     // Explicitly clear role
     try {

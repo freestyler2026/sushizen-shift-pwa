@@ -22,20 +22,37 @@ export function clearProcurementSession(): void {
 }
 
 export function defaultProcurementName(): string {
+  const authName = getAuth()?.staffName || "";
   try {
     if (typeof sessionStorage !== "undefined") {
-      const s = sessionStorage.getItem(_SK_NAME);
-      if (s) return s;
+      const sessionName = sessionStorage.getItem(_SK_NAME);
+      if (sessionName) {
+        // Only use the cached session name if it matches the current auth user.
+        const normalize = (n: string) => n.trim().toLowerCase();
+        if (!authName || normalize(sessionName) === normalize(authName)) {
+          return sessionName;
+        }
+      }
     }
   } catch {}
-  return getAuth()?.staffName || "";
+  return authName;
 }
 
 export function defaultProcurementPin(): string {
   try {
     if (typeof sessionStorage !== "undefined") {
-      const s = sessionStorage.getItem(_SK_PIN);
-      if (s) return s;
+      const sessionPin = sessionStorage.getItem(_SK_PIN);
+      if (sessionPin) {
+        // Only use the cached session PIN if it's for the same user currently logged in.
+        // A mismatch means a stale session from a previous login (e.g. after PIN change
+        // or user switch on the same tab), which would cause "Invalid PIN" on submit.
+        const sessionName = sessionStorage.getItem(_SK_NAME) || "";
+        const authName = getAuth()?.staffName || "";
+        const normalize = (n: string) => n.trim().toLowerCase();
+        if (!authName || normalize(sessionName) === normalize(authName)) {
+          return sessionPin;
+        }
+      }
     }
   } catch {}
   return getAuth()?.pin || "";
