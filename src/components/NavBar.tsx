@@ -171,6 +171,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
   { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
+  { href: "/store/receipt-log", label: "Receipt Log", icon: Receipt, match: "prefix" },
   { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" },
   { href: "/store/petty-cash", label: "Petty Cash", icon: Coins, match: "prefix" },
   { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" },

@@ -1,0 +1,503 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_LABEL,
+  T_CAPTION,
+} from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
+import {
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Loader2,
+  Plus,
+  Receipt,
+  Trash2,
+  X,
+} from "lucide-react";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MANILA_BRANCHES: Record<string, string> = {
+  PAR: "Paranaque",
+  CUB: "Cubao",
+  TAFT: "Taft",
+  CK: "Commissary Kitchen",
+};
+const DUBAI_BRANCHES: Record<string, string> = {
+  BB: "Business Bay",
+  JLT: "JLT",
+  ARJ: "Al Rigga / Jaddaf",
+  AM: "Al Mankhool",
+  AB: "Abu Baker",
+};
+
+const DEPARTMENTS = ["Kitchen", "Operations", "Admin", "Maintenance", "Logistics", "Other"];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ItemRow = { id: string; name: string; amount: string };
+type Entry = {
+  id: string;
+  branch_code: string;
+  department: string;
+  purchase_date: string;
+  supplier_name: string;
+  items: { name: string; amount: number }[];
+  total_amount: number;
+  receipt_url: string;
+  submitted_by: string;
+  notes: string;
+  created_at: string;
+};
+
+function newItem(): ItemRow {
+  return { id: Math.random().toString(36).slice(2), name: "", amount: "" };
+}
+
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function fmtAmt(n: number) {
+  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function ReceiptLogPage() {
+  const [auth, setAuth] = useState(() => getAuth());
+
+  useEffect(() => {
+    refreshAuthFromApi(getAuth()).then((r) => setAuth(r || getAuth()));
+  }, []);
+
+  if (!auth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-zinc-400">Please log in to continue.</p>
+      </div>
+    );
+  }
+
+  return <ReceiptLogApp auth={auth} />;
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>> }) {
+  const city = auth.city ?? "manila";
+  const branches = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
+  const branchKeys = Object.keys(branches);
+
+  // ── Form state ──
+  const [branch, setBranch]     = useState(branchKeys[0]);
+  const [dept, setDept]         = useState(DEPARTMENTS[0]);
+  const [date, setDate]         = useState(todayLocal);
+  const [supplier, setSupplier] = useState("");
+  const [items, setItems]       = useState<ItemRow[]>([newItem()]);
+  const [notes, setNotes]       = useState("");
+  const [receiptUrl, setReceiptUrl] = useState("");
+
+  // ── Upload state ──
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+
+  // ── Submit state ──
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errMsg, setErrMsg]         = useState("");
+
+  // ── Recent submissions ──
+  const [entries, setEntries]       = useState<Entry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [expanded, setExpanded]     = useState<string | null>(null);
+
+  const total = items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0);
+
+  // Load recent submissions
+  const loadEntries = useCallback(async () => {
+    setLoadingEntries(true);
+    try {
+      const res = await fetch(`/api/store/receipt-log/my?city=${city}&limit=20`, {
+        headers: getAuthHeaders(auth),
+      });
+      const data = await res.json();
+      if (data.ok) setEntries(data.entries);
+    } finally {
+      setLoadingEntries(false);
+    }
+  }, [auth, city]);
+
+  useEffect(() => { loadEntries(); }, [loadEntries]);
+
+  // ── Upload receipt photo ──
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("branch_code", branch);
+      const res = await fetch("/api/store/receipt-log/upload", {
+        method: "POST",
+        headers: getUploadHeaders(auth),
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.detail || "Upload failed");
+      setReceiptUrl(data.receipt_url);
+    } catch (err: unknown) {
+      setUploadErr(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  // ── Item row helpers ──
+  const updateItem = (id: string, field: "name" | "amount", val: string) =>
+    setItems((prev) => prev.map((it) => it.id === id ? { ...it, [field]: val } : it));
+
+  const removeItem = (id: string) =>
+    setItems((prev) => prev.length > 1 ? prev.filter((it) => it.id !== id) : prev);
+
+  // ── Submit ──
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrMsg("");
+    setSuccessMsg("");
+
+    if (!supplier.trim()) { setErrMsg("Supplier / store name is required."); return; }
+    if (total <= 0) { setErrMsg("At least one item with an amount is required."); return; }
+
+    const payload = {
+      city,
+      branch_code: branch,
+      department: dept,
+      purchase_date: date,
+      supplier_name: supplier.trim(),
+      items: items
+        .filter((it) => it.name.trim() && parseFloat(it.amount) > 0)
+        .map((it) => ({ name: it.name.trim(), amount: parseFloat(it.amount) })),
+      total_amount: total,
+      receipt_url: receiptUrl,
+      notes: notes.trim(),
+    };
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/store/receipt-log", {
+        method: "POST",
+        headers: getAuthHeaders(auth),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.detail || "Submission failed");
+
+      setSuccessMsg(`Submitted! ₱${fmtAmt(total)} at ${supplier.trim()}`);
+      // Reset form
+      setSupplier("");
+      setItems([newItem()]);
+      setNotes("");
+      setReceiptUrl("");
+      setDate(todayLocal());
+      loadEntries();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : "Submission failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+
+      {/* Header */}
+      <div>
+        <h1 className={T_PAGE_TITLE}>Receipt Log</h1>
+        <p className="text-sm text-zinc-400 mt-1">
+          Upload a receipt and record cash/market purchases for expense tracking.
+        </p>
+      </div>
+
+      {/* ── Form ── */}
+      <form onSubmit={handleSubmit} className={`${GLASS_CARD} space-y-5`}>
+
+        {/* Receipt photo upload */}
+        <div>
+          <p className={`${T_LABEL} mb-2`}>Receipt Photo</p>
+          {receiptUrl ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-900/30 border border-emerald-700/40">
+              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-emerald-300 underline truncate flex-1"
+              >
+                Receipt uploaded
+              </a>
+              <ExternalLink size={14} className="text-emerald-400 shrink-0" />
+              <button
+                type="button"
+                onClick={() => setReceiptUrl("")}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-xl border-2 border-dashed border-zinc-600 hover:border-violet-500 hover:bg-violet-900/10 transition-colors disabled:opacity-50"
+            >
+              {uploading ? (
+                <Loader2 size={28} className="text-violet-400 animate-spin" />
+              ) : (
+                <Camera size={28} className="text-zinc-400" />
+              )}
+              <span className="text-sm text-zinc-400">
+                {uploading ? "Uploading…" : "Tap to upload receipt photo"}
+              </span>
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleUpload}
+          />
+          {uploadErr && <p className="text-xs text-red-400 mt-1">{uploadErr}</p>}
+        </div>
+
+        {/* Branch + Department */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>Branch / Store</label>
+            <SelectDark
+              value={branch}
+              onChange={(v) => setBranch(v)}
+              options={branchKeys.map((k) => ({ value: k, label: `${k} — ${branches[k]}` }))}
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>Department</label>
+            <SelectDark
+              value={dept}
+              onChange={(v) => setDept(v)}
+              options={DEPARTMENTS.map((d) => ({ value: d, label: d }))}
+            />
+          </div>
+        </div>
+
+        {/* Date + Supplier */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>Purchase Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={INPUT_CLASS}
+              required
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1`}>Supplier / Store</label>
+            <input
+              type="text"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="e.g. SM Supermarket"
+              className={INPUT_CLASS}
+              required
+            />
+          </div>
+        </div>
+
+        {/* Items */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className={T_LABEL}>Items</p>
+            <span className={`${T_CAPTION} text-zinc-500`}>item name + amount</span>
+          </div>
+          <div className="space-y-2">
+            {items.map((it) => (
+              <div key={it.id} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={it.name}
+                  onChange={(e) => updateItem(it.id, "name", e.target.value)}
+                  placeholder="Item name"
+                  className={`${INPUT_CLASS} flex-1`}
+                />
+                <input
+                  type="number"
+                  value={it.amount}
+                  onChange={(e) => updateItem(it.id, "amount", e.target.value)}
+                  placeholder="₱ 0"
+                  min="0"
+                  step="0.01"
+                  className={`${INPUT_CLASS} w-28 text-right`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeItem(it.id)}
+                  className="text-zinc-600 hover:text-red-400 shrink-0"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setItems((prev) => [...prev, newItem()])}
+            className={`${SECONDARY_BUTTON} mt-2 text-sm`}
+          >
+            <Plus size={14} /> Add Item
+          </button>
+        </div>
+
+        {/* Total */}
+        <div className="flex justify-between items-center py-2 border-t border-zinc-700/50">
+          <span className="text-sm font-semibold text-zinc-300">Total</span>
+          <span className="text-lg font-bold text-white">₱ {fmtAmt(total)}</span>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className={`${T_LABEL} block mb-1`}>Notes <span className="text-zinc-500 font-normal">(optional)</span></label>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. For monthly maintenance supplies"
+            className={INPUT_CLASS}
+          />
+        </div>
+
+        {/* Feedback */}
+        {errMsg && (
+          <div className="text-sm text-red-400 bg-red-900/20 rounded-lg px-3 py-2">
+            {errMsg}
+          </div>
+        )}
+        {successMsg && (
+          <div className="text-sm text-emerald-300 bg-emerald-900/20 rounded-lg px-3 py-2 flex items-center gap-2">
+            <CheckCircle2 size={15} /> {successMsg}
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={submitting || total <= 0}
+          className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
+        >
+          {submitting ? (
+            <><Loader2 size={16} className="animate-spin" /> Submitting…</>
+          ) : (
+            <><Receipt size={16} /> Submit Receipt</>
+          )}
+        </button>
+      </form>
+
+      {/* ── Recent submissions ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className={T_SECTION}>My Recent Submissions</h2>
+          <button
+            onClick={loadEntries}
+            className="text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {loadingEntries ? (
+          <div className="flex justify-center py-6">
+            <Loader2 size={20} className="animate-spin text-zinc-500" />
+          </div>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-zinc-500 text-center py-6">No submissions yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {entries.map((e) => (
+              <div key={e.id} className={GLASS_CARD}>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(expanded === e.id ? null : e.id)}
+                  className="w-full flex items-center justify-between text-left"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold text-white">{e.supplier_name}</span>
+                    <span className={`${T_CAPTION} text-zinc-500`}>
+                      {fmtDate(e.purchase_date)} · {e.branch_code} · {e.department}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-bold text-emerald-300">₱ {fmtAmt(e.total_amount)}</span>
+                    {expanded === e.id ? <ChevronUp size={14} className="text-zinc-400" /> : <ChevronDown size={14} className="text-zinc-400" />}
+                  </div>
+                </button>
+
+                {expanded === e.id && (
+                  <div className="mt-3 pt-3 border-t border-zinc-700/50 space-y-2">
+                    {e.items.map((it, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-zinc-300">{it.name}</span>
+                        <span className="text-zinc-400">₱ {fmtAmt(it.amount)}</span>
+                      </div>
+                    ))}
+                    {e.notes && (
+                      <p className="text-xs text-zinc-500 mt-1 italic">{e.notes}</p>
+                    )}
+                    {e.receipt_url && (
+                      <a
+                        href={e.receipt_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-violet-400 underline mt-1"
+                      >
+                        <ExternalLink size={11} /> View receipt
+                      </a>
+                    )}
+                    {!e.receipt_url && (
+                      <p className="text-xs text-zinc-600">No receipt photo</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
