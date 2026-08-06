@@ -586,6 +586,8 @@ export default function EmployeeCasesPage() {
   const [reviewSeverity, setReviewSeverity] = useState<"A"|"B"|"C"|"D">("B");
   const [reviewPenalty, setReviewPenalty] = useState("");
   const [reviewOffenseCount, setReviewOffenseCount] = useState(1);
+  const [reviewPickerOpen, setReviewPickerOpen] = useState(false);
+  const [reviewPickerSearch, setReviewPickerSearch] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
   // Case transition modal
@@ -3552,6 +3554,8 @@ export default function EmployeeCasesPage() {
                               setReviewPenalty("");
                               setReviewOffenseCount(1);
                               setReviewError("");
+                              setReviewPickerOpen(false);
+                              setReviewPickerSearch("");
                             }}
                           >
                             Review
@@ -3852,15 +3856,93 @@ export default function EmployeeCasesPage() {
             {reviewAction === "confirm_violation" && (
               <div className="space-y-3 border border-indigo-800/50 rounded-lg p-3">
                 <p className={T_LABEL}>Case Details</p>
+
+                {/* Violation picker */}
                 <div>
-                  <label className={T_LABEL}>Violation Code</label>
-                  <input
-                    className={`${INPUT_CLASS} mt-1`}
-                    value={reviewViolationCode}
-                    onChange={(e) => setReviewViolationCode(e.target.value)}
-                    placeholder="e.g. ATT-001"
-                  />
+                  <label className={T_LABEL}>Violation *</label>
+                  <button
+                    type="button"
+                    onClick={() => setReviewPickerOpen((v) => !v)}
+                    className={`${INPUT_CLASS} mt-1 w-full text-left flex items-center justify-between`}
+                  >
+                    {reviewViolationCode ? (
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono text-violet-400 text-xs">{reviewViolationCode}</span>
+                        <span className="text-sm truncate">{catalog.find((c) => c.code === reviewViolationCode)?.title_en}</span>
+                      </span>
+                    ) : (
+                      <span className="text-zinc-500 text-sm">— Select violation —</span>
+                    )}
+                    <ChevronRight className={`h-4 w-4 text-zinc-500 transition-transform ${reviewPickerOpen ? "rotate-90" : ""}`} />
+                  </button>
+
+                  {reviewPickerOpen && (
+                    <div className="mt-1 rounded-xl border border-white/10 bg-zinc-900 shadow-xl overflow-hidden">
+                      <div className="p-2 border-b border-white/10">
+                        <input
+                          autoFocus
+                          className={`${INPUT_CLASS} text-sm`}
+                          placeholder="Search code or title…"
+                          value={reviewPickerSearch}
+                          onChange={(e) => setReviewPickerSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="max-h-56 overflow-y-auto divide-y divide-white/5">
+                        {(() => {
+                          const reviewMarket = reviewTarget?.market ?? "PH";
+                          const q = reviewPickerSearch.toLowerCase();
+                          const filtered = catalog
+                            .filter((c) => c.code !== "MGT-004" && c.code !== "CON-015")
+                            .filter((c) => !c.market || c.market === reviewMarket || c.market === "BOTH")
+                            .filter((c) => !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q));
+                          const groups = [...new Set(filtered.map((c) => c.category_code))];
+                          if (filtered.length === 0) return (
+                            <p className="px-4 py-6 text-center text-sm text-zinc-500">No matches</p>
+                          );
+                          return groups.map((cat) => (
+                            <div key={cat}>
+                              <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest text-zinc-500 bg-zinc-800/60 uppercase">{cat}</div>
+                              {filtered.filter((c) => c.category_code === cat).map((entry) => (
+                                <button
+                                  key={entry.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setReviewViolationCode(entry.code);
+                                    setReviewSeverity(entry.severity_class as "A"|"B"|"C"|"D");
+                                    setReviewPickerOpen(false);
+                                    setReviewPickerSearch("");
+                                  }}
+                                  className={`w-full text-left px-3 py-2.5 hover:bg-white/5 flex items-start gap-3 transition-colors ${reviewViolationCode === entry.code ? "bg-violet-500/10" : ""}`}
+                                >
+                                  <span className="font-mono text-[11px] text-violet-400 mt-0.5 shrink-0 w-16">{entry.code}</span>
+                                  <span className="flex-1 min-w-0">
+                                    <span className="block text-sm text-zinc-200 leading-snug">{entry.title_en}</span>
+                                    <span className="flex gap-1.5 mt-0.5">
+                                      <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
+                                        entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
+                                        entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
+                                        entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
+                                        "bg-zinc-700 text-zinc-300"}`}>{entry.severity_class}</span>
+                                      {entry.requires_hq_review && (
+                                        <span className="inline-block px-1.5 py-0 rounded text-[10px] bg-violet-900/50 text-violet-300">HQ review</span>
+                                      )}
+                                    </span>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                      {reviewViolationCode && (
+                        <div className="border-t border-white/10 px-3 py-2">
+                          <button type="button" onClick={() => { setReviewViolationCode(""); setReviewPickerOpen(false); setReviewPickerSearch(""); }} className="text-xs text-zinc-500 hover:text-zinc-300">Clear selection</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className={T_LABEL}>Severity Class</label>
                   <SelectDark
