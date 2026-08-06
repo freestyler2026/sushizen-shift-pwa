@@ -1,10 +1,10 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (NTE Template System Phase 1 — all 125 seed items complete, old files deleted)
+Last updated: 2026-08-06 (NTE Template System Phase 2 — Handlebars renderer deployed + all 125 seeds loaded, verified)
 
 ---
 
-## 🔄 In Progress: NTE Template System — Phase 2 (Backend Load + UI)
+## ✅ Recently Completed: NTE Template System — Phase 2 (2026-08-06)
 
 ### Phase 1 COMPLETE ✅
 All 14 violation category seed JSON files created under `seeds/violation_catalog/` in the **backend repo** (`sushizen_shift_app_clean`):
@@ -27,17 +27,24 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 | 14 | `14_central_kitchen.json` | CK — Central Kitchen (scope: CK) | 7 |
 | **Total** | | | **125** |
 
-Old wrong-coded seed files (03_conduct, 04_food_safety, 05_cash_handling, 06_uniform, 07_guest_service, 08_harassment, 09_theft, 10_property, 11_substance, 12_confidentiality) have been **deleted**.
+### Phase 2 COMPLETE ✅ (2026-08-06)
+- **`app/db_nte_v2_template.py`** — Handlebars renderer (`render_acts_block`, `build_letter_context`)
+  - Supports: `{{var}}`, `{{#if}}...{{/if}}`, `{{#if}}...{{else}}...{{/if}}`, `{{#each list}}...{{/each}}`
+  - Sample context for all 9 ATT items × PH/AE = 18 combinations (used by preview endpoint)
+  - Bug fixed: `block_start + 3` to skip `{{#` (was `+2`, left `#` in tag_body so `#each` ≠ `each`)
+- **`app/db_nte_v2_letter.py`** — Renderer integrated; fetches `sop_ref` + `auto_payload`, renders template before building letter
+- **`app/db_nte_v2.py`** — scope CHECK constraint migration (adds KITCHEN/MANAGEMENT/CK via ALTER TABLE for existing Heroku tables)
+- **`app/nte_v2_api.py`** — `GET /api/admin/nte-v2/catalog/{code}/render?market=PH|AE` preview endpoint (HQ only)
+- **Seeds loaded**: 125 catalog items + 250 market rows on Heroku (Heroku v1779–v1780)
+- **Verified**: ATT-001 (each), ATT-007 (dual each), ATT-008 (else) all render correctly
 
-### Phase 2 — TODO (backend deploy + trigger + UI)
-- [ ] Deploy backend: `git add -A && git commit -m "feat(nte): add Phase 1 violation catalog seed files (125 items, 14 categories)"` then `git push heroku HEAD:master --force`
-- [ ] Trigger seed load: ensure `load_catalog_json()` is called on startup (via `ensure_nte_v2_tables()` in `db_nte_v2_catalog.py`), or call the load endpoint manually
-- [ ] Verify: query `violation_catalog` and `violation_catalog_market` tables to confirm 125 + 250 rows (125 × 2 markets)
+### Remaining NTE work (Phase 3 — UI)
 - [ ] NTE v2 UI — NTE issuance form (select violation from catalog, input layer L1/L2/L3, acts_block rendering)
 - [ ] CON-015 block: NTE UI must refuse to generate standard NTE letter for CON-015; show CODI referral instructions instead
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
+- [ ] Extend sample context / preview to all 14 categories (currently only ATT has `get_att_sample_context`)
 
-### Key design notes for Phase 2
+### Key design notes
 - `acts_block_en` uses Handlebars-style templates: `{{variable}}`, `{{#if cond}}...{{/if}}`, `{{#each list}}...{{/each}}`
 - CON-015: `acts_block_en` is a CODI referral block — the NTE issuance UI must check `code === "CON-015"` and refuse standard letter generation
 - MGT-004: deprecated, `acts_block_en = "[DEPRECATED — Issue under OS-002.]"` — filter out from selectable catalog
