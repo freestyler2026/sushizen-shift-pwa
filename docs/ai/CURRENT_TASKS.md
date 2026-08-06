@@ -1,6 +1,22 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Cold Chain: Gyoza Containers GC CK-1~63 + Soft Bag S1-S4 deployed and browser-verified)
+Last updated: 2026-08-06 (Procurement Approval Add Item auto-price fix deployed)
+
+---
+
+## ✅ Fixed: Procurement Approval — Add Item Auto-Price Not Reflecting (2026-08-06)
+
+**Symptom**: In Procurement Approval (Cases detail), clicking "Edit Items" → "+ Add Item" and selecting an ingredient from the datalist showed price as 0. Staff had to manually enter unit price.
+
+**Root cause**: Commit `3c390db` (2026-07-27) switched the item picker source from the cost/ingredient master to the procurement curated catalog (`/api/admin/procurement/requests/item-catalog`). The curated catalog endpoint returns items with field name `suggested_unit_price` (not `unit_price`). The frontend `loadIngredientCatalog()` was reading `item.unit_price` (undefined) → `Number(undefined || 0)` = 0.
+
+**Fix** (commit `3af51f5` — Vercel deployed and bundle-verified):
+- File: `src/app/admin/procurement/cases/[caseId]/page.tsx` line 335
+- Before: `unit_price: Number(item.unit_price || 0)`
+- After: `unit_price: Number(item.suggested_unit_price || item.unit_price || 0)`
+- Also updated TypeScript type to `unit_price?: number; suggested_unit_price?: number`
+
+**Verified**: Bundle `page-24a80b23c2c7ba54.js` contains `Number(e.suggested_unit_price||e.unit_price||0)` ✅
 
 ---
 
