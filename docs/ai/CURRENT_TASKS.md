@@ -1,6 +1,60 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Bug B additional fix — Heroku v1773)
+Last updated: 2026-08-06 (Cold Chain: Gyoza Containers GC CK-1~63 + Soft Bag S1-S4 deployed and browser-verified)
+
+---
+
+## ✅ Browser-Tested: Cold Chain — Gyoza Containers + Soft Bags (2026-08-06)
+
+**Feature**: Manila CK Dispatch form gains two new container types.
+
+### Gyoza Containers (GC CK-1 to GC CK-63)
+- New `gyoza_containers_json` JSONB column on `cold_chain_dispatches` (added via `ADD COLUMN IF NOT EXISTS` migration in `ensure_cold_chain_tables()`)
+- Two 10-column grids (1–63): amber "入れた — Dispatched this trip" and sky-blue "返却した — Returned from branch"
+- Stored as `{"dispatched":[...], "returned":[...]}` per dispatch record
+- Manila-only (gated by `city === "manila"` in frontend)
+
+### Soft Bag Containers (S1–S4)
+- Four purple-styled buttons; encoded as `box_number` 101–104 to reuse `cold_chain_boxes` schema
+- Backend validation updated: `box_number` 1–12 (cooler) OR 101–104 (soft bag) accepted
+- Displays as "Soft Bag S{n}" label in per-box detail row
+
+### Commits
+- Backend: Heroku v1775 (`b5928d4`) — `db_cold_chain.py` + `cold_chain_api.py`
+- Frontend: Vercel (`33c2c7f`) — `cold-chain/page.tsx` (fixed unescaped `"` that broke build)
+
+### Browser-verified (2026-08-06)
+- Manila / CK Dispatch selected
+- S1 clicked → selected (cyan ✓), detail card shows Frozen/Chilled toggle + dispatch time/temp
+- GC CK-5, GC CK-7 dispatched → amber highlight, "2 selected", summary "GC CK-5, GC CK-7" text
+- 返却 grid shows 1–63 fully
+- Build error fix: macOS duplicate files in `.next-dev/types/` (` 2` suffix) removed locally; Vercel build now passes
+
+### Build error lesson
+- `.next-dev/types/` can accumulate macOS-duplicate files (`cache-life.d 2.ts`, `routes.d 2.ts`, etc.) causing `Type error: Duplicate identifier`
+- Fix: `rm ".next-dev/types/cache-life.d 2.ts" ...` locally, then push the unescaped-entities fix
+
+---
+
+## ✅ Fixed & Browser-Tested: Store Procurement PIN Bug — Complete Fix (2026-08-06)
+
+**Symptom**: "Invalid PIN (procurement.request.submit)" when submitting DRAFT procurement orders. Error persisted even after logout/re-login and after first fix (commit `8f76b5a`).
+
+**Root cause (2nd, deeper)**: `_require_pin()` in `main.py` called `verify_staff_pin(raw_name, pin)` WITHOUT first resolving the canonical `display_name` from `staff_master`. The login endpoint (`/api/auth/verify`) always resolves canonical name first — so login worked but procurement submit failed when the submitted name didn't exactly match the staff_auth stored key (e.g. name display changes, short vs full name).
+
+**Fix 1 — Backend** (Heroku v1774 — commit `d407e92`):
+- `main.py` → `_require_pin()`: added `get_staff_master_row(nm)` lookup before `verify_staff_pin`, same pattern as login flow. Falls back to raw name if no master row found.
+
+**Fix 2 — Frontend** (Vercel — commit `6be0a43`):
+- `procurementClient.ts` → `defaultProcurementPin()`: removed sessionStorage usage entirely. Now only returns `getAuth()?.pin || ""`. Eliminates risk of same-user stale PIN from sessionStorage causing failures even when name matches.
+
+**First fix** (commit `8f76b5a`): cleared sessionStorage on logout, guarded cross-user stale session — that part still works.
+
+**Browser-tested (2026-08-06)**:
+- Opened MAN-PR-202608-0123 (TAFT/Yusuke Uejima) — the exact request from the error screenshot
+- Clicked "Submit for Approval" → "Confirm Submit"
+- Result: ✅ **"MAN-PR-202608-0123 submitted — now IN REVIEW"** (green toast, status changed DRAFT→IN REVIEW)
+- No "Invalid PIN" error whatsoever
 
 ---
 
