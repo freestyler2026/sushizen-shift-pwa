@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 5 complete — all 116 non-ATT codes have clean sample context; FRD-010 hyphen fix seeded)
+Last updated: 2026-08-07 (NTE Phase 6 complete — progressive penalty matrix + offense-history auto-suggest in IR review)
 
 ---
 
@@ -78,9 +78,31 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 - **`seeds/violation_catalog/11_fraud.json`** — FRD-010 `acts_block_en` fix: `{{co-conspirator_name}}` → `{{co_conspirator_name}}`, `{{co-conspirator_relationship}}` → `{{co_conspirator_relationship}}` (hyphens not matched by Handlebars `[a-zA-Z0-9_]` regex)
 - **Seed reloaded**: "Reload Seed" button clicked in Violation Catalog tab; confirmed complete (button re-enabled)
 
+### Phase 6 COMPLETE ✅ (2026-08-07)
+- **`app/db_nte_v2_case.py`** (Heroku `65314e9`):
+  - `_PENALTY_MATRIX_PH` / `_PENALTY_MATRIX_AE`: progressive discipline steps by severity A/B/C/D
+    - A(PH): VW→WW→1d→3d→Termination; A(AE): W→WW→1d-deduction→3d→Termination
+    - B: WW→3d→7d→Termination / WW→3d-deduction→5d→Termination
+    - C: 15d→30d→Termination / FinalWW→Term-with-notice→without
+    - D: Termination (1st offense) in both markets (AE cites Art.44)
+  - `propose_penalty(severity, offense_count, market)` → penalty label
+  - `get_escalation_path(severity, market)` → list of {offense, penalty}
+  - `compute_prior_offenses(conn, staff_name, violation_code, market)` → same-code count + same-category count + prior case details (only APPROVED/SERVED/CLOSED+ statuses counted)
+  - `_COUNTED_STATUSES` set: APPROVED, SERVED, RESPONSE_RECEIVED, RESPONSE_WAIVED, HEARING_PENDING/DONE, INVESTIGATION_DONE, DECIDED, NOD_ISSUED, CLOSED
+- **`app/nte_v2_api.py`** (same commit):
+  - `GET /api/admin/nte-v2/staff/{staff_name}/offense-history?violation_code=XXX&market=PH|AE`
+  - Looks up severity from `violation_catalog`, returns escalation path + proposed penalty + prior cases
+- **`src/app/admin/employee-cases/page.tsx`** (commit `b3fa8bc`, Vercel):
+  - IR review modal "Confirm Violation" flow — violation picker now triggers `fetchPenaltySuggestion()`
+  - Auto-fills `reviewPenalty` + `reviewOffenseCount` from API response
+  - New "Progressive Penalty" panel: prior offense count badge, escalation path chips (current=violet, prior=struck-through, future=muted), prior case list
+  - "Override suggestion" checkbox unlocks fields for manual edit
+  - Resets on Review modal open, Clear selection, and post-submit
+
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back
+- [ ] Phase 7: PDF output
 
 ---
 
