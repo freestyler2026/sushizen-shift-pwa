@@ -55,8 +55,16 @@ type CalcResult = {
   missing_punch_count: number;
   break_excess_count: number;
   monthly_late_penalty_count: number;
+  date_range?: string;
   message?: string;
 };
+
+type StaffGroup = "all" | "regular" | "parttime";
+
+const PARTTIME_NAMES = [
+  "Krishna Tamang", "Dipak Dahal", "Bijien Mijar", "Padam Bahadur K C",
+  "Kelvin Gurung", "Raman Miya", "Pukar KC", "Mahima Pansilu Dadallage",
+];
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -92,6 +100,12 @@ export default function DubaiPayrollPage() {
   const [clearLoading, setClearLoading] = useState<number | null>(null);
   const [clearResults, setClearResults] = useState<Record<number, number>>({});
   const [confirmClearId, setConfirmClearId] = useState<number | null>(null);
+
+  // Date range & staff group per cycle
+  const [showRangeId, setShowRangeId]     = useState<number | null>(null);
+  const [rangeFrom, setRangeFrom]         = useState<Record<number, string>>({});
+  const [rangeTo, setRangeTo]             = useState<Record<number, string>>({});
+  const [staffGroup, setStaffGroup]       = useState<Record<number, StaffGroup>>({});
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setErr("");
@@ -170,13 +184,25 @@ export default function DubaiPayrollPage() {
 
   async function handleAutoCalculate(cycle: PayrollCycle) {
     setCalcLoading(cycle.id); setCycleErr("");
+    const useRange = showRangeId === cycle.id;
+    const df = rangeFrom[cycle.id] || null;
+    const dt = rangeTo[cycle.id] || null;
+    const group = staffGroup[cycle.id] ?? "all";
+    const staffNamesPayload =
+      group === "parttime" ? PARTTIME_NAMES :
+      group === "regular"  ? null :   // null = all (backend excludes nothing)
+      null;
+    const body: Record<string, unknown> = { cycle_id: cycle.id, year: cycle.year, month: cycle.month };
+    if (useRange && df && dt) { body.date_from = df; body.date_to = dt; }
+    if (staffNamesPayload) body.staff_names = staffNamesPayload;
     try {
       const r = await apiFetch(`${API}/auto-adjustments`, {
         method: "POST",
-        body: JSON.stringify({ cycle_id: cycle.id, year: cycle.year, month: cycle.month }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json() as CalcResult;
+      setClearResults(prev => { const n = { ...prev }; delete n[cycle.id]; return n; });
       setCalcResults(prev => ({ ...prev, [cycle.id]: data }));
     } catch (e) { setCycleErr(String(e)); }
     finally { setCalcLoading(null); }
@@ -373,18 +399,64 @@ export default function DubaiPayrollPage() {
                         )}
 
                         <button
-                          onClick={() => handleAutoCalculate(c)}
-                          disabled={isCalcing || c.status === "closed"}
+                          onClick={() => {
+                            setShowRangeId(prev => prev === c.id ? null : c.id);
+                            // default dates: first/last of cycle month
+                            if (showRangeId !== c.id) {
+                              const pad = (n: number) => String(n).padStart(2, "0");
+                              const lastDay = new Date(c.year, c.month, 0).getDate();
+                              setRangeFrom(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-01` }));
+                              setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-${pad(lastDay)}` }));
+                            }
+                          }}
+                          disabled={c.status === "closed"}
                           className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
-                          title={c.status === "closed" ? "Cycle is closed" : "Recalculate all attendance-based adjustments for this cycle"}
+                          title={c.status === "closed" ? "Cycle is closed" : "Configure and run auto-calculation"}
                         >
-                          {isCalcing
-                            ? <Loader2 size={12} className="animate-spin" />
-                            : <Calculator size={12} />}
-                          {isCalcing ? "Calculating…" : "Auto-Calculate"}
+                          <Calculator size={12} />
+                          Auto-Calculate
                         </button>
                       </div>
                     </div>
+
+                    {/* Date range / staff group panel */}
+                    {showRangeId === c.id && (
+                      <div className="rounded-xl border border-sky-500/20 bg-sky-900/10 p-4 space-y-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Date From</label>
+                            <input type="date" value={rangeFrom[c.id] ?? ""} onChange={e => setRangeFrom(prev => ({ ...prev, [c.id]: e.target.value }))}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Date To</label>
+                            <input type="date" value={rangeTo[c.id] ?? ""} onChange={e => setRangeTo(prev => ({ ...prev, [c.id]: e.target.value }))}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Staff Group</label>
+                            <select value={staffGroup[c.id] ?? "all"} onChange={e => setStaffGroup(prev => ({ ...prev, [c.id]: e.target.value as StaffGroup }))}
+                              className="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none">
+                              <option value="all">All Staff</option>
+                              <option value="regular">Regular Staff only</option>
+                              <option value="parttime">Part-time Staff only (8 names)</option>
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => handleAutoCalculate(c)}
+                            disabled={isCalcing}
+                            className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-700/40 px-3 py-1.5 text-xs text-sky-200 hover:bg-sky-700/60 disabled:opacity-40 transition-colors font-medium"
+                          >
+                            {isCalcing ? <Loader2 size={12} className="animate-spin" /> : <Calculator size={12} />}
+                            {isCalcing ? "Calculating…" : "Run"}
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Catch-up example — Regular: <span className="text-slate-300 font-mono">2026-06-26 → 2026-08-25</span> ·
+                          Part-time penalty catch-up: <span className="text-slate-300 font-mono">2026-07-01 → 2026-08-31</span>
+                        </p>
+                      </div>
+                    )}
 
                     {/* Clear result */}
                     {clearResults[c.id] !== undefined && !res && (
@@ -406,6 +478,9 @@ export default function DubaiPayrollPage() {
                           <span className="text-xs font-semibold text-emerald-300">
                             {res.message ?? `${res.adjustments_inserted} adjustments inserted for ${res.staff_processed} staff`}
                           </span>
+                          {res.date_range && (
+                            <span className="ml-auto text-xs text-slate-500 font-mono">{res.date_range}</span>
+                          )}
                         </div>
                         {res.adjustments_inserted > 0 && (
                           <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-xs text-slate-400">
