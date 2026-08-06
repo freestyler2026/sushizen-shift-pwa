@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Manila staff Observations bugs 1-3 fixed + Features 1-3 implemented)
+Last updated: 2026-08-06 (Bug B additional fix — Heroku v1773)
+
+---
+
+## ✅ Fixed: Manila Staff Report Bugs (2026-08-06)
+
+### Bug A: Quick Entry PO search returning no results — ✅ CONFIRMED FIXED (v1772)
+- **Root cause**: `list_recent_pos_for_match()` NOT EXISTS filter used `po_invoice_checks` (non-existent); correct table is `proc_po_invoice_checks`
+- Fixed `db.py` lines ~53687 + ~53714: both filters now reference `proc_po_invoice_checks`
+- Browser-verified: `GET /api/admin/procurement/po-match/pos?city=manila&vendor_name=JWE&limit=20` returns 20 results
+
+### Bug B: Invoice photo not visible in Discrepancy Queue — ✅ FIXED (v1773 — additional fix)
+- **Root cause (v1772)**: `_bg_drive()` ran at upload time but `proc_po_invoice_check` didn't exist yet (created at confirmation). Race condition: query found nothing, photo never saved.
+- **Root cause (deeper)**: `confirm_proc_receiving()` RETURNING clause omitted `invoice_photo_b64`, so `after.get("invoice_photo_b64")` was always None → `photo_data = ""` at confirmation.
+- **Fix (v1773)**:
+  1. Added `invoice_photo_b64 TEXT DEFAULT ''` column to `proc_receivings` via migration in `ensure_procurement_control_tables()`
+  2. At photo upload time, saves base64 to `proc_receivings.invoice_photo_b64` (synchronously, before background thread)
+  3. Added `invoice_photo_url, invoice_photo_b64` to `confirm_proc_receiving()` RETURNING clause
+  4. At confirmation, passes `after["invoice_photo_b64"]` as `photo_data` to `create_po_invoice_check()`
+- Fallback: `_bg_drive()` retry logic remains for photo-uploaded-after-confirmation case
+
+### Bug C: "View Invoice Photo" shows "access required" — ✅ CONFIRMED FIXED (v1772)
+- **Root cause**: `upload_claim_photo()` uploads to a restricted claims Drive folder; the returned `web_view_link` requires Google auth
+- Fixed `main.py` `_bg_drive()`: after `upload_po_match_invoice_to_drive()` succeeds, updates `proc_receivings.invoice_photo_url` with shared Drive URL
+- Browser-verified: all today's `proc_receivings` have `https://drive.google.com/file/d/...` URLs
+
+---
+
+## ✅ Browser-Tested: PO Match Features 1-3 (2026-08-06)
+
+All 3 bug fixes + 3 features tested via browser DOM inspection on production (Vercel):
+- **Feature 1 Draft** ✅ — `localStorage["po_match_draft_dubai"]` saves on input; restore banner appears on load; Restore/Discard both work
+- **Feature 2 Delete** ✅ — "Delete Record" button in expanded row → 2-step "Confirm Delete / Cancel" → Cancel returns to Delete button; no false-delete
+- **Feature 3 Per-Row Notes** ✅ — Sunberry textarea empty when switched to; Ocean Fisheries note preserved when switching back; no state bleed between rows
+- No bugs found.
 
 ---
 
