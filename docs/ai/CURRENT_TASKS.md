@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 7 confirmed complete — PDF download button + ReportLab letter renderer already live since 2026-08-03)
+Last updated: 2026-08-07 (Violation Catalog UX overhaul: category grouping, preview modal, Issue Notice picker, Templates tab removed)
 
 ---
 
@@ -99,10 +99,17 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
   - "Override suggestion" checkbox unlocks fields for manual edit
   - Resets on Review modal open, Clear selection, and post-submit
 
+### Phase 7 + UX Overhaul COMPLETE ✅ (2026-08-07)
+- [x] Phase 7: PDF output — `GET /api/admin/nte-v2/case/{id}/letter` returns ReportLab A4 PDF; "Download NTE Letter (PDF)" button in case detail panel. Implemented as P6 Letter Renderer (Heroku v1700 / Vercel a937c39, 2026-08-03). SHA-256 audit-logged per download.
+- [x] **Preview modal** on Violation Catalog rows — Eye (👁) button → modal with rendered + raw Handlebars, PH/UAE toggle, Edit Template shortcut (commit `d892123`)
+- [x] **Issue Notice — Violation Catalog picker** — "Fill from Violation Catalog" replaces empty legacy template system; opens searchable accordion picker grouped by category; on select: renders acts_block_en for staff's market and fills Reason textarea (commit `d892123`)
+- [x] **Violation Catalog — category grouping** — 14 collapsible category sections (🕐Attendance…🏭Central Kitchen) with count badges; category filter pills at top; picker also grouped by category with accordion (commit `eee58a9`)
+- [x] **Templates tab removed** — Violation Catalog replaces legacy empty template system (commit `eee58a9`)
+- [x] **Browser-verified** (2026-08-07): category pills render, sections collapse/expand, Templates tab gone ✅
+
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back
-- [x] Phase 7: PDF output — `GET /api/admin/nte-v2/case/{id}/letter` returns ReportLab A4 PDF; "Download NTE Letter (PDF)" button in case detail panel. Implemented as P6 Letter Renderer (Heroku v1700 / Vercel a937c39, 2026-08-03). SHA-256 audit-logged per download.
 
 ---
 
