@@ -1277,7 +1277,7 @@ function DiscrepancyQueueTab() {
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [resolveType, setResolveType] = useState("OTHER");
-  const [resolveNote, setResolveNote] = useState("");
+  const [resolveNotes, setResolveNotes] = useState<Record<string, string>>({});
   const [resolving, setResolving] = useState<string | null>(null);
   const [contacting, setContacting] = useState<string | null>(null);
   const [cnrId, setCnrId] = useState<string | null>(null);
@@ -1301,17 +1301,17 @@ function DiscrepancyQueueTab() {
   const resolvedRows = rows.filter(r => r.resolved_by);
 
   const handleResolve = async (id: string) => {
-    if (!resolveNote.trim()) { setMsg("Please enter a resolution note."); return; }
+    if (!(resolveNotes[id] ?? "").trim()) { setMsg("Please enter a resolution note."); return; }
     setResolving(id);
     setMsg("");
     try {
       const d = await apiFetch(`/procurement/po-match/${id}/resolve`, {
         method: "POST",
-        body: JSON.stringify({ discrepancy_type: resolveType, resolution_note: resolveNote }),
+        body: JSON.stringify({ discrepancy_type: resolveType, resolution_note: resolveNotes[id] ?? "" }),
       });
       setRows(prev => prev.map(r => r.id === id ? d.row : r));
       setExpandedId(null);
-      setResolveNote("");
+      setResolveNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
     } catch (e: unknown) { setMsg(String(e)); }
     finally { setResolving(null); }
   };
@@ -1354,7 +1354,7 @@ function DiscrepancyQueueTab() {
             className="flex w-full items-center justify-between p-4 text-left"
             onClick={async () => {
               const next = expandedId === row.id ? null : row.id;
-              if (next !== expandedId) { setResolveNote(""); setResolveType(row.discrepancy_type || "OTHER"); setMsg(""); }
+              if (next !== expandedId) { setResolveType(row.discrepancy_type || "OTHER"); setMsg(""); }
               setExpandedId(next);
               // Fetch line items on first expand
               if (next && !linesCache[next]) {
@@ -1516,8 +1516,8 @@ function DiscrepancyQueueTab() {
                       className={`mt-1.5 ${TEXTAREA_CLASS}`}
                       rows={2}
                       placeholder="e.g. Supplier confirmed overcharge, credit note to be issued…"
-                      value={resolveNote}
-                      onChange={e => setResolveNote(e.target.value)}
+                      value={resolveNotes[row.id] ?? ""}
+                      onChange={e => setResolveNotes(prev => ({ ...prev, [row.id]: e.target.value }))}
                     />
                   </div>
                   {/* Photo upload for existing check */}
