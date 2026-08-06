@@ -1349,6 +1349,8 @@ function DiscrepancyQueueTab() {
   const [cnrBusy, setCnrBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [linesCache, setLinesCache] = useState<Record<string, CheckLine[]>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1378,6 +1380,18 @@ function DiscrepancyQueueTab() {
       setResolveNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
     } catch (e: unknown) { setMsg(String(e)); }
     finally { setResolving(null); }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleting(true);
+    setMsg("");
+    try {
+      await apiFetch(`/procurement/po-match/${id}`, { method: "DELETE" });
+      setRows(prev => prev.filter(r => r.id !== id));
+      setExpandedId(null);
+      setConfirmDeleteId(null);
+    } catch (e: unknown) { setMsg(String(e)); }
+    finally { setDeleting(false); }
   };
 
   const handleContact = async (id: string) => {
@@ -1614,6 +1628,35 @@ function DiscrepancyQueueTab() {
                   </button>
                 </div>
               )}
+
+              {/* Delete record — 2-step confirm */}
+              <div className="mt-4 border-t border-white/5 pt-3">
+                {confirmDeleteId === row.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-red-400">Delete this record permanently?</span>
+                    <button
+                      className="rounded bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                      onClick={() => handleDelete(row.id)}
+                      disabled={deleting}
+                    >
+                      {deleting ? "Deleting…" : "Confirm Delete"}
+                    </button>
+                    <button
+                      className="rounded bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200 hover:bg-zinc-600"
+                      onClick={() => setConfirmDeleteId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                    onClick={() => { setConfirmDeleteId(row.id); setMsg(""); }}
+                  >
+                    <Trash2 size={12} /> Delete Record
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
