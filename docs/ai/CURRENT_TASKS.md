@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 4 complete + IR review violation picker deployed)
+Last updated: 2026-08-07 (NTE Phase 4 complete + IR review violation picker + POS BOM coverage fix deployed)
 
 ---
 
@@ -72,6 +72,31 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back
+
+---
+
+## ✅ Completed: Dubai POS BOM Coverage — False-Positive Fix (2026-08-07)
+
+**Problem**: `/api/admin/inventory/pos-bom-coverage?city=dubai` showed ~20 "unmatched" items when most were actually covered in `menu_item_master`. The endpoint used `inv_menu_recipes` (old BOM) with exact name match, while `rebuild_inv_order_consumptions_from_pos()` uses `menu_item_master` with 5-step normalization. ~80% were false positives.
+
+**Root cause** (`inventory_db.py` `get_pos_items_without_bom()`): SQL `NOT EXISTS (SELECT 1 FROM inv_menu_recipes WHERE menu_item_name = p.item_name)` — wrong table, no normalization.
+
+**Fix** (Heroku `c7b2291`): Rewrote function to:
+1. Load all active MIM names into Python set (lowercased)
+2. Fetch all POS items in period with no SQL filter
+3. Apply same 5-step normalization (`_name_candidates()`) + suffix-safe check in Python
+4. Filter out items that match via exact/suffix-safe/normalized candidates
+
+**Items now correctly resolved as covered** (false positives removed):
+- `【NEW】Everyday Value Box {12/16/24}pcs` → strips `【NEW】` prefix → matches MIM
+- `[Lunch] Everyday Value Box 12pcs` → strips `[Lunch]` prefix → matches MIM
+- `【NEW】ZEN Fiesta Box 12pcs` → strips prefix, then `12pcs→12 pcs` reverse norm → matches MIM
+- `Beef Bibimbap (Korean Rice Bowl)` → strips trailing `(...)` → matches `Beef Bibimbap` in MIM
+- `2 Onigiri of Your Choice` → case-insensitive → matches `2 Onigiri Of Your Choice` in MIM
+
+**Truly unmatched items remaining** (need action):
+- `Crispy Shrimp Tempura 3 pcs` — MIM has `Shrimp Tempura 3 pcs` (no "Crispy" variant). Options: add new MIM entry in Cost Calc, or ask UrbanPiper to rename to `Shrimp Tempura 3 pcs`
+- `Seared Salmon Philadelphia Roll` — no MIM entry at all. Needs new MIM entry or UrbanPiper name change
 
 ### Key design notes
 - `acts_block_en` uses Handlebars-style templates: `{{variable}}`, `{{#if cond}}...{{/if}}`, `{{#each list}}...{{/each}}`
