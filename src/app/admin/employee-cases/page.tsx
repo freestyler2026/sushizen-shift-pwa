@@ -263,6 +263,60 @@ function getRankingEmoji(total: number): string {
   return "🔵";
 }
 
+// ── Handlebars template rich-editor helpers ──────────────────────────────────
+type TplSeg = { type: "text"; content: string } | { type: "hb"; content: string };
+
+function parseTemplateSegs(tpl: string): TplSeg[] {
+  const segs: TplSeg[] = [];
+  const re = /\{\{[^}]+\}\}/g;
+  let last = 0; let m: RegExpExecArray | null;
+  while ((m = re.exec(tpl)) !== null) {
+    if (m.index > last) segs.push({ type: "text", content: tpl.slice(last, m.index) });
+    segs.push({ type: "hb", content: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < tpl.length) segs.push({ type: "text", content: tpl.slice(last) });
+  return segs;
+}
+
+function templateToRichHTML(tpl: string): string {
+  return parseTemplateSegs(tpl).map(seg => {
+    if (seg.type === "hb") {
+      const label = seg.content
+        .replace(/^\{\{#each (\w+)\}\}$/, "↺ $1")
+        .replace(/^\{\{\/each\}\}$/, "↺ end")
+        .replace(/^\{\{#if (\w+)\}\}$/, "? $1")
+        .replace(/^\{\{\/if\}\}$/, "? end")
+        .replace(/^\{\{(\w+)\}\}$/, "$1");
+      const enc = encodeURIComponent(seg.content);
+      return `<span contenteditable="false" data-hb="${enc}" style="display:inline-block;background:rgba(124,58,237,0.18);color:#a78bfa;border:1px solid rgba(139,92,246,0.35);border-radius:4px;padding:0 6px;font-size:0.78em;font-family:monospace;cursor:default;user-select:none;">[${label}]</span>`;
+    }
+    return seg.content.split("\n").map(l =>
+      l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    ).join("<br>");
+  }).join("");
+}
+
+function richHTMLToTemplate(el: HTMLElement): string {
+  let out = "";
+  function walk(n: ChildNode) {
+    if (n.nodeType === Node.TEXT_NODE) { out += n.textContent ?? ""; return; }
+    if (!(n instanceof HTMLElement)) return;
+    if (n.dataset.hb) { out += decodeURIComponent(n.dataset.hb); return; }
+    if (n.tagName === "BR") { out += "\n"; return; }
+    if (n.tagName === "DIV" || n.tagName === "P") {
+      if (out && !out.endsWith("\n")) out += "\n";
+      n.childNodes.forEach(walk);
+      if (!out.endsWith("\n")) out += "\n";
+      return;
+    }
+    n.childNodes.forEach(walk);
+  }
+  el.childNodes.forEach(walk);
+  return out.replace(/\n+$/, "");
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function StatusDot({ status }: { status: NteStatus }) {
   if (status === "ACTIVE")
     return <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400 shrink-0" />;
@@ -587,6 +641,7 @@ export default function EmployeeCasesPage() {
   const [editTemplateSaving, setEditTemplateSaving] = useState(false);
   const [editTemplateRendered, setEditTemplateRendered] = useState("");
   const [editTemplateRawMode, setEditTemplateRawMode] = useState(false);
+  const editableDivRef = useRef<HTMLDivElement>(null);
   // Catalog preview modal
   const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [previewMarket, setPreviewMarket] = useState<"PH" | "AE">("PH");
@@ -930,6 +985,22 @@ export default function EmployeeCasesPage() {
     const tpl = templates.find((t) => t.id === issueTemplateId);
     if (tpl) setIssueReason(tpl.body);
   }, [issueTemplateId, issueUseTemplate, templates]);
+
+  // Init rich editor when template text loads or modal opens
+  useEffect(() => {
+    if (editTemplateOpen && !editTemplateRawMode && editableDivRef.current && editTemplateText) {
+      editableDivRef.current.innerHTML = templateToRichHTML(editTemplateText);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTemplateOpen, editTemplateText]);
+
+  // Re-init rich editor when switching back from raw mode
+  useEffect(() => {
+    if (!editTemplateRawMode && editableDivRef.current && editTemplateText) {
+      editableDivRef.current.innerHTML = templateToRichHTML(editTemplateText);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTemplateRawMode]);
 
   // ── Issue Notice ───────────────────────────────────────────────────────────
   const handleIssueNte = async () => {
@@ -1370,12 +1441,15 @@ export default function EmployeeCasesPage() {
   }
 
   async function saveEditTemplate() {
+    const templateBody = editTemplateRawMode
+      ? editTemplateText
+      : (editableDivRef.current ? richHTMLToTemplate(editableDivRef.current) : editTemplateText);
     setEditTemplateSaving(true);
     try {
       const res = await fetch(`/api/admin/nte-v2/catalog/${editTemplateCode}/acts-block`, {
         method: "PATCH",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ market: editTemplateMarket, acts_block_en: editTemplateText }),
+        body: JSON.stringify({ market: editTemplateMarket, acts_block_en: templateBody }),
       });
       if (!res.ok) throw new Error(await res.text());
       setEditTemplateOpen(false);
@@ -2886,7 +2960,7 @@ export default function EmployeeCasesPage() {
                                 )}
                                 <td className={`${TABLE_CELL} text-center`}>
                                   <div className="flex items-center justify-center gap-1">
-                                    <button type="button" title="Preview Template"
+                                    <button type="button" title="Review (read-only text)"
                                       onClick={() => {
                                         const mkt = catalogMarket || "PH";
                                         setPreviewCode(entry.code);
@@ -2926,11 +3000,16 @@ export default function EmployeeCasesPage() {
           {/* ── Edit Template Modal ── */}
           {editTemplateOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[85vh] flex flex-col`}>
-                <div className="flex items-center justify-between">
+              <div className={`${GLASS_CARD} w-full max-w-2xl p-6 max-h-[85vh] flex flex-col gap-4`}>
+                {/* Header */}
+                <div className="flex items-center justify-between shrink-0">
                   <div>
-                    <h3 className={T_CARD_TITLE}>NTE Template — <span className="font-mono text-violet-400">{editTemplateCode}</span></h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">Template preview (rendered text)</p>
+                    <h3 className={T_CARD_TITLE}>Edit Template — <span className="font-mono text-violet-400">{editTemplateCode}</span></h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {editTemplateRawMode
+                        ? "Raw Handlebars code — edit with care"
+                        : "Purple chips are auto-fill variables — edit the surrounding text freely"}
+                    </p>
                   </div>
                   <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className="text-zinc-400 hover:text-white">
                     <X className="h-5 w-5" />
@@ -2938,39 +3017,9 @@ export default function EmployeeCasesPage() {
                 </div>
 
                 {!editTemplateRawMode ? (
-                  /* ── Read-only rendered view ── */
-                  <div className="flex-1 overflow-y-auto space-y-3">
-                    {editTemplateRendered ? (
-                      <div className="bg-zinc-800/50 rounded-xl px-4 py-3 text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
-                        {editTemplateRendered}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-zinc-500 text-sm py-4">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        Loading template preview…
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center pt-2 border-t border-zinc-700">
-                      <button
-                        type="button"
-                        onClick={() => setEditTemplateRawMode(true)}
-                        className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1"
-                      >
-                        <Edit2 className="h-3 w-3" />
-                        Edit raw template (advanced)
-                      </button>
-                      <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className={SECONDARY_BUTTON}>
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* ── Raw Handlebars editor ── */
+                  /* ── WYSIWYG rich editor ── */
                   <>
-                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                      ⚠️ You are editing the raw Handlebars template. Modifying or deleting <code className="font-mono bg-amber-900/40 px-1 rounded">{"{{variables}}"}</code> may break the template rendering.
-                    </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       <label className={T_LABEL}>Apply to market:</label>
                       <SelectDark
                         value={editTemplateMarket}
@@ -2983,28 +3032,79 @@ export default function EmployeeCasesPage() {
                         className="text-sm"
                       />
                     </div>
+                    {editTemplateText ? (
+                      <div
+                        ref={editableDivRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        className="flex-1 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900/60 px-4 py-3 text-sm text-zinc-200 leading-relaxed outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30"
+                        style={{ minHeight: "16rem", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                      />
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center gap-2 text-zinc-500 text-sm">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Loading template…
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center shrink-0 pt-2 border-t border-zinc-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // sync rich → raw before switching
+                          if (editableDivRef.current) setEditTemplateText(richHTMLToTemplate(editableDivRef.current));
+                          setEditTemplateRawMode(true);
+                        }}
+                        className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                        Show raw code
+                      </button>
+                      <div className="flex gap-3">
+                        <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className={SECONDARY_BUTTON}>Cancel</button>
+                        <button
+                          type="button"
+                          onClick={() => void saveEditTemplate()}
+                          disabled={editTemplateSaving || !editTemplateText}
+                          className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                        >
+                          {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                          {editTemplateSaving ? "Saving…" : "Save Template"}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* ── Raw Handlebars editor ── */
+                  <>
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 shrink-0">
+                      ⚠️ Raw mode — modifying <code className="font-mono bg-amber-900/40 px-1 rounded">{"{{variables}}"}</code> may break rendering.
+                    </div>
                     <div className="flex-1 min-h-0">
-                      <p className="text-xs text-zinc-500 mb-1">Handlebars syntax: {"{{field}}"}, {"{{#each items}}…{{/each}}"}, {"{{#if flag}}…{{/if}}"}</p>
                       <textarea
                         value={editTemplateText}
                         onChange={(e) => setEditTemplateText(e.target.value)}
                         rows={12}
-                        className={`${TEXTAREA_CLASS} font-mono text-xs w-full`}
+                        className={`${TEXTAREA_CLASS} font-mono text-xs w-full h-full`}
                         placeholder="Enter the acts_block_en template text…"
                       />
                       <p className="mt-1 text-xs text-zinc-500">{editTemplateText.length} chars</p>
                     </div>
-                    <div className="flex justify-end gap-3">
-                      <button type="button" onClick={() => setEditTemplateRawMode(false)} className={SECONDARY_BUTTON}>← Back to Preview</button>
-                      <button
-                        type="button"
-                        onClick={() => void saveEditTemplate()}
-                        disabled={editTemplateSaving || !editTemplateText.trim()}
-                        className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-                      >
-                        {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                        {editTemplateSaving ? "Saving…" : "Save Template"}
+                    <div className="flex justify-between items-center shrink-0 pt-2 border-t border-zinc-700">
+                      <button type="button" onClick={() => setEditTemplateRawMode(false)} className="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1">
+                        ← Back to editor
                       </button>
+                      <div className="flex gap-3">
+                        <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className={SECONDARY_BUTTON}>Cancel</button>
+                        <button
+                          type="button"
+                          onClick={() => void saveEditTemplate()}
+                          disabled={editTemplateSaving || !editTemplateText.trim()}
+                          className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                        >
+                          {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                          {editTemplateSaving ? "Saving…" : "Save Template"}
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -3154,7 +3254,7 @@ export default function EmployeeCasesPage() {
                   <div>
                     <h3 className={`${T_SECTION} flex items-center gap-2`}>
                       <Eye className="h-5 w-5 text-cyan-400" />
-                      Template Preview
+                      Template Review
                     </h3>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {previewCode} — market: {previewMarket}
@@ -3170,18 +3270,9 @@ export default function EmployeeCasesPage() {
                 )}
 
                 {!previewLoading && previewData && (
-                  <div className="flex-1 overflow-y-auto space-y-4">
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Rendered Text</p>
-                      <div className="rounded-lg bg-zinc-900/60 border border-zinc-700 p-4 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">
-                        {previewData.rendered || <span className="text-zinc-500 italic">No rendered output</span>}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Raw Template (Handlebars)</p>
-                      <div className="rounded-lg bg-zinc-950/80 border border-zinc-800 p-4 text-xs text-zinc-400 font-mono whitespace-pre-wrap leading-relaxed">
-                        {previewData.raw || <span className="text-zinc-600 italic">No raw template</span>}
-                      </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="rounded-lg bg-zinc-900/60 border border-zinc-700 p-4 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                      {previewData.rendered || <span className="text-zinc-500 italic">No rendered output for this market</span>}
                     </div>
                   </div>
                 )}
