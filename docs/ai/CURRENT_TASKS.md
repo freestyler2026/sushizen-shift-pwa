@@ -1,6 +1,22 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Procurement Approval Add Item auto-price fix deployed)
+Last updated: 2026-08-06 (Receipt Log Phase 1 deployed)
+
+---
+
+## 🚧 In Progress: Receipt Log Phase 2 (Admin view)
+
+**Phase 1 deployed (2026-08-06):**
+- Backend: `db_receipt_log.py` + `receipt_log_api.py` (Heroku v1776 — commit `1313ca6`)
+  - Table: `receipt_log` (UUID PK, city/branch/dept/purchase_date/supplier/items JSONB/total/receipt_url/submitted_by/notes)
+  - Endpoints: POST upload (Drive → ReceiptLog/{YYYY-MM}/{BRANCH}/), POST submit, GET /my, GET /admin
+- Frontend: `/store/receipt-log/page.tsx` + NavBar (Vercel — commit `01d4941`)
+  - Simple mobile-friendly form: receipt photo upload, branch+dept selector, items+amount rows, total auto-sum, notes
+  - Recent submissions list below form (collapsed/expanded per entry)
+
+**Phase 2 pending:**
+- `/admin/procurement/receipt-log` — admin view with monthly KPI cards, branch filter, CSV export
+- NavBar admin entry + access_control.py channel registration + Role Management sync
 
 ---
 
