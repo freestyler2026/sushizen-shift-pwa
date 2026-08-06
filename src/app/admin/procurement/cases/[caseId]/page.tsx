@@ -318,7 +318,7 @@ export default function ProcurementCaseDetailPage() {
       // and prices match what actually gets ordered (not the cost-module ingredient master).
       const storeCode = (bundle.request?.store_code || "").trim() || "PAR";
       const qs = new URLSearchParams({ city: cityForCatalog, store: storeCode });
-      const data = await procurementJson<{ suppliers: { supplier: string; categories: { category: string; items: { item_name: string; unit: string; unit_price: number }[] }[] }[] }>(
+      const data = await procurementJson<{ suppliers: { supplier: string; categories: { category: string; items: { item_name: string; unit: string; unit_price?: number; suggested_unit_price?: number }[] }[] }[] }>(
         `/api/admin/procurement/requests/item-catalog?${qs}`,
         { method: "GET" },
         requestedBy,
@@ -332,7 +332,7 @@ export default function ProcurementCaseDetailPage() {
             const name = String(item.item_name || "").trim();
             if (!name || seen.has(name.toUpperCase())) continue;
             seen.add(name.toUpperCase());
-            merged.push({ name, unit: String(item.unit || ""), unit_price: Number(item.unit_price || 0), category: cat.category });
+            merged.push({ name, unit: String(item.unit || ""), unit_price: Number(item.suggested_unit_price || item.unit_price || 0), category: cat.category });
           }
         }
       }
