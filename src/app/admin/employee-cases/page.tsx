@@ -535,6 +535,11 @@ export default function EmployeeCasesPage() {
   const [irOperationalImpact, setIrOperationalImpact] = useState("");
   const [irPriorInstruction, setIrPriorInstruction] = useState("");
   const [irBannedWords, setIrBannedWords] = useState<string[]>([]);
+  // acts_block preview
+  const [irActsPreview, setIrActsPreview] = useState<string | null>(null);
+  const [irActsPreviewLoading, setIrActsPreviewLoading] = useState(false);
+  const [irViolationSearch, setIrViolationSearch] = useState("");
+  const [irViolationPickerOpen, setIrViolationPickerOpen] = useState(false);
   // Evidence form fields
   const [irEvidenceType, setIrEvidenceType] = useState("PHOTO");
   const [irEvidenceDesc, setIrEvidenceDesc] = useState("");
@@ -1078,6 +1083,29 @@ export default function EmployeeCasesPage() {
     return entry?.input_layer ?? "L3_NARRATIVE";
   }
 
+  function irSelectedEntry(): CatalogEntry | null {
+    if (!irProposedCode) return null;
+    return catalog.find((c) => c.code === irProposedCode) ?? null;
+  }
+
+  async function fetchActsPreview(code: string, market: string) {
+    if (!code) { setIrActsPreview(null); return; }
+    setIrActsPreviewLoading(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/catalog/${code}/render?market=${market}`, {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) { setIrActsPreview(null); return; }
+      const data = await res.json() as { rendered?: string };
+      setIrActsPreview(data.rendered ?? null);
+    } catch {
+      setIrActsPreview(null);
+    } finally {
+      setIrActsPreviewLoading(false);
+    }
+  }
+
   async function loadIrList() {
     setIrListLoading(true);
     try {
@@ -1504,6 +1532,9 @@ export default function EmployeeCasesPage() {
     setIrEvidenceRef("");
     setIrFormError("");
     setIrFormMsg("");
+    setIrActsPreview(null);
+    setIrViolationPickerOpen(false);
+    setIrViolationSearch("");
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -3084,7 +3115,11 @@ export default function EmployeeCasesPage() {
                   <label className={T_LABEL}>Market *</label>
                   <SelectDark
                     value={irMarket}
-                    onChange={(v) => setIrMarket(v as "AE" | "PH")}
+                    onChange={(v) => {
+                      const m = v as "AE" | "PH";
+                      setIrMarket(m);
+                      if (irProposedCode) void fetchActsPreview(irProposedCode, m);
+                    }}
                     options={[
                       { value: "PH", label: "PH (Philippines)" },
                       { value: "AE", label: "AE (Dubai)" },
@@ -3103,25 +3138,166 @@ export default function EmployeeCasesPage() {
                 </div>
               </div>
 
-              {/* Row 2: Violation Code + Date + Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className={T_LABEL}>Violation Code</label>
-                  <SelectDark
-                    value={irProposedCode}
-                    onChange={setIrProposedCode}
-                    options={[
-                      { value: "", label: "— Select violation —" },
-                      ...catalog.map((c) => ({
-                        value: c.code,
-                        label: `${c.code} · ${c.title_en}`,
-                      })),
-                    ]}
-                  />
-                  {irProposedCode && (
-                    <p className="mt-1 text-xs text-zinc-500 font-mono">{irInputLayer()}</p>
+              {/* Row 2: Violation Picker + Date + Time */}
+              {/* ── Violation selector ── */}
+              <div className="space-y-2">
+                <label className={T_LABEL}>Violation *</label>
+                {/* Trigger button */}
+                <button
+                  type="button"
+                  onClick={() => setIrViolationPickerOpen((v) => !v)}
+                  className={`${INPUT_CLASS} w-full text-left flex items-center justify-between`}
+                >
+                  {irProposedCode ? (
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-violet-400 text-xs">{irProposedCode}</span>
+                      <span className="text-sm truncate">{irSelectedEntry()?.title_en}</span>
+                    </span>
+                  ) : (
+                    <span className="text-zinc-500 text-sm">— Select violation —</span>
                   )}
-                </div>
+                  <ChevronRight className={`h-4 w-4 text-zinc-500 transition-transform ${irViolationPickerOpen ? "rotate-90" : ""}`} />
+                </button>
+
+                {/* Picker panel */}
+                {irViolationPickerOpen && (
+                  <div className="rounded-xl border border-white/10 bg-zinc-900 shadow-xl overflow-hidden">
+                    {/* Search */}
+                    <div className="p-2 border-b border-white/10">
+                      <input
+                        autoFocus
+                        className={`${INPUT_CLASS} text-sm`}
+                        placeholder="Search code or title…"
+                        value={irViolationSearch}
+                        onChange={(e) => setIrViolationSearch(e.target.value)}
+                      />
+                    </div>
+                    {/* Grouped list */}
+                    <div className="max-h-64 overflow-y-auto divide-y divide-white/5">
+                      {(() => {
+                        const q = irViolationSearch.toLowerCase();
+                        const filtered = catalog
+                          .filter((c) => c.code !== "MGT-004")
+                          .filter((c) => !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q));
+                        const groups = [...new Set(filtered.map((c) => c.category_code))];
+                        if (filtered.length === 0) return (
+                          <p className="px-4 py-6 text-center text-sm text-zinc-500">No matches</p>
+                        );
+                        return groups.map((cat) => (
+                          <div key={cat}>
+                            <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest text-zinc-500 bg-zinc-800/60 uppercase">{cat}</div>
+                            {filtered.filter((c) => c.category_code === cat).map((entry) => (
+                              <button
+                                key={entry.code}
+                                type="button"
+                                onClick={() => {
+                                  setIrProposedCode(entry.code);
+                                  setIrViolationPickerOpen(false);
+                                  setIrViolationSearch("");
+                                  setIrActsPreview(null);
+                                  void fetchActsPreview(entry.code, irMarket);
+                                }}
+                                className={`w-full text-left px-3 py-2.5 hover:bg-white/5 flex items-start gap-3 transition-colors ${irProposedCode === entry.code ? "bg-violet-500/10" : ""}`}
+                              >
+                                <span className="font-mono text-[11px] text-violet-400 mt-0.5 shrink-0 w-16">{entry.code}</span>
+                                <span className="flex-1 min-w-0">
+                                  <span className="block text-sm text-zinc-200 leading-snug">{entry.title_en}</span>
+                                  <span className="flex gap-1.5 mt-0.5">
+                                    <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
+                                      entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
+                                      entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
+                                      entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
+                                      "bg-zinc-700 text-zinc-300"}`}>{entry.severity_class}</span>
+                                    <span className="inline-block px-1.5 py-0 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">{entry.input_layer}</span>
+                                    {entry.code === "CON-015" && (
+                                      <span className="inline-block px-1.5 py-0 rounded text-[10px] font-semibold bg-red-900/60 text-red-300">CODI only</span>
+                                    )}
+                                    {entry.requires_hq_review && (
+                                      <span className="inline-block px-1.5 py-0 rounded text-[10px] bg-violet-900/50 text-violet-300">HQ review</span>
+                                    )}
+                                  </span>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    {/* Footer: clear */}
+                    {irProposedCode && (
+                      <div className="border-t border-white/10 px-3 py-2">
+                        <button type="button" onClick={() => { setIrProposedCode(""); setIrActsPreview(null); setIrViolationPickerOpen(false); }} className="text-xs text-zinc-500 hover:text-zinc-300">Clear selection</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected violation info card */}
+                {irProposedCode && (() => {
+                  const entry = irSelectedEntry();
+                  if (!entry) return null;
+                  const isCODI = entry.code === "CON-015";
+                  return (
+                    <div className={`rounded-xl border px-4 py-3 space-y-1.5 ${isCODI ? "border-red-500/40 bg-red-950/20" : "border-white/10 bg-white/5"}`}>
+                      {isCODI ? (
+                        <>
+                          <p className="flex items-center gap-2 text-sm font-semibold text-red-300">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            CODI Referral Required — Sexual Harassment
+                          </p>
+                          <p className="text-xs text-red-300/80">
+                            Cases of sexual harassment must NOT proceed through the standard NTE flow.
+                            Refer immediately to the CODI (Committee on Decorum and Investigation).
+                            Do not issue an NTE or create an IR for CON-015.
+                          </p>
+                          <p className="text-xs text-zinc-400">
+                            Action: Submit a written report to HR Manager / HQ. CODI will be convened within 3 working days.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs text-violet-400">{entry.code}</span>
+                            <span className={`px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
+                              entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
+                              entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
+                              entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
+                              "bg-zinc-700 text-zinc-300"}`}>Severity {entry.severity_class}</span>
+                            <span className="px-1.5 py-0 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">{entry.input_layer}</span>
+                            {entry.requires_hq_review && <span className="px-1.5 py-0 rounded text-[10px] bg-violet-900/50 text-violet-300">HQ review required</span>}
+                            {entry.sop_ref && <span className="text-[10px] text-zinc-500">SOP: {entry.sop_ref}</span>}
+                          </div>
+                          {entry.definition_en && (
+                            <p className="text-xs text-zinc-400 leading-relaxed">{entry.definition_en}</p>
+                          )}
+                          {entry.input_layer === "L1_AUTO" && (
+                            <p className="text-xs text-emerald-400/80">
+                              Auto-detected violation — the letter body will be generated from OS attendance data. No narrative required.
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* acts_block preview */}
+                {irProposedCode && irProposedCode !== "CON-015" && (
+                  <div>
+                    <p className={`${T_LABEL} mb-1`}>Letter Body Preview <span className="text-[10px] text-zinc-500">(sample data — actual content will reflect real incident data)</span></p>
+                    {irActsPreviewLoading ? (
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-500 animate-pulse">Loading preview…</div>
+                    ) : irActsPreview ? (
+                      <pre className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed overflow-x-auto max-h-48 overflow-y-auto font-mono">{irActsPreview}</pre>
+                    ) : (
+                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-500">Preview not available for this violation.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Date + Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={T_LABEL}>Incident Date *</label>
                   <input
@@ -3178,15 +3354,17 @@ export default function EmployeeCasesPage() {
                 </div>
               </div>
 
-              {/* L3 narrative fields */}
-              {irInputLayer() === "L3_NARRATIVE" && (
+              {/* Narrative fields — L2_STRUCTURED + L3_NARRATIVE */}
+              {(irInputLayer() === "L3_NARRATIVE" || irInputLayer() === "L2_STRUCTURED") && (
                 <>
                   <div>
                     <label className={T_LABEL}>
                       Observed Acts *
-                      <span className={`ml-2 font-mono ${irObservedActs.length >= 120 ? "text-emerald-400" : "text-red-400"}`}>
-                        {irObservedActs.length}/120
-                      </span>
+                      {irInputLayer() === "L3_NARRATIVE" && (
+                        <span className={`ml-2 font-mono ${irObservedActs.length >= 120 ? "text-emerald-400" : "text-red-400"}`}>
+                          {irObservedActs.length}/120
+                        </span>
+                      )}
                     </label>
                     <textarea
                       className={`${TEXTAREA_CLASS} mt-1`}
@@ -3213,9 +3391,11 @@ export default function EmployeeCasesPage() {
                   <div>
                     <label className={T_LABEL}>
                       Operational Impact *
-                      <span className={`ml-2 font-mono ${irOperationalImpact.length >= 60 ? "text-emerald-400" : "text-red-400"}`}>
-                        {irOperationalImpact.length}/60
-                      </span>
+                      {irInputLayer() === "L3_NARRATIVE" && (
+                        <span className={`ml-2 font-mono ${irOperationalImpact.length >= 60 ? "text-emerald-400" : "text-red-400"}`}>
+                          {irOperationalImpact.length}/60
+                        </span>
+                      )}
                     </label>
                     <textarea
                       className={`${TEXTAREA_CLASS} mt-1`}
@@ -3254,7 +3434,8 @@ export default function EmployeeCasesPage() {
                 <button
                   type="button"
                   onClick={() => void handleCreateIrDraft()}
-                  disabled={irSubmitting || !irStaffName.trim() || !irDate}
+                  disabled={irSubmitting || !irStaffName.trim() || !irDate || irProposedCode === "CON-015"}
+                  title={irProposedCode === "CON-015" ? "CON-015 must go through CODI — do not create an IR" : undefined}
                   className={`${PRIMARY_BUTTON} flex items-center gap-2`}
                 >
                   {irSubmitting ? "Saving…" : "Save Draft"}
