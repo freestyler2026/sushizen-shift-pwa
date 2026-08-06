@@ -1,22 +1,28 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Receipt Log Phase 1 deployed)
+Last updated: 2026-08-06 (Receipt Log Phase 2 deployed)
 
 ---
 
-## 🚧 In Progress: Receipt Log Phase 2 (Admin view)
+## ✅ Completed: Receipt Log — Full Feature (Phase 1 + 2)
 
-**Phase 1 deployed (2026-08-06):**
+### Phase 1 — Staff submission form (deployed 2026-08-06)
 - Backend: `db_receipt_log.py` + `receipt_log_api.py` (Heroku v1776 — commit `1313ca6`)
   - Table: `receipt_log` (UUID PK, city/branch/dept/purchase_date/supplier/items JSONB/total/receipt_url/submitted_by/notes)
   - Endpoints: POST upload (Drive → ReceiptLog/{YYYY-MM}/{BRANCH}/), POST submit, GET /my, GET /admin
-- Frontend: `/store/receipt-log/page.tsx` + NavBar (Vercel — commit `01d4941`)
-  - Simple mobile-friendly form: receipt photo upload, branch+dept selector, items+amount rows, total auto-sum, notes
-  - Recent submissions list below form (collapsed/expanded per entry)
+- Frontend: `/store/receipt-log/page.tsx` + NavBar "Receipt Log" link (Vercel — commit `01d4941`)
+  - Mobile-friendly: receipt photo upload, branch+dept selector, items+amount rows, total auto-sum, notes
+  - Recent submissions list below form
 
-**Phase 2 pending:**
-- `/admin/procurement/receipt-log` — admin view with monthly KPI cards, branch filter, CSV export
-- NavBar admin entry + access_control.py channel registration + Role Management sync
+### Phase 2 — Admin overview page (deployed 2026-08-06)
+- `/admin/procurement/receipt-log/page.tsx` — Vercel commit `3829b41`
+  - KPI cards: Total Spend, Avg per Receipt, Top Supplier, Top Branch
+  - Filters: city toggle (Manila/Dubai), month picker, branch dropdown, department dropdown
+  - Table: date, branch, dept, supplier, itemised breakdown, amount, submitted_by, receipt link
+  - CSV export scoped to current filter
+- "Receipt Log" tab added to ProcurementTabs under Operations group (`showTo: ["manager", "full"]`)
+
+**Note**: `access_control.py` channel registration for NavBar admin entry not yet done — page is accessible but not listed in Role Management channels.
 
 ---
 
