@@ -554,7 +554,7 @@ function DispatchForm({ city }: { city: string }) {
         <div className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-4">
           <label className={`${T_LABEL} block`}>Gyoza Containers (GC)</label>
           <p className={`${T_CAPTION} text-zinc-500 -mt-2`}>
-            Select GC CK-X containers. The tepra label reads "CK-X" — prefix with "GC" to identify gyoza containers.
+            Select GC CK-X containers. The tepra label reads &quot;CK-X&quot; — prefix with &quot;GC&quot; to identify gyoza containers.
           </p>
 
           {/* Dispatched */}
