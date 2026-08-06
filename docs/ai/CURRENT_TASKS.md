@@ -1,10 +1,10 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Receipt Log Phase 2 deployed)
+Last updated: 2026-08-06 (Receipt Log Phase 3 deployed — all phases complete)
 
 ---
 
-## ✅ Completed: Receipt Log — Full Feature (Phase 1 + 2)
+## ✅ Completed: Receipt Log — Full Feature (Phase 1 + 2 + 3)
 
 ### Phase 1 — Staff submission form (deployed 2026-08-06)
 - Backend: `db_receipt_log.py` + `receipt_log_api.py` (Heroku v1776 — commit `1313ca6`)
@@ -22,7 +22,11 @@ Last updated: 2026-08-06 (Receipt Log Phase 2 deployed)
   - CSV export scoped to current filter
 - "Receipt Log" tab added to ProcurementTabs under Operations group (`showTo: ["manager", "full"]`)
 
-**Note**: `access_control.py` channel registration for NavBar admin entry not yet done — page is accessible but not listed in Role Management channels.
+### Phase 3 — Role Management sync (deployed 2026-08-06)
+- `access_control.py`: added `store_receipt_log` channel (sort_order 74, group staff)
+  and `channel.store_receipt_log.view` permission — Heroku v1777 commit `98fb5d8`
+- Admin `/admin/procurement/receipt-log` is already covered by `admin.procurement` prefix channel (no separate channel needed)
+- **TODO (manual)**: Role Management → "Resync System Channels" to sync DB, then grant permission to relevant custom roles
 
 ---
 
