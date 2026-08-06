@@ -409,9 +409,8 @@ export default function DubaiPayrollPage() {
                               setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-${pad(lastDay)}` }));
                             }
                           }}
-                          disabled={c.status === "closed"}
                           className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
-                          title={c.status === "closed" ? "Cycle is closed" : "Configure and run auto-calculation"}
+                          title="Configure and run auto-calculation"
                         >
                           <Calculator size={12} />
                           Auto-Calculate
