@@ -96,6 +96,11 @@ export default function SelectDark({
     [normalized, value],
   );
 
+  const hasMatchingOption = useMemo(
+    () => normalized.some((o) => o.value === value),
+    [normalized, value],
+  );
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return normalized;
@@ -127,11 +132,11 @@ export default function SelectDark({
             : "border border-white/10 bg-white/6"
         }`}
       >
-        <span className={value
+        <span className={hasMatchingOption
           ? (variant === "light" ? "text-gray-800" : "text-white")
           : (variant === "light" ? "text-gray-400" : "text-zinc-500")
         }>
-          {value ? selectedLabel : placeholder}
+          {hasMatchingOption ? selectedLabel : placeholder}
         </span>
         <div className="flex items-center gap-1 ml-2 shrink-0">
           {clearable && value && (
