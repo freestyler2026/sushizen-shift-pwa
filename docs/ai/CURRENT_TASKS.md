@@ -1,6 +1,35 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Receipt Log Phase 3 deployed — all phases complete)
+Last updated: 2026-08-06 (Receipt Log browser-tested — 3 bugs found and fixed)
+
+---
+
+## ✅ Browser-Tested: Receipt Log — All Phases (2026-08-06)
+
+### Testing result: 3 bugs found and fixed
+
+**Bug 1 — Admin page 404 (TypeScript build errors)** — Fixed commit `bd1e84f`
+- `procurementJson` required 4 args (only 2 passed), `procurementTokenHeaders` is async (assigned to sync type), `auth.name` doesn't exist (correct: `auth.staffName`), `data.entries` not accessible without type cast
+- Fix: replaced entire fetch pattern with `getAuthHeaders(auth)` + native `fetch`; added `as { entries?: ReceiptEntry[] }` cast
+
+**Bug 2 — `submitted_by` always "Unknown"** — Fixed Heroku v1778 commit `5f79940`
+- `receipt_log_api.py` used `actor.get("name", "Unknown")` but JWT stores staff name under `"sub"` claim
+- Fix: `actor.get("name", ...)` → `actor.get("sub", ...)` in both POST submit and GET /my
+
+**Bug 3 — SelectDark shows "— Select —" for value="" option** — Fixed commit `138242c`
+- `SelectDark.tsx` used `value ?` (falsy for `""`) to decide label vs placeholder; options like `{ value: "", label: "All Branches" }` were ignored
+- Fix: added `hasMatchingOption = normalized.some(o => o.value === value)`; trigger now shows `selectedLabel` when matching option exists even if `value=""`
+
+### Features verified ✅
+- Store form: branch/dept selection, date, supplier, items+amounts, total auto-sum, submit → form resets ✅
+- `submitted_by: "Yukihiro Nishimura"` in POST response after v1778 fix ✅
+- Admin page: Dubai/Manila toggle, KPI cards (AED 535.00 = 450+85), table showing both entries ✅
+- CSV export: triggered without console errors, correct data in table ✅
+- "My Recent Submissions": shows "Carrefour Dubai Mall" entry (Aug 6, BB, ₱85.00) ✅
+- ProcurementTabs "Receipt Log" tab visible in Operations group ✅
+
+### Pending (manual step)
+- Role Management → "Resync System Channels" to sync `store_receipt_log` channel to DB, then grant `View Receipt Log` permission to relevant custom roles
 
 ---
 
