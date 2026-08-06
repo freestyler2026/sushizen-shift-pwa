@@ -130,7 +130,24 @@ type DashboardData = {
   requests?: NteRequest[];
 };
 
-type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates" | "catalog" | "ir" | "cases";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "catalog" | "ir" | "cases";
+
+const VIOLATION_CATEGORIES: { code: string; label: string; icon: string }[] = [
+  { code: "ATT",  label: "Attendance",          icon: "🕐" },
+  { code: "PERF", label: "Performance",          icon: "📋" },
+  { code: "HYG",  label: "Food Safety / Hygiene",icon: "🧤" },
+  { code: "KIT",  label: "Kitchen Operations",   icon: "🍳" },
+  { code: "CS",   label: "Customer Service",     icon: "💬" },
+  { code: "PROP", label: "Company Property",     icon: "🏢" },
+  { code: "INV",  label: "Inventory / Cash",     icon: "💰" },
+  { code: "SAF",  label: "Safety",               icon: "⛑️" },
+  { code: "CON",  label: "Conduct",              icon: "🤝" },
+  { code: "POL",  label: "Company Policy",       icon: "📜" },
+  { code: "FRD",  label: "Fraud / Dishonesty",   icon: "⚠️" },
+  { code: "MGT",  label: "Management",           icon: "👔" },
+  { code: "OS",   label: "Workforce OS",         icon: "💻" },
+  { code: "CK",   label: "Central Kitchen",      icon: "🏭" },
+];
 
 type IrEvidence = {
   id: string;
@@ -578,6 +595,12 @@ export default function EmployeeCasesPage() {
   const [issueViolationPickerOpen, setIssueViolationPickerOpen] = useState(false);
   const [issueViolationSearch, setIssueViolationSearch] = useState("");
   const [issueTemplateLoading, setIssueTemplateLoading] = useState(false);
+  const [pickerExpandedCats, setPickerExpandedCats] = useState<Set<string>>(
+    () => new Set(VIOLATION_CATEGORIES.map((c) => c.code))
+  );
+  // Catalog tab — category filter + collapsed sections
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState("");
+  const [catalogCollapsedCats, setCatalogCollapsedCats] = useState<Set<string>>(new Set());
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addItemForm, setAddItemForm] = useState({
     code: "", category_code: "", title_en: "", title_ja: "",
@@ -1761,7 +1784,6 @@ export default function EmployeeCasesPage() {
             { id: "pending",  label: `Pending${pendingIssuance > 0 ? ` (${pendingIssuance})` : ""}` },
             { id: "issue",    label: "Issue Notice" },
             { id: "history",  label: "Case History" },
-            { id: "templates",label: "Templates" },
             ...(isHQ ? [{ id: "catalog" as PageTab, label: "Violation Catalog" }] : []),
             ...(isHR ? [{ id: "ir" as PageTab, label: "New IR" }] : []),
             ...(isHR ? [{ id: "cases" as PageTab, label: "Case Queue" }] : []),
@@ -2349,38 +2371,79 @@ export default function EmployeeCasesPage() {
                   placeholder="Search by code or title…"
                   className={INPUT_CLASS}
                 />
-                <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+                <div className="overflow-y-auto flex-1 pr-1">
                   {catalogLoading && <p className="text-sm text-zinc-400 py-4 text-center">Loading catalog…</p>}
-                  {!catalogLoading && catalog
-                    .filter((c) => {
-                      const q = issueViolationSearch.toLowerCase();
-                      return !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q);
-                    })
-                    .map((c) => (
-                      <button
-                        key={c.code}
-                        type="button"
-                        onClick={() => void applyIssueViolationTemplate(c.code)}
-                        className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-zinc-700/60 transition-colors group"
-                      >
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-mono text-xs text-violet-400 shrink-0 w-20">{c.code}</span>
-                          <span className="text-sm text-zinc-200 group-hover:text-white">{c.title_en}</span>
-                          <span className={`ml-auto text-xs shrink-0 px-1.5 py-0.5 rounded ${
-                            c.severity_class === "SERIOUS" ? "bg-orange-950/60 text-orange-300" :
-                            c.severity_class === "GROSS" ? "bg-red-950/60 text-red-300" :
-                            "bg-zinc-800 text-zinc-400"
-                          }`}>{c.severity_class}</span>
-                        </div>
-                      </button>
-                    ))
-                  }
-                  {!catalogLoading && catalog.filter((c) => {
+                  {!catalogLoading && (() => {
                     const q = issueViolationSearch.toLowerCase();
-                    return !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q);
-                  }).length === 0 && (
-                    <p className="text-sm text-zinc-500 py-4 text-center">No violations match your search.</p>
-                  )}
+                    const filtered = catalog.filter((c) =>
+                      !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q)
+                    );
+                    if (filtered.length === 0) {
+                      return <p className="text-sm text-zinc-500 py-4 text-center">No violations match your search.</p>;
+                    }
+                    if (q) {
+                      // Flat list when searching
+                      return (
+                        <div className="space-y-0.5">
+                          {filtered.map((c) => (
+                            <button key={c.code} type="button"
+                              onClick={() => void applyIssueViolationTemplate(c.code)}
+                              className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs text-violet-400 shrink-0 w-20">{c.code}</span>
+                                <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    }
+                    // Grouped by category
+                    return (
+                      <div className="space-y-1">
+                        {VIOLATION_CATEGORIES.map((cat) => {
+                          const items = filtered.filter((c) => c.category_code === cat.code);
+                          if (items.length === 0) return null;
+                          const isExpanded = pickerExpandedCats.has(cat.code);
+                          return (
+                            <div key={cat.code}>
+                              <button
+                                type="button"
+                                onClick={() => setPickerExpandedCats((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(cat.code)) next.delete(cat.code);
+                                  else next.add(cat.code);
+                                  return next;
+                                })}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-zinc-800/60 transition-colors"
+                              >
+                                <span className="text-base">{cat.icon}</span>
+                                <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wide flex-1">{cat.label}</span>
+                                <span className="text-xs text-zinc-600">{items.length}</span>
+                                <span className="text-zinc-600 text-xs">{isExpanded ? "▾" : "▸"}</span>
+                              </button>
+                              {isExpanded && (
+                                <div className="ml-4 space-y-0.5 mb-1">
+                                  {items.map((c) => (
+                                    <button key={c.code} type="button"
+                                      onClick={() => void applyIssueViolationTemplate(c.code)}
+                                      className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs text-violet-400 shrink-0 w-[4.5rem]">{c.code}</span>
+                                        <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <p className="text-xs text-zinc-500">Selecting a violation will render the template and fill the Reason field.</p>
               </div>
@@ -2533,75 +2596,6 @@ export default function EmployeeCasesPage() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* Tab 4: Templates                                                    */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {tab === "templates" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() =>
-                setTemplateModal({ open: true, template: null })
-              }
-              className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm`}
-            >
-              <Plus className="h-4 w-4" />
-              Add Template
-            </button>
-          </div>
-
-          {loading && <p className={T_BODY}>Loading templates…</p>}
-
-          {!loading && templates.length === 0 && (
-            <div className={`${GLASS_CARD} p-8 text-center`}>
-              <FileText className="mx-auto mb-2 h-8 w-8 text-zinc-600" />
-              <p className={T_BODY}>No templates yet. Create one to speed up notice issuance.</p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {templates.map((tpl) => (
-              <div key={tpl.id} className={`${GLASS_CARD} flex flex-col gap-2 p-4 sm:flex-row sm:items-start`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-4 w-4 shrink-0 text-violet-400" />
-                    <span className={T_CARD_TITLE}>{tpl.title}</span>
-                  </div>
-                  <p className="line-clamp-2 text-sm text-zinc-400 leading-relaxed">
-                    {tpl.body}
-                  </p>
-                  <p className={`${T_CAPTION} mt-1`}>
-                    Created by {tpl.created_by || "—"} · {fmtDate(tpl.created_at)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTemplateModal({ open: true, template: tpl })
-                    }
-                    className={`${SMALL_BUTTON} flex items-center gap-1`}
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handleDeleteTemplate(tpl.id, tpl.title)
-                    }
-                    className={`${DANGER_BUTTON} flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Violation Catalog (HQ only) ── */}
       {tab === "catalog" && isHQ && (
         <div className="space-y-4">
@@ -2762,95 +2756,153 @@ export default function EmployeeCasesPage() {
             )}
           </div>
 
+          {/* Category filter */}
           {catalog.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-sm border-collapse">
-                <thead>
-                  <tr className={TABLE_HEADER}>
-                    <th className={`${TABLE_CELL} text-left`}>Code</th>
-                    <th className={`${TABLE_CELL} text-left`}>Title</th>
-                    <th className={`${TABLE_CELL} text-center`}>Severity</th>
-                    <th className={`${TABLE_CELL} text-center`}>Layer</th>
-                    <th className={`${TABLE_CELL} text-center`}>Auto</th>
-                    <th className={`${TABLE_CELL} text-center`}>HQ Review</th>
-                    {catalogMarket && <th className={`${TABLE_CELL} text-left`}>Legal Ref</th>}
-                    <th className={`${TABLE_CELL} text-center`}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {catalog.map((entry) => (
-                    <tr key={entry.code} className={TABLE_ROW}>
-                      <td className={`${TABLE_CELL} font-mono font-semibold text-violet-400`}>{entry.code}</td>
-                      <td className={TABLE_CELL}>
-                        <p className="font-medium">{entry.title_en}</p>
-                        <p className="text-xs text-zinc-500">{entry.title_ja}</p>
-                        {catalogMarket && entry.definition_en && (
-                          <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{entry.definition_en}</p>
-                        )}
-                      </td>
-                      <td className={`${TABLE_CELL} text-center`}>
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
-                          entry.severity_class === "D" ? "bg-red-900/60 text-red-300" :
-                          entry.severity_class === "C" ? "bg-orange-900/60 text-orange-300" :
-                          entry.severity_class === "B" ? "bg-yellow-900/60 text-yellow-300" :
-                          "bg-zinc-800 text-zinc-300"
-                        }`}>
-                          {entry.severity_class}
-                        </span>
-                      </td>
-                      <td className={`${TABLE_CELL} text-center font-mono text-xs`}>{entry.input_layer}</td>
-                      <td className={`${TABLE_CELL} text-center`}>
-                        {entry.auto_detectable
-                          ? <CheckCircle className="inline h-4 w-4 text-emerald-400" />
-                          : <X className="inline h-4 w-4 text-zinc-500" />}
-                      </td>
-                      <td className={`${TABLE_CELL} text-center`}>
-                        {entry.requires_hq_review
-                          ? <AlertTriangle className="inline h-4 w-4 text-amber-400" />
-                          : <span className="text-zinc-600">—</span>}
-                      </td>
-                      {catalogMarket && (
-                        <td className={`${TABLE_CELL} text-xs text-zinc-400 max-w-[200px]`}>
-                          {entry.legal_ground_ref ?? "—"}
-                        </td>
-                      )}
-                      <td className={`${TABLE_CELL} text-center`}>
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            title="Preview Template"
-                            onClick={() => {
-                              const mkt = catalogMarket || "PH";
-                              setPreviewCode(entry.code);
-                              setPreviewMarket(mkt as "PH" | "AE");
-                              void fetchCatalogPreview(entry.code, mkt as "PH" | "AE");
-                            }}
-                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-cyan-300 transition-colors"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Edit Template"
-                            onClick={() => openEditTemplate(entry)}
-                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-violet-300 transition-colors"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Deactivate"
-                            onClick={() => void deleteCatalogItem(entry.code)}
-                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={T_LABEL}>Category:</span>
+              <button
+                type="button"
+                onClick={() => setCatalogCategoryFilter("")}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  catalogCategoryFilter === "" ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                }`}
+              >
+                All
+              </button>
+              {VIOLATION_CATEGORIES.map((cat) => {
+                const count = catalog.filter((c) => c.category_code === cat.code).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={cat.code}
+                    type="button"
+                    onClick={() => setCatalogCategoryFilter(cat.code === catalogCategoryFilter ? "" : cat.code)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      catalogCategoryFilter === cat.code ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                    }`}
+                  >
+                    {cat.icon} {cat.label}
+                    <span className="ml-1 opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {catalog.length > 0 && (
+            <div className="space-y-3">
+              {VIOLATION_CATEGORIES.map((cat) => {
+                const items = catalog.filter((c) =>
+                  c.category_code === cat.code &&
+                  (!catalogCategoryFilter || c.category_code === catalogCategoryFilter)
+                );
+                if (items.length === 0) return null;
+                const isCollapsed = catalogCollapsedCats.has(cat.code);
+                return (
+                  <div key={cat.code} className={`${GLASS_CARD} overflow-hidden`}>
+                    {/* Category header */}
+                    <button
+                      type="button"
+                      onClick={() => setCatalogCollapsedCats((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(cat.code)) next.delete(cat.code);
+                        else next.add(cat.code);
+                        return next;
+                      })}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-700/30 transition-colors"
+                    >
+                      <span className="text-lg">{cat.icon}</span>
+                      <span className="font-semibold text-white">{cat.label}</span>
+                      <span className="text-xs text-zinc-500 ml-1">{items.length} violations</span>
+                      <span className="ml-auto text-zinc-500 text-sm">{isCollapsed ? "▸" : "▾"}</span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[700px] text-sm border-collapse">
+                          <thead>
+                            <tr className={TABLE_HEADER}>
+                              <th className={`${TABLE_CELL} text-left`}>Code</th>
+                              <th className={`${TABLE_CELL} text-left`}>Title</th>
+                              <th className={`${TABLE_CELL} text-center`}>Sev</th>
+                              <th className={`${TABLE_CELL} text-center`}>Layer</th>
+                              <th className={`${TABLE_CELL} text-center`}>Auto</th>
+                              <th className={`${TABLE_CELL} text-center`}>HQ</th>
+                              {catalogMarket && <th className={`${TABLE_CELL} text-left`}>Legal Ref</th>}
+                              <th className={`${TABLE_CELL} text-center`}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((entry) => (
+                              <tr key={entry.code} className={TABLE_ROW}>
+                                <td className={`${TABLE_CELL} font-mono font-semibold text-violet-400 text-xs`}>{entry.code}</td>
+                                <td className={TABLE_CELL}>
+                                  <p className="font-medium">{entry.title_en}</p>
+                                  {catalogMarket && entry.definition_en && (
+                                    <p className="mt-0.5 text-xs text-zinc-400 line-clamp-2">{entry.definition_en}</p>
+                                  )}
+                                </td>
+                                <td className={`${TABLE_CELL} text-center`}>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                                    entry.severity_class === "D" ? "bg-red-900/60 text-red-300" :
+                                    entry.severity_class === "C" ? "bg-orange-900/60 text-orange-300" :
+                                    entry.severity_class === "B" ? "bg-yellow-900/60 text-yellow-300" :
+                                    "bg-zinc-800 text-zinc-300"
+                                  }`}>{entry.severity_class}</span>
+                                </td>
+                                <td className={`${TABLE_CELL} text-center font-mono text-xs text-zinc-500`}>
+                                  {entry.input_layer.replace("L1_AUTO","L1").replace("L2_STRUCTURED","L2").replace("L3_NARRATIVE","L3")}
+                                </td>
+                                <td className={`${TABLE_CELL} text-center`}>
+                                  {entry.auto_detectable
+                                    ? <CheckCircle className="inline h-4 w-4 text-emerald-400" />
+                                    : <X className="inline h-4 w-4 text-zinc-600" />}
+                                </td>
+                                <td className={`${TABLE_CELL} text-center`}>
+                                  {entry.requires_hq_review
+                                    ? <AlertTriangle className="inline h-4 w-4 text-amber-400" />
+                                    : <span className="text-zinc-600">—</span>}
+                                </td>
+                                {catalogMarket && (
+                                  <td className={`${TABLE_CELL} text-xs text-zinc-400 max-w-[180px] truncate`}>
+                                    {entry.legal_ground_ref ?? "—"}
+                                  </td>
+                                )}
+                                <td className={`${TABLE_CELL} text-center`}>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button type="button" title="Preview Template"
+                                      onClick={() => {
+                                        const mkt = catalogMarket || "PH";
+                                        setPreviewCode(entry.code);
+                                        setPreviewMarket(mkt as "PH" | "AE");
+                                        void fetchCatalogPreview(entry.code, mkt as "PH" | "AE");
+                                      }}
+                                      className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-cyan-300 transition-colors"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button type="button" title="Edit Template"
+                                      onClick={() => openEditTemplate(entry)}
+                                      className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-violet-300 transition-colors"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button type="button" title="Deactivate"
+                                      onClick={() => void deleteCatalogItem(entry.code)}
+                                      className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-red-400 transition-colors"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
