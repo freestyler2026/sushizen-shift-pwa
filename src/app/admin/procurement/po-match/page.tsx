@@ -540,6 +540,37 @@ function QuickEntryTab({
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkDismissed, setLinkDismissed] = useState(false);
   const linkDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Draft save/restore
+  const draftKey = `po_match_draft_${city}`;
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false);
+  const pendingDraftRef = useRef<Record<string, string> | null>(null);
+
+  // On mount: check for a saved draft
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as Record<string, string>;
+        if (d.vendorQ || d.manualPoNo || d.invoiceNo) {
+          pendingDraftRef.current = d;
+          setShowRestoreBanner(true);
+        }
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save form state to localStorage whenever fields change
+  useEffect(() => {
+    try {
+      const draft = { vendorQ, manualPoNo, manualPoAmount, poDate, invoiceNo, invoiceDate, invoiceAmount, vatRate, notes, discrepancyType };
+      const hasContent = vendorQ || manualPoNo || invoiceNo || invoiceAmount;
+      if (hasContent) {
+        window.localStorage.setItem(draftKey, JSON.stringify(draft));
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorQ, manualPoNo, manualPoAmount, poDate, invoiceNo, invoiceDate, invoiceAmount, vatRate, notes, discrepancyType]);
 
   const searchPos = useCallback(async (q: string) => {
     if (!q.trim()) { setPoRows([]); setShowPoList(false); return; }
@@ -765,6 +796,9 @@ function QuickEntryTab({
       setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
       isAmountOverriddenRef.current = false;
       poLinesFetchRef.current = null;
+      try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+      setShowRestoreBanner(false);
+      pendingDraftRef.current = null;
       onSaved();
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
@@ -792,8 +826,38 @@ function QuickEntryTab({
     } finally { setCnrBusy(false); }
   };
 
+  const restoreDraft = () => {
+    const d = pendingDraftRef.current;
+    if (!d) return;
+    if (d.vendorQ) setVendorQ(d.vendorQ);
+    if (d.manualPoNo) setManualPoNo(d.manualPoNo);
+    if (d.manualPoAmount) setManualPoAmount(d.manualPoAmount);
+    if (d.poDate) setPoDate(d.poDate);
+    if (d.invoiceNo) setInvoiceNo(d.invoiceNo);
+    if (d.invoiceDate) setInvoiceDate(d.invoiceDate);
+    if (d.invoiceAmount) setInvoiceAmount(d.invoiceAmount);
+    if (d.vatRate) setVatRate(d.vatRate);
+    if (d.notes) setNotes(d.notes);
+    if (d.discrepancyType) setDiscrepancyType(d.discrepancyType);
+    setShowRestoreBanner(false);
+    pendingDraftRef.current = null;
+  };
+
+  const dismissDraft = () => {
+    try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    setShowRestoreBanner(false);
+    pendingDraftRef.current = null;
+  };
+
   return (
     <div className="space-y-6">
+      {showRestoreBanner && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <span className="flex-1 text-sm text-amber-300">You have an unsaved draft from a previous session.</span>
+          <button onClick={restoreDraft} className="rounded bg-amber-500 px-3 py-1 text-xs font-semibold text-black hover:bg-amber-400">Restore</button>
+          <button onClick={dismissDraft} className="rounded bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200 hover:bg-zinc-600">Discard</button>
+        </div>
+      )}
       <div className={`${GLASS_CARD} p-6`}>
         <h2 className={T_SECTION}>Enter Today&apos;s Invoice</h2>
         <p className="mt-1 text-sm text-zinc-500">
