@@ -39,22 +39,9 @@ export function defaultProcurementName(): string {
 }
 
 export function defaultProcurementPin(): string {
-  try {
-    if (typeof sessionStorage !== "undefined") {
-      const sessionPin = sessionStorage.getItem(_SK_PIN);
-      if (sessionPin) {
-        // Only use the cached session PIN if it's for the same user currently logged in.
-        // A mismatch means a stale session from a previous login (e.g. after PIN change
-        // or user switch on the same tab), which would cause "Invalid PIN" on submit.
-        const sessionName = sessionStorage.getItem(_SK_NAME) || "";
-        const authName = getAuth()?.staffName || "";
-        const normalize = (n: string) => n.trim().toLowerCase();
-        if (!authName || normalize(sessionName) === normalize(authName)) {
-          return sessionPin;
-        }
-      }
-    }
-  } catch {}
+  // Only use auth.pin (set when a PIN is successfully verified via remintAccessTokenWithPin).
+  // sessionStorage is intentionally excluded: a stale PIN in sessionStorage for the same user
+  // (e.g. after a PIN change) would bypass the backend check and cause "Invalid PIN" errors.
   return getAuth()?.pin || "";
 }
 
