@@ -1,6 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Receipt Log browser-tested — 3 bugs found and fixed)
+Last updated: 2026-08-06 (NTE Template System Phase 1 — all 125 seed items complete, old files deleted)
+
+---
+
+## 🔄 In Progress: NTE Template System — Phase 2 (Backend Load + UI)
+
+### Phase 1 COMPLETE ✅
+All 14 violation category seed JSON files created under `seeds/violation_catalog/` in the **backend repo** (`sushizen_shift_app_clean`):
+
+| # | File | Category | Items |
+|---|------|----------|-------|
+| 01 | `01_attendance.json` | ATT — Attendance | 9 |
+| 02 | `02_performance.json` | PERF — Performance | 8 |
+| 03 | `03_hygiene.json` | HYG — Hygiene | 14 |
+| 04 | `04_kitchen.json` | KIT — Kitchen (scope: KITCHEN) | 8 |
+| 05 | `05_customer_service.json` | CS — Customer Service | 7 |
+| 06 | `06_property.json` | PROP — Property | 5 |
+| 07 | `07_inventory.json` | INV — Inventory | 8 |
+| 08 | `08_safety.json` | SAF — Safety | 7 |
+| 09 | `09_conduct.json` | CON — Conduct (CON-015 CODI-only) | 15 |
+| 10 | `10_policy.json` | POL — Policy | 7 |
+| 11 | `11_fraud.json` | FRD — Fraud (all D/Grave) | 10 |
+| 12 | `12_management.json` | MGT — Management (scope: MANAGEMENT; MGT-004 deprecated→OS-002) | 9 |
+| 13 | `13_workforce_os.json` | OS — Workforce OS | 11 |
+| 14 | `14_central_kitchen.json` | CK — Central Kitchen (scope: CK) | 7 |
+| **Total** | | | **125** |
+
+Old wrong-coded seed files (03_conduct, 04_food_safety, 05_cash_handling, 06_uniform, 07_guest_service, 08_harassment, 09_theft, 10_property, 11_substance, 12_confidentiality) have been **deleted**.
+
+### Phase 2 — TODO (backend deploy + trigger + UI)
+- [ ] Deploy backend: `git add -A && git commit -m "feat(nte): add Phase 1 violation catalog seed files (125 items, 14 categories)"` then `git push heroku HEAD:master --force`
+- [ ] Trigger seed load: ensure `load_catalog_json()` is called on startup (via `ensure_nte_v2_tables()` in `db_nte_v2_catalog.py`), or call the load endpoint manually
+- [ ] Verify: query `violation_catalog` and `violation_catalog_market` tables to confirm 125 + 250 rows (125 × 2 markets)
+- [ ] NTE v2 UI — NTE issuance form (select violation from catalog, input layer L1/L2/L3, acts_block rendering)
+- [ ] CON-015 block: NTE UI must refuse to generate standard NTE letter for CON-015; show CODI referral instructions instead
+- [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
+
+### Key design notes for Phase 2
+- `acts_block_en` uses Handlebars-style templates: `{{variable}}`, `{{#if cond}}...{{/if}}`, `{{#each list}}...{{/each}}`
+- CON-015: `acts_block_en` is a CODI referral block — the NTE issuance UI must check `code === "CON-015"` and refuse standard letter generation
+- MGT-004: deprecated, `acts_block_en = "[DEPRECATED — Issue under OS-002.]"` — filter out from selectable catalog
+- All `_note` fields are internal design notes, not stored in DB (not in the DB schema)
+- `evidence_required` JSONB is stored per-market row in `violation_catalog_market`
+
+---
 
 ---
 
