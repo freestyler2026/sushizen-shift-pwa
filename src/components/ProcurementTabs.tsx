@@ -51,6 +51,7 @@ const GROUPS: TabGroup[] = [
       { href: "/admin/procurement/pos",              label: "PO",                showTo: ["manager", "full"] },
       { href: "/admin/procurement/ck-orders",          label: "CK Orders",         showTo: ["manager", "full"] },
       { href: "/admin/procurement/direct-purchases", label: "Direct Purchases",  showTo: ["manager", "full"] },
+      { href: "/admin/procurement/receipt-log",      label: "Receipt Log",       showTo: ["manager", "full"] },
       { href: "/admin/procurement/receiving",        label: "Confirm Delivery",  showTo: ["manager", "full"] },
     ],
   },
