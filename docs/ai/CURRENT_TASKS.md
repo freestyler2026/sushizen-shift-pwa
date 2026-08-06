@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 6 complete — progressive penalty matrix + offense-history auto-suggest in IR review)
+Last updated: 2026-08-07 (NTE Phase 7 confirmed complete — PDF download button + ReportLab letter renderer already live since 2026-08-03)
 
 ---
 
@@ -102,7 +102,7 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back
-- [ ] Phase 7: PDF output
+- [x] Phase 7: PDF output — `GET /api/admin/nte-v2/case/{id}/letter` returns ReportLab A4 PDF; "Download NTE Letter (PDF)" button in case detail panel. Implemented as P6 Letter Renderer (Heroku v1700 / Vercel a937c39, 2026-08-03). SHA-256 audit-logged per download.
 
 ---
 
