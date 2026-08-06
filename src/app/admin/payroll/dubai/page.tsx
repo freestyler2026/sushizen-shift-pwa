@@ -59,7 +59,7 @@ type CalcResult = {
   message?: string;
 };
 
-type StaffGroup = "all" | "regular" | "parttime";
+type StaffGroup = "all" | "parttime";
 
 const PARTTIME_NAMES = [
   "Krishna Tamang", "Dipak Dahal", "Bijien Mijar", "Padam Bahadur K C",
@@ -188,10 +188,7 @@ export default function DubaiPayrollPage() {
     const df = rangeFrom[cycle.id] || null;
     const dt = rangeTo[cycle.id] || null;
     const group = staffGroup[cycle.id] ?? "all";
-    const staffNamesPayload =
-      group === "parttime" ? PARTTIME_NAMES :
-      group === "regular"  ? null :   // null = all (backend excludes nothing)
-      null;
+    const staffNamesPayload = group === "parttime" ? PARTTIME_NAMES : null;
     const body: Record<string, unknown> = { cycle_id: cycle.id, year: cycle.year, month: cycle.month };
     if (useRange && df && dt) { body.date_from = df; body.date_to = dt; }
     if (staffNamesPayload) body.staff_names = staffNamesPayload;
@@ -437,7 +434,6 @@ export default function DubaiPayrollPage() {
                             <select value={staffGroup[c.id] ?? "all"} onChange={e => setStaffGroup(prev => ({ ...prev, [c.id]: e.target.value as StaffGroup }))}
                               className="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none">
                               <option value="all">All Staff</option>
-                              <option value="regular">Regular Staff only</option>
                               <option value="parttime">Part-time Staff only (8 names)</option>
                             </select>
                           </div>
