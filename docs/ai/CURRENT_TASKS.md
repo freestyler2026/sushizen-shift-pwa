@@ -1,6 +1,33 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-05 (fix: store-opening Create button — cursor_factory=RealDictCursor missing from all DB functions caused silent 500 errors; modal now surfaces errors)
+Last updated: 2026-08-06 (Dubai Payroll cycle alignment Phase 1-3 executed; engine scoped DELETE by staff_names)
+
+---
+
+## ✅ Recently Executed: Dubai Payroll Cycle Alignment (2026-08-06)
+
+### Phase 1 — July Cleanup ✓
+- Cycle #36 (Jul 2026): Deleted **195 auto-calculated entries** via "Clear Auto-Calc" UI
+- Cyrine's manual entries (6/1-6/30 Prime Time/Penalty) preserved
+
+### Phase 2 — Engine Enhancements ✓ (Heroku deployed)
+- `dubai_payroll_engine.py`: Added `date_from`/`date_to` custom range + `staff_names` filter
+- `dubai_payroll_engine.py`: Scoped `DELETE` to `staff_names` when filter provided (prevents sequential runs from wiping each other)
+- `main.py`: DELETE endpoint for clearing auto-calc by cycle_id
+- `page.tsx` (Dubai Payroll): Date range panel, Staff Group selector (All/Regular/Part-time), Clear Auto-Calc button with confirm; Auto-Calculate enabled on closed cycles
+- Part-time name fix: "Pukar KC" → "Pukar K C" in PARTTIME_NAMES
+
+### Phase 3 — August Catch-up Execution ✓
+| Run | Cycle | Date Range | Staff | Result |
+|-----|-------|-----------|-------|--------|
+| All Staff | #38 Aug | 2026-06-26 → 2026-08-25 | All 55 | 257 entries (211 night premium, 9 absent, 29 missing punch, 8 break excess) |
+| Part-time | #38 Aug | 2026-08-01 → 2026-08-31 | 8 part-timers | 0 entries (August DTR not uploaded yet) |
+| Part-time | #36 Jul | 2026-07-01 → 2026-07-31 | 8 part-timers | 39 entries (34 night premium, 4 missing punch, 1 break excess) |
+
+### Pending (manual)
+- Part-time August DTR not yet uploaded → re-run Part-time #38 Aug 8/1-8/31 after upload
+- Check for duplicated July Night Premium entries in Adjustments if needed
+- Close July cycle (#36) once reviewed
 
 ---
 
