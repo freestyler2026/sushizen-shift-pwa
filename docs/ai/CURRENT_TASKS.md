@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 4 — staff My NTE page deployed; backend SQL fix for /my-cases endpoint)
+Last updated: 2026-08-07 (NTE Phase 4 complete + IR review violation picker deployed)
 
 ---
 
@@ -60,10 +60,18 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
   - `GET /api/store/nte-v2/my-cases`: was joining `violation_catalog_market vm ON vm.code` (column is `catalog_code`); fixed to join `violation_catalog vc ON vc.code = c.violation_code`, select `vc.title_en`
   - `POST /api/store/nte-v2/my-cases/{id}/respond`: staff response submission (unchanged)
 
+### Phase 4 addendum — IR Review Picker COMPLETE ✅ (2026-08-07)
+- **`src/app/admin/employee-cases/page.tsx`** — IR review modal "Confirm Violation" action (commit `599f5ba`, Vercel)
+  - Replaced plain text violation code input with searchable grouped picker
+  - Groups by `category_code`, severity A/B/C/D badges, HQ-review flag; CON-015 + MGT-004 excluded
+  - Auto-populates `reviewSeverity` from selected catalog entry
+  - Violation pre-filled from IR's own `violation_code` for easy confirm-or-override
+  - Backend sample context extended to all 14 categories via `get_sample_context()` (Heroku v1783)
+- **Browser-verified** (2026-08-07): picker opens, groups visible (ATT: ATT-001…ATT-004), severity badges render, pre-fill works ✅
+
 ### Remaining NTE work (low priority)
-- [ ] Extend sample context / preview to all 14 categories (currently only ATT-001..009 have `get_att_sample_context()`)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
-- [ ] IR → NTE conversion: after IR_SUBMITTED, allow HQ to escalate to NTE case
+- [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back
 
 ### Key design notes
 - `acts_block_en` uses Handlebars-style templates: `{{variable}}`, `{{#if cond}}...{{/if}}`, `{{#each list}}...{{/each}}`
