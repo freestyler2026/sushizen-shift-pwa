@@ -585,6 +585,8 @@ export default function EmployeeCasesPage() {
   const [editTemplateMarket, setEditTemplateMarket] = useState<"AE" | "PH" | "BOTH">("BOTH");
   const [editTemplateText, setEditTemplateText] = useState("");
   const [editTemplateSaving, setEditTemplateSaving] = useState(false);
+  const [editTemplateRendered, setEditTemplateRendered] = useState("");
+  const [editTemplateRawMode, setEditTemplateRawMode] = useState(false);
   // Catalog preview modal
   const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [previewMarket, setPreviewMarket] = useState<"PH" | "AE">("PH");
@@ -1347,25 +1349,24 @@ export default function EmployeeCasesPage() {
   }
 
   async function openEditTemplate(entry: CatalogEntry) {
+    const market = (catalogMarket as "AE" | "PH") || "PH";
     setEditTemplateCode(entry.code);
     setEditTemplateMarket((catalogMarket as "AE" | "PH" | "BOTH") || "BOTH");
-    if (entry.acts_block_en) {
-      setEditTemplateText(entry.acts_block_en);
-      setEditTemplateOpen(true);
-    } else {
-      // Market=All → acts_block_en is NULL from API; fetch raw from PH market
-      setEditTemplateText("");
-      setEditTemplateOpen(true);
-      try {
-        const res = await fetch(`/api/admin/nte-v2/catalog/${entry.code}/render?market=PH`, {
-          headers: authHeaders() as Record<string, string>,
-        });
-        if (res.ok) {
-          const data = await res.json() as { raw?: string };
-          setEditTemplateText(data.raw ?? "");
-        }
-      } catch { /* silent */ }
-    }
+    setEditTemplateText(entry.acts_block_en ?? "");
+    setEditTemplateRendered("");
+    setEditTemplateRawMode(false);
+    setEditTemplateOpen(true);
+    // Fetch both raw and rendered from the render API
+    try {
+      const res = await fetch(`/api/admin/nte-v2/catalog/${entry.code}/render?market=${market}`, {
+        headers: authHeaders() as Record<string, string>,
+      });
+      if (res.ok) {
+        const data = await res.json() as { raw?: string; rendered?: string };
+        setEditTemplateText(data.raw ?? entry.acts_block_en ?? "");
+        setEditTemplateRendered(data.rendered ?? "");
+      }
+    } catch { /* silent */ }
   }
 
   async function saveEditTemplate() {
@@ -2925,55 +2926,88 @@ export default function EmployeeCasesPage() {
           {/* ── Edit Template Modal ── */}
           {editTemplateOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6`}>
+              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[85vh] flex flex-col`}>
                 <div className="flex items-center justify-between">
-                  <h3 className={T_CARD_TITLE}>Edit NTE Template — <span className="font-mono text-violet-400">{editTemplateCode}</span></h3>
-                  <button type="button" onClick={() => setEditTemplateOpen(false)} className="text-zinc-400 hover:text-white">
+                  <div>
+                    <h3 className={T_CARD_TITLE}>NTE Template — <span className="font-mono text-violet-400">{editTemplateCode}</span></h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Template preview (rendered text)</p>
+                  </div>
+                  <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className="text-zinc-400 hover:text-white">
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className={T_LABEL}>Apply to market:</label>
-                  <SelectDark
-                    value={editTemplateMarket}
-                    onChange={(v) => setEditTemplateMarket(v as "AE" | "PH" | "BOTH")}
-                    options={[
-                      { value: "BOTH", label: "Both (AE + PH)" },
-                      { value: "AE", label: "Dubai (AE) only" },
-                      { value: "PH", label: "Manila (PH) only" },
-                    ]}
-                    className="text-sm"
-                  />
-                </div>
-                <div>
-                  <label className={`${T_LABEL} block mb-1`}>
-                    acts_block_en template
-                    <span className="ml-2 text-zinc-500 font-normal text-xs">Handlebars syntax supported: {"{{field}}"}, {"{{#each items}}…{{/each}}"}, {"{{#if flag}}…{{/if}}"}</span>
-                  </label>
-                  {!catalogMarket && !editTemplateText && (
-                    <p className="mb-1 text-xs text-amber-400">Switch the catalog to AE or PH market filter to load the current template text.</p>
-                  )}
-                  <textarea
-                    value={editTemplateText}
-                    onChange={(e) => setEditTemplateText(e.target.value)}
-                    rows={14}
-                    className={`${TEXTAREA_CLASS} font-mono text-xs w-full`}
-                    placeholder="Enter the acts_block_en template text…"
-                  />
-                  <p className="mt-1 text-xs text-zinc-500">{editTemplateText.length} chars</p>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => setEditTemplateOpen(false)} className={SECONDARY_BUTTON}>Cancel</button>
-                  <button
-                    type="button"
-                    onClick={() => void saveEditTemplate()}
-                    disabled={editTemplateSaving || !editTemplateText.trim()}
-                    className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-                  >
-                    {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    {editTemplateSaving ? "Saving…" : "Save Template"}
-                  </button>
-                </div>
+
+                {!editTemplateRawMode ? (
+                  /* ── Read-only rendered view ── */
+                  <div className="flex-1 overflow-y-auto space-y-3">
+                    {editTemplateRendered ? (
+                      <div className="bg-zinc-800/50 rounded-xl px-4 py-3 text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                        {editTemplateRendered}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-zinc-500 text-sm py-4">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Loading template preview…
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-zinc-700">
+                      <button
+                        type="button"
+                        onClick={() => setEditTemplateRawMode(true)}
+                        className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                        Edit raw template (advanced)
+                      </button>
+                      <button type="button" onClick={() => { setEditTemplateOpen(false); setEditTemplateRawMode(false); }} className={SECONDARY_BUTTON}>
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Raw Handlebars editor ── */
+                  <>
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                      ⚠️ You are editing the raw Handlebars template. Modifying or deleting <code className="font-mono bg-amber-900/40 px-1 rounded">{"{{variables}}"}</code> may break the template rendering.
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className={T_LABEL}>Apply to market:</label>
+                      <SelectDark
+                        value={editTemplateMarket}
+                        onChange={(v) => setEditTemplateMarket(v as "AE" | "PH" | "BOTH")}
+                        options={[
+                          { value: "BOTH", label: "Both (AE + PH)" },
+                          { value: "AE", label: "Dubai (AE) only" },
+                          { value: "PH", label: "Manila (PH) only" },
+                        ]}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      <p className="text-xs text-zinc-500 mb-1">Handlebars syntax: {"{{field}}"}, {"{{#each items}}…{{/each}}"}, {"{{#if flag}}…{{/if}}"}</p>
+                      <textarea
+                        value={editTemplateText}
+                        onChange={(e) => setEditTemplateText(e.target.value)}
+                        rows={12}
+                        className={`${TEXTAREA_CLASS} font-mono text-xs w-full`}
+                        placeholder="Enter the acts_block_en template text…"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">{editTemplateText.length} chars</p>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <button type="button" onClick={() => setEditTemplateRawMode(false)} className={SECONDARY_BUTTON}>← Back to Preview</button>
+                      <button
+                        type="button"
+                        onClick={() => void saveEditTemplate()}
+                        disabled={editTemplateSaving || !editTemplateText.trim()}
+                        className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                      >
+                        {editTemplateSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                        {editTemplateSaving ? "Saving…" : "Save Template"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
