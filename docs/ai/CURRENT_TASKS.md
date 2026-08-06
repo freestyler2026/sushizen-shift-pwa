@@ -1,6 +1,41 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (Dubai Payroll cycle alignment Phase 1-3 executed; engine scoped DELETE by staff_names)
+Last updated: 2026-08-06 (Manila staff Observations bugs 1-3 fixed + Features 1-3 implemented)
+
+---
+
+## ✅ Recently Completed: Manila Staff Observations (2026-08-06)
+
+### Bug 1: PO Match Quick Entry — already-confirmed POs still appearing
+- `db.py` → `list_recent_pos_for_match()`: added `NOT EXISTS (SELECT 1 FROM po_invoice_checks WHERE po_no matches)` filter for both Source 1 (direct po_no) and Source 2 (parent_case_no/request_no)
+- Heroku v1771 deployed
+
+### Bug 2: Receiving invoice photo not mirroring to shared Drive
+- `main.py` → `api_proc_receiving_invoice_photo()`: background thread calls `upload_po_match_invoice_to_drive()` after primary `upload_claim_photo()` succeeds
+- Never blocks the API response; Drive upload errors are silently swallowed
+- Heroku v1771 deployed
+
+### Bug 3: Day Off staff flagged as No Show / Late in attendance
+- `db.py` → added `_NON_WORKING_ROLES` tuple (day_off, vl, vacation_leave, etc.)
+- `get_shift_schedule_for_date()`: excludes non-working roles → `start_hour=0` no longer returns for Day Off staff
+- `list_no_shows()`: `is_day_off_draft` derived from `shift_draft_rows.role`; `WHERE NOT b.is_day_off_draft` filters them before output
+- Heroku v1771 deployed
+
+### Feature 3: Resolution Notes typing loses focus on each keystroke (PO Match Discrepancy Queue)
+- `po-match/page.tsx`: Changed shared `resolveNote: string` → per-row `resolveNotes: Record<string, string>` keyed by row.id
+- Row expand no longer resets other rows' notes
+- Vercel deployed (77db726)
+
+### Feature 1: Quick Entry draft lost on page navigation
+- `po-match/page.tsx`: Auto-saves `{vendorQ, manualPoNo, manualPoAmount, poDate, invoiceNo, invoiceDate, invoiceAmount, vatRate, notes, discrepancyType}` to `localStorage["po_match_draft_{city}"]` on each change
+- On mount, shows amber "Restore / Discard" banner if draft exists
+- Draft cleared on successful submit
+- Vercel deployed (ca91568)
+
+### Feature 2: Delete button for Discrepancy Queue entries
+- Backend `DELETE /api/admin/procurement/po-match/{check_id}` already existed (Heroku v1771 area)
+- `po-match/page.tsx`: Added "Delete Record" button at bottom of each expanded row; first click shows inline "Confirm Delete / Cancel" 2-step confirm; `handleDelete()` calls DELETE API, removes row from state
+- Vercel deployed (43548ab)
 
 ---
 
