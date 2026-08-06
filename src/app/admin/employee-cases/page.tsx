@@ -568,6 +568,16 @@ export default function EmployeeCasesPage() {
   const [editTemplateMarket, setEditTemplateMarket] = useState<"AE" | "PH" | "BOTH">("BOTH");
   const [editTemplateText, setEditTemplateText] = useState("");
   const [editTemplateSaving, setEditTemplateSaving] = useState(false);
+  // Catalog preview modal
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
+  const [previewMarket, setPreviewMarket] = useState<"PH" | "AE">("PH");
+  const [previewData, setPreviewData] = useState<{ raw: string; rendered: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  // Issue Notice — violation catalog picker
+  const [issueViolationCode, setIssueViolationCode] = useState("");
+  const [issueViolationPickerOpen, setIssueViolationPickerOpen] = useState(false);
+  const [issueViolationSearch, setIssueViolationSearch] = useState("");
+  const [issueTemplateLoading, setIssueTemplateLoading] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [addItemForm, setAddItemForm] = useState({
     code: "", category_code: "", title_en: "", title_ja: "",
@@ -1119,6 +1129,41 @@ export default function EmployeeCasesPage() {
       setIrActsPreview(null);
     } finally {
       setIrActsPreviewLoading(false);
+    }
+  }
+
+  async function fetchCatalogPreview(code: string, market: "PH" | "AE") {
+    setPreviewLoading(true);
+    setPreviewData(null);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/catalog/${code}/render?market=${market}`, {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { raw?: string; rendered?: string };
+      setPreviewData({ raw: data.raw ?? "", rendered: data.rendered ?? "" });
+    } catch { /* silent */ } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function applyIssueViolationTemplate(code: string) {
+    const market = city === "dubai" ? "AE" : "PH";
+    setIssueTemplateLoading(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/nte-v2/catalog/${code}/render?market=${market}`, {
+        headers: getAuthHeaders(auth) as Record<string, string>,
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { rendered?: string };
+      setIssueReason(data.rendered ?? "");
+      setIssueViolationCode(code);
+      setIssueViolationPickerOpen(false);
+      setIssueViolationSearch("");
+    } catch { /* silent */ } finally {
+      setIssueTemplateLoading(false);
     }
   }
 
@@ -2198,68 +2243,43 @@ export default function EmployeeCasesPage() {
             />
           </div>
 
-          {/* Template toggle */}
+          {/* Violation Catalog picker */}
           <div>
-            <p className={`${T_LABEL} mb-2`}>Use Template?</p>
-            <div className="flex gap-4">
-              {[
-                { val: false, label: "No — write custom reason" },
-                { val: true, label: "Yes — use template" },
-              ].map(({ val, label }) => (
-                <label
-                  key={String(val)}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300"
+            <p className={`${T_LABEL} mb-2`}>Fill from Violation Catalog</p>
+            {issueViolationCode ? (
+              <div className="flex items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-950/30 px-3 py-2">
+                <BookOpen className="h-4 w-4 shrink-0 text-violet-400" />
+                <span className="text-sm font-mono text-violet-300 font-medium">{issueViolationCode}</span>
+                {catalog.find((c) => c.code === issueViolationCode) && (
+                  <span className="text-sm text-zinc-300 truncate">
+                    — {catalog.find((c) => c.code === issueViolationCode)!.title_en}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setIssueViolationCode(""); setIssueReason(""); }}
+                  className="ml-auto text-xs text-zinc-500 hover:text-red-400 shrink-0"
                 >
-                  <input
-                    type="radio"
-                    checked={issueUseTemplate === val}
-                    onChange={() => {
-                      setIssueUseTemplate(val);
-                      if (!val) {
-                        setIssueTemplateId("");
-                        setIssueReason("");
-                      }
-                    }}
-                    className="accent-violet-500"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
+                  ✕ clear
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (catalog.length === 0) void loadCatalog();
+                  setIssueViolationPickerOpen(true);
+                }}
+                className="flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800/50 px-4 py-2 text-sm text-zinc-300 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />
+                Select violation &amp; auto-fill reason…
+              </button>
+            )}
+            {issueTemplateLoading && (
+              <p className="mt-1 text-xs text-zinc-400">Loading template…</p>
+            )}
           </div>
-
-          {/* Template selector */}
-          {issueUseTemplate && (
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Template</label>
-              {templates.length === 0 ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 space-y-2">
-                  <p className="text-sm text-amber-300">No templates available yet.</p>
-                  <p className="text-xs text-zinc-400">
-                    You can still type a custom reason in the field below, or{" "}
-                    <button
-                      type="button"
-                      onClick={() => setIssueUseTemplate(false)}
-                      className="text-violet-400 underline"
-                    >
-                      switch to custom reason mode
-                    </button>
-                    . To create templates, go to the Templates tab.
-                  </p>
-                </div>
-              ) : (
-                <SelectDark
-                  value={issueTemplateId}
-                  onChange={setIssueTemplateId}
-                  className={SELECT_CLASS}
-                  options={[
-                    { value: "", label: "— Select template —" },
-                    ...templates.map((tpl) => ({ value: tpl.id, label: tpl.title })),
-                  ]}
-                />
-              )}
-            </div>
-          )}
 
           {/* Reason / Content */}
           <div>
@@ -2300,12 +2320,72 @@ export default function EmployeeCasesPage() {
                 setIssueApprovedBy("");
                 setIssueUseTemplate(false);
                 setIssueTemplateId("");
+                setIssueViolationCode("");
+                setIssueViolationSearch("");
               }}
               className={SECONDARY_BUTTON}
             >
               Clear
             </button>
           </div>
+
+          {/* ── Violation Catalog Picker Modal ── */}
+          {issueViolationPickerOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[80vh] flex flex-col`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`${T_SECTION} flex items-center gap-2`}>
+                    <BookOpen className="h-5 w-5 text-violet-400" />
+                    Select Violation
+                  </h3>
+                  <button type="button" onClick={() => { setIssueViolationPickerOpen(false); setIssueViolationSearch(""); }} className="text-zinc-400 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <input
+                  autoFocus
+                  value={issueViolationSearch}
+                  onChange={(e) => setIssueViolationSearch(e.target.value)}
+                  placeholder="Search by code or title…"
+                  className={INPUT_CLASS}
+                />
+                <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+                  {catalogLoading && <p className="text-sm text-zinc-400 py-4 text-center">Loading catalog…</p>}
+                  {!catalogLoading && catalog
+                    .filter((c) => {
+                      const q = issueViolationSearch.toLowerCase();
+                      return !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q);
+                    })
+                    .map((c) => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        onClick={() => void applyIssueViolationTemplate(c.code)}
+                        className="w-full text-left rounded-lg px-3 py-2.5 hover:bg-zinc-700/60 transition-colors group"
+                      >
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-mono text-xs text-violet-400 shrink-0 w-20">{c.code}</span>
+                          <span className="text-sm text-zinc-200 group-hover:text-white">{c.title_en}</span>
+                          <span className={`ml-auto text-xs shrink-0 px-1.5 py-0.5 rounded ${
+                            c.severity_class === "SERIOUS" ? "bg-orange-950/60 text-orange-300" :
+                            c.severity_class === "GROSS" ? "bg-red-950/60 text-red-300" :
+                            "bg-zinc-800 text-zinc-400"
+                          }`}>{c.severity_class}</span>
+                        </div>
+                      </button>
+                    ))
+                  }
+                  {!catalogLoading && catalog.filter((c) => {
+                    const q = issueViolationSearch.toLowerCase();
+                    return !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q);
+                  }).length === 0 && (
+                    <p className="text-sm text-zinc-500 py-4 text-center">No violations match your search.</p>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-500">Selecting a violation will render the template and fill the Reason field.</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2738,6 +2818,19 @@ export default function EmployeeCasesPage() {
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
+                            title="Preview Template"
+                            onClick={() => {
+                              const mkt = catalogMarket || "PH";
+                              setPreviewCode(entry.code);
+                              setPreviewMarket(mkt as "PH" | "AE");
+                              void fetchCatalogPreview(entry.code, mkt as "PH" | "AE");
+                            }}
+                            className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-cyan-300 transition-colors"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             title="Edit Template"
                             onClick={() => openEditTemplate(entry)}
                             className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-violet-300 transition-colors"
@@ -2945,6 +3038,82 @@ export default function EmployeeCasesPage() {
                   >
                     {addItemSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     {addItemSaving ? "Creating…" : "Create Violation"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Catalog Preview Modal ── */}
+          {previewCode && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[80vh] flex flex-col`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={`${T_SECTION} flex items-center gap-2`}>
+                      <Eye className="h-5 w-5 text-cyan-400" />
+                      Template Preview
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {previewCode} — market: {previewMarket}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => { setPreviewCode(null); setPreviewData(null); }} className="text-zinc-400 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {previewLoading && (
+                  <p className="text-sm text-zinc-400 py-8 text-center">Loading preview…</p>
+                )}
+
+                {!previewLoading && previewData && (
+                  <div className="flex-1 overflow-y-auto space-y-4">
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Rendered Text</p>
+                      <div className="rounded-lg bg-zinc-900/60 border border-zinc-700 p-4 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                        {previewData.rendered || <span className="text-zinc-500 italic">No rendered output</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">Raw Template (Handlebars)</p>
+                      <div className="rounded-lg bg-zinc-950/80 border border-zinc-800 p-4 text-xs text-zinc-400 font-mono whitespace-pre-wrap leading-relaxed">
+                        {previewData.raw || <span className="text-zinc-600 italic">No raw template</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!previewLoading && !previewData && (
+                  <p className="text-sm text-zinc-500 py-8 text-center">No preview data available.</p>
+                )}
+
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-700">
+                  <div className="flex gap-2">
+                    {(["PH", "AE"] as const).map((mkt) => (
+                      <button
+                        key={mkt}
+                        type="button"
+                        onClick={() => {
+                          setPreviewMarket(mkt);
+                          void fetchCatalogPreview(previewCode!, mkt);
+                        }}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          previewMarket === mkt
+                            ? "bg-violet-600 text-white"
+                            : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                        }`}
+                      >
+                        {mkt === "PH" ? "Philippines" : "UAE"}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openEditTemplate(catalog.find((c) => c.code === previewCode)!)}
+                    className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                  >
+                    <Edit2 className="h-3 w-3" /> Edit Template
                   </button>
                 </div>
               </div>
