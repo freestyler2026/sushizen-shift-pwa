@@ -12,6 +12,9 @@ import {
   T_LABEL,
   T_CAPTION,
 } from "@/lib/ui-tokens";
+
+// INPUT_CLASS contains w-full which breaks flex-item sizing; strip it for item rows
+const INPUT_BASE = "rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-violet-500/50 focus:bg-white/10 focus:ring-2 focus:ring-violet-500/20";
 import SelectDark from "@/components/SelectDark";
 import {
   Camera,
@@ -354,7 +357,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                   value={it.name}
                   onChange={(e) => updateItem(it.id, "name", e.target.value)}
                   placeholder="Item name"
-                  className={`${INPUT_CLASS} flex-1`}
+                  className={`${INPUT_BASE} flex-1 min-w-0`}
                 />
                 <input
                   type="number"
@@ -363,7 +366,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                   placeholder="₱ 0"
                   min="0"
                   step="0.01"
-                  className={`${INPUT_CLASS} w-28 text-right`}
+                  className={`${INPUT_BASE} w-28 shrink-0 text-right`}
                 />
                 <button
                   type="button"
