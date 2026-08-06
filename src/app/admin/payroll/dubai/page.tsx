@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, Calculator, CheckCircle2, ClipboardList, Database,
-  Loader2, RefreshCw, Users, Zap,
+  Loader2, RefreshCw, Trash2, Users, Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -89,6 +89,9 @@ export default function DubaiPayrollPage() {
   const [calcLoading, setCalcLoading] = useState<number | null>(null);
   const [calcResults, setCalcResults] = useState<Record<number, CalcResult>>({});
   const [creatingCycle, setCreatingCycle] = useState(false);
+  const [clearLoading, setClearLoading] = useState<number | null>(null);
+  const [clearResults, setClearResults] = useState<Record<number, number>>({});
+  const [confirmClearId, setConfirmClearId] = useState<number | null>(null);
 
   const loadPeriods = useCallback(async () => {
     setLoading(true); setErr("");
@@ -151,6 +154,18 @@ export default function DubaiPayrollPage() {
       await loadCycles();
     } catch (e) { setCycleErr(String(e)); }
     finally { setCreatingCycle(false); }
+  }
+
+  async function handleClearAutoCalc(cycle: PayrollCycle) {
+    setClearLoading(cycle.id); setCycleErr(""); setConfirmClearId(null);
+    try {
+      const r = await apiFetch(`${API}/auto-adjustments/${cycle.id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as { ok: boolean; deleted_count: number };
+      setClearResults(prev => ({ ...prev, [cycle.id]: data.deleted_count }));
+      setCalcResults(prev => { const n = { ...prev }; delete n[cycle.id]; return n; });
+    } catch (e) { setCycleErr(String(e)); }
+    finally { setClearLoading(null); }
   }
 
   async function handleAutoCalculate(cycle: PayrollCycle) {
@@ -311,7 +326,7 @@ export default function DubaiPayrollPage() {
                 const isCalcing = calcLoading === c.id;
                 return (
                   <div key={c.id} className="px-5 py-4 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <span className="text-sm font-medium text-white">
                           {MONTHS[c.month - 1]} {c.year}
@@ -321,18 +336,67 @@ export default function DubaiPayrollPage() {
                         </span>
                         <span className="ml-2 text-xs text-slate-500">ID #{c.id}</span>
                       </div>
-                      <button
-                        onClick={() => handleAutoCalculate(c)}
-                        disabled={isCalcing || c.status === "closed"}
-                        className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
-                        title={c.status === "closed" ? "Cycle is closed" : "Recalculate all attendance-based adjustments for this cycle"}
-                      >
-                        {isCalcing
-                          ? <Loader2 size={12} className="animate-spin" />
-                          : <Calculator size={12} />}
-                        {isCalcing ? "Calculating…" : "Auto-Calculate"}
-                      </button>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Clear Auto-Calc — two-step confirm */}
+                        {confirmClearId === c.id ? (
+                          <div className="flex items-center gap-2 rounded-xl border border-orange-500/40 bg-orange-900/20 px-3 py-1.5">
+                            <span className="text-xs text-orange-300">Delete auto-calc entries?</span>
+                            <button
+                              onClick={() => setConfirmClearId(null)}
+                              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleClearAutoCalc(c)}
+                              disabled={clearLoading === c.id}
+                              className="flex items-center gap-1 rounded-lg bg-orange-600 px-2 py-1 text-xs text-white hover:bg-orange-500 disabled:opacity-40 transition-colors"
+                            >
+                              {clearLoading === c.id
+                                ? <Loader2 size={11} className="animate-spin" />
+                                : <Trash2 size={11} />}
+                              Delete
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmClearId(c.id)}
+                            disabled={clearLoading === c.id}
+                            className="flex items-center gap-1.5 rounded-xl border border-orange-500/30 bg-orange-900/20 px-3 py-1.5 text-xs text-orange-300 hover:bg-orange-900/30 disabled:opacity-40 transition-colors"
+                            title="Delete all auto-calculated entries for this cycle. Manual entries are preserved."
+                          >
+                            {clearLoading === c.id
+                              ? <Loader2 size={12} className="animate-spin" />
+                              : <Trash2 size={12} />}
+                            Clear Auto-Calc
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleAutoCalculate(c)}
+                          disabled={isCalcing || c.status === "closed"}
+                          className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
+                          title={c.status === "closed" ? "Cycle is closed" : "Recalculate all attendance-based adjustments for this cycle"}
+                        >
+                          {isCalcing
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <Calculator size={12} />}
+                          {isCalcing ? "Calculating…" : "Auto-Calculate"}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Clear result */}
+                    {clearResults[c.id] !== undefined && !res && (
+                      <div className="rounded-xl border border-orange-500/20 bg-orange-900/10 p-3 flex items-center gap-2">
+                        <Trash2 size={13} className="text-orange-400 flex-shrink-0" />
+                        <span className="text-xs text-orange-300">
+                          {clearResults[c.id] === 0
+                            ? "No auto-calculated entries found for this cycle."
+                            : `${clearResults[c.id]} auto-calculated entries removed. Manual entries preserved.`}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Calculation result */}
                     {res && (
