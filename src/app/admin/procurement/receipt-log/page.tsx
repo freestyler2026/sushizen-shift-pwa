@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -83,32 +82,33 @@ export default function AdminReceiptLogPage() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
 
-  // ─── Auth ──────────────────────────────────────────────────────────────────
-  const headers = useCallback((): Record<string, string> => {
-    const auth = getAuth();
-    if (!auth) return {};
-    return procurementTokenHeaders(auth.name, auth.pin ?? "");
-  }, []);
-
   // ─── Fetch entries ─────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      await refreshAuthFromApi();
+      const auth = await refreshAuthFromApi(getAuth());
       const params = new URLSearchParams({ city, month, limit: "500" });
       if (branch) params.set("branch_code", branch);
-      const data = await procurementJson(`/api/admin/receipt-log?${params}`, {
+      const res = await fetch(`/api/admin/receipt-log?${params}`, {
         method: "GET",
-        headers: headers(),
+        headers: getAuthHeaders(auth),
+        cache: "no-store",
       });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text || `Request failed (${res.status})`;
+        try { const j = JSON.parse(text); if (j?.detail) msg = j.detail; } catch { /**/ }
+        throw new Error(msg);
+      }
+      const data = JSON.parse(text || "{}") as { entries?: ReceiptEntry[] };
       setEntries(data.entries ?? []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load entries.");
     } finally {
       setLoading(false);
     }
-  }, [city, month, branch, headers]);
+  }, [city, month, branch]);
 
   useEffect(() => { load(); }, [load]);
 
