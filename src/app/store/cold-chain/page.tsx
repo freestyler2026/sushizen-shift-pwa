@@ -64,6 +64,7 @@ type DispatchBoxForm = {
   item_type: "FROZEN" | "CHILLED";
   dispatch_at: string;
   dispatch_temp: string;
+  is_soft_bag?: boolean;  // true for S1-S4 soft bag containers
 };
 
 /** Box stub loaded from API (created by CK) */
@@ -117,8 +118,8 @@ function nowHHMM() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function emptyDispatchBox(n: number): DispatchBoxForm {
-  return { box_number: n, item_type: "FROZEN", dispatch_at: nowHHMM(), dispatch_temp: "" };
+function emptyDispatchBox(n: number, isSoftBag = false): DispatchBoxForm {
+  return { box_number: n, item_type: "FROZEN", dispatch_at: nowHHMM(), dispatch_temp: "", is_soft_bag: isSoftBag };
 }
 
 // ─── Small UI components ──────────────────────────────────────────────────────
@@ -212,11 +213,12 @@ function DispatchBoxRow({
   onChange: (patch: Partial<DispatchBoxForm>) => void;
   disabled: boolean;
 }) {
+  const label = box.is_soft_bag ? `Soft Bag S${box.box_number}` : `Cooler Box ${box.box_number}`;
   return (
     <div className="rounded-xl border border-white/15 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10">
-        <span className="text-sm font-bold text-white">Cooler Box {box.box_number}</span>
+        <span className="text-sm font-bold text-white">{label}</span>
         <div className="flex gap-2">
           {(["FROZEN", "CHILLED"] as const).map((t) => (
             <button key={t} type="button" disabled={disabled}
@@ -270,6 +272,11 @@ function DispatchForm({ city }: { city: string }) {
   const [notes,         setNotes]         = useState("");
   // Per-box dispatch data (Manila only in new flow) — keyed by physical box number
   const [boxes,     setBoxes]     = useState<DispatchBoxForm[]>([]);
+  // Soft bag containers S1-S4 (Manila only)
+  const [softBags,  setSoftBags]  = useState<DispatchBoxForm[]>([]);
+  // Gyoza containers GC CK-1 to GC CK-63 (Manila only)
+  const [gcDispatched, setGcDispatched] = useState<number[]>([]);
+  const [gcReturned,   setGcReturned]   = useState<number[]>([]);
   // Photo upload
   const photoRef                          = useRef<HTMLInputElement>(null);
   const [photoFile,    setPhotoFile]      = useState<File | null>(null);
@@ -298,6 +305,18 @@ function DispatchForm({ city }: { city: string }) {
         ? prev.filter(b => b.box_number !== n)
         : [...prev, emptyDispatchBox(n)].sort((a, b) => a.box_number - b.box_number)
     );
+  const updateSoftBag = (idx: number, patch: Partial<DispatchBoxForm>) =>
+    setSoftBags((prev) => prev.map((b, i) => i === idx ? { ...b, ...patch } : b));
+  const toggleSoftBag = (n: number) =>
+    setSoftBags((prev) =>
+      prev.some(b => b.box_number === n)
+        ? prev.filter(b => b.box_number !== n)
+        : [...prev, emptyDispatchBox(n, true)].sort((a, b) => a.box_number - b.box_number)
+    );
+  const toggleGcDispatched = (n: number) =>
+    setGcDispatched((prev) => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n].sort((a, b) => a - b));
+  const toggleGcReturned = (n: number) =>
+    setGcReturned((prev) => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n].sort((a, b) => a - b));
 
   const buildEquipmentJson = () =>
     MANILA_EQUIPMENT
@@ -317,19 +336,27 @@ function DispatchForm({ city }: { city: string }) {
     setSubmitting(true); setMsg(null);
     try {
       // Step 1: Create dispatch (+ boxes for Manila new flow)
-      const isNewFlow = city === "manila" && boxes.length > 0;
+      const toBoxPayload = (b: DispatchBoxForm, encodedNumber?: number) => ({
+        box_number:    encodedNumber ?? b.box_number,
+        item_type:     b.item_type,
+        dispatch_at:   b.dispatch_at,
+        dispatch_temp: b.dispatch_temp ? parseFloat(b.dispatch_temp) : null,
+      });
+      const allBoxes = [
+        ...(city === "manila" && boxes.length > 0 ? boxes.map(b => toBoxPayload(b)) : []),
+        // Soft bags: S1=101, S2=102, S3=103, S4=104
+        ...softBags.map(b => toBoxPayload(b, 100 + b.box_number)),
+      ];
+      const isNewFlow = city === "manila" && allBoxes.length > 0;
       const payload: Record<string, unknown> = {
         city,
         dispatched_by: dispatchedBy,
         destination_branches: destBranches,
         equipment_json: city === "manila" ? buildEquipmentJson() : [],
         notes,
-        boxes: isNewFlow ? boxes.map((b) => ({
-          box_number:    b.box_number,
-          item_type:     b.item_type,
-          dispatch_at:   b.dispatch_at,
-          dispatch_temp: b.dispatch_temp ? parseFloat(b.dispatch_temp) : null,
-        })) : [],
+        boxes: isNewFlow ? allBoxes : [],
+        gyoza_dispatched: gcDispatched,
+        gyoza_returned:   gcReturned,
       };
 
       const res = await fetch("/api/store/cold-chain/dispatch", {
@@ -359,7 +386,7 @@ function DispatchForm({ city }: { city: string }) {
 
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
       setNotes(""); setEquipmentQty({}); setPhotoFile(null); setPhotoPreview("");
-      setBoxes([]);
+      setBoxes([]); setSoftBags([]); setGcDispatched([]); setGcReturned([]);
       setDestBranches([...branches]); // reset to all-selected for next dispatch
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -434,13 +461,14 @@ function DispatchForm({ city }: { city: string }) {
       {/* Per-box dispatch temps — Manila only */}
       {city === "manila" && (
         <div className="space-y-3">
+          {/* ── Cooler Boxes ── */}
           <div className="flex items-center justify-between mb-1">
-            <label className={`${T_LABEL}`}>Select Physical Box Numbers</label>
+            <label className={`${T_LABEL}`}>Cooler Boxes</label>
             {boxes.length > 0 && (
               <span className="text-xs text-emerald-400">{boxes.length} box{boxes.length !== 1 ? "es" : ""} selected</span>
             )}
           </div>
-          <p className={`${T_CAPTION} text-zinc-500 -mt-1`}>Tap the テプラ label number on each cooler box you are dispatching.</p>
+          <p className={`${T_CAPTION} text-zinc-500 -mt-1`}>Tap the テプラ label number (CK-X) on each hard cooler box you are dispatching.</p>
           <div className="grid grid-cols-6 gap-2">
             {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
               const selected = boxes.some(b => b.box_number === n);
@@ -464,17 +492,140 @@ function DispatchForm({ city }: { city: string }) {
               );
             })}
           </div>
-          {boxes.length === 0 && (
-            <p className="text-xs text-amber-400">⚠ No box selected — tap box numbers above.</p>
+
+          {/* ── Soft Bag Containers S1–S4 ── */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className={`${T_LABEL}`}>Soft Bag Containers</label>
+              {softBags.length > 0 && (
+                <span className="text-xs text-emerald-400">{softBags.length} bag{softBags.length !== 1 ? "s" : ""} selected</span>
+              )}
+            </div>
+            <p className={`${T_CAPTION} text-zinc-500 -mt-1 mb-2`}>Select the soft bag(s) included in this dispatch.</p>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map((n) => {
+                const selected = softBags.some(b => b.box_number === n);
+                const bag = softBags.find(b => b.box_number === n);
+                return (
+                  <button key={n} type="button"
+                    onClick={() => toggleSoftBag(n)}
+                    disabled={submitting}
+                    className={`relative flex-1 rounded-xl border py-2.5 text-sm font-bold transition-all ${
+                      selected
+                        ? bag?.item_type === "FROZEN"
+                          ? "border-blue-500/50 bg-blue-500/20 text-blue-300"
+                          : "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
+                        : "border-purple-500/20 bg-purple-500/5 text-slate-400 hover:bg-purple-500/10 hover:text-purple-300"
+                    }`}>
+                    S{n}
+                    {selected && (
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white font-bold">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {boxes.length === 0 && softBags.length === 0 && (
+            <p className="text-xs text-amber-400">⚠ No container selected — tap box or bag above.</p>
           )}
           {boxes.map((box, idx) => (
             <DispatchBoxRow
-              key={box.box_number}
+              key={`cooler-${box.box_number}`}
               box={box}
               onChange={(patch) => updateBox(idx, patch)}
               disabled={submitting}
             />
           ))}
+          {softBags.map((bag, idx) => (
+            <DispatchBoxRow
+              key={`softbag-${bag.box_number}`}
+              box={bag}
+              onChange={(patch) => updateSoftBag(idx, patch)}
+              disabled={submitting}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Gyoza Containers (GC CK-1 to GC CK-63) — Manila only */}
+      {city === "manila" && (
+        <div className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-4">
+          <label className={`${T_LABEL} block`}>Gyoza Containers (GC)</label>
+          <p className={`${T_CAPTION} text-zinc-500 -mt-2`}>
+            Select GC CK-X containers. The tepra label reads "CK-X" — prefix with "GC" to identify gyoza containers.
+          </p>
+
+          {/* Dispatched */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-amber-300">入れた — Dispatched this trip</p>
+              {gcDispatched.length > 0 && (
+                <span className="text-xs text-emerald-400">{gcDispatched.length} selected</span>
+              )}
+            </div>
+            <div className="grid grid-cols-10 gap-1">
+              {Array.from({ length: 63 }, (_, i) => i + 1).map((n) => {
+                const sel = gcDispatched.includes(n);
+                return (
+                  <button key={n} type="button"
+                    onClick={() => toggleGcDispatched(n)}
+                    disabled={submitting}
+                    className={`relative rounded-lg border py-1.5 text-xs font-semibold transition-all ${
+                      sel
+                        ? "border-amber-500/50 bg-amber-500/20 text-amber-300"
+                        : "border-white/10 bg-white/5 text-slate-500 hover:bg-white/10 hover:text-white"
+                    }`}>
+                    {n}
+                    {sel && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-amber-500 text-[6px] text-white font-bold">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {gcDispatched.length > 0 && (
+              <p className="mt-1.5 text-xs text-amber-400">
+                GC CK-{gcDispatched.join(", GC CK-")}
+              </p>
+            )}
+          </div>
+
+          {/* Returned */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-sky-300">返却した — Returned from branch</p>
+              {gcReturned.length > 0 && (
+                <span className="text-xs text-emerald-400">{gcReturned.length} selected</span>
+              )}
+            </div>
+            <div className="grid grid-cols-10 gap-1">
+              {Array.from({ length: 63 }, (_, i) => i + 1).map((n) => {
+                const sel = gcReturned.includes(n);
+                return (
+                  <button key={n} type="button"
+                    onClick={() => toggleGcReturned(n)}
+                    disabled={submitting}
+                    className={`relative rounded-lg border py-1.5 text-xs font-semibold transition-all ${
+                      sel
+                        ? "border-sky-500/50 bg-sky-500/20 text-sky-300"
+                        : "border-white/10 bg-white/5 text-slate-500 hover:bg-white/10 hover:text-white"
+                    }`}>
+                    {n}
+                    {sel && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-sky-500 text-[6px] text-white font-bold">✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {gcReturned.length > 0 && (
+              <p className="mt-1.5 text-xs text-sky-400">
+                GC CK-{gcReturned.join(", GC CK-")}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
