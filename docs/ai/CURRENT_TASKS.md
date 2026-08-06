@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 3 UI — violation picker + acts_block preview + CON-015 block, deployed to Vercel)
+Last updated: 2026-08-07 (NTE Phase 4 — staff My NTE page deployed; backend SQL fix for /my-cases endpoint)
 
 ---
 
@@ -49,7 +49,18 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
   - resetIrForm() clears all picker state
 - **Browser-verified** (2026-08-07): picker groups, ATT-001 info card + rendered acts_block, CON-015 CODI block ✅
 
-### Remaining NTE work (Phase 4)
+### Phase 4 — Staff My NTE Page COMPLETE ✅ (2026-08-07)
+- **`src/app/store/my-nte/page.tsx`** — Rewritten to show both legacy notices and NTE v2 formal cases (commit `99115c7`, Vercel)
+  - Parallel fetch: `GET /api/store/conduct/my-notices` (legacy) + `GET /api/store/nte-v2/my-cases` (v2)
+  - 4-KPI grid: Legacy Notices, Legacy Active, NTE Cases, Response Required
+  - NTE v2 section: severity badges (A/B/C/D), status chips per state, response deadline countdown
+  - Inline `V2ResponseForm` for SERVED cases — submits to `POST /api/store/nte-v2/my-cases/{id}/respond`
+  - Silent fallback if v2 API unavailable (shows 0 cases)
+- **`app/nte_v2_api.py`** — Backend SQL bug fixed (Heroku v1782):
+  - `GET /api/store/nte-v2/my-cases`: was joining `violation_catalog_market vm ON vm.code` (column is `catalog_code`); fixed to join `violation_catalog vc ON vc.code = c.violation_code`, select `vc.title_en`
+  - `POST /api/store/nte-v2/my-cases/{id}/respond`: staff response submission (unchanged)
+
+### Remaining NTE work (low priority)
 - [ ] Extend sample context / preview to all 14 categories (currently only ATT-001..009 have `get_att_sample_context()`)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] IR → NTE conversion: after IR_SUBMITTED, allow HQ to escalate to NTE case
