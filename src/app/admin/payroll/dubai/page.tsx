@@ -63,7 +63,7 @@ type StaffGroup = "all" | "regular" | "parttime";
 
 const PARTTIME_NAMES = [
   "Krishna Tamang", "Dipak Dahal", "Bijien Mijar", "Padam Bahadur K C",
-  "Kelvin Gurung", "Raman Miya", "Pukar KC", "Mahima Pansilu Dadallage",
+  "Kelvin Gurung", "Raman Miya", "Pukar K C", "Mahima Pansilu Dadallage",
 ];
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
