@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE Phase 4 complete + IR review violation picker + POS BOM coverage fix deployed)
+Last updated: 2026-08-07 (NTE Phase 5 complete — all 116 non-ATT codes have clean sample context; FRD-010 hyphen fix seeded)
 
 ---
 
@@ -68,6 +68,15 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
   - Violation pre-filled from IR's own `violation_code` for easy confirm-or-override
   - Backend sample context extended to all 14 categories via `get_sample_context()` (Heroku v1783)
 - **Browser-verified** (2026-08-07): picker opens, groups visible (ATT: ATT-001…ATT-004), severity badges render, pre-fill works ✅
+
+### Phase 5 COMPLETE ✅ (2026-08-07)
+- **`app/db_nte_v2_template.py`** — `_CATEGORY_EXTRA` extended for all 13 non-ATT categories (Heroku `876e13a`)
+  - Every missing template variable now has a sample value — no more `[VAR_NAME]` placeholders in preview
+  - Added 5 per-code incident lists: `_PERF_INSTRUCTIONS`, `_HYG_HANDWASH_INCIDENTS`, `_HYG_HAIRNET_INCIDENTS`, `_HYG_STATION_INCIDENTS`, `_FRD_TIMECARD_INCIDENTS`
+  - Added `_PER_CODE_EXTRA` dict: maps PERF-008 / HYG-002 / HYG-004 / HYG-011 / FRD-002 to their specific incident list structures
+  - `get_sample_context()` updated: applies `_PER_CODE_EXTRA` overrides after category-level context
+- **`seeds/violation_catalog/11_fraud.json`** — FRD-010 `acts_block_en` fix: `{{co-conspirator_name}}` → `{{co_conspirator_name}}`, `{{co-conspirator_relationship}}` → `{{co_conspirator_relationship}}` (hyphens not matched by Handlebars `[a-zA-Z0-9_]` regex)
+- **Seed reloaded**: "Reload Seed" button clicked in Violation Catalog tab; confirmed complete (button re-enabled)
 
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
