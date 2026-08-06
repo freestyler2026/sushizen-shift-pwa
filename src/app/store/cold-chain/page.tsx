@@ -527,7 +527,7 @@ function DispatchForm({ city }: { city: string }) {
             </div>
           </div>
 
-          {boxes.length === 0 && softBags.length === 0 && (
+          {boxes.length === 0 && softBags.length === 0 && gcDispatched.length === 0 && gcReturned.length === 0 && (
             <p className="text-xs text-amber-400">⚠ No container selected — tap box or bag above.</p>
           )}
           {boxes.map((box, idx) => (
@@ -955,7 +955,7 @@ function ReceivingForm({ city }: { city: string }) {
                   <div key={box.id} className="rounded-xl border border-white/15 overflow-hidden">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10">
-                      <span className="text-sm font-bold text-white">Cooler Box {box.box_number}</span>
+                      <span className="text-sm font-bold text-white">{box.box_number >= 101 ? `Soft Bag S${box.box_number - 100}` : `Cooler Box ${box.box_number}`}</span>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
                         box.item_type === "FROZEN"
                           ? "border-blue-500/40 bg-blue-500/20 text-blue-300"

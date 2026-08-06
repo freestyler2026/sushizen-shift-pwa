@@ -108,7 +108,7 @@ function TempControlCard({ box }: { box: CoolerBox }) {
       }`}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-300">
-            Box {box.box_number}
+            {box.box_number >= 101 ? `Soft Bag S${box.box_number - 100}` : `Box ${box.box_number}`}
           </span>
           <span className={`text-[10px] rounded-full px-2 py-0.5 font-semibold ${
             box.item_type === "FROZEN"
