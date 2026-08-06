@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-06 (NTE Template System Phase 2 — Handlebars renderer deployed + all 125 seeds loaded, verified)
+Last updated: 2026-08-07 (NTE Phase 3 UI — violation picker + acts_block preview + CON-015 block, deployed to Vercel)
 
 ---
 
@@ -38,11 +38,21 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 - **Seeds loaded**: 125 catalog items + 250 market rows on Heroku (Heroku v1779–v1780)
 - **Verified**: ATT-001 (each), ATT-007 (dual each), ATT-008 (else) all render correctly
 
-### Remaining NTE work (Phase 3 — UI)
-- [ ] NTE v2 UI — NTE issuance form (select violation from catalog, input layer L1/L2/L3, acts_block rendering)
-- [ ] CON-015 block: NTE UI must refuse to generate standard NTE letter for CON-015; show CODI referral instructions instead
+### Phase 3 COMPLETE ✅ (2026-08-07)
+- **`src/app/admin/employee-cases/page.tsx`** — NTE issuance UI overhaul (commit `e52e8d9`, deployed Vercel)
+  - Searchable grouped violation picker (by category_code) with severity A/B/C/D badge, input_layer badge, HQ review badge
+  - CON-015: "CODI only" badge in picker; selecting it shows CODI Referral Required warning card; Save Draft blocked
+  - Post-selection info card: severity, input_layer, SOP ref, definition_en, L1_AUTO auto-detection note
+  - acts_block live preview via `GET /api/admin/nte-v2/catalog/{code}/render?market=PH|AE`
+  - L2_STRUCTURED narrative fields enabled (in addition to L3_NARRATIVE)
+  - Date + Time moved to separate row; Market change refreshes preview
+  - resetIrForm() clears all picker state
+- **Browser-verified** (2026-08-07): picker groups, ATT-001 info card + rendered acts_block, CON-015 CODI block ✅
+
+### Remaining NTE work (Phase 4)
+- [ ] Extend sample context / preview to all 14 categories (currently only ATT-001..009 have `get_att_sample_context()`)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
-- [ ] Extend sample context / preview to all 14 categories (currently only ATT has `get_att_sample_context`)
+- [ ] IR → NTE conversion: after IR_SUBMITTED, allow HQ to escalate to NTE case
 
 ### Key design notes
 - `acts_block_en` uses Handlebars-style templates: `{{variable}}`, `{{#if cond}}...{{/if}}`, `{{#each list}}...{{/each}}`
