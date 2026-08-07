@@ -50,6 +50,7 @@ export default function AutoReload() {
   const reloading = useRef(false);
   const pendingReload = useRef(false);
   const earlyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCheckMs = useRef<number>(0);
 
   useEffect(() => {
     // Reload now, UNLESS the user has unsaved edits (e.g. mid-input on the
@@ -78,6 +79,7 @@ export default function AutoReload() {
         hardReload();
         return;
       }
+      lastCheckMs.current = Date.now();
       fetchFrontendVersion().then((v) => {
         if (reloading.current) return;
         if (!v) return; // fetch failed — skip this tick
@@ -168,10 +170,14 @@ export default function AutoReload() {
   }, []);
 
   // Check on every client-side navigation (tab click, link click, etc.)
+  // Throttled: skip if a check ran within the last POLL_INTERVAL_MS to avoid
+  // hammering /api/version on every tab click when many staff are active.
   useEffect(() => {
     if (reloading.current) return;
     if (!frontendBaseline.current) return; // not yet initialized
+    if (Date.now() - lastCheckMs.current < POLL_INTERVAL_MS) return;
 
+    lastCheckMs.current = Date.now();
     fetchFrontendVersion().then((v) => {
       if (reloading.current) return;
       if (v && frontendBaseline.current && v !== frontendBaseline.current) {
