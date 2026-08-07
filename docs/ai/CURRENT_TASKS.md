@@ -1,6 +1,30 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (AI Camera Monitoring — Phase 4 API + Phase 5 Dashboard完了・デプロイ済み)
+Last updated: 2026-08-07 (Store Procurement: CK Delivery Red Alert Bug 修正・デプロイ済み)
+
+---
+
+## ✅ Completed: Store Procurement — Pending Deliveries Red Alert Stuck Bug (2026-08-07)
+
+**Heroku v1796 `fa36164`**
+
+### 根本原因
+`confirm_proc_receiving` で `has_shortage` の更新に `shortage_qty`（単一receiving）を使っていたが、フォントエンドが `qty_expected` に常に元の発注数量全体をセットするため、follow-up receiving（不足分のみ受け取り）でも `shortage_qty > 0` になり `has_shortage = TRUE` のまま固定されていた。
+
+例: 10個注文 → 8個受け取り（shortage_qty=2, has_shortage=TRUE）→ 残り2個のfollow-up receiving（qty_expected=10, qty_received=2 → shortage_qty=8 → has_shortage=TRUE のまま！）
+
+### 修正内容（3箇所）
+
+1. **`confirm_proc_receiving` (`db.py`)**: 単一receiving の `shortage_qty` 判定を廃止。代わりに `proc_receiving_items` から全CONFIRMED receivingsのCUMULATIVE合計（per-item: SUM(qty_received) vs MAX(qty_ordered)）で `has_shortage` を判定。per-item recordsがない場合は旧ロジックにフォールバック。
+
+2. **`list_pending_deliveries_for_store` クエリ (`db.py`)**: `OR po.has_shortage = TRUE` を `OR (po.has_shortage = TRUE AND (...累積チェック...))` に変更。全itemが受け取り済みならPOをリストから除外。per-item recordsなし場合は保守的にPO表示を継続。
+
+3. **`backfill_shortage_flags()` + `POST /api/admin/procurement/backfill-shortage-flags`**: 既に詰まっていた30件のバックフィル用。実行済み → 4件即時クリア。
+
+### バックフィル実行済み
+```
+{"updated_count":4,"updated_ids":["98be7d79...","d9cd85f0...","677ab1cf...","ba97566c..."]}
+```
 
 ---
 
