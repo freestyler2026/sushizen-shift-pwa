@@ -1,6 +1,32 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (NTE v2 legal schema — 6 new violation_catalog columns, corrected penalty matrices PH+AE, windowed offense count, SAF-008, 4-label severity badges)
+Last updated: 2026-08-07 (Daily Inventory unit cost; NTE page permission-based access; handover docs)
+
+---
+
+## ✅ Completed: Daily Inventory Unit Cost + Engineer Handover Docs (2026-08-07)
+
+Frontend `352aa1a` + Heroku v1791
+
+### Daily Inventory — Unit Cost feature
+- **`app/db_daily_inventory.py`** — idempotent migration adds `unit_cost NUMERIC(10,4) DEFAULT 0` to `daily_inv_report_items`; `create_daily_inv_item()` and `update_daily_inv_item()` accept `unit_cost`
+- **`app/daily_inventory_api.py`** — `CreateItemInput` and `UpdateItemInput` models gain `unit_cost: Optional[float]`; POST /items and PATCH /items/{code} pass it through
+- **`src/components/admin/AdminDailyInventoryTab.tsx`** — `InvItem` type gains `unit_cost?`; Item Master table has Unit Cost column with inline click-to-edit; Add Item form has Unit Cost field; ReportDetailView shows Unit Cost + Value columns when any item has cost set, per-section value subtotals, and grand total inventory value card
+
+### NTE page — permission-based access
+- **`src/app/admin/employee-cases/page.tsx`** — auth guard now also accepts users with `channel.admin.employee_cases.view` permission (in addition to hardcoded role list). Role Management is now fully sufficient to grant admin staff NTE issuance access without code changes.
+- **How to grant admin staff NTE access**: Role Management → find their role → enable "View Notice to Explain" (channel.admin.employee_cases.view) → Save → Resync System Channels if needed
+
+### Handover documentation
+- **`README.md`** — full engineer setup guide (prerequisites, env, deploy, rollback, emergency procedures)
+- **`docs/BUSINESS_CONTEXT.md`** — why each module exists, regulatory constraints (PH Labor Code, UAE Art.39/44, NSD, DOLE, EOSB), stakeholders, known tech debt
+- **`docs/HANDOVER.md`** — Day 1 checklist, safe change workflow, lessons learned, architecture one-pager, glossary
+
+### Management P&L performance fixes (same session, earlier)
+Frontend `352aa1a` + Heroku v1790
+- Fix 1: `payroll/staff` scoped to selected month (was fetching all history)
+- Fix 2: PLV fallback probe capped at 1 month (was 3 serial calls)  
+- Fix 3: `pl-vs-target` HTTP call eliminated; data embedded in `labor-ratio` response
 
 ---
 
