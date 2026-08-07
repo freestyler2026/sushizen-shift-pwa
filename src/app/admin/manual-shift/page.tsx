@@ -1127,9 +1127,9 @@ export default function ManualShiftPage() {
       if (!grouped[staffName]) grouped[staffName] = {};
       if (!grouped[staffName][r.work_date]) grouped[staffName][r.work_date] = [];
       grouped[staffName][r.work_date].push({
-        start_hour: r.start_hour,
-        end_hour: r.end_hour,
-        role: r.role || "STAFF",
+        start_hour: r.type === "day_off" ? 0 : r.start_hour,
+        end_hour: r.type === "day_off" ? 0 : r.end_hour,
+        role: r.type === "day_off" ? (r.role || "DAY_OFF") : (r.role || "STAFF"),
       });
     }
 
