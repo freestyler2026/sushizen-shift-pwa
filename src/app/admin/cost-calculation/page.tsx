@@ -4781,14 +4781,14 @@ export default function CostCalculationPage() {
                       </div>
                     ) : (
                       <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
-                        ✅ Sync complete — updated <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> ingredient prices
+                        ✅ Sync complete — proposed <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> price changes for review. Go to <strong>Price Pending</strong> to approve.
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                       {[
                         { label: "Invoice Rows", value: invoiceSyncResult.total_rows ?? "—" },
                         { label: "Matched", value: invoiceSyncResult.matched ?? "—" },
-                        { label: "Updated", value: invoiceSyncResult.updated ?? "—" },
+                        { label: "Proposed", value: invoiceSyncResult.updated ?? "—" },
                         { label: "Skipped", value: (invoiceSyncResult.skipped_unmatched ?? 0) + (invoiceSyncResult.skipped_unit_conversion ?? 0) + (invoiceSyncResult.skipped_matched_but_unmapped ?? 0) },
                       ].map((kpi) => (
                         <div key={kpi.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
