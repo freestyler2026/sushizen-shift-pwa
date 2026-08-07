@@ -1,6 +1,37 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (Store Procurement: CK Delivery Red Alert Bug 修正・デプロイ済み)
+Last updated: 2026-08-07 (Cost Calculation: Cascade + Pending Queue 動作確認済み; Invoice Mapping UI説明文更新)
+
+---
+
+## ✅ Completed: Cost Calculation — Cascade + Invoice Sync Pending Queue (2026-08-07)
+
+**Heroku v1797 `6470efe` + Frontend `2c76e6f`**
+
+### 実装内容（3機能）
+
+1. **Ingredient → Product 自動カスケード** (`db.py` `_cascade_clear_cost_overrides_for_ingredient`):
+   - `update_cost_ingredient()` で価格変更時、依存するProcessed Items・Productsの `cost_unit_price` を自動クリア（2段階）
+   - `apply_ingredient_price_pending()` でも同様にカスケード発火
+   - **動作確認**: SUSHI NORI 価格変更 → 73依存商品のoverride全クリア確認
+
+2. **Invoice Sync → Price Pending ルーティング** (`cost_invoice_price_sync.py`):
+   - スプレッドシートからの価格はIngredient Masterを直接更新しない
+   - `propose_ingredient_price_pending_from_sync()` で `ingredient_price_pending` テーブルへ保留エントリを作成
+   - **動作確認**: 手動sync実行 → 92件のpendingエントリ作成確認（ingredient_masterは変更なし）
+   - Price Pendingタブに表示、スタッフが承認/却下可能
+
+3. **新API**: `POST /api/admin/procurement/backfill-shortage-flags` (Store Procurement bugfix用)
+
+### ブラウザ動作確認結果
+- ✅ Cascade: 73依存商品のoverride全クリア（SUSHI NORI AED1.3776 → 1.378テスト後復元）
+- ✅ Price Pending: 92件のpending表示（suspicious: Ramen Bowl & Lid 0.4→20.0 など要確認エントリあり）
+- ✅ Invoice Mapping UI説明文更新: "Automatically updates..." → "Proposes...for review"
+- ✅ Store Procurement: false shortage flags = 0（per-item cumulative check有効）
+
+### 注意事項
+- Price Pendingに92件の未承認エントリあり（invoice syncから自動生成）。スタッフがPrice Pendingタブで確認・承認が必要
+- 特に "MOMO Box with Inserter" (1.0→0.00005) と "Ramen Bowl & Lid" (0.4→20.0) は単位変換エラーの可能性大。要確認
 
 ---
 

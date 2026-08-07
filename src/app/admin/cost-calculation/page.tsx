@@ -4742,8 +4742,8 @@ export default function CostCalculationPage() {
                   <div>
                     <div className="text-sm font-semibold text-white">Invoice Price → Cost Calculation Sync</div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      Automatically updates ingredient unit prices in the Ingredient Master based on Google Sheets invoice data.<br />
-                      Only ingredients with registered mappings will be updated. Register new mappings in the &quot;Ingredients&quot; tab.
+                      Proposes ingredient price changes for review based on Google Sheets invoice data. Changes appear in the Price Pending tab for staff to approve before applying.<br />
+                      Only ingredients with registered mappings are included. Register new mappings in the &quot;Ingredients&quot; tab.
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
