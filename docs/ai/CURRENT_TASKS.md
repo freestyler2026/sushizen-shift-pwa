@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (Daily Inventory unit cost; NTE page permission-based access; handover docs)
+Last updated: 2026-08-07 (Daily Inventory unit cost browser-tested; hasCostData bug fixed; NTE permission confirmed)
+
+---
+
+## ✅ Completed: Daily Inventory Unit Cost — Browser Verified (2026-08-07)
+
+Frontend `a91a145` (hasCostData bug fix)
+
+### Bug found and fixed during testing
+- **Bug**: `hasCostData` in `ReportDetailView` was evaluating items from `allItems` (a merged cache of Dubai + Manila items) regardless of whether those items had entries in the current report. After setting unit_cost=45.50 on Dubai/K001 then switching to Manila, Cost/Value column headers appeared in Manila reports with all "—" values.
+- **Fix** (`AdminDailyInventoryTab.tsx` line 421): `hasCostData` now requires `entryMap[item.item_code] !== undefined` in addition to `unit_cost > 0`, matching the row-skip guard already in the tbody.
+- **Verified**: Manila Paranaque reports now show only `Item | Qty | Unit | Status | Note` — no spurious Cost/Value columns.
+
+### Browser test results (all pass)
+- Item Master: Unit Cost column visible, "— set —" placeholder, inline click-to-edit working
+- Inline save: K001 Tonkotsu Broth → 45.50 saved to DB, shows in emerald green
+- History: 30 reports loaded for Paranaque
+- Report Detail (Manila, no costs): columns correctly suppressed
+- hasCostData bug fixed and deployed
+
+### Pending: test Cost/Value columns with a real Dubai report
+Business Bay had 0 submitted reports. Cost/Value column display in Report Detail (when hasCostData is true) has not been browser-tested against a submitted report with unit costs set. The logic is correct per code review.
 
 ---
 
