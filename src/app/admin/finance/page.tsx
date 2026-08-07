@@ -163,6 +163,7 @@ type FinanceLaborRatioResp = {
   avg_daily_estimated_profit?: number;
   implied_costs_at_target_pct?: { food: number; rent: number; other: number; labor_target_abs: number };
   cost_model_note?: string;
+  pl_view?: PlVsTargetResp;
 };
 
 type PlVsTargetBucketStd = {
@@ -610,7 +611,7 @@ export default function FinancePage() {
     setLoadErrors([]);
     const errors: string[] = [];
 
-    const payrollQs = new URLSearchParams({ city, approver_name: approverName.trim(), pin: pin.trim(), limit: "5000" });
+    const payrollQs = new URLSearchParams({ city, approver_name: approverName.trim(), pin: pin.trim(), limit: "5000", month_key: summaryMonthKey });
     const baseQs = new URLSearchParams({ city, date_from: summaryDateFrom, date_to: summaryDateTo, approver_name: approverName.trim(), pin: pin.trim() });
 
     await Promise.all([
@@ -625,21 +626,19 @@ export default function FinancePage() {
       })(),
       (async () => {
         try {
-          const res = await apiGet<FinanceLaborRatioResp>(`/api/admin/finance/labor-ratio?${baseQs.toString()}`);
-          if (gen === loadGenRef.current) setFinanceRatio(res || null);
+          const ratioQs = new URLSearchParams(baseQs);
+          if (plStoreName.trim()) ratioQs.set("store_name", plStoreName.trim());
+          const res = await apiGet<FinanceLaborRatioResp>(`/api/admin/finance/labor-ratio?${ratioQs.toString()}`);
+          if (gen === loadGenRef.current) {
+            setFinanceRatio(res || null);
+            setPlVsTarget(res?.pl_view ?? null);
+          }
         } catch (e: any) {
           errors.push(`Management P&L: ${String(e?.message || e)}`);
-          if (gen === loadGenRef.current) setFinanceRatio(null);
-        }
-      })(),
-      (async () => {
-        try {
-          const plQs = new URLSearchParams(baseQs);
-          if (plStoreName.trim()) plQs.set("store_name", plStoreName.trim());
-          const res = await apiGet<PlVsTargetResp>(`/api/admin/finance/pl-vs-target?${plQs.toString()}`);
-          if (gen === loadGenRef.current) setPlVsTarget(res || null);
-        } catch {
-          if (gen === loadGenRef.current) setPlVsTarget(null);
+          if (gen === loadGenRef.current) {
+            setFinanceRatio(null);
+            setPlVsTarget(null);
+          }
         }
       })(),
       (async () => {
