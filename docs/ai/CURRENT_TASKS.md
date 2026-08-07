@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (Daily Inventory unit cost browser-tested; hasCostData bug fixed; NTE permission confirmed)
+Last updated: 2026-08-07 (AI Camera Monitoring — Phase 4 API + Phase 5 Dashboard完了・デプロイ済み)
+
+---
+
+## 🔴 Active: AI Camera Monitoring System — Phase 1待ち（Jetson環境確認）
+
+### 完了済み（2026-08-07）
+- **Phase 4: Heroku API + DB** — Heroku v1795 `8f6500f`
+  - `app/db_ai_camera.py`: `camera_alerts`, `camera_status`, `camera_hardware_metrics` テーブル
+  - `POST /api/ai/camera/alert` — Jetsonからアラート受信
+  - `GET/POST /api/ai/camera/status` — カメラ稼働状態 heartbeat
+  - `GET /api/ai/camera/alerts` + `POST .../acknowledge`
+  - `GET/POST /api/ai/camera/hardware-metrics`
+- **Phase 5: Next.jsダッシュボード** — Vercel `5d22e24`
+  - `/admin/camera-monitoring` — HQ専用ページ（Alert Feed / Cameras / Hardware タブ）
+  - KPIカード: cameras online, unacknowledged alerts, GPU temp, total FPS
+  - 自動リフレッシュ30秒、アラートacknowledge、セットアップガイド
+  - `/api/ai/camera/[...slug]/route.ts` — Next.jsプロキシ
+
+### 次のステップ（Phase 1 — Jetson環境確認）
+**Jetsonで以下を実行してバージョンを確認:**
+```bash
+cat /etc/nv_tegra_release    # JetPackバージョン
+lsb_release -a               # Ubuntu バージョン
+python3 --version
+```
+
+**JetPackバージョン別DeepStreamインストール:**
+- JetPack 6.x (Ubuntu 22.04) → `sudo apt install deepstream-7.0`
+- JetPack 5.x (Ubuntu 20.04) → `sudo apt install deepstream-6.3`
+
+### フェーズ計画（残り）
+| Phase | 内容 | 状態 |
+|---|---|---|
+| Phase 1 | JetPack確認 → DeepStreamインストール → RTSP接続テスト | ⏳ Jetson側作業待ち |
+| Phase 2 | YOLOv8n TensorRT変換、DeepStream推論パイプライン | 未着手 |
+| Phase 3 | 8検知機能実装（Mobile/HeadPose/Idle/RestrictedZone等） | 未着手 |
+| Phase 6 | 実環境テスト・チューニング | 未着手 |
+
+### ダッシュボードURL
+https://sushizen-shift-pwa.vercel.app/admin/camera-monitoring
 
 ---
 
