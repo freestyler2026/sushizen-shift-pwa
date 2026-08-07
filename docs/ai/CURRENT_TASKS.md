@@ -1,6 +1,43 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (Violation Catalog UX overhaul: category grouping, preview modal, Issue Notice picker, Templates tab removed)
+Last updated: 2026-08-07 (NTE v2 legal schema — 6 new violation_catalog columns, corrected penalty matrices PH+AE, windowed offense count, SAF-008, 4-label severity badges)
+
+---
+
+## ✅ Completed: NTE v2 Legal Schema + Penalty Matrix Overhaul (2026-08-07)
+
+Heroku v1788 + Vercel `bb725fa`
+
+### Backend changes (sushizen_shift_app_clean)
+- **`app/db_nte_v2.py`** — ALTER TABLE migration adds 6 new columns to `violation_catalog` (idempotent):
+  - `legal_ground_ph VARCHAR(8)` — Philippine Labor Code ground (e.g. "297a", "297b")
+  - `legal_ground_ae VARCHAR(8)` — UAE law ground (e.g. "Art39", "Art44")
+  - `ae_art44_dismissal BOOLEAN DEFAULT FALSE` — flags violations eligible for termination without gratuity under Art. 44
+  - `law_reference TEXT` — statute citations (e.g. "RA 9211 / RA 9514")
+  - `requires_codi BOOLEAN DEFAULT FALSE` — CON-015 flagged; blocks standard NTE flow → CODI committee
+  - `severity_label VARCHAR(16)` — "Minor" / "Less Grave" / "Grave" / "Very Grave"
+  - Backfills: severity_label from severity_class; requires_codi for CON-015; ae_art44_dismissal for SAF-005/006/007
+- **`app/db_nte_v2_catalog.py`** — INSERT/ON CONFLICT extended for all 6 new columns; `list_catalog()` SELECT returns them; severity_label auto-derived from severity_class map when not in seed
+- **`app/db_nte_v2_case.py`** — Penalty matrices corrected per Philippine Labor Code / UAE Art. 39:
+  - PH: Verbal Warning removed (not auditable); B matrix 30-Day removed (preventive suspension cap); both per Art. 297 progressiveness
+  - AE: Salary deduction-first hierarchy (Art. 39 enumeration); capped at 5-day deduction / 14-day suspension; D uses "Termination Without Gratuity (Art. 44)" label
+  - `compute_prior_offenses()` now accepts `window_months=12` param; returns `windowed_count` (within window, for penalty proposal) + `lifetime_count` (all time, for reference display)
+- **`app/nte_v2_api.py`** — `GET .../offense-history` response adds `windowed_count`, `lifetime_count`, `due_process_required: True` (always True — Twin Notice Rule mandatory for all severity including D)
+- **`seeds/violation_catalog/08_safety.json`** — Added SAF-008 "Smoking in Prohibited Area" (severity C / Grave, legal_ground_ph="297a", law_reference="RA 9211 / RA 9514", full PH+AE market data)
+
+### Frontend changes (sushizen-shift-pwa)
+- **`src/app/admin/employee-cases/page.tsx`** — 4-label severity badge system:
+  - `SeverityBadge` component with color-coded labels: Minor (emerald), Less Grave (amber), Grave (orange), Very Grave (red)
+  - All 6 badge locations updated (Templates table, violation picker ×2, case table, case detail panel)
+  - CODI badge now driven by `entry.requires_codi` (not hardcoded `code === "CON-015"`)
+  - `CatalogEntry` type extended with `requires_codi`, `severity_label`, `ae_art44_dismissal`, `legal_ground_ph/ae`, `law_reference`
+
+### Post-deploy action required
+After Heroku deploy, visit Templates tab → click **Reload Seed** to seed SAF-008 into the DB.
+
+### Known limitations / remaining work
+- All 14 seed JSON files do not yet have item-level `legal_ground_ph/ae`, `ae_art44_dismissal`, `law_reference` fields set (except SAF-008). DB backfill covers severity_label and key CODI/Art44 flags; full per-item data to be added in a future pass.
+- NTE manual artifact not yet updated with corrected penalty matrices / UAE validation rules / severity label table.
 
 ---
 
