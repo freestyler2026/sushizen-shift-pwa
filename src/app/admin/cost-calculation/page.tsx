@@ -134,7 +134,7 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending" | "price-audit" | "ingredient-changes";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "cost-ratio" | "price-pending" | "price-audit" | "ingredient-changes";
 
 type PricePendingEntry = {
   id: number;
@@ -294,149 +294,9 @@ type CategoryItem = {
   is_system?: boolean;
 };
 
-type UnmatchedInvoiceItemRow = {
-  market: string;
-  supplier_name: string;
-  item_description: string;
-  unit: string;
-  latest_invoice_date: string;
-  latest_unit_price: number;
-  invoice_count: number;
-  line_count: number;
-};
-
-type InvoiceItemMappingRow = {
-  id: string;
-  market: string;
-  supplier_name: string;
-  invoice_item_description: string;
-  ingredient_id: string;
-  ingredient_name_snapshot: string;
-  invoice_unit: string;
-  ingredient_unit: string;
-  conversion_rule: string;
-  notes: string;
-  is_active: boolean;
-};
-
 const INGREDIENT_SHEET = "Ingredient Master";
 /** 20 = confirmed working page size; backend returns 500 for limit>=500 (under investigation). */
 const INGREDIENT_LIST_PAGE_SIZE = 20;
-
-function conversionRuleHint(invoiceUnit: string): string {
-  const u = (invoiceUnit || "").trim().toLowerCase();
-  const hints: Record<string, string> = {
-    tin: "e.g. 1 TIN = 17000 ml  →  17000 ml/TIN",
-    ltr: "e.g. 1 LTR = 1000 ml  →  1000 ml/LTR",
-    l: "e.g. 1 L = 1000 ml  →  1000 ml/L",
-    kg: "e.g. 1 KG = 1000 g  →  1000 g/KG",
-    pkt: "e.g. 1 PKT = X g  →  enter weight per packet",
-    box: "e.g. 1 BOX = X units  →  enter count per box",
-    ctn: "e.g. 1 CTN = X g  →  enter weight per carton",
-    bag: "e.g. 1 BAG = X g  →  enter weight per bag",
-    btl: "e.g. 1 BTL = X ml  →  enter ml per bottle",
-    can: "e.g. 1 CAN = X g  →  enter weight per can",
-    jar: "e.g. 1 JAR = X g  →  enter weight per jar",
-    pcs: "e.g. 1 PCS = 1 pc",
-    pc: "e.g. 1 PC = 1 pc",
-    tray: "e.g. 1 TRAY = 30 pc  →  enter count per tray",
-  };
-  return hints[u] || "";
-}
-
-/** Parse "1 TRAY = 30 pc" → { fromUnit: "tray", multiplier: 30, toUnit: "pc" } */
-function parseConversionRule(rule: string): { fromUnit: string; multiplier: number; toUnit: string } | null {
-  if (!rule || !rule.trim()) return null;
-  const cleaned = rule.split(/[→>]/)[0].trim();
-  const m = cleaned.match(/(?:1\s+)?(\w+)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(\w+)/i);
-  if (!m) return null;
-  const multiplier = parseFloat(m[2]);
-  if (!multiplier || multiplier <= 0) return null;
-  return { fromUnit: m[1].toUpperCase(), multiplier, toUnit: m[3].toLowerCase() };
-}
-
-interface ConversionPreviewProps {
-  rule: string;
-  invoiceUnit: string;
-  ingredientUnit: string;
-  invoiceUnitPrice: number;
-  ingredientUnitPrice: number;
-  currency: string;
-}
-function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice, ingredientUnitPrice, currency }: ConversionPreviewProps) {
-  // Implied count from existing prices: trayPrice / pcPrice = pcs per tray
-  const impliedCount =
-    invoiceUnitPrice > 0 && ingredientUnitPrice > 0
-      ? invoiceUnitPrice / ingredientUnitPrice
-      : null;
-
-  const parsed = parseConversionRule(rule);
-
-  const showImplied = impliedCount !== null && !parsed;
-  const pricePerUnit = parsed && invoiceUnitPrice > 0 ? invoiceUnitPrice / parsed.multiplier : null;
-
-  if (!parsed && impliedCount === null) return null;
-
-  return (
-    <div className="mt-1.5 rounded-lg border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-xs space-y-1">
-      {/* Implied count from price data */}
-      {showImplied && (
-        <div>
-          <div className="text-zinc-400 mb-0.5">Back-calculated from current price data:</div>
-          <div className="flex items-center gap-1.5 text-sky-300">
-            <span>{currency} {invoiceUnitPrice.toFixed(3)} / {invoiceUnit.toUpperCase()}</span>
-            <span className="text-zinc-500">÷</span>
-            <span>{currency} {ingredientUnitPrice.toFixed(4)} / {ingredientUnit}</span>
-            <span className="text-zinc-500">=</span>
-            <span className="font-semibold text-amber-300">
-              Approx. {Math.round(impliedCount)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
-            </span>
-          </div>
-          <div className="mt-1 text-zinc-500">
-            → Conversion rule example: <span className="text-sky-400">1 {invoiceUnit.toUpperCase()} = {Math.round(impliedCount)} {ingredientUnit}</span>
-          </div>
-        </div>
-      )}
-      {/* Rule parse result */}
-      {parsed && (
-        <div>
-          <div className="flex items-center gap-1.5 text-sky-300">
-            <span>1 {parsed.fromUnit}</span>
-            <span className="text-zinc-500">=</span>
-            <span className="font-semibold">{parsed.multiplier} {parsed.toUnit}</span>
-          </div>
-          {pricePerUnit !== null && (
-            <div className="mt-0.5 text-zinc-300">
-              <span className="text-zinc-500">1 per {parsed.toUnit} = </span>
-              <span className="font-semibold text-emerald-300">{currency} {pricePerUnit.toFixed(4)}</span>
-              <span className="ml-2 text-zinc-500">({currency} {invoiceUnitPrice.toFixed(3)} ÷ {parsed.multiplier})</span>
-            </div>
-          )}
-          {impliedCount !== null && (
-            <div className="mt-0.5 text-zinc-500">
-              Estimate from price data: approx. {impliedCount.toFixed(1)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
-              {Math.abs(impliedCount - parsed.multiplier) > 1 && (
-                <span className="ml-1 text-amber-400">⚠ Differs from entered value ({parsed.multiplier})</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
-  return `${item.supplier_name}::${item.item_description}`;
-}
-
-function skippedUnmatchedStorageKey(city: string) {
-  return `cost-invoice-unmatched-skipped:${city}`;
-}
-const SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
-  dubai: "https://docs.google.com/spreadsheets/d/1NHfPN7bqTjRoqEVPbhJqv_H7ZbwjY9wJVF9D7Ls0n1M/edit",
-  manila: "https://docs.google.com/spreadsheets/d/1xD-YKHkOpEqXO8xJqo10M771PWyTgnouBz3leveRfB0/edit",
-};
 
 const RECIPE_COLUMNS: SpreadsheetColumn[] = [
   { key: "row_num", label: "", width: 44, frozen: true, editable: false },
@@ -579,10 +439,6 @@ function attachPreviousIngredientPrices(rows: PriceHistoryEntry[]) {
     ...entry,
     previous_price: entry.previous_price ?? entry.old_price ?? (index + 1 < rows.length ? rows[index + 1]?.unit_price ?? null : null),
   }));
-}
-
-function normalizeIngredientNameForMatch(value: unknown) {
-  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function mapMenuItemDetail(raw: any): MenuItemDetail {
@@ -917,9 +773,6 @@ export default function CostCalculationPage() {
   const [menuDetailLoadingId, setMenuDetailLoadingId] = useState<string | null>(null);
   const [menuDetailSavingId, setMenuDetailSavingId] = useState<string | null>(null);
   const [menuDraftLine, setMenuDraftLine] = useState<Record<string, RecipeIngredientDraft>>({});
-  const [unmatchedInvoiceItems, setUnmatchedInvoiceItems] = useState<UnmatchedInvoiceItemRow[]>([]);
-  const [unmatchedItemSearch, setUnmatchedItemSearch] = useState("");
-  const [unmatchedSupplierFilter, setUnmatchedSupplierFilter] = useState("");
   // Misplaced ingredient cleanup panel
   const [showMisplacedPanel, setShowMisplacedPanel] = useState(false);
   const [misplacedSuspects, setMisplacedSuspects] = useState<Array<{ id: string; name: string; category: string; unit: string; is_active: boolean; matched_master_name?: string; matched_item_type?: string }>>([]);
@@ -927,46 +780,9 @@ export default function CostCalculationPage() {
   const [misplacedSelected, setMisplacedSelected] = useState<Set<string>>(new Set());
   const [misplacedDeactivating, setMisplacedDeactivating] = useState(false);
   const [misplacedMsg, setMisplacedMsg] = useState("");
-  const [renamingUnmatchedKey, setRenamingUnmatchedKey] = useState("");
-  const [renameText, setRenameText] = useState("");
-  const [renameSaving, setRenameSaving] = useState(false);
-  const [invoiceMappings, setInvoiceMappings] = useState<InvoiceItemMappingRow[]>([]);
-  const [invoiceMappingSearch, setInvoiceMappingSearch] = useState("");
-  const [invoiceMappingLoading, setInvoiceMappingLoading] = useState(false);
-  const [invoiceMappingSaving, setInvoiceMappingSaving] = useState(false);
-  const [invoiceSyncBusy, setInvoiceSyncBusy] = useState(false);
-  const [invoiceSyncResult, setInvoiceSyncResult] = useState<any>(null);
-  const [invoiceSyncError, setInvoiceSyncError] = useState("");
-  const [selectedUnmatchedItemKey, setSelectedUnmatchedItemKey] = useState("");
-  const [skippedUnmatchedInvoiceKeys, setSkippedUnmatchedInvoiceKeys] = useState<string[]>([]);
-  const [editingInvoiceMappingId, setEditingInvoiceMappingId] = useState<string | null>(null);
-  const [mappingMode, setMappingMode] = useState<"create" | "edit">("create");
-  const [mappingSourceSupplierName, setMappingSourceSupplierName] = useState("");
-  const [mappingSourceItemDescription, setMappingSourceItemDescription] = useState("");
-  const [mappingSourceInvoiceUnit, setMappingSourceInvoiceUnit] = useState("");
-  const [mappingIngredientSearch, setMappingIngredientSearch] = useState("");
-  const [showMappingIngredientDropdown, setShowMappingIngredientDropdown] = useState(false);
-  const [selectedMappingIngredientId, setSelectedMappingIngredientId] = useState("");
-  const [mappingIngredientUnit, setMappingIngredientUnit] = useState("");
-  const [mappingConversionRule, setMappingConversionRule] = useState("");
-  const [mappingNotes, setMappingNotes] = useState("");
-  const [mappingSaveError, setMappingSaveError] = useState("");
-  const [mappingNewIngredientName, setMappingNewIngredientName] = useState("");
-  const [mappingNewIngredientCategory, setMappingNewIngredientCategory] = useState("");
-  const [mappingNewIngredientUnit, setMappingNewIngredientUnit] = useState("");
-  const [mappingCreateIngredientError, setMappingCreateIngredientError] = useState("");
-  const [mappingCreateIngredientSaving, setMappingCreateIngredientSaving] = useState(false);
-  const [selectedMappingIngredientDetail, setSelectedMappingIngredientDetail] = useState<IngredientDetail | null>(null);
-  const [mappingCostPriceInput, setMappingCostPriceInput] = useState("");
-  const [mappingCostFormulaInput, setMappingCostFormulaInput] = useState("");
-  const [mappingCostFormulaNoteInput, setMappingCostFormulaNoteInput] = useState("");
-  const [mappingCostSaveError, setMappingCostSaveError] = useState("");
-  const [mappingDetailLoading, setMappingDetailLoading] = useState(false);
-  const [mappingCostSaving, setMappingCostSaving] = useState(false);
   const [ratioSortKey, setRatioSortKey] = useState<"cost_ratio" | "name" | "category" | "selling_price" | "unit_cost">("cost_ratio");
   const [ratioSortDir, setRatioSortDir] = useState<"asc" | "desc">("desc");
   const [ratioCategoryFilter, setRatioCategoryFilter] = useState("all");
-  const mappingCostInputsDirtyRef = useRef(false);
   // Tracks whether ingredients have been loaded at least once.
   // Background refreshes skip the skeleton loader to avoid disrupting in-progress edits.
   const ingredientsLoadedRef = useRef(false);
@@ -976,12 +792,10 @@ export default function CostCalculationPage() {
   const hasNewIngredientRowsRef = useRef(false);
   const allIngredientOptionsRef = useRef(allIngredientOptions);
   const selectedIngredientDetailRef = useRef<IngredientDetail | null>(null);
-  const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const cityLabel = city === "dubai" ? "Dubai / AED" : "Manila / PHP";
   const activeMasterType = activeSection === "processed" ? "processed" : activeSection === "draft" ? "draft" : "product";
   const isIngredientSection = activeSection === "ingredient";
-  const isInvoiceSection = activeSection === "invoice";
   const isRatioSection = activeSection === "cost-ratio";
   const isPendingSection = activeSection === "price-pending";
   const isPriceAuditSection = activeSection === "price-audit";
@@ -1023,16 +837,6 @@ export default function CostCalculationPage() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(skippedUnmatchedStorageKey(city));
-      const parsed = raw ? JSON.parse(raw) : [];
-      setSkippedUnmatchedInvoiceKeys(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setSkippedUnmatchedInvoiceKeys([]);
-    }
-  }, [city]);
 
   const loadIngredients = useCallback(async () => {
     // Show skeleton only on the initial load; background refreshes run silently
@@ -1159,120 +963,6 @@ export default function CostCalculationPage() {
       setMenuCategories([]);
     }
   }, [city]);
-
-  const loadInvoiceMappingData = useCallback(async () => {
-    setInvoiceMappingLoading(true);
-    try {
-      const [unmatchedResult, mappingsResult] = await Promise.allSettled([
-        costJson<{ items?: UnmatchedInvoiceItemRow[] }>(
-          `/api/admin/cost/invoice-item-mappings/unmatched?city=${encodeURIComponent(city)}&limit=500`,
-        ),
-        costJson<{ items?: InvoiceItemMappingRow[] }>(
-          `/api/admin/cost/invoice-item-mappings?city=${encodeURIComponent(city)}&limit=2000&is_active=true`,
-        ),
-      ]);
-      const nextUnmatched = unmatchedResult.status === "fulfilled" && Array.isArray(unmatchedResult.value?.items)
-        ? unmatchedResult.value.items.map((item) => ({
-            ...item,
-            latest_unit_price: Number(item.latest_unit_price || 0),
-            invoice_count: Number(item.invoice_count || 0),
-            line_count: Number(item.line_count || 0),
-          }))
-        : [];
-      const nextMappings = mappingsResult.status === "fulfilled" && Array.isArray(mappingsResult.value?.items)
-        ? mappingsResult.value.items.map((item) => ({
-            ...item,
-            id: String(item.id || ""),
-            ingredient_id: String(item.ingredient_id || ""),
-            ingredient_name_snapshot: String(item.ingredient_name_snapshot || ""),
-            invoice_unit: String(item.invoice_unit || ""),
-            ingredient_unit: String(item.ingredient_unit || ""),
-            conversion_rule: String(item.conversion_rule || ""),
-            notes: String(item.notes || ""),
-          }))
-        : [];
-      setInvoiceMappings(nextMappings);
-      if (unmatchedResult.status === "fulfilled") {
-        setUnmatchedInvoiceItems(nextUnmatched);
-        setSelectedUnmatchedItemKey((current) => {
-          let skippedForSelect: string[] = [];
-          try {
-            const raw = localStorage.getItem(skippedUnmatchedStorageKey(city));
-            const parsed = raw ? JSON.parse(raw) : [];
-            skippedForSelect = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            skippedForSelect = [];
-          }
-          const skippedSet = new Set(skippedForSelect);
-          const visible = nextUnmatched.filter((item) => !skippedSet.has(unmatchedInvoiceItemKey(item)));
-          if (current && visible.some((item) => unmatchedInvoiceItemKey(item) === current)) {
-            return current;
-          }
-          return visible[0] ? unmatchedInvoiceItemKey(visible[0]) : "";
-        });
-      }
-      if (unmatchedResult.status === "fulfilled" && mappingsResult.status === "fulfilled") {
-        setError("");
-      } else if (unmatchedResult.status === "rejected" && mappingsResult.status === "rejected") {
-        setError("Invoice mapping data could not be loaded. Please retry in a few seconds.");
-        setUnmatchedInvoiceItems([]);
-        setInvoiceMappings([]);
-      } else if (unmatchedResult.status === "rejected") {
-        setError("Unmatched invoice items timed out. Existing mappings are still shown below.");
-      } else if (mappingsResult.status === "rejected") {
-        setError("Existing mappings could not be loaded. Unmatched invoice items are still available.");
-      }
-    } catch (e: any) {
-      setError(e?.message || String(e));
-      setUnmatchedInvoiceItems([]);
-      setInvoiceMappings([]);
-    } finally {
-      setInvoiceMappingLoading(false);
-    }
-  }, [city]);
-
-  const runInvoiceSync = useCallback(async (dryRun: boolean) => {
-    setInvoiceSyncBusy(true);
-    setInvoiceSyncError("");
-    setInvoiceSyncResult(null);
-    try {
-      // Start the async job — returns {job_id, status:"running"} immediately
-      const started = await costJson<any>(
-        `/api/admin/cost/sync-invoice-prices?city=${encodeURIComponent(city)}&dry_run=${dryRun}`,
-        { method: "POST", body: JSON.stringify({}) },
-      );
-
-      // If the backend returned a direct result (old-style), handle it
-      if (!started?.job_id) {
-        setInvoiceSyncResult(started);
-        if (!dryRun) void loadInvoiceMappingData();
-        return;
-      }
-
-      // Poll the job status endpoint every 3 seconds
-      const jobId = started.job_id as string;
-      const maxWait = 120_000; // 2 minutes max
-      const start = Date.now();
-      while (Date.now() - start < maxWait) {
-        await new Promise((r) => window.setTimeout(r, 3000));
-        const poll = await costJson<any>(`/api/admin/cost/sync-job/${encodeURIComponent(jobId)}`);
-        if (poll?.status === "done") {
-          setInvoiceSyncResult(poll.result);
-          if (!dryRun) void loadInvoiceMappingData();
-          return;
-        }
-        if (poll?.status === "error") {
-          throw new Error(poll.error || "Sync failed");
-        }
-        // status === "running" → keep polling
-      }
-      throw new Error("Sync timed out after 2 minutes");
-    } catch (e: any) {
-      setInvoiceSyncError(e?.message || String(e));
-    } finally {
-      setInvoiceSyncBusy(false);
-    }
-  }, [city, loadInvoiceMappingData]);
 
   const loadRecipeSheet = useCallback(async (sheet: SheetKey) => {
     if (sheet === INGREDIENT_SHEET) return;
@@ -1846,13 +1536,7 @@ export default function CostCalculationPage() {
     if (!allowed) return;
     void loadIngredients();
     void loadMenuCategories();
-    void loadInvoiceMappingData();
-  }, [activeSheet, allowed, city, loadIngredients, loadMenuCategories, loadInvoiceMappingData]);
-
-  useEffect(() => {
-    if (!allowed || activeSection !== "invoice") return;
-    void loadInvoiceMappingData();
-  }, [activeSection, allowed, loadInvoiceMappingData]);
+  }, [activeSheet, allowed, city, loadIngredients, loadMenuCategories]);
 
   // Refetch data whenever the tab/window regains focus — prevents stale data
   // after navigating away and back without a hard reload.
@@ -1863,7 +1547,6 @@ export default function CostCalculationPage() {
       // Throttle: at most once every 10 seconds to avoid hammering the API.
       if (Date.now() - lastRefresh < 10_000) return;
       lastRefresh = Date.now();
-      void loadInvoiceMappingData();
       // Skip ingredient refresh when:
       //  - the user has the detail panel open (form inputs would be disrupted), or
       //  - there are unsaved new rows in the table (row indices would shift mid-edit).
@@ -1880,7 +1563,7 @@ export default function CostCalculationPage() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", refresh);
     };
-  }, [allowed, loadInvoiceMappingData, loadIngredients]);
+  }, [allowed, loadIngredients]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -1890,31 +1573,6 @@ export default function CostCalculationPage() {
     setExpandedMenuItemId(null);
     setMenuDraftLine({});
     setShowAddItemForm(false);
-    setUnmatchedInvoiceItems([]);
-    setUnmatchedItemSearch("");
-    setUnmatchedSupplierFilter("");
-    setInvoiceMappings([]);
-    setSelectedUnmatchedItemKey("");
-    setEditingInvoiceMappingId(null);
-    setMappingMode("create");
-    setMappingSourceSupplierName("");
-    setMappingSourceItemDescription("");
-    setMappingSourceInvoiceUnit("");
-    setMappingIngredientSearch("");
-    setSelectedMappingIngredientId("");
-    setMappingIngredientUnit("");
-    setMappingConversionRule("");
-    setMappingNotes("");
-    setMappingSaveError("");
-    setMappingNewIngredientName("");
-    setMappingNewIngredientCategory("");
-    setMappingNewIngredientUnit("");
-    setMappingCreateIngredientError("");
-    setSelectedMappingIngredientDetail(null);
-    setMappingCostPriceInput("");
-    setMappingCostFormulaInput("");
-    setMappingCostFormulaNoteInput("");
-    setMappingCostSaveError("");
     setDirtyRows(new Set());
     setSelectedCell(null);
     setEditingCell(null);
@@ -2181,12 +1839,6 @@ export default function CostCalculationPage() {
     }
   }, [activeSheet]);
 
-  useEffect(() => {
-    if (mappingNewIngredientCategory) return;
-    if (!ingredientCategories.length) return;
-    setMappingNewIngredientCategory(ingredientCategories[0]);
-  }, [ingredientCategories, mappingNewIngredientCategory]);
-
   const suggestions = useMemo(() => {
     const q = searchText.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -2218,93 +1870,6 @@ export default function CostCalculationPage() {
       [item.name, item.category].some((value) => String(value || "").toLowerCase().includes(q)),
     );
   }, [activeRecipeMenuItems, activeSheet, searchText]);
-
-  const skippedUnmatchedSet = useMemo(() => new Set(skippedUnmatchedInvoiceKeys), [skippedUnmatchedInvoiceKeys]);
-  const unmatchedSupplierOptions = useMemo(
-    () => Array.from(new Set(unmatchedInvoiceItems.map((item) => item.supplier_name).filter(Boolean))).sort(),
-    [unmatchedInvoiceItems],
-  );
-  const visibleUnmatchedInvoiceItems = useMemo(() => {
-    const q = unmatchedItemSearch.trim().toLowerCase();
-    const sup = unmatchedSupplierFilter.trim().toLowerCase();
-    return unmatchedInvoiceItems
-      .filter((item) => {
-        if (skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))) return false;
-        if (sup && (item.supplier_name || "").toLowerCase() !== sup) return false;
-        if (q && !(item.item_description || "").toLowerCase().includes(q) && !(item.supplier_name || "").toLowerCase().includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => (a.item_description || "").localeCompare(b.item_description || ""));
-  }, [unmatchedInvoiceItems, skippedUnmatchedSet, unmatchedItemSearch, unmatchedSupplierFilter]);
-  const selectedUnmatchedItem = useMemo(() => {
-    if (!selectedUnmatchedItemKey || skippedUnmatchedSet.has(selectedUnmatchedItemKey)) return null;
-    return unmatchedInvoiceItems.find((item) => unmatchedInvoiceItemKey(item) === selectedUnmatchedItemKey) || null;
-  }, [selectedUnmatchedItemKey, skippedUnmatchedSet, unmatchedInvoiceItems]);
-  const activeCreateUnmatchedItem = useMemo(() => {
-    if (selectedUnmatchedItem) return selectedUnmatchedItem;
-    if (mappingMode !== "create" || !mappingSourceItemDescription.trim()) return null;
-    return visibleUnmatchedInvoiceItems.find((item) => (
-      String(item.supplier_name || "") === mappingSourceSupplierName
-      && String(item.item_description || "") === mappingSourceItemDescription
-      && String(item.unit || "") === mappingSourceInvoiceUnit
-    )) || null;
-  }, [
-    mappingMode,
-    mappingSourceInvoiceUnit,
-    mappingSourceItemDescription,
-    mappingSourceSupplierName,
-    selectedUnmatchedItem,
-    visibleUnmatchedInvoiceItems,
-  ]);
-  const activeCreateUnmatchedItemKey = useMemo(
-    () => (activeCreateUnmatchedItem ? unmatchedInvoiceItemKey(activeCreateUnmatchedItem) : ""),
-    [activeCreateUnmatchedItem],
-  );
-  const hasActiveMappingSelection = mappingMode === "create"
-    ? Boolean(activeCreateUnmatchedItem)
-    : Boolean(mappingSourceItemDescription.trim());
-  const activeMappingSelectionMeta = useMemo(() => {
-    if (mappingMode === "create" && activeCreateUnmatchedItem) {
-      return {
-        supplierName: activeCreateUnmatchedItem.supplier_name || "",
-        itemDescription: activeCreateUnmatchedItem.item_description || "",
-        invoiceUnit: activeCreateUnmatchedItem.unit || "",
-        latestUnitPrice: Number(activeCreateUnmatchedItem.latest_unit_price || 0),
-        invoiceCount: Number(activeCreateUnmatchedItem.invoice_count || 0),
-        lineCount: Number(activeCreateUnmatchedItem.line_count || 0),
-      };
-    }
-    return {
-      supplierName: mappingSourceSupplierName,
-      itemDescription: mappingSourceItemDescription,
-      invoiceUnit: mappingSourceInvoiceUnit,
-      latestUnitPrice: 0,
-      invoiceCount: 0,
-      lineCount: 0,
-    };
-  }, [activeCreateUnmatchedItem, mappingMode, mappingSourceInvoiceUnit, mappingSourceItemDescription, mappingSourceSupplierName]);
-
-  const mappingIngredientOptions = useMemo(() => {
-    const q = mappingIngredientSearch.trim().toLowerCase();
-    if (!q) return allIngredientOptions.slice(0, 25);
-    return allIngredientOptions
-      .filter((item) => [item.name, item.category, item.notes].some((value) => String(value || "").toLowerCase().includes(q)))
-      .slice(0, 25);
-  }, [allIngredientOptions, mappingIngredientSearch]);
-  const mappingNewIngredientSuggestions = useMemo(() => {
-    const q = normalizeIngredientNameForMatch(mappingNewIngredientName);
-    if (!q) return [];
-    return allIngredientOptions
-      .filter((item) => {
-        const normalizedName = normalizeIngredientNameForMatch(item.name);
-        return normalizedName.includes(q) || q.includes(normalizedName);
-      })
-      .slice(0, 5);
-  }, [allIngredientOptions, mappingNewIngredientName]);
-  const mappingNewIngredientExactMatch = useMemo(
-    () => allIngredientOptions.find((item) => normalizeIngredientNameForMatch(item.name) === normalizeIngredientNameForMatch(mappingNewIngredientName)) || null,
-    [allIngredientOptions, mappingNewIngredientName],
-  );
 
   const currentColumns = activeSheet === INGREDIENT_SHEET ? ingredientColumns : RECIPE_COLUMNS;
   const currentRows = activeSheet === INGREDIENT_SHEET ? filteredIngredientRows : filteredRecipeRows;
@@ -2433,76 +1998,6 @@ export default function CostCalculationPage() {
     }
   }, [applyIngredientDetailToLocalState, city, updateMasterComponentRow]);
 
-  const loadMappingIngredientDetail = useCallback(async (ingredientId: string) => {
-    const normalizedId = String(ingredientId || "").trim();
-    if (!normalizedId) {
-      setSelectedMappingIngredientDetail(null);
-      setMappingCostPriceInput("");
-      setMappingCostFormulaInput("");
-      setMappingCostFormulaNoteInput("");
-      setMappingCostSaveError("");
-      return;
-    }
-    const fallback = allIngredientOptionsRef.current.find((item) => String(item.id) === normalizedId) || null;
-    setMappingDetailLoading(true);
-    setMappingCostSaveError("");
-    try {
-      const res = await costJson<{ item?: IngredientDetail }>(`/api/cost/ingredients/${normalizedId}`);
-      const detail = res?.item
-        ? {
-            ...(fallback || {}),
-            ...res.item,
-            id: String(res.item.id || normalizedId),
-            category: String(res.item.category || fallback?.category || ""),
-            name: String(res.item.name || fallback?.name || ""),
-            unit: String(res.item.unit || fallback?.unit || ""),
-            unit_price: Number(res.item.unit_price || fallback?.unit_price || 0),
-            unit_price_formula: String(res.item.unit_price_formula || fallback?.unit_price_formula || ""),
-            unit_price_formula_note: String(res.item.unit_price_formula_note || fallback?.unit_price_formula_note || ""),
-            buffer_rate: Number(res.item.buffer_rate || fallback?.buffer_rate || 1.15),
-            yield_rate: normalizeRateValue(res.item.yield_rate ?? fallback?.yield_rate),
-            notes: String(res.item.notes || fallback?.notes || ""),
-            city: String(res.item.city || fallback?.city || city),
-            supplier_prices: Array.isArray(res.item.supplier_prices)
-              ? res.item.supplier_prices.map((row) => ({
-                  id: String(row.id || ""),
-                  supplier_id: String(row.supplier_id || ""),
-                  supplier_name: String(row.supplier_name || ""),
-                  purchase_unit: String(row.purchase_unit || ""),
-                  purchase_qty: Number(row.purchase_qty || 0),
-                  purchase_price: Number(row.purchase_price || 0),
-                  unit_price: Number(row.unit_price || 0),
-                  updated_by: String(row.updated_by || ""),
-                  updated_at: String(row.updated_at || ""),
-                }))
-              : [],
-          }
-        : fallback;
-      if (!detail) return;
-      setSelectedMappingIngredientDetail(detail);
-      if (!mappingCostInputsDirtyRef.current) {
-        setMappingCostPriceInput(String(Number(detail.unit_price || 0)));
-        setMappingCostFormulaInput(String(detail.unit_price_formula || ""));
-        setMappingCostFormulaNoteInput(String(detail.unit_price_formula_note || ""));
-      }
-      applyIngredientDetailToLocalState(detail);
-    } catch (e: any) {
-      setMappingCostSaveError(e?.message || String(e));
-      if (fallback) {
-        setSelectedMappingIngredientDetail(fallback);
-        if (!mappingCostInputsDirtyRef.current) {
-          setMappingCostPriceInput(String(Number(fallback.unit_price || 0)));
-          setMappingCostFormulaInput(String(fallback.unit_price_formula || ""));
-          setMappingCostFormulaNoteInput(String(fallback.unit_price_formula_note || ""));
-        }
-      } else {
-        setSelectedMappingIngredientDetail(null);
-      }
-    } finally {
-      setMappingDetailLoading(false);
-    }
-  }, [applyIngredientDetailToLocalState, city]);
-
   const visibleIngredientSuggestions = useMemo(() => {
     if (!editingCell || activeSheet === INGREDIENT_SHEET || editingCell.col !== "ingredient") return [];
     const q = editValue.trim().toLowerCase();
@@ -2617,18 +2112,8 @@ export default function CostCalculationPage() {
     setIngredients((prev) => prev.filter((item) => String(item.id) !== normalizedId));
     setAllIngredientOptions((prev) => prev.filter((item) => String(item.id) !== normalizedId));
     setSelectedIngredientDetail((current) => (String(current?.id || "") === normalizedId ? null : current));
-    if (String(selectedMappingIngredientId || "") === normalizedId) {
-      setSelectedMappingIngredientId("");
-      setMappingIngredientSearch("");
-      setMappingIngredientUnit("");
-      setSelectedMappingIngredientDetail(null);
-      setMappingCostPriceInput("");
-      setMappingCostFormulaInput("");
-      setMappingCostFormulaNoteInput("");
-      setMappingCostSaveError("");
-    }
     setPriceHistory((current) => (String(selectedIngredientDetailRef.current?.id || "") === normalizedId ? [] : current));
-  }, [selectedMappingIngredientId]);
+  }, []);
 
   const deleteSelectedIngredient = useCallback(async () => {
     if (!selectedIngredientDetail) return;
@@ -2649,16 +2134,6 @@ export default function CostCalculationPage() {
       });
       setIngredients((prev) => prev.filter((item) => String(item.id) !== ingredientId));
       setAllIngredientOptions((prev) => prev.filter((item) => String(item.id) !== ingredientId));
-      if (selectedMappingIngredientId === ingredientId) {
-        setSelectedMappingIngredientId("");
-        setMappingIngredientSearch("");
-        setMappingIngredientUnit("");
-        setSelectedMappingIngredientDetail(null);
-        setMappingCostPriceInput("");
-        setMappingCostFormulaInput("");
-        setMappingCostFormulaNoteInput("");
-        setMappingCostSaveError("");
-      }
       setSelectedIngredientDetail(null);
       setPriceHistory([]);
       await loadIngredients();
@@ -2667,31 +2142,7 @@ export default function CostCalculationPage() {
     } finally {
       setIngredientDetailDeleting(false);
     }
-  }, [loadIngredients, removeLocalIngredientRow, selectedIngredientDetail, selectedMappingIngredientId]);
-
-  useEffect(() => {
-    if (mappingMode !== "create") return;
-    if (mappingSourceItemDescription.trim()) return;
-    if (!selectedUnmatchedItem) return;
-    setMappingSourceSupplierName(selectedUnmatchedItem.supplier_name || "");
-    setMappingSourceItemDescription(selectedUnmatchedItem.item_description || "");
-    setMappingSourceInvoiceUnit(selectedUnmatchedItem.unit || "");
-  }, [mappingMode, mappingSourceItemDescription, selectedUnmatchedItem]);
-
-  useEffect(() => {
-    if (activeSheet !== INGREDIENT_SHEET) return;
-    if (!selectedMappingIngredientId) {
-      setSelectedMappingIngredientDetail(null);
-      setMappingCostPriceInput("");
-      setMappingCostFormulaInput("");
-      setMappingCostFormulaNoteInput("");
-      setMappingCostSaveError("");
-      mappingCostInputsDirtyRef.current = false;
-      return;
-    }
-    mappingCostInputsDirtyRef.current = false;
-    void loadMappingIngredientDetail(selectedMappingIngredientId);
-  }, [activeSheet, loadMappingIngredientDetail, selectedMappingIngredientId]);
+  }, [loadIngredients, removeLocalIngredientRow, selectedIngredientDetail]);
 
   const refreshActiveRecipeTab = useCallback(async () => {
     if (activeSheet === INGREDIENT_SHEET) return;
@@ -3046,396 +2497,6 @@ export default function CostCalculationPage() {
     }
   }, [activeSheet, city, newItemBuffer, newItemCategory, newItemIngredients, newItemName, newItemPrice, refreshActiveRecipeTab]);
 
-  const selectUnmatchedInvoiceItem = useCallback((itemKey: string) => {
-    const item = unmatchedInvoiceItems.find((entry) => unmatchedInvoiceItemKey(entry) === itemKey);
-    setSelectedUnmatchedItemKey(itemKey);
-    setEditingInvoiceMappingId(null);
-    setMappingMode("create");
-    setMappingSourceSupplierName(item?.supplier_name || "");
-    setMappingSourceItemDescription(item?.item_description || "");
-    setMappingSourceInvoiceUnit(item?.unit || "");
-    setMappingIngredientSearch("");
-    setSelectedMappingIngredientId("");
-    setMappingIngredientUnit("");
-    setMappingConversionRule("");
-    setMappingNotes("");
-    setMappingSaveError("");
-    setMappingNewIngredientName(String(item?.item_description || ""));
-    setMappingNewIngredientCategory("");
-    setMappingNewIngredientUnit(String(item?.unit || ""));
-    setMappingCreateIngredientError("");
-    setSelectedMappingIngredientDetail(null);
-    setMappingCostPriceInput("");
-    setMappingCostFormulaInput("");
-    setMappingCostFormulaNoteInput("");
-    setMappingCostSaveError("");
-  }, [unmatchedInvoiceItems]);
-
-  const skipCurrentUnmatchedInvoiceItem = useCallback(() => {
-    if (mappingMode !== "create" || !activeCreateUnmatchedItemKey) return;
-    const key = activeCreateUnmatchedItemKey;
-    if (skippedUnmatchedInvoiceKeys.includes(key)) return;
-    const nextSkipped = [...skippedUnmatchedInvoiceKeys, key];
-    try {
-      localStorage.setItem(skippedUnmatchedStorageKey(city), JSON.stringify(nextSkipped));
-    } catch {
-      /* ignore quota / private mode */
-    }
-    setSkippedUnmatchedInvoiceKeys(nextSkipped);
-    const skippedSet = new Set(nextSkipped);
-    const idx = unmatchedInvoiceItems.findIndex((item) => unmatchedInvoiceItemKey(item) === key);
-    let nextKey = "";
-    for (let i = idx + 1; i < unmatchedInvoiceItems.length; i++) {
-      const k = unmatchedInvoiceItemKey(unmatchedInvoiceItems[i]);
-      if (!skippedSet.has(k)) {
-        nextKey = k;
-        break;
-      }
-    }
-    if (!nextKey) {
-      for (let i = 0; i < idx; i++) {
-        const k = unmatchedInvoiceItemKey(unmatchedInvoiceItems[i]);
-        if (!skippedSet.has(k)) {
-          nextKey = k;
-          break;
-        }
-      }
-    }
-    if (nextKey) {
-      selectUnmatchedInvoiceItem(nextKey);
-    } else {
-      setEditingInvoiceMappingId(null);
-      setMappingMode("create");
-      setSelectedUnmatchedItemKey("");
-      setMappingSourceSupplierName("");
-      setMappingSourceItemDescription("");
-      setMappingSourceInvoiceUnit("");
-      setMappingIngredientSearch("");
-      setSelectedMappingIngredientId("");
-      setMappingIngredientUnit("");
-      setMappingConversionRule("");
-      setMappingNotes("");
-      setMappingSaveError("");
-      setMappingNewIngredientName("");
-      setMappingNewIngredientCategory("");
-      setMappingNewIngredientUnit("");
-      setMappingCreateIngredientError("");
-      setSelectedMappingIngredientDetail(null);
-      setMappingCostPriceInput("");
-      setMappingCostFormulaInput("");
-      setMappingCostFormulaNoteInput("");
-      setMappingCostSaveError("");
-    }
-  }, [
-    activeCreateUnmatchedItemKey,
-    city,
-    mappingMode,
-    selectUnmatchedInvoiceItem,
-    skippedUnmatchedInvoiceKeys,
-    unmatchedInvoiceItems,
-  ]);
-
-  const saveRenameUnmatchedItem = useCallback(async () => {
-    const item = unmatchedInvoiceItems.find((it) => unmatchedInvoiceItemKey(it) === renamingUnmatchedKey);
-    if (!item) return;
-    const newName = renameText.trim();
-    if (!newName || newName === item.item_description) {
-      setRenamingUnmatchedKey("");
-      return;
-    }
-    setRenameSaving(true);
-    try {
-      await costJson("/api/admin/cost/invoice-line-items/rename", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          city,
-          supplier_name: item.supplier_name,
-          old_description: item.item_description,
-          new_description: newName,
-        }),
-      });
-      // Update local state so the list reflects the new name immediately
-      setUnmatchedInvoiceItems((prev) =>
-        prev.map((it) =>
-          unmatchedInvoiceItemKey(it) === renamingUnmatchedKey
-            ? { ...it, item_description: newName }
-            : it,
-        ),
-      );
-      // If the renamed item was selected, update dependent state
-      if (selectedUnmatchedItemKey === renamingUnmatchedKey) {
-        setMappingSourceItemDescription(newName);
-      }
-      setRenamingUnmatchedKey("");
-    } catch (e: any) {
-      /* show error inline */
-      alert(e?.message || "Rename failed");
-    } finally {
-      setRenameSaving(false);
-    }
-  }, [city, renameText, renamingUnmatchedKey, selectedUnmatchedItemKey, unmatchedInvoiceItems]);
-
-  const clearSkippedUnmatchedInvoiceItems = useCallback(() => {
-    try {
-      localStorage.removeItem(skippedUnmatchedStorageKey(city));
-    } catch {
-      /* ignore */
-    }
-    setSkippedUnmatchedInvoiceKeys([]);
-  }, [city]);
-
-  const startEditingInvoiceMapping = useCallback((mapping: InvoiceItemMappingRow) => {
-    setSelectedUnmatchedItemKey("");
-    setShowMappingIngredientDropdown(false);
-    setEditingInvoiceMappingId(mapping.id);
-    setMappingMode("edit");
-    setMappingSourceSupplierName(mapping.supplier_name || "");
-    setMappingSourceItemDescription(mapping.invoice_item_description || "");
-    setMappingSourceInvoiceUnit(mapping.invoice_unit || "");
-    setSelectedMappingIngredientId(String(mapping.ingredient_id || ""));
-    setMappingIngredientSearch(String(mapping.ingredient_name_snapshot || ""));
-    setMappingIngredientUnit(mapping.ingredient_unit || "");
-    setMappingConversionRule(mapping.conversion_rule || "");
-    setMappingNotes(mapping.notes || "");
-    setMappingSaveError("");
-    setMappingNewIngredientName("");
-    setMappingNewIngredientCategory("");
-    setMappingNewIngredientUnit("");
-    setMappingCreateIngredientError("");
-    setSelectedMappingIngredientDetail(null);
-    setMappingCostPriceInput("");
-    setMappingCostFormulaInput("");
-    setMappingCostFormulaNoteInput("");
-    setMappingCostSaveError("");
-  }, []);
-
-  const saveInvoiceItemMapping = useCallback(async () => {
-    if (!mappingSourceItemDescription.trim() || !selectedMappingIngredientId) return;
-    const selectedIngredient = allIngredientOptions.find((item) => String(item.id) === String(selectedMappingIngredientId));
-    try {
-      setInvoiceMappingSaving(true);
-      setMappingSaveError("");
-      await costJson("/api/admin/cost/invoice-item-mappings", {
-        method: "POST",
-        body: JSON.stringify({
-          city,
-          supplier_name: mappingSourceSupplierName,
-          invoice_item_description: mappingSourceItemDescription,
-          invoice_unit: mappingSourceInvoiceUnit,
-          ingredient_id: Number(selectedMappingIngredientId),
-          ingredient_unit: mappingIngredientUnit || selectedIngredient?.unit || "",
-          conversion_rule: mappingConversionRule,
-          notes: mappingNotes,
-        }),
-      });
-      if (mappingMode === "create") {
-        setSelectedUnmatchedItemKey("");
-        setMappingSourceSupplierName("");
-        setMappingSourceItemDescription("");
-        setMappingSourceInvoiceUnit("");
-        setMappingIngredientSearch("");
-        setSelectedMappingIngredientId("");
-        setMappingIngredientUnit("");
-        setMappingConversionRule("");
-        setMappingNotes("");
-        setMappingSaveError("");
-        setSelectedMappingIngredientDetail(null);
-        setMappingCostPriceInput("");
-        setMappingCostFormulaInput("");
-        setMappingCostFormulaNoteInput("");
-        setMappingCostSaveError("");
-      }
-      await loadInvoiceMappingData();
-    } catch (e: any) {
-      setMappingSaveError(e?.message || String(e));
-      setError(e?.message || String(e));
-    } finally {
-      setInvoiceMappingSaving(false);
-    }
-  }, [
-    allIngredientOptions,
-    city,
-    loadInvoiceMappingData,
-    mappingConversionRule,
-    mappingIngredientUnit,
-    mappingNotes,
-    mappingMode,
-    mappingSourceInvoiceUnit,
-    mappingSourceItemDescription,
-    mappingSourceSupplierName,
-    selectedMappingIngredientId,
-  ]);
-
-  const saveMappingIngredientCost = useCallback(async () => {
-    const ingredientId = String(selectedMappingIngredientId || "").trim();
-    if (!ingredientId) return;
-    const trimmedFormula = mappingCostFormulaInput.trim();
-    const trimmedPriceInput = mappingCostPriceInput.trim();
-    const numericPrice = trimmedPriceInput === "" ? null : Number(trimmedPriceInput);
-    if (!trimmedFormula && (numericPrice == null || !Number.isFinite(numericPrice))) {
-      setMappingCostSaveError("Please enter a numeric unit price or a formula.");
-      return;
-    }
-    try {
-      setMappingCostSaving(true);
-      setMappingCostSaveError("");
-      const payload: Record<string, unknown> = {
-        notes_for_history: "Updated from invoice item mapping panel",
-      };
-      if (trimmedFormula) {
-        payload.unit_price_formula = trimmedFormula;
-        payload.unit_price_formula_note = mappingCostFormulaNoteInput.trim();
-        if (numericPrice != null && Number.isFinite(numericPrice)) payload.unit_price = numericPrice;
-      } else {
-        payload.unit_price = numericPrice;
-        payload.unit_price_formula = "";
-        payload.unit_price_formula_note = "";
-      }
-      const res = await costJson<{ item?: IngredientDetail }>(`/api/cost/ingredients/${ingredientId}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      const nextDetail = res?.item
-        ? {
-            ...res.item,
-            id: String(res.item.id || ingredientId),
-            category: String(res.item.category || ""),
-            name: String(res.item.name || ""),
-            unit: String(res.item.unit || ""),
-            unit_price: Number(res.item.unit_price || 0),
-            unit_price_formula: String(res.item.unit_price_formula || ""),
-            unit_price_formula_note: String(res.item.unit_price_formula_note || ""),
-            buffer_rate: Number(res.item.buffer_rate || 1.15),
-            yield_rate: normalizeRateValue(res.item.yield_rate),
-            notes: String(res.item.notes || ""),
-            city: String(res.item.city || city),
-            supplier_prices: Array.isArray(res.item.supplier_prices)
-              ? res.item.supplier_prices.map((row) => ({
-                  id: String(row.id || ""),
-                  supplier_id: String(row.supplier_id || ""),
-                  supplier_name: String(row.supplier_name || ""),
-                  purchase_unit: String(row.purchase_unit || ""),
-                  purchase_qty: Number(row.purchase_qty || 0),
-                  purchase_price: Number(row.purchase_price || 0),
-                  unit_price: Number(row.unit_price || 0),
-                  updated_by: String(row.updated_by || ""),
-                  updated_at: String(row.updated_at || ""),
-                }))
-              : [],
-          }
-        : null;
-      if (nextDetail) {
-        setSelectedMappingIngredientDetail(nextDetail);
-        setMappingCostPriceInput(String(Number(nextDetail.unit_price || 0)));
-        setMappingCostFormulaInput(String(nextDetail.unit_price_formula || ""));
-        setMappingCostFormulaNoteInput(String(nextDetail.unit_price_formula_note || ""));
-        mappingCostInputsDirtyRef.current = false;
-        applyIngredientDetailToLocalState(nextDetail);
-      } else {
-        await loadMappingIngredientDetail(ingredientId);
-      }
-    } catch (e: any) {
-      setMappingCostSaveError(e?.message || String(e));
-    } finally {
-      setMappingCostSaving(false);
-    }
-  }, [
-    applyIngredientDetailToLocalState,
-    city,
-    loadMappingIngredientDetail,
-    mappingCostFormulaInput,
-    mappingCostFormulaNoteInput,
-    mappingCostPriceInput,
-    selectedMappingIngredientId,
-  ]);
-
-  const selectMappingIngredientOption = useCallback(async (ingredient: IngredientRow) => {
-    const nextId = String(ingredient.id || "");
-    if (!nextId) return;
-    setSelectedMappingIngredientId(nextId);
-    setMappingIngredientSearch(String(ingredient.name || ""));
-    setMappingIngredientUnit(String(ingredient.unit || ""));
-    setMappingCreateIngredientError("");
-    setSelectedMappingIngredientDetail(null);
-    setMappingCostPriceInput("");
-    setMappingCostFormulaInput("");
-    setMappingCostFormulaNoteInput("");
-    setMappingCostSaveError("");
-    mappingCostInputsDirtyRef.current = false;
-    await loadMappingIngredientDetail(nextId);
-  }, [loadMappingIngredientDetail]);
-
-  const createMappingIngredient = useCallback(async () => {
-    const name = mappingNewIngredientName.trim();
-    const category = mappingNewIngredientCategory.trim();
-    const unit = mappingNewIngredientUnit.trim();
-    if (!name || !category || !unit) {
-      setMappingCreateIngredientError("Name, Category, and Unit are required.");
-      return;
-    }
-    if (mappingNewIngredientExactMatch) {
-      setMappingCreateIngredientError("An ingredient with this name already exists. Please select from the suggestions below.");
-      await selectMappingIngredientOption(mappingNewIngredientExactMatch);
-      return;
-    }
-    try {
-      setMappingCreateIngredientSaving(true);
-      setMappingCreateIngredientError("");
-      const res = await costJson<{ item?: IngredientRow }>("/api/cost/ingredients", {
-        method: "POST",
-        body: JSON.stringify({
-          city,
-          category,
-          name,
-          unit,
-          unit_price: 0,
-          unit_price_formula: "",
-          unit_price_formula_note: "",
-          buffer_rate: 1.15,
-          yield_rate: null,
-          notes: "Created from invoice item mapping panel",
-        }),
-      });
-      await loadIngredients();
-      const nextId = String(res?.item?.id || "");
-      setSelectedMappingIngredientId(nextId);
-      setMappingIngredientSearch(name);
-      setMappingIngredientUnit(unit);
-      setMappingNewIngredientName("");
-      setMappingNewIngredientUnit(unit);
-      if (nextId) {
-        await loadMappingIngredientDetail(nextId);
-      }
-    } catch (e: any) {
-      setMappingCreateIngredientError(e?.message || String(e));
-    } finally {
-      setMappingCreateIngredientSaving(false);
-    }
-  }, [
-    city,
-    loadIngredients,
-    loadMappingIngredientDetail,
-    mappingNewIngredientExactMatch,
-    mappingNewIngredientCategory,
-    mappingNewIngredientName,
-    mappingNewIngredientUnit,
-    selectMappingIngredientOption,
-  ]);
-
-  const disableInvoiceItemMapping = useCallback(async (mappingId: string) => {
-    try {
-      setInvoiceMappingSaving(true);
-      await costJson(`/api/admin/cost/invoice-item-mappings/${mappingId}/disable`, {
-        method: "PATCH",
-      });
-      await loadInvoiceMappingData();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setInvoiceMappingSaving(false);
-    }
-  }, [loadInvoiceMappingData]);
 
   useEffect(() => {
     if (activeSheet !== INGREDIENT_SHEET || !highlightedIngredientId) return;
@@ -3845,7 +2906,6 @@ export default function CostCalculationPage() {
               { key: "processed" as CostSection, label: "Processed Items" },
               { key: "product" as CostSection, label: "Products" },
               { key: "draft" as CostSection, label: "New Product Costing" },
-              { key: "invoice" as CostSection, label: "Invoice Mapping" },
               { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
               { key: "price-pending" as CostSection, label: "Price Pending" },
               { key: "price-audit" as CostSection, label: "Price Audit" },
@@ -4023,23 +3083,6 @@ export default function CostCalculationPage() {
                   {activeSection === "processed" ? "Add Processed Item" : activeSection === "draft" ? "Add Draft" : "Add Product"}
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!activeSpreadsheetUrl) return;
-                  window.open(activeSpreadsheetUrl, "_blank", "noopener,noreferrer");
-                }}
-                disabled={!activeSpreadsheetUrl}
-                className={cx(
-                  "inline-flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium transition",
-                  activeSpreadsheetUrl
-                    ? "border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]"
-                    : "cursor-not-allowed border-white/10 bg-white/[0.03] text-zinc-500",
-                )}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Spreadsheet
-              </button>
               {activeSection === "ingredient" ? (
                 <button
                   type="button"
@@ -4734,484 +3777,6 @@ export default function CostCalculationPage() {
                 )}
               </div>
             </div>
-          ) : isInvoiceSection ? (
-            <div className="space-y-4">
-              {/* Sync control card */}
-              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-5">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">Invoice Price → Cost Calculation Sync</div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      Proposes ingredient price changes for review based on Google Sheets invoice data. Changes appear in the Price Pending tab for staff to approve before applying.<br />
-                      Only ingredients with registered mappings are included. Register new mappings in the &quot;Ingredients&quot; tab.
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {invoiceSyncBusy ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
-                    <button
-                      type="button"
-                      onClick={() => void runInvoiceSync(true)}
-                      disabled={invoiceSyncBusy}
-                      className="rounded-xl border border-violet-600/40 bg-violet-950/30 px-4 py-2 text-xs text-violet-300 transition hover:bg-violet-900/40 disabled:opacity-60"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void runInvoiceSync(false)}
-                      disabled={invoiceSyncBusy}
-                      className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
-                    >
-                      <RotateCcw className="mr-1.5 inline h-3.5 w-3.5" />
-                      Run Sync
-                    </button>
-                  </div>
-                </div>
-
-                {invoiceSyncError ? (
-                  <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
-                    <AlertTriangle className="mr-1.5 inline h-4 w-4" />
-                    {invoiceSyncError}
-                  </div>
-                ) : invoiceSyncResult ? (
-                  <div className="space-y-3">
-                    {invoiceSyncResult.dry_run ? (
-                      <div className="rounded-xl border border-amber-700/40 bg-amber-900/15 px-4 py-3 text-sm text-amber-300">
-                        ⚠️ Preview results (no changes applied yet)
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
-                        ✅ Sync complete — proposed <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> price changes for review. Go to <strong>Price Pending</strong> to approve.
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                      {[
-                        { label: "Invoice Rows", value: invoiceSyncResult.total_rows ?? "—" },
-                        { label: "Matched", value: invoiceSyncResult.matched ?? "—" },
-                        { label: "Proposed", value: invoiceSyncResult.updated ?? "—" },
-                        { label: "Skipped", value: (invoiceSyncResult.skipped_unmatched ?? 0) + (invoiceSyncResult.skipped_unit_conversion ?? 0) + (invoiceSyncResult.skipped_matched_but_unmapped ?? 0) },
-                      ].map((kpi) => (
-                        <div key={kpi.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
-                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">{kpi.label}</div>
-                          <div className="mt-1 font-mono text-xl text-white">{kpi.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    {Array.isArray(invoiceSyncResult.updates) && invoiceSyncResult.updates.length > 0 ? (
-                      <div className="overflow-hidden rounded-xl border border-white/10">
-                        <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] bg-white/[0.04] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                          <div>Ingredient</div>
-                          <div className="text-right">Before</div>
-                          <div className="text-right">After</div>
-                        </div>
-                        {invoiceSyncResult.updates.map((u: any, i: number) => (
-                          <div key={i} className="grid grid-cols-[minmax(0,1fr)_90px_90px] border-t border-white/5 px-3 py-2 text-sm">
-                            <div className="truncate text-white">{u.ingredient_name}</div>
-                            <div className="text-right font-mono text-zinc-400">{Number(u.previous_unit_price || 0).toFixed(4)}</div>
-                            <div className="text-right font-mono text-emerald-300">{Number(u.next_unit_price || 0).toFixed(4)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {Array.isArray(invoiceSyncResult.skipped_items) && invoiceSyncResult.skipped_items.length > 0 ? (
-                      <details className="rounded-xl border border-white/10">
-                        <summary className="cursor-pointer px-4 py-2.5 text-xs text-zinc-500 hover:text-zinc-300">
-                          Skip Details ({invoiceSyncResult.skipped_items.length} items)
-                        </summary>
-                        <div className="max-h-40 overflow-y-auto border-t border-white/5">
-                          {invoiceSyncResult.skipped_items.map((item: any, i: number) => (
-                            <div key={i} className="border-b border-white/5 px-4 py-2 text-xs last:border-b-0">
-                              <span className="text-zinc-300">{item.item_description || "—"}</span>
-                              <span className="ml-2 rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{item.reason}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Mapping list + edit panel */}
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-                {/* Left: mapping list */}
-                <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-white">Registered Mappings</div>
-                      <div className="mt-1 text-xs text-zinc-500">Click a row to view or edit. These items are included in sync.</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" /> : null}
-                      <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length} items</div>
-                    </div>
-                  </div>
-                  {/* Search filter */}
-                  <div className="mb-2">
-                    <input
-                      value={invoiceMappingSearch}
-                      onChange={(e) => setInvoiceMappingSearch(e.target.value)}
-                      placeholder="Search by supplier, item name, or ingredient…"
-                      className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-sky-500/50"
-                    />
-                  </div>
-                  <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
-                    {invoiceMappingLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-                      </div>
-                    ) : invoiceMappings.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-zinc-500">No mappings registered yet.</div>
-                    ) : (() => {
-                      const q = invoiceMappingSearch.trim().toLowerCase();
-                      const filtered = q
-                        ? invoiceMappings.filter((m) =>
-                            (m.invoice_item_description || "").toLowerCase().includes(q) ||
-                            (m.supplier_name || "").toLowerCase().includes(q) ||
-                            (m.ingredient_name_snapshot || "").toLowerCase().includes(q)
-                          )
-                        : invoiceMappings;
-                      if (filtered.length === 0) {
-                        return <div className="px-4 py-6 text-sm text-zinc-500">No results for &quot;{invoiceMappingSearch}&quot;</div>;
-                      }
-                      return filtered.map((m) => (
-                        <div
-                          key={m.id}
-                          onClick={() => startEditingInvoiceMapping(m)}
-                          className={cx(
-                            "cursor-pointer border-b border-white/5 px-3 py-3 last:border-b-0 transition",
-                            editingInvoiceMappingId === m.id
-                              ? "bg-amber-500/10 border-l-2 border-l-amber-400"
-                              : "hover:bg-white/[0.04]",
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              {/* Supplier name badge */}
-                              {m.supplier_name ? (
-                                <div className="mb-1 inline-block rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-400">{m.supplier_name}</div>
-                              ) : null}
-                              {/* Invoice item description */}
-                              <div className="truncate text-xs font-medium text-white">{m.invoice_item_description}</div>
-                              {/* Mapping arrow */}
-                              <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                                <span className="text-zinc-500">{m.invoice_unit || "—"}</span>
-                                <span className="text-zinc-600">→</span>
-                                <span className="font-medium text-emerald-400">{m.ingredient_name_snapshot || "—"}</span>
-                                <span className="text-zinc-500">({m.ingredient_unit || "—"})</span>
-                              </div>
-                              {m.conversion_rule ? (
-                                <div className="mt-0.5 font-mono text-[10px] text-sky-500/70">{m.conversion_rule}</div>
-                              ) : null}
-                              {m.notes ? (
-                                <div className="mt-0.5 text-[10px] italic text-zinc-600">{m.notes}</div>
-                              ) : null}
-                            </div>
-                            <div className="flex shrink-0 flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => startEditingInvoiceMapping(m)}
-                                disabled={invoiceMappingSaving}
-                                className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-300 hover:bg-sky-500/20 disabled:opacity-60"
-                              >
-                                <Pencil className="h-3 w-3" />
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void disableInvoiceItemMapping(m.id)}
-                                disabled={invoiceMappingSaving}
-                                className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 hover:bg-red-500/20 disabled:opacity-60"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
-                {/* Right: edit/create panel or unmatched summary */}
-                {(editingInvoiceMappingId || selectedUnmatchedItemKey) ? (
-                  <div className={cx("rounded-2xl border bg-[#0a101c] p-4", editingInvoiceMappingId ? "border-amber-500/20" : "border-sky-500/20")}>
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-white">
-                        {editingInvoiceMappingId ? "Edit Mapping" : "Create New Mapping"}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setEditingInvoiceMappingId(null); setSelectedUnmatchedItemKey(""); setMappingMode("create"); setMappingSaveError(""); }}
-                        className="text-zinc-500 hover:text-zinc-200"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* Source item info */}
-                    <div className="mb-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs">
-                      <div className="font-medium text-white">{mappingSourceItemDescription}</div>
-                      <div className="mt-0.5 text-zinc-500">{mappingSourceSupplierName || "—"} · {mappingSourceInvoiceUnit || "—"}</div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* Ingredient autocomplete */}
-                      <div>
-                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Search</div>
-                        <div className="relative">
-                          {/* Show selected ingredient as chip if confirmed */}
-                          {selectedMappingIngredientId && !showMappingIngredientDropdown ? (
-                            <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2">
-                              <span className="flex-1 text-sm text-sky-200">
-                                {allIngredientOptions.find((o) => String(o.id) === selectedMappingIngredientId)?.name || mappingIngredientSearch}
-                                <span className="ml-1.5 text-xs text-sky-400/60">
-                                  ({allIngredientOptions.find((o) => String(o.id) === selectedMappingIngredientId)?.unit || ""})
-                                </span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedMappingIngredientId("");
-                                  setMappingIngredientSearch("");
-                                  setMappingIngredientUnit("");
-                                  setShowMappingIngredientDropdown(true);
-                                }}
-                                className="text-sky-400/60 hover:text-sky-200"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <input
-                              value={mappingIngredientSearch}
-                              onChange={(e) => {
-                                setMappingIngredientSearch(e.target.value);
-                                setSelectedMappingIngredientId("");
-                                setShowMappingIngredientDropdown(true);
-                              }}
-                              onFocus={() => setShowMappingIngredientDropdown(true)}
-                              onBlur={() => setTimeout(() => setShowMappingIngredientDropdown(false), 150)}
-                              placeholder="Enter ingredient name..."
-                              autoComplete="off"
-                              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                            />
-                          )}
-                          {/* Dropdown candidates */}
-                          {showMappingIngredientDropdown && mappingIngredientOptions.length > 0 && (
-                            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/15 bg-[#0d1520] shadow-xl">
-                              {mappingIngredientOptions.map((o) => (
-                                <button
-                                  key={o.id}
-                                  type="button"
-                                  onMouseDown={(e) => {
-                                    e.preventDefault(); // prevent onBlur firing first
-                                    setSelectedMappingIngredientId(String(o.id));
-                                    setMappingIngredientSearch(o.name);
-                                    setMappingIngredientUnit(o.unit || "");
-                                    setShowMappingIngredientDropdown(false);
-                                  }}
-                                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-white/[0.06]"
-                                >
-                                  <span className="text-white">{o.name}</span>
-                                  <span className="ml-2 shrink-0 text-xs text-zinc-500">{o.unit}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {/* Units row */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Invoice Unit</div>
-                          <input
-                            value={mappingSourceInvoiceUnit}
-                            onChange={(e) => setMappingSourceInvoiceUnit(e.target.value)}
-                            placeholder="e.g. TIN"
-                            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                          />
-                        </div>
-                        <div>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Unit</div>
-                          <input
-                            value={mappingIngredientUnit}
-                            onChange={(e) => setMappingIngredientUnit(e.target.value)}
-                            placeholder="e.g. ml"
-                            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                          />
-                        </div>
-                      </div>
-                      {/* Conversion rule */}
-                      <div>
-                        <div className="mb-1 flex items-center justify-between">
-                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Conversion Rule</div>
-                          {mappingSourceInvoiceUnit ? (
-                            <div className="text-[10px] text-sky-400/70">{(() => { const h = conversionRuleHint(mappingSourceInvoiceUnit); return h || null; })()}</div>
-                          ) : null}
-                        </div>
-                        <input
-                          value={mappingConversionRule}
-                          onChange={(e) => setMappingConversionRule(e.target.value)}
-                          placeholder="e.g. 1 TRAY = 30 pc"
-                          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                        />
-                        <ConversionPreview
-                          rule={mappingConversionRule}
-                          invoiceUnit={mappingSourceInvoiceUnit}
-                          ingredientUnit={mappingIngredientUnit}
-                          invoiceUnitPrice={activeMappingSelectionMeta.latestUnitPrice}
-                          ingredientUnitPrice={Number(allIngredientOptions.find((o) => String(o.id) === String(selectedMappingIngredientId))?.unit_price || 0)}
-                          currency={currencyCode}
-                        />
-                      </div>
-                      {/* Notes */}
-                      <div>
-                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Notes</div>
-                        <input
-                          value={mappingNotes}
-                          onChange={(e) => setMappingNotes(e.target.value)}
-                          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                        />
-                      </div>
-                      {mappingSaveError ? (
-                        <div className="rounded-lg border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">{mappingSaveError}</div>
-                      ) : null}
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => void saveInvoiceItemMapping()}
-                          disabled={invoiceMappingSaving || !selectedMappingIngredientId}
-                          className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 py-2 text-xs font-semibold text-white disabled:opacity-60"
-                        >
-                          {invoiceMappingSaving ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setEditingInvoiceMappingId(null); setSelectedUnmatchedItemKey(""); setMappingMode("create"); }}
-                          className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-zinc-300 hover:bg-white/[0.08]"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-white">Unmapped Items</div>
-                        <div className="mt-1 text-xs text-zinc-500">Not included in sync. Mapping registration required.</div>
-                      </div>
-                      <div className="text-xs font-mono text-zinc-500">
-                        {unmatchedItemSearch.trim() ? `${visibleUnmatchedInvoiceItems.length} / ${unmatchedInvoiceItems.length}` : unmatchedInvoiceItems.length} items
-                      </div>
-                    </div>
-                    <div className="mb-2">
-                      <input
-                        type="text"
-                        placeholder="Search items or supplier…"
-                        value={unmatchedItemSearch}
-                        onChange={(e) => setUnmatchedItemSearch(e.target.value)}
-                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-sky-500/50 focus:outline-none"
-                      />
-                    </div>
-                    <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
-                      {invoiceMappingLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-                        </div>
-                      ) : visibleUnmatchedInvoiceItems.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-zinc-500">{unmatchedItemSearch.trim() ? "No items match your search." : "No unmatched items."}</div>
-                      ) : visibleUnmatchedInvoiceItems.map((item, i) => {
-                        const itemKey = unmatchedInvoiceItemKey(item);
-                        const isSelected = selectedUnmatchedItemKey === itemKey;
-                        const isRenaming = renamingUnmatchedKey === itemKey;
-                        return (
-                          <div
-                            key={i}
-                            onClick={() => {
-                              if (isRenaming) return;
-                              setEditingInvoiceMappingId(null);
-                              setMappingMode("create");
-                              setSelectedUnmatchedItemKey(itemKey);
-                              setMappingSourceItemDescription(item.item_description || "");
-                              setMappingSourceSupplierName(item.supplier_name || "");
-                              setMappingSourceInvoiceUnit(item.unit || "");
-                              setSelectedMappingIngredientId("");
-                              setMappingIngredientSearch("");
-                              setMappingIngredientUnit("");
-                              setMappingConversionRule("");
-                              setMappingNotes("");
-                              setMappingSaveError("");
-                            }}
-                            className={cx(
-                              "group border-b border-white/5 px-3 py-2.5 last:border-b-0 transition",
-                              isRenaming ? "bg-amber-500/8" : isSelected ? "bg-sky-500/10 border-l-2 border-l-sky-500 cursor-pointer hover:bg-sky-500/15" : "cursor-pointer hover:bg-white/[0.04]",
-                            )}
-                          >
-                            {isRenaming ? (
-                              /* ── Inline rename input ── */
-                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  autoFocus
-                                  type="text"
-                                  value={renameText}
-                                  onChange={(e) => setRenameText(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") void saveRenameUnmatchedItem();
-                                    if (e.key === "Escape") setRenamingUnmatchedKey("");
-                                  }}
-                                  className="min-w-0 flex-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-100 focus:border-amber-400 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={renameSaving}
-                                  onClick={() => void saveRenameUnmatchedItem()}
-                                  className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
-                                >
-                                  {renameSaving ? "…" : "Save"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setRenamingUnmatchedKey("")}
-                                  className="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-zinc-400 hover:bg-white/10"
-                                >
-                                  Undo
-                                </button>
-                              </div>
-                            ) : (
-                              /* ── Normal row ── */
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="min-w-0">
-                                  <div className={cx("truncate text-xs font-medium", isSelected ? "text-sky-200" : "text-white")}>{item.item_description}</div>
-                                  <div className="mt-0.5 text-[10px] text-zinc-500">
-                                    {item.supplier_name || "—"} · {item.unit || "—"} · {currencyCode} {Number(item.latest_unit_price || 0).toFixed(2)}
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  title="Edit item name"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRenamingUnmatchedKey(itemKey);
-                                    setRenameText(item.item_description || "");
-                                  }}
-                                  className="ml-1 shrink-0 rounded p-1 text-zinc-600 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-amber-300"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           ) : isRatioSection ? (() => {
             const productItems = masterItemsByType.product || [];
             const categories = Array.from(new Set(productItems.map((p) => p.category).filter(Boolean))).sort();
@@ -5802,7 +4367,7 @@ export default function CostCalculationPage() {
             </div>
           ) : null}
 
-          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection || isPriceAuditSection || isIngredientChangesSection) && "hidden")}>
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isRatioSection || isPendingSection || isPriceAuditSection || isIngredientChangesSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
