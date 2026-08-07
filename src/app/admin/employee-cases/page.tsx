@@ -190,11 +190,17 @@ type CatalogEntry = {
   title_en: string;
   title_ja: string;
   severity_class: string;
+  severity_label?: string | null;
   input_layer: string;
   scope: string;
   sop_ref: string | null;
   auto_detectable: boolean;
   requires_hq_review: boolean;
+  requires_codi?: boolean | null;
+  ae_art44_dismissal?: boolean | null;
+  legal_ground_ph?: string | null;
+  legal_ground_ae?: string | null;
+  law_reference?: string | null;
   market?: string | null;
   definition_en?: string | null;
   acts_block_en?: string | null;
@@ -327,6 +333,30 @@ function NteStatusBadge({ status }: { status: NteStatus }) {
   if (status === "ACTIVE")
     return <span className={BADGE_ERROR}>ACTIVE</span>;
   return <span className={BADGE_SUCCESS}>Resolved</span>;
+}
+
+const SEVERITY_LABELS: Record<string, string> = {
+  A: "Minor",
+  B: "Less Grave",
+  C: "Grave",
+  D: "Very Grave",
+};
+
+const SEVERITY_BADGE_CLS: Record<string, string> = {
+  A: "bg-emerald-900/60 text-emerald-300",
+  B: "bg-amber-900/60 text-amber-300",
+  C: "bg-orange-900/60 text-orange-300",
+  D: "bg-red-900/60 text-red-300",
+};
+
+function SeverityBadge({ cls, entry }: { cls?: string; entry: { severity_class: string; severity_label?: string | null } }) {
+  const label = entry.severity_label || SEVERITY_LABELS[entry.severity_class] || entry.severity_class;
+  const color = SEVERITY_BADGE_CLS[entry.severity_class] || "bg-zinc-800 text-zinc-300";
+  return (
+    <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-semibold ${color} ${cls ?? ""}`}>
+      {label}
+    </span>
+  );
 }
 
 const CASE_TYPE_LABELS: Record<string, string> = {
@@ -2359,7 +2389,7 @@ export default function EmployeeCasesPage() {
 
           {/* Violation Catalog picker */}
           <div>
-            <p className={`${T_LABEL} mb-2`}>Fill from Violation Catalog</p>
+            <p className={`${T_LABEL} mb-2`}>Fill from Templates</p>
             {issueViolationCode ? (
               <div className="flex items-center gap-2 rounded-lg border border-violet-500/40 bg-violet-950/30 px-3 py-2">
                 <BookOpen className="h-4 w-4 shrink-0 text-violet-400" />
@@ -2934,12 +2964,7 @@ export default function EmployeeCasesPage() {
                                   )}
                                 </td>
                                 <td className={`${TABLE_CELL} text-center`}>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
-                                    entry.severity_class === "D" ? "bg-red-900/60 text-red-300" :
-                                    entry.severity_class === "C" ? "bg-orange-900/60 text-orange-300" :
-                                    entry.severity_class === "B" ? "bg-yellow-900/60 text-yellow-300" :
-                                    "bg-zinc-800 text-zinc-300"
-                                  }`}>{entry.severity_class}</span>
+                                  <SeverityBadge entry={entry} cls="px-2 py-0.5 text-xs font-bold" />
                                 </td>
                                 <td className={`${TABLE_CELL} text-center font-mono text-xs text-zinc-500`}>
                                   {entry.input_layer.replace("L1_AUTO","L1").replace("L2_STRUCTURED","L2").replace("L3_NARRATIVE","L3")}
@@ -3611,13 +3636,9 @@ export default function EmployeeCasesPage() {
                                 <span className="flex-1 min-w-0">
                                   <span className="block text-sm text-zinc-200 leading-snug">{entry.title_en}</span>
                                   <span className="flex gap-1.5 mt-0.5">
-                                    <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
-                                      entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
-                                      entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
-                                      entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
-                                      "bg-zinc-700 text-zinc-300"}`}>{entry.severity_class}</span>
+                                    <SeverityBadge entry={entry} />
                                     <span className="inline-block px-1.5 py-0 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">{entry.input_layer}</span>
-                                    {entry.code === "CON-015" && (
+                                    {entry.requires_codi && (
                                       <span className="inline-block px-1.5 py-0 rounded text-[10px] font-semibold bg-red-900/60 text-red-300">CODI only</span>
                                     )}
                                     {entry.requires_hq_review && (
@@ -3666,11 +3687,7 @@ export default function EmployeeCasesPage() {
                         <>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs text-violet-400">{entry.code}</span>
-                            <span className={`px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
-                              entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
-                              entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
-                              entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
-                              "bg-zinc-700 text-zinc-300"}`}>Severity {entry.severity_class}</span>
+                            <SeverityBadge entry={entry} />
                             <span className="px-1.5 py-0 rounded text-[10px] font-mono bg-zinc-800 text-zinc-400">{entry.input_layer}</span>
                             {entry.requires_hq_review && <span className="px-1.5 py-0 rounded text-[10px] bg-violet-900/50 text-violet-300">HQ review required</span>}
                             {entry.sop_ref && <span className="text-[10px] text-zinc-500">SOP: {entry.sop_ref}</span>}
@@ -4164,7 +4181,9 @@ export default function EmployeeCasesPage() {
                           <td className={TABLE_CELL}>{c.staff_name}</td>
                           <td className={`${TABLE_CELL} text-center`}>{c.market}</td>
                           <td className={`${TABLE_CELL} font-mono text-xs`}>{c.violation_code ?? "—"}</td>
-                          <td className={`${TABLE_CELL} text-center font-bold`}>{c.severity_class ?? "—"}</td>
+                          <td className={`${TABLE_CELL} text-center`}>
+                            {c.severity_class ? <SeverityBadge entry={{ severity_class: c.severity_class }} /> : "—"}
+                          </td>
                           <td className={`${TABLE_CELL} text-center`}>
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusColors[c.status] ?? "bg-zinc-800 text-zinc-300"}`}>
                               {c.status}
@@ -4238,7 +4257,7 @@ export default function EmployeeCasesPage() {
                     <div><span className={T_LABEL}>Staff:</span> <span className={T_BODY}>{selectedCase.staff_name}</span></div>
                     <div><span className={T_LABEL}>Market:</span> <span className={T_BODY}>{selectedCase.market}</span></div>
                     <div><span className={T_LABEL}>Violation:</span> <span className="font-mono text-xs text-violet-300">{selectedCase.violation_code ?? "—"}</span></div>
-                    <div><span className={T_LABEL}>Severity:</span> <span className="font-bold">{selectedCase.severity_class ?? "—"}</span></div>
+                    <div><span className={T_LABEL}>Severity:</span> {selectedCase.severity_class ? <SeverityBadge entry={{ severity_class: selectedCase.severity_class }} /> : <span>—</span>}</div>
                     <div><span className={T_LABEL}>Offense #:</span> <span>{selectedCase.offense_count}</span></div>
                     <div><span className={T_LABEL}>Proposed Penalty:</span> <span>{selectedCase.proposed_penalty ?? "—"}</span></div>
                     <div><span className={T_LABEL}>Reviewed by:</span> <span>{selectedCase.reviewed_by ?? "—"}</span></div>
@@ -4448,11 +4467,7 @@ export default function EmployeeCasesPage() {
                                   <span className="flex-1 min-w-0">
                                     <span className="block text-sm text-zinc-200 leading-snug">{entry.title_en}</span>
                                     <span className="flex gap-1.5 mt-0.5">
-                                      <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-mono font-semibold ${
-                                        entry.severity_class === "D" ? "bg-red-900/50 text-red-300" :
-                                        entry.severity_class === "C" ? "bg-orange-900/50 text-orange-300" :
-                                        entry.severity_class === "B" ? "bg-amber-900/50 text-amber-300" :
-                                        "bg-zinc-700 text-zinc-300"}`}>{entry.severity_class}</span>
+                                      <SeverityBadge entry={entry} />
                                       {entry.requires_hq_review && (
                                         <span className="inline-block px-1.5 py-0 rounded text-[10px] bg-violet-900/50 text-violet-300">HQ review</span>
                                       )}
