@@ -107,6 +107,15 @@ All 14 violation category seed JSON files created under `seeds/violation_catalog
 - [x] **Templates tab removed** — Violation Catalog replaces legacy empty template system (commit `eee58a9`)
 - [x] **Browser-verified** (2026-08-07): category pills render, sections collapse/expand, Templates tab gone ✅
 
+### Bug Fix: IR Review "Confirm Violation" severity + penalty auto-fill ✅ (2026-08-07)
+- **`src/app/admin/employee-cases/page.tsx`** (not yet committed):
+  - **Bug**: Switching ACTION to "Confirm Violation (Create NTE Case)" kept SEVERITY at default "B" and showed no penalty suggestion, even when violation_code was pre-filled from the IR.
+  - **Root cause A**: `onChange` handler only called `setReviewAction()` — no catalog lookup or `fetchPenaltySuggestion()` call on switch.
+  - **Root cause B**: `catalog` state is empty unless user has visited the Templates tab; catalog lookup for severity was unreliable.
+  - **Fix 1**: Extended `onChange` to call `fetchPenaltySuggestion(reviewViolationCode, reviewTarget.staff_name, reviewTarget.market)` when switching to "confirm_violation" if violation code is pre-filled.
+  - **Fix 2**: Inside `fetchPenaltySuggestion()`, added `if (data.severity_class) setReviewSeverity(data.severity_class as "A"|"B"|"C"|"D")` — severity is now sourced from the API response (which gets it from `violation_catalog`) rather than the potentially-empty in-memory catalog state.
+  - **Verified**: Switching to "Confirm Violation" now immediately shows A — Minor, escalation path #1 VW→#2 WW→…, and "Verbal Warning (AUTO-SUGGESTED)" ✅
+
 ### Remaining NTE work (low priority)
 - [ ] OS-011 / FRD-*: confirm HQ-review gate in NTE issuance flow
 - [ ] Edge cases: IR with unknown violation_code not in catalog — confirm picker gracefully falls back

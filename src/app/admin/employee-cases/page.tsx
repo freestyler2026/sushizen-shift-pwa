@@ -1387,6 +1387,7 @@ export default function EmployeeCasesPage() {
       if (!res.ok) return;
       const data = await res.json() as PenaltySuggestion;
       setPenaltySuggestion(data);
+      if (data.severity_class) setReviewSeverity(data.severity_class as "A"|"B"|"C"|"D");
       if (!penaltyOverridden) {
         setReviewPenalty(data.proposed_penalty);
         setReviewOffenseCount(data.current_offense_number);
@@ -4345,7 +4346,16 @@ export default function EmployeeCasesPage() {
               <SelectDark
                 className="mt-1 w-full"
                 value={reviewAction}
-                onChange={(v) => setReviewAction(v as "reject" | "dismiss" | "confirm_violation")}
+                onChange={(v) => {
+                  const action = v as "reject" | "dismiss" | "confirm_violation";
+                  setReviewAction(action);
+                  if (action === "confirm_violation" && reviewViolationCode && reviewTarget) {
+                    const entry = catalog.find((c) => c.code === reviewViolationCode);
+                    if (entry) setReviewSeverity(entry.severity_class as "A"|"B"|"C"|"D");
+                    setPenaltyOverridden(false);
+                    void fetchPenaltySuggestion(reviewViolationCode, reviewTarget.staff_name, reviewTarget.market);
+                  }
+                }}
                 options={[
                   { value: "reject", label: "Reject (Return to submitter)" },
                   { value: "dismiss", label: "Dismiss (No violation found)" },
