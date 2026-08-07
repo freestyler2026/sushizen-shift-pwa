@@ -99,6 +99,7 @@ interface InvItem {
   is_active: boolean;
   source_type: string;
   supplier_name?: string;
+  unit_cost?: number;
 }
 
 interface EntryState {
@@ -417,6 +418,12 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
 
   const filteredItems = items.filter((i) => i.source_type === detailSourceTab);
   const sections = [...new Set(filteredItems.map((i) => i.section))];
+  const hasCostData = filteredItems.some((i) => (i.unit_cost ?? 0) > 0);
+  const grandTotalValue = filteredItems.reduce((sum, item) => {
+    const entry = entryMap[item.item_code];
+    if (!entry || entry.qty === null || !(item.unit_cost ?? 0)) return sum;
+    return sum + Number(entry.qty) * Number(item.unit_cost);
+  }, 0);
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
   const entryCountByType = (st: string) =>
     items.filter((i) => i.source_type === st && entryMap[i.item_code] !== undefined).length;
@@ -700,15 +707,32 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         })}
       </div>
 
+      {hasCostData && grandTotalValue > 0 && (
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-5 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold text-emerald-300">Total Inventory Value</span>
+          <span className="font-mono text-lg font-bold text-emerald-200">{grandTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+      )}
+
       {sections.map((sec) => {
         const sectionItems = filteredItems.filter((i) => i.section === sec);
         const sectionEntries = sectionItems.filter((i) => entryMap[i.item_code]);
         if (sectionEntries.length === 0) return null;
+        const sectionValue = sectionItems.reduce((sum, item) => {
+          const entry = entryMap[item.item_code];
+          if (!entry || entry.qty === null || !(item.unit_cost ?? 0)) return sum;
+          return sum + Number(entry.qty) * Number(item.unit_cost);
+        }, 0);
         return (
           <div key={sec} className={GLASS_CARD}>
             <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
               <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
-              <span className="text-xs text-zinc-500">{sectionEntries.length} entries</span>
+              <div className="flex items-center gap-3">
+                {hasCostData && sectionValue > 0 && (
+                  <span className="text-xs font-mono text-emerald-300">{sectionValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                )}
+                <span className="text-xs text-zinc-500">{sectionEntries.length} entries</span>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -717,6 +741,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Item</th>
                     <th className={`${TABLE_HEADER} px-3 py-3 text-right`}>Qty</th>
                     <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Unit</th>
+                    {hasCostData && <th className={`${TABLE_HEADER} px-3 py-3 text-right`}>Cost</th>}
+                    {hasCostData && <th className={`${TABLE_HEADER} px-3 py-3 text-right`}>Value</th>}
                     <th className={`${TABLE_HEADER} px-3 py-3 text-center`}>Status</th>
                     <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Note</th>
                   </tr>
@@ -728,6 +754,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     const effectivePar = getEffectivePar(item);
                     const isLow = item.min_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.min_level);
                     const isWarn = !isLow && effectivePar !== null && entry.qty !== null && Number(entry.qty) < effectivePar;
+                    const unitCost = item.unit_cost ?? 0;
+                    const lineValue = (unitCost > 0 && entry.qty !== null) ? Number(entry.qty) * unitCost : null;
                     return (
                       <tr key={item.item_code} className={[TABLE_ROW, isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""].join(" ")}>
                         <td className={`${TABLE_CELL} px-5`}>
@@ -736,6 +764,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                         </td>
                         <td className={`${TABLE_CELL} px-3 text-right font-mono`}>{entry.qty ?? "—"}</td>
                         <td className={`${TABLE_CELL} px-3 text-zinc-400`}>{entry.unit ?? item.default_unit}</td>
+                        {hasCostData && <td className={`${TABLE_CELL} px-3 text-right font-mono text-zinc-500 text-xs`}>{unitCost > 0 ? unitCost.toFixed(2) : "—"}</td>}
+                        {hasCostData && <td className={`${TABLE_CELL} px-3 text-right font-mono text-zinc-300 text-xs`}>{lineValue !== null ? lineValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</td>}
                         <td className={`${TABLE_CELL} px-3 text-center`}><DetailStatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={effectivePar} /></td>
                         <td className={`${TABLE_CELL} px-5 text-zinc-500`}>{entry.note || "—"}</td>
                       </tr>
@@ -777,12 +807,18 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [addUnit, setAddUnit] = useState("KG");
   const [addMinLevel, setAddMinLevel] = useState("");
   const [addParLevel, setAddParLevel] = useState("");
+  const [addCost, setAddCost] = useState("");
   const [addBusy, setAddBusy] = useState(false);
 
   // Inline edit par level
   const [editParCode, setEditParCode] = useState<string | null>(null);
   const [editParVal, setEditParVal] = useState("");
   const [editParBusy, setEditParBusy] = useState(false);
+
+  // Inline edit unit cost
+  const [editCostCode, setEditCostCode] = useState<string | null>(null);
+  const [editCostVal, setEditCostVal] = useState("");
+  const [editCostBusy, setEditCostBusy] = useState(false);
 
   // Pattern-based par lookup for display (WAREHOUSE_* patterns)
   const [patternLookup, setPatternLookup] = useState<Record<string, number>>({});
@@ -992,16 +1028,35 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
           par_level: addParLevel ? parseFloat(addParLevel) : null,
           source_type: sourceFilter,
           is_commissary: sourceFilter === "ck",
+          unit_cost: addCost ? parseFloat(addCost) : null,
         }),
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Create failed");
-      setAddName(""); setAddSection(""); setAddUnit("KG"); setAddMinLevel(""); setAddParLevel("");
+      setAddName(""); setAddSection(""); setAddUnit("KG"); setAddMinLevel(""); setAddParLevel(""); setAddCost("");
       setAddOpen(false);
       await loadItems();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
     } finally { setAddBusy(false); }
+  }
+
+  async function handleSaveCost(itemCode: string) {
+    const val = parseFloat(editCostVal);
+    const cost = Number.isNaN(val) ? 0 : Math.max(0, val);
+    setEditCostBusy(true);
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unit_cost: cost }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Update failed");
+      setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, unit_cost: cost } : it));
+      setEditCostCode(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed");
+    } finally { setEditCostBusy(false); }
   }
 
   async function handleSaveSupplierName(itemCode: string, value: string) {
@@ -1358,6 +1413,10 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
               <label className={`${T_LABEL} mb-1 block`}>Par Level</label>
               <input type="number" step="any" min="0" value={addParLevel} onChange={(e) => setAddParLevel(e.target.value)} placeholder="0" className={INPUT_CLASS} />
             </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Unit Cost</label>
+              <input type="number" step="any" min="0" value={addCost} onChange={(e) => setAddCost(e.target.value)} placeholder="0.00" className={INPUT_CLASS} />
+            </div>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setAddOpen(false)} className={SECONDARY_BUTTON}>Cancel</button>
@@ -1390,6 +1449,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Unit</th>
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Min</th>
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Par Level</th>
+                    <th className={`${TABLE_HEADER} px-3 py-2 text-right`}>Unit Cost</th>
                     {sourceFilter === "supplier" && <th className={`${TABLE_HEADER} px-3 py-2 text-left`}>Supplier</th>}
                     <th className={`${TABLE_HEADER} px-3 py-2 text-center`}>Active</th>
                     <th className={`${TABLE_HEADER} px-4 py-2 text-center`}></th>
@@ -1431,6 +1491,34 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                               : patternLookup[item.item_code] != null
                                 ? <span className="text-violet-300" title="From WAREHOUSE pattern (not a fixed par level)">{parseFloat(String(patternLookup[item.item_code])).toFixed(3)}<sup className="text-zinc-500 text-[9px] ml-0.5">P</sup></span>
                                 : <span className="text-zinc-600">—</span>}
+                          </button>
+                        )}
+                      </td>
+                      <td className={`${TABLE_CELL} px-3 text-right`}>
+                        {editCostCode === item.item_code ? (
+                          <div className="flex items-center gap-1 justify-end">
+                            <input
+                              type="text" inputMode="decimal"
+                              value={editCostVal}
+                              onChange={(e) => setEditCostVal(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveCost(item.item_code); if (e.key === "Escape") setEditCostCode(null); }}
+                              className="w-24 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-right text-sm text-white focus:outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => void handleSaveCost(item.item_code)} disabled={editCostBusy}
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20">
+                              {editCostBusy ? "…" : "✓"}
+                            </button>
+                            <button onClick={() => setEditCostCode(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1">✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setEditCostCode(item.item_code); setEditCostVal(String(item.unit_cost ?? "")); }}
+                            className="rounded-lg px-2 py-1 font-mono text-sm text-right hover:bg-white/5"
+                          >
+                            {(item.unit_cost ?? 0) > 0
+                              ? <span className="text-emerald-300">{Number(item.unit_cost).toFixed(2)}</span>
+                              : <span className="text-zinc-600">— set —</span>}
                           </button>
                         )}
                       </td>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, hasPermission, refreshAuthFromApi } from "@/lib/auth";
 // API calls go through Next.js proxy (/api/admin/...) — no direct Heroku fetch
 import {
   GLASS_CARD,
@@ -788,7 +788,7 @@ export default function EmployeeCasesPage() {
         "HR_MANAGER",
         "MANILA_MANAGEMENT",
         "MANILA_MANAGER",
-      ].includes(role);
+      ].includes(role) || hasPermission("channel.admin.employee_cases.view", resolved);
       if (!allowed) {
         router.replace("/week");
         return;
