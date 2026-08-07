@@ -1,6 +1,30 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-07 (Cost Calculation: Cascade + Pending Queue 動作確認済み; Invoice Mapping UI説明文更新)
+Last updated: 2026-08-07 (Spreadsheet/Invoice Sync feature completely removed from frontend + backend)
+
+---
+
+## ✅ Completed: Cost Calculation — Spreadsheet/Invoice Sync Feature Removal (2026-08-07)
+
+**Frontend `ccf3926` + Heroku v1798 `fb43885`**
+
+### 削除内容
+
+**Frontend** (`cost-calculation/page.tsx`): −1,435行
+- Invoice Mappingタブ完全削除
+- Ingredient Masterツールバーの「Spreadsheet」ボタン削除
+- 関連state変数・useCallback・useMemo・useEffect・型定義をすべて削除
+
+**Backend**:
+- `app/services/cost_invoice_price_sync.py` 完全削除
+- `cost_api.py`: sync endpoints (POST sync-invoice-prices, GET sync-job/{id})、invoice-item-mappings系エンドポイント、invoice-line-items/rename エンドポイントを削除
+- `main.py`: APScheduler cron jobs (05:00 + 08:00 UTC) + `_run_invoice_price_sync_background` 削除
+- `db.py`: list_cost_sync_active_ingredients, list/find/upsert/disable_invoice_ingredient_mapping, list_unmatched_invoice_items_for_cost_sync, rename_invoice_item_description, update_cost_ingredient_unit_price_from_sync, propose_ingredient_price_pending_from_sync を削除
+
+### 残ったもの（意図的）
+- Cascade機能: `_cascade_clear_cost_overrides_for_ingredient` → `update_cost_ingredient` + `apply_ingredient_price_pending` 経由で引き続き動作
+- Price Pendingタブ: 手動で価格変更を提案・承認する機能は引き続き存在
+- ingredient_price_pending テーブルの92件の未処理エントリはそのまま残存（スタッフ確認要）
 
 ---
 
