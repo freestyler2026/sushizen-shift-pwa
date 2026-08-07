@@ -418,7 +418,10 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
 
   const filteredItems = items.filter((i) => i.source_type === detailSourceTab);
   const sections = [...new Set(filteredItems.map((i) => i.section))];
-  const hasCostData = filteredItems.some((i) => (i.unit_cost ?? 0) > 0);
+  const hasCostData = filteredItems.some((i) => {
+    const entry = entryMap[i.item_code];
+    return (i.unit_cost ?? 0) > 0 && entry !== undefined;
+  });
   const grandTotalValue = filteredItems.reduce((sum, item) => {
     const entry = entryMap[item.item_code];
     if (!entry || entry.qty === null || !(item.unit_cost ?? 0)) return sum;
