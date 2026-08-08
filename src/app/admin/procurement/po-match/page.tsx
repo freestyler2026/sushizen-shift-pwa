@@ -181,6 +181,33 @@ type MatchSettings = {
   updated_at: string | null;
 };
 
+type PendingCheck = {
+  id: string;
+  city: string;
+  vendor_name: string;
+  po_no: string;
+  po_date: string;
+  po_amount: number;
+  currency: string;
+  branch: string;
+  entered_by: string;
+  notes: string;
+  photo_data: string;
+  extra_photos?: string[];
+  receiving_id: string;
+  linked_request_id?: string;
+  created_at: string;
+  // Joined from proc_receivings
+  qty_received?: number;
+  unit?: string;
+  store_amount_received?: number;
+  delivery_date?: string;
+  store_received_by?: string;
+  store_code?: string;
+  receiving_no?: string;
+  store_invoice_photo?: string;
+};
+
 const TODAY = new Date().toISOString().slice(0, 10);
 
 // City context — set by PoMatchPage, consumed by all tabs
@@ -540,6 +567,11 @@ function QuickEntryTab({
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkDismissed, setLinkDismissed] = useState(false);
   const linkDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pending Queue — store-confirmed POs awaiting Back Office price entry
+  const [pendingChecks, setPendingChecks] = useState<PendingCheck[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingCheckId, setPendingCheckId] = useState<string | null>(null); // null = new entry
+  const [showStorePendingQueue, setShowStorePendingQueue] = useState(true);
   // Draft save/restore
   const draftKey = `po_match_draft_${city}`;
   const [showRestoreBanner, setShowRestoreBanner] = useState(false);
@@ -559,6 +591,17 @@ function QuickEntryTab({
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadPendingChecks = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const d = await apiFetch(`/procurement/po-match/pending?city=${city}&limit=50`);
+      setPendingChecks(d.rows || []);
+    } catch { /* best-effort */ }
+    finally { setPendingLoading(false); }
+  }, [city]);
+
+  useEffect(() => { void loadPendingChecks(); }, [loadPendingChecks]);
 
   // Auto-save form state to localStorage whenever fields change
   useEffect(() => {
@@ -688,6 +731,55 @@ function QuickEntryTab({
     }
   };
 
+  const selectPendingCheck = async (pc: PendingCheck) => {
+    setPendingCheckId(pc.id);
+    setVendorQ(pc.vendor_name);
+    setManualPoNo(pc.po_no);
+    setManualPoAmount(String(pc.po_amount));
+    setPoDate(pc.delivery_date?.slice(0, 10) || pc.po_date?.slice(0, 10) || TODAY);
+    setInvoiceNo("");
+    setInvoiceDate(TODAY);
+    setInvoiceAmount("");
+    setNotes("");
+    setDiscrepancyType("OTHER");
+    setSelectedPo(null);
+    setLinkedRequest(null);
+    setLinkSuggestions([]);
+    setLinkDismissed(false);
+    setShowPoList(false);
+    // Load store-uploaded photo if available
+    const storePhoto = pc.store_invoice_photo || pc.photo_data || "";
+    setPhotos(storePhoto ? [storePhoto] : []);
+    // Load PO lines if PO number is known
+    setInvLineItems([]);
+    if (pc.po_no) {
+      if (poLinesFetchRef.current) poLinesFetchRef.current.abort();
+      const controller = new AbortController();
+      poLinesFetchRef.current = controller;
+      isAmountOverriddenRef.current = false;
+      setLinesLoading(true);
+      try {
+        const d = await apiFetch(`/procurement/po-match/po-lines?city=${city}&po_no=${encodeURIComponent(pc.po_no)}`, { signal: controller.signal });
+        const poLines: PoLineItem[] = d.lines || [];
+        setInvLineItems(poLines.map(l => ({
+          line_no: l.line_no,
+          item_name: l.item_name,
+          po_qty: l.po_qty,
+          po_unit: l.po_unit,
+          po_unit_price: l.po_unit_price,
+          po_line_total: l.po_line_total,
+          inv_qty: String(l.po_qty || ""),
+          inv_unit: l.po_unit,
+          inv_unit_price: String(l.po_unit_price || ""),
+          is_extra: false,
+        })));
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+      } finally { setLinesLoading(false); }
+    }
+    setShowStorePendingQueue(false);
+  };
+
   // Auto-sync invoice amount from line totals when lines are present
   const lineTotal = invLineItems.reduce((s, l) => {
     const q = parseFloat(l.inv_qty || "0");
@@ -729,6 +821,22 @@ function QuickEntryTab({
   const effectiveTol = poAmount > 0 ? Math.max(tolAed, poAmount * tolPct) : tolAed;
   const isMatch = poAmount > 0 && Math.abs(variance) <= effectiveTol;
 
+  const resetForm = () => {
+    setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
+    setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotos([]);
+    setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
+    setDiscrepancyType("OTHER");
+    setVatRate(String(settings?.default_vat_rate ?? 0));
+    setInvLineItems([]);
+    setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
+    setPendingCheckId(null);
+    isAmountOverriddenRef.current = false;
+    poLinesFetchRef.current = null;
+    try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    setShowRestoreBanner(false);
+    pendingDraftRef.current = null;
+  };
+
   const handleSubmit = async () => {
     if (!vendorQ.trim()) { setMsg({ text: "Enter supplier name.", ok: false }); return; }
     if (!(poAmount > 0)) { setMsg({ text: "Enter PO amount.", ok: false }); return; }
@@ -755,50 +863,63 @@ function QuickEntryTab({
               is_extra: l.is_extra,
             }))
         : null;
-      await apiFetch("/procurement/po-match", {
-        method: "POST",
-        body: JSON.stringify({
-          city,
-          vendor_name: vendorQ.trim(),
-          po_no: manualPoNo.trim(),
-          po_date: poDate,
-          po_amount: poAmount,
-          invoice_no: invoiceNo.trim(),
-          invoice_date: invoiceDate,
-          invoice_amount: invAmount,
-          currency,
-          vat_rate: vatRateVal,
-          vat_amount: vatAmountVal,
-          grand_total: grandTotalVal,
-          notes: notes.trim(),
-          photo_data: photos[0] ?? "",
-          extra_photos: photos.slice(1),
-          discrepancy_type: !isMatch ? discrepancyType : "",
-          ...(linkedRequest && !selectedPo
-            ? { linked_request_id: linkedRequest.id }
-            : selectedPo?.request_id
-            ? { linked_request_id: selectedPo.request_id }
-            : {}),
-          ...(linesPayload ? { lines: linesPayload } : {}),
-        }),
-      });
+
+      if (pendingCheckId) {
+        // Finalize a store-confirmed pending record
+        await apiFetch(`/procurement/po-match/${encodeURIComponent(pendingCheckId)}/finalize`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            invoice_no: invoiceNo.trim(),
+            invoice_date: invoiceDate,
+            invoice_amount: invAmount,
+            vat_rate: vatRateVal,
+            vat_amount: vatAmountVal,
+            grand_total: grandTotalVal,
+            notes: notes.trim(),
+            extra_photos: photos.slice(1),
+            discrepancy_type: !isMatch ? discrepancyType : "",
+            ...(linesPayload ? { lines: linesPayload } : {}),
+          }),
+        });
+        void loadPendingChecks();
+      } else {
+        // Create a new manual entry
+        await apiFetch("/procurement/po-match", {
+          method: "POST",
+          body: JSON.stringify({
+            city,
+            vendor_name: vendorQ.trim(),
+            po_no: manualPoNo.trim(),
+            po_date: poDate,
+            po_amount: poAmount,
+            invoice_no: invoiceNo.trim(),
+            invoice_date: invoiceDate,
+            invoice_amount: invAmount,
+            currency,
+            vat_rate: vatRateVal,
+            vat_amount: vatAmountVal,
+            grand_total: grandTotalVal,
+            notes: notes.trim(),
+            photo_data: photos[0] ?? "",
+            extra_photos: photos.slice(1),
+            discrepancy_type: !isMatch ? discrepancyType : "",
+            ...(linkedRequest && !selectedPo
+              ? { linked_request_id: linkedRequest.id }
+              : selectedPo?.request_id
+              ? { linked_request_id: selectedPo.request_id }
+              : {}),
+            ...(linesPayload ? { lines: linesPayload } : {}),
+          }),
+        });
+      }
+
       const matchMsg = isMatch
-        ? "✅ Matched — no further action needed."
+        ? "✅ Matched — PO closed. No further action needed."
         : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${currency}). Added to review queue.`;
-      const syncMsg = (linkedRequest || selectedPo?.request_id) && isMatch ? " Store Procurement order status updated to Confirmed." : "";
+      const syncMsg = (pendingCheckId || linkedRequest || selectedPo?.request_id) && isMatch ? " Store Procurement order status updated to Confirmed." : "";
       setMsg({ text: matchMsg + syncMsg, ok: isMatch });
-      setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
-      setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotos([]);
-      setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
-      setDiscrepancyType("OTHER");
-      setVatRate(String(settings?.default_vat_rate ?? 0));
-      setInvLineItems([]);
-      setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
-      isAmountOverriddenRef.current = false;
-      poLinesFetchRef.current = null;
-      try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
-      setShowRestoreBanner(false);
-      pendingDraftRef.current = null;
+      resetForm();
+      setShowStorePendingQueue(true);
       onSaved();
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
@@ -818,8 +939,7 @@ function QuickEntryTab({
       });
       setCnrOpen(false); setCnrApproverName(""); setCnrPin(""); setCnrReason(""); setCnrMsg(null);
       setMsg({ text: "✅ Order closed as Not Received.", ok: true });
-      setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
-      setLinkedRequest(null); setLinkSuggestions([]); setLinkDismissed(false);
+      resetForm();
       onSaved();
     } catch (e: unknown) {
       setCnrMsg({ text: String(e), ok: false });
@@ -851,6 +971,72 @@ function QuickEntryTab({
 
   return (
     <div className="space-y-6">
+      {/* ── Pending Queue: store-confirmed POs awaiting Back Office price entry ── */}
+      {(pendingLoading || pendingChecks.length > 0) && (
+        <div className="rounded-2xl border border-violet-500/30 bg-violet-950/20 p-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between"
+            onClick={() => setShowStorePendingQueue(v => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-semibold text-violet-300">
+                Pending Back Office Review
+                {pendingChecks.length > 0 && (
+                  <span className="ml-2 rounded-full bg-violet-500/30 px-2 py-0.5 text-xs font-bold text-violet-200">
+                    {pendingChecks.length}
+                  </span>
+                )}
+              </span>
+              <span className="text-xs text-violet-500">Store confirmed — enter invoice details to finalize</span>
+            </div>
+            {showStorePendingQueue ? <ChevronUp className="h-4 w-4 text-violet-400" /> : <ChevronDown className="h-4 w-4 text-violet-400" />}
+          </button>
+
+          {showStorePendingQueue && (
+            <div className="mt-3 space-y-2">
+              {pendingLoading && (
+                <p className="text-xs text-zinc-500">Loading…</p>
+              )}
+              {!pendingLoading && pendingChecks.length === 0 && (
+                <p className="text-xs text-zinc-500">No pending items.</p>
+              )}
+              {pendingChecks.map(pc => (
+                <button
+                  key={pc.id}
+                  type="button"
+                  onClick={() => void selectPendingCheck(pc)}
+                  className={`w-full rounded-xl border px-4 py-3 text-left transition hover:bg-violet-900/30 ${pendingCheckId === pc.id ? "border-violet-400/60 bg-violet-900/40" : "border-white/10 bg-white/[0.03]"}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-white">{pc.vendor_name}</div>
+                      <div className="mt-0.5 text-xs text-zinc-400">
+                        {pc.po_no}{pc.branch ? ` · ${pc.branch}` : ""}
+                        {pc.delivery_date ? ` · Delivered ${pc.delivery_date.slice(0, 10)}` : ""}
+                      </div>
+                      {pc.receiving_no && (
+                        <div className="mt-0.5 text-xs text-zinc-500">
+                          Receiving: {pc.receiving_no}
+                          {pc.store_received_by ? ` by ${pc.store_received_by}` : ""}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-violet-300">
+                        {pc.currency} {(pc.store_amount_received ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-zinc-500">Store received amount</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {showRestoreBanner && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
           <span className="flex-1 text-sm text-amber-300">You have an unsaved draft from a previous session.</span>
@@ -858,11 +1044,27 @@ function QuickEntryTab({
           <button onClick={dismissDraft} className="rounded bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200 hover:bg-zinc-600">Discard</button>
         </div>
       )}
+      {pendingCheckId && (
+        <div className="flex items-center gap-3 rounded-lg border border-violet-500/40 bg-violet-950/20 px-4 py-3">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-violet-400" />
+          <span className="flex-1 text-sm text-violet-300">
+            Store receiving confirmed. Enter invoice number, date, and verify prices — then submit to finalize.
+          </span>
+          <button
+            type="button"
+            onClick={() => { resetForm(); setShowStorePendingQueue(true); }}
+            className="rounded bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200 hover:bg-zinc-600"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       <div className={`${GLASS_CARD} p-6`}>
-        <h2 className={T_SECTION}>Enter Today&apos;s Invoice</h2>
+        <h2 className={T_SECTION}>{pendingCheckId ? "Finalize Invoice Match" : "Enter Today’s Invoice"}</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Enter the PO amount and the invoice amount received from the supplier. If they match
-          within the tolerance, the record closes automatically.
+          {pendingCheckId
+            ? "Review the store-confirmed receiving data below. Enter the actual invoice details and verify or adjust per-line prices."
+            : "Enter the PO amount and the invoice amount received from the supplier. If they match within the tolerance, the record closes automatically."}
           {settings && (
             <span className="ml-1 text-violet-400">
               (Tolerance: {currency} {tolAed.toFixed(2)} or {(tolPct * 100).toFixed(1)}%)
