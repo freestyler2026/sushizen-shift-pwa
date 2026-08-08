@@ -1,6 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Manila Edit DTR — Break (min) field added)
+Last updated: 2026-08-08 (Store Procurement: Auto-Save draft + Multi-photo Receiving)
+
+---
+
+## ✅ Completed: Store Procurement — Auto-Save + Multi-Photo Receiving (2026-08-08)
+
+**Frontend `5b0c6fe` (Vercel) + Heroku v1803 `aa00f7a`**
+
+### Auto-Save Draft (request/page.tsx)
+- `store_procurement_draft` キーでlocalStorageに500msデバウンスで自動保存
+- カタログロード時にドラフトを復元（`draftRef` + `draftAppliedRef` パターン）
+- 「↩ Draft restored」バナー表示 + Discardボタン
+- 送信成功時/Discardボタン押下時にドラフト削除
+- 編集モード（`?edit=...`）ではドラフト保存・復元しない
+
+### Multi-Photo Receiving (receiving/page.tsx + backend)
+- **DB**: `proc_receivings.extra_photos JSONB NOT NULL DEFAULT '[]'` を `ensure_procurement_delivery_tables()` に追加
+- **Backend**: `add_proc_receiving_extra_photo()` 関数 + `POST /api/admin/procurement/receiving/{id}/extra-photo` エンドポイント
+- **Frontend**: 最大5枚のサムネイルグリッドUI。1枚目は `/invoice-photo`（既存）、2〜5枚目は `/extra-photo` に順次アップロード
+- `get_proc_receiving()` も `extra_photos` を返すよう更新
 
 ---
 
