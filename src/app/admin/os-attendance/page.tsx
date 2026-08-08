@@ -1204,44 +1204,7 @@ function DailyReportTab({ city }: { city: string }) {
         </button>
       </div>
 
-      {/* ── Historical Bayzat CSV Import (Manila only) ───────────────────── */}
-      {city !== "dubai" && <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-3 space-y-2">
-        <p className="text-xs font-semibold text-sky-300">Import Historical Attendance (Bayzat CSV)</p>
-        <p className="text-xs text-zinc-400">
-          Upload a Bayzat timesheet CSV for one branch at a time. Records over 14 h or under 0.5 h are skipped automatically.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <SelectDark
-            value={csvImportBranch}
-            onChange={setCsvImportBranch}
-            options={[
-              { value: "CUBAO", label: "Cubao" },
-              { value: "PARANAQUE", label: "Paranaque" },
-              { value: "TAFT", label: "Taft" },
-            ]}
-          />
-          <button
-            onClick={() => csvImportRef.current?.click()}
-            disabled={csvImportBusy}
-            className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-40"
-          >
-            {csvImportBusy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-            {csvImportBusy ? "Importing…" : "Upload CSV"}
-          </button>
-          <input
-            ref={csvImportRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) void handleCsvImportFile(f); }}
-          />
-        </div>
-        {csvImportMsg && (
-          <p className={`text-xs ${csvImportMsg.startsWith("Import failed") ? "text-red-400" : "text-emerald-400"}`}>
-            {csvImportMsg}
-          </p>
-        )}
-      </div>}
+      {/* Bayzat CSV Import removed — Bayzat contract ended 2026-07 */}
 
       <p className="text-xs text-white/30">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</p>
 
