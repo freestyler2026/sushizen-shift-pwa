@@ -1,17 +1,17 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Store Procurement: Auto-Save draft + Multi-photo Receiving)
+Last updated: 2026-08-08 (Store Procurement: Auto-Save draft banner fix)
 
 ---
 
 ## ✅ Completed: Store Procurement — Auto-Save + Multi-Photo Receiving (2026-08-08)
 
-**Frontend `5b0c6fe` (Vercel) + Heroku v1803 `aa00f7a`**
+**Frontend `311d72f` (Vercel) + Heroku v1803 `aa00f7a`**
 
 ### Auto-Save Draft (request/page.tsx)
 - `store_procurement_draft` キーでlocalStorageに500msデバウンスで自動保存
 - カタログロード時にドラフトを復元（`draftRef` + `draftAppliedRef` パターン）
-- 「↩ Draft restored」バナー表示 + Discardボタン
+- 「↩ Draft restored」バナー表示 + Discardボタン — **React 18非同期updater問題を修正**: `setItems()` の後でローカルフラグをチェックする代わりに、`useEffect([items])` でstate反映後に `setDraftRestored(true)` を呼ぶよう変更（`311d72f`）
 - 送信成功時/Discardボタン押下時にドラフト削除
 - 編集モード（`?edit=...`）ではドラフト保存・復元しない
 
