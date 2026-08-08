@@ -1,6 +1,59 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Philip Ore — My Shift page branch code fix deployed)
+Last updated: 2026-08-09 (Discord Alert notification system implemented)
+
+---
+
+## ⏳ Pending User Action: Discord Bot Setup
+
+**Code fully deployed (Heroku v1819, Vercel auto-deploy).  
+One manual step required before alerts fire:**
+
+1. Go to https://discord.com/developers/applications → **New Application** → name it "Sushi ZEN Alerts"
+2. **Bot** tab → **Add Bot** → copy the **Token**
+3. Enable: `Message Content Intent` + `Server Members Intent` (under Privileged Gateway Intents)
+4. Invite bot to server `1179096514975518821` with `bot` scope + `Send Messages` permission
+5. Set Heroku config var: `DISCORD_BOT_TOKEN=Bot YOUR_TOKEN_HERE`
+   ```
+   heroku config:set DISCORD_BOT_TOKEN="Bot YOUR_TOKEN_HERE" -a sushizen-shift-app
+   ```
+6. Add Heroku Scheduler jobs (Dashboard → Resources → Heroku Scheduler):
+   - `python scripts/notify_store_eval.py`  — Every day at **07:00 UTC** (= 15:00 PHT)
+   - `python scripts/notify_ck_dispatch.py` — Every day at **08:00 UTC** (= 16:00 PHT)
+7. After bot is running: go to /admin/discord-alerts and confirm 4 HQ members are listed for each store (they are pre-seeded)
+
+**Note:** Bot must share the Discord server `1179096514975518821` with all 4 HQ members, and each member must have DMs from server members enabled.
+
+---
+
+## ✅ Completed: Discord Alert Notification System (2026-08-09)
+
+**Heroku v1819 (backend) + Vercel (frontend)**
+
+### What was built
+
+| Layer | Files | Description |
+|-------|-------|-------------|
+| DB | `db.py` (appended) | `discord_alert_recipients` table + `alert_sent_log` table with seed data (4 HQ × 4 stores) |
+| API | `main.py` (appended) | `GET/POST/DELETE/PATCH /api/admin/discord-alert-recipients` CRUD |
+| Access control | `access_control.py` | `admin.discord_alerts` channel + view/manage permissions |
+| Scripts | `scripts/notify_store_eval.py` | Daily store evaluation missing-submission alert via Discord DM |
+| Scripts | `scripts/notify_ck_dispatch.py` | Daily CK dispatch pending alert via Discord DM |
+| Frontend | `src/app/admin/discord-alerts/page.tsx` | Management UI with store tabs (Paranaque/Taft/Cubao/CK) |
+| NavBar | `src/components/NavBar.tsx` | Bell icon → "Discord Alerts" admin nav item |
+
+### Script features
+- Idempotent: `alert_sent_log` UNIQUE(alert_type, target_date) prevents duplicate sends
+- 3-retry with exponential backoff per DM
+- Exits with code 1 on total failure (caught by Heroku Scheduler alert if configured)
+- Active stores pulled dynamically from `store_eval_branch_map` (no hardcoded list)
+
+### Verified (2026-08-09)
+- ✅ /admin/discord-alerts loads with Paranaque tab showing all 4 HQ members
+- ✅ Taft tab loads correctly with same 4 members
+- ✅ Store tabs switch without errors
+- ✅ Add Recipient form present with Discord User ID field
+- ✅ Active/Paused toggle and Remove buttons rendered
 
 ---
 
