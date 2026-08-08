@@ -2277,9 +2277,344 @@ function LateAlertsTab() {
   );
 }
 
+// ── Attendance Period Reports Tab ─────────────────────────────────────────────
+
+interface ReportSummary {
+  total_sessions: number;
+  total_no_shows: number;
+  total_late_incidents: number;
+  total_out_of_range: number;
+  nte_recommended_count: number;
+  period_days: number;
+}
+
+interface ReportListItem {
+  id: number;
+  city: string;
+  report_type: string;
+  period_start: string;
+  period_end: string;
+  generated_at: string;
+  summary: ReportSummary;
+}
+
+interface StaffRow {
+  staff_name: string;
+  branch: string;
+  late_count: number;
+  avg_late_min: number;
+  no_show_count: number;
+  out_of_range_count: number;
+  session_count: number;
+  total_hours: number;
+  flags: string[];
+  nte_recommended: boolean;
+}
+
+interface ReportDetail extends ReportListItem {
+  by_staff: StaffRow[];
+  by_branch: { branch: string; late_count: number; no_show_count: number; out_of_range_count: number; session_count: number }[];
+  flagged_staff: StaffRow[];
+}
+
+function ReportsTab({ city }: { city: string }) {
+  const [reports, setReports] = useState<ReportListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genStart, setGenStart] = useState("");
+  const [genEnd, setGenEnd] = useState("");
+  const [genError, setGenError] = useState("");
+  const [filterType, setFilterType] = useState<"" | "monthly" | "weekly">("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const qs = `city=${city}${filterType ? `&report_type=${filterType}` : ""}`;
+      const r = await apiFetch(`${API}/reports?${qs}`);
+      if (r.ok) {
+        const d = await r.json() as { reports: ReportListItem[] };
+        setReports(d.reports ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [city, filterType]);
+
+  useEffect(() => { load(); setDetail(null); }, [load]);
+
+  async function openReport(id: number) {
+    setDetailLoading(true);
+    try {
+      const r = await apiFetch(`${API}/reports/${id}`);
+      if (r.ok) setDetail(await r.json() as ReportDetail);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function generate() {
+    if (!genStart || !genEnd) { setGenError("Enter start and end dates."); return; }
+    if (genStart > genEnd) { setGenError("Start must be before end."); return; }
+    setGenError(""); setGenerating(true);
+    try {
+      const r = await apiFetch(`${API}/reports/generate`, {
+        method: "POST",
+        body: JSON.stringify({ city, period_start: genStart, period_end: genEnd }),
+      });
+      if (r.ok) {
+        await load();
+        const d = await r.json() as ReportDetail;
+        setDetail(d);
+      } else {
+        const e = await r.json().catch(() => ({})) as { detail?: string };
+        setGenError(e.detail ?? "Generation failed.");
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function downloadCsv(id: number, label: string) {
+    const auth = getAuth();
+    const url = `/api/admin/attendance/reports/${id}/csv`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = label + ".csv";
+    if (auth?.accessToken) {
+      // Fetch with auth then trigger download
+      apiFetch(`${API}/reports/${id}/csv`).then(async (r) => {
+        const blob = await r.blob();
+        a.href = URL.createObjectURL(blob);
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      });
+    } else {
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+  }
+
+  const NTE_COLOR = "text-red-500 font-semibold";
+
+  return (
+    <div className="space-y-6">
+      {/* Generate panel */}
+      <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+        <p className="text-sm font-semibold text-white/80">Generate Report</p>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Start Date</label>
+            <input
+              type="date"
+              value={genStart}
+              onChange={(e) => setGenStart(e.target.value)}
+              className="rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">End Date</label>
+            <input
+              type="date"
+              value={genEnd}
+              onChange={(e) => setGenEnd(e.target.value)}
+              className="rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white"
+            />
+          </div>
+          <button
+            onClick={generate}
+            disabled={generating}
+            className={PRIMARY_BUTTON + " flex items-center gap-1.5"}
+          >
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {generating ? "Generating…" : "Generate"}
+          </button>
+        </div>
+        {genError && <p className="text-xs text-red-400">{genError}</p>}
+        <p className="text-xs text-white/40">
+          Monthly reports run automatically on the 1st/2nd of each month. Weekly reports run every Monday.
+          Use this panel to regenerate past periods.
+        </p>
+      </div>
+
+      {/* Filter + list */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-white/60">Filter:</span>
+        {(["", "monthly", "weekly"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setFilterType(t)}
+            className={filterType === t ? TAB_ACTIVE : TAB_INACTIVE}
+          >
+            {t === "" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+        <button onClick={load} className="ml-auto text-white/40 hover:text-white transition-colors">
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
+
+      {loading && <p className="text-sm text-white/40 text-center py-6">Loading…</p>}
+
+      {!loading && reports.length === 0 && (
+        <p className="text-sm text-white/40 text-center py-6">No reports yet. Generate one above.</p>
+      )}
+
+      {!loading && reports.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-white/10">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-white/50 text-xs">
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Period</th>
+                <th className="px-3 py-2 text-right">Sessions</th>
+                <th className="px-3 py-2 text-right">No-shows</th>
+                <th className="px-3 py-2 text-right">Late</th>
+                <th className="px-3 py-2 text-right">GPS ⚠</th>
+                <th className="px-3 py-2 text-right">NTE</th>
+                <th className="px-3 py-2 text-right">Generated</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map((rep) => {
+                const s = rep.summary ?? {} as ReportSummary;
+                const isOpen = detail?.id === rep.id;
+                return (
+                  <Fragment key={rep.id}>
+                    <tr
+                      className={`border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${isOpen ? "bg-white/8" : ""}`}
+                      onClick={() => isOpen ? setDetail(null) : openReport(rep.id)}
+                    >
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rep.report_type === "monthly" ? "bg-indigo-500/20 text-indigo-300" : "bg-teal-500/20 text-teal-300"}`}>
+                          {rep.report_type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-white/80 text-xs">
+                        {rep.period_start} → {rep.period_end}
+                      </td>
+                      <td className="px-3 py-2 text-right">{s.total_sessions ?? "—"}</td>
+                      <td className="px-3 py-2 text-right">{s.total_no_shows ?? "—"}</td>
+                      <td className="px-3 py-2 text-right">{s.total_late_incidents ?? "—"}</td>
+                      <td className="px-3 py-2 text-right">{s.total_out_of_range ?? "—"}</td>
+                      <td className={`px-3 py-2 text-right ${(s.nte_recommended_count ?? 0) > 0 ? NTE_COLOR : ""}`}>
+                        {s.nte_recommended_count ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right text-white/40 text-xs">
+                        {rep.generated_at ? new Date(rep.generated_at).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); downloadCsv(rep.id, `attendance_${rep.city}_${rep.period_start}`); }}
+                          className="text-white/40 hover:text-white transition-colors"
+                          title="Download CSV"
+                        >
+                          <Download size={13} />
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* Detail expansion */}
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={9} className="bg-white/5 px-4 py-4">
+                          {detailLoading ? (
+                            <div className="flex justify-center py-6">
+                              <Loader2 size={20} className="animate-spin text-white/40" />
+                            </div>
+                          ) : detail ? (
+                            <div className="space-y-5">
+                              {/* By branch */}
+                              {(detail.by_branch ?? []).length > 0 && (
+                                <div>
+                                  <p className="text-xs font-semibold text-white/60 mb-2">By Branch</p>
+                                  <div className="flex flex-wrap gap-3">
+                                    {detail.by_branch.map((b) => (
+                                      <div key={b.branch} className="rounded-lg bg-white/8 px-3 py-2 text-xs space-y-0.5 min-w-[120px]">
+                                        <p className="font-semibold text-white/90">{b.branch || "—"}</p>
+                                        <p className="text-white/50">Sessions: {b.session_count}</p>
+                                        <p className="text-white/50">No-shows: {b.no_show_count}</p>
+                                        <p className="text-white/50">Late: {b.late_count}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Per-staff table */}
+                              <div>
+                                <p className="text-xs font-semibold text-white/60 mb-2">
+                                  All Staff ({detail.by_staff?.length ?? 0})
+                                </p>
+                                <div className="overflow-x-auto rounded border border-white/10">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="border-b border-white/10 text-left text-white/40">
+                                        <th className="px-2 py-1.5">Name</th>
+                                        <th className="px-2 py-1.5">Branch</th>
+                                        <th className="px-2 py-1.5 text-right">Sessions</th>
+                                        <th className="px-2 py-1.5 text-right">Late</th>
+                                        <th className="px-2 py-1.5 text-right">Avg Late</th>
+                                        <th className="px-2 py-1.5 text-right">No-show</th>
+                                        <th className="px-2 py-1.5 text-right">GPS ⚠</th>
+                                        <th className="px-2 py-1.5 text-right">Hours</th>
+                                        <th className="px-2 py-1.5">Flags</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(detail.by_staff ?? []).map((s) => (
+                                        <tr
+                                          key={s.staff_name}
+                                          className={`border-b border-white/5 ${s.nte_recommended ? "bg-red-500/10" : ""}`}
+                                        >
+                                          <td className="px-2 py-1.5 font-medium text-white/90">{s.staff_name}</td>
+                                          <td className="px-2 py-1.5 text-white/50">{s.branch || "—"}</td>
+                                          <td className="px-2 py-1.5 text-right">{s.session_count}</td>
+                                          <td className={`px-2 py-1.5 text-right ${s.late_count >= 5 ? "text-red-400 font-semibold" : s.late_count >= 3 ? "text-amber-400" : ""}`}>
+                                            {s.late_count}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-white/60">{s.avg_late_min > 0 ? `${s.avg_late_min}m` : "—"}</td>
+                                          <td className={`px-2 py-1.5 text-right ${s.no_show_count >= 2 ? "text-red-400 font-semibold" : ""}`}>
+                                            {s.no_show_count}
+                                          </td>
+                                          <td className={`px-2 py-1.5 text-right ${s.out_of_range_count >= 3 ? "text-amber-400" : ""}`}>
+                                            {s.out_of_range_count}
+                                          </td>
+                                          <td className="px-2 py-1.5 text-right text-white/60">{s.total_hours > 0 ? `${s.total_hours}h` : "—"}</td>
+                                          <td className="px-2 py-1.5">
+                                            {s.flags.length > 0 ? (
+                                              <span className="inline-flex gap-1 flex-wrap">
+                                                {s.flags.map((f) => (
+                                                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">{f}</span>
+                                                ))}
+                                              </span>
+                                            ) : "—"}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance" | "late_alerts";
+type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance" | "late_alerts" | "reports";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -2364,6 +2699,9 @@ export default function OsAttendanceAdminPage() {
           <button onClick={() => setTab("late_alerts")} className={`${tab === "late_alerts" ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}>
             🔔 Late Alerts
           </button>
+          <button onClick={() => setTab("reports")} className={`${tab === "reports" ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}>
+            📊 Reports
+          </button>
         </div>
 
         {/* Content */}
@@ -2374,6 +2712,7 @@ export default function OsAttendanceAdminPage() {
           {tab === "gps" && <GpsTab city={city} />}
           {tab === "compliance" && <ShiftComplianceTab key={city} city={city} />}
           {tab === "late_alerts" && <LateAlertsTab />}
+          {tab === "reports" && <ReportsTab key={city} city={city} />}
         </div>
       </div>
     </main>
