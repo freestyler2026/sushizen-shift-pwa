@@ -168,6 +168,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/ck-delivery", label: "CK Delivery", icon: Truck, match: "prefix" },
   { href: "/store/ck-ingredient-receiving", label: "CK Ingredient Receiving", icon: PackageSearch, match: "prefix" },
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
+  { href: "/store/supplier-receiving", label: "Supplier Receiving", icon: PackageSearch, match: "prefix" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
   { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
@@ -210,6 +211,8 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
   { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/ck/par-levels", label: "CK Par Levels", icon: Factory, adminOnly: true, match: "prefix" },
+  { href: "/admin/store-par-levels", label: "Store Par Levels", icon: ShoppingCart, adminOnly: true, match: "prefix" },
+  { href: "/admin/store-supplier-orders", label: "Store Supplier Orders", icon: ShoppingBag, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
   { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" },
@@ -391,6 +394,8 @@ export default function NavBar() {
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
     if (href === "/admin/market-analysis") return canAccessMarketAnalysisAdmin(auth);
     if (href === "/admin/store-opening") return canAccessStoreOpeningAdmin(auth);
+    if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     return false;
   }
 
@@ -972,6 +977,10 @@ export default function NavBar() {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
             || canAccessInventoryAdminNav(resolvedAuth);
+        }
+        if (item.href === "/store/supplier-receiving") {
+          const r = String(resolvedAuth?.role || "").toUpperCase();
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "STAFF"].includes(r);
         }
         return true;
       })
