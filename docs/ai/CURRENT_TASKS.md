@@ -6,7 +6,7 @@ Last updated: 2026-08-08 (OS Attendance: Automated Period Reports)
 
 ## ✅ Completed: OS Attendance — Automated Period Reports (2026-08-08)
 
-**Frontend `7b77d7f` (Vercel) + Heroku v1804 `d9290f4`**
+**Frontend `7b77d7f` (Vercel) + Heroku v1806 `7ce6d68`** (bugfix included)
 
 ### What was built
 Full-stack automated monthly/weekly attendance report system.
@@ -37,6 +37,11 @@ Full-stack automated monthly/weekly attendance report system.
 **Frontend (os-attendance/page.tsx)**
 - `ReportsTab` component: Generate panel (date pickers + Generate button), All/Monthly/Weekly filter, reports list table, clickable row expansion with per-branch summary + per-staff table (color-coded NTE rows), CSV download
 - Tab button "📊 Reports" added to the tab bar
+
+### ✅ Tested (2026-08-08) — Live data confirmed
+- Manila July 2026: 1498 sessions, 102 no-shows, 243 late, 36 NTE-recommended (68 staff, 5 branches)
+- Dubai July 2026: 985 sessions, 1065 no-shows — high count is expected: Dubai staff use Bayzat/manual tracking, not OS Attendance. Drivers (DRIVER branch, 0 sessions) and resigned/off staff pull up the no-show total.
+- Bug fixes (Heroku v1806): CSV nte_recommended `True`→`yes/no`; generated_at `.isoformat()` for consistent JSON
 
 ### ⚠️ Heroku Scheduler — Manual Step Required
 The job script is deployed but needs to be registered in Heroku Scheduler:
