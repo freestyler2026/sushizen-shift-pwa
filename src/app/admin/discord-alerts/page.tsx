@@ -25,6 +25,8 @@ const STORES = [
   { code: "CK",   label: "CK" },
 ];
 
+type DmStatus = "unregistered" | "ok" | "blocked";
+
 interface Recipient {
   id: number;
   store_code: string;
@@ -32,6 +34,8 @@ interface Recipient {
   discord_user_id: string;
   is_active: boolean;
   created_at: string;
+  discord_dm_status: DmStatus;
+  discord_checked_at: string | null;
 }
 
 async function apiFetchAuthed(path: string, options: RequestInit = {}) {
@@ -51,6 +55,28 @@ async function apiFetchAuthed(path: string, options: RequestInit = {}) {
     throw new Error(msg);
   }
   return text ? JSON.parse(text) : {};
+}
+
+function DmStatusBadge({ status }: { status: DmStatus }) {
+  if (status === "ok") {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+        DM OK
+      </span>
+    );
+  }
+  if (status === "blocked") {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full border border-red-500/30 bg-red-500/10 text-red-400">
+        DM Blocked
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full border border-zinc-600 bg-zinc-800 text-zinc-400">
+      Not tested
+    </span>
+  );
 }
 
 export default function DiscordAlertsPage() {
@@ -73,6 +99,9 @@ export default function DiscordAlertsPage() {
   const [newId, setNewId] = useState("");
   const [adding, setAdding] = useState(false);
 
+  const [testingId, setTestingId] = useState<number | null>(null);
+  const [testResult, setTestResult] = useState<{ id: number; ok: boolean; message: string } | null>(null);
+
   const approver = auth?.staffName ?? "";
   const pin = auth?.pin ?? "";
 
@@ -93,6 +122,7 @@ export default function DiscordAlertsPage() {
 
   useEffect(() => {
     loadRecipients(selectedStore);
+    setTestResult(null);
   }, [selectedStore, loadRecipients]);
 
   async function handleAdd() {
@@ -149,6 +179,24 @@ export default function DiscordAlertsPage() {
     }
   }
 
+  async function handleTestDm(id: number) {
+    setTestingId(id);
+    setTestResult(null);
+    try {
+      const data = await apiFetchAuthed(
+        `/api/admin/discord-alert-recipients/${id}/test-dm?approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pin)}`,
+        { method: "POST" }
+      );
+      setTestResult({ id, ok: data.ok, message: data.message });
+      // Refresh to get updated dm_status badge
+      await loadRecipients(selectedStore);
+    } catch (e: unknown) {
+      setTestResult({ id, ok: false, message: e instanceof Error ? e.message : "Test failed" });
+    } finally {
+      setTestingId(null);
+    }
+  }
+
   const storeLabel = STORES.find((s) => s.code === selectedStore)?.label ?? selectedStore;
 
   return (
@@ -177,6 +225,17 @@ export default function DiscordAlertsPage() {
           ))}
         </div>
 
+        {/* Test DM result banner */}
+        {testResult && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${
+            testResult.ok
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-red-500/30 bg-red-500/10 text-red-300"
+          }`}>
+            {testResult.ok ? "✅" : "❌"} {testResult.message}
+          </div>
+        )}
+
         {/* Recipients card */}
         <div className={GLASS_CARD + " p-5 space-y-4"}>
           <div className="flex items-center justify-between">
@@ -198,35 +257,47 @@ export default function DiscordAlertsPage() {
               {recipients.map((r) => (
                 <div
                   key={r.id}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all ${
+                  className={`rounded-xl border px-4 py-3 transition-all ${
                     r.is_active
                       ? "border-white/10 bg-white/4"
                       : "border-white/5 bg-white/2 opacity-50"
                   }`}
                 >
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium ${r.is_active ? "text-white" : "text-zinc-500"}`}>
-                      {r.staff_name}
-                    </p>
-                    <p className={T_CAPTION + " font-mono"}>{r.discord_user_id}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <button
-                      onClick={() => handleToggle(r.id, r.is_active)}
-                      className={`text-xs px-3 py-1 rounded-lg border transition-all ${
-                        r.is_active
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                          : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                      }`}
-                    >
-                      {r.is_active ? "Active" : "Paused"}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(r.id)}
-                      className="text-xs px-3 py-1 rounded-lg border border-red-500/20 bg-red-500/8 text-red-400 hover:bg-red-500/20 transition-all"
-                    >
-                      Remove
-                    </button>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`text-sm font-medium ${r.is_active ? "text-white" : "text-zinc-500"}`}>
+                          {r.staff_name}
+                        </p>
+                        <DmStatusBadge status={r.discord_dm_status ?? "unregistered"} />
+                      </div>
+                      <p className={T_CAPTION + " font-mono mt-0.5"}>{r.discord_user_id}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleTestDm(r.id)}
+                        disabled={testingId === r.id}
+                        className="text-xs px-3 py-1 rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 transition-all disabled:opacity-50"
+                      >
+                        {testingId === r.id ? "Sending…" : "Test DM"}
+                      </button>
+                      <button
+                        onClick={() => handleToggle(r.id, r.is_active)}
+                        className={`text-xs px-3 py-1 rounded-lg border transition-all ${
+                          r.is_active
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                            : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                        }`}
+                      >
+                        {r.is_active ? "Active" : "Paused"}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="text-xs px-3 py-1 rounded-lg border border-red-500/20 bg-red-500/8 text-red-400 hover:bg-red-500/20 transition-all"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -269,8 +340,8 @@ export default function DiscordAlertsPage() {
         </div>
 
         {/* Info box */}
-        <div className={GLASS_CARD + " p-4"}>
-          <p className={T_LABEL + " mb-2"}>Notification Schedule</p>
+        <div className={GLASS_CARD + " p-4 space-y-3"}>
+          <p className={T_LABEL}>Notification Schedule</p>
           <div className="space-y-1">
             <p className={T_CAPTION}>
               <span className="text-zinc-300 font-medium">Store Evaluation alert</span>
@@ -280,9 +351,22 @@ export default function DiscordAlertsPage() {
               <span className="text-zinc-300 font-medium">CK Dispatch alert</span>
               {" "}— Daily 16:00 PHT. Fires when CK deliveries are still pending.
             </p>
-            <p className={T_CAPTION + " mt-2"}>
-              Recipients are notified per-store: Paranaque, Taft, and Cubao recipients receive
-              evaluation alerts for their respective store. CK recipients receive dispatch alerts.
+            <p className={T_CAPTION}>
+              <span className="text-zinc-300 font-medium">30-min reminder</span>
+              {" "}— Auto-sent if data still missing 30 min after first alert.
+            </p>
+            <p className={T_CAPTION}>
+              <span className="text-zinc-300 font-medium">60-min escalation</span>
+              {" "}— Flagged as unresolved (NTE candidate) if no submission after 60 min.
+            </p>
+          </div>
+          <div className="border-t border-white/8 pt-3">
+            <p className={T_CAPTION}>
+              <span className="text-zinc-300 font-medium">DM Status</span>{" "}
+              shows whether the last test or scheduled DM was delivered.{" "}
+              <span className="text-red-400">DM Blocked</span> means the user&apos;s DMs are
+              disabled or they have not joined the server — this is a{" "}
+              <span className="text-zinc-300">system delivery failure</span>, not a non-response.
             </p>
           </div>
         </div>
