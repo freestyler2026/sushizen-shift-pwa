@@ -240,6 +240,10 @@ export default function CKProductionPlanPage() {
   // Packing update
   const [updatingPackingId, setUpdatingPackingId] = useState<number | null>(null);
 
+  // Delivery date inline edit
+  const [editingDeliveryDate, setEditingDeliveryDate] = useState(false);
+  const [editDeliveryDateVal, setEditDeliveryDateVal] = useState("");
+
   // New Plan modal
   const [showNewPlan, setShowNewPlan] = useState(false);
   const [newPlanDate, setNewPlanDate] = useState(todayIso());
@@ -663,6 +667,22 @@ export default function CKProductionPlanPage() {
     }
   }
 
+  async function handleSaveDeliveryDate() {
+    if (!activePlan) return;
+    try {
+      const data = await apiFetch(
+        `/api/store/ck-production-plan/plans/${activePlan.id}`,
+        { method: "PATCH", body: JSON.stringify({ delivery_date: editDeliveryDateVal || null }) }
+      );
+      setActivePlan(prev => prev ? { ...prev, delivery_date: data.plan?.delivery_date ?? null } : null);
+      setPlans(prev => prev.map(p => p.id === activePlan.id ? { ...p, delivery_date: data.plan?.delivery_date ?? null } : p));
+      setEditingDeliveryDate(false);
+      showToast("Delivery date updated");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    }
+  }
+
   // ── Delivery Readiness ─────────────────────────────────────────────────────
   const loadReadiness = useCallback(async (date: string) => {
     setLoadingReadiness(true);
@@ -967,10 +987,26 @@ export default function CKProductionPlanPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className={T_SECTION}>{fmtDate(activePlan.plan_date)} Production Plan</h2>
                       <span className={PLAN_STATUS_BADGE[activePlan.status]}>{activePlan.status}</span>
-                      {activePlan.delivery_date && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-400">
-                          <Calendar className="h-3 w-3" /> Delivery: {fmtDate(activePlan.delivery_date)}
-                        </span>
+                      {editingDeliveryDate ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={editDeliveryDateVal}
+                            onChange={e => setEditDeliveryDateVal(e.target.value)}
+                            className="rounded-lg border border-white/20 bg-white/10 px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                          />
+                          <button onClick={handleSaveDeliveryDate} className="rounded px-2 py-0.5 text-xs bg-violet-600 text-white hover:bg-violet-500">Save</button>
+                          <button onClick={() => setEditingDeliveryDate(false)} className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:text-white">✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditDeliveryDateVal(activePlan.delivery_date || ""); setEditingDeliveryDate(true); }}
+                          className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-400 hover:bg-violet-500/25 transition-colors"
+                          title="Click to edit delivery date"
+                        >
+                          <Calendar className="h-3 w-3" />
+                          {activePlan.delivery_date ? `Delivery: ${fmtDate(activePlan.delivery_date)}` : "Set delivery date"}
+                        </button>
                       )}
                     </div>
                     {activePlan.created_by && (

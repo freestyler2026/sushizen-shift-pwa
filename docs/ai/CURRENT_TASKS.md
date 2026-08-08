@@ -1,6 +1,67 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Store Supplier Orders — HQ Approval Gate + Manual)
+Last updated: 2026-08-08 (CK Production Plan — 5 features: 3-Stage Status, Delivery Date, Readiness Tab, Red Alert, Delivery Eval)
+
+---
+
+## ✅ Completed: CK Production Plan — 5 Features (2026-08-08)
+
+**Frontend commit `976c25b` (Vercel auto-deploy) + Heroku v1809 `3e77158`**
+
+### What was added
+
+**① 3-Stage Item Status (Production → QC → Packing & Labeling)**
+- Replaced single "Status" column with 3-stage pipeline: Production | QC | Packing
+- DB: `packing_status TEXT DEFAULT 'PENDING'`, `packing_done_by`, `packing_done_at` columns added via `ensure_ck_qc_tables()`
+- `isCompleted(item) = status==="DONE" && qc_result==="PASS" && packing_status==="DONE"` — derived, never stored
+- Packing "Done" button appears only after QC PASS; backend validates this precondition
+- KPI bar expanded to 6 metrics (Total / Pending / In Progress / Production / QC Pass / Completed)
+- Row opacity dims when all 3 stages done
+
+**② Delivery Date on Plans**
+- `delivery_date DATE DEFAULT NULL` column added via `ensure_ck_production_plan_tables()` ALTER TABLE
+- New Plan modal shows Production Date + Delivery Date side-by-side (2-column grid)
+- Plan cards show delivery date badge with Calendar icon
+- Backend: `create_ck_production_plan()` and `update_ck_production_plan()` accept `delivery_date: Optional[str]`
+- **Inline edit added (2026-08-08)**: Plan header delivery date badge is now a clickable button that opens an inline date picker. Bug fix: removed `AND status = 'DRAFT'` from PATCH WHERE clause so PUBLISHED plans can also update delivery_date (Heroku v1810 `f728631`).
+
+**③ Delivery Readiness Tab**
+- New "Delivery Readiness" tab added to CK Production Plan page
+- Date picker (defaults to today) + Refresh button
+- API: `GET /api/store/ck-production-plan/readiness?city=&delivery_date=`
+- Groups items into 4 buckets: Pending Production / Pending QC / Pending Packing / Completed
+- Shows 4 KPIs + progress bar + grouped tables per bucket
+- Tab badge shows total pending count (amber)
+
+**④ Red Alert Banner**
+- Condition: delivery day (Mon/Wed/Fri) + hour >= 14 + completedCount < totalCount
+- Very prominent: `border-red-500 bg-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.4)] animate-pulse`
+- Shows incomplete count and urges immediate action
+- Tab badges display pending transaction counts for all tabs
+
+**⑤ Delivery Evaluation Form**
+- New "Delivery Eval" tab — visible to MANILA_MANAGEMENT, HR_MANAGER, HQ, ADMIN
+- DB: `ck_delivery_evaluations` table created in `ensure_ck_qc_tables()`
+- 8 fields: Overall Rating (1–5 stars), Delivery Ready On Time (Y/N + time, target 13:00), Driver Pick-up On Time (Y/N + time, target 13:30), Delivered On Time (Y/N + time, target 15:00), Missing/Wrong/Damaged Items (Y/N + detail), Food Temperature OK (Y/N + detail), Proper Labeling OK (Y/N + detail), Comments
+- Right panel shows Recent Evaluations history
+- APIs: `POST /api/store/ck-production-plan/delivery-evaluations`, `GET ...?city=&delivery_date=`
+
+### Bug fixed during deployment
+- `column i.packing_status does not exist` on page load — caused by `list_ck_production_plans()` not calling `ensure_ck_qc_tables()`. Fixed by adding `ensure_ck_qc_tables()` calls to both `list_ck_production_plans()` and `get_ck_production_plan()` (Heroku v1809).
+
+### Full live test results (2026-08-08)
+- ✅ 3-Stage pipeline: PENDING → IN_PROGRESS → DONE → QC PASS → Packing DONE → Completed ✓
+- ✅ QC FAIL flow: status=DONE + qc_result=FAIL → appears in Pending Production bucket (re-do required)
+- ✅ Completed item visual dimming: `opacity-50` class applied when `isCompleted(item)=true`
+- ✅ Delivery date inline edit: click badge → date picker → Save → plan updates both header badge + plan card
+- ✅ Delivery Readiness tab: 4 KPI cards, progress bar, 4 bucketed tables (Pending Prod/QC/Pack/Completed)
+- ✅ Completed items section shows Akadama in ✅ Completed table
+- ✅ Tab badge shows pending count correctly (Delivery Readiness: 31)
+- ✅ Delivery Eval form: all 6 checklist items, 5-star rating, submit → "Delivery evaluation submitted" toast
+- ✅ Recent Evaluations panel updates immediately after submission
+- ✅ Delivery Eval tab badge shows count (1) after submission
+- ⚠️ Red Alert Banner: cannot test (requires Mon/Wed/Fri delivery day + after 14:00; tested on Saturday)
+- ⚠️ Time fields in Delivery Eval show Japanese "午後" (PM) text — browser locale issue, not app bug
 
 ---
 
