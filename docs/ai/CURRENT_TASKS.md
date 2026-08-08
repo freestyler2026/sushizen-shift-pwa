@@ -1,6 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Google Sheets price sync removed; Invoice Mapping tab restored and kept)
+Last updated: 2026-08-08 (PO Match Pending Queue implemented — store-confirmed POs route to Back Office for price entry)
+
+---
+
+## ✅ Completed: PO Match — Pending Queue for Store-Confirmed Receivings (2026-08-08)
+
+**Frontend `f7dee0e` (Vercel) + Heroku v1800 `41bd602`**
+
+### 変更内容
+
+**フロー変更:**
+- 以前: Store確認 → `proc_po_invoice_checks` に `MATCHED/DISCREPANCY` で即確定 → All Records/Discrepancy Queueに流れる
+- 以後: Store確認 → `match_status = 'PENDING'` で一時保留 → PO Match Quick Entry の Pending Queue に表示 → Back Officeが価格入力して確定
+
+**Backend (`db.py`):**
+- `create_po_invoice_check()`: `force_status` 引数追加（金額計算スキップ）
+- `list_recent_pos_for_match()`: PENDING以外の既存レコードのみをQuick Entry選択肢から除外
+- `list_po_invoice_checks()`: デフォルトでPENDINGを除外（All Records/Discrepancy Queueに表示されない）
+- `list_pending_po_invoice_checks()`: 新規 — proc_receivings JOIN付きでPENDINGを返す
+- `finalize_po_invoice_check()`: 新規 — PENDING → MATCHED/DISCREPANCYに遷移
+
+**Backend (`main.py`):**
+- Store受領確認時のauto-create: `force_status='PENDING'`, `invoice_amount=0` に変更
+- `GET /api/admin/procurement/po-match/pending` — Pending Queue一覧
+- `PATCH /api/admin/procurement/po-match/{id}/finalize` — Back Officeが価格入力して確定
+
+**Frontend (`po-match/page.tsx`):**
+- `PendingCheck` 型追加
+- Quick EntryタブトップにPending Queueパネル（件数バッジ付き、展開/折り畳み可）
+- `selectPendingCheck()`: クリックでフォームにPre-fill（vendor, PO no, 受領日, 写真, POライン）
+- `handleSubmit()`: `pendingCheckId` セット時は PATCH finalize、未セット時は POST create
+- `resetForm()` に共通リセットを集約
+
+### 動作フロー
+```
+Store Procurement → Receiving (確認)
+  → proc_po_invoice_checks (PENDING) 自動作成
+        ↓
+PO Match → Quick Entry → Pending Queue にカード表示
+  → Back Officeがクリック → フォームPre-fill
+  → invoice_no / invoice_date / 価格を入力
+  → Submit → PATCH finalize → MATCHED or DISCREPANCY に確定
+        ↓
+All Records / Discrepancy Queue に反映
+```
 
 ---
 
