@@ -67,6 +67,7 @@ import {
   History,
   Laptop,
   Building2,
+  Bell,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -236,6 +237,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },
   { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" },
+  { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" },
   { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
 
