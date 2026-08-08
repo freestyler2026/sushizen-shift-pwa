@@ -969,7 +969,6 @@ export default function StoreProcurementRequestPage() {
   }, [loadItemCatalog, requestDate, selectedCatalogCategory, storeCode]);
 
   useEffect(() => {
-    let draftWasApplied = false;
     setItems((prev) => {
       const prevMap = new Map(prev.map((item) => [String(item.row_key || ""), item]));
       // Fallback lookup by name+vendor for items whose row_key shifted due to catalog reload
@@ -1014,7 +1013,6 @@ export default function StoreProcurementRequestPage() {
         if (!draftAppliedRef.current && draftRef.current) {
           const draftQty = draftRef.current.qtyMap?.[String(item.row_key || "")];
           if (draftQty && Number(draftQty) > 0) {
-            draftWasApplied = true;
             return { ...item, qty: Number(draftQty) };
           }
         }
@@ -1050,10 +1048,6 @@ export default function StoreProcurementRequestPage() {
 
       return fallbackRows.length > 0 ? [...catalogMapped, ...fallbackRows] : catalogMapped;
     });
-    if (draftWasApplied && !draftAppliedRef.current) {
-      draftAppliedRef.current = true;
-      setDraftRestored(true);
-    }
     // NOTE: Do NOT reset showSubmitReview / reviewMode here.
     // Catalog reloads are async — closing the review panel here would cause the active
     // review to disappear mid-session, leaving only the stale lastCreatedItems box visible.
@@ -1123,6 +1117,20 @@ export default function StoreProcurementRequestPage() {
       if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
     };
   }, [items, storeCode, city, purchaseType, urgentFlag, requestDate, editRequestId, DRAFT_KEY]);
+
+  // Detect when draft quantities have been applied to items (runs after React commits the state update)
+  useEffect(() => {
+    if (draftAppliedRef.current || !draftRef.current) return;
+    const draft = draftRef.current;
+    const anyRestored = items.some((item) => {
+      const savedQty = draft.qtyMap?.[String(item.row_key ?? "")];
+      return savedQty != null && Number(savedQty) > 0 && Number(item.qty) === Number(savedQty);
+    });
+    if (anyRestored) {
+      draftAppliedRef.current = true;
+      setDraftRestored(true);
+    }
+  }, [items]);
 
   return (
     <div className={PAGE_BG}>
