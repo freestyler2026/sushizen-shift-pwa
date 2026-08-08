@@ -1,10 +1,10 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Philip Ore name cascade fix + Week view branch dedup)
+Last updated: 2026-08-08 (Philip Ore — My Shift page branch code fix deployed)
 
 ---
 
-## ✅ Completed: Philip Ore Name Cascade + Week View Duplicate Fix (2026-08-08)
+## ✅ Completed: Philip Ore Name Cascade + Week View + My Shift Duplicate Fix (2026-08-08)
 
 **Heroku v1815–1818 (backend only — no frontend deploy needed)**
 
@@ -19,6 +19,7 @@ Philip Ore was previously named Philip Borja. After staff_master rename, all shi
 | One-time repair endpoint | `db.py` `repair_staff_name_cascade()` + `main.py` `POST /api/admin/staff/repair_name_cascade` | Back-fills renames when cascade wasn't in place. Called once for Philip Borja→Philip Ore (deleted 1,434 duplicates, renamed 1,717 rows) |
 | Dedup endpoint | `db.py` `dedup_base_shift_normalized()` + `main.py` `POST /api/admin/staff/dedup_shifts` | Removes source_sheet_name duplicates in base_shift_normalized AND shift_published_rows |
 | Week view double-row bug | `main.py` `api_shifts_week()` | Added `_bc_norm()` to normalize branch codes ('Al Mina'↔'AM') before pub_branches filter — was allowing base+published rows for same staff simultaneously |
+| My Shift page double-row bug | `main.py` `_build_effective_staff_rows_for_day()` | Same `_bc_norm()` fix applied to this function (called by `api_shifts_my_month()`) — identical root cause was causing duplicates on the staff My Shift page (Heroku v1818) |
 | ValueError → HTTP 400 | `main.py` repair + dedup endpoints | Added `except ValueError` handler so bad input returns 400 not 500 |
 
 ### Artifact: Bilingual Usage Manual sidebar fix
@@ -30,6 +31,7 @@ Philip Ore was previously named Philip Borja. After staff_master rename, all shi
 - ✅ Week view Aug 24: Philip Ore shows "17-02(+1)"
 - ✅ Week view Aug 26-27: Philip Ore shows "16-01(+1)" on both days
 - ✅ Week API returns exactly 1 row per day for Philip Ore
+- ✅ My Shift API (`/api/shifts/my_month`): 0 duplicate days, all 31 working days show single row (confirmed via JS fetch after Heroku v1818 deploy)
 - ✅ dedup endpoint returns 200 with deleted counts
 - ✅ repair_name_cascade endpoint handles ValueError → 400
 
