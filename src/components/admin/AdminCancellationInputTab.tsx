@@ -25,6 +25,8 @@ interface CancelRecord {
   refund_amount: number | null;
   compensation_amount: number | null;
   pic_notes: string | null;
+  workflow_status: string | null;
+  no_refund_reason: string | null;
 }
 
 interface EditableRecord extends CancelRecord {
@@ -34,6 +36,7 @@ interface EditableRecord extends CancelRecord {
   comp_str: string;
   pic_notes_str: string;
   cancellation_reason_other: string;
+  no_refund_reason_str: string;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -81,6 +84,24 @@ const REFUND_STATUS_OPTIONS = [
   "Policy Exception Approved",
   "Others",
 ] as const;
+
+const WORKFLOW_STATUS_OPTIONS = [
+  "Waiting for Photo",
+  "Ticket Submitted",
+  "Waiting for Refund Confirmation",
+  "Refund Confirmed",
+  "No Refund",
+  "Completed",
+] as const;
+
+const WORKFLOW_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  "Waiting for Photo": { bg: "#f59e0b20", text: "#fbbf24" },
+  "Ticket Submitted": { bg: "#6366f120", text: "#a5b4fc" },
+  "Waiting for Refund Confirmation": { bg: "#f97316 20", text: "#fb923c" },
+  "Refund Confirmed": { bg: "#10b98120", text: "#34d399" },
+  "No Refund": { bg: "#ef444420", text: "#f87171" },
+  "Completed": { bg: "#22c55e20", text: "#86efac" },
+};
 
 const PLATFORM_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   GrabFood: { bg: "#00b14f15", text: "#4ade80", border: "#00b14f40" },
@@ -135,6 +156,9 @@ function emptyRecord(date: string): EditableRecord {
     ticket_status: "",
     recorded_by: "",
     refund_status: "",
+    workflow_status: null,
+    no_refund_reason: null,
+    no_refund_reason_str: "",
     saving: false,
     saved: false,
     error: null,
@@ -152,6 +176,7 @@ function dbToEditable(r: CancelRecord): EditableRecord {
     comp_str: r.compensation_amount != null ? String(r.compensation_amount) : "",
     pic_notes_str: r.pic_notes ?? "",
     cancellation_reason_other: "",
+    no_refund_reason_str: r.no_refund_reason ?? "",
     saving: false,
     saved: true,
     error: null,
@@ -361,7 +386,18 @@ function RecordCard({
   const [expanded, setExpanded] = useState(rec.isNew || !!highlighted);
   const cardRef = useRef<HTMLDivElement>(null);
   const ps = PLATFORM_STYLES[rec.platform] ?? PLATFORM_STYLES.GrabFood;
-  const hasMin = rec.order_no.trim() !== "" && rec.branch !== "" && rec.platform !== "";
+  const reasonOk = !!(rec.cancellation_reason?.trim());
+  const workflowCondOk =
+    rec.workflow_status !== "Refund Confirmed" || parseFloat(rec.refund_str.replace(/,/g, "")) > 0;
+  const noRefundCondOk =
+    rec.workflow_status !== "No Refund" || (rec.no_refund_reason_str?.trim() ?? "").length > 0;
+  const hasMin =
+    rec.order_no.trim() !== "" &&
+    rec.branch !== "" &&
+    rec.platform !== "" &&
+    reasonOk &&
+    workflowCondOk &&
+    noRefundCondOk;
   const price = parseFloat(rec.paid_price_str.replace(/,/g, ""));
 
   useEffect(() => {
@@ -405,6 +441,17 @@ function RecordCard({
             }`}
           >
             {rec.category}
+          </span>
+        ) : null}
+        {rec.workflow_status ? (
+          <span
+            className="hidden whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium sm:block"
+            style={{
+              backgroundColor: WORKFLOW_STATUS_COLORS[rec.workflow_status]?.bg ?? "#ffffff10",
+              color: WORKFLOW_STATUS_COLORS[rec.workflow_status]?.text ?? "#ffffff80",
+            }}
+          >
+            {rec.workflow_status}
           </span>
         ) : null}
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -511,7 +558,9 @@ function RecordCard({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Cancellation Reason</Label>
+              <Label>
+                Cancellation Reason <span className="text-red-400">*</span>
+              </Label>
               <SelectIn
                 value={rec.cancellation_reason ?? ""}
                 onChange={(v) => onUpdate("cancellation_reason", v)}
@@ -525,6 +574,9 @@ function RecordCard({
                   onChange={(v) => onUpdate("cancellation_reason_other", v)}
                   placeholder="Please specify…"
                 />
+              )}
+              {!reasonOk && rec.order_no.trim() !== "" && (
+                <p className="mt-1 text-xs text-red-400">Required before saving.</p>
               )}
             </div>
             <div>
@@ -540,7 +592,38 @@ function RecordCard({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Refund Amount (PHP)</Label>
+              <Label>Workflow Status</Label>
+              <SelectIn
+                value={rec.workflow_status ?? ""}
+                onChange={(v) => onUpdate("workflow_status", v || null)}
+                options={WORKFLOW_STATUS_OPTIONS}
+                placeholder="Select status…"
+                extraValues={rec.workflow_status && !WORKFLOW_STATUS_OPTIONS.includes(rec.workflow_status as (typeof WORKFLOW_STATUS_OPTIONS)[number]) ? [rec.workflow_status] : []}
+              />
+            </div>
+            {rec.workflow_status === "No Refund" && (
+              <div>
+                <Label>
+                  No Refund Reason <span className="text-red-400">*</span>
+                </Label>
+                <TextArea
+                  value={rec.no_refund_reason_str}
+                  onChange={(v) => onUpdate("no_refund_reason_str", v)}
+                  placeholder="Explain why no refund was issued…"
+                  rows={2}
+                />
+                {!noRefundCondOk && (
+                  <p className="mt-1 text-xs text-red-400">Required when status is No Refund.</p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>
+                Refund Amount (PHP)
+                {rec.workflow_status === "Refund Confirmed" && <span className="ml-1 text-red-400">*</span>}
+              </Label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -667,6 +750,19 @@ export default function AdminCancellationInputTab({
       setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "Approver name and PIN required" } : r)));
       return;
     }
+    // Mandatory field validation
+    if (!rec.cancellation_reason?.trim()) {
+      setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "Cancellation Reason is required." } : r)));
+      return;
+    }
+    if (rec.workflow_status === "Refund Confirmed" && !(parseFloat(rec.refund_str.replace(/,/g, "")) > 0)) {
+      setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "Refund Amount is required when status is Refund Confirmed." } : r)));
+      return;
+    }
+    if (rec.workflow_status === "No Refund" && !rec.no_refund_reason_str?.trim()) {
+      setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "No Refund Reason is required when status is No Refund." } : r)));
+      return;
+    }
     setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, saving: true, error: null } : r)));
     try {
       const price = parseFloat(rec.paid_price_str.replace(/,/g, ""));
@@ -693,6 +789,8 @@ export default function AdminCancellationInputTab({
         refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
         compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
         pic_notes: rec.pic_notes_str?.trim() || null,
+        workflow_status: rec.workflow_status?.trim() || null,
+        no_refund_reason: rec.no_refund_reason_str?.trim() || null,
       });
       if (data.record) {
         const row = data.record;
@@ -785,6 +883,8 @@ export default function AdminCancellationInputTab({
           refund_amount: (() => { const v = parseFloat(rec.refund_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
           compensation_amount: (() => { const v = parseFloat(rec.comp_str.replace(/,/g, "")); return Number.isNaN(v) ? null : v; })(),
           pic_notes: rec.pic_notes_str?.trim() || null,
+          workflow_status: rec.workflow_status?.trim() || null,
+          no_refund_reason: rec.no_refund_reason_str?.trim() || null,
         });
         if (data.record) {
           const row = data.record;

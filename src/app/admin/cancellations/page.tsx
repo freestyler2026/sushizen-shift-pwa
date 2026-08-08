@@ -54,6 +54,50 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
+async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
+  const request = async () =>
+    fetch(`${getApiBase()}${path}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  let res = await request();
+  let text = await res.text();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) { res = await request(); text = await res.text(); }
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); msg = j?.detail || j?.message || msg; } catch { if (text) msg = text; }
+    throw new Error(msg);
+  }
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+async function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
+  const request = async () =>
+    fetch(`${getApiBase()}${path}`, {
+      method: "PATCH",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(body),
+    });
+  let res = await request();
+  let text = await res.text();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) { res = await request(); text = await res.text(); }
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); msg = j?.detail || j?.message || msg; } catch { if (text) msg = text; }
+    throw new Error(msg);
+  }
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 // Unified row type used throughout the UI
@@ -81,6 +125,8 @@ type CancelRow = {
   platform_notes: string | null;
   refund_status: string | null;
   pic_notes: string | null;
+  workflow_status: string | null;
+  no_refund_reason: string | null;
 };
 
 // Shape returned by Manila API (different field names)
@@ -103,6 +149,8 @@ type ManilaApiRow = {
   recorded_by?: string | null;
   refund_status?: string | null;
   pic_notes?: string | null;
+  workflow_status?: string | null;
+  no_refund_reason?: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -135,6 +183,8 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     platform_notes: null,
     refund_status: r.refund_status ?? null,
     pic_notes: r.pic_notes ?? null,
+    workflow_status: r.workflow_status ?? null,
+    no_refund_reason: r.no_refund_reason ?? null,
   };
 }
 
@@ -185,6 +235,33 @@ function isResolved(refund_status: string | null): boolean {
 function isPending(row: CancelRow): boolean {
   return isTicketSent(row.email_status) && !isResolved(row.refund_status);
 }
+function isOverdue(row: CancelRow): boolean {
+  if (row.workflow_status === "Completed") return false;
+  if (!row.incident_date) return false;
+  return row.incident_date <= daysAgoIso(7);
+}
+
+const WORKFLOW_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  "Waiting for Photo": { bg: "#f59e0b1a", text: "#fbbf24" },
+  "Ticket Submitted": { bg: "#6366f11a", text: "#a5b4fc" },
+  "Waiting for Refund Confirmation": { bg: "#f973161a", text: "#fb923c" },
+  "Refund Confirmed": { bg: "#10b9811a", text: "#34d399" },
+  "No Refund": { bg: "#ef44441a", text: "#f87171" },
+  "Completed": { bg: "#22c55e1a", text: "#86efac" },
+};
+
+function WorkflowBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-white/20">—</span>;
+  const color = WORKFLOW_STATUS_COLORS[status] ?? { bg: "#ffffff10", text: "#ffffff60" };
+  return (
+    <span
+      className="inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold"
+      style={{ backgroundColor: color.bg, color: color.text }}
+    >
+      {status}
+    </span>
+  );
+}
 
 // ── Detail modal ──────────────────────────────────────────────────────────
 
@@ -194,12 +271,16 @@ function DetailModal({
   platformColors,
   branchColors,
   city,
+  canApproveHq,
+  onWorkflowUpdate,
 }: {
   row: CancelRow;
   onClose: () => void;
   platformColors: Record<string, string>;
   branchColors: Record<string, string>;
   city: "dubai" | "manila";
+  canApproveHq?: boolean;
+  onWorkflowUpdate?: (recordId: number, updates: Record<string, unknown>) => void;
 }) {
   const isCancel = row.category === "Cancellation";
   const pc = platformColors[row.platform] ?? "#888";
@@ -323,6 +404,43 @@ function DetailModal({
             <Field label="Refund Status" value={row.refund_status} />
           </div>
 
+          {/* Workflow Status (Manila) */}
+          {city === "manila" && (
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Workflow Status</p>
+                <WorkflowBadge status={row.workflow_status} />
+              </div>
+              {row.no_refund_reason && (
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">No Refund Reason</p>
+                  <p className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-sm text-white/80 whitespace-pre-wrap">
+                    {row.no_refund_reason}
+                  </p>
+                </div>
+              )}
+              {canApproveHq && row.workflow_status === "No Refund" && onWorkflowUpdate && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
+                  <span className="flex-1 text-xs text-amber-300">Pending HQ review — approve or revert this No Refund decision.</span>
+                  <button
+                    type="button"
+                    onClick={() => onWorkflowUpdate(row.id, { hq_action: "approved" })}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onWorkflowUpdate(row.id, { hq_action: "revert" })}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    Revert
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* PIC Notes */}
           {row.pic_notes && (
             <div>
@@ -416,6 +534,8 @@ export default function CancellationReportPage() {
   const auth = getAuth();
   const approverName = auth?.staffName || "";
   const pin = auth?.pin || "";
+  const userRole = auth?.role || "";
+  const canApproveHq = userRole === "HQ" || userRole === "ADMIN";
 
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [dateFrom, setDateFrom] = useState(daysAgoIso(30));
@@ -424,6 +544,11 @@ export default function CancellationReportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+
+  // Manila stats (no-refund pending, overdue)
+  const [noRefundPending, setNoRefundPending] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
+  const [syncMsg, setSyncMsg] = useState("");
 
   // Filters
   const [filterBranch, setFilterBranch] = useState("All");
@@ -506,6 +631,61 @@ export default function CancellationReportPage() {
 
   useEffect(() => { void fetchRecords(); }, [fetchRecords]);
 
+  // Fetch Manila stats when viewing Manila
+  useEffect(() => {
+    if (city !== "manila" || !canLoad) return;
+    const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
+    void apiGet<{ no_refund_pending?: number; overdue_count?: number }>(
+      `/api/admin/analytics/manila/cancellations/stats?${qs}`,
+    )
+      .then((r) => setNoRefundPending(r.no_refund_pending ?? 0))
+      .catch(() => { /* non-critical */ });
+  }, [city, canLoad, approverName, pin]);
+
+  const handleWorkflowUpdate = useCallback(
+    async (recordId: number, updates: Record<string, unknown>) => {
+      const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
+      try {
+        const updated = await apiPatch<{ ok?: boolean; record?: ManilaApiRow }>(
+          `/api/admin/analytics/manila/cancellations/${recordId}/workflow?${qs}`,
+          updates,
+        );
+        if (updated.record) {
+          const normalized = normalizeManilaRow(updated.record);
+          setRecords((prev) => prev.map((r) => (r.id === recordId ? normalized : r)));
+          setSelectedRow((prev) => (prev?.id === recordId ? normalized : prev));
+        }
+        // Refresh no-refund pending count
+        const statsQs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
+        void apiGet<{ no_refund_pending?: number }>(`/api/admin/analytics/manila/cancellations/stats?${statsQs}`)
+          .then((r) => setNoRefundPending(r.no_refund_pending ?? 0))
+          .catch(() => { /* ignore */ });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Workflow update failed");
+      }
+    },
+    [approverName, pin],
+  );
+
+  const handleGrabFinanceSync = async () => {
+    setSyncStatus("syncing");
+    setSyncMsg("");
+    const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
+    try {
+      const res = await apiPost<{ ok?: boolean; synced?: number; message?: string }>(
+        `/api/admin/analytics/manila/cancellations/grab-finance-sync?${qs}`,
+      );
+      setSyncStatus("done");
+      setSyncMsg(res.message ?? `Synced ${res.synced ?? 0} adjustment rows`);
+      setTimeout(() => setSyncStatus("idle"), 6000);
+      void fetchRecords();
+    } catch (e: unknown) {
+      setSyncStatus("error");
+      setSyncMsg(e instanceof Error ? e.message : "Sync failed");
+      setTimeout(() => setSyncStatus("idle"), 6000);
+    }
+  };
+
   // ── Filter + sort ────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
@@ -564,8 +744,9 @@ export default function CancellationReportPage() {
     const ticketSent = filtered.filter(r => isTicketSent(r.email_status)).length;
     const resolved = filtered.filter(r => isResolved(r.refund_status)).length;
     const pending = filtered.filter(r => isPending(r)).length;
-    return { totalRefund, total, ticketSent, resolved, pending };
-  }, [filtered]);
+    const overdue = city === "manila" ? filtered.filter(r => isOverdue(r)).length : 0;
+    return { totalRefund, total, ticketSent, resolved, pending, overdue };
+  }, [filtered, city]);
 
   // ── CSV download ─────────────────────────────────────────────────────────
 
@@ -618,6 +799,7 @@ export default function CancellationReportPage() {
     { key: "cancellation_reason", label: "Reason" },
     { key: "email_status",        label: "Ticket Status" },
     { key: "refund_status",       label: "Refund Status" },
+    ...(city === "manila" ? [{ key: "workflow_status" as SortKey, label: "Workflow" }] : []),
   ];
 
   return (
@@ -695,7 +877,7 @@ export default function CancellationReportPage() {
         )}
 
         {/* ── KPI Cards ──────────────────────────────────────────────────── */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <KpiCard
             icon={<span className="text-lg">💰</span>}
             label={city === "dubai" ? "Total Refund" : "Total Amount"}
@@ -732,6 +914,38 @@ export default function CancellationReportPage() {
             accent={kpi.pending > 0 ? "text-rose-400" : "text-white/40"}
           />
         </div>
+
+        {/* ── Manila-specific KPI row ────────────────────────────────────── */}
+        {city === "manila" && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            {kpi.overdue > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5">
+                <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+                <span className="text-sm font-semibold text-red-300">{kpi.overdue}</span>
+                <span className="text-xs text-red-400">records overdue (&gt;7 days, not completed)</span>
+              </div>
+            )}
+            {canApproveHq && noRefundPending > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+                <span className="text-sm font-semibold text-amber-300">{noRefundPending}</span>
+                <span className="text-xs text-amber-400">No Refund decisions pending HQ approval</span>
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {syncStatus === "done" && <span className="text-xs text-emerald-400">{syncMsg}</span>}
+              {syncStatus === "error" && <span className="text-xs text-red-400">{syncMsg}</span>}
+              <button
+                type="button"
+                onClick={() => void handleGrabFinanceSync()}
+                disabled={syncStatus === "syncing"}
+                className={`flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-50`}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncStatus === "syncing" ? "animate-spin" : ""}`} />
+                {syncStatus === "syncing" ? "Syncing…" : "Sync Grab Finance"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Filters ────────────────────────────────────────────────────── */}
         <div className={`${GLASS_CARD} mb-4 p-4`}>
@@ -841,12 +1055,12 @@ export default function CancellationReportPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-white/30">Loading…</td>
+                    <td colSpan={COLS.length + 1} className="px-4 py-8 text-center text-white/30">Loading…</td>
                   </tr>
                 )}
                 {!loading && sorted.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-white/25">
+                    <td colSpan={COLS.length + 1} className="px-4 py-8 text-center text-white/25">
                       {loaded ? "No records match the current filter." : "Select a date range and click Load."}
                     </td>
                   </tr>
@@ -854,14 +1068,16 @@ export default function CancellationReportPage() {
                 {!loading && sorted.map((r, i) => {
                   const isCancel = r.category === "Cancellation";
                   const rowPending = isPending(r);
+                  const rowOverdue = city === "manila" && isOverdue(r);
                   return (
                     <tr
                       key={r.id ?? i}
-                      className={`${TABLE_ROW} cursor-pointer ${rowPending ? "bg-rose-500/5" : ""}`}
+                      className={`${TABLE_ROW} cursor-pointer ${rowOverdue ? "bg-red-500/8 border-l-2 border-l-red-500/50" : rowPending ? "bg-rose-500/5" : ""}`}
                       onClick={() => setSelectedRow(r)}
                     >
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-white/50`}>
-                        {fmtDate(r.incident_date)}
+                        <span className={rowOverdue ? "text-red-400 font-semibold" : ""}>{fmtDate(r.incident_date)}</span>
+                        {rowOverdue && <AlertCircle className="ml-1 inline h-3 w-3 text-red-400" />}
                       </td>
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 font-mono text-white/60`}>
                         {r.order_id || <span className="text-white/20">—</span>}
@@ -903,6 +1119,11 @@ export default function CancellationReportPage() {
                           : <TextCell text={r.refund_status} />
                         }
                       </td>
+                      {city === "manila" && (
+                        <td className={`${TABLE_CELL} px-4`}>
+                          <WorkflowBadge status={r.workflow_status} />
+                        </td>
+                      )}
                       <td className={`${TABLE_CELL} px-3`} onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/admin?tab=${city === "dubai" ? "dubai-cancellation-input" : "cancellation-input"}&date=${r.incident_date}&order=${encodeURIComponent(r.order_id ?? "")}`}
@@ -929,6 +1150,8 @@ export default function CancellationReportPage() {
           platformColors={activePlatformColors}
           branchColors={activeBranchColors}
           city={city}
+          canApproveHq={canApproveHq}
+          onWorkflowUpdate={(id, updates) => void handleWorkflowUpdate(id, updates)}
         />
       )}
     </main>
