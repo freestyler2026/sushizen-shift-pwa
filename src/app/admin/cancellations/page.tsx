@@ -431,7 +431,7 @@ function DetailModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onWorkflowUpdate(row.id, { hq_action: "revert" })}
+                    onClick={() => onWorkflowUpdate(row.id, { hq_action: "reverted" })}
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                   >
                     Revert
@@ -672,11 +672,11 @@ export default function CancellationReportPage() {
     setSyncMsg("");
     const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
     try {
-      const res = await apiPost<{ ok?: boolean; synced?: number; message?: string }>(
+      const res = await apiPost<{ ok?: boolean; total_updated?: number; files_found?: number; total_not_found?: string[] }>(
         `/api/admin/analytics/manila/cancellations/grab-finance-sync?${qs}`,
       );
       setSyncStatus("done");
-      setSyncMsg(res.message ?? `Synced ${res.synced ?? 0} adjustment rows`);
+      setSyncMsg(`${res.files_found ?? 0} file(s) scanned · ${res.total_updated ?? 0} record(s) updated`);
       setTimeout(() => setSyncStatus("idle"), 6000);
       void fetchRecords();
     } catch (e: unknown) {
