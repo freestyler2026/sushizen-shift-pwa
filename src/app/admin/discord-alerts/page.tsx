@@ -6,7 +6,6 @@ import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
-  DANGER_BUTTON,
   TAB_ACTIVE,
   TAB_INACTIVE,
   T_PAGE_TITLE,
