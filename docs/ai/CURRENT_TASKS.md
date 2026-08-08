@@ -1,6 +1,47 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Store Procurement: Auto-Save draft banner fix)
+Last updated: 2026-08-08 (OS Attendance: Automated Period Reports)
+
+---
+
+## ✅ Completed: OS Attendance — Automated Period Reports (2026-08-08)
+
+**Frontend `7b77d7f` (Vercel) + Heroku v1804 `d9290f4`**
+
+### What was built
+Full-stack automated monthly/weekly attendance report system.
+
+**Backend (db.py)**
+- `attendance_reports` table: `id, city, report_type, period_start, period_end, generated_at, report_data JSONB`, UNIQUE(city, report_type, period_start, period_end)
+- `generate_attendance_report(city, period_start, period_end)`: 3 independent `get_conn()` calls (CLAUDE.md lesson 7):
+  1. Query sessions with computed `late_minutes` via SQL EPOCH math (no stored column)
+  2. Query no-shows (shift scheduled but no session + not in absences)
+  3. Upsert result — ON CONFLICT DO UPDATE
+  - Aggregates by staff: late_count, avg_late_min, no_show_count, out_of_range_count, session_count, total_hours, flags[], nte_recommended
+  - NTE thresholds: late ≥5 → NTE, late ≥3 → warn, no_show ≥2 → NTE, GPS ≥3 → flag
+  - Also aggregates by branch
+- `list_attendance_reports()` + `get_attendance_report()` helpers
+
+**Backend (main.py)** — inserted BEFORE `{session_id}` param route (FastAPI ordering):
+- `POST /api/admin/attendance/reports/generate` (Pydantic body: city, period_start, period_end)
+- `GET /api/admin/attendance/reports?city=&report_type=&limit=`
+- `GET /api/admin/attendance/reports/{report_id}`
+- `GET /api/admin/attendance/reports/{report_id}/csv` → StreamingResponse
+
+**scripts/attendance_report_job.py** (Heroku Scheduler):
+- Run daily. PHT timezone. Detects: day 1/2 → monthly (prev month), Monday → weekly (prev week)
+- Both Manila + Dubai generated, Discord notification via `send_discord_message(city, msg)`
+- Heroku Scheduler command: `python scripts/attendance_report_job.py`
+- Manual override: `python scripts/attendance_report_job.py 2026-07-01 2026-07-31`
+
+**Frontend (os-attendance/page.tsx)**
+- `ReportsTab` component: Generate panel (date pickers + Generate button), All/Monthly/Weekly filter, reports list table, clickable row expansion with per-branch summary + per-staff table (color-coded NTE rows), CSV download
+- Tab button "📊 Reports" added to the tab bar
+
+### ⚠️ Heroku Scheduler — Manual Step Required
+The job script is deployed but needs to be registered in Heroku Scheduler:
+1. Go to Heroku Dashboard → sushizen-shift-app → Add-ons → Heroku Scheduler
+2. Add job: `python scripts/attendance_report_job.py` at 02:30 UTC daily (= 10:30 PHT / 06:30 GST)
 
 ---
 
