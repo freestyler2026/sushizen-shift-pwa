@@ -1,6 +1,49 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (OS Attendance: Automated Period Reports)
+Last updated: 2026-08-08 (Store Supplier Orders module)
+
+---
+
+## ✅ Completed: Store Supplier Orders (2026-08-08)
+
+**Frontend `e19b42d` (Vercel) + Heroku v1807 `fd6bbad`**
+
+### What was built
+Full-stack Store Supplier Orders module — Manila only (PAR/CUB/TAFT stores).
+Automates daily supplier ordering from store Daily Inventory par levels.
+
+**Backend**
+- `db_store_supplier.py`: 3 new tables:
+  - `store_supplier_catalog` — per-store item/supplier/par level catalog (UNIQUE on store+item_code+supplier_name)
+  - `store_supplier_orders` — order headers, status flow: draft→confirmed→sent→received/partial/issue
+  - `store_supplier_order_items` — line items with qty_ordered, qty_received, receive_note
+  - `generate_store_supplier_orders(store, order_date)`: reads latest SUBMITTED daily_inv_entries, groups gaps by supplier, creates draft orders (skips if already exists)
+  - `get_supplier_performance()`: 90-day on-time rate stats
+- `store_supplier_api.py`: 10 endpoints under `/api/admin/store-supplier/`
+  - Role-gated: STAFF can view orders + receive; MANILA_MANAGEMENT+ can manage/generate/delete
+- `scripts/gen_store_supplier_orders.py`: daily scheduler at 22:00 UTC (06:00 PHT) for PAR/CUB/TAFT, sends Manila Discord
+- `main.py`: import + include_router for store_supplier_router
+- `access_control.py`: 4 new channels (admin.store_par_levels, admin.store_supplier_orders, store_supplier_receiving) + permissions + DEFAULT_ROLE_GRANTS for MANILA_MANAGEMENT and STAFF
+
+**Frontend**
+- `/admin/store-par-levels/page.tsx` — catalog management (add/edit/delete items per store, grouped by supplier)
+- `/admin/store-supplier-orders/page.tsx` — order management: Generate Now button, date+status filters, expandable order rows, status transitions (confirm/send), Supplier Performance tab (90-day on-time rate)
+- `/store/supplier-receiving/page.tsx` — staff-facing receiving form: shows today's sent orders, per-item qty_received + condition (OK/Partial/Issue) + note, submit sets order status
+- NavBar: Store Par Levels + Store Supplier Orders (admin section), Supplier Receiving (store section)
+
+### ⚠️ Heroku Scheduler — Manual Step Required
+Register in Heroku Scheduler:
+1. Heroku Dashboard → sushizen-shift-app → Add-ons → Heroku Scheduler
+2. Add job: `python scripts/gen_store_supplier_orders.py` at 22:00 UTC daily (= 06:00 PHT)
+
+### ⚠️ Role Management — Manual Step Required
+After deployment, go to Admin → Role Management → "Resync System Channels" to register the 4 new channels in DB, then assign permissions to custom roles as needed.
+
+### Design notes
+- Separate `store_supplier_catalog` (not reusing `daily_inv_report_items`) because par levels differ per store
+- Branch code mapping: PAR→PARANAQUE, CUB→CUBAO, TAFT→TAFT (matches `daily_inv_reports.branch`)
+- STAFF can receive (store floor handles delivery); MANILA_MANAGEMENT gates create/confirm/send
+- Manual "Generate Now" button added alongside scheduler auto-gen (matches CK Par Level UX pattern)
 
 ---
 
