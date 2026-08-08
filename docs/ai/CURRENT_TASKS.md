@@ -1,6 +1,15 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Discord Late Alert — handler confirmation DM fix verified, no bugs found)
+Last updated: 2026-08-08 (Manila Edit DTR — Break (min) field added)
+
+---
+
+## ✅ Completed: Manila Edit DTR — Break (min) Field (2026-08-08)
+
+**Frontend `40f85a3` (Vercel)**
+
+Edit DTRモーダルに「Break (min)」列を追加。`actual_break_minutes` をUI上から直接編集できるようになった。空欄 = NULL（システムデフォルト60分を使用）。
+- Jerryboy 7/19のような生体認証エラーで異常な休憩時間が記録された場合、DBを直接操作せず修正可能になった
 
 ---
 
