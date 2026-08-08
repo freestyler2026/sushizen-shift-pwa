@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (PO Match Pending Queue — statement timeout bug fixed and full end-to-end verified)
+Last updated: 2026-08-08 (Discord Late Alert — handler confirmation DM fix verified, no bugs found)
+
+---
+
+## ✅ Completed: Discord Late Alert — Handler Confirmation DM (2026-08-08)
+
+**Heroku v1802** (`late_alert_service.py`)
+
+### 変更内容
+`handle_late_alert_ack_from_discord()` で "I'll handle it" を送ったユーザー本人にも確認DMを送るよう変更。
+- `_build_acknowledged_message()` に `for_handler: bool = False` 引数追加
+- `for_handler=True` 時は `✅ **Handled** *(you)*` プレフィックスで送信
+- 本人スキップの `continue` を削除 → 全recipientにDM送信（本人は `*(you)*` ラベル付き）
+
+### テスト・検証
+- 全呼び出し元確認: `late_alert_service.py` (2箇所) / `main.py` UI承認パス (backward compatible, `for_handler` 不要)
+- エッジケース確認: handler が dm_list にいない場合、空の dm_list、競合ack、マルチシティ日付
+- Heroku ログでエラーなし確認済み
 
 ---
 
