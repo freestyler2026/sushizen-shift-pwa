@@ -115,6 +115,7 @@ const SMALL_LINK =
 export default function StoreProcurementRequestPage() {
   const LAST_CREATED_REQUEST_KEY = "store_procurement_last_created_request";
   const LAST_CREATED_REQUEST_ITEMS_KEY = "store_procurement_last_created_request_items";
+  const DRAFT_KEY = "store_procurement_draft";
   const LAST_CREATED_MAX_AGE_MS = getRecentBadgeMaxAgeMs();
   const relativeNowMs = useRelativeAgeNow();
   const auth = useMemo(() => getAuth(), []);
@@ -159,6 +160,10 @@ export default function StoreProcurementRequestPage() {
   // Daily inventory on-hand quantities: item_name (lowercase) → qty
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [stockReportDate, setStockReportDate] = useState<string>("");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftRef = useRef<{ storeCode: string; city: string; purchaseType: string; urgentFlag: boolean; requestDate: string; qtyMap: Record<string, number> } | null>(null);
+  const draftAppliedRef = useRef(false);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addCatalogItemFn = async () => {
     if (!addItemName.trim()) { setAddCatalogError("Item name is required."); return; }
     if (!addSupplier.trim()) { setAddCatalogError("Supplier is required."); return; }
@@ -821,6 +826,9 @@ export default function StoreProcurementRequestPage() {
         // Clear all quantities so the form resets to blank after submit,
         // preventing accidental double-submission.
         setItems((prev) => prev.map((item) => ({ ...item, qty: 0 })));
+        // Clear the auto-saved draft so it doesn't restore on next visit
+        try { window.localStorage.removeItem(DRAFT_KEY); } catch {}
+        setDraftRestored(false);
       } else {
         setInfo(`Request created as draft: ${requestNo || requestId}`);
       }
@@ -898,6 +906,12 @@ export default function StoreProcurementRequestPage() {
               setStoreCode(codeMap.get(reqStore.toUpperCase()) ?? reqStore);
             }
           } catch { /* badge is still shown even on fetch failure */ }
+        } else {
+          // Not in edit mode — load any saved draft for later restoration in the catalog mapping effect
+          try {
+            const raw = window.localStorage.getItem(DRAFT_KEY);
+            if (raw) draftRef.current = JSON.parse(raw);
+          } catch {}
         }
       }
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
@@ -955,6 +969,7 @@ export default function StoreProcurementRequestPage() {
   }, [loadItemCatalog, requestDate, selectedCatalogCategory, storeCode]);
 
   useEffect(() => {
+    let draftWasApplied = false;
     setItems((prev) => {
       const prevMap = new Map(prev.map((item) => [String(item.row_key || ""), item]));
       // Fallback lookup by name+vendor for items whose row_key shifted due to catalog reload
@@ -995,6 +1010,14 @@ export default function StoreProcurementRequestPage() {
             spec: editItem.spec || item.spec,
           };
         }
+        // Draft restore from localStorage (only on first catalog load, skipped in edit mode)
+        if (!draftAppliedRef.current && draftRef.current) {
+          const draftQty = draftRef.current.qtyMap?.[String(item.row_key || "")];
+          if (draftQty && Number(draftQty) > 0) {
+            draftWasApplied = true;
+            return { ...item, qty: Number(draftQty) };
+          }
+        }
         return item;
       });
 
@@ -1027,6 +1050,10 @@ export default function StoreProcurementRequestPage() {
 
       return fallbackRows.length > 0 ? [...catalogMapped, ...fallbackRows] : catalogMapped;
     });
+    if (draftWasApplied && !draftAppliedRef.current) {
+      draftAppliedRef.current = true;
+      setDraftRestored(true);
+    }
     // NOTE: Do NOT reset showSubmitReview / reviewMode here.
     // Catalog reloads are async — closing the review panel here would cause the active
     // review to disappear mid-session, leaving only the stale lastCreatedItems box visible.
@@ -1069,6 +1096,34 @@ export default function StoreProcurementRequestPage() {
     void loadDailyInventoryStock();
   }, [loadDailyInventoryStock]);
 
+  // Auto-save in-progress quantities to localStorage so AutoReload / page refresh doesn't lose data.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (editRequestId) return; // Don't overwrite draft in edit mode
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => {
+      try {
+        const qtyMap: Record<string, number> = {};
+        items.forEach((item) => {
+          if (item.row_key && Number(item.qty ?? 0) > 0) {
+            qtyMap[String(item.row_key)] = Number(item.qty);
+          }
+        });
+        if (Object.keys(qtyMap).length === 0) {
+          window.localStorage.removeItem(DRAFT_KEY);
+          return;
+        }
+        window.localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({ storeCode, city, purchaseType, urgentFlag, requestDate, qtyMap }),
+        );
+      } catch {}
+    }, 500);
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [items, storeCode, city, purchaseType, urgentFlag, requestDate, editRequestId, DRAFT_KEY]);
+
   return (
     <div className={PAGE_BG}>
       <div className={`mx-auto max-w-7xl space-y-4 px-4 py-8${validItems.length > 0 || showSubmitReview ? " pb-28" : ""}`}>
@@ -1079,6 +1134,24 @@ export default function StoreProcurementRequestPage() {
           <span className="shrink-0">⚠</span>
           <span className="flex-1">Changing the date reloads the catalog — some entered quantities may be reset.</span>
           <button type="button" onClick={() => setShowDateWarning(false)} className="shrink-0 text-amber-400 hover:text-amber-200">✕</button>
+        </div>
+      ) : null}
+      {draftRestored ? (
+        <div className="flex items-center gap-2 rounded-xl border border-violet-700/50 bg-violet-950/30 px-3 py-2 text-sm text-violet-200">
+          <span className="shrink-0">↩</span>
+          <span className="flex-1">Draft restored — quantities from your previous session have been applied.</span>
+          <button
+            type="button"
+            onClick={() => {
+              try { window.localStorage.removeItem(DRAFT_KEY); } catch {}
+              draftRef.current = null;
+              setDraftRestored(false);
+              setItems((prev) => prev.map((item) => ({ ...item, qty: 0 })));
+            }}
+            className="shrink-0 rounded-lg border border-violet-500/30 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-900/40"
+          >
+            Discard
+          </button>
         </div>
       ) : null}
       {lastCreatedRequestId && !showSubmitReview ? (

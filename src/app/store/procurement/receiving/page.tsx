@@ -127,10 +127,11 @@ export default function StoreProcurementReceivingPage() {
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedAt, setLastCreatedAt] = useState("");
 
-  // Invoice photo
+  // Invoice photos (up to 5 — first is primary, rest go to extra-photo endpoint)
+  const MAX_PHOTOS = 5;
   const invoicePhotoInputRef = useRef<HTMLInputElement | null>(null);
-  const [invoicePhotoFile, setInvoicePhotoFile] = useState<File | null>(null);
-  const [invoicePhotoPreview, setInvoicePhotoPreview] = useState("");
+  const [invoiceFiles, setInvoiceFiles] = useState<(File | null)[]>([]);
+  const [invoicePreviewUrls, setInvoicePreviewUrls] = useState<string[]>([]);
   const [invoicePhotoUploading, setInvoicePhotoUploading] = useState(false);
 
   // UI state
@@ -253,44 +254,52 @@ export default function StoreProcurementReceivingPage() {
 
   function handleInvoicePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] || null;
-    setInvoicePhotoFile(f);
-    if (f) {
-      setInvoicePhotoPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return URL.createObjectURL(f);
-      });
-    } else {
-      setInvoicePhotoPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return "";
-      });
-    }
+    if (f) addInvoicePhoto(f);
   }
 
-  function clearInvoicePhoto() {
-    setInvoicePhotoFile(null);
-    setInvoicePhotoPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return "";
-    });
+  function addInvoicePhoto(file: File) {
+    const nonNull = invoiceFiles.filter((f): f is File => f !== null);
+    if (nonNull.length >= MAX_PHOTOS) return;
+    const url = URL.createObjectURL(file);
+    setInvoiceFiles((prev) => [...prev.filter((f) => f !== null), file]);
+    setInvoicePreviewUrls((prev) => [...prev, url]);
     if (invoicePhotoInputRef.current) invoicePhotoInputRef.current.value = "";
   }
 
-  async function uploadInvoicePhoto(receivingId: string): Promise<void> {
-    if (!invoicePhotoFile) return;
+  function removeInvoicePhoto(idx: number) {
+    setInvoiceFiles((prev) => prev.filter((_, i) => i !== idx));
+    setInvoicePreviewUrls((prev) => {
+      const removed = prev[idx];
+      if (removed) URL.revokeObjectURL(removed);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  function clearAllInvoicePhotos() {
+    invoicePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    setInvoiceFiles([]);
+    setInvoicePreviewUrls([]);
+    if (invoicePhotoInputRef.current) invoicePhotoInputRef.current.value = "";
+  }
+
+  async function uploadAllInvoicePhotos(receivingId: string): Promise<void> {
+    const files = invoiceFiles.filter((f): f is File => f !== null);
+    if (files.length === 0) return;
     setInvoicePhotoUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("approver_name", requestedBy.trim());
-      formData.append("pin", pin.trim());
-      formData.append("file", invoicePhotoFile);
-      const res = await fetch(`/api/admin/procurement/receiving/${encodeURIComponent(receivingId)}/invoice-photo`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(String((err as { detail?: string }).detail || "Photo upload failed"));
+      for (let i = 0; i < files.length; i++) {
+        const endpoint = i === 0
+          ? `/api/admin/procurement/receiving/${encodeURIComponent(receivingId)}/invoice-photo`
+          : `/api/admin/procurement/receiving/${encodeURIComponent(receivingId)}/extra-photo`;
+        const formData = new FormData();
+        formData.append("approver_name", requestedBy.trim());
+        formData.append("pin", pin.trim());
+        formData.append("file", files[i]);
+        const res = await fetch(endpoint, { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(String((err as { detail?: string }).detail || `Photo ${i + 1} upload failed`));
+        }
       }
     } finally {
       setInvoicePhotoUploading(false);
@@ -449,11 +458,12 @@ export default function StoreProcurementReceivingPage() {
       setFormError("");
       setInfo(createdNo ? `Receiving created: ${createdNo}` : "Receiving created.");
       setNotes("");
-      if (createdId && invoicePhotoFile) {
+      if (createdId && invoiceFiles.filter((f) => f !== null).length > 0) {
         try {
-          await uploadInvoicePhoto(createdId);
-          setInfo((prev) => prev + " · Invoice photo uploaded.");
-          clearInvoicePhoto();
+          await uploadAllInvoicePhotos(createdId);
+          const photoCount = invoiceFiles.filter((f) => f !== null).length;
+          setInfo((prev) => prev + ` · ${photoCount} invoice photo${photoCount > 1 ? "s" : ""} uploaded.`);
+          clearAllInvoicePhotos();
         } catch (photoErr: any) {
           setInfo((prev) => prev + ` (Photo upload failed: ${String(photoErr?.message || photoErr)})`);
         }
@@ -1241,28 +1251,43 @@ export default function StoreProcurementReceivingPage() {
                   />
                 </div>
 
-                {/* Invoice photo */}
+                {/* Invoice photos (up to 5) */}
                 <div className="mb-4">
-                  <label className="mb-1 block text-[11px] font-medium text-zinc-400">Invoice Photo <span className="text-red-400">*</span></label>
-                  {invoicePhotoPreview ? (
-                    <div className="relative overflow-hidden rounded-xl border border-violet-500/30 bg-black/20">
-                      <img src={invoicePhotoPreview} alt="Invoice preview" className="max-h-48 w-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={clearInvoicePhoto}
-                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                  <label className="mb-1 block text-[11px] font-medium text-zinc-400">
+                    Invoice Photo <span className="text-red-400">*</span>
+                    <span className="ml-1 text-zinc-500">({invoicePreviewUrls.length}/{MAX_PHOTOS})</span>
+                  </label>
+                  {invoicePreviewUrls.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {invoicePreviewUrls.map((url, idx) => (
+                        <div key={idx} className="relative">
+                          <img
+                            src={url}
+                            alt={`Invoice photo ${idx + 1}`}
+                            className="h-20 w-20 rounded-xl border border-violet-500/30 bg-black/20 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeInvoicePhoto(idx)}
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90 transition"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                          {idx === 0 && (
+                            <span className="absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[9px] text-violet-300">primary</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ) : (
+                  )}
+                  {invoicePreviewUrls.length < MAX_PHOTOS && (
                     <button
                       type="button"
                       onClick={() => invoicePhotoInputRef.current?.click()}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-violet-500/30 bg-violet-950/15 py-3 text-sm text-violet-300 transition hover:border-violet-500/50 hover:bg-violet-950/25"
                     >
                       <Camera className="h-4 w-4" />
-                      Take / Select Invoice Photo
+                      {invoicePreviewUrls.length === 0 ? "Take / Select Invoice Photo" : `Add Another Photo (${MAX_PHOTOS - invoicePreviewUrls.length} remaining)`}
                     </button>
                   )}
                   <input
@@ -1342,7 +1367,7 @@ export default function StoreProcurementReceivingPage() {
                 ) : null}
 
                 {/* Submit button */}
-                {computedTotals.checkedCount > 0 && !invoicePhotoPreview && (
+                {computedTotals.checkedCount > 0 && invoicePreviewUrls.length === 0 && (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
                     <Camera className="h-3.5 w-3.5 shrink-0" />
                     Invoice photo required before recording delivery.
@@ -1351,7 +1376,7 @@ export default function StoreProcurementReceivingPage() {
                 <button
                   type="button"
                   onClick={() => void createReceiving()}
-                  disabled={busy === "create" || invoicePhotoUploading || computedTotals.checkedCount === 0 || !invoicePhotoPreview}
+                  disabled={busy === "create" || invoicePhotoUploading || computedTotals.checkedCount === 0 || invoicePreviewUrls.length === 0}
                   className={`w-full ${BTN_PRIMARY}`}
                 >
                   {invoicePhotoUploading ? (
@@ -1366,7 +1391,7 @@ export default function StoreProcurementReceivingPage() {
                     <span className="flex items-center justify-center gap-2">
                       <Package className="h-4 w-4" />
                       Record Delivery ({computedTotals.checkedCount} items, {computedTotals.qtyReceived.toFixed(1)} units)
-                      {invoicePhotoFile ? <Camera className="h-3.5 w-3.5 opacity-70" /> : null}
+                      {invoicePreviewUrls.length > 0 ? <Camera className="h-3.5 w-3.5 opacity-70" /> : null}
                     </span>
                   )}
                 </button>
