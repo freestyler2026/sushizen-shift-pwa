@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2,
-  BarChart2,
+  BarChart2, ShieldCheck,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -22,14 +22,14 @@ import {
   BADGE_INFO,
   KPI_CARD,
 } from "@/lib/ui-tokens";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, getAuth } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 
 const STORES = ["PAR", "CUB", "TAFT"] as const;
 type Store = (typeof STORES)[number];
 const STORE_LABELS: Record<Store, string> = { PAR: "Paranaque", CUB: "Cubao", TAFT: "Taft" };
 
-type OrderStatus = "draft" | "confirmed" | "sent" | "received" | "partial" | "issue";
+type OrderStatus = "draft" | "confirmed" | "approved" | "sent" | "received" | "partial" | "issue";
 
 interface OrderListItem {
   id: number;
@@ -76,6 +76,7 @@ type Tab = "orders" | "performance";
 const STATUS_STYLE: Record<OrderStatus, string> = {
   draft: BADGE_INFO,
   confirmed: "inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 border border-blue-500/25 px-2.5 py-0.5 text-xs font-medium text-blue-300",
+  approved: "inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-300",
   sent: "inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/25 px-2.5 py-0.5 text-xs font-medium text-amber-300",
   received: BADGE_SUCCESS,
   partial: BADGE_WARNING,
@@ -85,19 +86,18 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
 const STATUS_ICON: Record<OrderStatus, React.ReactNode> = {
   draft: <Clock className="h-3 w-3" />,
   confirmed: <CheckCircle className="h-3 w-3" />,
+  approved: <ShieldCheck className="h-3 w-3" />,
   sent: <Send className="h-3 w-3" />,
   received: <PackageCheck className="h-3 w-3" />,
   partial: <PackageX className="h-3 w-3" />,
   issue: <AlertTriangle className="h-3 w-3" />,
 };
 
-const STATUS_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  draft: ["confirmed"],
-  confirmed: ["sent"],
-  sent: [],
-};
-
 export default function StoreSupplierOrdersPage() {
+  const auth = getAuth();
+  const userRole = (auth?.role ?? "").toUpperCase();
+  const canApprove = userRole === "HQ" || userRole === "ADMIN";
+
   const [tab, setTab] = useState<Tab>("orders");
   const [store, setStore] = useState<Store>("PAR");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -307,6 +307,7 @@ export default function StoreSupplierOrdersPage() {
                 <option value="all">All Statuses</option>
                 <option value="draft">Draft</option>
                 <option value="confirmed">Confirmed</option>
+                <option value="approved">Approved</option>
                 <option value="sent">Sent</option>
                 <option value="received">Received</option>
                 <option value="partial">Partial</option>
@@ -385,16 +386,44 @@ export default function StoreSupplierOrdersPage() {
                             </div>
 
                             {/* Action buttons */}
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {(STATUS_TRANSITIONS[order.status] ?? []).map((nextStatus) => (
+                            <div className="flex flex-wrap gap-2 pt-1 items-center">
+                              {/* draft → confirmed (any manager) */}
+                              {order.status === "draft" && (
                                 <button
-                                  key={nextStatus}
-                                  onClick={() => handleStatusChange(order.id, nextStatus)}
-                                  className={PRIMARY_BUTTON + " text-sm py-1.5 px-3"}
+                                  onClick={() => handleStatusChange(order.id, "confirmed")}
+                                  className={PRIMARY_BUTTON + " text-sm py-1.5 px-3 flex items-center gap-1.5"}
                                 >
-                                  Mark as {nextStatus}
+                                  <CheckCircle className="h-3.5 w-3.5" /> Mark as Confirmed
                                 </button>
-                              ))}
+                              )}
+
+                              {/* confirmed → approved: HQ/ADMIN only */}
+                              {order.status === "confirmed" && canApprove && (
+                                <button
+                                  onClick={() => handleStatusChange(order.id, "approved")}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium py-1.5 px-3 transition-colors"
+                                >
+                                  <ShieldCheck className="h-3.5 w-3.5" /> Approve
+                                </button>
+                              )}
+                              {/* confirmed: non-HQ sees waiting label */}
+                              {order.status === "confirmed" && !canApprove && (
+                                <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium py-1.5 px-3">
+                                  <Clock className="h-3.5 w-3.5" /> Awaiting HQ Approval
+                                </span>
+                              )}
+
+                              {/* approved → sent (any manager) */}
+                              {order.status === "approved" && (
+                                <button
+                                  onClick={() => handleStatusChange(order.id, "sent")}
+                                  className={PRIMARY_BUTTON + " text-sm py-1.5 px-3 flex items-center gap-1.5"}
+                                >
+                                  <Send className="h-3.5 w-3.5" /> Mark as Sent
+                                </button>
+                              )}
+
+                              {/* Delete draft */}
                               {order.status === "draft" && (
                                 deleteConfirm === order.id ? (
                                   <div className="flex items-center gap-2">
