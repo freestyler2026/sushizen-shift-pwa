@@ -80,6 +80,7 @@ type AttendanceRow = {
   paid_leave_flag: boolean;
   period_id: number | null;
   approved_ot_hours: number | null;
+  actual_break_minutes: number | null;
 };
 
 type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION";
@@ -189,7 +190,7 @@ function DTRModal({
   const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState("");
   // editing state: work_date → {time_in, time_out, day_type}
-  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string; break_minutes: string }>>({});
 
   const loadRows = useCallback(() => {
     setLoading(true);
@@ -197,7 +198,7 @@ function DTRModal({
       .then(r => r.json())
       .then(d => {
         setRows(d as AttendanceRow[]);
-        const initial: Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string }> = {};
+        const initial: Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string; break_minutes: string }> = {};
         (d as AttendanceRow[]).forEach(row => {
           initial[row.work_date] = {
             time_in:  isoToManilaInput(row.actual_time_in),
@@ -205,6 +206,7 @@ function DTRModal({
             day_type: row.day_type,
             late_minutes: String(row.late_minutes ?? 0),
             approved_ot_hours: row.approved_ot_hours != null ? String(row.approved_ot_hours) : "",
+            break_minutes: row.actual_break_minutes != null ? String(row.actual_break_minutes) : "",
           };
         });
         setEdits(initial);
@@ -261,6 +263,7 @@ function DTRModal({
         period_id:  row.period_id ?? periodId,
         approval_status: "approved",
         approved_ot_hours: ed.approved_ot_hours !== "" ? parseFloat(ed.approved_ot_hours) : null,
+        actual_break_minutes: ed.break_minutes !== "" ? parseInt(ed.break_minutes, 10) : null,
       };
       const r = await apiFetch(
         `${API}/attendance/${encodeURIComponent(run.staff_name)}/${row.work_date}`,
@@ -269,7 +272,7 @@ function DTRModal({
       if (!r.ok) throw new Error(await r.text());
       const updated = await r.json() as AttendanceRow;
       setRows(prev => prev.map(x => x.work_date === row.work_date ? { ...x, ...updated } : x));
-      setEdits(prev => ({ ...prev, [row.work_date]: { ...prev[row.work_date], day_type: updated.day_type } }));
+      setEdits(prev => ({ ...prev, [row.work_date]: { ...prev[row.work_date], day_type: updated.day_type, break_minutes: updated.actual_break_minutes != null ? String(updated.actual_break_minutes) : "" } }));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -304,7 +307,7 @@ function DTRModal({
       setRows(prev => [...prev, created].sort((a, b) => a.work_date.localeCompare(b.work_date)));
       setEdits(prev => ({
         ...prev,
-        [workDate]: { time_in: "", time_out: "", day_type: created.day_type, late_minutes: "0", approved_ot_hours: "" },
+        [workDate]: { time_in: "", time_out: "", day_type: created.day_type, late_minutes: "0", approved_ot_hours: "", break_minutes: "" },
       }));
     } catch (e) {
       setError(String(e));
@@ -369,6 +372,7 @@ function DTRModal({
                   <th className="py-2 text-left font-medium">Time In</th>
                   <th className="py-2 text-left font-medium">Time Out</th>
                   <th className="py-2 text-left font-medium w-16" title="Late arrival in minutes">Late (min)</th>
+                  <th className="py-2 text-left font-medium w-16" title="Actual break duration in minutes (blank = use system default 60 min)">Break (min)</th>
                   <th className="py-2 text-left font-medium w-16" title="Approved overtime hours">OT Appr. (h)</th>
                   <th className="py-2 text-center font-medium">Action</th>
                 </tr>
@@ -411,7 +415,7 @@ function DTRModal({
                   }
 
                   // Existing row — show editable fields
-                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "", day_type: row.day_type, late_minutes: String(row.late_minutes ?? 0), approved_ot_hours: row.approved_ot_hours != null ? String(row.approved_ot_hours) : "" };
+                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "", day_type: row.day_type, late_minutes: String(row.late_minutes ?? 0), approved_ot_hours: row.approved_ot_hours != null ? String(row.approved_ot_hours) : "", break_minutes: row.actual_break_minutes != null ? String(row.actual_break_minutes) : "" };
                   const isSaving = saving === row.work_date;
                   const currentDayType = ed.day_type;
 
@@ -483,6 +487,21 @@ function DTRModal({
                           }))}
                           className="w-14 rounded border border-white/10 bg-slate-800 px-1.5 py-1 text-white text-xs focus:border-amber-500/60 focus:outline-none"
                           placeholder="0"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="480"
+                          step="1"
+                          value={ed.break_minutes}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], break_minutes: e.target.value }
+                          }))}
+                          className="w-14 rounded border border-white/10 bg-slate-800 px-1.5 py-1 text-white text-xs focus:border-teal-500/60 focus:outline-none"
+                          placeholder="60"
                         />
                       </td>
                       <td className="py-2 pr-2">
