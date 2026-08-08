@@ -1,6 +1,116 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (CK Production Plan — 5 features: 3-Stage Status, Delivery Date, Readiness Tab, Red Alert, Delivery Eval)
+Last updated: 2026-08-08 (Philip Ore name cascade fix + Week view branch dedup)
+
+---
+
+## ✅ Completed: Philip Ore Name Cascade + Week View Duplicate Fix (2026-08-08)
+
+**Heroku v1815–1818 (backend only — no frontend deploy needed)**
+
+### Root Cause
+Philip Ore was previously named Philip Borja. After staff_master rename, all shift tables still held the old name, causing shifts to "disappear". Manual re-entry created duplicate records under the new name.
+
+### Fixes Applied
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Cascade rename on name change | `db.py` `update_staff_branch_name()` | Now DELETEs new_name rows first, then UPDATEs old→new in all 7 shift tables atomically |
+| One-time repair endpoint | `db.py` `repair_staff_name_cascade()` + `main.py` `POST /api/admin/staff/repair_name_cascade` | Back-fills renames when cascade wasn't in place. Called once for Philip Borja→Philip Ore (deleted 1,434 duplicates, renamed 1,717 rows) |
+| Dedup endpoint | `db.py` `dedup_base_shift_normalized()` + `main.py` `POST /api/admin/staff/dedup_shifts` | Removes source_sheet_name duplicates in base_shift_normalized AND shift_published_rows |
+| Week view double-row bug | `main.py` `api_shifts_week()` | Added `_bc_norm()` to normalize branch codes ('Al Mina'↔'AM') before pub_branches filter — was allowing base+published rows for same staff simultaneously |
+| ValueError → HTTP 400 | `main.py` repair + dedup endpoints | Added `except ValueError` handler so bad input returns 400 not 500 |
+
+### Artifact: Bilingual Usage Manual sidebar fix
+- URL: https://claude.ai/code/artifact/456efe4e-21d3-471b-8d64-0fc87a7b2fc5
+- Fixed CSS specificity: `body.lang-jp [data-lang="jp"] { display: revert }` was reverting sidebar `<a>` to inline. Added higher-specificity override.
+
+### Verified (2026-08-08)
+- ✅ Week view Jul 27 Al Mina: Philip Ore shows single "15-00(+1)" (not duplicated)
+- ✅ Week view Aug 24: Philip Ore shows "17-02(+1)"
+- ✅ Week view Aug 26-27: Philip Ore shows "16-01(+1)" on both days
+- ✅ Week API returns exactly 1 row per day for Philip Ore
+- ✅ dedup endpoint returns 200 with deleted counts
+- ✅ repair_name_cascade endpoint handles ValueError → 400
+
+### Known: Pre-existing data quality
+- Other Al Mina staff (Bijien Mijar, Bikram Manger etc.) also have 1 row/day in base_shift_normalized but the week view was previously showing duplicates due to the same branch code mismatch bug. Now fixed globally.
+- The week view "branch code mismatch" fix applies to all staff, not just Philip Ore.
+
+---
+
+## ✅ Completed: Manila Cancellation Report — Bug Fixes + Daily Grab Finance Scheduler (2026-08-08)
+
+**Frontend commit `a3f56fc` (Vercel auto-deploy) + Heroku v1813 `2fd205f`**
+
+### 3 Bugs Fixed
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| #1 Sync message showed "0 records" | Frontend type used `synced`/`message` but API returns `total_updated`/`files_found` | Updated type + message string in `cancellations/page.tsx:672` |
+| #2 HQ Approve didn't set Completed | `patch_cancellation_workflow()` approved block missing `workflow_status='Completed'` + `completed_at` | Added 2 SQL set_parts in `db_manila_cancellations.py:444` |
+| #3 Revert button caused 404 | Frontend sent `hq_action:"revert"` but backend only handles `"reverted"` | Fixed to `"reverted"` in `cancellations/page.tsx:434` |
+
+### Production Verification (2026-08-08)
+- ✅ WORKFLOW column displays correctly in Manila table (null shows `—`, "No Refund" shows red badge)
+- ✅ 108 overdue alert + No Refund pending HQ approval badge visible in Manila mode
+- ✅ HQ Approve → workflow_status auto-sets to **Completed** (verified in browser)
+- ✅ Revert → workflow_status auto-sets to **Waiting for Refund Confirmation** (verified in browser)
+- ✅ Sync Grab Finance button shows "0 file(s) scanned · 0 record(s) updated" (correct API field names)
+
+### New: Daily Grab Finance Scheduler Script
+- `scripts/sync_grab_finance_cancellations.py` — Heroku Scheduler script
+- Schedule: **04:00 UTC = 12:00 PHT** daily
+- Folder: Manila POS Drive `1vv7tpR1yFnzfkWAFjEKjHKpeBoyG4QNk`
+- Posts Discord summary on completion
+- ⚠️ **TODO**: Manually register in Heroku Dashboard → sushizen-shift-app → Add-ons → Heroku Scheduler → Add job: `python scripts/sync_grab_finance_cancellations.py` at **04:00 UTC**
+
+### Artifact: Bilingual Usage Manual
+- URL: https://claude.ai/code/artifact/456efe4e-21d3-471b-8d64-0fc87a7b2fc5
+- JP/EN toggle, covers: 6-stage workflow pipeline, Grab Finance sync, HQ Approve/Revert, overdue alert, roles
+
+---
+
+## ✅ Completed: Manila Cancellation Report — Workflow Pipeline & HQ Features (2026-08-08)
+
+**Frontend commit `425efa1` (Vercel auto-deploy) + Heroku v1812 `d57ace5`**
+
+### What was added
+
+**Backend (Heroku v1812)**
+- `db_manila_cancellations.py`: 2 new columns (`workflow_status TEXT`, `no_refund_reason TEXT`) via `ensure_manila_cancellations_table()` ALTER TABLE
+- `patch_manila_cancellation(record_id, updates)`: PATCH function preserving existing columns via COALESCE
+- `get_manila_cancellation_stats()`: returns `no_refund_pending` count (workflow_status='No Refund', hq_approved IS NULL)
+- `sync_grab_finance_cancellations(city)`: scans Google Drive for Grab Finance CSV file (filename regex), parses + upserts matched cancellation records
+- `main.py`: 3 new endpoints: `GET /api/admin/analytics/manila/cancellations/stats`, `PATCH /api/admin/analytics/manila/cancellations/{id}`, `POST /api/admin/analytics/manila/cancellations/grab-finance-sync`
+- `services/pos_sync.py`: `find_grab_finance_file(city)` + `parse_grab_finance_csv(file_content)` for Google Drive integration
+
+**`AdminCancellationInputTab.tsx`**
+- `workflow_status` sequential pipeline dropdown: Waiting for Photo → Ticket Submitted → Waiting for Refund Confirmation → Refund Confirmed / No Refund → Completed
+- Color-coded workflow status badge in collapsed card header
+- `cancellation_reason` made mandatory (asterisk label, blocked Save if empty)
+- Conditional required: `refund_amount > 0` required when workflow_status = "Refund Confirmed"
+- Conditional required: `no_refund_reason` textarea required when workflow_status = "No Refund"
+- Both `saveRecord()` and `saveAll()` include `workflow_status` + `no_refund_reason` in upsert POST body
+
+**`cancellations/page.tsx`**
+- `WorkflowBadge` component: colored pill badges for all 6 workflow statuses
+- WORKFLOW column added to Manila cancellations table (conditional on `city === "manila"`)
+- 7-day overdue red alert: rows older than 7 days not in "Completed" status get red left-border + red date + AlertCircle icon
+- Manila-only KPI row: overdue count (red), No Refund pending badge (amber, HQ/ADMIN only), Sync Grab Finance button
+- HQ Approve/Revert buttons in detail modal (gated to HQ + ADMIN roles, Manila "No Refund" records only)
+- `handleWorkflowUpdate()`: PATCHes workflow_status/no_refund_reason, updates local state, refreshes pending count
+- `handleGrabFinanceSync()`: POSTs to grab-finance-sync endpoint, refreshes records on success
+- `colSpan` changed from hardcoded 10 to dynamic `COLS.length + 1`
+
+### ✅ Verified on localhost:3000 (2026-08-08)
+- Form labels confirmed: "Cancellation Reason *", "Workflow Status", "No Refund Reason" appear correctly
+- Manila table shows WORKFLOW column with colored WorkflowBadge
+- Sync Grab Finance button visible in Manila KPI bar
+- TypeScript clean: `npx tsc --noEmit` passed
+
+### ⚠️ Production note
+- Vercel was still deploying at session end — do a smoke test on `sushizen-shift-pwa.vercel.app/admin/cancellations` (Manila mode) to confirm Workflow column + Grab Finance button visible
 
 ---
 
