@@ -83,9 +83,9 @@ export default function SupplierReceivingPage() {
       });
       const data = await res.json();
       // Show sent + partial + issue orders (pending receipt)
-      const pending: Order[] = (data.orders ?? []).filter((o: Order) =>
-        ["sent", "partial", "issue"].includes(o.status)
-      );
+      const pending: Order[] = (data.orders ?? [])
+        .filter((o: Order) => ["sent", "partial", "issue"].includes(o.status))
+        .map((o: Order) => ({ ...o, items: o.items ?? [] }));
       setOrders(pending);
       if (pending.length > 0) {
         setActiveOrderId(pending[0].id);
