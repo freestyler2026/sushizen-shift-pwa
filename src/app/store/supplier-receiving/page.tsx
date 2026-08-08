@@ -87,7 +87,27 @@ export default function SupplierReceivingPage() {
         ["sent", "partial", "issue"].includes(o.status)
       );
       setOrders(pending);
-      setActiveOrderId(pending.length > 0 ? pending[0].id : null);
+      if (pending.length > 0) {
+        setActiveOrderId(pending[0].id);
+        // Pre-load items for the first order so the form renders immediately
+        const res2 = await fetch(`${API_BASE}/api/admin/store-supplier/orders/${pending[0].id}`, {
+          headers: getAuthHeaders(),
+        });
+        const d2 = await res2.json();
+        const firstOrder: Order = d2.order;
+        setOrders((prev) => prev.map((o) => (o.id === pending[0].id ? { ...o, items: firstOrder.items } : o)));
+        const prefill: Record<number, ReceiveEntry> = {};
+        for (const item of firstOrder.items) {
+          prefill[item.id] = {
+            qty_received: item.qty_received ?? item.qty_ordered,
+            receive_note: item.receive_note ?? "",
+            status: "received",
+          };
+        }
+        setEntries(prefill);
+      } else {
+        setActiveOrderId(null);
+      }
     } catch {
       setError("Failed to load orders.");
     } finally {
@@ -107,6 +127,8 @@ export default function SupplierReceivingPage() {
       });
       const data = await res.json();
       const order: Order = data.order;
+      // Merge items into the orders list so the render has them
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, items: order.items } : o)));
       // Pre-fill entries from existing received data
       const prefill: Record<number, ReceiveEntry> = {};
       for (const item of order.items) {
@@ -238,7 +260,7 @@ export default function SupplierReceivingPage() {
 
                 {/* Per-item receiving form */}
                 <div className="space-y-3">
-                  {activeOrder.items.map((item) => {
+                  {(activeOrder.items ?? []).map((item) => {
                     const entry = entries[item.id] ?? {
                       qty_received: item.qty_ordered,
                       receive_note: "",
