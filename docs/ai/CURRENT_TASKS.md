@@ -1,6 +1,29 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (PO Match Pending Queue implemented — store-confirmed POs route to Back Office for price entry)
+Last updated: 2026-08-08 (PO Match Pending Queue — statement timeout bug fixed and full end-to-end verified)
+
+---
+
+## ✅ Completed: PO Match — Statement Timeout Bug Fix (2026-08-08)
+
+**Heroku v1801 `8dbe6d4`**
+
+### 問題
+`PATCH /api/admin/procurement/po-match/{id}/finalize` が毎回 30s タイムアウトで失敗。
+
+### 原因
+`finalize_po_invoice_check()` 内で `ensure_po_invoice_check_tables()` と `ensure_po_match_settings_tables()` を毎回呼んでいた。これらは `ALTER TABLE ADD COLUMN IF NOT EXISTS` を複数実行し、AccessExclusiveLock を要求するため Heroku Postgres でタイムアウト。
+
+### 修正 (`db.py`)
+- `finalize_po_invoice_check()`: `ensure_po_invoice_check_tables()` / `ensure_po_match_settings_tables()` 呼び出しを削除（テーブルは既存）
+- `get_po_match_settings()`: `ensure_po_match_settings_tables()` 呼び出しを削除
+- 同一コミットに `main.py` の duplicate PENDING guard も含む
+
+### 検証結果（ブラウザ）
+- `PATCH /finalize` → `{ok: true, status: "MATCHED"}` ✓
+- 確定後、Pending Queue から消える ✓
+- All Records に `status=MATCHED`, `invoice_no=INV-TEST-20260808-001` で表示 ✓
+- 手動 Quick Entry POST (`/po-match` POST) → `status=DISCREPANCY` (差額5 PHP、許容範囲外) ✓
 
 ---
 
