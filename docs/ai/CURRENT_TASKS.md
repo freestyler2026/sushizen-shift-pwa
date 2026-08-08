@@ -31,6 +31,22 @@ Automates daily supplier ordering from store Daily Inventory par levels.
 - `/store/supplier-receiving/page.tsx` — staff-facing receiving form: shows today's sent orders, per-item qty_received + condition (OK/Partial/Issue) + note, submit sets order status
 - NavBar: Store Par Levels + Store Supplier Orders (admin section), Supplier Receiving (store section)
 
+### ✅ End-to-End Tested (2026-08-08) — All flows confirmed
+
+**PAR store full flow tested live:**
+1. Store Par Levels: Added VEG-001 Romaine Lettuce (par 5 kg) + VEG-002 Cucumber (par 10 kg), both Three-S supplier ✅
+2. Store Supplier Orders: Generate Now → 1 draft order created (Three-S, 2 items) ✅
+3. Status transitions: draft → confirmed → sent ✅
+4. Supplier Receiving (`/store/supplier-receiving`): Items pre-filled, Submit Receiving → "received" ✅
+5. Admin orders page: Final status shows "received" (green badge) ✅
+6. Supplier Performance tab: Three-S: Total 1, On-Time 1, 100% rate ✅
+7. Idempotency: Second Generate Now on same date → "Created 0 order(s), skipped 1 (already existed)" ✅
+
+**Bug fixed during testing:**
+- `src/app/store/supplier-receiving/page.tsx` crashed on initial load (`activeOrder.items.map()` called before items were fetched — list API returns `item_count` only, not `items[]`)
+- Fix: (1) pre-load detail for first order in `load()`, (2) `loadDetail()` merges items into orders state, (3) `(activeOrder.items ?? []).map()` defensive fallback
+- Commit: `de48788`
+
 ### ⚠️ Heroku Scheduler — Manual Step Required
 Register in Heroku Scheduler:
 1. Heroku Dashboard → sushizen-shift-app → Add-ons → Heroku Scheduler
