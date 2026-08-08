@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  FlaskConical, Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, Users, X,
+  AlertTriangle, Calendar, CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
+  FlaskConical, Loader2, Package, PackageCheck, Play, Plus, RotateCcw, Send, Star,
+  Trash2, Users, X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
@@ -14,6 +15,7 @@ import {
   T_CAPTION, T_PAGE_TITLE, T_SECTION,
   KPI_CARD, KPI_LABEL, KPI_VALUE,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
+  TAB_ACTIVE, TAB_INACTIVE,
 } from "@/lib/ui-tokens";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,10 +24,13 @@ type PlanStatus = "DRAFT" | "PUBLISHED";
 type ItemStatus = "PENDING" | "IN_PROGRESS" | "DONE";
 type Priority = "HIGH" | "MEDIUM" | "LOW";
 
+type PackingStatus = "PENDING" | "DONE";
+
 type Plan = {
   id: number;
   city: string;
   plan_date: string;
+  delivery_date?: string | null;
   status: PlanStatus;
   created_by: string;
   notes: string;
@@ -35,6 +40,7 @@ type Plan = {
   published_at: string | null;
   item_count?: number;
   done_count?: number;
+  completed_count?: number;
   items?: PlanItem[];
 };
 
@@ -59,7 +65,58 @@ type PlanItem = {
   qc_notes: string;
   qc_checked_by: string;
   qc_checked_at: string | null;
+  packing_status: PackingStatus;
+  packing_done_by: string;
+  packing_done_at: string | null;
   assigned_staff?: string[];
+};
+
+type ReadinessItem = {
+  plan_id: number;
+  plan_date: string;
+  delivery_date: string;
+  item_id: number;
+  item_name: string;
+  category: string;
+  target_qty: number;
+  unit: string;
+  priority: Priority;
+  status: ItemStatus;
+  qc_result: string | null;
+  packing_status: PackingStatus;
+};
+
+type ReadinessData = {
+  city: string;
+  delivery_date: string;
+  pending_production: ReadinessItem[];
+  pending_qc: ReadinessItem[];
+  pending_packing: ReadinessItem[];
+  completed: ReadinessItem[];
+  total: number;
+};
+
+type DeliveryEval = {
+  id: number;
+  city: string;
+  delivery_date: string;
+  plan_id: number | null;
+  overall_rating: number;
+  ready_on_time: boolean;
+  ready_time: string;
+  pickup_on_time: boolean;
+  pickup_time: string;
+  delivered_on_time: boolean;
+  delivered_time: string;
+  missing_items: boolean;
+  missing_detail: string;
+  temp_ok: boolean;
+  temp_notes: string;
+  labeling_ok: boolean;
+  labeling_notes: string;
+  comments: string;
+  submitted_by: string;
+  submitted_at: string;
 };
 
 type ProcessedItem = {
@@ -101,6 +158,21 @@ const PLAN_STATUS_BADGE: Record<PlanStatus, string> = {
 
 const AVAILABLE_UNITS = ["pc", "g", "kg", "ml", "L", "portion", "tray", "bag", "pack", "box", "unit", "set"];
 
+function isCompleted(item: PlanItem): boolean {
+  return item.status === "DONE" && item.qc_result === "PASS" && item.packing_status === "DONE";
+}
+
+function canEvalDelivery(auth: ReturnType<typeof getAuth>) {
+  if (!auth) return false;
+  const r = auth.role || "";
+  return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(r);
+}
+
+function isDeliveryDay(): boolean {
+  const dow = new Date().getDay(); // 0=Sun,1=Mon,...,6=Sat
+  return [1, 3, 5].includes(dow); // Mon, Wed, Fri
+}
+
 async function apiFetch(path: string, opts?: RequestInit) {
   const auth = getAuth();
   const headers = { "Content-Type": "application/json", ...getAuthHeaders(auth) };
@@ -126,21 +198,52 @@ export default function CKProductionPlanPage() {
   const auth = getAuth();
   const userName = auth?.staffName || "";
   const canManage = isManager(auth);
+  const canEval = canEvalDelivery(auth);
   // CK is a Manila operation, so managers default to Manila and can toggle.
   const [city, setCity] = useState<"manila" | "dubai">(
     canManage ? "manila" : ((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
   );
 
   // ── State ─────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"plans" | "readiness" | "eval">("plans");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processedItems, setProcessedItems] = useState<ProcessedItem[]>([]);
 
+  // Delivery Readiness tab
+  const [readinessDate, setReadinessDate] = useState(todayIso());
+  const [readinessData, setReadinessData] = useState<ReadinessData | null>(null);
+  const [loadingReadiness, setLoadingReadiness] = useState(false);
+
+  // Delivery Eval tab
+  const [evalDeliveryDate, setEvalDeliveryDate] = useState(todayIso());
+  const [evalOverallRating, setEvalOverallRating] = useState(5);
+  const [evalReadyOnTime, setEvalReadyOnTime] = useState(true);
+  const [evalReadyTime, setEvalReadyTime] = useState("13:00");
+  const [evalPickupOnTime, setEvalPickupOnTime] = useState(true);
+  const [evalPickupTime, setEvalPickupTime] = useState("13:30");
+  const [evalDeliveredOnTime, setEvalDeliveredOnTime] = useState(true);
+  const [evalDeliveredTime, setEvalDeliveredTime] = useState("15:00");
+  const [evalMissingItems, setEvalMissingItems] = useState(false);
+  const [evalMissingDetail, setEvalMissingDetail] = useState("");
+  const [evalTempOk, setEvalTempOk] = useState(true);
+  const [evalTempNotes, setEvalTempNotes] = useState("");
+  const [evalLabelingOk, setEvalLabelingOk] = useState(true);
+  const [evalLabelingNotes, setEvalLabelingNotes] = useState("");
+  const [evalComments, setEvalComments] = useState("");
+  const [submittingEval, setSubmittingEval] = useState(false);
+  const [evalHistory, setEvalHistory] = useState<DeliveryEval[]>([]);
+  const [loadingEvalHistory, setLoadingEvalHistory] = useState(false);
+
+  // Packing update
+  const [updatingPackingId, setUpdatingPackingId] = useState<number | null>(null);
+
   // New Plan modal
   const [showNewPlan, setShowNewPlan] = useState(false);
   const [newPlanDate, setNewPlanDate] = useState(todayIso());
+  const [newDeliveryDate, setNewDeliveryDate] = useState("");
   const [newPlanNotes, setNewPlanNotes] = useState("");
   const [creatingPlan, setCreatingPlan] = useState(false);
   // ① CK staff in charge (multi-select from the staff master)
@@ -263,6 +366,7 @@ export default function CKProductionPlanPage() {
         body: JSON.stringify({
           city,
           plan_date: newPlanDate,
+          delivery_date: newDeliveryDate || null,
           created_by: userName,
           notes: newPlanNotes.trim(),
           assigned_staff: newPlanStaff,
@@ -272,6 +376,7 @@ export default function CKProductionPlanPage() {
       setNewPlanNotes("");
       setNewPlanStaff([]);
       setNewPlanDate(todayIso());
+      setNewDeliveryDate("");
       await loadPlans();
       // Auto-select the new plan
       if (data.plan?.id) {
@@ -538,6 +643,92 @@ export default function CKProductionPlanPage() {
     }
   }
 
+  // ── Packing Done ───────────────────────────────────────────────────────────
+  async function handlePackingDone(item: PlanItem, newStatus: PackingStatus) {
+    setUpdatingPackingId(item.id);
+    try {
+      const data = await apiFetch(
+        `/api/store/ck-production-plan/plans/${item.plan_id}/items/${item.id}/packing`,
+        { method: "PATCH", body: JSON.stringify({ packing_status: newStatus, actor: userName }) }
+      );
+      setActivePlan(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).map(i => i.id === item.id ? { ...i, ...data.item } : i),
+      } : null);
+      showToast(newStatus === "DONE" ? "Packing & Labeling marked DONE" : "Packing reset");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setUpdatingPackingId(null);
+    }
+  }
+
+  // ── Delivery Readiness ─────────────────────────────────────────────────────
+  const loadReadiness = useCallback(async (date: string) => {
+    setLoadingReadiness(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-production-plan/readiness?city=${city}&delivery_date=${date}`);
+      setReadinessData(data);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setLoadingReadiness(false);
+    }
+  }, [city]);
+
+  useEffect(() => {
+    if (activeTab === "readiness") loadReadiness(readinessDate);
+  }, [activeTab, readinessDate, loadReadiness]);
+
+  // ── Delivery Evaluations ───────────────────────────────────────────────────
+  const loadDeliveryEvals = useCallback(async () => {
+    setLoadingEvalHistory(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-production-plan/delivery-evaluations?city=${city}&limit=20`);
+      setEvalHistory(data.evaluations || []);
+    } catch { /* non-critical */ } finally {
+      setLoadingEvalHistory(false);
+    }
+  }, [city]);
+
+  useEffect(() => {
+    if (activeTab === "eval") loadDeliveryEvals();
+  }, [activeTab, loadDeliveryEvals]);
+
+  async function handleDeliveryEvalSubmit() {
+    if (!evalDeliveryDate) return;
+    setSubmittingEval(true);
+    try {
+      await apiFetch("/api/store/ck-production-plan/delivery-evaluations", {
+        method: "POST",
+        body: JSON.stringify({
+          city,
+          delivery_date: evalDeliveryDate,
+          overall_rating: evalOverallRating,
+          ready_on_time: evalReadyOnTime, ready_time: evalReadyTime,
+          pickup_on_time: evalPickupOnTime, pickup_time: evalPickupTime,
+          delivered_on_time: evalDeliveredOnTime, delivered_time: evalDeliveredTime,
+          missing_items: evalMissingItems, missing_detail: evalMissingDetail,
+          temp_ok: evalTempOk, temp_notes: evalTempNotes,
+          labeling_ok: evalLabelingOk, labeling_notes: evalLabelingNotes,
+          comments: evalComments,
+          submitted_by: userName,
+        }),
+      });
+      showToast("Delivery evaluation submitted");
+      setEvalComments("");
+      setEvalMissingDetail(""); setEvalTempNotes(""); setEvalLabelingNotes("");
+      setEvalOverallRating(5);
+      setEvalReadyOnTime(true); setEvalPickupOnTime(true); setEvalDeliveredOnTime(true);
+      setEvalMissingItems(false); setEvalTempOk(true); setEvalLabelingOk(true);
+      await loadDeliveryEvals();
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSubmittingEval(false);
+    }
+  }
+
   // ── Grouped Items ──────────────────────────────────────────────────────────
   const groupedItems = useMemo(() => {
     const items = activePlan?.items || [];
@@ -558,8 +749,24 @@ export default function CKProductionPlanPage() {
       inProgress: items.filter(i => i.status === "IN_PROGRESS").length,
       done: items.filter(i => i.status === "DONE").length,
       qcPass: items.filter(i => i.qc_result === "PASS").length,
+      completed: items.filter(isCompleted).length,
     };
   }, [activePlan?.items]);
+
+  // Red Alert: delivery day + after 14:00 + items not completed
+  const showRedAlert = useMemo(() => {
+    if (!activePlan || activeTab !== "plans") return false;
+    if (!isDeliveryDay()) return false;
+    const h = new Date().getHours();
+    if (h < 14) return false;
+    return planStats.completed < planStats.total && planStats.total > 0;
+  }, [activePlan, activeTab, planStats.completed, planStats.total]);
+
+  // Readiness badge: count of incomplete items (for tab notification)
+  const readinessBadge = useMemo(() => {
+    if (!readinessData) return 0;
+    return readinessData.pending_production.length + readinessData.pending_qc.length + readinessData.pending_packing.length;
+  }, [readinessData]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -604,6 +811,31 @@ export default function CKProductionPlanPage() {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-1 flex-wrap">
+        <button onClick={() => setActiveTab("plans")} className={activeTab === "plans" ? TAB_ACTIVE : TAB_INACTIVE}>
+          Production Plans
+        </button>
+        <button onClick={() => setActiveTab("readiness")} className={`${activeTab === "readiness" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
+          Delivery Readiness
+          {readinessBadge > 0 && (
+            <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+              {readinessBadge}
+            </span>
+          )}
+        </button>
+        {canEval && (
+          <button onClick={() => setActiveTab("eval")} className={`${activeTab === "eval" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
+            Delivery Eval
+            {evalHistory.length > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-500 px-1 text-[10px] font-bold text-white">
+                {evalHistory.length}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[200] rounded-xl px-4 py-3 text-sm font-medium shadow-xl ${toast.ok ? "bg-emerald-500/90 text-white" : "bg-red-500/90 text-white"}`}>
@@ -611,8 +843,29 @@ export default function CKProductionPlanPage() {
         </div>
       )}
 
+      {/* ── Red Alert Banner ───────────────────────────────────────────────── */}
+      {showRedAlert && (
+        <div className="relative overflow-hidden rounded-2xl border-2 border-red-500 bg-red-500/20 p-5 shadow-[0_0_40px_rgba(239,68,68,0.4)]">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-500/30 border border-red-500/50 animate-pulse">
+              <AlertTriangle className="h-6 w-6 text-red-300" />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-red-300">DELIVERY DAY ALERT</p>
+              <p className="text-sm text-red-400">
+                {planStats.total - planStats.completed} item{planStats.total - planStats.completed !== 1 ? "s" : ""} not yet COMPLETED — it&apos;s past 14:00 on a delivery day. Coordinate with the team immediately.
+              </p>
+            </div>
+            <div className="ml-auto text-right shrink-0">
+              <p className="text-3xl font-black text-red-400">{planStats.total - planStats.completed}</p>
+              <p className="text-xs text-red-500">pending</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Two-column layout */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[280px_1fr]">
+      {activeTab === "plans" && <div className="grid grid-cols-1 gap-6 md:grid-cols-[280px_1fr]">
         {/* Left: Plans list */}
         <div className={`${GLASS_CARD} p-4 self-start sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto`}>
           <div className="mb-3 flex items-center justify-between">
@@ -647,8 +900,15 @@ export default function CKProductionPlanPage() {
                     <span className="text-sm font-semibold text-white">{fmtDate(plan.plan_date)}</span>
                     <span className={PLAN_STATUS_BADGE[plan.status]}>{plan.status}</span>
                   </div>
+                  {plan.delivery_date && (
+                    <div className="mt-1 flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-violet-400" />
+                      <span className="text-[10px] text-violet-400">Delivery: {fmtDate(plan.delivery_date)}</span>
+                    </div>
+                  )}
                   <div className={T_CAPTION + " mt-1"}>
                     {plan.item_count || 0} items · {plan.done_count || 0} done
+                    {(plan.completed_count || 0) > 0 && <span className="text-emerald-400"> · {plan.completed_count} completed</span>}
                   </div>
                   {(plan.item_count || 0) > 0 && (
                     <div className="mt-2 h-1.5 w-full rounded-full bg-white/10">
@@ -688,7 +948,7 @@ export default function CKProductionPlanPage() {
         </div>
 
         {/* Right: Plan detail */}
-        <div>
+        <div className="min-w-0">
           {loadingDetail ? (
             <div className={`${GLASS_CARD} flex items-center justify-center p-12`}>
               <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
@@ -707,6 +967,11 @@ export default function CKProductionPlanPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className={T_SECTION}>{fmtDate(activePlan.plan_date)} Production Plan</h2>
                       <span className={PLAN_STATUS_BADGE[activePlan.status]}>{activePlan.status}</span>
+                      {activePlan.delivery_date && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-400">
+                          <Calendar className="h-3 w-3" /> Delivery: {fmtDate(activePlan.delivery_date)}
+                        </span>
+                      )}
                     </div>
                     {activePlan.created_by && (
                       <p className={T_CAPTION + " mt-1"}>Created by {activePlan.created_by}</p>
@@ -744,13 +1009,14 @@ export default function CKProductionPlanPage() {
                 </div>
 
                 {/* KPI bar */}
-                <div className="mt-4 grid grid-cols-5 gap-3">
+                <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
                   {[
                     { label: "Total", value: planStats.total, cls: "text-white" },
                     { label: "Pending", value: planStats.pending, cls: "text-zinc-400" },
                     { label: "In Progress", value: planStats.inProgress, cls: "text-blue-400" },
-                    { label: "Done", value: planStats.done, cls: "text-emerald-400" },
+                    { label: "Production", value: planStats.done, cls: "text-emerald-400" },
                     { label: "QC Pass", value: planStats.qcPass, cls: "text-violet-400" },
+                    { label: "Completed", value: planStats.completed, cls: "text-teal-400" },
                   ].map(k => (
                     <div key={k.label} className={KPI_CARD}>
                       <p className={KPI_LABEL}>{k.label}</p>
@@ -834,14 +1100,15 @@ export default function CKProductionPlanPage() {
                                 <th className={`${TABLE_HEADER} pl-2 text-left`}>Item</th>
                                 <th className={`${TABLE_HEADER} text-right`}>Target</th>
                                 <th className={`${TABLE_HEADER} text-center`}>Priority</th>
-                                <th className={`${TABLE_HEADER} text-center`}>Status</th>
+                                <th className={`${TABLE_HEADER} text-center`}>Production</th>
                                 <th className={`${TABLE_HEADER} text-center`}>QC</th>
+                                <th className={`${TABLE_HEADER} text-center`}>Packing</th>
                                 <th className={`${TABLE_HEADER} pr-4 text-right`}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               {items.map(item => (
-                                <tr key={item.id} className={`${TABLE_ROW} ${item.status === "DONE" ? "opacity-60" : ""} ${selectedItems.has(item.id) ? "bg-violet-500/5" : ""}`}>
+                                <tr key={item.id} className={`${TABLE_ROW} ${isCompleted(item) ? "opacity-50" : ""} ${selectedItems.has(item.id) ? "bg-violet-500/5" : ""}`}>
                                   <td className={`${TABLE_CELL} w-8 pl-3 text-center`}>
                                     <input
                                       type="checkbox"
@@ -946,6 +1213,20 @@ export default function CKProductionPlanPage() {
                                     {!item.qc_result && item.status === "DONE" && (
                                       <span className="text-[10px] text-zinc-600">Pending</span>
                                     )}
+                                    {!item.qc_result && item.status !== "DONE" && (
+                                      <span className="text-[10px] text-zinc-700">—</span>
+                                    )}
+                                  </td>
+                                  <td className={`${TABLE_CELL} text-center`}>
+                                    {item.packing_status === "DONE" ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/15 border border-teal-500/25 px-2 py-0.5 text-[10px] font-bold text-teal-400">
+                                        <PackageCheck className="h-3 w-3" /> DONE
+                                      </span>
+                                    ) : item.qc_result === "PASS" ? (
+                                      <span className="text-[10px] text-amber-500/80">Pending</span>
+                                    ) : (
+                                      <span className="text-[10px] text-zinc-700">—</span>
+                                    )}
                                   </td>
                                   <td className={`${TABLE_CELL} pr-4 text-right`}>
                                     <div className="flex items-center justify-end gap-1.5">
@@ -991,6 +1272,19 @@ export default function CKProductionPlanPage() {
                                                 >
                                                   <FlaskConical className="h-3.5 w-3.5" />
                                                 </button>
+                                              )}
+                                              {item.qc_result === "PASS" && item.packing_status !== "DONE" && (
+                                                updatingPackingId === item.id ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                                                ) : (
+                                                  <button
+                                                    className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-xs text-teal-400 hover:bg-teal-500/20"
+                                                    onClick={() => handlePackingDone(item, "DONE")}
+                                                    title="Mark Packing & Labeling Done"
+                                                  >
+                                                    <PackageCheck className="h-3.5 w-3.5" />
+                                                  </button>
+                                                )
                                               )}
                                               <button
                                                 className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-500/20"
@@ -1045,7 +1339,243 @@ export default function CKProductionPlanPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
+
+      {/* ── Delivery Readiness Tab ─────────────────────────────────────────── */}
+      {activeTab === "readiness" && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-zinc-400" />
+              <label className="text-sm text-zinc-400">Delivery Date:</label>
+              <input
+                type="date"
+                className={INPUT_CLASS + " w-auto"}
+                value={readinessDate}
+                onChange={e => setReadinessDate(e.target.value)}
+              />
+            </div>
+            <button
+              className={SECONDARY_BUTTON}
+              onClick={() => loadReadiness(readinessDate)}
+              disabled={loadingReadiness}
+            >
+              {loadingReadiness ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+            </button>
+          </div>
+
+          {loadingReadiness ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-violet-400" /></div>
+          ) : !readinessData ? (
+            <div className={GLASS_CARD + " py-10 text-center"}>
+              <p className="text-zinc-500">Select a delivery date and click Refresh.</p>
+            </div>
+          ) : readinessData.total === 0 ? (
+            <div className={GLASS_CARD + " py-10 text-center"}>
+              <p className="text-zinc-500">No published plans found for {fmtDate(readinessDate)}.</p>
+            </div>
+          ) : (
+            <>
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: "Total Items", value: readinessData.total, cls: "text-white" },
+                  { label: "Pending Prod.", value: readinessData.pending_production.length, cls: "text-amber-400" },
+                  { label: "Pending QC", value: readinessData.pending_qc.length, cls: "text-violet-400" },
+                  { label: "Pending Pack", value: readinessData.pending_packing.length, cls: "text-blue-400" },
+                ].map(k => (
+                  <div key={k.label} className={KPI_CARD}>
+                    <p className={KPI_LABEL}>{k.label}</p>
+                    <p className={`${KPI_VALUE} text-xl ${k.cls}`}>{k.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Completed progress */}
+              <div className={GLASS_CARD + " px-4 py-3"}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-emerald-400">Completed</span>
+                  <span className="text-sm text-emerald-400">{readinessData.completed.length}/{readinessData.total}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-white/8">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                    style={{ width: `${Math.round((readinessData.completed.length / readinessData.total) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Pending sections */}
+              {[
+                { title: "⛔ Pending Production", items: readinessData.pending_production, color: "amber" },
+                { title: "🔬 Pending QC", items: readinessData.pending_qc, color: "violet" },
+                { title: "📦 Pending Packing & Labeling", items: readinessData.pending_packing, color: "blue" },
+                { title: "✅ Completed", items: readinessData.completed, color: "emerald" },
+              ].filter(s => s.items.length > 0).map(section => (
+                <div key={section.title} className={GLASS_CARD}>
+                  <div className="px-4 py-3 border-b border-white/8">
+                    <span className="font-semibold text-white">{section.title}</span>
+                    <span className={T_CAPTION + " ml-2"}>{section.items.length} items</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr>
+                          <th className={`${TABLE_HEADER} pl-4 text-left`}>Item</th>
+                          <th className={`${TABLE_HEADER} text-center`}>Category</th>
+                          <th className={`${TABLE_HEADER} text-center`}>Priority</th>
+                          <th className={`${TABLE_HEADER} text-right pr-4`}>Target Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.items.map(item => (
+                          <tr key={`${item.plan_id}-${item.item_id}`} className={TABLE_ROW}>
+                            <td className={`${TABLE_CELL} pl-4 font-medium text-white`}>{item.item_name}</td>
+                            <td className={`${TABLE_CELL} text-center`}><span className={T_CAPTION}>{item.category || "—"}</span></td>
+                            <td className={`${TABLE_CELL} text-center`}><span className={PRIORITY_BADGE[item.priority] || ""}>{item.priority}</span></td>
+                            <td className={`${TABLE_CELL} pr-4 text-right font-mono text-zinc-300`}>{item.target_qty > 0 ? `${item.target_qty} ${item.unit}` : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Delivery Eval Tab ──────────────────────────────────────────────── */}
+      {activeTab === "eval" && canEval && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
+          {/* Left: Form */}
+          <div className={GLASS_CARD + " p-6 space-y-5"}>
+            <h3 className={T_SECTION}>Submit Delivery Evaluation</h3>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery Date</label>
+              <input type="date" className={INPUT_CLASS} value={evalDeliveryDate} onChange={e => setEvalDeliveryDate(e.target.value)} />
+            </div>
+
+            {/* Overall Rating */}
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Overall Rating</label>
+              <div className="flex gap-2">
+                {[1,2,3,4,5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setEvalOverallRating(n)}
+                    className={`flex-1 rounded-xl border py-2.5 transition-all ${n <= evalOverallRating ? "border-amber-500/50 bg-amber-500/20 text-amber-400" : "border-white/10 bg-white/5 text-zinc-600"}`}
+                  >
+                    <Star className={`mx-auto h-5 w-5 ${n <= evalOverallRating ? "fill-amber-400" : ""}`} />
+                  </button>
+                ))}
+              </div>
+              <p className={T_CAPTION + " mt-1 text-center"}>{["","Poor","Below Average","Average","Good","Excellent"][evalOverallRating]}</p>
+            </div>
+
+            {/* 3 Time checks */}
+            {[
+              { label: "Delivery Ready On Time", target: "Target: 13:00", onTime: evalReadyOnTime, setOnTime: setEvalReadyOnTime, time: evalReadyTime, setTime: setEvalReadyTime },
+              { label: "Driver Pick-up On Time", target: "Target: 13:30", onTime: evalPickupOnTime, setOnTime: setEvalPickupOnTime, time: evalPickupTime, setTime: setEvalPickupTime },
+              { label: "Delivered On Time", target: "Target: 15:00", onTime: evalDeliveredOnTime, setOnTime: setEvalDeliveredOnTime, time: evalDeliveredTime, setTime: setEvalDeliveredTime },
+            ].map(f => (
+              <div key={f.label} className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{f.label}</p>
+                    <p className={T_CAPTION}>{f.target}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => f.setOnTime(true)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${f.onTime ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border-white/10 text-zinc-500"}`}>Yes</button>
+                    <button onClick={() => f.setOnTime(false)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${!f.onTime ? "border-red-500/50 bg-red-500/20 text-red-400" : "border-white/10 text-zinc-500"}`}>No</button>
+                  </div>
+                </div>
+                <div>
+                  <label className={T_CAPTION + " mb-1 block"}>Actual time</label>
+                  <input type="time" className={INPUT_CLASS} value={f.time} onChange={e => f.setTime(e.target.value)} />
+                </div>
+              </div>
+            ))}
+
+            {/* Issue checks */}
+            {[
+              { label: "Missing / Wrong / Damaged Items", yes: evalMissingItems, setYes: setEvalMissingItems, detail: evalMissingDetail, setDetail: setEvalMissingDetail, detailLabel: "Details", flip: true },
+              { label: "Food Temperature OK", yes: evalTempOk, setYes: setEvalTempOk, detail: evalTempNotes, setDetail: setEvalTempNotes, detailLabel: "Notes", flip: false },
+              { label: "Proper Labeling OK", yes: evalLabelingOk, setYes: setEvalLabelingOk, detail: evalLabelingNotes, setDetail: setEvalLabelingNotes, detailLabel: "Notes", flip: false },
+            ].map(f => (
+              <div key={f.label} className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">{f.label}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => f.setYes(true)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${f.yes ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400" : "border-white/10 text-zinc-500"}`}>Yes</button>
+                    <button onClick={() => f.setYes(false)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${!f.yes ? "border-red-500/50 bg-red-500/20 text-red-400" : "border-white/10 text-zinc-500"}`}>No</button>
+                  </div>
+                </div>
+                {((f.flip && f.yes) || (!f.flip && !f.yes)) && (
+                  <input type="text" className={INPUT_CLASS} placeholder={f.detailLabel + "..."} value={f.detail} onChange={e => f.setDetail(e.target.value)} />
+                )}
+              </div>
+            ))}
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Comments / Improvement Points</label>
+              <textarea className={TEXTAREA_CLASS} rows={3} placeholder="Any comments or improvement points..." value={evalComments} onChange={e => setEvalComments(e.target.value)} />
+            </div>
+
+            <button
+              className={PRIMARY_BUTTON + " w-full"}
+              onClick={handleDeliveryEvalSubmit}
+              disabled={!evalDeliveryDate || submittingEval}
+            >
+              {submittingEval ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</span> : "Submit Evaluation"}
+            </button>
+          </div>
+
+          {/* Right: History */}
+          <div className={GLASS_CARD + " p-5 self-start"}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={T_SECTION}>Recent Evaluations</h3>
+              {loadingEvalHistory && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
+            </div>
+            {evalHistory.length === 0 ? (
+              <p className={T_CAPTION + " py-4 text-center"}>No evaluations yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {evalHistory.map(ev => (
+                  <div key={ev.id} className="rounded-xl border border-white/8 bg-white/3 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-white">{fmtDate(ev.delivery_date)}</span>
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map(n => (
+                          <Star key={n} className={`h-3.5 w-3.5 ${n <= ev.overall_rating ? "fill-amber-400 text-amber-400" : "text-zinc-700"}`} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { ok: ev.ready_on_time, label: "Ready" },
+                        { ok: ev.pickup_on_time, label: "Pickup" },
+                        { ok: ev.delivered_on_time, label: "Delivery" },
+                        { ok: !ev.missing_items, label: "No Missing" },
+                        { ok: ev.temp_ok, label: "Temp OK" },
+                        { ok: ev.labeling_ok, label: "Label OK" },
+                      ].map(f => (
+                        <span key={f.label} className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${f.ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-400"}`}>
+                          {f.ok ? "✓" : "✗"} {f.label}
+                        </span>
+                      ))}
+                    </div>
+                    {ev.comments && <p className={T_CAPTION + " text-zinc-400"}>{ev.comments}</p>}
+                    <p className={T_CAPTION}>by {ev.submitted_by}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── New Plan Modal ─────────────────────────────────────────────────── */}
       {showNewPlan && typeof document !== "undefined" && createPortal(
@@ -1059,14 +1589,26 @@ export default function CKProductionPlanPage() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Plan Date</label>
-                <input
-                  type="date"
-                  className={INPUT_CLASS}
-                  value={newPlanDate}
-                  onChange={e => setNewPlanDate(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Production Date</label>
+                  <input
+                    type="date"
+                    className={INPUT_CLASS}
+                    value={newPlanDate}
+                    onChange={e => setNewPlanDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery Date</label>
+                  <input
+                    type="date"
+                    className={INPUT_CLASS}
+                    value={newDeliveryDate}
+                    onChange={e => setNewDeliveryDate(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
