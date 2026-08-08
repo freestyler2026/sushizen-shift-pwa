@@ -1,6 +1,29 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-08 (Store Supplier Orders module)
+Last updated: 2026-08-08 (Store Supplier Orders — HQ Approval Gate + Manual)
+
+---
+
+## ✅ Completed: Store Supplier Orders — HQ Approval Gate (2026-08-08)
+
+**Frontend `efa9f50` (Vercel) + Heroku v1807 `f838b32`**
+
+### What was added
+- **HQ/ADMIN approval gate** between `confirmed` and `sent` — Manila Management cannot complete the full ordering cycle alone
+- New status `approved` (violet badge, ShieldCheck icon)
+- Status flow: `draft → confirmed → approved (HQ/ADMIN only) → sent → received/partial/issue`
+- Backend: `VALID_TRANSITIONS` dict in `db_store_supplier.py`, `_require_hq()` helper in `store_supplier_api.py`, transition validation on PATCH `/orders/{id}/status`
+- Frontend: role detection (`canApprove = userRole === 'HQ' || userRole === 'ADMIN'`), "Approve" button visible only to HQ/ADMIN, "Awaiting HQ Approval" label shown to Manila Management when order is confirmed
+- Bilingual EN/JP usage manual artifact: https://claude.ai/code/artifact/c0bbc6b0-c787-45ae-ab18-4b0f35c0ad08 (EN/JP toggle; defaults to JP)
+
+### ✅ Approval flow tested live (2026-08-08)
+1. draft → "Mark as Confirmed" → confirmed badge ✅
+2. confirmed → "Approve" (HQ button, violet) → approved badge ✅
+3. approved → "Mark as Sent" → sent badge ✅
+
+### Bug fix: supplier-receiving chunk cache (2026-08-08)
+- Deployed `b84f352`: `.filter().map()` chain ensures `items:[]` is always an array before render
+- Forced fresh Vercel chunk build (previous deployment cached the pre-fix chunk despite `de48788` being pushed)
 
 ---
 
