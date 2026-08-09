@@ -1,6 +1,51 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Analytics default tab SPA navigation bug fixed and deployed)
+Last updated: 2026-08-09 (Security Phase 1: server-side session management deployed — Heroku v1827, Vercel 1fff90b)
+
+---
+
+## ✅ Completed: Security Phase 1 — Server-Side Sessions (2026-08-09)
+
+**Heroku v1827 (backend) + Vercel 1fff90b (frontend)**
+
+Addresses Critical/High/Medium findings from `WorkforceOS_security_review.md`.
+
+### What was implemented
+
+| Review item | Status | What was done |
+|-------------|--------|---------------|
+| C-1: Client-only session enforcement | ✅ | FastAPI middleware validates `X-Session-Id` on all `/api/admin/*` + `/api/store/*` |
+| C-3: No auto-freeze on brute force | ✅ | Auto-freeze after 10 failed logins in 24h; invalidates all sessions |
+| H-3: IP-based concurrent login detection | ✅ | Replaced with single-session enforcement (new login invalidates all prior sessions) |
+| H-4: No session expiry | ✅ | Role-based expiry: HQ=30min idle/8h abs, MGMT=8h/7d, STAFF=12h/24h |
+| M-4: X-Forwarded-For first-value spoofing | ✅ | `_request_meta` now uses LAST value (Heroku router appends it) |
+
+### New DB tables
+- `staff_sessions` — session lifecycle with expires_at, absolute_expires_at
+- `login_attempts` — per-attempt log (success/failure) for rate analytics
+- `staff_account_freeze` — manual and auto-freeze with audit trail
+
+### New endpoints
+- `GET  /api/auth/session-check` — lightweight UI poll (returns `{valid, reason}`)
+- `POST /api/admin/security/freeze` — HQ/ADMIN: freeze account + invalidate sessions
+- `POST /api/admin/security/unfreeze` — HQ/ADMIN: restore access
+- `POST /api/admin/security/force-logout` — HQ/ADMIN: invalidate sessions (no freeze)
+- `GET  /api/admin/security/sessions` — list active sessions
+- `GET  /api/admin/security/frozen-accounts` — list frozen accounts
+- `GET  /api/admin/security/audit-log` — searchable security event log
+
+### Login flow changes
+- Freeze check → auto-freeze check → PIN verify → session create (in that order)
+- Login response now includes `session_id` field
+- Frontend: `Auth.sessionId` stored in localStorage, sent as `X-Session-Id` header on every API call
+
+### NOT yet implemented (scope deferred)
+- C-2: numeric `employee_id` (requires ALTER TABLE staff_master + migration — scheduled separately)
+- bcrypt PIN hash migration (SHA-256 currently; lazy migration needs careful rollout)
+- M-3: httpOnly Cookie (requires CORS + Vercel proxy changes)
+- M-5: auto-freeze on termination (tie into staff status changes)
+- `/admin/security` management UI page
+- Employee Handbook disclosure (HR task)
 
 ---
 
