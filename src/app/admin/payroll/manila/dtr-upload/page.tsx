@@ -275,6 +275,10 @@ export default function DtrUploadPage() {
   const [otEditId, setOtEditId]   = useState<number | null>(null);
   const [otEditVal, setOtEditVal] = useState("");
   const [otSavingId, setOtSavingId] = useState<number | null>(null);
+  // Shift correction inline edit state
+  const [shiftEditId, setShiftEditId]     = useState<number | null>(null);
+  const [shiftEditVal, setShiftEditVal]   = useState("");
+  const [shiftSavingId, setShiftSavingId] = useState<number | null>(null);
 
   // OT Approvals tab state
   const [otApprovals, setOtApprovals]       = useState<OtApprovalRow[]>([]);
@@ -333,6 +337,28 @@ export default function DtrUploadPage() {
       ));
     } catch { /* best-effort — row unchanged */ }
     finally { setOtSavingId(null); setOtEditId(null); }
+  }
+
+  async function saveScheduledShift(recordId: number, val: string) {
+    const trimmed = val.trim();
+    if (!trimmed) { setShiftEditId(null); return; }
+    const parts = trimmed.split(/[–—-]/);
+    const rawStart = parts[0]?.trim() ?? "";
+    if (!/^\d{1,2}:\d{2}$/.test(rawStart)) { setShiftEditId(null); return; }
+    const start = rawStart.padStart(5, "0");
+    const rawEnd = parts[1]?.trim();
+    const end = rawEnd && /^\d{1,2}:\d{2}$/.test(rawEnd) ? rawEnd.padStart(5, "0") : undefined;
+    setShiftSavingId(recordId);
+    try {
+      const r = await apiFetch(`${API}/attendance/${recordId}/scheduled-shift`, {
+        method: "PATCH",
+        body: JSON.stringify({ scheduled_shift_start: start, ...(end ? { scheduled_shift_end: end } : {}) }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const updated = await r.json() as ManilaAttRow;
+      setDtrRecords(prev => prev.map(row => row.id === recordId ? { ...row, ...updated } : row));
+    } catch { /* best-effort — row unchanged */ }
+    finally { setShiftSavingId(null); setShiftEditId(null); }
   }
 
   const loadOtApprovals = useCallback(async (periodId: string) => {
@@ -1167,7 +1193,11 @@ paid_leave       Y / N          (default: N)`}</code>
                     <thead>
                       <tr className="border-b border-white/10 bg-white/5">
                         {["Date","Staff","Store","Schedule","Clock In","Clock Out","Reg Hrs","OT Hrs"].map(h => (
-                          <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                          <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            {h === "Schedule"
+                              ? <span className="flex items-center gap-1 text-violet-400">Schedule <Pencil size={9} /></span>
+                              : h}
+                          </th>
                         ))}
                         <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-violet-400">
                           <span className="flex items-center justify-end gap-1">Apprvd OT <Pencil size={9} /></span>
@@ -1188,7 +1218,34 @@ paid_leave       Y / N          (default: N)`}</code>
                             <td className="px-3 py-2 font-mono text-slate-400">{row.work_date}</td>
                             <td className="px-3 py-2 font-medium text-white">{row.staff_name}</td>
                             <td className="px-3 py-2 text-slate-400">{row.scheduled_store || "—"}</td>
-                            <td className="px-3 py-2 text-slate-400">{sched}</td>
+                            <td className="px-3 py-2">
+                              {shiftEditId === row.id ? (
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  placeholder="14:00"
+                                  value={shiftEditVal}
+                                  onChange={e => setShiftEditVal(e.target.value)}
+                                  onBlur={() => saveScheduledShift(row.id, shiftEditVal)}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") saveScheduledShift(row.id, shiftEditVal);
+                                    if (e.key === "Escape") setShiftEditId(null);
+                                  }}
+                                  className="w-16 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => { setShiftEditId(row.id); setShiftEditVal(row.scheduled_shift_start ? row.scheduled_shift_start.slice(0,5) : ""); }}
+                                  title="Click to correct scheduled shift start"
+                                  className={`group flex items-center gap-1 cursor-pointer rounded px-1.5 py-0.5 text-xs hover:bg-violet-500/20 border border-transparent hover:border-violet-500/50 ${
+                                    shiftSavingId === row.id ? "text-slate-500" : "text-slate-400"
+                                  }`}
+                                >
+                                  {shiftSavingId === row.id ? "…" : sched}
+                                  <Pencil size={9} className="opacity-0 group-hover:opacity-60 flex-shrink-0" />
+                                </button>
+                              )}
+                            </td>
                             <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_in ? fmtTime(row.actual_time_in) : "—"}</td>
                             <td className="px-3 py-2 tabular-nums text-slate-300">{row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-emerald-400">{fmtHours(Number(row.regular_hours))}</td>
