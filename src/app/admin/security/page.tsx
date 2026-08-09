@@ -132,6 +132,11 @@ export default function SecurityAdminPage() {
   const [auditStaffFilter, setAuditStaffFilter] = useState("");
   const auditFilterRef = useRef("");
 
+  // force-reload
+  const [forceReloadActive, setForceReloadActive] = useState(false);
+  const [forceReloadBusy, setForceReloadBusy] = useState(false);
+  const [forceReloadMsg, setForceReloadMsg] = useState("");
+
   // step-up modal
   type PendingAction =
     | { type: "force-logout"; target: string }
@@ -318,6 +323,38 @@ export default function SecurityAdminPage() {
     openStepUp({ type: "freeze", target, reason });
   }
 
+  async function handleForceReload() {
+    setForceReloadBusy(true);
+    setForceReloadMsg("");
+    try {
+      const r = await apiFetch("/api/admin/security/force-reload", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail || "Failed");
+      setForceReloadActive(true);
+      setForceReloadMsg("Active — all clients will reload on next session check (within 5 min).");
+    } catch (e: unknown) {
+      setForceReloadMsg(`Error: ${String((e as Error).message || e)}`);
+    } finally {
+      setForceReloadBusy(false);
+    }
+  }
+
+  async function handleCancelForceReload() {
+    setForceReloadBusy(true);
+    setForceReloadMsg("");
+    try {
+      const r = await apiFetch("/api/admin/security/force-reload/cancel", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail || "Failed");
+      setForceReloadActive(false);
+      setForceReloadMsg("Cancelled.");
+    } catch (e: unknown) {
+      setForceReloadMsg(`Error: ${String((e as Error).message || e)}`);
+    } finally {
+      setForceReloadBusy(false);
+    }
+  }
+
   // ── render ──
 
   const role = (auth?.role || "").toUpperCase();
@@ -370,6 +407,41 @@ export default function SecurityAdminPage() {
       )}
 
       <h1 className={T_PAGE_TITLE}>Security Management</h1>
+
+      {/* ── Emergency: Force All Clients to Reload ── */}
+      <div className={GLASS_CARD + " p-4"}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-neutral-200">Force All Clients to Reload</p>
+            <p className="mt-0.5 text-xs text-neutral-400">
+              Triggers a hard reload on every active browser session within 5 minutes. Use after a critical deployment to clear stale caches.
+            </p>
+            {forceReloadMsg && (
+              <p className={`mt-1 text-xs font-medium ${forceReloadActive ? "text-amber-400" : forceReloadMsg.startsWith("Error") ? "text-red-400" : "text-neutral-400"}`}>
+                {forceReloadMsg}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {forceReloadActive && (
+              <button
+                onClick={handleCancelForceReload}
+                disabled={forceReloadBusy}
+                className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={handleForceReload}
+              disabled={forceReloadBusy || forceReloadActive}
+              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-40"
+            >
+              {forceReloadBusy ? "Working…" : forceReloadActive ? "Active (30 min)" : "Force Reload"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* tabs */}
       <div className="flex gap-1 border-b border-neutral-800">

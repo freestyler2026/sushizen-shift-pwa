@@ -64,10 +64,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){
   var CHUNK_ERRS = ['Loading chunk','ChunkLoadError','Failed to fetch dynamically imported module','Importing a module script failed','error loading dynamically imported module'];
+  var GUARD_KEY = 'zen:reload-attempt';
+  var GUARD_MS  = 30000;
   function isChunkErr(msg){ return msg && CHUNK_ERRS.some(function(k){ return msg.indexOf(k) !== -1; }); }
   var reloading = false;
+  function showFatalError(){
+    var body = document.body || document.documentElement;
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0b14;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;font-family:sans-serif;padding:24px;text-align:center';
+    el.innerHTML = '<p style="color:#f87171;font-size:18px;font-weight:600">Something went wrong</p><p style="color:#9ca3af;font-size:14px;max-width:320px">The page failed to load and could not recover automatically. Please reload the page manually.</p><button onclick="sessionStorage.removeItem(\'zen:reload-attempt\');location.reload()" style="padding:10px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Reload Page</button>';
+    body.appendChild(el);
+  }
   function doReload(){
     if(reloading) return;
+    try {
+      var last = Number(sessionStorage.getItem(GUARD_KEY) || 0);
+      if(Date.now() - last < GUARD_MS){ showFatalError(); return; }
+      sessionStorage.setItem(GUARD_KEY, String(Date.now()));
+    } catch(e) { /* sessionStorage unavailable — proceed without guard */ }
     reloading = true;
     var url = new URL(window.location.href);
     url.searchParams.set('_r', String(Date.now()));

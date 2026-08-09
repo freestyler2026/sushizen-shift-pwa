@@ -6,6 +6,8 @@ import { getAuth, clearAuth } from "@/lib/auth";
 
 const POLL_MS = 5 * 60 * 1000;
 const SKIP_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
+const RELOAD_GUARD_KEY = "zen:reload-attempt";
+const RELOAD_GUARD_MS = 30_000;
 
 const REASON_MESSAGES: Record<string, string> = {
   account_frozen: "Your account has been frozen. Please contact your manager.",
@@ -15,6 +17,19 @@ const REASON_MESSAGES: Record<string, string> = {
   force_logout_by_admin: "You have been logged out by an administrator.",
   new_login_elsewhere: "A new login was detected on another device.",
 };
+
+function guardedHardReload(): void {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || 0);
+    if (Date.now() - last < RELOAD_GUARD_MS) return; // guard — let AutoReload handle the error
+    sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+  } catch {
+    // sessionStorage unavailable — proceed
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set("_r", String(Date.now()));
+  window.location.replace(url.toString());
+}
 
 export default function SessionGuard() {
   const pathname = usePathname();
@@ -27,7 +42,6 @@ export default function SessionGuard() {
     if (kicked.current) return;
     const auth = getAuth();
 
-    // Phase 1/2: sessionId in localStorage. Phase 3: hasSession=true with sz_session cookie.
     if (!auth?.sessionId && !auth?.hasSession) return;
 
     try {
@@ -42,11 +56,18 @@ export default function SessionGuard() {
       });
       if (!res.ok) return;
 
-      const data = (await res.json()) as { valid: boolean; reason?: string };
+      const data = (await res.json()) as { valid: boolean; reason?: string; force_reload?: boolean };
+
+      // force_reload is an HQ-triggered emergency signal — always act on it immediately,
+      // regardless of session validity.
+      if (data.force_reload) {
+        guardedHardReload();
+        return;
+      }
+
       if (data.valid) return;
 
       const reason = data.reason ?? "invalidated";
-      // Grace cases: old sessions without session_id, or session not yet created in DB
       if (reason === "no_session_id" || reason === "not_found") return;
 
       kicked.current = true;

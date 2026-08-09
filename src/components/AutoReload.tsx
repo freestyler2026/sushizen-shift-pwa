@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { hasUnsavedEdits, UNSAVED_EVENT } from "@/lib/unsavedGuard";
 
-// Poll every 30 seconds — deploys take minutes to propagate; 3s was needlessly aggressive.
-// Visibility/focus/pageshow events handle the "tab comes back" case instantly.
 const POLL_INTERVAL_MS = 30 * 1000;
-
-// Baked into the JavaScript bundle at build time by next.config.ts.
-// If a PWA is running an old cached bundle, this will differ from what
-// the server currently reports — triggering an immediate reload on startup.
 const BUNDLE_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
+const RELOAD_GUARD_KEY = "zen:reload-attempt";
+const RELOAD_GUARD_MS = 30_000;
 
 async function fetchFrontendVersion(): Promise<string | null> {
   try {
-    // Timestamp prevents any HTTP cache from serving a stale response.
     const res = await fetch(`/api/version?_t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
@@ -36,13 +31,6 @@ async function fetchBackendVersion(): Promise<string | null> {
   }
 }
 
-function hardReload() {
-  // Append a cache-busting param so the browser fetches a fresh document.
-  const url = new URL(window.location.href);
-  url.searchParams.set("_r", String(Date.now()));
-  window.location.replace(url.toString());
-}
-
 export default function AutoReload() {
   const pathname = usePathname();
   const frontendBaseline = useRef<string | null>(null);
@@ -52,15 +40,34 @@ export default function AutoReload() {
   const earlyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCheckMs = useRef<number>(0);
 
+  // UI states
+  const [updateReady, setUpdateReady] = useState(false);   // pending update, user has unsaved edits
+  const [applyingUpdate, setApplyingUpdate] = useState(false); // brief "Applying update…" before reload
+  const [loopGuarded, setLoopGuarded] = useState(false);   // reload loop detected — show fatal error
+
+  function hardReload() {
+    try {
+      const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || 0);
+      if (Date.now() - last < RELOAD_GUARD_MS) {
+        // Reload loop detected — stop and show error
+        setLoopGuarded(true);
+        return;
+      }
+      sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+    } catch {
+      // sessionStorage unavailable — proceed without guard
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("_r", String(Date.now()));
+    window.location.replace(url.toString());
+  }
+
   useEffect(() => {
-    // Reload now, UNLESS the user has unsaved edits (e.g. mid-input on the
-    // Number of Orders / Ratings grids). In that case defer: remember a reload
-    // is due and apply it the moment the edits are saved (see check() + the
-    // UNSAVED_EVENT listener). AutoReload must never wipe in-progress input.
     function triggerReload() {
       if (reloading.current) return;
       if (hasUnsavedEdits()) {
         pendingReload.current = true;
+        setUpdateReady(true);
         return;
       }
       reloading.current = true;
@@ -69,12 +76,9 @@ export default function AutoReload() {
 
     function check() {
       if (reloading.current) return;
-      // Skip polling when the tab is hidden — visibility/focus events will trigger
-      // a check the moment the user returns, so no requests are wasted in background.
       if (document.visibilityState !== "visible") return;
-      // A deploy was detected earlier but deferred for unsaved edits — apply it
-      // as soon as the edits are gone.
       if (pendingReload.current && !hasUnsavedEdits()) {
+        // Edits were cleared externally (e.g. autosave) — apply update now
         reloading.current = true;
         hardReload();
         return;
@@ -82,79 +86,46 @@ export default function AutoReload() {
       lastCheckMs.current = Date.now();
       fetchFrontendVersion().then((v) => {
         if (reloading.current) return;
-        if (!v) return; // fetch failed — skip this tick
-        if (!frontendBaseline.current) {
-          // Initial startup fetch failed but this poll succeeded — set baseline now
-          // so subsequent polls can detect changes.
-          frontendBaseline.current = v;
-          return;
-        }
-        if (v !== frontendBaseline.current) {
-          triggerReload();
-        }
+        if (!v) return;
+        if (!frontendBaseline.current) { frontendBaseline.current = v; return; }
+        if (v !== frontendBaseline.current) triggerReload();
       });
       fetchBackendVersion().then((v) => {
         if (reloading.current) return;
         if (!v) return;
-        if (!backendBaseline.current) {
-          backendBaseline.current = v;
-          return;
-        }
-        if (v !== backendBaseline.current) {
-          triggerReload();
-        }
+        if (!backendBaseline.current) { backendBaseline.current = v; return; }
+        if (v !== backendBaseline.current) triggerReload();
       });
     }
 
-    // On startup: detect stale bundle immediately (before React hydration delays).
     fetchFrontendVersion().then((serverV) => {
       if (reloading.current) return;
-      // Skip comparison if either side is "dev" (local environment — no stable ID).
       if (serverV && serverV !== "dev" && BUNDLE_BUILD_ID !== "dev" && serverV !== BUNDLE_BUILD_ID) {
-        // Old cached bundle — reload now (deferred if the user has unsaved edits).
         triggerReload();
         if (reloading.current) return;
       }
-      // IMPORTANT: only set baseline if we got a valid value.
-      // If serverV is null (network error), leave baseline as null so the
-      // first successful poll can set it — do NOT permanently disable polling.
       if (serverV) frontendBaseline.current = serverV;
-
-      // Early follow-up: if a new deploy went live in the moments between the
-      // browser loading the page and this fetch completing, catch it fast
-      // instead of waiting for the first poll interval.
       earlyTimerRef.current = setTimeout(() => check(), 2000);
     });
 
     fetchBackendVersion().then((v) => { if (v) backendBaseline.current = v; });
 
-    // Periodic poll.
     const timer = setInterval(check, POLL_INTERVAL_MS);
 
-    // Check when app comes back to foreground.
-    function onVisibility() {
-      if (document.visibilityState === "visible") check();
-    }
+    function onVisibility() { if (document.visibilityState === "visible") check(); }
     document.addEventListener("visibilitychange", onVisibility);
-
-    // Check on browser window focus.
     window.addEventListener("focus", check);
-
-    // iOS Safari PWA: when a page is restored from bfcache (e.g. app icon tap after
-    // backgrounding), neither mount nor visibilitychange may fire reliably. The
-    // pageshow event with persisted=true is the most reliable signal on iOS.
-    function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) check();
-    }
+    function onPageShow(e: PageTransitionEvent) { if (e.persisted) check(); }
     window.addEventListener("pageshow", onPageShow);
 
-    // When unsaved edits clear (user saved), apply any deferred reload at once
-    // instead of waiting for the next poll.
     function onUnsavedChange() {
       if (reloading.current) return;
       if (pendingReload.current && !hasUnsavedEdits()) {
+        // User saved their work — give them a moment to see the save confirmation
+        // before the page reloads, so it doesn't feel abrupt.
         reloading.current = true;
-        hardReload();
+        setApplyingUpdate(true);
+        setTimeout(() => hardReload(), 1500);
       }
     }
     window.addEventListener(UNSAVED_EVENT, onUnsavedChange);
@@ -167,22 +138,20 @@ export default function AutoReload() {
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener(UNSAVED_EVENT, onUnsavedChange);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check on every client-side navigation (tab click, link click, etc.)
-  // Throttled: skip if a check ran within the last POLL_INTERVAL_MS to avoid
-  // hammering /api/version on every tab click when many staff are active.
   useEffect(() => {
     if (reloading.current) return;
-    if (!frontendBaseline.current) return; // not yet initialized
+    if (!frontendBaseline.current) return;
     if (Date.now() - lastCheckMs.current < POLL_INTERVAL_MS) return;
-
     lastCheckMs.current = Date.now();
     fetchFrontendVersion().then((v) => {
       if (reloading.current) return;
       if (v && frontendBaseline.current && v !== frontendBaseline.current) {
         if (hasUnsavedEdits()) {
           pendingReload.current = true;
+          setUpdateReady(true);
           return;
         }
         reloading.current = true;
@@ -190,6 +159,64 @@ export default function AutoReload() {
       }
     });
   }, [pathname]);
+
+  // ── Reload loop detected ─────────────────────────────────────────────────
+  if (loopGuarded) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-[#0a0b14] px-6 text-center">
+        <p className="text-lg font-semibold text-red-400">Something went wrong</p>
+        <p className="max-w-xs text-sm text-neutral-400">
+          The page failed to load and could not recover automatically. Please reload the page manually.
+        </p>
+        <button
+          onClick={() => {
+            try { sessionStorage.removeItem(RELOAD_GUARD_KEY); } catch { /* ok */ }
+            window.location.reload();
+          }}
+          className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 active:scale-95"
+        >
+          Reload Page
+        </button>
+      </div>
+    );
+  }
+
+  // ── Applying update (brief message before reload fires) ──────────────────
+  if (applyingUpdate) {
+    return (
+      <div className="fixed bottom-24 left-1/2 z-[9999] -translate-x-1/2 px-4 md:bottom-6">
+        <div className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-950/90 px-4 py-3 text-sm text-indigo-200 shadow-xl backdrop-blur">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
+          Applying update…
+        </div>
+      </div>
+    );
+  }
+
+  // ── Pending update: user has unsaved edits ────────────────────────────────
+  if (updateReady) {
+    return (
+      <div className="fixed bottom-24 left-1/2 z-[9999] w-full max-w-sm -translate-x-1/2 px-4 md:bottom-6">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-neutral-950/95 px-4 py-3 shadow-xl backdrop-blur">
+          <span className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-semibold text-amber-300">New version available</p>
+            <p className="mt-0.5 text-xs text-neutral-400">Save your work, then click Update.</p>
+          </div>
+          <button
+            onClick={() => {
+              setUpdateReady(false);
+              reloading.current = true;
+              hardReload();
+            }}
+            className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 active:scale-95"
+          >
+            Update Now
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return null;
 }

@@ -1,6 +1,20 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Phase 5 テスト完了 + バグ修正 — Vercel b62e4a5)
+Last updated: 2026-08-09 (Analytics Product Scoring 403 fix — Heroku v1834)
+
+---
+
+## ✅ Completed: Analytics Product Scoring Tab 403 Fix (2026-08-09)
+
+**Heroku v1834**
+
+**Root cause**: QC/prep-time read endpoints used legacy PIN auth (`_require_analytics_read_pin`). After Phase 3 migrated the PIN out of the auth cookie, `pin` state initialized as `""`, causing 400/403 errors on Product Scoring tab load.
+
+**Fix**: `_require_analytics_read_pin` now accepts `request: Optional[Request]` and tries JWT Bearer token auth first. If a valid HQ/ADMIN token is present in the `Authorization` header (always sent by `getAuthHeaders()`), PIN is bypassed entirely. Falls back to PIN auth for non-JWT callers.
+
+8 read endpoints updated: `qc/scores`, `qc/summary`, `qc/weekly-history`, `qc/order-totals`, `qc/channels`, `qc/reference-images`, `prep-time/records`, `prep-time/stats`.
+
+Verified: `GET /api/admin/qc/summary` with Bearer token → 200 OK (no PIN).
 
 ---
 
