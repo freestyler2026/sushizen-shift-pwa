@@ -336,11 +336,18 @@ export async function refreshAuthFromApi(
               }
             }
           } catch {
-            // fall through to PIN remint
+            // fall through
           }
         }
-        const migrated = await remintAccessTokenWithPin();
-        if (migrated) return migrated;
+        // Phase 3: hasSession=true means the user has a server-side session.
+        // If both session and refresh fail, the session has truly expired —
+        // do NOT attempt PIN remint here, as that would call /api/auth/verify
+        // in a loop on every AutoReload deploy and trigger rate-limiting.
+        // SessionGuard will detect the invalid state and redirect to login.
+        if (!current.hasSession) {
+          const migrated = await remintAccessTokenWithPin();
+          if (migrated) return migrated;
+        }
       }
       return current;
     }
