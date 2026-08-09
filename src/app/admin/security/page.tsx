@@ -64,8 +64,17 @@ function fmt(ts: string) {
 
 function relTime(ts: string) {
   if (!ts) return "";
-  const diff = Date.now() - new Date(ts).getTime();
-  if (diff < 60_000) return "just now";
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  if (Math.abs(diff) < 60_000) return "just now";
+  if (diff < 0) {
+    // Future timestamp (e.g., session expiry)
+    const abs = -diff;
+    if (abs < 3_600_000) return `in ${Math.floor(abs / 60_000)}m`;
+    if (abs < 86_400_000) return `in ${Math.floor(abs / 3_600_000)}h`;
+    return `in ${Math.floor(abs / 86_400_000)}d`;
+  }
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return `${Math.floor(diff / 86_400_000)}d ago`;
@@ -273,7 +282,7 @@ export default function SecurityAdminPage() {
 
       {/* ── Sessions tab ── */}
       {tab === "sessions" && (
-        <div className={GLASS_CARD}>
+        <div className={GLASS_CARD + " p-4"}>
           <div className="mb-3 flex items-center justify-between">
             <span className={T_LABEL}>Active Sessions ({sessions.length})</span>
             <button onClick={loadSessions} disabled={sessionsLoading} className={`text-xs ${TAB_INACTIVE} px-3 py-1.5 rounded-lg`}>
@@ -340,7 +349,7 @@ export default function SecurityAdminPage() {
       {tab === "frozen" && (
         <div className="space-y-4">
           {/* Freeze form */}
-          <div className={GLASS_CARD}>
+          <div className={GLASS_CARD + " p-4"}>
             <p className={T_LABEL + " mb-3"}>Freeze an account</p>
             <form onSubmit={handleFreeze} className="flex flex-wrap gap-2">
               <input
@@ -373,7 +382,7 @@ export default function SecurityAdminPage() {
           </div>
 
           {/* Frozen list */}
-          <div className={GLASS_CARD}>
+          <div className={GLASS_CARD + " p-4"}>
             <div className="mb-3 flex items-center justify-between">
               <span className={T_LABEL}>Currently Frozen ({frozen.length})</span>
               <button onClick={loadFrozen} disabled={frozenLoading} className={`text-xs ${TAB_INACTIVE} px-3 py-1.5 rounded-lg`}>
@@ -431,7 +440,7 @@ export default function SecurityAdminPage() {
 
       {/* ── Audit log tab ── */}
       {tab === "audit" && (
-        <div className={GLASS_CARD}>
+        <div className={GLASS_CARD + " p-4"}>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className={T_LABEL}>Security Audit Log</span>
             <div className="flex flex-1 gap-2">
