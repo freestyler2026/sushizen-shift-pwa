@@ -744,7 +744,7 @@ function StaffRolesPageInner() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className={`${GLASS_CARD} p-6`}>
           <h1 className={T_PAGE_TITLE}>Role Management</h1>
-          <p className="mt-3 text-sm text-rose-300">Role Management is available only to HQ users.</p>
+          <p className="mt-3 text-sm text-rose-300">Role Management is available only to HQ and Admin users.</p>
         </div>
       </div>
     );
@@ -759,7 +759,7 @@ function StaffRolesPageInner() {
           </div>
           <div>
             <h1 className={T_PAGE_TITLE}>Role Management</h1>
-            <p className={T_CAPTION}>HQ-only workspace for channel view access, detailed permissions, and staff role assignments.</p>
+            <p className={T_CAPTION}>HQ and Admin workspace for channel view access, detailed permissions, and staff role assignments.</p>
             <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
               Signed in as {auth?.staffName || "Unknown"}
             </div>
@@ -1114,7 +1114,7 @@ function StaffRolesPageInner() {
               <Users className="h-4 w-4 text-violet-300" />
               <h2 className={T_SECTION}>Staff Assignments</h2>
             </div>
-            <p className={`${T_CAPTION} mb-4`}>HQ-only staff role assignment management.</p>
+            <p className={`${T_CAPTION} mb-4`}>HQ and Admin staff role assignment management.</p>
 
             {/* City filter tabs */}
             <div className="mb-3 flex gap-1 rounded-xl border border-white/10 bg-white/5 p-1">

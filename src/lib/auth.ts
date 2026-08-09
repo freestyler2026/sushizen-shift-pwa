@@ -568,7 +568,8 @@ export function canViewManagementPl(a?: Auth | null): boolean {
 
 export function canAccessRoleManagement(a?: Auth | null): boolean {
   const x = a ?? getAuth();
-  return String(x?.role || "").toUpperCase() === "HQ";
+  const r = String(x?.role || "").toUpperCase();
+  return r === "HQ" || r === "ADMIN";
 }
 
 /** Market Analysis page — matches `admin.market_analysis` channel in `app/access_control.py`.
