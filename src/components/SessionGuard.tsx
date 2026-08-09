@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getAuth, clearAuth } from "@/lib/auth";
+import { getAuth, setAuth, clearAuth, type Auth } from "@/lib/auth";
 
 const POLL_MS = 5 * 60 * 1000;
 const SKIP_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
@@ -33,12 +33,46 @@ function guardedHardReload(): void {
   window.location.replace(url.toString());
 }
 
+function decodeTokenPayload(token: string): Record<string, unknown> | null {
+  try {
+    const raw = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = "=".repeat((-raw.length) % 4);
+    return JSON.parse(atob(raw + pad));
+  } catch {
+    return null;
+  }
+}
+
 export default function SessionGuard() {
   const pathname = usePathname();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const polling = useRef<ReturnType<typeof setInterval> | null>(null);
   const kicked = useRef(false);
+  const permissionsVersion = useRef<number>(-1);
+
+  const refreshPermissions = async (auth: Auth) => {
+    const token = auth.accessToken;
+    if (!token) return;
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Cache-Control": "no-store" },
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { ok: boolean; access_token?: string };
+      if (!data.ok || !data.access_token) return;
+      const payload = decodeTokenPayload(data.access_token);
+      if (!payload) return;
+      setAuth({
+        ...auth,
+        accessToken: data.access_token,
+        permissions: Array.isArray(payload.permissions) ? (payload.permissions as string[]) : auth.permissions,
+        role: (payload.role as string) || auth.role,
+      });
+    } catch { /* Network error — ignore */ }
+  };
 
   const check = async () => {
     if (kicked.current) return;
@@ -60,7 +94,17 @@ export default function SessionGuard() {
       });
       if (!res.ok) return;
 
-      const data = (await res.json()) as { valid: boolean; reason?: string; force_reload?: boolean };
+      const data = (await res.json()) as { valid: boolean; reason?: string; force_reload?: boolean; permissions_version?: number };
+
+      // Detect permissions_version change → silently refresh token to pick up new permissions.
+      if (typeof data.permissions_version === "number") {
+        if (permissionsVersion.current === -1) {
+          permissionsVersion.current = data.permissions_version;
+        } else if (data.permissions_version !== permissionsVersion.current) {
+          permissionsVersion.current = data.permissions_version;
+          await refreshPermissions(auth);
+        }
+      }
 
       // force_reload is an HQ-triggered emergency signal.
       // Use localStorage cooldown so users are only reloaded once per 30-min window,
