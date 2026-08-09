@@ -196,8 +196,36 @@ export async function refreshAuthFromApi(
   }
 ): Promise<Auth | null> {
   const current = a ?? getAuth();
-  if (!current?.staffName) return current;
   const includeMfa = Boolean(options?.includeMfa);
+
+  // Phase 3: if localStorage is empty but an httpOnly sz_access cookie might exist,
+  // try the session endpoint to recover auth state (cookie is forwarded by the proxy).
+  if (!current?.staffName) {
+    if (typeof window === "undefined") return null;
+    try {
+      const sessionPath = includeMfa ? "/api/auth/session?include_mfa=1" : "/api/auth/session";
+      const res = await fetch(buildAuthApiUrl(sessionPath), { method: "GET", cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const sName = String(data?.staff_name || "").trim();
+      if (!sName) return null;
+      const cityLockRaw = String(data?.city_lock ?? "").toLowerCase();
+      const recovered: Auth = {
+        staffName: sName,
+        city: normalizeCity(data?.city),
+        cityLock: cityLockRaw === "dubai" || cityLockRaw === "manila" ? cityLockRaw : "",
+        role: normalizeRole(data?.role) || "STAFF",
+        hasSession: true,
+        accessToken: "",
+        permissions: normalizePermissions(data?.permissions),
+        mfa: normalizeMfaStatus(data?.mfa),
+      };
+      setAuth(recovered);
+      return recovered;
+    } catch {
+      return null;
+    }
+  }
 
   const remintAccessTokenWithPin = async (): Promise<Auth | null> => {
     if (!current.pin) return null;
