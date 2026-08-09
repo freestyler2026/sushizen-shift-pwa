@@ -1,6 +1,44 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Renewals badge Phase 3 fix + rate limit feedback loop — Vercel 68efef4 / Heroku v1856)
+Last updated: 2026-08-10 (Phase 3 auth guard sweep + session keepalive — Vercel 201b34a)
+
+---
+
+## ✅ Completed: Phase 3 auth guard sweep + session keepalive (2026-08-10)
+
+**Vercel 201b34a** (5 commits: 78d1e46 → 201b34a)
+
+### Root cause fixed: refreshAuthFromApi() was dropping hasSession
+`refreshAuthFromApi()` success path returned a `next` Auth object missing `hasSession: true`.
+Combined with `accessToken: ""` → `undefined` (via getAuth()), the `!hasSession && !accessToken`
+guards on every admin page blocked access for all Phase 3 cookie-auth users (HQ/ADMIN roles).
+
+**Fix (`src/lib/auth.ts`)**: Added `hasSession: true` to the `next` object in the session-success path.
+
+### Session keepalive added
+`SessionGuard.tsx`: Added `refreshSession()` called every 20 minutes. Calls `POST /api/auth/refresh`
+for all users with `hasSession: true` to prevent server-side session expiry during long shifts.
+
+### Auth guard sweep — all !accessToken-only guards replaced
+Replaced all `if (!auth?.accessToken) return;` guards with `if (!auth?.hasSession && !auth?.accessToken) return;`
+across the entire codebase. Also converted direct `${API_BASE}/api/...` fetch paths to relative `/api/...`
+and made Authorization headers conditional on `accessToken` presence.
+
+**Files fixed**:
+- `src/lib/auth.ts` — root cause fix + hasSession in next object
+- `src/components/SessionGuard.tsx` — keepalive
+- `src/app/admin/page.tsx` — price-check badge guard
+- `src/app/admin/draft/page.tsx` — xlsx download/import guards (3 places)
+- `src/app/admin/probation/page.tsx` — load, staff names, set-hired-at, save, delete guards
+- `src/app/admin/meal-allowance/page.tsx` — load, payout guards + authHeaders() fix
+- `src/app/admin/employee-cases/page.tsx` — 2 action guards
+- `src/app/admin/hr/clearance/page.tsx` — loans fetch guard
+- `src/app/admin/absences/page.tsx` — check-status fetch guard
+- `src/app/admin/camera-monitoring/page.tsx` — page-level auth guard
+- `src/app/request/page.tsx` — staff names, leave balance, submit guards
+- `src/app/swap-approve/page.tsx` — page-level auth guard
+- `src/components/ProcurementTabs.tsx` — badge summary guard + added getAuthHeaders()
+- `src/components/admin/AIAnalyticsProTab.tsx` — 3 action guards
 
 ---
 
