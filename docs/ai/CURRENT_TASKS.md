@@ -1,6 +1,30 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security Phase 4 complete — Vercel 2d1b083, Heroku v1831)
+Last updated: 2026-08-09 (Phase 4 testing complete + audit log search bug fixed — Heroku v1832)
+
+---
+
+## ✅ Completed: Phase 4 Testing + Bug Fix (2026-08-09)
+
+**Heroku v1832**
+
+End-to-end test of Phase 4 security implementation. All flows passed; one backend bug found and fixed.
+
+| Test | Result | Notes |
+|------|--------|-------|
+| T1: Cancel step-up modal | ✅ PASS | Modal closes cleanly, no side effects |
+| T2: Wrong PIN in step-up | ✅ PASS | "Invalid PIN" shown in modal, modal stays open |
+| T3: Login banner `force_logout_by_admin` | ✅ PASS | Amber banner shown on redirect |
+| T4: Login banner `account_frozen` | ✅ PASS | Amber banner shown on redirect |
+| T5: Force logout (Sanam KC) | ✅ PASS | Session count 13→12, Sanam removed from list |
+| T6: Freeze (Pawan Pun Magar) | ✅ PASS | Step-up modal, correct PIN, frozen list updated |
+| T7: Unfreeze (Pawan Pun Magar) | ✅ PASS | Step-up modal, correct PIN, count back to 0 |
+| T8: Audit Log tab loads | ✅ PASS | All 3 security actions logged correctly |
+| T8a: Audit Log search — BUG FIXED | ✅ FIXED | DB filter was exact-match on actor only; fixed to ILIKE partial match on actor OR target (`target_type='staff'`). `db.py:18953` → Heroku v1832 |
+
+### Remaining security items (Phase 5 — deferred)
+- Item 7: Audit log append-only + 4-year retention (DB-level)
+- Item 9: Employee Handbook policy page
 
 ---
 
