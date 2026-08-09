@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (OS Attendance edit modal portal fix — Vercel 3e178d4)
+Last updated: 2026-08-10 (Role Management ADMIN access fix — Vercel 33db91f / Heroku fbdefad)
+
+---
+
+## ✅ Completed: Role Management Access Fix for ADMIN role (2026-08-10)
+
+**Vercel 33db91f / Heroku fbdefad**
+
+### Bug: HQ/ADMIN users saw "Role Management is available only to HQ users" error
+
+**Root cause**: Three issues in combination:
+1. `canAccessRoleManagement()` in `auth.ts` only allowed `role === "HQ"`
+2. `refreshAuthFromApi()` replaces localStorage role with JWT role via `nonDowngradedAccess` — but `nonDowngradedAccess` only protects against downgrade to STAFF, so HQ in localStorage could become ADMIN after session refresh
+3. Backend `_require_hq_access_control()` only allowed `role == "HQ"`
+
+**Fix**:
+- `src/lib/auth.ts` `canAccessRoleManagement()`: now returns `r === "HQ" || r === "ADMIN"`
+- `sushizen_shift_app_clean/app/main.py` `_require_hq_access_control()`: now checks `not in {"HQ", "ADMIN"}`
+- UI text in `src/app/admin/staff/roles/page.tsx`: updated 3 strings from "HQ-only" to "HQ and Admin"
 
 ---
 
