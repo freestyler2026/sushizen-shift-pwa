@@ -33,15 +33,6 @@ function guardedHardReload(): void {
   window.location.replace(url.toString());
 }
 
-function decodeTokenPayload(token: string): Record<string, unknown> | null {
-  try {
-    const raw = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
-    const pad = "=".repeat((-raw.length) % 4);
-    return JSON.parse(atob(raw + pad));
-  } catch {
-    return null;
-  }
-}
 
 export default function SessionGuard() {
   const pathname = usePathname();
@@ -52,29 +43,27 @@ export default function SessionGuard() {
   const permissionsVersion = useRef<number>(-1);
 
   const refreshPermissions = async (auth: Auth) => {
-    const token = auth.accessToken;
-    if (!token) return;
+    // hasSession is set to true after login; accessToken is empty for httpOnly-cookie sessions.
+    if (!auth.hasSession) return;
     try {
       const res = await fetch("/api/auth/refresh", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}`, "Cache-Control": "no-store" },
+        credentials: "same-origin",
+        headers: { "Cache-Control": "no-store" },
         cache: "no-store",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { ok: boolean; access_token?: string; permissions_resolved?: boolean };
-      if (!data.ok || !data.access_token) return;
-      const payload = decodeTokenPayload(data.access_token);
-      if (!payload) return;
+      const data = (await res.json()) as { ok: boolean; permissions?: string[]; role?: string; permissions_resolved?: boolean };
+      if (!data.ok) return;
       // When permissions_resolved=false the backend fell back to legacy defaults —
       // keep the user's current permissions rather than potentially downgrading them.
-      const newPerms = (data.permissions_resolved !== false && Array.isArray(payload.permissions))
-        ? (payload.permissions as string[])
+      const newPerms = (data.permissions_resolved !== false && Array.isArray(data.permissions))
+        ? data.permissions
         : auth.permissions;
       setAuth({
         ...auth,
-        accessToken: data.access_token,
         permissions: newPerms,
-        role: (payload.role as string) || auth.role,
+        role: (data.role as string) || auth.role,
       });
     } catch { /* Network error — ignore */ }
   };
