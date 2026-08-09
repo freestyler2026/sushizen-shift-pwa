@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, type Auth } from "@/lib/auth";
 import {
   GLASS_CARD,
   DANGER_BUTTON,
@@ -93,11 +93,12 @@ const ACTION_COLORS: Record<string, string> = {
 
 export default function SecurityAdminPage() {
   const router = useRouter();
-  const auth = getAuth();
+  const [auth, setAuth] = useState<Auth | null>(null);
 
-  // gate: HQ / ADMIN only
+  // gate: HQ / ADMIN only — runs after hydration so localStorage is available
   useEffect(() => {
     const a = getAuth();
+    setAuth(a);
     if (!a) { router.replace("/login"); return; }
     const r = (a.role || "").toUpperCase();
     if (r !== "HQ" && r !== "ADMIN") { router.replace("/my-shift"); return; }
