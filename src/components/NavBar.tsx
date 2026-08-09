@@ -427,7 +427,7 @@ export default function NavBar() {
           }
           return;
         }
-        const res = await fetch(`${API_BASE}/api/renewals/alerts/badge`, {
+        const res = await fetch(`/api/renewals/alerts/badge`, {
           method: "GET",
           cache: "no-store",
           headers: getAuthHeaders(auth),
@@ -436,7 +436,9 @@ export default function NavBar() {
         const data = await res.json();
         const serverCount = Number(data?.badge_count ?? 0);
         const dismissed = getRenewalsDismissedCount();
-        const next = Math.max(0, serverCount - dismissed);
+        // Auto-reset dismissed count if it equals or exceeds server count (avoids "phantom dismissed" state).
+        const effectiveDismissed = dismissed > serverCount ? 0 : dismissed;
+        const next = Math.max(0, serverCount - effectiveDismissed);
         if (!cancelled) {
           setRenewalBadge(next > 0 ? next : 0);
           setRenewalsBadgeCount(next);
@@ -885,22 +887,24 @@ export default function NavBar() {
       } catch { /* optional */ }
 
       // ── Non-proxied badges (fetched here, AFTER refreshAuthFromApi refreshes sz_access) ──
-      // These endpoints are NOT under /api/admin/* or /api/store/* so they bypass the
-      // Next.js proxy. They rely on the sz_access httpOnly cookie forwarded by Vercel rewrite.
-      // Fetching them here (after cookie refresh) avoids the race condition where the
-      // badge useEffect polls with a stale/expired cookie before loadAuth completes.
+      // Use relative paths (/api/...) so the Vercel CDN rewrite forwards the sz_access
+      // httpOnly cookie to Heroku. The backend accepts the cookie as auth fallback.
+      // Fetching them here (after cookie refresh) avoids the race where the badge
+      // useEffect polls before loadAuth completes.
 
       // Renewals alerts badge
       try {
         const authR = resolved || a;
         if (canAccessRenewalsAdmin(authR)) {
-          const res = await fetch(`${API_BASE}/api/renewals/alerts/badge`, {
+          const res = await fetch(`/api/renewals/alerts/badge`, {
             method: "GET", cache: "no-store", headers: getAuthHeaders(authR),
           });
           if (res.ok) {
             const data = await res.json();
             const serverCount = Number(data?.badge_count ?? 0);
-            const next = Math.max(0, serverCount - getRenewalsDismissedCount());
+            const dismissed = getRenewalsDismissedCount();
+            const effectiveDismissed = dismissed > serverCount ? 0 : dismissed;
+            const next = Math.max(0, serverCount - effectiveDismissed);
             if (!cancelled) { setRenewalBadge(next); setRenewalsBadgeCount(next); }
           }
         }

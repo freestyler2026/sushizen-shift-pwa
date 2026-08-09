@@ -383,6 +383,8 @@ export async function refreshAuthFromApi(
 export function clearAuth() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);
+  // Reset badge dismissed counts so a fresh login shows all current alerts.
+  window.localStorage.removeItem("sushizen_renewals_badge_dismissed_count");
   // Phase 3: clear httpOnly cookies via the auth proxy (fire-and-forget).
   fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
 }
