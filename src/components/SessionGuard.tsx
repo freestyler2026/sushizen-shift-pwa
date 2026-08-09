@@ -61,14 +61,19 @@ export default function SessionGuard() {
         cache: "no-store",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { ok: boolean; access_token?: string };
+      const data = (await res.json()) as { ok: boolean; access_token?: string; permissions_resolved?: boolean };
       if (!data.ok || !data.access_token) return;
       const payload = decodeTokenPayload(data.access_token);
       if (!payload) return;
+      // When permissions_resolved=false the backend fell back to legacy defaults —
+      // keep the user's current permissions rather than potentially downgrading them.
+      const newPerms = (data.permissions_resolved !== false && Array.isArray(payload.permissions))
+        ? (payload.permissions as string[])
+        : auth.permissions;
       setAuth({
         ...auth,
         accessToken: data.access_token,
-        permissions: Array.isArray(payload.permissions) ? (payload.permissions as string[]) : auth.permissions,
+        permissions: newPerms,
         role: (payload.role as string) || auth.role,
       });
     } catch { /* Network error — ignore */ }
