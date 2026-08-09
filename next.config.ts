@@ -74,12 +74,20 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     if (!API_BASE) return [];
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_BASE}/api/:path*`,
-      },
-    ];
+    // Use "fallback" so that Next.js route handlers (including dynamic catch-alls like
+    // /api/admin/[...slug]) always take precedence over the CDN-level rewrite.
+    // With the plain array format ("afterFiles"), Vercel CDN bypasses dynamic catch-all
+    // routes for external-URL rewrites — this broke the httpOnly cookie proxy.
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${API_BASE}/api/:path*`,
+        },
+      ],
+    };
   },
   async headers() {
     // All navigable pages must not be cached at the edge/browser, or the PWA can serve
