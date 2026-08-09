@@ -39,7 +39,7 @@ interface Recipient {
 
 async function apiFetchAuthed(path: string, options: RequestInit = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
-    credentials: "omit",
+    credentials: "same-origin",
     ...options,
     headers: {
       "Content-Type": "application/json",

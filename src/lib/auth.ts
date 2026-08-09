@@ -740,23 +740,25 @@ export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean
 export async function tryRefreshAccessToken(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const current = getAuth();
-  if (!current?.accessToken) return false;
+  // Phase 2: need an accessToken. Phase 3: hasSession=true with empty accessToken — cookie provides auth via route handler.
+  if (!current?.accessToken && !current?.hasSession) return false;
 
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (current.accessToken) headers["Authorization"] = `Bearer ${current.accessToken}`;
+    if (window.location?.origin) headers["X-WebAuthn-Origin"] = window.location.origin;
+
     const res = await fetch(buildAuthApiUrl("/api/auth/refresh"), {
       method: "POST",
       cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${current.accessToken}`,
-        ...(window.location?.origin ? { "X-WebAuthn-Origin": window.location.origin } : {}),
-      },
+      credentials: "same-origin",
+      headers,
     });
     if (!res.ok) return false;
     const data = (await res.json()) as { access_token?: string };
     const nextToken = String(data?.access_token || "").trim();
-    if (!nextToken) return false;
-    setAuth({ ...current, accessToken: nextToken });
+    // Phase 2: update localStorage token. Phase 3: token is in httpOnly cookie (route handler updated it).
+    if (nextToken) setAuth({ ...current, accessToken: nextToken });
     return true;
   } catch {
     return false;

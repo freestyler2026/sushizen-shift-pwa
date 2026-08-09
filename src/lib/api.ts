@@ -66,7 +66,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   const doFetch = () =>
     fetch(url, {
       method: "GET",
-      credentials: "omit",
+      credentials: "same-origin",
       headers: getAuthHeaders(),
     });
 
@@ -91,7 +91,7 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
   const doFetch = () =>
     fetch(url, {
       method: "POST",
-      credentials: "omit",
+      credentials: "same-origin",
       headers: getAuthHeaders(),
       body: JSON.stringify(body ?? {}),
     });
