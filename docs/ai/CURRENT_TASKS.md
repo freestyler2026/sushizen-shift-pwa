@@ -1,6 +1,37 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Shift correction inline edit feature implemented and deployed)
+Last updated: 2026-08-09 (Analytics default tab SPA navigation bug fixed and deployed)
+
+---
+
+## ✅ Completed: Analytics Tab Default Bug Fix (2026-08-09)
+
+**Vercel deployed: commit 13ac8f2**
+
+### Problem
+When a user clicked the "Analytics" NavBar link while already on the Analytics page
+(e.g., after viewing the Evaluation tab), the active tab would persist (e.g., stay on
+Evaluation) instead of resetting to their role's default tab. This happened because:
+- Next.js App Router SPA navigation (`<Link>`) doesn't remount the component
+- The URL params reading `useEffect` had auth-flag dependencies that didn't change on
+  NavBar click, so it never re-ran to detect the clean URL (no `?tab=` param)
+
+### Fix (no Suspense)
+Added `navKey` state that increments whenever `history.pushState` or `popstate` fires
+(monkey-patch + event listener). Added `navKey` as dependency to the URL reading
+`useEffect`, which causes it to re-run on every SPA navigation and reset the tab to the
+role-appropriate default when the URL has no `?tab=` param.
+
+Also reverted a previous broken attempt that used `useSearchParams` + Suspense wrapper,
+which caused a completely blank analytics page.
+
+### Behavior after fix
+| Scenario | Before | After |
+|----------|--------|-------|
+| MANILA_MANAGER clicks Analytics NavBar (SPA) | Shows Evaluation (stale) | Shows Manila Sales (correct default) |
+| HQ clicks Analytics NavBar (SPA) | Shows last visited tab | Shows Staff Analytics (correct default) |
+| Deep-link `?tab=evaluation` (page load) | ✓ Shows Evaluation | ✓ Still shows Evaluation |
+| `?tab=evaluation` → back button | — | Correctly resets via popstate |
 
 ---
 
