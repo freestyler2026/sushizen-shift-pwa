@@ -293,8 +293,52 @@ export async function refreshAuthFromApi(
       headers: getAuthHeaders(current),
     });
     if (!res.ok) {
-      // Token may be expired/rotated: try legacy PIN remint when available.
+      // Token may be expired/rotated.
       if (res.status === 401 || res.status === 403) {
+        // Phase 3: JWT in sz_access cookie may have expired while sz_session is still valid.
+        // Attempt one cookie-based refresh before falling back to PIN remint.
+        if (current.hasSession && typeof window !== "undefined") {
+          try {
+            const refreshAttempt = await fetch(buildAuthApiUrl("/api/auth/refresh"), {
+              method: "POST",
+              cache: "no-store",
+            });
+            if (refreshAttempt.ok) {
+              const retryRes = await fetch(buildAuthApiUrl(sessionPath), {
+                method: "GET",
+                cache: "no-store",
+              });
+              if (retryRes.ok) {
+                const rd = await retryRes.json();
+                const rdCityLock = String(rd?.city_lock ?? "").toLowerCase();
+                const rdAccess = nonDowngradedAccess(
+                  current,
+                  normalizeRole(rd?.role),
+                  normalizePermissions(rd?.permissions),
+                );
+                const refreshedAuth: Auth = {
+                  staffName: String(rd?.staff_name || current.staffName).trim(),
+                  city: normalizeCity(rd?.city || current.city),
+                  cityLock: rdCityLock === "dubai" || rdCityLock === "manila" ? rdCityLock : (current.cityLock ?? ""),
+                  role: rdAccess.role,
+                  pin: current.pin,
+                  accessToken: current.accessToken,
+                  hasSession: true,
+                  stepUpToken: current.stepUpToken,
+                  stepUpLevel: normalizeStepUpLevel(rd?.step_up?.level) || current.stepUpLevel,
+                  stepUpMethod: String(rd?.step_up?.method || current.stepUpMethod || ""),
+                  stepUpVerifiedAt: String(rd?.step_up?.verified_at || current.stepUpVerifiedAt || ""),
+                  permissions: rdAccess.permissions,
+                  mfa: normalizeMfaStatus(rd?.mfa) || current.mfa,
+                };
+                setAuth(refreshedAuth);
+                return refreshedAuth;
+              }
+            }
+          } catch {
+            // fall through to PIN remint
+          }
+        }
         const migrated = await remintAccessTokenWithPin();
         if (migrated) return migrated;
       }
