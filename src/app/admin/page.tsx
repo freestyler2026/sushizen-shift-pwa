@@ -785,11 +785,11 @@ function AdminPageInner() {
   useEffect(() => {
     if (!ready || !allowed || !canOpenPriceCheck) return;
     const activeAuth = sessionAuth || auth;
-    if (!activeAuth?.accessToken) return;
+    if (!activeAuth?.hasSession && !activeAuth?.accessToken) return;
     void (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/price-check/flagged-count`, {
-          headers: { Authorization: `Bearer ${activeAuth.accessToken}` },
+        const res = await fetch(`/api/admin/price-check/flagged-count`, {
+          headers: activeAuth?.accessToken ? { Authorization: `Bearer ${activeAuth.accessToken}` } : {},
           cache: "no-store",
         });
         if (res.ok) {

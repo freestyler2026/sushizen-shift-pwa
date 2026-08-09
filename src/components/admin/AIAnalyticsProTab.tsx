@@ -222,7 +222,7 @@ export default function AIAnalyticsProTab() {
 
   const loadSavedAnswers = useCallback(async () => {
     const auth = getAuth();
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setSavedLoading(true);
     setSavedError("");
     const run = () =>
@@ -317,7 +317,7 @@ export default function AIAnalyticsProTab() {
 
   const saveAnswerSnapshot = async (pairedQuestion: string, answer: string, model?: string) => {
     const auth = getAuth();
-    if (!auth?.accessToken) throw new Error("Login required");
+    if (!auth?.hasSession && !auth?.accessToken) throw new Error("Login required");
     const city = String(auth.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
     const id = crypto.randomUUID();
     const run = () =>
@@ -357,7 +357,7 @@ export default function AIAnalyticsProTab() {
 
   const deleteSavedSnapshot = async (id: string) => {
     const auth = getAuth();
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     const run = () =>
       fetch(`${getApiBase()}/api/ai/analytics/snapshots/${encodeURIComponent(id)}`, {
         method: "DELETE",

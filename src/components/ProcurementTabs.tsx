@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { TAB_ACTIVE, TAB_INACTIVE } from "@/lib/ui-tokens";
 
 // ─── Access levels ────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ export default function ProcurementTabs() {
   const loadBadge = useCallback(async () => {
     try {
       const auth = getAuth();
-      if (!auth?.accessToken) return;
+      if (!auth?.hasSession && !auth?.accessToken) return;
       const refreshed = await refreshAuthFromApi(auth);
       const role = String(refreshed?.role || auth?.role || "STAFF");
       const city =
@@ -171,10 +171,7 @@ export default function ProcurementTabs() {
         {
           method: "GET",
           cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${refreshed?.accessToken || auth.accessToken}`,
-            ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
-          },
+          headers: getAuthHeaders(refreshed || auth),
         },
       );
       if (!res.ok) return;

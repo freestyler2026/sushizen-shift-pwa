@@ -228,7 +228,7 @@ export default function CameraMonitoringPage() {
 
   useEffect(() => {
     const a = getAuth();
-    if (!a?.accessToken) { router.replace("/login"); return; }
+    if (!a?.hasSession && !a?.accessToken) { router.replace("/login"); return; }
     if (!ADMIN_ROLES.has(a.role || "")) { router.replace("/"); return; }
     setLoading(true);
     Promise.all([fetchStatus(), fetchAlerts()]).finally(() => setLoading(false));

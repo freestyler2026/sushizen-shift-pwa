@@ -597,10 +597,9 @@ export default function RequestPage() {
   // Fetch staff names
   useEffect(() => {
     const freshAuth = getAuth();
-    if (!freshAuth?.accessToken) return;
-    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-    fetch(`${apiBase}/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`, {
-      headers: { Authorization: `Bearer ${freshAuth.accessToken}` },
+    if (!freshAuth?.hasSession && !freshAuth?.accessToken) return;
+    fetch(`/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`, {
+      headers: freshAuth?.accessToken ? { Authorization: `Bearer ${freshAuth.accessToken}` } : {},
     })
       .then(r => r.json())
       .then((d: { names?: string[] }) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
@@ -610,7 +609,7 @@ export default function RequestPage() {
   // Fetch leave balances
   useEffect(() => {
     const freshAuth = getAuth();
-    if (!freshAuth?.accessToken || !staffName || !city) return;
+    if ((!freshAuth?.hasSession && !freshAuth?.accessToken) || !staffName || !city) return;
     apiFetch(`/api/request/leave-balance?staff_name=${encodeURIComponent(staffName)}&city=${encodeURIComponent(city)}&year=${new Date().getFullYear()}`)
       .then(r => r.ok ? r.json() as Promise<{ balances: LeaveBalance[] }> : Promise.resolve({ balances: [] }))
       .then(d => setLeaveBalances(d.balances ?? []))
@@ -637,7 +636,7 @@ export default function RequestPage() {
     setLoading(true); setError(""); setResult(null);
     try {
       let currentAuth = getAuth();
-      if (!currentAuth?.accessToken) throw new Error("Please log in again.");
+      if (!currentAuth?.hasSession && !currentAuth?.accessToken) throw new Error("Please log in again.");
       if (!branch.trim()) throw new Error("Branch is required.");
       if (!workDate.trim()) throw new Error("Work date is required.");
       if (!reason.trim() || reason.trim().length < 5) throw new Error("Reason must be at least 5 characters.");

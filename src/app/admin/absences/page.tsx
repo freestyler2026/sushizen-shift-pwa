@@ -606,9 +606,9 @@ export default function AdminAbsencesPage() {
   // Fetch absence review staleness on mount
   useEffect(() => {
     const a = getAuth();
-    if (!a?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/absences/check-status`, {
-      headers: { Authorization: `Bearer ${a.accessToken}` },
+    if (!a?.hasSession && !a?.accessToken) return;
+    fetch(`/api/admin/absences/check-status`, {
+      headers: a?.accessToken ? { Authorization: `Bearer ${a.accessToken}` } : {},
       cache: "no-store",
     })
       .then(r => r.ok ? r.json() : null)
