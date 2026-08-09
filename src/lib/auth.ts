@@ -20,8 +20,12 @@ export type Auth = {
   cityLock?: string; // '' = all cities, 'dubai' = Dubai-only, 'manila' = Manila-only
   role?: StaffRole;
   pin?: string;
+  /** @deprecated Phase 3: token now lives in httpOnly cookie sz_access. Kept for backward compat with old sessions. */
   accessToken?: string;
-  sessionId?: string; // server-side session ID for C-1 middleware validation
+  /** @deprecated Phase 3: session ID now lives in httpOnly cookie sz_session. Kept for backward compat. */
+  sessionId?: string;
+  /** Phase 3: true when an httpOnly session cookie is active. Replaces accessToken presence check. */
+  hasSession?: boolean;
   stepUpToken?: string;
   stepUpLevel?: StepUpLevel;
   stepUpMethod?: string;
@@ -96,12 +100,16 @@ export function getAuth(): Auth | null {
   if (!staffName) return null;
 
   const cityLockRaw = String(obj.cityLock ?? obj.city_lock ?? "").toLowerCase();
+  // Phase 3 backward compat: old sessions store accessToken; new sessions store hasSession.
+  const hasSession =
+    typeof obj.hasSession === "boolean" ? obj.hasSession : !!obj.accessToken;
   return {
     staffName,
     city: normalizeCity(obj.city),
     cityLock: cityLockRaw === "dubai" || cityLockRaw === "manila" ? cityLockRaw : "",
     role: normalizeRole(obj.role) || "STAFF",
     pin: obj.pin ? String(obj.pin) : undefined,
+    hasSession,
     accessToken: obj.accessToken ? String(obj.accessToken) : undefined,
     sessionId: obj.sessionId ? String(obj.sessionId) : undefined,
     stepUpToken: obj.stepUpToken ? String(obj.stepUpToken) : undefined,
@@ -123,6 +131,10 @@ export function setAuth(a: Auth) {
       cityLock: a.cityLock ?? "",
       role: a.role || "STAFF",
       pin: a.pin || "",
+      // Phase 3: tokens live in httpOnly cookies, not localStorage.
+      // hasSession: true signals that a cookie session exists.
+      hasSession: true,
+      // Keep accessToken for backward compat (old sessions that haven't re-logged in yet).
       accessToken: a.accessToken || "",
       sessionId: a.sessionId || "",
       stepUpToken: a.stepUpToken || "",
@@ -219,7 +231,9 @@ export async function refreshAuthFromApi(
       role: verifiedAccess.role,
       pin: current.pin,
       accessToken: String(verified?.access_token || "").trim() || current.accessToken,
-      // Carry existing sessionId forward on token remint; backend issues a new one on fresh login
+      // Phase 3: proxy set sz_access/sz_session cookies — mark session active.
+      hasSession: true,
+      // Backward compat: keep token in localStorage if proxy returned it (dev/local mode).
       sessionId: String(verified?.session_id || "").trim() || current.sessionId,
       permissions: verifiedAccess.permissions,
       mfa: normalizeMfaStatus(verified?.mfa) || current.mfa,
@@ -233,14 +247,16 @@ export async function refreshAuthFromApi(
   };
 
   try {
-    // Legacy session migration:
-    // if token is missing but local PIN exists, mint a fresh access token.
-    if (!current.accessToken) {
+    // Phase 3: hasSession covers both httpOnly-cookie sessions (new) and
+    // old localStorage-token sessions (backward compat via getAuth()).
+    // Only attempt PIN remint when there is genuinely no session at all.
+    const activeSession = current.hasSession || !!current.accessToken;
+    if (!activeSession) {
       const migrated = await remintAccessTokenWithPin();
       if (migrated) return migrated;
     }
 
-    if (!current.accessToken) return current;
+    if (!activeSession) return current;
 
     const sessionPath = includeMfa ? "/api/auth/session?include_mfa=1" : "/api/auth/session";
     const res = await fetch(buildAuthApiUrl(sessionPath), {
@@ -288,6 +304,8 @@ export async function refreshAuthFromApi(
 export function clearAuth() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);
+  // Phase 3: clear httpOnly cookies via the auth proxy (fire-and-forget).
+  fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
 }
 
 export function setStepUpAuth(payload: {

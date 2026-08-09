@@ -16,6 +16,18 @@ function getApiBase() {
 
 type ForwardMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/** Build auth headers: httpOnly cookie takes precedence, client header is backward-compat fallback. */
+function resolveAuthHeaders(req: NextRequest): Record<string, string> {
+  const access = req.cookies.get("sz_access")?.value;
+  const session = req.cookies.get("sz_session")?.value;
+  const headers: Record<string, string> = {};
+  const auth = access ? `Bearer ${access}` : (req.headers.get("authorization") || "");
+  if (auth) headers.Authorization = auth;
+  const sid = session || req.headers.get("x-session-id") || "";
+  if (sid) headers["X-Session-Id"] = sid;
+  return headers;
+}
+
 async function forward(req: NextRequest, params: { slug: string[] }, method: ForwardMethod) {
   const apiBase = getApiBase();
   if (!apiBase) {
@@ -29,7 +41,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
     method,
     headers: {
       Accept: req.headers.get("accept") || "*/*",
-      ...(req.headers.get("authorization") ? { Authorization: req.headers.get("authorization") as string } : {}),
+      ...resolveAuthHeaders(req),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
       ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
