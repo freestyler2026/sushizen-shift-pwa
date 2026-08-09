@@ -172,12 +172,15 @@ export default function AdminProcurementPage() {
       }
     }
 
-    // Fallback for stale sessions: remint token from currently entered credentials.
-    if (!accessToken) {
+    // Phase 3: JWT is in the sz_access httpOnly cookie; accessToken is always "".
+    // The Next.js proxy injects it for /api/admin/* automatically.
+    // Never call remintAccessTokenWithPin() when hasSession=true — it exhausts the rate limit.
+    const hasActiveSession = !!(refreshed?.hasSession || latest?.hasSession || auth?.hasSession);
+    if (!accessToken && !hasActiveSession) {
       accessToken = await remintAccessTokenWithPin();
     }
 
-    if (!accessToken) throw new Error("Please login again.");
+    if (!accessToken && !hasActiveSession) throw new Error("Please login again.");
     return {
       Authorization: `Bearer ${accessToken}`,
       ...(stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {}),

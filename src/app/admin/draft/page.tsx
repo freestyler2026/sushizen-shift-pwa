@@ -1302,6 +1302,13 @@ export default function AdminDraftPage() {
 
   useEffect(() => {
     const run = async () => {
+      // Phase 3: if the user already has a server-side session, use the stored role
+      // directly — calling /api/auth/verify on mount exhausts the rate limit.
+      const a = getAuth();
+      if (a?.hasSession && a.role) {
+        setMyRole(a.role as Parameters<typeof setMyRole>[0]);
+        return;
+      }
       const nm = approverName.trim();
       const p = pin.trim();
 

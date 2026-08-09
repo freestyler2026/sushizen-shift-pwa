@@ -97,6 +97,12 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
     return remintedToken;
   }
 
+  // Phase 3: JWT is in the sz_access httpOnly cookie; accessToken is always "".
+  // The Next.js proxy injects it for /api/admin/* and /api/store/* automatically.
+  // Never call remintAccessTokenWithPin() when hasSession=true — it hits
+  // /api/auth/verify on every page load and exhausts the rate limit.
+  const hasActiveSession = !!(refreshed?.hasSession || auth?.hasSession);
+
   if (accessToken) {
     try {
       const sessionRes = await fetch(`/api/auth/session`, {
@@ -114,8 +120,8 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
     }
   }
 
-  if (!accessToken) accessToken = await remintAccessTokenWithPin();
-  if (!accessToken) throw new Error("Please login again.");
+  if (!accessToken && !hasActiveSession) accessToken = await remintAccessTokenWithPin();
+  if (!accessToken && !hasActiveSession) throw new Error("Please login again.");
 
   return {
     Authorization: `Bearer ${accessToken}`,

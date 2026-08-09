@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { canAccessProcurementAdmin } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth } from "@/lib/auth";
 import {
   defaultProcurementName,
   defaultProcurementPin,
@@ -154,6 +154,17 @@ export default function StorePurchasePage() {
   }, [name, pin, city]);
 
   useEffect(() => {
+    // Phase 3: if the user already has a server-side session, use the stored
+    // role directly — calling verifyPin() hits /api/auth/verify and exhausts
+    // the rate limit (8 calls per 10 min) on every AutoReload page reload.
+    const a = getAuth();
+    if (a?.hasSession) {
+      if (canAccessProcurementAdmin(a.role || "", city)) {
+        setAuthed(true);
+        void loadCatalog();
+      }
+      return;
+    }
     if (name && pin) void verifyPin();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
