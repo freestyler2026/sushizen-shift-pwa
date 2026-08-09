@@ -365,6 +365,7 @@ export async function refreshAuthFromApi(
       cityLock: sessionCityLockRaw === "dubai" || sessionCityLockRaw === "manila" ? sessionCityLockRaw : (current.cityLock ?? ""),
       role: sessionAccess.role,
       pin: current.pin,
+      hasSession: true,
       accessToken: current.accessToken,
       stepUpToken: current.stepUpToken,
       stepUpLevel: normalizeStepUpLevel(data?.step_up?.level) || current.stepUpLevel,
