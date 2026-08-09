@@ -2186,6 +2186,10 @@ export default function AdminAnalyticsPage() {
   const [securityMessage, setSecurityMessage] = useState("");
   const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(false);
   const stepUpVerifiedRef = useRef(false);
+  // Prevents the URL update effect from overwriting the incoming ?tab= on initial mount
+  // before the URL params reading effect has a chance to restore the correct tab.
+  const urlHasBeenWrittenRef = useRef(false);
+  const [navKey, setNavKey] = useState(0);
   const [totpCode, setTotpCode] = useState("");
   const [backupCode, setBackupCode] = useState("");
   const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
@@ -2832,34 +2836,46 @@ export default function AdminAnalyticsPage() {
     }
   }, [analyticsTab, canViewDubaiSalesChannel, canViewManilaSalesChannel, canViewProcurementChannel, canViewStaffChannel, hasVisibleAnalyticsChannel]);
 
+  // Track SPA navigations (NavBar clicks) via pushState intercept + popstate listener.
+  // navKey increments whenever Next.js router changes the URL, causing the URL reading
+  // effect below to re-fire and reset the tab to the correct default.
+  useEffect(() => {
+    const handlePopState = () => setNavKey(k => k + 1);
+    window.addEventListener("popstate", handlePopState);
+    const origPushState = window.history.pushState.bind(window.history);
+    window.history.pushState = function(...args: Parameters<typeof window.history.pushState>) {
+      origPushState(...args);
+      setNavKey(k => k + 1);
+    };
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.history.pushState = origPushState;
+    };
+  }, []);
+
+  // Restore or reset tab from URL params. Re-runs on SPA navigation (navKey) and permission changes.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const requestedTab = String(new URLSearchParams(window.location.search).get("tab") || "").trim();
-    if (!requestedTab) return;
-    if (requestedTab === "staff" && canViewStaffChannel) {
-      setAnalyticsTab("staff");
+    const urlTabParam = new URLSearchParams(window.location.search).get("tab") ?? "";
+    if (!urlTabParam) {
+      // No ?tab= param means fresh navigation (NavBar click / clean URL).
+      // Reset to the role-appropriate default tab so MANILA_MANAGER always lands
+      // on Manila Sales, not on whatever tab was last visited.
+      if (canViewStaffChannel) { setAnalyticsTab("staff"); return; }
+      if (canViewManilaSalesChannel && !canViewDubaiSalesChannel) { setAnalyticsTab("manilaSales"); return; }
+      if (canViewDubaiSalesChannel) { setAnalyticsTab("dubaiSales"); return; }
+      if (canViewProcurementChannel) { setAnalyticsTab("procurement"); return; }
       return;
     }
-    if (requestedTab === "dubaiSales" && canViewDubaiSalesChannel) {
-      setAnalyticsTab("dubaiSales");
-      return;
-    }
-    if (requestedTab === "manilaSales" && canViewManilaSalesChannel) {
-      setAnalyticsTab("manilaSales");
-      return;
-    }
-    if (requestedTab === "evaluation" && canViewEvaluationChannel) {
-      setAnalyticsTab("evaluation");
-      return;
-    }
-    if (requestedTab === "procurement" && canViewProcurementChannel) {
-      setAnalyticsTab("procurement");
-      return;
-    }
-    if (requestedTab === "ai" && hasVisibleAnalyticsChannel) {
-      setAnalyticsTab("ai");
-    }
+    // Restore tab from URL param (page refresh / deep-link).
+    if (urlTabParam === "staff" && canViewStaffChannel) { setAnalyticsTab("staff"); return; }
+    if (urlTabParam === "dubaiSales" && canViewDubaiSalesChannel) { setAnalyticsTab("dubaiSales"); return; }
+    if (urlTabParam === "manilaSales" && canViewManilaSalesChannel) { setAnalyticsTab("manilaSales"); return; }
+    if (urlTabParam === "evaluation" && canViewEvaluationChannel) { setAnalyticsTab("evaluation"); return; }
+    if (urlTabParam === "procurement" && canViewProcurementChannel) { setAnalyticsTab("procurement"); return; }
+    if (urlTabParam === "ai" && hasVisibleAnalyticsChannel) { setAnalyticsTab("ai"); }
   }, [
+    navKey,
     canViewDubaiSalesChannel,
     canViewEvaluationChannel,
     hasVisibleAnalyticsChannel,
@@ -2869,6 +2885,12 @@ export default function AdminAnalyticsPage() {
   ]);
 
   useEffect(() => {
+    // Skip on initial mount so the URL params reading effect can restore
+    // the correct tab from the incoming ?tab= before we overwrite it.
+    if (!urlHasBeenWrittenRef.current) {
+      urlHasBeenWrittenRef.current = true;
+      return;
+    }
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     if (url.pathname !== "/admin/analytics") return;
@@ -10416,3 +10438,4 @@ export default function AdminAnalyticsPage() {
     </motion.div>
   );
 }
+
