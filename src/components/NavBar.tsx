@@ -525,7 +525,7 @@ export default function NavBar() {
       try {
         const auth = getAuth();
         // Only poll if logged in as admin-capable user
-        if (!auth?.accessToken) { if (!cancelled) setAdminRequestBadge(0); return; }
+        if (!auth?.hasSession && !auth?.accessToken) { if (!cancelled) setAdminRequestBadge(0); return; }
         const city = String(auth.city || "dubai").toLowerCase();
         const res = await fetch(`${API_BASE}/api/admin/requests/badge?city=${encodeURIComponent(city)}`, {
           cache: "no-store",
@@ -553,7 +553,7 @@ export default function NavBar() {
     const fetchPrivateReportBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken) { if (!cancelled) setPrivateReportBadge(0); return; }
+        if (!auth?.hasSession && !auth?.accessToken) { if (!cancelled) setPrivateReportBadge(0); return; }
         const res = await fetch(`${API_BASE}/api/admin/private_reports/badge`, {
           headers: { Authorization: `Bearer ${auth.accessToken}` },
           cache: "no-store",
@@ -580,7 +580,7 @@ export default function NavBar() {
     const fetchInboxBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken) { if (!cancelled) setInboxBadge(0); return; }
+        if (!auth?.hasSession && !auth?.accessToken) { if (!cancelled) setInboxBadge(0); return; }
         const res = await fetch(`${API_BASE}/api/private_reports/my_inbox?limit=200`, {
           headers: { Authorization: `Bearer ${auth.accessToken}` },
           cache: "no-store",
@@ -607,7 +607,7 @@ export default function NavBar() {
     const fetchNteBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken) return;
+        if (!auth?.hasSession && !auth?.accessToken) return;
         const res = await fetch(`/api/store/conduct/notifications/badge`, {
           headers: { Authorization: `Bearer ${auth.accessToken}` },
           cache: "no-store",
@@ -628,7 +628,7 @@ export default function NavBar() {
     const fetchPriceCheckBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken) return;
+        if (!auth?.hasSession && !auth?.accessToken) return;
         const role = String(auth.role || "").toUpperCase();
         if (!["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role)) return;
         const pcRes = await fetch(`${API_BASE}/api/admin/price-check/flagged-count`, {
@@ -656,7 +656,7 @@ export default function NavBar() {
   useEffect(() => {
     async function pollGroupBadges() {
       const auth = getAuth();
-      if (!auth?.accessToken) return;
+      if (!auth?.hasSession && !auth?.accessToken) return;
       const r = String(auth.role || "").toUpperCase();
       const h = { cache: "no-store" as const, headers: { Authorization: `Bearer ${auth.accessToken}` } };
       if (["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r)) {
@@ -706,7 +706,7 @@ export default function NavBar() {
       }
       try {
         const accessToken = resolved?.accessToken || a.accessToken;
-        if (!accessToken) return;
+        if (!accessToken && !resolved?.hasSession && !a.hasSession) return;
         if (!canAccessProcurementAdmin(resolved || a, (resolved?.city || a.city || "manila") === "dubai" ? "dubai" : "manila")) return;
         const city = String(resolved?.city || a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
         const sumRes = await fetch(`/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`, {
@@ -901,7 +901,7 @@ export default function NavBar() {
       try {
         const auth = getAuth();
         const role = (auth?.role || "").toUpperCase();
-        if (!auth?.accessToken || (role !== "HQ" && role !== "ADMIN" && !canAccessAbsencesAdmin(auth))) {
+        if ((!auth?.hasSession && !auth?.accessToken) || (role !== "HQ" && role !== "ADMIN" && !canAccessAbsencesAdmin(auth))) {
           if (!cancelled) setAbsenceStaleBadge(false);
           return;
         }
@@ -934,7 +934,7 @@ export default function NavBar() {
     const fetchStoreOpeningBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth?.accessToken || !canAccessStoreOpeningAdmin(auth)) {
+        if ((!auth?.hasSession && !auth?.accessToken) || !canAccessStoreOpeningAdmin(auth)) {
           if (!cancelled) setStoreOpeningBadge(0);
           return;
         }
