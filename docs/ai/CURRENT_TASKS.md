@@ -1,6 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security Phase 2: bcrypt PIN, auto-freeze on INACTIVE, /admin/security UI — Heroku v1829, Vercel 8e9fb81)
+Last updated: 2026-08-09 (Security Phase 3 complete — Vercel 7e07ab1, Heroku v1830)
+
+---
+
+## ✅ Completed: Security Phase 3 — httpOnly Cookie + employee_id (2026-08-09)
+
+**Heroku v1830 + Vercel 7e07ab1**
+
+| Item | Status | Details |
+|------|--------|---------|
+| M-3: httpOnly Cookie | ✅ | JWT moved out of localStorage into `HttpOnly; Secure; SameSite=Strict; Path=/api` cookie `sz_access`; session ID in `sz_session`. Vercel proxy intercepts login/refresh to set cookies, strips tokens from response body. `resolveAuthHeaders()` in admin/store proxies reads cookies to forward `Authorization: Bearer`. Old localStorage sessions fully backward-compatible. |
+| C-2: numeric employee_id | ✅ | `staff_master_employee_id_seq` sequence + `employee_id INT` column added; `list_staff_master()` returns it as 15th column; API returns `employee_id` in staff list response. All existing staff auto-assigned IDs (e.g. Alexandra Lim → 2). |
+| X-Session-Id proxy bug (Phase 1 regression) | ✅ | All three proxy routes were NOT forwarding `X-Session-Id`. Fixed by `resolveAuthHeaders()` in admin/store routes. |
+| `/api/auth/logout` dedicated route | ✅ | Added `src/app/api/auth/logout/route.ts` — dedicated POST handler clears both cookies. Safety net in case `[...slug]` catch-all is shadowed by catch-all rewrites (Vercel routing edge case). |
+
+### Architecture notes for Phase 3
+- `auth.ts` uses `getAuthApiBase()` which returns `""` in production → auth calls always use relative paths → hit Next.js route handlers → cookies are read correctly
+- `api.ts` / page-level `apiFetch` uses `NEXT_PUBLIC_API_BASE_URL` prefix; if unset, also uses relative paths → route handlers
+- Backward compat: `getAuth()` returns `hasSession = accessToken ? true : (hasSession ?? false)` so old sessions without the flag still work
+- Cookie path is `/api` so cookies are only sent to `/api/*` routes, not page routes
 
 ---
 
@@ -12,14 +31,9 @@ Last updated: 2026-08-09 (Security Phase 2: bcrypt PIN, auto-freeze on INACTIVE,
 |------|--------|---------|
 | bcrypt PIN migration | ✅ | `set_staff_pin` now always bcrypt (rounds=12); `verify_staff_pin` detects `$2b$` prefix and does lazy SHA256→bcrypt upgrade on successful login |
 | Auto-freeze on termination (M-5) | ✅ | `api_admin_change_staff_status` freezes account + invalidates sessions when set to INACTIVE; unfreezes on reactivation |
-| `/admin/security` management UI | ✅ | Three-tab page: Active Sessions (with force-logout), Frozen Accounts (freeze form + unfreeze), Audit Log (filterable) |
+| `/admin/security` management UI | ✅ | Three-tab page: Active Sessions (with force-logout), Frozen Accounts (freeze form + unfreeze), Audit Log (filterable) — browser-verified 2026-08-09 |
 | NavBar: Security entry | ✅ | HQ/ADMIN only, uses `ShieldAlert` icon, appears next to Role Management |
 | Middleware bug fixes | ✅ | `asyncio.get_running_loop()` instead of `get_event_loop()`; `isinstance(datetime)` + `tzinfo is not None` guard |
-
-### Remaining scope (Phase 3 — not started)
-- C-2: numeric `employee_id` (ALTER TABLE staff_master + migration — complex, multi-file change)
-- M-3: httpOnly Cookie (requires CORS + Vercel proxy + SameSite policy)
-- Employee Handbook disclosure (HR task, not a code change)
 
 ---
 
