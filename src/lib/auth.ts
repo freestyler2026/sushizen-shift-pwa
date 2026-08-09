@@ -21,6 +21,7 @@ export type Auth = {
   role?: StaffRole;
   pin?: string;
   accessToken?: string;
+  sessionId?: string; // server-side session ID for C-1 middleware validation
   stepUpToken?: string;
   stepUpLevel?: StepUpLevel;
   stepUpMethod?: string;
@@ -102,6 +103,7 @@ export function getAuth(): Auth | null {
     role: normalizeRole(obj.role) || "STAFF",
     pin: obj.pin ? String(obj.pin) : undefined,
     accessToken: obj.accessToken ? String(obj.accessToken) : undefined,
+    sessionId: obj.sessionId ? String(obj.sessionId) : undefined,
     stepUpToken: obj.stepUpToken ? String(obj.stepUpToken) : undefined,
     stepUpLevel: normalizeStepUpLevel(obj.stepUpLevel),
     stepUpMethod: obj.stepUpMethod ? String(obj.stepUpMethod) : undefined,
@@ -122,6 +124,7 @@ export function setAuth(a: Auth) {
       role: a.role || "STAFF",
       pin: a.pin || "",
       accessToken: a.accessToken || "",
+      sessionId: a.sessionId || "",
       stepUpToken: a.stepUpToken || "",
       stepUpLevel: a.stepUpLevel || "",
       stepUpMethod: a.stepUpMethod || "",
@@ -216,6 +219,8 @@ export async function refreshAuthFromApi(
       role: verifiedAccess.role,
       pin: current.pin,
       accessToken: String(verified?.access_token || "").trim() || current.accessToken,
+      // Carry existing sessionId forward on token remint; backend issues a new one on fresh login
+      sessionId: String(verified?.session_id || "").trim() || current.sessionId,
       permissions: verifiedAccess.permissions,
       mfa: normalizeMfaStatus(verified?.mfa) || current.mfa,
       stepUpToken: current.stepUpToken,
@@ -319,6 +324,7 @@ export function getAuthHeaders(a?: Auth | null): HeadersInit {
     "Content-Type": "application/json",
   };
   if (current?.accessToken) headers.Authorization = `Bearer ${current.accessToken}`;
+  if (current?.sessionId) headers["X-Session-Id"] = current.sessionId;
   if (current?.stepUpToken) headers["X-Step-Up-Token"] = current.stepUpToken;
   if (typeof window !== "undefined" && window.location?.origin) {
     headers["X-WebAuthn-Origin"] = window.location.origin;
@@ -333,6 +339,7 @@ export function getUploadHeaders(a?: Auth | null): HeadersInit {
   const current = a ?? getAuth();
   const headers: Record<string, string> = {};
   if (current?.accessToken) headers.Authorization = `Bearer ${current.accessToken}`;
+  if (current?.sessionId) headers["X-Session-Id"] = current.sessionId;
   if (current?.stepUpToken) headers["X-Step-Up-Token"] = current.stepUpToken;
   if (typeof window !== "undefined" && window.location?.origin) {
     headers["X-WebAuthn-Origin"] = window.location.origin;

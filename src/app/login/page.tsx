@@ -42,6 +42,7 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
   role: StaffRole;
   city: City;
   accessToken: string;
+  sessionId?: string;
   permissions: string[];
   mfa?: {
     passkey_count?: number;
@@ -82,6 +83,7 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
     role: (j?.role as StaffRole) || "STAFF",
     city: (String(j?.city || city).toLowerCase() === "manila" ? "manila" : "dubai") as City,
     accessToken: String(j?.access_token || "").trim(),
+    sessionId: String(j?.session_id || "").trim() || undefined,
     permissions: Array.isArray(j?.permissions) ? j.permissions.map((item: unknown) => String(item || "").trim()).filter(Boolean) : [],
     mfa: j?.mfa || undefined,
   };
@@ -198,6 +200,7 @@ function LoginInner() {
         role: verified.role,
         pin: p,
         accessToken: verified.accessToken,
+        sessionId: verified.sessionId,
         permissions: verified.permissions,
         mfa: verified.mfa
           ? {
