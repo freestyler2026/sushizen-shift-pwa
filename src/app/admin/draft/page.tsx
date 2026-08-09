@@ -1176,16 +1176,16 @@ export default function AdminDraftPage() {
     staff_name: string; suspension_date: string; reason: string;
   }[]>([]);
   useEffect(() => {
-    if (!auth?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/conduct/enforcement/upcoming?city=${city}&days_ahead=30`, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    if (!auth?.hasSession && !auth?.accessToken) return;
+    fetch(`/api/admin/conduct/enforcement/upcoming?city=${city}&days_ahead=30`, {
+      headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
       cache: "no-store",
     })
       .then((r) => r.json())
       .then((d) => setUpcomingSuspensions(Array.isArray(d?.suspensions) ? d.suspensions : []))
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, auth?.accessToken]);
+  }, [city, auth?.accessToken, auth?.hasSession]);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [generateResult, setGenerateResult] = useState<BatchGenerateResult | null>(null);
 
@@ -2307,12 +2307,12 @@ export default function AdminDraftPage() {
 
   // ── Editable XLSX download (server-side openpyxl with dropdowns) ──────────
   async function downloadEditableXlsx() {
-    if (!version?.version_id || !auth?.accessToken || !canOperate) return;
+    if (!version?.version_id || (!auth?.hasSession && !auth?.accessToken) || !canOperate) return;
     setXlsxEditDownloading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/draft/export-xlsx?version_id=${encodeURIComponent(version.version_id)}`,
-        { headers: { Authorization: `Bearer ${auth.accessToken}` } },
+        `/api/admin/draft/export-xlsx?version_id=${encodeURIComponent(version.version_id)}`,
+        { headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {} },
       );
       if (!res.ok) {
         const text = await res.text();
@@ -2335,7 +2335,7 @@ export default function AdminDraftPage() {
   }
 
   async function previewXlsxImport(file: File) {
-    if (!version?.version_id || !auth?.accessToken) return;
+    if (!version?.version_id || (!auth?.hasSession && !auth?.accessToken)) return;
     setXlsxImportBusy(true);
     setXlsxImportError("");
     setXlsxImportPreview(null);
@@ -2343,10 +2343,10 @@ export default function AdminDraftPage() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch(
-        `${API_BASE}/api/admin/draft/import-xlsx/preview?version_id=${encodeURIComponent(version.version_id)}`,
+        `/api/admin/draft/import-xlsx/preview?version_id=${encodeURIComponent(version.version_id)}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
           body: formData,
         },
       );
@@ -2364,15 +2364,15 @@ export default function AdminDraftPage() {
   }
 
   async function applyXlsxImport() {
-    if (!xlsxImportPreview || !auth?.accessToken) return;
+    if (!xlsxImportPreview || (!auth?.hasSession && !auth?.accessToken)) return;
     setXlsxApplyBusy(true);
     setXlsxImportError("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/draft/import-xlsx/apply`, {
+      const res = await fetch(`/api/admin/draft/import-xlsx/apply`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.accessToken}`,
+          ...(auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {}),
         },
         body: JSON.stringify({
           version_id: xlsxImportPreview.version_id,

@@ -103,12 +103,12 @@ export default function ProbationPage() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/probation/summary?city=${encodeURIComponent(city)}`, {
-        headers: { Authorization: `Bearer ${auth.accessToken}` },
+      const res = await fetch(`/api/admin/probation/summary?city=${encodeURIComponent(city)}`, {
+        headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -126,9 +126,9 @@ export default function ProbationPage() {
   }, [allowed, load]);
 
   useEffect(() => {
-    if (!allowed || !auth?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    if (!allowed || (!auth?.hasSession && !auth?.accessToken)) return;
+    fetch(`/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
+      headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
     })
       .then((r) => r.json())
       .then((d) => setStaffNames(Array.isArray(d?.names) ? d.names : []))
@@ -136,14 +136,14 @@ export default function ProbationPage() {
   }, [allowed, auth, city]);
 
   const handleSetHiredAt = async () => {
-    if (!auth?.accessToken || !hiredAtName.trim() || !hiredAtDate.trim()) return;
+    if ((!auth?.hasSession && !auth?.accessToken) || !hiredAtName.trim() || !hiredAtDate.trim()) return;
     setSettingHiredAt(true);
     setError("");
     setSuccessMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/probation/set-hired-at`, {
+      const res = await fetch(`/api/admin/probation/set-hired-at`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        headers: { "Content-Type": "application/json", ...(auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {}) },
         body: JSON.stringify({ staff_name: hiredAtName.trim(), hired_at: hiredAtDate }),
       });
       if (!res.ok) {
@@ -174,7 +174,7 @@ export default function ProbationPage() {
   };
 
   const handleSave = async (emp: ProbationEmployee) => {
-    if (!auth?.accessToken || !editDraft) return;
+    if ((!auth?.hasSession && !auth?.accessToken) || !editDraft) return;
     setSaving(true);
     setError("");
     setSuccessMsg("");
@@ -194,9 +194,9 @@ export default function ProbationPage() {
         body.termination_flagged = editDraft.termination_flagged;
         body.termination_reason = editDraft.termination_reason || null;
       }
-      const res = await fetch(`${API_BASE}/api/admin/probation/update`, {
+      const res = await fetch(`/api/admin/probation/update`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        headers: { "Content-Type": "application/json", ...(auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {}) },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -214,14 +214,14 @@ export default function ProbationPage() {
   };
 
   const handleDelete = async (emp: ProbationEmployee) => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setSaving(true);
     setError("");
     setSuccessMsg("");
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/probation/delete?staff_name=${encodeURIComponent(emp.staff_name)}&city=${encodeURIComponent(emp.city)}`,
-        { method: "DELETE", headers: { Authorization: `Bearer ${auth.accessToken}` } },
+        `/api/admin/probation/delete?staff_name=${encodeURIComponent(emp.staff_name)}&city=${encodeURIComponent(emp.city)}`,
+        { method: "DELETE", headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {} },
       );
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));

@@ -270,7 +270,7 @@ function LoanedAssetsSection({ employeeName, city }: { employeeName: string; cit
   const auth = getAuth();
 
   useEffect(() => {
-    if (!employeeName || !auth?.accessToken) return;
+    if (!employeeName || (!auth?.hasSession && !auth?.accessToken)) return;
     fetch(
       `${API_BASE}/api/admin/assets/loans/active?assignee=${encodeURIComponent(employeeName)}`,
       { headers: getAuthHeaders() },

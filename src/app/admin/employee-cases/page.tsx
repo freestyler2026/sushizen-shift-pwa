@@ -821,7 +821,7 @@ export default function EmployeeCasesPage() {
   // ── Load data (POST only) ──────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     const auth = getAuth();
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setLoading(true);
     setError("");
 
@@ -870,7 +870,7 @@ export default function EmployeeCasesPage() {
   useEffect(() => {
     if (!accessReady) return;
     const auth = getAuth();
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     fetch(`/api/admin/staff_master/names?city=${city}&limit=300`, {
       headers: getAuthHeaders(auth) as Record<string, string>,
     })

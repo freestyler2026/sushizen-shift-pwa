@@ -30,7 +30,8 @@ function fmtPHP(n: number) {
   return `PHP ${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function authHeaders(token: string) {
+function authHeaders(token: string | undefined) {
+  if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -61,11 +62,11 @@ export default function MealAllowancePage() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/meal-allowance/summary?city=${encodeURIComponent(city)}`, {
+      const res = await fetch(`/api/admin/meal-allowance/summary?city=${encodeURIComponent(city)}`, {
         headers: authHeaders(auth.accessToken),
         cache: "no-store",
       });
@@ -100,13 +101,13 @@ export default function MealAllowancePage() {
   const clearAll = () => setSelected(new Set());
 
   const handlePayout = async () => {
-    if (!auth?.accessToken || selected.size === 0) return;
+    if ((!auth?.hasSession && !auth?.accessToken) || selected.size === 0) return;
     if (!window.confirm(`Pay out ${fmtPHP(rows.filter(r => selected.has(r.staff_name)).reduce((s, r) => s + Number(r.pending_total), 0))} to ${selected.size} staff?`)) return;
     setPayingOut(true);
     setError("");
     setSuccessMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/meal-allowance/payout`, {
+      const res = await fetch(`/api/admin/meal-allowance/payout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(auth.accessToken) },
         body: JSON.stringify({
