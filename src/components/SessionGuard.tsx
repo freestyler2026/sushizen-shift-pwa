@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getAuth, setAuth, clearAuth, type Auth } from "@/lib/auth";
 
 const POLL_MS = 5 * 60 * 1000;
+const KEEPALIVE_MS = 20 * 60 * 1000;
 const SKIP_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
 const RELOAD_GUARD_KEY = "zen:reload-attempt";
 const RELOAD_GUARD_MS = 30_000;
@@ -39,6 +40,7 @@ export default function SessionGuard() {
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const polling = useRef<ReturnType<typeof setInterval> | null>(null);
+  const keepalive = useRef<ReturnType<typeof setInterval> | null>(null);
   const kicked = useRef(false);
   const permissionsVersion = useRef<number>(-1);
 
@@ -64,6 +66,19 @@ export default function SessionGuard() {
         ...auth,
         permissions: newPerms,
         role: (data.role as string) || auth.role,
+      });
+    } catch { /* Network error — ignore */ }
+  };
+
+  const refreshSession = async () => {
+    if (kicked.current) return;
+    const auth = getAuth();
+    if (!auth?.hasSession || !auth?.staffName) return;
+    try {
+      await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
       });
     } catch { /* Network error — ignore */ }
   };
@@ -139,10 +154,12 @@ export default function SessionGuard() {
 
     const init = setTimeout(check, 2000);
     polling.current = setInterval(check, POLL_MS);
+    keepalive.current = setInterval(refreshSession, KEEPALIVE_MS);
 
     return () => {
       clearTimeout(init);
       if (polling.current) clearInterval(polling.current);
+      if (keepalive.current) clearInterval(keepalive.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
