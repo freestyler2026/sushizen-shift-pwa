@@ -104,9 +104,16 @@ export default function AdminHandbookPage() {
 
   async function loadStaffNames() {
     try {
-      const r = await apiFetch("/api/admin/staff_master/names?status=ACTIVE&limit=2000");
-      const d = await r.json();
-      if (r.ok) setStaffNames(Array.isArray(d?.names) ? d.names : []);
+      const [rd, rm] = await Promise.all([
+        apiFetch("/api/admin/staff_master/names?city=dubai&status=ACTIVE&limit=2000"),
+        apiFetch("/api/admin/staff_master/names?city=manila&status=ACTIVE&limit=2000"),
+      ]);
+      const [dd, dm] = await Promise.all([rd.json(), rm.json()]);
+      const combined = [
+        ...(Array.isArray(dd?.names) ? dd.names : []),
+        ...(Array.isArray(dm?.names) ? dm.names : []),
+      ];
+      setStaffNames(combined);
     } catch { /* ignore */ }
   }
 
