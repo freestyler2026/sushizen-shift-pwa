@@ -1,6 +1,62 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (permissions_version auto-refresh + Richard role fix — Vercel 4f83316 / Heroku v1837)
+Last updated: 2026-08-09 (Security hardening Phases ①④⑤⑥ — Heroku v1839-v1841 / Vercel 975cc14)
+
+---
+
+## 🔒 Security Hardening — In Progress
+
+### ✅ Phase ① — ACCESS_TOKEN_SECRET + _secret() RuntimeError guard (v1838-v1839)
+- `heroku config:set ACCESS_TOKEN_SECRET=734762b2f52e36c889b51046f5a586f6f3df9bb81bda6682e60e717143976f45`
+- `security_tokens.py _secret()`: removed STAFF_PIN_SALT fallback; raises RuntimeError if key unset
+- All existing tokens signed with `"random-long-secret-CHANGE-ME"` immediately invalidated (all users force-logged-out)
+
+### ✅ Phase ② — (No action needed — L1499 _require_pin name resolution is already fail-closed)
+
+### ✅ Phase ③ — Role distribution surveyed
+- Non-system roles in production: INVENTORY_PURCHASING (20 staff), CK_MANILA (3), MANILA_STAFF (1), MANILA_MANAGER (1)
+
+### ✅ Phase ④ — _policy_allows() city_scoped fail-open fixed (v1840)
+- Added `actor_city: str = ""` parameter to `_policy_allows()`
+- Changed `return True` → `return actor_city == city` for non-standard roles in city_scoped branch
+- Updated all 10 call sites to pass `actor_city=actor.get("city", "")`
+- Non-standard roles (INVENTORY_PURCHASING, CK_MANILA, etc.) can now only access their own city's data
+
+### ✅ Phase ⑤ — _assert_management_or_hq_for_city replaced with _policy_allows() (v1840)
+- Old: hardcoded `role == "MANILA_MANAGEMENT"` / `role == "DUBAI_MANAGEMENT"` checks
+- New: uses `_effective_staff_profile()` + `_policy_allows()` for DB-backed permission check
+- Added `action` parameter (default: `analytics.read.sensitive`); POS sync call sites pass `pos.sync.city`
+- Francis (MANILA_MANAGER role) now correctly evaluated via DB permissions and city enforcement
+
+### ✅ Phase ⑥ — DB trigger + permissions_resolved on refresh (v1841 / Vercel 975cc14)
+- Added PostgreSQL AFTER STATEMENT trigger `tg_bump_permissions_version` on `access_role_permissions`
+- Trigger atomically increments `system_counters.permissions_version` with each permission write
+- Removed manual `increment_permissions_version()` calls from Python (now handled by trigger)
+- `issue_access_token(return_resolution_status=True)` returns `(token, resolved_from_db)`
+- `/api/auth/refresh` now returns `permissions_resolved: bool`
+- `SessionGuard.tsx`: when `permissions_resolved=false` (DB fallback), keeps current permissions instead of downgrading
+
+### ✅ Phase ⑦ — hash_version column + bcrypt migration tracking (v1842)
+- Added `hash_version SMALLINT DEFAULT 1` to `staff_auth`
+- `hash_version=1`: legacy SHA256 with STAFF_PIN_SALT (insecure, being phased out)
+- `hash_version=2`: bcrypt (target state — per-hash salts, secure)
+- `set_staff_pin()` now explicitly stores `hash_version=2`
+- `_upgrade_pin_to_bcrypt()` now sets `hash_version=2` on silent upgrade
+- Startup: backfills existing bcrypt rows from 1→2 automatically
+- As-of 2026-08-09: **135 users on SHA256 (hash_version=1), 37 on bcrypt**
+- `STAFF_PIN_SALT` rotation: blocked until hash_version=1 count reaches ~0
+  - Monitor: `SELECT hash_version, COUNT(*) FROM staff_auth GROUP BY hash_version`
+  - When ready: set new `STAFF_PIN_SALT` in Heroku; any remaining SHA256 users will be locked out and need admin PIN reset
+
+### 🔲 Phase ⑧ — refreshPermissions() Cookie session support (before Phase 3 cookie migration)
+- When `auth.accessToken` is empty but `auth.hasSession` is true → call `refreshAuthFromApi(auth)` instead
+
+### 🔲 Phase ⑨ — except Exception: pass lint rule + gradual fix (ongoing)
+- Add lint rule prohibiting bare `except Exception: pass`
+- Fix high-risk auth gate sites with logging
+- 72 occurrences in main.py, 12 in db.py
+
+---
 
 ---
 
