@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Phase 5 Items 7 & 9 complete — Heroku v1833 / Vercel f4072c5)
+Last updated: 2026-08-09 (Phase 5 テスト完了 + バグ修正 — Vercel b62e4a5)
 
 ---
 
@@ -29,6 +29,23 @@ Last updated: 2026-08-09 (Phase 5 Items 7 & 9 complete — Heroku v1833 / Vercel
 - NavBar: BookCheck icon for both routes
 
 **Post-deploy action required**: Role Management → "Resync System Channels" to sync new channels to DB
+
+### Phase 5 テスト結果 (2026-08-09, Vercel b62e4a5)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| T1: Staff /handbook ロード + 受領確認 | ✅ PASS | v1.0 コンテンツ表示、POST acknowledge 200 OK |
+| T2: リロード後の acknowledged 状態 | ✅ PASS | `acknowledged: true` + タイムスタンプ表示、ボタン消滅 |
+| T3: Admin /admin/handbook ロード | ✅ PASS | 3タブ表示、デフォルト Acknowledgement Status タブ |
+| T4: KPI 集計 (バグ修正済) | ✅ FIXED | `staff_master/names` が `city` 必須 → dubai + manila 並列取得に修正。Acknowledged: 1、Pending: 124、Total: 125 |
+| T5: Publish New Version | ✅ PASS | v1.1 公開 200 OK、published_by: Yukihiro Nishimura |
+| T6: Version History タブ | ✅ PASS | v1.1 Active バッジ正常表示 |
+| T7: 新バージョン後の Status リセット | ✅ PASS | v1.1 基準で全125名 Pending に正しくリセット |
+| T7a: audit_log UPDATE ブロック | ✅ PASS | `security_audit_log is append-only` エラー正常 |
+| T7b: audit_log DELETE ブロック | ✅ PASS | 4年保持ウィンドウ内の DELETE 正常ブロック |
+| T8: 新バージョンで acknowledge ボタン再表示 | ✅ PASS | staff /handbook が v1.1 を表示、ボタン再出現 |
+
+**発見・修正バグ**: `/api/admin/staff_master/names` が `city` パラメータ必須 → `loadStaffNames()` が 422 でスタッフ数が 0 になっていた。Dubai + Manila の並列取得 + マージで修正 (Vercel b62e4a5)。
 
 ---
 
