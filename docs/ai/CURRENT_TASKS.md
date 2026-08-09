@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security Phase 3 complete — Vercel 7e07ab1, Heroku v1830)
+Last updated: 2026-08-09 (Security Phase 4 complete — Vercel 2d1b083, Heroku v1831)
+
+---
+
+## ✅ Completed: Security Phase 4 — SessionGuard + Step-Up PIN Modal (2026-08-09)
+
+**Heroku v1831 + Vercel 2d1b083**
+
+| Item | Status | Details |
+|------|--------|---------|
+| SessionGuard component | ✅ | `src/components/SessionGuard.tsx` — polls `/api/auth/session-check` every 5 min; shows red toast + redirects to `/login?reason=<reason>` on invalid session. Grace for `no_session_id`/`not_found`. Mounted in `LayoutShell.tsx`. |
+| Login page: 423 frozen + notice banner | ✅ | `verifyAuth()` throws human-readable message on HTTP 423. `?reason=` param shows amber notice banner (expired, force_logout_by_admin, frozen, etc.). |
+| Security page: step-up PIN modal | ✅ | Freeze/Unfreeze/Force-Logout all gate behind a PIN re-auth modal. Calls `POST /api/auth/step-up/pin` → `step_up_token` → sent as `X-Step-Up-Token` header on the actual action. |
+| Backend: `_require_step_up_aal2()` | ✅ | Helper validates `X-Step-Up-Token`: signature, `sub == actor.staff_name`, `level == "aal2"`. Returns 403 `{"step_up":"pin_reauth"}` on failure. Called in freeze/unfreeze/force-logout. |
+
+### Remaining security items (Phase 5 — deferred)
+- Item 7: Audit log append-only + 4-year retention (DB-level)
+- Item 9: Employee Handbook policy page
 
 ---
 
