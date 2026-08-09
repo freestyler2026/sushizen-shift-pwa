@@ -96,6 +96,13 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
     return remintedToken;
   }
 
+  // Phase 3: when the JWT is in the sz_access httpOnly cookie (accessToken = ""),
+  // the Next.js proxy injects it automatically for /api/admin/* and /api/store/* routes,
+  // and the backend reads it directly for other paths. Do NOT call remintAccessTokenWithPin()
+  // when hasSession=true — that would hit /api/auth/verify on every procurement API call
+  // and quickly exhaust the rate limit (8 calls per 10 min) during normal navigation.
+  const hasActiveSession = !!(refreshed?.hasSession || auth?.hasSession);
+
   if (accessToken) {
     try {
       const sessionRes = await fetch(`/api/auth/session`, {
@@ -110,8 +117,8 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
       /* network hiccup — keep the current token */
     }
   }
-  if (!accessToken) accessToken = await remintAccessTokenWithPin();
-  if (!accessToken) throw new Error("Please login again.");
+  if (!accessToken && !hasActiveSession) accessToken = await remintAccessTokenWithPin();
+  if (!accessToken && !hasActiveSession) throw new Error("Please login again.");
   return {
     Authorization: `Bearer ${accessToken}`,
     ...(stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {}),
