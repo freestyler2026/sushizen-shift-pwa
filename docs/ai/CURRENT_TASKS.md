@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security hardening Phases ①④⑤⑥ — Heroku v1839-v1841 / Vercel 975cc14)
+Last updated: 2026-08-09 (Security hardening Phases ①–⑧ — Heroku v1843 / Vercel 89bf594)
 
 ---
 
@@ -48,8 +48,13 @@ Last updated: 2026-08-09 (Security hardening Phases ①④⑤⑥ — Heroku v183
   - Monitor: `SELECT hash_version, COUNT(*) FROM staff_auth GROUP BY hash_version`
   - When ready: set new `STAFF_PIN_SALT` in Heroku; any remaining SHA256 users will be locked out and need admin PIN reset
 
-### 🔲 Phase ⑧ — refreshPermissions() Cookie session support (before Phase 3 cookie migration)
-- When `auth.accessToken` is empty but `auth.hasSession` is true → call `refreshAuthFromApi(auth)` instead
+### ✅ Phase ⑧ — refreshPermissions() Cookie session support (Heroku v1843 / Vercel 89bf594)
+- Fixed: `if (!token) return` was always bailing for httpOnly-cookie sessions (token = "")
+- Changed to `if (!auth.hasSession) return` — hasSession=true for all logged-in users
+- Added `credentials: "same-origin"` so sz_access cookie auto-sent; removed manual Authorization header
+- Backend `/api/auth/refresh` now also returns `permissions[]` and `role` in body (proxy strips access_token, so client can't decode JWT)
+- Frontend uses `data.permissions` / `data.role` directly instead of decoding token payload
+- Removed unused `decodeTokenPayload` helper
 
 ### 🔲 Phase ⑨ — except Exception: pass lint rule + gradual fix (ongoing)
 - Add lint rule prohibiting bare `except Exception: pass`
@@ -57,6 +62,25 @@ Last updated: 2026-08-09 (Security hardening Phases ①④⑤⑥ — Heroku v183
 - 72 occurrences in main.py, 12 in db.py
 
 ---
+
+## ✅ Completed: next.config.ts Fallback Rewrites — Fixed CDN bypass of admin API proxy (2026-08-09)
+
+**Vercel 3cd0e23**
+
+### Problem
+When `NEXT_PUBLIC_API_BASE_URL` is set, Vercel converts `next.config.ts` rewrites to CDN-level proxy rules that BYPASS dynamic catch-all Next.js routes (e.g. `/api/admin/[...slug]`, `/api/store/[...slug]`). This caused requests to go directly from Vercel CDN to Heroku WITHOUT the route handler that reads `sz_access` httpOnly cookie and adds `Authorization: Bearer` header → all admin API calls returned 401.
+
+Diagnostic evidence: `GET /api/admin/access/bootstrap` response had NO `x-matched-path` header (static routes like `/api/auth/verify` DID have it); request did not appear in Vercel serverless logs.
+
+### Fix
+Changed `rewrites()` in `next.config.ts` from plain array ("afterFiles") to `{ fallback: [...] }` format. Fallback rewrites only apply AFTER all Next.js routes (including dynamic catch-alls) fail to match — guaranteeing the proxy route handlers always run first.
+
+### Verification
+After deployment, `GET /api/admin/access/bootstrap` returns 200 with `x-matched-path: /api/admin/[...slug]` header confirming the route handler ran.
+
+### Impact
+- Francis Ibana (MANILA_MANAGER) and Richard S. Gante (MANILA_MANAGEMENT) can now access their analytics pages — the admin API proxy correctly attaches their JWT from the httpOnly cookie.
+- All role management, staff, and admin endpoints now go through the proxy.
 
 ---
 
