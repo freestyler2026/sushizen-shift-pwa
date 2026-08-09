@@ -1,6 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security Phase 1: server-side session management deployed — Heroku v1827, Vercel 1fff90b)
+Last updated: 2026-08-09 (Security Phase 2: bcrypt PIN, auto-freeze on INACTIVE, /admin/security UI — Heroku v1829, Vercel 8e9fb81)
+
+---
+
+## ✅ Completed: Security Phase 2 (2026-08-09)
+
+**Heroku v1829 (backend) + Vercel 8e9fb81 (frontend)**
+
+| Item | Status | Details |
+|------|--------|---------|
+| bcrypt PIN migration | ✅ | `set_staff_pin` now always bcrypt (rounds=12); `verify_staff_pin` detects `$2b$` prefix and does lazy SHA256→bcrypt upgrade on successful login |
+| Auto-freeze on termination (M-5) | ✅ | `api_admin_change_staff_status` freezes account + invalidates sessions when set to INACTIVE; unfreezes on reactivation |
+| `/admin/security` management UI | ✅ | Three-tab page: Active Sessions (with force-logout), Frozen Accounts (freeze form + unfreeze), Audit Log (filterable) |
+| NavBar: Security entry | ✅ | HQ/ADMIN only, uses `ShieldAlert` icon, appears next to Role Management |
+| Middleware bug fixes | ✅ | `asyncio.get_running_loop()` instead of `get_event_loop()`; `isinstance(datetime)` + `tzinfo is not None` guard |
+
+### Remaining scope (Phase 3 — not started)
+- C-2: numeric `employee_id` (ALTER TABLE staff_master + migration — complex, multi-file change)
+- M-3: httpOnly Cookie (requires CORS + Vercel proxy + SameSite policy)
+- Employee Handbook disclosure (HR task, not a code change)
 
 ---
 
