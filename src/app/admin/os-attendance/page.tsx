@@ -5,6 +5,7 @@ import {
   Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle, User,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { canAccessOsAttendanceAdmin, getAuth } from "@/lib/auth";
 import {
@@ -786,7 +787,7 @@ function EditModal({
 
   const inp = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none";
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
       onClick={onClose}
@@ -833,7 +834,8 @@ function EditModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
