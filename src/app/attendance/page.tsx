@@ -20,7 +20,6 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAttendancePage } from "@/lib/auth";
-import { API_BASE } from "@/lib/api";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -329,7 +328,8 @@ export default function AttendancePage() {
     const a = getAuth();
     if (!a) return;
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/today`, {
+      const res = await fetch(`/api/attendance/today`, {
+        credentials: "same-origin",
         headers: getAuthHeaders(a),
         cache: "no-store",
       });
@@ -353,7 +353,8 @@ export default function AttendancePage() {
     const a = getAuth();
     if (!a) return;
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/wfh_status`, {
+      const res = await fetch(`/api/attendance/wfh_status`, {
+        credentials: "same-origin",
         headers: getAuthHeaders(a),
         cache: "no-store",
       });
@@ -422,7 +423,8 @@ export default function AttendancePage() {
   useEffect(() => {
     if (!auth) return;
     const city = (auth.city || "manila").toLowerCase();
-    fetch(`${API_BASE}/api/admin/attendance/branch-gps?city=${encodeURIComponent(city)}`, {
+    fetch(`/api/admin/attendance/branch-gps?city=${encodeURIComponent(city)}`, {
+      credentials: "same-origin",
       headers: getAuthHeaders(auth),
       cache: "no-store",
     })
@@ -495,8 +497,9 @@ export default function AttendancePage() {
           throw new Error("GPS location is required. Please tap 'Get My Location' and ensure location access is allowed in your device settings.");
         }
 
-        const optRes = await fetch(`${API_BASE}/api/attendance/action/options`, {
+        const optRes = await fetch(`/api/attendance/action/options`, {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
           body: JSON.stringify({ action, ...extra }),
         });
@@ -507,8 +510,9 @@ export default function AttendancePage() {
         const { state_token, options } = await optRes.json();
         const credential = await webauthnAuthenticate(options as Record<string, unknown>);
 
-        const verRes = await fetch(`${API_BASE}/api/attendance/action/verify`, {
+        const verRes = await fetch(`/api/attendance/action/verify`, {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
           body: JSON.stringify({ state_token, credential, action, lat, lng, ...extra }),
         });
@@ -596,8 +600,9 @@ export default function AttendancePage() {
     if (!a) return;
     setBusy(true); setError(""); setSuccess(""); setGpsError("");
     try {
-      const optRes = await fetch(`${API_BASE}/api/auth/webauthn/register/options`, {
+      const optRes = await fetch(`/api/auth/webauthn/register/options`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
         body: JSON.stringify({ friendly_name: "My Device", replace: true }),
       });
@@ -608,8 +613,9 @@ export default function AttendancePage() {
       const { state_token, options } = await optRes.json();
       const credential = await webauthnRegister(options as Record<string, unknown>);
 
-      const verRes = await fetch(`${API_BASE}/api/auth/webauthn/register/verify`, {
+      const verRes = await fetch(`/api/auth/webauthn/register/verify`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
         body: JSON.stringify({ state_token, credential, friendly_name: "My Device" }),
       });
@@ -703,7 +709,8 @@ export default function AttendancePage() {
       await navigator.serviceWorker.ready;
       const a = getAuth();
       if (!a) return;
-      const keyRes = await fetch(`${API_BASE}/api/attendance/vapid-public-key`, {
+      const keyRes = await fetch(`/api/attendance/vapid-public-key`, {
+        credentials: "same-origin",
         headers: getAuthHeaders(a),
       });
       if (!keyRes.ok) return;
@@ -714,8 +721,9 @@ export default function AttendancePage() {
         applicationServerKey: vapidKey,
       });
       const subJson = sub.toJSON();
-      await fetch(`${API_BASE}/api/attendance/break-push-subscribe`, {
+      await fetch(`/api/attendance/break-push-subscribe`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
         body: JSON.stringify({
           endpoint: subJson.endpoint,
@@ -755,8 +763,9 @@ export default function AttendancePage() {
     if (!a) return;
     setWfhBusy(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/wfh_declare`, {
+      const res = await fetch(`/api/attendance/wfh_declare`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
       });
       if (res.ok) {
@@ -790,8 +799,9 @@ export default function AttendancePage() {
       if ((correctionField === "check_out" || correctionField === "both") && correctionCheckOut)
         body.requested_check_out = correctionCheckOut;
 
-      const r = await fetch(`${API_BASE}/api/attendance/corrections`, {
+      const r = await fetch(`/api/attendance/corrections`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(body),
       });
@@ -823,8 +833,9 @@ export default function AttendancePage() {
         requested_check_out: unclosedCorrCheckOut,
         reason: unclosedCorrReason.trim(),
       };
-      const r = await fetch(`${API_BASE}/api/attendance/corrections`, {
+      const r = await fetch(`/api/attendance/corrections`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(body),
       });
