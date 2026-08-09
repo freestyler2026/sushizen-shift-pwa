@@ -1,6 +1,34 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Analytics Product Scoring 403 fix — Heroku v1834)
+Last updated: 2026-08-09 (Cache staleness auto-recovery — Heroku v1835, Vercel e0901e8)
+
+---
+
+## ✅ Completed: Cache Staleness Auto-Recovery (2026-08-09)
+
+**Heroku v1835 + Vercel e0901e8**
+
+Three-part implementation to prevent stale PWA cache issues:
+
+### Priority 1: Update banner when unsaved edits block reload
+- `AutoReload.tsx`: When an update is detected but user has unsaved edits, shows amber "New version available" banner with "Update Now" button instead of auto-reloading
+- After user saves (unsaved edits clear), shows 1.5s "Applying update…" message then reloads
+- Banner state: `updateReady` (amber, pending) → `applyingUpdate` (indigo pulse, transitioning)
+
+### Priority 2: Infinite reload loop prevention (30-second sessionStorage guard)
+- Guard key: `zen:reload-attempt`, 30s cooldown — persists through `window.location.replace()` within same tab, clears on tab close
+- Implemented in 3 places:
+  - `layout.tsx` inline script (fires before React boots, catches ChunkLoadError)
+  - `AutoReload.tsx` `hardReload()` function → shows full-screen fatal error overlay if guard fires
+  - `global-error.tsx` `guardedHardReload()` → `loopGuarded` state shows manual reload button
+- "Reload Page" button always clears the guard first before reloading
+
+### Priority 3: Force-reload admin backend signal + Security page button
+- `main.py`: `_force_reload_until: float` global (resets on dyno restart — acceptable), 30-min window
+- Session-check response now includes `"force_reload": _time.time() < _force_reload_until`
+- `SessionGuard.tsx`: checks `data.force_reload` before `data.valid` — calls `guardedHardReload()` on all active clients
+- `POST /api/admin/security/force-reload` and `POST /api/admin/security/force-reload/cancel` (HQ/ADMIN only, JWT Bearer auth)
+- `security/page.tsx`: "Force All Clients to Reload" amber button with active/cancel state (above tab section)
 
 ---
 
