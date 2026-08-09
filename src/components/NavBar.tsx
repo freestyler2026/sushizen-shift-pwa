@@ -883,6 +883,56 @@ export default function NavBar() {
           }
         }
       } catch { /* optional */ }
+
+      // ── Non-proxied badges (fetched here, AFTER refreshAuthFromApi refreshes sz_access) ──
+      // These endpoints are NOT under /api/admin/* or /api/store/* so they bypass the
+      // Next.js proxy. They rely on the sz_access httpOnly cookie forwarded by Vercel rewrite.
+      // Fetching them here (after cookie refresh) avoids the race condition where the
+      // badge useEffect polls with a stale/expired cookie before loadAuth completes.
+
+      // Renewals alerts badge
+      try {
+        const authR = resolved || a;
+        if (canAccessRenewalsAdmin(authR)) {
+          const res = await fetch(`${API_BASE}/api/renewals/alerts/badge`, {
+            method: "GET", cache: "no-store", headers: getAuthHeaders(authR),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const serverCount = Number(data?.badge_count ?? 0);
+            const next = Math.max(0, serverCount - getRenewalsDismissedCount());
+            if (!cancelled) { setRenewalBadge(next); setRenewalsBadgeCount(next); }
+          }
+        }
+      } catch { /* optional */ }
+
+      // Incident badge (staff side)
+      try {
+        const authI = resolved || a;
+        if (canAccessIncidentReport(authI)) {
+          const res = await fetch(`${API_BASE}/api/incidents/badge`, {
+            cache: "no-store", headers: getAuthHeaders(authI),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled) setIncidentBadge(Number(data?.badge_count ?? 0));
+          }
+        }
+      } catch { /* optional */ }
+
+      // Inbox badge (private_reports/my_inbox — direct to Heroku via Vercel rewrite)
+      try {
+        const authInbox = resolved || a;
+        if (authInbox?.hasSession || authInbox?.accessToken) {
+          const res = await fetch(`${API_BASE}/api/private_reports/my_inbox?limit=200`, {
+            cache: "no-store", headers: getAuthHeaders(authInbox),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled) setInboxBadge(Number(data?.unread_count ?? 0));
+          }
+        }
+      } catch { /* optional */ }
     }
 
     void loadAuth();

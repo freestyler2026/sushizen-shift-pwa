@@ -819,6 +819,13 @@ function AdminPageInner() {
   };
 
   useEffect(() => {
+    // Phase 3: if there's an active server-side session, use the stored role directly.
+    // Calling /api/auth/verify on every keystroke (when name+pin are pre-populated) hits the rate limit.
+    const a = getAuth();
+    if (a?.hasSession && a.role) {
+      setMyRole((a.role || "") as Parameters<typeof setMyRole>[0]);
+      return;
+    }
     const nm = approverName.trim();
     const p = pin.trim();
     if (!nm || !p) {
