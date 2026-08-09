@@ -40,6 +40,9 @@ async function verifyAuth(staffName: string, pin: string): Promise<{ staffName: 
   }
 
   if (!res.ok) {
+    if (res.status === 423) {
+      throw new Error("Your account has been frozen. Please contact your manager.");
+    }
     let detail = "";
     try {
       const j = JSON.parse(text);
@@ -66,6 +69,17 @@ export default function LoginClient() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const REASON_NOTICES: Record<string, string> = {
+    account_frozen: "Your account has been frozen. Please contact your manager.",
+    expired: "Your session has expired. Please log in again.",
+    absolute_expired: "Your session has expired. Please log in again.",
+    invalidated: "You were logged out remotely.",
+    force_logout_by_admin: "You were logged out by an administrator.",
+    new_login_elsewhere: "A new login was detected on another device.",
+  };
+  const sessionReason = sp.get("reason") ?? "";
+  const sessionNotice = sessionReason ? (REASON_NOTICES[sessionReason] ?? "Your session has ended. Please log in again.") : "";
 
   useEffect(() => {
     const a = getAuth();
@@ -105,6 +119,11 @@ export default function LoginClient() {
 
   return (
     <div className="space-y-6">
+      {sessionNotice && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
+          {sessionNotice}
+        </div>
+      )}
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-5">
         <div className="mb-2 text-lg font-semibold">Login</div>
 

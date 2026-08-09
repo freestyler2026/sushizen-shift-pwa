@@ -10,6 +10,7 @@ import {
   TAB_INACTIVE,
   T_PAGE_TITLE,
   T_LABEL,
+  PRIMARY_BUTTON,
 } from "@/lib/ui-tokens";
 
 const T_MUTED = "text-neutral-500";
@@ -53,7 +54,7 @@ type Tab = "sessions" | "frozen" | "audit";
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function apiFetch(path: string, opts?: RequestInit) {
-  return fetch(path, { ...opts, headers: { ...getAuthHeaders(), ...(opts?.headers as Record<string, string> | undefined) } });
+  return fetch(path, { ...opts, credentials: "same-origin", headers: { ...getAuthHeaders(), ...(opts?.headers as Record<string, string> | undefined) } });
 }
 
 function fmt(ts: string) {
@@ -131,6 +132,16 @@ export default function SecurityAdminPage() {
   const [auditStaffFilter, setAuditStaffFilter] = useState("");
   const auditFilterRef = useRef("");
 
+  // step-up modal
+  type PendingAction =
+    | { type: "force-logout"; target: string }
+    | { type: "unfreeze"; target: string }
+    | { type: "freeze"; target: string; reason: string };
+  const [stepUpPending, setStepUpPending] = useState<PendingAction | null>(null);
+  const [stepUpPin, setStepUpPin] = useState("");
+  const [stepUpError, setStepUpError] = useState("");
+  const [stepUpLoading, setStepUpLoading] = useState(false);
+
   // ── loaders ──
 
   async function loadSessions() {
@@ -187,75 +198,124 @@ export default function SecurityAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  // ── step-up helpers ──
+
+  function openStepUp(action: PendingAction) {
+    setStepUpPending(action);
+    setStepUpPin("");
+    setStepUpError("");
+  }
+
+  function closeStepUp() {
+    setStepUpPending(null);
+    setStepUpPin("");
+    setStepUpError("");
+  }
+
+  async function confirmStepUp() {
+    if (!stepUpPending) return;
+    const pin = stepUpPin.trim();
+    if (!pin) { setStepUpError("PIN is required."); return; }
+
+    setStepUpLoading(true);
+    setStepUpError("");
+    try {
+      // Issue step-up token via PIN re-auth
+      const stepRes = await apiFetch("/api/auth/step-up/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const stepData = await stepRes.json();
+      if (!stepRes.ok) {
+        setStepUpError(stepData?.detail || "Invalid PIN.");
+        return;
+      }
+      const stepToken: string = stepData.step_up_token || "";
+      if (!stepToken) { setStepUpError("Failed to obtain step-up token."); return; }
+
+      const action = stepUpPending;
+      closeStepUp();
+
+      // Execute the actual action with the step-up token
+      if (action.type === "force-logout") {
+        setForceLogoutPending(true);
+        setForceLogoutTarget(action.target);
+        try {
+          const r = await apiFetch("/api/admin/security/force-logout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Step-Up-Token": stepToken },
+            body: JSON.stringify({ target_staff_name: action.target }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(typeof d?.detail === "string" ? d.detail : (d?.detail?.message || "Failed"));
+          await loadSessions();
+        } catch (e: unknown) {
+          alert(String((e as Error).message || e));
+        } finally {
+          setForceLogoutPending(false);
+          setForceLogoutTarget("");
+        }
+      } else if (action.type === "unfreeze") {
+        setUnfreezePending(true);
+        setUnfreezeTarget(action.target);
+        try {
+          const r = await apiFetch("/api/admin/security/unfreeze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Step-Up-Token": stepToken },
+            body: JSON.stringify({ target_staff_name: action.target }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(typeof d?.detail === "string" ? d.detail : (d?.detail?.message || "Failed"));
+          await loadFrozen();
+        } catch (e: unknown) {
+          alert(String((e as Error).message || e));
+        } finally {
+          setUnfreezePending(false);
+          setUnfreezeTarget("");
+        }
+      } else if (action.type === "freeze") {
+        setFreezePending(true);
+        setFreezeMsg("");
+        try {
+          const r = await apiFetch("/api/admin/security/freeze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Step-Up-Token": stepToken },
+            body: JSON.stringify({ target_staff_name: action.target, reason: action.reason }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(typeof d?.detail === "string" ? d.detail : (d?.detail?.message || "Failed"));
+          setFreezeMsg(`Frozen: ${action.target}`);
+          setFreezeTarget("");
+          setFreezeReason("");
+          await loadFrozen();
+        } catch (e: unknown) {
+          setFreezeMsg(`Error: ${String((e as Error).message || e)}`);
+        } finally {
+          setFreezePending(false);
+        }
+      }
+    } finally {
+      setStepUpLoading(false);
+    }
+  }
+
   // ── actions ──
 
-  async function handleForceLogout(target: string) {
-    if (!window.confirm(`Force-logout all sessions for "${target}"?`)) return;
-    setForceLogoutPending(true);
-    setForceLogoutTarget(target);
-    try {
-      const r = await apiFetch("/api/admin/security/force-logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_staff_name: target }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.detail || "Failed");
-      await loadSessions();
-    } catch (e: unknown) {
-      alert(String((e as Error).message || e));
-    } finally {
-      setForceLogoutPending(false);
-      setForceLogoutTarget("");
-    }
+  function handleForceLogout(target: string) {
+    openStepUp({ type: "force-logout", target });
   }
 
-  async function handleUnfreeze(target: string) {
-    if (!window.confirm(`Unfreeze account for "${target}"?`)) return;
-    setUnfreezePending(true);
-    setUnfreezeTarget(target);
-    try {
-      const r = await apiFetch("/api/admin/security/unfreeze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_staff_name: target }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.detail || "Failed");
-      await loadFrozen();
-    } catch (e: unknown) {
-      alert(String((e as Error).message || e));
-    } finally {
-      setUnfreezePending(false);
-      setUnfreezeTarget("");
-    }
+  function handleUnfreeze(target: string) {
+    openStepUp({ type: "unfreeze", target });
   }
 
-  async function handleFreeze(e: React.FormEvent) {
+  function handleFreeze(e: React.FormEvent) {
     e.preventDefault();
     const target = freezeTarget.trim();
     const reason = freezeReason.trim();
     if (!target || !reason) return;
-    if (!window.confirm(`Freeze account for "${target}"?\n\nReason: ${reason}`)) return;
-    setFreezePending(true);
-    setFreezeMsg("");
-    try {
-      const r = await apiFetch("/api/admin/security/freeze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_staff_name: target, reason }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.detail || "Failed");
-      setFreezeMsg(`Frozen: ${target}`);
-      setFreezeTarget("");
-      setFreezeReason("");
-      await loadFrozen();
-    } catch (e: unknown) {
-      setFreezeMsg(`Error: ${String((e as Error).message || e)}`);
-    } finally {
-      setFreezePending(false);
-    }
+    openStepUp({ type: "freeze", target, reason });
   }
 
   // ── render ──
@@ -265,6 +325,50 @@ export default function SecurityAdminPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 px-2 py-4">
+      {/* Step-up PIN modal */}
+      {stepUpPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className={GLASS_CARD + " w-full max-w-sm p-6 space-y-4"}>
+            <div>
+              <p className="text-base font-semibold text-neutral-100">Confirm your identity</p>
+              <p className="mt-1 text-sm text-neutral-400">
+                {stepUpPending.type === "force-logout" && <>Force-logout <span className="text-neutral-200 font-medium">{stepUpPending.target}</span></>}
+                {stepUpPending.type === "unfreeze" && <>Unfreeze <span className="text-neutral-200 font-medium">{stepUpPending.target}</span></>}
+                {stepUpPending.type === "freeze" && <>Freeze <span className="text-neutral-200 font-medium">{stepUpPending.target}</span></>}
+                {" "}requires PIN re-authentication.
+              </p>
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              placeholder="Your PIN"
+              value={stepUpPin}
+              onChange={(e) => setStepUpPin(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmStepUp(); }}
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-600"
+            />
+            {stepUpError && <p className="text-xs text-red-400">{stepUpError}</p>}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={closeStepUp}
+                disabled={stepUpLoading}
+                className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStepUp}
+                disabled={stepUpLoading || !stepUpPin.trim()}
+                className={`${PRIMARY_BUTTON} px-4 py-2 text-sm rounded-xl disabled:opacity-40`}
+              >
+                {stepUpLoading ? "Verifying…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className={T_PAGE_TITLE}>Security Management</h1>
 
       {/* tabs */}

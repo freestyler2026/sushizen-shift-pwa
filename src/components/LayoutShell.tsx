@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import AutoReload from "@/components/AutoReload";
+import SessionGuard from "@/components/SessionGuard";
 
 const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
 
@@ -21,6 +22,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   return (
     <>
       <AutoReload />
+      <SessionGuard />
 
       {/*
         NavBar is rendered once inside this header.

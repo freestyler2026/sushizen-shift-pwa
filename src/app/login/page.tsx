@@ -66,6 +66,9 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
   }
 
   if (!res.ok) {
+    if (res.status === 423) {
+      throw new Error("Your account has been frozen. Please contact your manager.");
+    }
     let detail = "";
     // FastAPI: {"detail": "..."}
     try {
@@ -137,6 +140,19 @@ function LoginInner() {
   const [nameLoading, setNameLoading] = useState(false);
   const [nameLoadWarning, setNameLoadWarning] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const REASON_NOTICES: Record<string, string> = {
+    account_frozen: "Your account has been frozen. Please contact your manager.",
+    expired: "Your session has expired. Please log in again.",
+    absolute_expired: "Your session has expired. Please log in again.",
+    invalidated: "You were logged out remotely.",
+    force_logout_by_admin: "You were logged out by an administrator.",
+    new_login_elsewhere: "A new login was detected on another device.",
+  };
+  const sessionReason = sp.get("reason") ?? "";
+  const sessionNotice = sessionReason
+    ? (REASON_NOTICES[sessionReason] ?? "Your session has ended. Please log in again.")
+    : "";
   const pinInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -229,6 +245,11 @@ function LoginInner() {
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-6">
+      {sessionNotice && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
+          {sessionNotice}
+        </div>
+      )}
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3.5 shadow-sm sm:p-6">
         <div className="mb-2 text-base font-semibold sm:text-lg">Login</div>
 
