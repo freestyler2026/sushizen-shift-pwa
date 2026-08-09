@@ -1,6 +1,60 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Role Management ADMIN access fix — Vercel 33db91f / Heroku fbdefad)
+Last updated: 2026-08-10 (Renewals badge Phase 3 fix + rate limit feedback loop — Vercel 68efef4 / Heroku v1856)
+
+---
+
+## ✅ Completed: Rate limit feedback loop + Renewals badge Phase 3 auth (2026-08-10)
+
+**Heroku v1855** (rate limit fixes), **Heroku v1856 + Vercel 68efef4** (renewals badge)
+
+### Rate limit feedback loop (Heroku v1855)
+`count_recent_abuse_events()` was counting RATE_LIMITED events toward the threshold. Each blocked attempt added a new RATE_LIMITED record, which kept the count above the limit indefinitely — a self-reinforcing lockout. Also, limit was too low (8) for legitimate re-login flows.
+
+**Fixes**:
+- `db.py`: Added `exclude_outcome` param to `count_recent_abuse_events()`; SQL excludes matching outcome
+- `main.py`: `_rate_limit_guard` passes `exclude_outcome="RATE_LIMITED"` to both actor and IP checks
+- `main.py`: `auth.verify` window limit raised 8 → 20
+
+### Forced logout bug (Heroku v1854 — previous session)
+`/api/auth/verify` was calling `invalidate_staff_sessions()` on every verify call, even for re-mints (pages refreshing their JWT). SessionGuard then saw the old session as invalid and forced logout.
+
+**Fix**: Backend detects re-mint via `sz_access` cookie or Bearer token already valid for same staff; skips session invalidation when re-minting.
+
+### Renewals badge Phase 3 auth (Heroku v1856 + Vercel 68efef4)
+In Phase 3 (httpOnly cookie auth), `accessToken = ""`. The renewals badge fetch was going directly to Heroku with no Authorization header → 401 → badge showed 0/dot always.
+
+**Fixes**:
+- `renewals_api.py` `_require_renewals_access()`: now falls back to `sz_access` cookie when no Bearer token
+- `NavBar.tsx`: Renewals badge fetch changed from `${API_BASE}/api/...` (direct Heroku) to `/api/...` (Vercel proxy, which forwards the cookie)
+- `NavBar.tsx`: Auto-reset dismissed count if it exceeds serverCount (prevents stale dismiss hiding all alerts)
+- `auth.ts` `clearAuth()`: clears `sushizen_renewals_badge_dismissed_count` on logout so fresh login shows all alerts
+
+### DB data verified intact
+Ran direct DB queries: 75 alertable renewal documents (46 Active, 29 Resigned staff), data from 2025-01 through 2026-09. Badge was showing fewer items due to dismissed count in localStorage, not data deletion.
+
+---
+
+## ✅ Completed: NavBar badge race condition + admin/page rate limit (2026-08-10)
+
+**Vercel 364aff2**
+
+### Problem 1: NavBar non-proxied badges showing 0/dot on initial load
+
+Renewals, Incidents, and Inbox badges use non-proxied endpoints (`/api/renewals/alerts/badge`, `/api/incidents/badge`, `/api/private_reports/my_inbox`). These rely on the `sz_access` httpOnly cookie being valid. Their separate `useEffect` polling loops fired concurrently with `loadAuth()`, which is the only thing that refreshes `sz_access`. If the JWT had expired (16h TTL), the badge fetches would get 401 → show 0/dot.
+
+**Fix (`src/components/NavBar.tsx`)**: Added renewals, incidents, and inbox badge fetches at the END of `loadAuth()`, after `refreshAuthFromApi()` completes. Now these three fetches always run with a fresh cookie, and only the polling interval runs concurrently (by which time the cookie is valid).
+
+### Problem 2: admin/page.tsx calling /api/auth/verify on mount
+
+`approverName = auth?.staffName || ""` and `pin = auth?.pin || ""` were pre-populated, so the `useEffect([approverName, pin])` with 400ms debounce fired on every page load and called `/api/auth/verify`, accumulating rate limit hits.
+
+**Fix (`src/app/admin/page.tsx`)**: Added `hasSession` guard at top of useEffect — if `a?.hasSession && a.role`, sets role from localStorage and returns without calling the API.
+
+### Root cause context
+These were the last two unfixed rate-limit sources identified in the prior session. The previous session had already fixed: `costClient.ts`, `admin/procurement/page.tsx`, `store/purchase/page.tsx`, `admin/staff/create/page.tsx`, `admin/draft/page.tsx`.
+
+---
 
 ---
 
