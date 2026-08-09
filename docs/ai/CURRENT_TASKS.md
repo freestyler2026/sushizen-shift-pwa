@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security hardening Phases ①–⑧ — Heroku v1843 / Vercel 89bf594)
+Last updated: 2026-08-09 (Security hardening Phases ①–⑨ complete — Heroku v1844 / Vercel 24f4f26)
 
 ---
 
@@ -56,10 +56,13 @@ Last updated: 2026-08-09 (Security hardening Phases ①–⑧ — Heroku v1843 /
 - Frontend uses `data.permissions` / `data.role` directly instead of decoding token payload
 - Removed unused `decodeTokenPayload` helper
 
-### 🔲 Phase ⑨ — except Exception: pass lint rule + gradual fix (ongoing)
-- Add lint rule prohibiting bare `except Exception: pass`
-- Fix high-risk auth gate sites with logging
-- 72 occurrences in main.py, 12 in db.py
+### ✅ Phase ⑨ — except Exception: pass lint rule + gradual fix (Heroku v1844)
+- Added `scripts/check_bare_except.py` — returns exit 1 on any bare un-annotated `except Exception: / pass`
+- All 84 occurrences (72 main.py, 12 db.py) annotated with inline comments:
+  - `# best-effort` — intentional silent swallow for I/O, notifications, analytics
+  - `# fail-closed: HTTPException(403) raised below` — auth permission gates (L1534, L1564, L1609)
+  - `# best-effort: <reason>` — with context for auth-adjacent lines (session touch, name lookup, audit logs)
+- No behavioral change; regression blocked by lint script
 
 ---
 
