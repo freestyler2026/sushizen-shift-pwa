@@ -1,6 +1,61 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Discord Alert notification system v2 deployed)
+Last updated: 2026-08-09 (Shift correction inline edit feature implemented and deployed)
+
+---
+
+## ✅ Completed: DTR Shift Correction Feature — Option A (2026-08-09)
+
+**Heroku backend + Vercel frontend deployed.**
+
+### Root Cause (triggering case)
+Two Manila payroll DTR records had wrong `scheduled_shift_start` in `manila_attendance_daily`
+(sourced from incorrect `shift_published_rows`), causing wrong late_minutes computation:
+- Abegail A. Dalida 7/19: stored shift=10:00, actual=14:00 → 287 late min (should be 47)
+- Victoria Lim 7/11: stored shift=13:00, actual=15:30 → 109 late min (should be 0)
+
+### What was built
+
+| Layer | Change | Description |
+|-------|--------|-------------|
+| Backend | `main.py` +85 lines | `PATCH /api/admin/manila-payroll/attendance/{id}/scheduled-shift` — accepts HH:MM start (required) + HH:MM end (optional); recalculates late_minutes + undertime_minutes using same overnight-shift logic as sync engine; PHT timezone rule applied |
+| Frontend | `dtr-upload/page.tsx` | Schedule column header shows violet pencil icon; clicking any shift cell opens inline input; Enter/blur saves, Escape cancels; row updates in place with recalculated late_minutes |
+
+### PHT timezone note
+`manila_attendance_daily.actual_time_in` stores PHT local time with +00 label.
+Backend uses `.replace(tzinfo=None)` directly — no `AT TIME ZONE 'Asia/Manila'` conversion.
+
+### Records to fix (use the new UI)
+1. Abegail A. Dalida — id=1597, work_date=2026-07-19 → enter "14:00" → late becomes 47m
+2. Victoria Lim — id=2311, work_date=2026-07-11 → enter "15:30" → late becomes 0m
+
+---
+
+## ✅ Completed: Manila Shifts Aug 16-31 Import (2026-08-09)
+
+**Direct DB import — no deploy needed. Data immediately visible in OS.**
+
+- **Source**: `DRAFT_MAIN` sheets from "Sushi ZEN Shift Exports [Manila] (4).xlsx"
+  - Note: `FINAL_MAIN` sheets only had DAY_OFF placeholders for Aug 16-31 (not yet published)
+  - `DRAFT_MAIN` sheets contained the actual prepared schedules
+- **Branches**: BO, CK, CUB, PAR, TAFT (5 branches)
+- **Rows inserted**: 749 working shift rows
+- **Versions created**: 15 new `shift_published_versions` (3 weeks × 5 branches)
+  - Aug 16 (Sunday) → added to existing `week_start=2026-08-10` versions
+  - Aug 17-23 → new `week_start=2026-08-17` versions
+  - Aug 24-30 → new `week_start=2026-08-24` versions
+  - Aug 31 → new `week_start=2026-08-31` versions
+- **Published by**: "Yukihiro Nishimura" (Excel import)
+- **Script**: `/private/tmp/claude-501/.../scratchpad/import_manila_shifts_aug16_31.py`
+
+Verified row counts after import:
+| Branch | Aug 10 wk | Aug 17 wk | Aug 24 wk | Aug 31 wk |
+|--------|-----------|-----------|-----------|-----------|
+| BO     | 48 rows   | 48 rows   | 48 rows   | 9 rows    |
+| CK     | 52 rows   | 48 rows   | 49 rows   | 7 rows    |
+| CUB    | 75 rows   | 60 rows   | 60 rows   | 10 rows   |
+| PAR    | 93 rows   | 84 rows   | 84 rows   | 14 rows   |
+| TAFT   | 97 rows   | 84 rows   | 84 rows   | 14 rows   |
 
 ---
 
