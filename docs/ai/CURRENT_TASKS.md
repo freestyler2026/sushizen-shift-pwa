@@ -1,6 +1,34 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Phase 4 testing complete + audit log search bug fixed — Heroku v1832)
+Last updated: 2026-08-09 (Phase 5 Items 7 & 9 complete — Heroku v1833 / Vercel f4072c5)
+
+---
+
+## ✅ Completed: Phase 5 — Audit Log Append-Only + Employee Handbook (2026-08-09)
+
+**Heroku v1833 + Vercel f4072c5**
+
+### Item 7: Audit Log Append-Only + 4-Year Retention
+- `security_audit_log_enforce()` PostgreSQL trigger — BEFORE UPDATE OR DELETE
+- Blocks all UPDATEs unconditionally
+- Blocks DELETEs where `created_at > NOW() - INTERVAL '4 years'`
+- Applied via `ensure_security_hardening_tables()` on startup
+
+### Item 9: Employee Handbook + Receipt Acknowledgement
+**Backend**
+- `handbook_versions` table (id, version, title, content_md, published_by, published_at, is_active)
+- `handbook_acknowledgements` table (staff_name, handbook_version, acknowledged_at, ip) — UNIQUE(staff_name, handbook_version)
+- 6 DB functions: get_active_handbook, upsert_handbook_version, acknowledge_handbook, get_handbook_acknowledgement, list_handbook_acknowledgements, list_handbook_versions
+- 5 API endpoints: `GET /api/store/staff/handbook`, `POST /api/store/staff/handbook/acknowledge`, `GET /api/admin/handbook/versions`, `POST /api/admin/handbook/publish`, `GET /api/admin/handbook/acknowledgements`
+- Default handbook content embedded in backend (used when no version published yet)
+- `access_control.py`: handbook + admin.handbook + admin.security channels/permissions; handbook.view auto-granted to STAFF role
+
+**Frontend**
+- `/handbook` — staff page: inline Markdown renderer (no external lib), receipt confirmation button, shows ack status + timestamp
+- `/admin/handbook` — 3-tab admin page: Acknowledgement Status (KPI cards + pending chips + ack table), Publish New Version (form with optional MD content), Version History (table with Active/Archived badge)
+- NavBar: BookCheck icon for both routes
+
+**Post-deploy action required**: Role Management → "Resync System Channels" to sync new channels to DB
 
 ---
 
@@ -22,9 +50,7 @@ End-to-end test of Phase 4 security implementation. All flows passed; one backen
 | T8: Audit Log tab loads | ✅ PASS | All 3 security actions logged correctly |
 | T8a: Audit Log search — BUG FIXED | ✅ FIXED | DB filter was exact-match on actor only; fixed to ILIKE partial match on actor OR target (`target_type='staff'`). `db.py:18953` → Heroku v1832 |
 
-### Remaining security items (Phase 5 — deferred)
-- Item 7: Audit log append-only + 4-year retention (DB-level)
-- Item 9: Employee Handbook policy page
+### Phase 5 items → completed 2026-08-09 (see above)
 
 ---
 
@@ -39,9 +65,7 @@ End-to-end test of Phase 4 security implementation. All flows passed; one backen
 | Security page: step-up PIN modal | ✅ | Freeze/Unfreeze/Force-Logout all gate behind a PIN re-auth modal. Calls `POST /api/auth/step-up/pin` → `step_up_token` → sent as `X-Step-Up-Token` header on the actual action. |
 | Backend: `_require_step_up_aal2()` | ✅ | Helper validates `X-Step-Up-Token`: signature, `sub == actor.staff_name`, `level == "aal2"`. Returns 403 `{"step_up":"pin_reauth"}` on failure. Called in freeze/unfreeze/force-logout. |
 
-### Remaining security items (Phase 5 — deferred)
-- Item 7: Audit log append-only + 4-year retention (DB-level)
-- Item 9: Employee Handbook policy page
+### Phase 5 items → completed 2026-08-09 (see above)
 
 ---
 
