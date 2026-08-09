@@ -1,6 +1,35 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Security hardening Phases ①–⑨ complete — Heroku v1844 / Vercel 24f4f26)
+Last updated: 2026-08-10 (OS Attendance edit modal portal fix — Vercel 3e178d4)
+
+---
+
+## ✅ Completed: OS Attendance Edit Modal Not Visible Fix (2026-08-10)
+
+**Vercel 3e178d4**
+
+### Bug: Ruby Rosa Rongcales (ADMIN, BO) could not edit Dubai attendance records
+
+**Root cause**: `EditModal` rendered a `fixed inset-0 z-50` overlay inside a `GLASS_CARD` div. `GLASS_CARD = "... backdrop-blur-sm"` applies `backdrop-filter: blur(4px)`, which in Chrome (76+) creates a new CSS containing block — trapping `position: fixed` children relative to the card, not the viewport. The modal inner div rendered at y≈1880px (center of the 3660px-tall card), far below the visible 720px viewport. Clicking the pencil icon appeared to do nothing.
+
+**Proof**: `getBoundingClientRect()` of overlay showed `{x:289, y:223, w:936, h:3660}` instead of `{x:0, y:0, w:1280, h:720}`.
+
+**Fix**: Added `createPortal` from `react-dom` to `EditModal`. Modal now renders directly on `document.body`, bypassing all ancestor CSS containing blocks. Portal rect confirmed as `{x:0, y:0, w:1274, h:720}`.
+
+**Note**: Ruby's ADMIN role was always authorized at the backend. This was purely a frontend rendering issue. No backend changes needed.
+
+### STAFF_PIN_SALT rotation — monitoring only
+
+- New salt `be801ce392ec49c8582764104030` set 2026-08-09 via Heroku Dashboard
+- As-of 2026-08-09: hash_version=1 (SHA256): 98 users, hash_version=2 (bcrypt): 74+ users
+- Monitor: `SELECT hash_version, COUNT(*) FROM staff_auth GROUP BY hash_version`
+- When hash_version=1 reaches 0: remove `_LEGACY_PIN_SALTS` from db.py
+
+### Attendance check-in fix (completed 2026-08-09)
+
+- All staff attendance check-in was failing since ~3pm 2026-08-09 with 401
+- Root cause: no `/api/attendance/[...slug]/route.ts` proxy for Phase 3 httpOnly cookie auth
+- Fix: new proxy route + relative URL in attendance page. Verified 200 OK.
 
 ---
 
