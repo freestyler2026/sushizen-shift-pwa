@@ -296,12 +296,13 @@ export default function MyNtePage() {
     let cancelled = false;
     async function init() {
       const raw = getAuth();
-      if (!raw?.accessToken) {
+      // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+      if (!raw?.hasSession && !raw?.accessToken) {
         router.replace("/login?next=/store/my-nte");
         return;
       }
       const resolved = (await refreshAuthFromApi(raw)) || raw;
-      if (!resolved?.accessToken) {
+      if (!resolved?.hasSession && !resolved?.accessToken) {
         router.replace("/login?next=/store/my-nte");
         return;
       }

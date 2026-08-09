@@ -98,7 +98,6 @@ function pickText(payload: Record<string, any> | null | undefined, ...keys: stri
 }
 
 export default function AdminPrivateReportsPage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,12 +111,15 @@ export default function AdminPrivateReportsPage() {
   const openCount = rows.length;
   const replyCount = rows.reduce((sum, r) => sum + Number(r.reply_count || 0), 0);
 
+  // Phase 3: accessToken is "" when auth lives in sz_access httpOnly cookie.
+  // Use hasSession as the auth check; /api/admin/* route handler reads the cookie automatically.
   const tokenHeaders = useCallback(async () => {
     const refreshed = await refreshAuthFromApi(auth);
-    const accessToken = refreshed?.accessToken || auth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
+    const accessToken = refreshed?.accessToken || auth?.accessToken || "";
+    const hasSession = refreshed?.hasSession || auth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
     return {
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
     };
   }, [auth]);
@@ -127,7 +129,8 @@ export default function AdminPrivateReportsPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/private_reports?limit=200`, { headers, cache: "no-store" });
+      // Use relative path so the /api/admin route handler forwards the sz_access cookie to Heroku.
+      const res = await fetch(`/api/admin/private_reports?limit=200`, { headers, cache: "no-store" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
@@ -137,13 +140,13 @@ export default function AdminPrivateReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiBase, tokenHeaders]);
+  }, [tokenHeaders]);
 
   const loadDetail = async (reportId: string) => {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/private_reports/${reportId}`, { headers, cache: "no-store" });
+      const res = await fetch(`/api/admin/private_reports/${reportId}`, { headers, cache: "no-store" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
@@ -165,7 +168,7 @@ export default function AdminPrivateReportsPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/private_reports/reply`, {
+      const res = await fetch(`/api/admin/private_reports/reply`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

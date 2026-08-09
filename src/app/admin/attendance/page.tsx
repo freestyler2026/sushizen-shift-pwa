@@ -105,7 +105,8 @@ export default function AttendanceAdminPage() {
       if (cancelled) return;
       const resolved = refreshed || auth;
       resolvedAuth.current = resolved;
-      if (!resolved?.staffName || !resolved?.accessToken) {
+      // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+      if (!resolved?.staffName || (!resolved?.hasSession && !resolved?.accessToken)) {
         router.replace("/login?next=%2Fadmin%2Fattendance");
         return;
       }

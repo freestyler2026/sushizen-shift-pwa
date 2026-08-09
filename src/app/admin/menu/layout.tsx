@@ -19,7 +19,8 @@ export default function MenuLayout({ children }: { children: ReactNode }) {
       const refreshed = await refreshAuthFromApi(auth);
       if (cancelled) return;
       const resolved = refreshed || auth;
-      if (!resolved?.staffName || !resolved?.accessToken) {
+      // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+      if (!resolved?.staffName || (!resolved?.hasSession && !resolved?.accessToken)) {
         router.replace(`/login?next=${encodeURIComponent(pathname || "/admin/menu")}`);
         return;
       }

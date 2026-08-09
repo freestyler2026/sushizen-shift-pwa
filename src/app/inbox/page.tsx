@@ -102,10 +102,11 @@ export default function InboxPage() {
   const tokenHeaders = useCallback(async () => {
     const freshAuth = getAuth();
     const refreshed = await refreshAuthFromApi(freshAuth);
-    const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
+    const accessToken = refreshed?.accessToken || freshAuth?.accessToken || "";
+    const hasSession = refreshed?.hasSession || freshAuth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
     return {
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
     };
   }, []);

@@ -14,6 +14,18 @@ function getApiBase(): string {
   return "https://sushizen-shift-app-038d846023bc.herokuapp.com";
 }
 
+/** Phase 3: sz_access httpOnly cookie takes precedence; fall back to client Authorization header. */
+function resolveAuthHeaders(req: NextRequest): Record<string, string> {
+  const access = req.cookies.get("sz_access")?.value;
+  const session = req.cookies.get("sz_session")?.value;
+  const headers: Record<string, string> = {};
+  const auth = access ? `Bearer ${access}` : (req.headers.get("authorization") || "");
+  if (auth) headers.Authorization = auth;
+  const sid = session || req.headers.get("x-session-id") || "";
+  if (sid) headers["X-Session-Id"] = sid;
+  return headers;
+}
+
 export async function POST(req: NextRequest) {
   const apiBase = getApiBase();
   const body = await req.arrayBuffer();
@@ -21,7 +33,7 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: {
       Accept: req.headers.get("accept") || "*/*",
-      ...(req.headers.get("authorization") ? { Authorization: req.headers.get("authorization") as string } : {}),
+      ...resolveAuthHeaders(req),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
       "Content-Type": req.headers.get("content-type") || "application/json",

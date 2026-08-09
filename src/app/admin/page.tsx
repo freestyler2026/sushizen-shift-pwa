@@ -712,14 +712,18 @@ function AdminPageInner() {
           return;
         }
 
-        if (!resolved?.accessToken) {
+        // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+        // Allow access when either a classic token or an active cookie session is present.
+        if (!resolved?.hasSession && !resolved?.accessToken) {
           setAllowed(false);
           setError("Admin session token is missing. Please log out and log in again.");
           setReady(true);
           return;
         }
 
-        const hasAccess = canAccessAdminNav(resolved);
+        // CLAUDE.md lesson 4: canAccessAdminNav checks permissions only; HQ/ADMIN always bypass.
+        const resolvedRole = (resolved?.role || "").toUpperCase();
+        const hasAccess = canAccessAdminNav(resolved) || resolvedRole === "HQ" || resolvedRole === "ADMIN";
         if (!hasAccess) {
           setAllowed(false);
           setError("Admin dashboard is available only to authorized admin roles.");
@@ -739,7 +743,12 @@ function AdminPageInner() {
         if (cancelled) return;
 
         const fallback = getAuth() || initialAuth || null;
-        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessAdminNav(fallback));
+        const fallbackRole = (fallback?.role || "").toUpperCase();
+        const hasAccess = Boolean(
+          fallback?.staffName &&
+          (fallback?.hasSession || fallback?.accessToken) &&
+          (canAccessAdminNav(fallback) || fallbackRole === "HQ" || fallbackRole === "ADMIN")
+        );
 
         setSessionAuth(fallback);
         setAllowed(hasAccess);

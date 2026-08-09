@@ -44,7 +44,8 @@ export default function AiAnalyticsProPage() {
           return;
         }
 
-        if (!resolved?.accessToken) {
+        // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+        if (!resolved?.hasSession && !resolved?.accessToken) {
           setAllowed(false);
           setReady(true);
           return;
@@ -64,7 +65,7 @@ export default function AiAnalyticsProPage() {
         if (cancelled) return;
 
         const fallback = getAuth() || initialAuth || null;
-        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessAiAnalyticsProAdmin(fallback));
+        const hasAccess = Boolean(fallback?.staffName && (fallback?.hasSession || fallback?.accessToken) && canAccessAiAnalyticsProAdmin(fallback));
 
         setAllowed(hasAccess);
         setReady(true);

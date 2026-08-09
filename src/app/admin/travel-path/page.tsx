@@ -251,7 +251,8 @@ export default function TravelPathPage() {
           router.replace(`/login?next=${encodeURIComponent("/admin/travel-path")}`);
           return;
         }
-        if (!resolved?.accessToken) {
+        // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
+        if (!resolved?.hasSession && !resolved?.accessToken) {
           setAllowed(false);
           setReady(true);
           return;
