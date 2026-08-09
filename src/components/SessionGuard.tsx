@@ -8,6 +8,8 @@ const POLL_MS = 5 * 60 * 1000;
 const SKIP_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
 const RELOAD_GUARD_KEY = "zen:reload-attempt";
 const RELOAD_GUARD_MS = 30_000;
+const FORCE_RELOAD_DONE_KEY = "zen:force-reload-done";
+const FORCE_RELOAD_WINDOW_MS = 30 * 60 * 1000; // 30 min — matches server window
 
 const REASON_MESSAGES: Record<string, string> = {
   account_frozen: "Your account has been frozen. Please contact your manager.",
@@ -42,7 +44,9 @@ export default function SessionGuard() {
     if (kicked.current) return;
     const auth = getAuth();
 
-    if (!auth?.sessionId && !auth?.hasSession) return;
+    // Call API for all authenticated users (not just session-tracked ones).
+    // JWT-only users (HQ/ADMIN) have no sessionId but still need the force_reload signal.
+    if (!auth?.staffName) return;
 
     try {
       const headers: Record<string, string> = { "Cache-Control": "no-store" };
@@ -58,9 +62,15 @@ export default function SessionGuard() {
 
       const data = (await res.json()) as { valid: boolean; reason?: string; force_reload?: boolean };
 
-      // force_reload is an HQ-triggered emergency signal — always act on it immediately,
-      // regardless of session validity.
+      // force_reload is an HQ-triggered emergency signal.
+      // Use localStorage cooldown so users are only reloaded once per 30-min window,
+      // not on every subsequent 5-minute poll while the window stays active.
       if (data.force_reload) {
+        try {
+          const lastDone = Number(localStorage.getItem(FORCE_RELOAD_DONE_KEY) || 0);
+          if (Date.now() - lastDone < FORCE_RELOAD_WINDOW_MS) return; // already reloaded this window
+          localStorage.setItem(FORCE_RELOAD_DONE_KEY, String(Date.now()));
+        } catch { /* localStorage unavailable — proceed */ }
         guardedHardReload();
         return;
       }
