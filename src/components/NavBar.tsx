@@ -63,6 +63,7 @@ import {
   TrendingUp,
   X,
   BookOpen,
+  BookCheck,
   Clock,
   History,
   Laptop,
@@ -139,6 +140,7 @@ type NavItem = {
 
 const PRIMARY: NavItem[] = [
   { href: "/staff-guide",           label: "Staff Guide",           icon: BookOpen,      match: "prefix" },
+  { href: "/handbook",              label: "Employee Handbook",     icon: BookCheck,     match: "prefix" },
   { href: "/attendance",            label: "Time-in / Time-out",    icon: Fingerprint,   match: "exact" },
   { href: "/my-shift",              label: "My Shift",              icon: CalendarClock, match: "exact" },
   { href: "/week",                  label: "Week",                  icon: CalendarDays,  match: "exact" },
@@ -205,6 +207,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix", excludePrefix: "/admin/staff/roles" },
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/security", label: "Security", icon: ShieldAlert, adminOnly: true, match: "prefix" },
+  { href: "/admin/handbook", label: "Employee Handbook", icon: BookCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/staff-ranks", label: "Staff Ranks (L0-L10)", icon: TrendingUp, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
