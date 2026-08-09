@@ -580,7 +580,7 @@ export default function RequestPage() {
   }, []);
 
   useEffect(() => {
-    if (!auth?.staffName || !auth?.accessToken) {
+    if (!auth?.staffName || (!auth?.hasSession && !auth?.accessToken)) {
       router.replace("/login?next=%2Frequest");
       return;
     }

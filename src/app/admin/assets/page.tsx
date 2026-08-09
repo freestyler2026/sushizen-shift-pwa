@@ -535,7 +535,7 @@ export default function AssetsPage() {
   useEffect(() => {
     async function init() {
       const raw = auth;
-      if (!raw?.accessToken) { router.replace("/login"); return; }
+      if (!raw?.hasSession && !raw?.accessToken) { router.replace("/login"); return; }
       const resolved = await refreshAuthFromApi(raw);
       const a = resolved || raw;
       const role = String(a?.role || "").toUpperCase();
@@ -548,7 +548,7 @@ export default function AssetsPage() {
   }, []);
 
   const loadAssets = useCallback(async () => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     setLoading(true); setErr("");
     const token = auth.accessToken;
     try {
@@ -573,7 +573,7 @@ export default function AssetsPage() {
   }, [allowed, loadAssets]);
 
   useEffect(() => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     const token = auth.accessToken;
     fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())

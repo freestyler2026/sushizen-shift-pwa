@@ -116,7 +116,7 @@ export default function InboxPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/private_reports/my_inbox?limit=200`, { headers, cache: "no-store" });
+      const res = await fetch(`/api/admin/private_reports/my_inbox?limit=200`, { headers, cache: "no-store" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
@@ -141,7 +141,7 @@ export default function InboxPage() {
     }
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/private_reports/my_inbox/read`, {
+      const res = await fetch(`/api/admin/private_reports/my_inbox/read`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +165,7 @@ export default function InboxPage() {
   };
 
   useEffect(() => {
-    if (!auth?.staffName || !auth?.accessToken) {
+    if (!auth?.staffName || (!auth?.hasSession && !auth?.accessToken)) {
       router.replace("/login?next=%2Finbox");
       return;
     }

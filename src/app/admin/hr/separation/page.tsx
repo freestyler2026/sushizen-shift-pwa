@@ -610,7 +610,7 @@ function AddSeparationModal({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!auth?.accessToken) return;
+    if (!auth?.hasSession && !auth?.accessToken) return;
     fetch(`${API_BASE}/api/admin/staff_master/names?city=${modalCity}&status=ACTIVE&limit=5000`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
@@ -868,7 +868,7 @@ export default function HrSeparationPage() {
     let cancelled = false;
     async function init() {
       const raw = getAuth();
-      if (!raw?.accessToken) {
+      if (!raw?.hasSession && !raw?.accessToken) {
         router.replace("/login?next=/admin/hr/separation");
         return;
       }

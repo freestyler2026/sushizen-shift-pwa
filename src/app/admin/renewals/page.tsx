@@ -162,7 +162,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     ...getAuthHeaders(),
     ...(init?.headers || {}),
   };
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {
     cache: "no-store",
     ...init,
     headers,

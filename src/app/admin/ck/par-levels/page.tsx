@@ -105,7 +105,7 @@ export default function CkParLevelsPage() {
     try {
       const auth = getAuth();
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels?city=${cityParam(city)}&item_type=${tab}`,
+        `/api/admin/ck/par-levels?city=${cityParam(city)}&item_type=${tab}`,
         { headers: getAuthHeaders(auth) }
       );
       const data = await res.json();
@@ -128,7 +128,7 @@ export default function CkParLevelsPage() {
   // ── load vendors ──────────────────────────────────────────────────────────
   useEffect(() => {
     const auth = getAuth();
-    fetch(`${API_BASE}/api/admin/ck/par-levels/vendors?city=${cityParam(city)}`, {
+    fetch(`/api/admin/ck/par-levels/vendors?city=${cityParam(city)}`, {
       headers: getAuthHeaders(auth),
     })
       .then((r) => r.json())
@@ -142,7 +142,7 @@ export default function CkParLevelsPage() {
     try {
       const auth = getAuth();
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
         {
           method: "PUT",
           headers: getAuthHeaders(auth),
@@ -214,7 +214,7 @@ export default function CkParLevelsPage() {
         fd.append("notes", `Auto-created from CK Par Level (${today})`);
         fd.append("items_json", JSON.stringify(items));
 
-        const res = await fetch(`${API_BASE}/api/admin/procurement/direct-purchase`, {
+        const res = await fetch(`/api/admin/procurement/direct-purchase`, {
           method: "POST",
           headers: getUploadHeaders(auth),
           body: fd,
@@ -269,7 +269,7 @@ export default function CkParLevelsPage() {
     try {
       const auth = getAuth();
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/seed?city=${cityParam(city)}`,
+        `/api/admin/ck/par-levels/seed?city=${cityParam(city)}`,
         { method: "POST", headers: getAuthHeaders(auth) }
       );
       const data = await res.json();
@@ -296,7 +296,7 @@ export default function CkParLevelsPage() {
       const form = new FormData();
       form.append("file", file);
       form.append("city", ""); // both cities
-      const res = await fetch(`${API_BASE}/api/admin/ck/par-levels/import`, {
+      const res = await fetch(`/api/admin/ck/par-levels/import`, {
         method: "POST",
         headers: getUploadHeaders(auth),
         body: form,
@@ -335,7 +335,7 @@ export default function CkParLevelsPage() {
         return;
       }
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
         {
           method: "PUT",
           headers: getAuthHeaders(auth),
@@ -367,7 +367,7 @@ export default function CkParLevelsPage() {
     try {
       const auth = getAuth();
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
         { method: "DELETE", headers: getAuthHeaders(auth) }
       );
       const data = await res.json();
@@ -387,7 +387,7 @@ export default function CkParLevelsPage() {
     try {
       const auth = getAuth();
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/generate?city=${cityParam(city)}&plan_type=${planType}`,
+        `/api/admin/ck/par-levels/generate?city=${cityParam(city)}&plan_type=${planType}`,
         { headers: getAuthHeaders(auth) }
       );
       if (!res.ok) {
@@ -420,7 +420,7 @@ export default function CkParLevelsPage() {
       const auth = getAuth();
       const today = new Date().toISOString().slice(0, 10);
       const res = await fetch(
-        `${API_BASE}/api/admin/ck/par-levels/push-to-plan?city=${cityParam(city)}&plan_date=${today}`,
+        `/api/admin/ck/par-levels/push-to-plan?city=${cityParam(city)}&plan_date=${today}`,
         { method: "POST", headers: getAuthHeaders(auth) }
       );
       const data = await res.json();

@@ -67,8 +67,8 @@ export default function CKLabelCompliancePage() {
     try {
       const qs = new URLSearchParams({ city: "manila", date_from: dateFrom, date_to: dateTo });
       if (branch) qs.set("branch", branch);
-      const res = await fetch(`${API_BASE}/api/admin/ck-delivery/label-compliance?${qs}`, {
-        headers: getAuthHeaders(getAuth()), cache: "no-store",
+      const res = await fetch(`/api/admin/ck-delivery/label-compliance?${qs}`, {
+        cache: "no-store",
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`);

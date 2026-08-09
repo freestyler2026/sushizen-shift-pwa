@@ -91,7 +91,8 @@ export default function PrivateReportPage() {
     try {
       const refreshed = await refreshAuthFromApi(auth);
       const accessToken = refreshed?.accessToken || auth?.accessToken;
-      if (!accessToken) throw new Error("Please log in again.");
+      const hasSession = refreshed?.hasSession || auth?.hasSession;
+      if (!accessToken && !hasSession) throw new Error("Please log in again.");
       if (!dateTimeLocal.trim()) throw new Error("Date / Time is required.");
       const dateTimeForApi = dateTimeLocal.replace("T", " ");
       if (reportType === "hq-private-report") {

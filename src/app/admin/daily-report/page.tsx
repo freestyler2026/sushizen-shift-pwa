@@ -970,7 +970,7 @@ export default function DailyReportPage() {
 
   useEffect(() => {
     async function init() {
-      if (!auth?.accessToken) { router.replace("/login?next=%2Fadmin%2Fdaily-report"); return; }
+      if (!auth?.hasSession && !auth?.accessToken) { router.replace("/login?next=%2Fadmin%2Fdaily-report"); return; }
       let a = auth;
       try {
         a = (await refreshAuthFromApi(auth, { includeMfa: true })) || auth;

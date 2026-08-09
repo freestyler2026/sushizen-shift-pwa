@@ -154,7 +154,7 @@ export default function MyAssetsPage() {
   useEffect(() => {
     async function init() {
       const raw = getAuth();
-      if (!raw?.accessToken) { router.replace("/login"); return; }
+      if (!raw?.hasSession && !raw?.accessToken) { router.replace("/login"); return; }
       const resolved = await refreshAuthFromApi(raw);
       const a = resolved || raw;
       setAuth(a);

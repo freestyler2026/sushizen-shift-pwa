@@ -589,9 +589,10 @@ export default function PriceCheckPage() {
   const tokenHeaders = useCallback(async () => {
     const refreshed = await refreshAuthFromApi(auth);
     const accessToken = refreshed?.accessToken || auth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
+    const hasSession = refreshed?.hasSession || auth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
     return {
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
     };
   }, [auth]);
@@ -738,7 +739,7 @@ export default function PriceCheckPage() {
 
   // Auth guard
   useEffect(() => {
-    if (!auth?.staffName || !auth?.accessToken) {
+    if (!auth?.staffName || (!auth?.hasSession && !auth?.accessToken)) {
       router.replace("/login?next=%2Fadmin%2Fprice-check");
       return;
     }

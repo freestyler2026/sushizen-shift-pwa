@@ -84,7 +84,7 @@ export default function OrderGridPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    if (!auth?.accessToken) { router.replace("/login"); return; }
+    if (!auth?.hasSession && !auth?.accessToken) { router.replace("/login"); return; }
     authRef.current = auth;
   }, [router]);
 

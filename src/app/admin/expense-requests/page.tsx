@@ -129,7 +129,7 @@ export default function AdminExpenseRequestsPage() {
 
   useEffect(() => {
     const a = getAuth();
-    if (!a?.accessToken) { router.replace("/login"); return; }
+    if (!a?.hasSession && !a?.accessToken) { router.replace("/login"); return; }
     if (!ADMIN_ROLES.has(a.role || "")) { router.replace("/"); }
   }, [router]);
 
@@ -137,8 +137,9 @@ export default function AdminExpenseRequestsPage() {
     const freshAuth = getAuth();
     const refreshed = await refreshAuthFromApi(freshAuth);
     const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
-    return { Authorization: `Bearer ${accessToken}` };
+    const hasSession = refreshed?.hasSession || freshAuth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
+    return { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
   }, []);
 
   const loadRequests = useCallback(async () => {

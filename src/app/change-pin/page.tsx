@@ -48,7 +48,7 @@ export default function ChangePinPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    if (!auth?.staffName || !auth?.accessToken) {
+    if (!auth?.staffName || (!auth?.hasSession && !auth?.accessToken)) {
       router.replace("/login?next=%2Fchange-pin");
       return;
     }

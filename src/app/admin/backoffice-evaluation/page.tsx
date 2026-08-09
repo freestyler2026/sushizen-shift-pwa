@@ -160,9 +160,10 @@ export default function AdminBackofficeEvaluationPage() {
   const tokenHeaders = useCallback(async () => {
     const refreshed = await refreshAuthFromApi(auth);
     const accessToken = refreshed?.accessToken || auth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
+    const hasSession = refreshed?.hasSession || auth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
     return {
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
     };
   }, [auth]);
@@ -184,20 +185,13 @@ export default function AdminBackofficeEvaluationPage() {
   }, [city, monthKey]);
 
   const loadSummary = useCallback(async () => {
-    if (!apiBase.trim()) {
-      setError("API base URL is not configured (NEXT_PUBLIC_API_BASE_URL).");
-      setSummary(null);
-      setRows([]);
-      setLoading(false);
-      return;
-    }
     const gen = ++summaryRequestGen.current;
     setLoading(true);
     setError("");
     try {
       const headers = await withTimeout(tokenHeaders(), AUTH_REFRESH_MS, "Authentication refresh");
       const q = new URLSearchParams({ city, month_key: monthKey }).toString();
-      const res = await fetchWithTimeout(`${apiBase}/api/admin/backoffice-evaluation/summary?${q}`, {
+      const res = await fetchWithTimeout(`/api/admin/backoffice-evaluation/summary?${q}`, {
         headers,
         cache: "no-store",
       });
@@ -225,14 +219,14 @@ export default function AdminBackofficeEvaluationPage() {
     } finally {
       if (gen === summaryRequestGen.current) setLoading(false);
     }
-  }, [apiBase, applyAttendanceStatus, city, monthKey, tokenHeaders]);
+  }, [applyAttendanceStatus, city, monthKey, tokenHeaders]);
 
   const loadAttendanceStatus = useCallback(async () => {
     setAttendanceError("");
     try {
       const headers = await tokenHeaders();
       const q = new URLSearchParams({ city, month_key: monthKey }).toString();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/attendance-status?${q}`, { headers, cache: "no-store" });
+      const res = await fetch(`/api/admin/backoffice-evaluation/attendance-status?${q}`, { headers, cache: "no-store" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text || "{}");
@@ -241,7 +235,7 @@ export default function AdminBackofficeEvaluationPage() {
       setAttendanceError(e?.message || String(e));
       setAttendanceStatus(null);
     }
-  }, [apiBase, applyAttendanceStatus, city, monthKey, tokenHeaders]);
+  }, [applyAttendanceStatus, city, monthKey, tokenHeaders]);
 
   const loadActions = useCallback(async (staffName: string) => {
     if (!staffName) {
@@ -252,7 +246,7 @@ export default function AdminBackofficeEvaluationPage() {
     try {
       const headers = await tokenHeaders();
       const q = new URLSearchParams({ city, month_key: monthKey, staff_name: staffName, limit: "200" }).toString();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/actions?${q}`, { headers, cache: "no-store" });
+      const res = await fetch(`/api/admin/backoffice-evaluation/actions?${q}`, { headers, cache: "no-store" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text || "{}");
@@ -261,7 +255,7 @@ export default function AdminBackofficeEvaluationPage() {
       setError(e?.message || String(e));
       setActions([]);
     }
-  }, [apiBase, city, monthKey, tokenHeaders]);
+  }, [city, monthKey, tokenHeaders]);
 
   const syncFromSheet = async () => {
     if (!approverName.trim() || !pin.trim()) {
@@ -280,7 +274,7 @@ export default function AdminBackofficeEvaluationPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/sync-from-sheet`, {
+      const res = await fetch(`/api/admin/backoffice-evaluation/sync-from-sheet`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -317,7 +311,7 @@ export default function AdminBackofficeEvaluationPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/bayzat-sync`, {
+      const res = await fetch(`/api/admin/backoffice-evaluation/bayzat-sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -360,7 +354,7 @@ export default function AdminBackofficeEvaluationPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/actions/upsert`, {
+      const res = await fetch(`/api/admin/backoffice-evaluation/actions/upsert`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

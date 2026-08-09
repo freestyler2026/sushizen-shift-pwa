@@ -742,6 +742,7 @@ export default function HrOnboardingPage() {
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState("manila");
   const [accessToken, setAccessToken] = useState("");
+  const [hasSession, setHasSession] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState<OnboardingStatus>("in_progress");
   const [records, setRecords] = useState<OnboardingRecord[]>([]);
@@ -757,7 +758,7 @@ export default function HrOnboardingPage() {
     let cancelled = false;
     async function init() {
       const raw = getAuth();
-      if (!raw?.accessToken) {
+      if (!raw?.hasSession && !raw?.accessToken) {
         router.replace("/login");
         return;
       }
@@ -771,6 +772,7 @@ export default function HrOnboardingPage() {
       if (!cancelled) {
         setAllowed(true);
         setAccessToken(a.accessToken ?? "");
+        setHasSession(a.hasSession ?? false);
         setCity(String(a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
       }
     }
@@ -784,7 +786,7 @@ export default function HrOnboardingPage() {
   // ─── Load records ─────────────────────────────────────────────────────────
 
   const loadRecords = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken && !hasSession) return;
     setLoading(true);
     setError("");
     try {
@@ -801,11 +803,11 @@ export default function HrOnboardingPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, city, statusFilter]);
+  }, [accessToken, hasSession, city, statusFilter]);
 
   useEffect(() => {
-    if (allowed && accessToken) void loadRecords();
-  }, [allowed, accessToken, loadRecords]);
+    if (allowed && (accessToken || hasSession)) void loadRecords();
+  }, [allowed, accessToken, hasSession, loadRecords]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -858,7 +860,7 @@ export default function HrOnboardingPage() {
 
   // ─── Access denied ────────────────────────────────────────────────────────
 
-  if (!allowed && accessToken) {
+  if (!allowed && (accessToken || hasSession)) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className={`${GLASS_CARD} p-8 text-center max-w-sm`}>

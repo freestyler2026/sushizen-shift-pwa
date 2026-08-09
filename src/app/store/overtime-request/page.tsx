@@ -105,8 +105,9 @@ export default function OvertimeRequestPage() {
     const freshAuth = getAuth();
     const refreshed = await refreshAuthFromApi(freshAuth);
     const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
-    if (!accessToken) throw new Error("Please log in again.");
-    return { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+    const hasSession = refreshed?.hasSession || freshAuth?.hasSession;
+    if (!accessToken && !hasSession) throw new Error("Please log in again.");
+    return { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), "Content-Type": "application/json" };
   }, []);
 
   // loadHistory does NOT depend on auth state — uses getAuth() inline to avoid infinite re-render loop

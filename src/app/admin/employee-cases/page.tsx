@@ -776,7 +776,7 @@ export default function EmployeeCasesPage() {
     let cancelled = false;
     async function init() {
       const raw = getAuth();
-      if (!raw?.accessToken) {
+      if (!raw?.hasSession && !raw?.accessToken) {
         router.replace("/login?next=/admin/employee-cases");
         return;
       }

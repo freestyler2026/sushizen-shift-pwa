@@ -182,7 +182,7 @@ export default function IncidentsPage() {
   const staffName = auth?.staffName || "";
 
   useEffect(() => {
-    if (!auth?.staffName || !auth?.accessToken) {
+    if (!auth?.staffName || (!auth?.hasSession && !auth?.accessToken)) {
       router.replace("/login?next=%2Fincidents");
     }
   }, [auth, router]);
