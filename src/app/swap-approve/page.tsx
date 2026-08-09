@@ -71,7 +71,7 @@ export default function SwapApprovePage() {
       const auth = getAuth();
       const refreshed = await refreshAuthFromApi(auth);
       if (cancelled) return;
-      if (!refreshed?.staffName || !refreshed?.accessToken) {
+      if (!refreshed?.staffName || (!refreshed?.hasSession && !refreshed?.accessToken)) {
         router.replace("/login?next=%2Fswap-approve");
         return;
       }
