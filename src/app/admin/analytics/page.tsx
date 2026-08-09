@@ -47,6 +47,7 @@ import {
   clearStepUpAuth,
   getAuth,
   getAuthHeaders,
+  hasPermission,
   refreshAuthFromApi,
   setStepUpAuth,
   stepUpSatisfies,
@@ -2561,7 +2562,7 @@ export default function AdminAnalyticsPage() {
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
   const isHQOrAdmin = roleUpper === "HQ" || roleUpper === "ADMIN";
-  const canViewStaffChannel = isHQOrAdmin;
+  const canViewStaffChannel = isHQOrAdmin || hasPermission("channel.admin.analytics.view", auth);
   const canViewDubaiSalesChannel = canViewSalesAnalytics(auth, "dubai");
   const canViewManilaSalesChannel = canViewSalesAnalytics(auth, "manila");
   const canViewSalesChannel = canViewDubaiSalesChannel || canViewManilaSalesChannel;
@@ -2958,10 +2959,10 @@ export default function AdminAnalyticsPage() {
   }, [analyticsTab, summaryDateFrom, summaryDateTo, city, approverName, pin, salesStepUpReady]);
 
   useEffect(() => {
-    if (!isHQOrAdmin && financeSectionView === "payroll") {
+    if (!canViewStaffChannel && financeSectionView === "payroll") {
       setFinanceSectionView("summary");
     }
-  }, [isHQOrAdmin, financeSectionView]);
+  }, [canViewStaffChannel, financeSectionView]);
 
   function resetComparisonState() {
     setComparisonRows([]);
@@ -3545,7 +3546,7 @@ export default function AdminAnalyticsPage() {
 
         await Promise.all([
           (async () => {
-            if (!isHQOrAdmin) {
+            if (!canViewStaffChannel) {
               setPayrollRows([]);
               return;
             }
@@ -3772,7 +3773,7 @@ export default function AdminAnalyticsPage() {
   }
 
   async function saveEvaluationRules() {
-    if (!isHQOrAdmin || !approverName.trim() || !salesStepUpReady) return;
+    if (!canViewStaffChannel || !approverName.trim() || !salesStepUpReady) return;
     setEvaluationSavingRules(true);
     setEvaluationRuleMessage("");
     try {
@@ -5811,11 +5812,11 @@ export default function AdminAnalyticsPage() {
     { key: "manilaSales", label: "Manila Sales Analytics", visible: canViewManilaSalesChannel && canViewFinanceChannels },
     { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
-    { key: "inventory_gap", label: "Inventory Gap", visible: isHQOrAdmin },
-    { key: "disposal", label: "Disposal Report", visible: isHQOrAdmin },
-    { key: "backup", label: "Backup Report", visible: isHQOrAdmin },
-    { key: "product_scoring", label: "Product Scoring", visible: isHQOrAdmin },
-    { key: "prep_time", label: "Prep Time", visible: isHQOrAdmin },
+    { key: "inventory_gap", label: "Inventory Gap", visible: canViewStaffChannel },
+    { key: "disposal", label: "Disposal Report", visible: canViewStaffChannel },
+    { key: "backup", label: "Backup Report", visible: canViewStaffChannel },
+    { key: "product_scoring", label: "Product Scoring", visible: canViewStaffChannel },
+    { key: "prep_time", label: "Prep Time", visible: canViewStaffChannel },
     { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
     { key: "late", label: "Late", visible: canViewStaffChannel },
     { key: "absence", label: "Absence", visible: canViewStaffChannel },
@@ -9222,7 +9223,7 @@ export default function AdminAnalyticsPage() {
                 )}
               </div>
 
-              {isHQOrAdmin ? (
+              {canViewStaffChannel ? (
                 <div className="rounded-2xl border border-sky-900/40 bg-sky-950/10 p-4">
                   <div className="mb-2 text-sm font-semibold">Scoring Strictness</div>
                   <div className="mb-3 text-xs text-neutral-500">
@@ -9650,25 +9651,25 @@ export default function AdminAnalyticsPage() {
           </div>
           )}
 
-          {analyticsTab === "inventory_gap" && isHQOrAdmin && (
+          {analyticsTab === "inventory_gap" && canViewStaffChannel && (
           <div className="mt-8">
             <InventoryGapTab city={city as import("@/lib/branches").City} />
           </div>
           )}
 
-          {analyticsTab === "disposal" && isHQOrAdmin && (
+          {analyticsTab === "disposal" && canViewStaffChannel && (
           <div className="mt-8">
             <DisposalAnalyticsSection isAdmin={isHQOrAdmin} />
           </div>
           )}
 
-          {analyticsTab === "backup" && isHQOrAdmin && (
+          {analyticsTab === "backup" && canViewStaffChannel && (
           <div className="mt-8">
             <BackupAnalyticsSection isAdmin={isHQOrAdmin} />
           </div>
           )}
 
-          {analyticsTab === "product_scoring" && isHQOrAdmin && (
+          {analyticsTab === "product_scoring" && canViewStaffChannel && (
           salesStepUpReady ? (
           <div className="mt-8">
             <ProductScoringTab
@@ -9692,7 +9693,7 @@ export default function AdminAnalyticsPage() {
           )
           )}
 
-          {analyticsTab === "prep_time" && isHQOrAdmin && (
+          {analyticsTab === "prep_time" && canViewStaffChannel && (
           salesStepUpReady ? (
           <div className="mt-8">
             <PrepTimeTab
