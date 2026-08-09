@@ -68,6 +68,7 @@ import {
   Laptop,
   Building2,
   Bell,
+  ShieldAlert,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -203,6 +204,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
   { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix", excludePrefix: "/admin/staff/roles" },
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
+  { href: "/admin/security", label: "Security", icon: ShieldAlert, adminOnly: true, match: "prefix" },
   { href: "/admin/staff-ranks", label: "Staff Ranks (L0-L10)", icon: TrendingUp, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
@@ -363,6 +365,7 @@ export default function NavBar() {
     if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
     if (href === "/admin/staff") return canAccessStaffAdmin(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
+    if (href === "/admin/security") return ["HQ", "ADMIN"].includes(role);
     if (href === "/admin/staff-ranks") return canAccessStaffAdmin(auth);
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/shift-audit") return ["ADMIN", "HQ"].includes(role);
