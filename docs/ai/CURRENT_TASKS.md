@@ -1,6 +1,80 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-09 (Cache staleness auto-recovery — Heroku v1835, Vercel e0901e8)
+Last updated: 2026-08-09 (permissions_version auto-refresh + Richard role fix — Vercel 4f83316 / Heroku v1837)
+
+---
+
+## ✅ Completed: permissions_version Auto-Refresh + Richard Role Fix (2026-08-09)
+
+**Vercel 4f83316 / Heroku v1837**
+
+### Problem
+Role Management changes (via Roles or Channels tabs) write to `access_role_permissions` in DB, but permissions are baked into the JWT at login time. Without re-login, no user sees the updated permissions — the Role Management UI was effectively inert for live sessions.
+
+### Solution: permissions_version counter
+
+**Backend (db.py + main.py):**
+- New `system_counters` table (key TEXT PK, value BIGINT) added to `ensure_access_control_tables()`
+- `get_permissions_version()` / `increment_permissions_version()` functions in db.py
+- `replace_access_role_permissions()` and `replace_channel_view_roles()` both call `increment_permissions_version()` after commit
+- `GET /api/auth/session-check` now returns `permissions_version: int` in ALL response paths
+
+**Frontend (SessionGuard.tsx):**
+- `permissionsVersion` ref (initialized to -1 = "not yet seen")
+- First poll: stores the version, no refresh
+- Subsequent polls: if version changed → calls `POST /api/auth/refresh` with current Bearer token → re-mints token with fresh permissions from DB → decodes payload → calls `setAuth()` to update localStorage `accessToken` + `permissions` + `role`
+- Effect: Role Management changes propagate to all live sessions within ≤5 minutes, no re-login required
+
+**Verified**: `GET /api/auth/session-check` returns `"permissions_version": 0` ✅
+
+### Richard S. Gante role change (Option A)
+
+Richard's role was `MANILA_MANAGER` (custom non-system role) which failed the hard-coded check `_assert_management_or_hq_for_city` at main.py:1658 (only matches `MANILA_MANAGEMENT` string) → 403 "Forbidden (FINANCE_CHANNEL)" on management-read endpoints.
+
+**Fix**: Changed `staff_master.role` + `staff_role_assignments` primary role to `MANILA_MANAGEMENT` via `POST /api/admin/staff/change_role`.
+
+**Result**: Token now mints with `MANILA_MANAGEMENT` role + 113 permissions (up from 63), including all admin channel permissions.
+
+**Architecture note**: `MANILA_MANAGER` hardcode lines in main.py (lines 1965, 27980, 28375, 28411, 28429, 28448, 28467, 28487, 28505) were NOT removed — other staff may depend on them (Option B rejected).
+
+---
+
+## ✅ Completed: Security Page Hydration Fix + Force Reload Verification (2026-08-09)
+
+**Vercel 57f59f1**
+
+### Bug: `/admin/security` blank on hard reload / direct URL access
+
+**Root cause**: `const auth = getAuth()` at component top level returned `null` during Next.js SSR (`typeof window === "undefined"`). The role guard `if (role !== "HQ" && role !== "ADMIN") return null` fired during SSR, producing empty server output. Client hydration expected full content → mismatch → page never rendered. DOM showed `<main><!--$--><!--/$--></main>`.
+
+**Fix** (`src/app/admin/security/page.tsx`):
+- Changed `const auth = getAuth()` → `const [auth, setAuth] = useState<Auth | null>(null)` with `useEffect` populating it after hydration
+- Added `type Auth` to import
+- Now SSR and initial client render both have `auth = null` (consistent); content appears post-mount
+- Role guard at line 361 remains safe: SSR and initial render return null (not a mismatch) → `useEffect` redirects unauthorized users
+
+**Verified in browser**: page renders correctly showing "Security Management" with Force Reload card and Active Sessions list (27 sessions including Francis Ibana and Richard S. Gante as MANILA_MANAGER).
+
+### Force Reload: end-to-end browser test
+
+- Clicked "Force All Clients to Reload" → button turned amber, status showed "Active (30 min)" + Cancel button
+- Clicked "Cancel Force Reload" → status showed "Cancelled." → button restored to "Force Reload"
+- Full end-to-end: backend `POST /api/admin/security/force-reload` + `POST /api/admin/security/force-reload/cancel` both working
+
+### Francis Ibana + Richard S. Gante: Product Scoring access confirmed
+
+**Finding**: MANILA_MANAGER JWT token includes `channel.admin.analytics.view` in its role-level permissions. The `_roldiag` display of `minted_token_permissions: None` was misleading — it means no individual DB overrides, not that permissions are absent.
+
+**Backend verified**: `GET /api/admin/qc/summary` with their Bearer tokens → 200 OK.
+
+**Frontend flow**: Both users can access Product Scoring tab by clicking "Verify With PIN" (using their login PIN) to obtain an aal2 step-up token. The mount effect auto-unlocks if an existing fresh aal2 is detected.
+
+### SessionGuard fixes (from prior session) — confirmed deployed
+
+All 3 prior-session fixes confirmed in Vercel production:
+1. Guard condition changed to `if (!auth?.staffName) return` — JWT-only HQ/ADMIN users now receive `force_reload` signal
+2. `no_session_id` backend path now includes `"force_reload": _time.time() < _force_reload_until`
+3. localStorage 30-min cooldown (`zen:force-reload-done`) prevents repeat reloads
 
 ---
 
