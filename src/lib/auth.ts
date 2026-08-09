@@ -527,11 +527,14 @@ export function canAccessCountTemplatesAdmin(a?: Auth | null): boolean {
 
 export function canViewSalesAnalytics(a?: Auth | null, cityHint?: City): boolean {
   const x = a ?? getAuth();
-  const city = cityHint || x?.city || "dubai";
-  if (hasAnyPermission(["channel.admin.analytics.view", "analytics.read.sales"], x)) return true;
-  return city === "dubai"
-    ? hasPermission("analytics.read.finance.city", x)
-    : hasPermission("analytics.read.finance.city", x);
+  const hasPerm = hasAnyPermission(["channel.admin.analytics.view", "analytics.read.sales"], x)
+    || hasPermission("analytics.read.finance.city", x);
+  if (!hasPerm) return false;
+  if (!cityHint) return true;
+  // cityLock: '' = All Cities, 'dubai'/'manila' = city-restricted
+  const cityLock = (x?.cityLock ?? "").toLowerCase();
+  if (cityLock === "") return true;
+  return cityLock === cityHint;
 }
 
 export function canViewManagementPl(a?: Auth | null): boolean {
