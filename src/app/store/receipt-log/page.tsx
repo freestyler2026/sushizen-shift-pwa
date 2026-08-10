@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
   INPUT_CLASS,
@@ -106,7 +106,11 @@ export default function ReceiptLogPage() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>> }) {
-  const city = auth.city ?? "manila";
+  const role = auth.role ?? "STAFF";
+  const canSwitchCity = role === "HQ" || role === "ADMIN" || (auth.cityLock ?? "") === "";
+
+  const [city, setCity] = useState<City>(auth.city === "dubai" ? "dubai" : "manila");
+
   const branches = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
   const branchKeys = Object.keys(branches);
 
@@ -133,6 +137,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   const [entries, setEntries]       = useState<Entry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [expanded, setExpanded]     = useState<string | null>(null);
+
+  // Reset branch to first branch of the new city when city switches
+  useEffect(() => {
+    const keys = city === "dubai" ? Object.keys(DUBAI_BRANCHES) : Object.keys(MANILA_BRANCHES);
+    setBranch(keys[0]);
+  }, [city]);
 
   const total = items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0);
 
@@ -237,11 +247,31 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
     <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className={T_PAGE_TITLE}>Receipt Log</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Upload a receipt and record cash/market purchases for expense tracking.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Receipt Log</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Upload a receipt and record cash/market purchases for expense tracking.
+          </p>
+        </div>
+        {canSwitchCity && (
+          <div className="flex shrink-0 rounded-xl border border-white/10 bg-white/5 p-1 gap-1 mt-1">
+            {(["manila", "dubai"] as City[]).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCity(c)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  city === c
+                    ? "bg-violet-600 text-white shadow"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                {c === "manila" ? "Manila" : "Dubai"}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Form ── */}
