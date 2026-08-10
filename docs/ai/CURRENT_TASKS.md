@@ -1,6 +1,26 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Full page audit — 3 bugs found post-security-hardening)
+Last updated: 2026-08-10 (Phase 3 regression fix — daily-inventory proxy + cookie fallback)
+
+---
+
+## ✅ Completed: Daily Inventory Phase 3 regression fix (2026-08-10)
+
+**Root cause**: `/api/daily-inventory/*` had NO Next.js proxy route. In production (Vercel), requests
+went via Vercel rewrite directly to Heroku. Phase 3 users have `accessToken=""` → `getAuthHeaders()`
+returns no Authorization header. The backend `_token_actor()` in `daily_inventory_api.py` only reads
+the Bearer header (no cookie fallback) → 401 "Authentication is required."
+
+**Fix 1 (frontend)**: Created `src/app/api/daily-inventory/[...slug]/route.ts` — same cookie-injection
+proxy pattern as `/api/admin/`, `/api/store/`, `/api/attendance/`. Now `sz_access` cookie is read
+server-side and injected as `Authorization: Bearer` before forwarding to Heroku. (Vercel commit eb2749f)
+
+**Fix 2 (backend)**: Added `sz_access` cookie fallback to `_token_actor()` in `daily_inventory_api.py`
+— mirrors `_actor_from_token_request()` in main.py. Defense-in-depth for any direct calls that bypass
+the proxy. (Heroku v1857)
+
+**Also fixed** (same session): Attendance and OS Attendance Daily Report — 401 now redirects to login
+instead of silently failing. (Vercel commit 3522507)
 
 ---
 
