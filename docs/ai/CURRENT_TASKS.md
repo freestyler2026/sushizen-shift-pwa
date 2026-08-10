@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Phase 3 regression fix — daily-inventory proxy + cookie fallback)
+Last updated: 2026-08-10 (Incidents proxy fix — Phase 3 regression resolved)
 
 ---
 
@@ -38,11 +38,12 @@ instead of silently failing. (Vercel commit 3522507)
 **Root cause**: `list_effective_attendance_rows` is imported in `main.py` (line 531) but no `GET /api/admin/attendance/rows` route is defined. Frontend (`src/app/admin/corrections/page.tsx` line 112) calls this missing endpoint.
 **Fix needed**: Add `GET /api/admin/attendance/rows` route to `main.py` using `list_effective_attendance_rows`, or update the frontend to call an existing endpoint.
 
-### Bug 3 — Incident Report page (`/incidents`) ❌ PHASE 3 REGRESSION
-**Error**: `{"detail":"Forbidden"}` (403)
-**Network**: `GET /api/incidents` → 403
-**Root cause**: `/api/incidents` is NOT proxied through Next.js `route.ts`. It goes via Vercel rewrite directly to Heroku. In Phase 3, `accessToken=""` in JS, so `getAuthHeaders()` returns `{}` (no Authorization header). The backend's `_get_actor_from_auth_header()` in `incident_api.py` returns None → 403. Before Phase 3 this worked because `getAuthHeaders()` sent a real Bearer token.
-**Fix needed**: Add Next.js proxy route `src/app/api/incidents/[...slug]/route.ts` (same pattern as `api/admin/[...slug]/route.ts`) so the cookie is injected as Bearer. OR have `incident_api.py` read the `sz_access` cookie directly.
+### Bug 3 — Incident Report page (`/incidents`) ✅ FIXED (2026-08-10)
+**Error was**: `{"detail":"Forbidden"}` (403)
+**Fix**: Created TWO proxy files:
+- `src/app/api/incidents/route.ts` — base path GET (list) and POST (submit). The `[...slug]` catch-all does NOT match bare `/api/incidents`.
+- `src/app/api/incidents/[...slug]/route.ts` — sub-paths: badge, notifications/read, /{id}, /{id}/attachments, /{id}/self-eval.
+Both inject `sz_access` cookie as `Authorization: Bearer`. Vercel commits 492914e + 56203f4.
 
 ### Minor issues (possibly pre-existing, not Phase 3 caused)
 - `/api/admin/procurement/badge-summary?city=dubai` → 401 (repeating on every badge refresh for Yukihiro/Manila HQ; possibly city-scoped permission issue pre-existing)
