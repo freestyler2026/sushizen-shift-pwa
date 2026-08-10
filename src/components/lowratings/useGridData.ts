@@ -73,6 +73,7 @@ function fromApiRow(r: LowRatingRow, localId?: string): GridRowState {
         : `r-${r.id}-${Date.now()}`),
     id: r.id,
     order_date: r.order_date ? String(r.order_date).slice(0, 10) : "",
+    order_time: r.order_time ? String(r.order_time).slice(0, 5) : "",
     aggregator: String(r.aggregator || ""),
     branch: String(r.branch || ""),
     brand: String(r.brand || ""),

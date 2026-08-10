@@ -6,12 +6,12 @@ import {
   DUBAI_AGGREGATORS,
   DUBAI_BRANCHES,
   DUBAI_BRANDS,
-  ISSUE_CATEGORIES,
+  type HighRatingRow,
   type LowRatingCity,
-  type LowRatingRow,
   MANILA_AGGREGATORS,
   MANILA_BRANCHES,
-  RATING_LABELS,
+  RATING_BOOST_ITEMS,
+  isRatingBoost,
 } from "@/types/lowRating";
 import {
   GLASS_CARD,
@@ -31,7 +31,7 @@ function fieldDate(v: string | null | undefined): string {
   return s.slice(0, 10);
 }
 
-export function LowRatingFormModal({
+export function HighRatingFormModal({
   city,
   initial,
   onClose,
@@ -39,7 +39,7 @@ export function LowRatingFormModal({
   busy,
 }: {
   city: LowRatingCity;
-  initial?: LowRatingRow | null;
+  initial?: HighRatingRow | null;
   onClose: () => void;
   onSave: (payload: Record<string, unknown>) => Promise<void>;
   busy: boolean;
@@ -55,12 +55,15 @@ export function LowRatingFormModal({
   const [amount, setAmount] = useState(
     initial?.amount != null && Number.isFinite(Number(initial.amount)) ? String(initial.amount) : "",
   );
-  const [rating, setRating] = useState<number>(initial?.rating ? Number(initial.rating) : 1);
   const [customerReview, setCustomerReview] = useState(String(initial?.customer_review || ""));
-  const [issueCategory, setIssueCategory] = useState(String(initial?.issue_category || ""));
+  const [customerName, setCustomerName] = useState(String(initial?.customer_name || ""));
   const [pic, setPic] = useState(String(initial?.pic || ""));
+  const [isBoostOverride, setIsBoostOverride] = useState<boolean | null>(null);
   const [dateUpdated, setDateUpdated] = useState(fieldDate(initial?.date_updated));
   const [error, setError] = useState("");
+
+  const autoBoost = isRatingBoost(orderedItems);
+  const effectiveBoost = isBoostOverride !== null ? isBoostOverride : autoBoost;
 
   useEffect(() => {
     setOrderDate(fieldDate(initial?.order_date));
@@ -73,10 +76,10 @@ export function LowRatingFormModal({
     setAmount(
       initial?.amount != null && Number.isFinite(Number(initial.amount)) ? String(initial.amount) : "",
     );
-    setRating(initial?.rating ? Number(initial.rating) : 1);
     setCustomerReview(String(initial?.customer_review || ""));
-    setIssueCategory(String(initial?.issue_category || ""));
+    setCustomerName(String(initial?.customer_name || ""));
     setPic(String(initial?.pic || ""));
+    setIsBoostOverride(initial?.is_rating_boost != null ? Boolean(initial.is_rating_boost) : null);
     setDateUpdated(fieldDate(initial?.date_updated));
     setError("");
   }, [initial]);
@@ -113,23 +116,20 @@ export function LowRatingFormModal({
       setError("Ordered items are required.");
       return;
     }
-    if (rating < 1 || rating > 3) {
-      setError("Rating must be 1–3.");
-      return;
-    }
     const payload: Record<string, unknown> = {
       order_date: orderDate.trim(),
       order_time: orderTime.trim() === "" ? null : orderTime.trim(),
       aggregator: aggregator.trim().toLowerCase(),
       branch: branch.trim(),
-      brand: city === "dubai" ? brand.trim() : brand.trim(),
+      brand: brand.trim(),
       order_id: orderId.trim(),
       ordered_items: orderedItems.trim(),
       amount: amount.trim() === "" ? null : Number(amount),
-      rating,
+      rating: 5,
       customer_review: customerReview.trim(),
-      issue_category: issueCategory.trim(),
+      customer_name: customerName.trim(),
       pic: pic.trim(),
+      is_rating_boost: effectiveBoost,
       date_updated: dateUpdated.trim() === "" ? null : dateUpdated.trim(),
     };
     try {
@@ -146,9 +146,9 @@ export function LowRatingFormModal({
         className={GLASS_CARD + " relative z-[81] max-h-[90vh] w-full max-w-lg overflow-y-auto p-5"}
         onClick={(ev) => ev.stopPropagation()}
       >
-        <h2 className={T_SECTION}>{isEdit ? "Edit low rating" : "New low rating"}</h2>
+        <h2 className={T_SECTION}>{isEdit ? "Edit high rating" : "New high rating"}</h2>
         <p className={T_CAPTION + " mt-1"}>
-          {city === "manila" ? "Manila" : "Dubai"} · ratings 1–3 only
+          {city === "manila" ? "Manila" : "Dubai"} · 5-star reviews only
         </p>
 
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
@@ -248,16 +248,39 @@ export function LowRatingFormModal({
             />
           </label>
 
-          <label className="block">
-            <div className={T_LABEL}>Ordered items *</div>
-            <textarea
-              required
-              rows={3}
-              value={orderedItems}
-              onChange={(e) => setOrderedItems(e.target.value)}
-              className={"mt-1 w-full " + INPUT_CLASS}
+          <div>
+            <label className="block">
+              <div className={T_LABEL}>Ordered items *</div>
+              <textarea
+                required
+                rows={3}
+                value={orderedItems}
+                onChange={(e) => {
+                  setOrderedItems(e.target.value);
+                  setIsBoostOverride(null);
+                }}
+                className={"mt-1 w-full " + INPUT_CLASS}
+              />
+            </label>
+            {autoBoost && (
+              <p className="mt-1 text-xs text-amber-400">
+                Auto-detected as rating boost ({RATING_BOOST_ITEMS.join(", ")} only)
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="is_boost"
+              type="checkbox"
+              checked={effectiveBoost}
+              onChange={(e) => setIsBoostOverride(e.target.checked)}
+              className="h-4 w-4 rounded border border-white/20 bg-white/10 accent-amber-400"
             />
-          </label>
+            <label htmlFor="is_boost" className={T_LABEL + " cursor-pointer"}>
+              Mark as rating boost order
+            </label>
+          </div>
 
           <label className="block">
             <div className={T_LABEL}>Amount</div>
@@ -271,19 +294,14 @@ export function LowRatingFormModal({
           </label>
 
           <label className="block">
-            <div className={T_LABEL}>Rating *</div>
-            <select
-              required
-              value={rating}
-              onChange={(e) => setRating(Number(e.target.value))}
-              className={"mt-1 w-full " + SELECT_CLASS}
-            >
-              {([1, 2, 3] as const).map((r) => (
-                <option key={r} value={r}>
-                  {RATING_LABELS[r]}
-                </option>
-              ))}
-            </select>
+            <div className={T_LABEL}>Customer name</div>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className={"mt-1 w-full " + INPUT_CLASS}
+              placeholder="Optional"
+            />
           </label>
 
           <label className="block">
@@ -294,22 +312,6 @@ export function LowRatingFormModal({
               onChange={(e) => setCustomerReview(e.target.value)}
               className={"mt-1 w-full " + INPUT_CLASS}
             />
-          </label>
-
-          <label className="block">
-            <div className={T_LABEL}>Issue category</div>
-            <select
-              value={issueCategory}
-              onChange={(e) => setIssueCategory(e.target.value)}
-              className={"mt-1 w-full " + SELECT_CLASS}
-            >
-              <option value="">—</option>
-              {ISSUE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label className="block">

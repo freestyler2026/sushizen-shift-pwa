@@ -5,6 +5,7 @@ export interface LowRatingRow {
   city: LowRatingCity;
   aggregator: string;
   order_date: string | null;
+  order_time: string | null;
   branch: string;
   brand: string;
   order_id: string;
@@ -16,6 +17,37 @@ export interface LowRatingRow {
   pic: string;
   date_updated: string | null;
   created_at: string;
+}
+
+export interface HighRatingRow {
+  id: number;
+  city: LowRatingCity;
+  aggregator: string;
+  order_date: string | null;
+  order_time: string | null;
+  branch: string;
+  brand: string;
+  order_id: string;
+  ordered_items: string;
+  amount: number | null;
+  rating: 5;
+  customer_review: string;
+  customer_name: string;
+  pic: string;
+  is_rating_boost: boolean;
+  date_updated: string | null;
+  created_at: string;
+}
+
+export const RATING_BOOST_ITEMS = ["Gari Ginger", "Soy Sauce", "Wasabi"] as const;
+
+export function isRatingBoost(orderedItems: string): boolean {
+  const boostSet = new Set(["gari ginger", "soy sauce", "wasabi"]);
+  const items = orderedItems
+    .split(/[\n,]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return items.length > 0 && items.every((item) => boostSet.has(item));
 }
 
 export const MANILA_AGGREGATORS = ["foodpanda", "grab"] as const;

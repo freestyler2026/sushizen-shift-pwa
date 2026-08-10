@@ -27,6 +27,7 @@ import {
 } from "@/types/lowRating";
 import { LowRatingsGrid } from "@/components/lowratings/LowRatingsGrid";
 import { useGridData } from "@/components/lowratings/useGridData";
+import { HighRatingsCard } from "@/components/analytics/HighRatingsCard";
 
 function defaultRange() {
   const to = new Date();
@@ -467,6 +468,18 @@ export function LowRatingsAdminPanel() {
         addRow={addRow}
         commitDraft={commitDraft}
         picOptions={picSelectOptions}
+      />
+
+      {/* ── High Ratings (5★) ── */}
+      <HighRatingsCard
+        city={city}
+        title="High Ratings (5★)"
+        approverName={approverName}
+        pin={pin}
+        stepUpReady={canLoad}
+        active={canLoad}
+        defaultDateFrom={dateFrom}
+        defaultDateTo={dateTo}
       />
     </div>
   );

@@ -441,6 +441,8 @@ export function LowRatingsCard({
               <thead className="bg-white/3">
                 <tr>
                   <th className={TABLE_HEADER + " px-3 py-3"}>Date</th>
+                  <th className={TABLE_HEADER + " px-3 py-3"}>Time</th>
+                  <th className={TABLE_HEADER + " px-3 py-3"}>Order ID</th>
                   <th className={TABLE_HEADER + " px-3 py-3"}>Agg</th>
                   <th className={TABLE_HEADER + " px-3 py-3"}>Branch</th>
                   <th className={TABLE_HEADER + " px-3 py-3"}>Items</th>
@@ -456,6 +458,12 @@ export function LowRatingsCard({
                   <tr key={row.id} className={TABLE_ROW}>
                     <td className={TABLE_CELL + " px-3 whitespace-nowrap"}>
                       {row.order_date ? String(row.order_date).slice(0, 10) : "—"}
+                    </td>
+                    <td className={TABLE_CELL + " px-3 whitespace-nowrap tabular-nums"}>
+                      {row.order_time ? String(row.order_time).slice(0, 5) : "—"}
+                    </td>
+                    <td className={TABLE_CELL + " px-3 whitespace-nowrap font-mono text-xs"}>
+                      {row.order_id || "—"}
                     </td>
                     <td className={TABLE_CELL + " px-3"}>{row.aggregator}</td>
                     <td className={TABLE_CELL + " px-3"}>{row.branch || "—"}</td>

@@ -8,6 +8,7 @@ export type GridRowState = {
   /** True for rows that have never been persisted yet. updateCell skips auto-save for drafts. */
   _isDraft?: boolean;
   order_date: string;
+  order_time: string;
   aggregator: string;
   branch: string;
   brand: string;
@@ -36,6 +37,7 @@ export function getColumnsForCity(city: LowRatingCity): ColDef[] {
   const issueOpts = ["", "Wrong Order", "Missing Item", "Quality Issue", "Packaging", "Delivery Time", "Other"];
   const manila: ColDef[] = [
     { key: "order_date", label: "DATE", width: 128, type: "date" },
+    { key: "order_time", label: "TIME", width: 90, type: "text" },
     { key: "aggregator", label: "AGG", width: 112, type: "select", options: ["foodpanda", "grab"] },
     { key: "branch", label: "BRANCH", width: 112, type: "select", options: ["CK", "Taft", "Paranaque"] },
     { key: "order_id", label: "ORDER ID", width: 140, type: "text" },
@@ -49,6 +51,7 @@ export function getColumnsForCity(city: LowRatingCity): ColDef[] {
   ];
   const dubai: ColDef[] = [
     { key: "order_date", label: "DATE", width: 128, type: "date" },
+    { key: "order_time", label: "TIME", width: 90, type: "text" },
     { key: "aggregator", label: "AGG", width: 112, type: "select", options: ["careem", "keeta", "talabat"] },
     {
       key: "branch",
@@ -76,6 +79,7 @@ export function newEmptyRow(city: LowRatingCity, localId: string): GridRowState 
     _localId: localId,
     _isDraft: true,
     order_date: today,
+    order_time: "",
     aggregator: city === "manila" ? "foodpanda" : "careem",
     branch: city === "manila" ? "Taft" : "Business Bay",
     brand: city === "dubai" ? "Sushi Zen" : "",
@@ -108,6 +112,7 @@ export function toSavePayload(row: GridRowState, city: LowRatingCity): Record<st
       : Number(row.amount);
   return {
     order_date: row.order_date.trim(),
+    order_time: row.order_time.trim() === "" ? null : row.order_time.trim(),
     aggregator: row.aggregator.trim().toLowerCase(),
     branch: row.branch.trim(),
     brand: city === "dubai" ? row.brand.trim() : "",
