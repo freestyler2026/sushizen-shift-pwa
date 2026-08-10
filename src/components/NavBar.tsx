@@ -710,28 +710,32 @@ export default function NavBar() {
         setResolvedAuth(resolved || a);
         setDisplayName(resolved?.staffName || a.staffName || "");
       }
+      const accessToken = resolved?.accessToken || a.accessToken;
+      if (!accessToken && !resolved?.hasSession && !a.hasSession) return;
+
+      // Procurement badge — runs only if user has procurement access; never blocks other badges
       try {
-        const accessToken = resolved?.accessToken || a.accessToken;
-        if (!accessToken && !resolved?.hasSession && !a.hasSession) return;
-        if (!canAccessProcurementAdmin(resolved || a, (resolved?.city || a.city || "manila") === "dubai" ? "dubai" : "manila")) return;
-        const city = String(resolved?.city || a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
-        const sumRes = await fetch(`/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`, {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            ...(resolved?.stepUpToken ? { "X-Step-Up-Token": resolved.stepUpToken } : {}),
-          },
-        });
-        if (!sumRes.ok) return;
-        const sumText = await sumRes.text();
-        const sumJson = JSON.parse(sumText || "{}");
-        if (!cancelled) {
-          const total = Number(sumJson?.total_badge_count || 0);
-          setProcurementBadgeCount(total);
-          setProcurementBadgeCritical(
-            Number(sumJson?.price_check_overdue_count || 0) > 0 || Number(sumJson?.issue_critical_count || 0) > 0,
-          );
+        if (canAccessProcurementAdmin(resolved || a, (resolved?.city || a.city || "manila") === "dubai" ? "dubai" : "manila")) {
+          const city = String(resolved?.city || a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+          const sumRes = await fetch(`/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`, {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              ...(resolved?.stepUpToken ? { "X-Step-Up-Token": resolved.stepUpToken } : {}),
+            },
+          });
+          if (sumRes.ok) {
+            const sumText = await sumRes.text();
+            const sumJson = JSON.parse(sumText || "{}");
+            if (!cancelled) {
+              const total = Number(sumJson?.total_badge_count || 0);
+              setProcurementBadgeCount(total);
+              setProcurementBadgeCritical(
+                Number(sumJson?.price_check_overdue_count || 0) > 0 || Number(sumJson?.issue_critical_count || 0) > 0,
+              );
+            }
+          }
         }
       } catch {
         if (!cancelled) {
