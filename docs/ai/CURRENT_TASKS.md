@@ -1,6 +1,84 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (NavBar badge early-return bugfix — Vercel 180125f)
+Last updated: 2026-08-10 (Auth SSR fix — Vercel 1e26646)
+
+---
+
+## ✅ Completed: Auth SSR fix — "not authorized" on hard reload (2026-08-10, Vercel 1e26646)
+
+**Report**: After hard reload, logout+re-login, or fresh page load, Cost Calculation and OS Attendance showed "not authorized" despite being logged in as HQ.
+
+**Root cause**: `useMemo(() => getAuth(), [])` returns `null` during SSR (no localStorage on server). During client hydration, if the async session check (`/api/auth/session`) was slow due to 30+ concurrent calls flooding Heroku, `refreshAuthFromApi(null)` returned null and `setAllowed(false)` permanently blocked the page.
+
+**Fixes** (Vercel 1e26646):
+- `os-attendance/page.tsx`: Applied `useState(null)+useEffect` pattern (same as security page commit 57f59f1) — auth reads localStorage after mount, redirect only fires once auth is confirmed
+- `cost-calculation/page.tsx`: Added `authChecked` state + `auth??getAuth()` fallback in useEffect — page shows `null` (blank) while checking, never flashes "not authorized" to valid users
+- `attendance/page.tsx`: Added `auth??getAuth()` fallback in useEffect
+- `probation/page.tsx`, `meal-allowance/page.tsx`, `backoffice-evaluation/page.tsx`: Full `authChecked` guard + fallback
+- Procurement sub-pages (19+): Same pattern — handled by follow-up commit (pending agent)
+
+**Pattern established**: For pages with `useMemo(() => getAuth(), [])` + `useState(false)`:
+- Either: `useState(null)+useEffect` (cleanest, for pages with synchronous redirect)
+- Or: `authChecked` state gate (for pages with async `setAllowed`)
+
+---
+
+## ✅ Completed: Company Assets — Lifecycle Log (2026-08-10, Heroku v1876 / Vercel 14de0ac)
+
+**Request**: Record when each asset is loaned, returned, condition-checked, cleaned, and ready for next loan — with memo and photo upload for later condition review.
+
+**Implementation**:
+- `db_assets.py` `ensure_asset_tables()`: Added `asset_maintenance_logs` table (id, asset_id FK, event_type, notes, performed_by, performed_at, photo_data TEXT, created_at)
+- `db_assets.py` `add_asset_maintenance_log()`: Insert new log entry, returns dict
+- `db_assets.py` `list_asset_maintenance_logs(asset_id)`: Returns logs ordered by performed_at DESC
+- `main.py` `GET/POST /api/admin/assets/{asset_id}/maintenance-logs`: Two endpoints, both inserted BEFORE `{asset_id}/loans` per FastAPI static-before-param rule
+- `assets/page.tsx` `MaintenanceLog` interface and `EVENT_META` map (Condition Check, Returned, Loan Out, Factory Reset, Cleaning, Storage, Note)
+- `assets/page.tsx` `compressImage()`: Canvas API, max 800px, JPEG 70%, stored as base64 in Postgres TEXT
+- `assets/page.tsx` `buildTimeline()`: Merges loan records and maintenance logs into a single chronological timeline
+- `assets/page.tsx` `LifecyclePanel`: Parallel fetch of loans + logs, inline "+ Add Log" form with photo upload, combined timeline view
+- `assets/page.tsx` `AssetRow`: Added "Lifecycle Log" / "Loan History" tabs (default: Lifecycle Log)
+
+**Verified in production**: Saved a "Condition Check" log on LAP-MNL-001; entry appeared immediately in the timeline.
+
+---
+
+## ✅ Completed: HR Clearance — Laptop/Device Management section (2026-08-10, Heroku v1875 / Vercel 72a3b4e)
+
+**Request**: Add laptop collection, condition check, factory reset/access removal, and storage tracking to the HR Clearance process so HR handles all device handoffs (no longer dependent on individual managers).
+
+**Implementation**:
+- `db_hr.py` `ensure_hr_clearance_tables()`: Added 14 `ALTER TABLE IF NOT EXISTS` columns (laptop_has_device, asset_tag, serial, brand, model, returned_at, returned_by, condition, condition_notes, reset_done, reset_by, reset_at, storage_location, notes)
+- `db_hr.py` `update_hr_clearance_laptop()`: New function updating all 14 fields, returns serialized row via `_clearance_row()`
+- `main.py` `PATCH /api/admin/hr/clearance/{case_id}/laptop`: New endpoint (inserted before cancel endpoint per FastAPI static-before-param rule)
+- `clearance/page.tsx` `ClearanceCase` type: Added all 14 laptop fields
+- `clearance/page.tsx` `LaptopDeviceSection`: New collapsible component with 5 sub-sections — Device Assignment (has_device toggle → reveals asset_tag/serial/brand/model), Return Tracking (returned_at, returned_by), Condition Report (condition dropdown + notes), Security Reset (red-bordered critical section with reset_done checkbox, reset_by, reset_at), Storage (storage_location, notes)
+- `clearance/page.tsx` `CaseCard`: Inserted `<LaptopDeviceSection>` between LoanedAssetsSection and FinalPaySection
+- Status badge logic: "No laptop issued" / "⚠ Return Pending" / "⚠ Reset Pending" / "✓ Cleared"
+
+**Verified in production**: Section appears and expands correctly; Device Assignment checkbox triggers reveal of all device fields.
+
+---
+
+## ✅ Completed: OS Attendance — Staff filter + correction-revert bugfix (2026-08-10, Heroku v1874 / Vercel 1f1a080)
+
+**Report**: Admin corrections made after midnight reverted to "No Show" next day. Staff name filter showed all no-shows instead of filtered results.
+
+**Root cause 1 — Staff filter ignored for no-shows** (`os-attendance/page.tsx` line 929):
+The no-shows API call did not include `staff_name`, so ALL no-shows were always fetched regardless of the filter. When a staff member was searched by name, their real session appeared (if it existed) but the full unfiltered no-show list was also included in the display.
+
+**Root cause 2 — Case-sensitive NOT IN caused corrections to revert** (`db.py` `list_no_shows`):
+The SQL `NOT IN` subquery compared names case-sensitively:
+```sql
+AND COALESCE(am.canonical_staff_name, r.staff_name) NOT IN (
+    SELECT staff_name FROM os_attendance_sessions ...
+)
+```
+If the shift draft stored a name in different case than the session (e.g. "ALEXANDRA LIM" vs "Alexandra Lim"), the correction was invisible to the exclusion filter → staff re-appeared as No Show.
+
+**Fix**:
+- `db.py` `list_no_shows()`: Added `staff_name: str = ""` param; made NOT IN case-insensitive (`lower()` on both sides); filters returned rows by name when param supplied
+- `main.py` `api_admin_attendance_no_shows()`: Added `staff_name: str = ""` query param, passes to `list_no_shows()`
+- `os-attendance/page.tsx` `load()`: No-shows fetch now includes `&staff_name=...` when `staffFilter` is set
 
 ---
 
