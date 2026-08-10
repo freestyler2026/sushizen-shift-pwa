@@ -1,6 +1,142 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Cash Report History fix — Marithel's June data issue resolved)
+Last updated: 2026-08-10 (Thin JWT バグ修正 v1863 + Test Account ブラウザ確認完了)
+
+---
+
+## ✅ Completed: Thin JWT バグ修正 3件 (2026-08-10, Heroku v1863)
+
+**背景**: v1862 の Thin JWT 実装後、3つのエッジケースバグを発見・修正。
+
+**Bug 1 — `require_channel_permission` pv=0 + thin JWT → 403**  
+JWT の `pv=0`（issuance 時に DB が一時的に落ちていた場合）かつ `permissions` フィールドなし（thin JWT）の場合、後方互換ブランチが `payload.get("permissions") or [] = []` を返し、non-ADMIN/HQ ユーザー全員が 403 になっていた。  
+**Fix**: `elif "permissions" in payload` を挿入して旧 JWT（permissions 埋込）と thin JWT (pv=0) を区別。thin JWT の場合は `_get_cached_permissions(sub, 0)` を呼び live DB read。
+
+**Bug 2 — refresh セッションフォールバックが permissions を正しく返せない**  
+セッションフォールバックブランチで `list(_nc.get("permissions") or [])` — thin JWT に permissions フィールドがないため ADMIN/HQ も空リストを返していた。  
+**Fix**: ADMIN/HQ は `["*"]`、それ以外は `_gcp2(sname, pv)` でキャッシュ/DB から取得。
+
+**Bug 3 — refresh 通常パスで `_new_pv=0` のとき permissions を返さない**  
+`_gcp(_jwt_sname, _new_pv) if _new_pv else []` — pv=0 のとき `[]` を返していた。  
+**Fix**: 条件を削除し常に `_gcp(_jwt_sname, _new_pv)` を呼ぶ（pv=0 は cache bypass して live DB read）。
+
+**本番確認 (v1863)**:  
+- Test Account (ADMIN, manila, PIN 1111) ログイン → JWT 225 B ✓  
+- `/admin/attendance` 正常ロード ✓  
+- Refresh → ADMIN/HQ: `["*"]` 返す ✓  
+- Session → 150件 permissions DB から解決 ✓
+
+---
+
+## ✅ Completed: Default PIN 1111 / setup_completed ブロック削除 (2026-08-10, Heroku v1861)
+
+- `verify_staff_pin`: `staff_auth` 行なし (未セットアップ) → PIN "1111" で True 返す
+- login フロー / change-PIN フローから `setup_completed` ブロックを削除
+- Test Account (Manila, ADMIN) が PIN 1111 でログイン可能になった ✓
+
+---
+
+## ✅ Completed: Thin JWT アーキテクチャ (2026-08-10, Heroku v1862)
+
+**設計**: JWT からパーミッションリストを完全排除。代わりに `pv` (permissions_version 整数) を埋め込み、サーバー側の LRU キャッシュ `(staff_name, pv)` → permissions で解決。
+
+**実装 (`sushizen_shift_app_clean/app/security_tokens.py`)**:
+- `_get_cached_permissions(staff_name, pv)` — in-process LRU キャッシュ (512 エントリ) + DB フォールバック
+- `issue_access_token()` 全面改修: permissions 削除、pv 追加。JWT 常時 ~220 B
+- `require_channel_permission()`: pv>0 → キャッシュ; pv==0 (旧JWT互換) → 埋込permissions
+- JWT サイズアサーション (2048 B 超で warning ログ)
+
+**実装 (`sushizen_shift_app_clean/app/main.py`)**:
+- refresh レスポンス: `get_cached_permissions()` で permissions を返す (JWT から取らない)
+- re-mint 防衛コード: `resolve_role_permissions()` でパーミッション再導出
+
+**本番確認 (v1862)**:
+- ADMIN JWT: 225 B (旧: ~6000-8000 B) ✓
+- `has_permissions: False`, `pv: 10530` ✓
+- session → ok:true, role:ADMIN, permissions: 150件 (DB から正しく再導出) ✓
+- 旧JWT (permissions あり pv なし) も 16h TTL 期間中は後方互換で動作 ✓
+
+**効果**: ロール・パーミッションをいくら増やしても JWT サイズは不変。アリアナ問題と同様の障害は構造的に再発不可能。
+
+---
+
+## ✅ Completed: ADMIN JWT cookie overflow fix (2026-08-10)
+
+**Root cause**: `issue_access_token()` in `sushizen_shift_app_clean/app/security_tokens.py` embedded the full permission list (~150+ strings for ADMIN role) in the JWT payload. This pushed the `sz_access` cookie past the browser's ~4096-byte limit — the browser silently dropped it. Every subsequent API call had no Authorization header → Heroku returned 401 "Session is invalid or expired." This affected ALL ADMIN accounts, not just Aliana.
+
+**Fix (backend, Heroku v1860)** — `sushizen_shift_app_clean/app/security_tokens.py` `issue_access_token`:
+- For ADMIN and HQ roles, use `["*"]` in the JWT payload instead of the full permission list.
+- `_actor_from_token_request` on the backend re-derives real permissions from DB on every request.
+- `require_channel_permission` already short-circuits on `role in ("ADMIN", "HQ")` — no behavioral change.
+
+**Test Admin Account created**: Manila, staff "Test Admin Account", PIN 123456, role ADMIN.
+
+**Verified in production** (2026-08-10):
+- `/admin/os-attendance` — loads, 47 records, Manila/Dubai switcher works ✓
+- `/admin/attendance` — Bayzat Attendance loads ✓
+- `/admin/procurement/receiving` — Receiving Records loads with data, city switcher works ✓
+
+**Note**: This also permanently fixes the Aliana ADMIN access issue — the prior "fix" (v1859 refresh re-check) was correct but couldn't help when the JWT cookie itself was never stored.
+
+---
+
+## ✅ Completed: Aliana ADMIN access fix + Receipt Log city switcher (2026-08-10)
+
+### Bug: Aliana blocked from admin pages (OS Attendance, Time In/Out, Store Procurement)
+
+**Reported by**: Aliana Manuel (assigned ADMIN role via Role Management) — redirected to My Shift from `/admin/os-attendance` and `/admin/time-in-out`, "Unauthorized" on Store Procurement.
+
+**Root cause**: Aliana's existing JWT was minted before her ADMIN role assignment, so it contained `role: "STAFF"`. The `/api/auth/refresh` JWT-path re-issued tokens using the role from the old JWT claims (never re-checking DB). Since Aliana's STAFF session kept refreshing via SessionGuard every 5–20 minutes, she perpetually remained a STAFF user even after the role upgrade — until logout and fresh re-login.
+
+**Secondary root cause**: `_effective_staff_profile("Aliana")` (short login name) falls through because `resolve_staff_access_profile` does an exact normalized name match against `staff_role_assignments` which has "Aliana Manuel". Only the login path correctly maps "Aliana" → "Aliana Manuel" via `staff_auth.name_canonical` → then calls `_effective_staff_profile("Aliana Manuel")` which returns ADMIN. The refresh path used the `sub` claim from the JWT ("Aliana Manuel" after first login) — so the actual fix at that function level was correct.
+
+**Fix (backend, Heroku v1859)** — `sushizen_shift_app_clean/app/main.py` `api_auth_refresh`:
+- Added `_effective_staff_profile(_jwt_sname)` call in the JWT path before re-issuing tokens.
+- Non-STAFF profile role takes precedence; STAFF profile falls back to JWT role (prevents transient downgrade).
+- Also added `role` and `permissions` fields to the refresh response so SessionGuard can update localStorage without reading the httpOnly cookie.
+
+**Recovery for active sessions** — Called `POST /api/admin/access/force-reseed` to bump `permissions_version` (9516). SessionGuard checks this counter every 5 minutes; detecting a change triggers `refreshPermissions()` which calls `/api/auth/refresh` → new backend re-checks DB → returns ADMIN role → localStorage updated automatically.
+
+**Recovery for Aliana (offline)**: Log out (clears `sz_access` cookie) → fresh log in → ADMIN role minted correctly from DB.
+
+**Why previous "fix" appeared to work**: Testing was done as Yukihiro (HQ role → `["*"]` wildcard, never fails any permission check). The ADMIN-specific page guards were never hit.
+
+---
+
+### Feature: Receipt Log Manila/Dubai city switcher
+
+**Reported by**: User ("マニラへの切り替えが見つけられずでして") — no way to switch from home city in Receipt Log.
+
+**Fix (frontend, Vercel e5f4eea)** — `src/app/store/receipt-log/page.tsx`:
+- `city` converted from fixed `auth.city ?? "manila"` to `useState<City>(...)`.
+- `canSwitchCity` = HQ / ADMIN / unrestricted cityLock (`""`).
+- Manila/Dubai toggle buttons added to header for eligible users.
+- Branch selector resets to first branch when city changes (useEffect).
+
+**Verified in production**: Manila button highlights purple, branch switches to "PAR — Paranaque" ✓.
+
+---
+
+## 🐛 Pending: Store Procurement Receiving — Cubao branch blocked
+
+**Reported by**: Aliana — "Cubao branch cannot use Store Procurement Receiving."
+**Status**: Not yet investigated. Likely a branch/city permission issue or missing branch config.
+
+---
+
+## 🐛 Pending: Previously submitted reports not visible (Kitchen Staff / Back Office)
+
+**Reported**: Daily Inventory / Travel Path / Daily Check reports submitted by Kitchen Staff no longer visible.
+**Status**: Not yet investigated.
+
+---
+
+## 🐛 Pending: Petty Cash + Cashier Log silent-401
+
+Same pattern as Cash Report History before the fix — 401 silently shows empty data instead of a "session expired" error message.
+**Files**: `src/app/store/petty-cash/page.tsx`, `src/app/store/cashier-log/page.tsx` (or similar paths).
+
+---
 
 ---
 
