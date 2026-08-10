@@ -1,6 +1,36 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Custom role fallback cache — Heroku, Vercel 94d0070)
+Last updated: 2026-08-10 (Rating System Upgrade — Heroku 36b0f18, Vercel 5fbcd97)
+
+---
+
+## ✅ Completed: Rating System Upgrade (2026-08-10, Heroku 36b0f18 / Vercel 5fbcd97)
+
+**Request**: Back-office staff requested:
+1. Add Order Time (HH:MM) and Order ID fields to low rating table
+2. Add High Rating (5-star) section, with ability to filter out rating boost orders
+3. Rating boost = orders containing ONLY "Gari Ginger", "Soy Sauce", "Wasabi"
+
+**Backend (db.py)**:
+- `aggregator_low_ratings`: `ALTER TABLE … ADD COLUMN IF NOT EXISTS order_time TIME`
+- All low rating CRUD (upsert/replace/list) updated to include `order_time`
+- New `aggregator_high_ratings` table: same fields + `customer_name`, `is_rating_boost BOOLEAN`, `order_time`, rating fixed to 5
+- `RATING_BOOST_ITEMS = {"gari ginger", "soy sauce", "wasabi"}` — auto-detection function `_is_rating_boost_auto()`
+- New CRUD: `upsert_high_rating`, `replace_high_rating_by_id`, `list_high_ratings`, `count_high_ratings`, `delete_high_rating`
+
+**Backend (main.py)**:
+- Low rating endpoints: `order_time` passes through transparently (no endpoint changes needed)
+- New endpoints: `GET/POST/PUT/DELETE /api/admin/analytics/{manila,dubai}/high-ratings`
+- High ratings use same `analytics.low_ratings.write` permission
+
+**Frontend**:
+- `types/lowRating.ts`: added `order_time` to `LowRatingRow`; new `HighRatingRow` type; `isRatingBoost()` helper; `RATING_BOOST_ITEMS`
+- `LowRatingFormModal.tsx`: date + time in 2-column grid
+- `LowRatingsCard.tsx`: Time and Order ID columns added
+- `gridTypes.ts` / `useGridData.ts`: `order_time` added to spreadsheet grid
+- New `HighRatingFormModal.tsx`: form with auto-boost detection badge + manual override checkbox
+- New `HighRatingsCard.tsx`: table with "Hide Rating Boost" toggle (default ON), boost rows shown in amber
+- `LowRatingsAdminPanel.tsx`: `HighRatingsCard` embedded below low ratings grid
 
 ---
 
