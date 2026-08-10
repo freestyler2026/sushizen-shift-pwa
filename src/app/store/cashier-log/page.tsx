@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Plus, RefreshCw, Trash2, X, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
-import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
+import { clearAuth, getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SECONDARY_BUTTON, SELECT_CLASS, INPUT_CLASS,
   TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
@@ -100,6 +101,7 @@ function PhotoSlot({ label, photo, onPick, onClear }: {
 
 export default function CashierLogPage() {
   const auth = getAuth();
+  const router = useRouter();
   const [branch, setBranch] = useState("PAR");
   const [entryDate, setEntryDate] = useState(todayIso());
   const [cashierName, setCashierName] = useState(auth?.staffName || "");
@@ -118,14 +120,17 @@ export default function CashierLogPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setSessionExpired(false);
     try {
       const [eRes, tRes] = await Promise.all([
         fetch(`${API}/entries?branch=${branch}&entry_date=${entryDate}`, { headers: getAuthHeaders(), cache: "no-store" }),
         fetch(`${API}/totals?branch=${branch}&entry_date=${entryDate}`, { headers: getAuthHeaders(), cache: "no-store" }),
       ]);
+      if (eRes.status === 401 || tRes.status === 401) { setSessionExpired(true); return; }
       if (eRes.ok) { const d = await eRes.json(); setEntries(Array.isArray(d.entries) ? d.entries : []); }
       if (tRes.ok) { const d = await tRes.json(); setTotals(d.totals || null); }
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -302,6 +307,19 @@ export default function CashierLogPage() {
             : "→ This total feeds into the Closing Cash Count automatically. Closing staff: confirm all shifts have logged their transactions before submitting."}
         </p>
       </div>
+
+      {/* Session expired banner */}
+      {sessionExpired && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+          Session expired.{" "}
+          <button
+            className="underline"
+            onClick={() => { clearAuth(); router.replace("/login"); }}
+          >
+            Log out now.
+          </button>
+        </div>
+      )}
 
       {/* Today's log */}
       <div className={`${GLASS_CARD} p-4`}>

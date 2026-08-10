@@ -11,7 +11,7 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { clearAuth, getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
@@ -260,6 +260,7 @@ export default function PettyCashPage() {
   const [myRequests, setMyRequests]     = useState<PettyCashRequest[]>([]);
   const [loadingList, setLoadingList]   = useState(false);
   const [listError, setListError]       = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Use a ref so loadMyRequests stays stable (no excessive re-fetches while typing)
   const staffNameRef = useRef(staffName);
@@ -270,11 +271,13 @@ export default function PettyCashPage() {
     if (!name) return;
     setLoadingList(true);
     setListError(null);
+    setSessionExpired(false);
     try {
       const r = await fetch(
         `/api/store/petty-cash/my-requests?city=manila&requested_by=${encodeURIComponent(name)}`,
         { headers: getAuthHeaders(), cache: "no-store" }
       );
+      if (r.status === 401) { setSessionExpired(true); return; }
       const d = await r.json();
       if (r.ok) {
         setMyRequests(d.requests ?? []);
@@ -460,6 +463,17 @@ export default function PettyCashPage() {
             </button>
           </div>
 
+          {sessionExpired && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+              Session expired.{" "}
+              <button
+                className="underline"
+                onClick={() => { clearAuth(); router.replace("/login"); }}
+              >
+                Log out now.
+              </button>
+            </div>
+          )}
           {loadingList && (
             <div className="flex justify-center py-6">
               <RefreshCw size={18} className="animate-spin text-white/30" />
