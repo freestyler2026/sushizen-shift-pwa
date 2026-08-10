@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getAuth, setAuth, clearAuth, type Auth } from "@/lib/auth";
+import { getAuth, setAuth, clearAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 
 const POLL_MS = 5 * 60 * 1000;
 const KEEPALIVE_MS = 20 * 60 * 1000;
@@ -59,13 +59,19 @@ export default function SessionGuard() {
       if (!data.ok) return;
       // When permissions_resolved=false the backend fell back to legacy defaults —
       // keep the user's current permissions rather than potentially downgrading them.
-      const newPerms = (data.permissions_resolved !== false && Array.isArray(data.permissions))
+      const rawPerms = (data.permissions_resolved !== false && Array.isArray(data.permissions))
         ? data.permissions
         : auth.permissions;
+      // Protect against transient backend role downgrades (e.g. DB blip returns STAFF).
+      const { role: safeRole, permissions: safePerms } = nonDowngradedAccess(
+        auth,
+        (data.role as string | undefined) || auth.role,
+        rawPerms,
+      );
       setAuth({
         ...auth,
-        permissions: newPerms,
-        role: (data.role as string) || auth.role,
+        permissions: safePerms,
+        role: safeRole,
       });
     } catch { /* Network error — ignore */ }
   };
