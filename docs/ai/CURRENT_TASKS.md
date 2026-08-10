@@ -1,6 +1,18 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Comprehensive role downgrade prevention — Heroku ba9bbb0, Vercel 197b12b)
+Last updated: 2026-08-10 (Custom role fallback cache — Heroku, Vercel 94d0070)
+
+---
+
+## ✅ Completed: Custom Role Fallback Cache (2026-08-10, Heroku)
+
+**Problem**: カスタムロール（HR_STAFF など）は `LEGACY_ROLE_PERMISSION_MAP` / `DEFAULT_ROLE_GRANTS` に存在しないため、DB 障害時に `legacy_permissions_for_role()` が STAFF 権限にフォールバックしていた。
+
+**Fix** (`security_tokens.py`):
+- `_role_fallback_cache: Dict[str, List[str]]` を追加（ロールキー単位のフォールバックキャッシュ）
+- DB から権限取得成功時に `_role_fallback_cache[resolved_role]` へ書き込み
+- DB 障害時: まず `_role_fallback_cache[hint]` を参照 → なければ `legacy_permissions_for_role(hint)`
+- これにより、同一カスタムロールのいずれかのユーザーが一度でも正常に権限取得していれば DB 障害時も正しい権限で保護される
 
 ---
 
