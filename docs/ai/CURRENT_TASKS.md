@@ -1,6 +1,32 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Role downgrade fix + Admin Impersonation — Heroku v1865, Vercel 3b1a9f6)
+Last updated: 2026-08-10 (Comprehensive role downgrade prevention — Heroku ba9bbb0, Vercel 197b12b)
+
+---
+
+## ✅ Completed: Comprehensive Role Downgrade Prevention (2026-08-10, Heroku ba9bbb0 / Vercel 197b12b)
+
+**Problem**: Admin/HQ/custom-role users could be silently downgraded to STAFF under certain failure conditions:
+1. DB unreachable during `_get_cached_permissions` → hardcoded `"STAFF"` exception fallback
+2. `require_channel_permission` didn't pass the JWT `role` as a hint to the permission cache
+3. `_actor_from_token_request` inner exception returned `permissions = []` instead of role-based defaults
+4. `api_auth_refresh` `_gcp/_gcp2` calls had no role hint, so DB blip → STAFF-level permissions
+5. `SessionGuard.refreshPermissions` didn't apply `nonDowngradedAccess`, so a transient backend STAFF response could overwrite localStorage
+
+**Fixes**:
+- `security_tokens.py`: `_get_cached_permissions(staff_name, pv, role_hint="STAFF")` — exception path uses `legacy_permissions_for_role(hint)` not hardcoded STAFF
+- `security_tokens.py`: `require_channel_permission` passes `role_hint=role` to both `_gcp` calls
+- `main.py`: `legacy_permissions_for_role` added to top-level imports
+- `main.py`: `_actor_from_token_request` exception → `legacy_permissions_for_role(role)` not `[]`
+- `main.py`: `api_auth_refresh` → `_gcp(_jwt_sname, _new_pv, _jwt_role)` and `_gcp2(_sname, _nc_pv, _srole)`
+- `SessionGuard.tsx`: `nonDowngradedAccess` applied in `refreshPermissions` before `setAuth`
+
+---
+
+## ✅ Completed: Daily Inventory Blank Page Fix (2026-08-10, Vercel aabb990)
+
+**Bug**: Phase 3 httpOnly-cookie sessions (accessToken="", hasSession=true) could be blocked by over-restrictive auth check.
+**Fix**: Simplified auth check in `DailyInventoryPage` — staffName presence is sufficient proof of authentication.
 
 ---
 
