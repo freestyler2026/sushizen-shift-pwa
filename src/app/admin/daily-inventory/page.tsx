@@ -44,14 +44,7 @@ export default function DailyInventoryPage() {
           return;
         }
 
-        // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
-        if (!resolved?.hasSession && !resolved?.accessToken) {
-          setAllowed(false);
-          setReady(true);
-          return;
-        }
-
-        // All authenticated staff can access Daily Inventory
+        // staffName present → user is authenticated; backend validates token on each API call
         setAllowed(true);
         setReady(true);
       } catch {
@@ -66,8 +59,8 @@ export default function DailyInventoryPage() {
           return;
         }
 
-        // Any staff with a valid token is allowed
-        setAllowed(Boolean(fallback?.accessToken || fallback?.hasSession));
+        // staffName present → user is authenticated
+        setAllowed(true);
         setReady(true);
       }
     }
