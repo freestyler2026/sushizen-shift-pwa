@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
@@ -701,24 +701,21 @@ export default function RequestPage() {
       form.set("payload_json", JSON.stringify(payload));
       if (medicalDocumentFile) form.set("medical_document_file", medicalDocumentFile);
 
-      const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+      const apiBase = "";
       let res = await fetch(`${apiBase}/api/shift_change/submit`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${currentAuth.accessToken}`,
-          ...(currentAuth.stepUpToken ? { "X-Step-Up-Token": currentAuth.stepUpToken } : {}),
-        },
+        headers: getAuthHeaders(currentAuth),
         body: form,
       });
       if (res.status === 401) {
         const refreshed = await refreshAuthFromApi(currentAuth);
-        if (refreshed?.accessToken && refreshed.accessToken !== currentAuth.accessToken) {
+        if (refreshed && (refreshed.hasSession || refreshed.accessToken)) {
           currentAuth = refreshed;
           const form2 = new FormData();
           form.forEach((v, k) => form2.set(k, v));
           res = await fetch(`${apiBase}/api/shift_change/submit`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${currentAuth.accessToken}` },
+            headers: getAuthHeaders(refreshed),
             body: form2,
           });
         }

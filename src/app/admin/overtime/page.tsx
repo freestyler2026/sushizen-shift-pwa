@@ -75,7 +75,7 @@ function formatMinutes(m: number): string {
 
 export default function AdminOvertimePage() {
   const [auth] = useState(getAuth);
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const userCity = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const role = (auth?.role || "").toUpperCase();
   const canSwitchCity = ["ADMIN", "HQ"].includes(role);

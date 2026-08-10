@@ -12,7 +12,7 @@ import {
   MinusCircle,
   Circle,
 } from "lucide-react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -167,10 +167,7 @@ function ItemRow({
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/items/${item.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: getAuthHeaders(getAuth()),
         body: JSON.stringify({
           status: draft.status,
           id_number: draft.id_number,
@@ -306,7 +303,7 @@ function DetailPanel({
     let cancelled = false;
     setLoadingItems(true);
     fetch(`${API_BASE}/api/admin/hr/onboarding/${record.id}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: getAuthHeaders(getAuth()),
       cache: "no-store",
     })
       .then((r) => r.json())
@@ -345,10 +342,7 @@ function DetailPanel({
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/${record.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: getAuthHeaders(getAuth()),
         body: JSON.stringify({ status: "complete" }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -476,7 +470,7 @@ function AddModal({
 
   useEffect(() => {
     fetch(`${API_BASE}/api/admin/staff_master/names?city=${modalCity}&status=ACTIVE&limit=5000`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: getAuthHeaders(getAuth()),
     })
       .then((r) => r.json())
       .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))
@@ -495,7 +489,7 @@ function AddModal({
     try {
       const res = await fetch(
         `${API_BASE}/api/admin/staff_master/info?name=${encodeURIComponent(name)}&city=${modalCity}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+        { headers: getAuthHeaders(getAuth()) },
       );
       if (res.ok) {
         const d = await res.json();
@@ -523,10 +517,7 @@ function AddModal({
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/onboarding`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: getAuthHeaders(getAuth()),
         body: JSON.stringify({
           staff_name: form.staff_name.trim(),
           city: modalCity,
@@ -792,7 +783,7 @@ export default function HrOnboardingPage() {
     try {
       const url = `${API_BASE}/api/admin/hr/onboarding?city=${encodeURIComponent(city)}&status=${encodeURIComponent(statusFilter)}`;
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: getAuthHeaders(getAuth()),
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

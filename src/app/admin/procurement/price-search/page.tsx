@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Package, Tag, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, T_CAPTION, T_BODY } from "@/lib/ui-tokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,13 +27,10 @@ type PriceResult = {
 async function fetchAuthHeaders(): Promise<Record<string, string>> {
   const auth = getAuth();
   const refreshed = await refreshAuthFromApi(auth);
-  const token = refreshed?.accessToken || auth?.accessToken || "";
-  const stepUp = refreshed?.stepUpToken || auth?.stepUpToken || "";
-  if (!token) throw new Error("Please log in again.");
-  return {
-    Authorization: `Bearer ${token}`,
-    ...(stepUp ? { "X-Step-Up-Token": stepUp } : {}),
-  };
+  if (!refreshed?.hasSession && !refreshed?.accessToken && !auth?.hasSession && !auth?.accessToken) {
+    throw new Error("Please log in again.");
+  }
+  return getAuthHeaders(refreshed || auth) as Record<string, string>;
 }
 
 function fmt(n: number, dp = 4) {

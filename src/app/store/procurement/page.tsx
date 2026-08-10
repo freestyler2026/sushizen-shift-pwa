@@ -1195,7 +1195,7 @@ export default function StoreProcurementHomePage() {
     initRef.current = true;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      if (!(refreshed?.staffName || auth?.staffName) || !(refreshed?.accessToken || auth?.accessToken)) {
+      if (!(refreshed?.staffName || auth?.staffName) || !(refreshed?.hasSession || auth?.hasSession || refreshed?.accessToken || auth?.accessToken)) {
         router.replace("/login?next=%2Fstore%2Fprocurement");
         return;
       }

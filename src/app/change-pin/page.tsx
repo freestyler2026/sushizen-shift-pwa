@@ -25,8 +25,6 @@ const BLUSH_SECONDARY =
   "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
 
 function getApiBase() {
-  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
-  if (configured) return configured;
   return "";
 }
 

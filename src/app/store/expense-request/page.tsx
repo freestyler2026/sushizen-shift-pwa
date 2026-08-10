@@ -84,7 +84,7 @@ function statusBadge(status: string) {
 
 export default function ExpenseRequestPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const [auth, setAuth] = useState(() => getAuth());
 
   // Form state

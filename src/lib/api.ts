@@ -37,8 +37,15 @@ export type WeekView = {
 
 const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
 
-// ✅ 空なら同一オリジン（相対パス）で叩く
-export const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, "") : "";
+// In the browser, always use same-origin relative paths so requests route through
+// the Next.js proxy handlers (src/app/api/) which convert the sz_access httpOnly
+// cookie to a Bearer token for Phase-3 cookie-auth users. Direct cross-origin calls
+// to Heroku bypass the proxy and fail for Phase-3 users (no accessToken in JS).
+// Server-side code that needs the Heroku URL reads from getApiBase() in route.ts.
+export const API_BASE =
+  typeof window === "undefined"
+    ? (RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, "") : "")
+    : "";
 
 export function qs(params: Record<string, any>) {
   const sp = new URLSearchParams();

@@ -78,7 +78,7 @@ function parseExpenseMessage(message: string) {
 
 export default function InboxPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const [auth, setAuth] = useState(() => getAuth());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

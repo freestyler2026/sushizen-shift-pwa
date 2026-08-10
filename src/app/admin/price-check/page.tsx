@@ -560,7 +560,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
 
 export default function PriceCheckPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const auth = useMemo(() => getAuth(), []);
 
   const [activeTab, setActiveTab] = useState<Tab>("TAFT");

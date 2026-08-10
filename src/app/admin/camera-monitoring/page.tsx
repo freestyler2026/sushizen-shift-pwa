@@ -144,7 +144,7 @@ function AlertTypeBadge({ type }: { type: string }) {
 
 export default function CameraMonitoringPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
 
   const [cameras, setCameras] = useState<CameraStatus[]>([]);
   const [hardware, setHardware] = useState<HardwareMetrics | null>(null);

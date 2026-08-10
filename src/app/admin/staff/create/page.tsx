@@ -20,7 +20,7 @@ import {
   T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = "";
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Building2, Plus, ChevronDown, ChevronRight, Check, Pencil, X, AlertTriangle, Trash2 } from "lucide-react";
-import { getAuth, canAccessStoreOpeningAdmin } from "@/lib/auth";
+import { getAuth, getAuthHeaders, canAccessStoreOpeningAdmin } from "@/lib/auth";
 import { GLASS_CARD, T_PAGE_TITLE, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 import { API_BASE } from "@/lib/api";
 
@@ -502,15 +502,12 @@ export default function StoreOpeningPage() {
   const accessToken = auth?.accessToken ?? "";
   const staffName = auth?.staffName ?? "";
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
-  };
+  const headers = getAuthHeaders(auth) as Record<string, string>;
 
   const loadProjects = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/admin/store-opening/projects`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: getAuthHeaders(getAuth()),
         cache: "no-store",
       });
       if (!res.ok) return;
@@ -525,7 +522,7 @@ export default function StoreOpeningPage() {
     setLoadingTasks(true);
     try {
       const res = await fetch(`${API_BASE}/api/admin/store-opening/projects/${projectId}/tasks`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: getAuthHeaders(getAuth()),
         cache: "no-store",
       });
       if (!res.ok) return;

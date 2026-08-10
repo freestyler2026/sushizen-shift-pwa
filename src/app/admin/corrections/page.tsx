@@ -54,8 +54,7 @@ type CorrectionHistory = {
   created_at?: string | null;
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "";
+const API_BASE = "";
 
 function fmtMinutes(value?: number | null) {
   if (value == null) return "-";

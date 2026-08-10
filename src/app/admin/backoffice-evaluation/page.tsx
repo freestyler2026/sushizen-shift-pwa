@@ -129,7 +129,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 }
 
 export default function AdminBackofficeEvaluationPage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<"dubai" | "manila">("manila");

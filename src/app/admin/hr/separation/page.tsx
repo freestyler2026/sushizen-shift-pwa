@@ -612,7 +612,7 @@ function AddSeparationModal({
   useEffect(() => {
     if (!auth?.hasSession && !auth?.accessToken) return;
     fetch(`${API_BASE}/api/admin/staff_master/names?city=${modalCity}&status=ACTIVE&limit=5000`, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
+      headers: getAuthHeaders(auth),
     })
       .then((r) => r.json())
       .then((d) => setStaffList(Array.isArray(d?.names) ? d.names : []))

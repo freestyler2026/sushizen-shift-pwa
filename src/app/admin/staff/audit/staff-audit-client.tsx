@@ -26,7 +26,7 @@ import {
   TABLE_ROW,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = "";
 
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);

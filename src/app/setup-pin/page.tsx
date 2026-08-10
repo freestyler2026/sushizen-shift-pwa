@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = "";
 const LOGO_SRC = "/logo.png";
 
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {

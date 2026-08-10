@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle, ShoppingCart } from "lucide-react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
 import SelectDark from "@/components/SelectDark";
@@ -160,7 +160,7 @@ export default function AdminProcurementPage() {
         const sessionRes = await fetch(`/api/auth/session`, {
           method: "GET",
           cache: "no-store",
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: getAuthHeaders(refreshed || latest || auth),
         });
         // Only re-mint when the token is actually REJECTED (401/403); a transient
         // 5xx/timeout must not trigger a re-mint that can downgrade the session.
@@ -181,10 +181,11 @@ export default function AdminProcurementPage() {
     }
 
     if (!accessToken && !hasActiveSession) throw new Error("Please login again.");
-    return {
-      Authorization: `Bearer ${accessToken}`,
-      ...(stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {}),
-    };
+    return getAuthHeaders({
+      ...(refreshed || latest || auth),
+      accessToken: accessToken || "",
+      stepUpToken: stepUpToken || "",
+    } as Auth);
   }, [auth, city, pin, requestedBy]);
 
   const loadAll = useCallback(async () => {

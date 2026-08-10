@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Laptop, Smartphone, Tablet, Package, AlertTriangle, X } from "lucide-react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, TEXTAREA_CLASS,
@@ -70,7 +70,7 @@ function ReportModal({
     try {
       const res = await fetch(`${API_BASE}/api/staff/assets/report-incident`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth?.accessToken}` },
+        headers: getAuthHeaders(auth),
         body: JSON.stringify({
           asset_id: selectedLoan?.asset_id ?? null,
           asset_tag: assetTag,
@@ -166,7 +166,7 @@ export default function MyAssetsPage() {
       try {
         const res = await fetch(
           `${API_BASE}/api/staff/assets/my-loans?staff_name=${encodeURIComponent(name)}`,
-          { headers: { Authorization: `Bearer ${a.accessToken}` } },
+          { headers: getAuthHeaders(a) },
         );
         const d = await res.json();
         setLoans(d.loans ?? []);

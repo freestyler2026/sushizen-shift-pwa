@@ -16,8 +16,7 @@ import {
   BADGE_SUCCESS,
 } from "@/lib/ui-tokens";
 
-const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
-const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, "") : "";
+const API_BASE = "";
 
 function qs(params: Record<string, unknown>) {
   const sp = new URLSearchParams();

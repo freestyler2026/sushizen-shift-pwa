@@ -15,7 +15,7 @@ import {
 } from "@/lib/ui-tokens";
 import { apiGet } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const API_BASE = "";
 
 const STORES = [
   { code: "PAR",  label: "Paranaque" },

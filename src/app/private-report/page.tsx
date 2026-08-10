@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, type City as BranchCity } from "@/lib/branches";
 import { GLASS_CARD, T_PAGE_TITLE, T_BODY, BADGE_WARNING } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
@@ -28,7 +28,7 @@ const TEXTAREA_POLISH = `${INPUT_POLISH} min-h-[104px]`;
 
 export default function PrivateReportPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const [reportType, setReportType] = useState<ReportType>("app-private-report");
   const [city, setCity] = useState<"dubai" | "manila">(() => {
     const a = getAuth();
@@ -75,7 +75,7 @@ export default function PrivateReportPage() {
   useEffect(() => {
     async function syncAuth() {
       const refreshed = await refreshAuthFromApi(auth);
-      if (!refreshed?.staffName || !refreshed?.accessToken) {
+      if (!refreshed?.staffName || (!refreshed?.hasSession && !refreshed?.accessToken)) {
         router.replace("/login?next=%2Fprivate-report");
         return;
       }
@@ -126,11 +126,7 @@ export default function PrivateReportPage() {
 
       const res = await fetch(`${apiBase}/api/private_reports/submit`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
-        },
+        headers: getAuthHeaders(refreshed || auth),
         body: JSON.stringify(body),
       });
       const text = await res.text();

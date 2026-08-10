@@ -102,7 +102,7 @@ function statusBadge(status: string) {
 
 export default function AdminExpenseRequestsPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const [tab, setTab] = useState<Tab>("pending");
 
   // Filters

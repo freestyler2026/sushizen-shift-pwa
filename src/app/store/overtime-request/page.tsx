@@ -69,7 +69,7 @@ function calcMinutes(start: number, end: number): number {
 }
 
 export default function OvertimeRequestPage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const [auth, setAuth] = useState(() => getAuth());
 
   const city = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";

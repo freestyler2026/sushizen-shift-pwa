@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, DANGER_BUTTON,
@@ -50,10 +50,9 @@ export default function DeliveryAddressesPage() {
     try {
       const a = getAuth();
       const refreshed = await refreshAuthFromApi(a);
-      const token = refreshed?.accessToken || a?.accessToken || "";
       const res = await fetch(`/api/admin/procurement/delivery-addresses?city=${city}`, {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(refreshed || a),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -97,10 +96,9 @@ export default function DeliveryAddressesPage() {
     try {
       const a = getAuth();
       const refreshed = await refreshAuthFromApi(a);
-      const token = refreshed?.accessToken || a?.accessToken || "";
       const res = await fetch("/api/admin/procurement/delivery-addresses/upsert", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(refreshed || a),
         body: JSON.stringify({ ...form, approver_name: approverName, pin }),
       });
       const data = await res.json();
@@ -122,10 +120,9 @@ export default function DeliveryAddressesPage() {
     try {
       const a = getAuth();
       const refreshed = await refreshAuthFromApi(a);
-      const token = refreshed?.accessToken || a?.accessToken || "";
       const res = await fetch("/api/admin/procurement/delivery-addresses/delete", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(refreshed || a),
         body: JSON.stringify({ approver_name: approverName, pin, city: row.city, store_code: row.store_code }),
       });
       const data = await res.json();
