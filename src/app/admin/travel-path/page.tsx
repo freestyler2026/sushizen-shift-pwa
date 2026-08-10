@@ -268,7 +268,7 @@ export default function TravelPathPage() {
           router.replace(`/login?next=${encodeURIComponent("/admin/travel-path")}`);
           return;
         }
-        setAllowed(Boolean(fallback?.accessToken));
+        setAllowed(Boolean(fallback?.accessToken || fallback?.hasSession));
         setReady(true);
       }
     }

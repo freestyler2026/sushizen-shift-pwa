@@ -67,7 +67,7 @@ export default function DailyInventoryPage() {
         }
 
         // Any staff with a valid token is allowed
-        setAllowed(Boolean(fallback?.accessToken));
+        setAllowed(Boolean(fallback?.accessToken || fallback?.hasSession));
         setReady(true);
       }
     }
