@@ -1,6 +1,32 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Incidents proxy fix — Phase 3 regression resolved)
+Last updated: 2026-08-10 (Cash Report History fix — Marithel's June data issue resolved)
+
+---
+
+## ✅ Completed: Cash Report History — June data not showing (2026-08-10)
+
+**Reported by**: Marithel Queri — "all data from June up to the current date is no longer showing" in Cash Report History, Petty Cash, and Cashier Log.
+
+**Root cause (primary)**: Marithel's auth session is expired (Phase 1 user who hasn't re-logged in since Phase 3 migration). The store proxy has no valid Bearer to send to Heroku → `_require_token()` returns 401. The old frontend code had `.catch(() => setReports([]))` which silently showed empty data instead of an error.
+
+**Root cause (secondary)**: The backend had `days: int = Query(14, ge=1, le=60)` — even with valid auth, data older than 60 days was unreachable. June data is 60-70 days back from August 10.
+
+**Fix 1 (frontend)** — `src/app/store/cash-report/page.tsx` (Vercel commit 5b1791c):
+- `HistoryTab` now detects 401 and shows amber "Session expired. Log out now." message with a link that calls `clearAuth()` + redirects to `/login`.
+- Default history range changed from 14 → 60 days.
+- Added SelectDark range selector: 14 / 30 / 60 / 90 days.
+
+**Fix 2 (backend)** — `sushizen_shift_app_clean/app/cash_report_api.py` (Heroku v1858):
+- Changed `days: int = Query(14, ge=1, le=60)` → `Query(14, ge=1, le=90)` — now supports up to 90 days.
+
+**Verified in production** (2026-08-10):
+- "Last 60 days" dropdown visible, API call `?days=60 → 200`.
+- Data goes back to Thu, Jun 11 (60 days from today).
+
+**Action needed for Marithel**: She must log out and log back in. Once re-authenticated she will see history with the "Last 60 days" default covering June data.
+
+**Note**: Petty Cash and Cashier Log pages have the same silent-401 pattern and were NOT yet fixed — they still show empty data on auth failure without an error message.
 
 ---
 
