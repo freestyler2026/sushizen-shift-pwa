@@ -92,6 +92,21 @@ type ClearanceCase = {
   status: "active" | "completed" | "cancelled";
   created_at: string;
   updated_at: string;
+  // Laptop / device tracking
+  laptop_has_device: boolean;
+  laptop_asset_tag: string;
+  laptop_serial: string;
+  laptop_brand: string;
+  laptop_model: string;
+  laptop_returned_at: string | null;
+  laptop_returned_by: string;
+  laptop_condition: string;
+  laptop_condition_notes: string;
+  laptop_reset_done: boolean;
+  laptop_reset_by: string;
+  laptop_reset_at: string | null;
+  laptop_storage_location: string;
+  laptop_notes: string;
 };
 
 // ─── Stage metadata ───────────────────────────────────────────────────────────
@@ -310,6 +325,242 @@ function LoanedAssetsSection({ employeeName, city }: { employeeName: string; cit
             <span className="text-white/40 text-xs">Since {l.loaned_at}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Laptop / Device section ──────────────────────────────────────────────────
+
+const LAPTOP_CONDITIONS = [
+  { value: "", label: "— Select condition —" },
+  { value: "working", label: "Working (no issues)" },
+  { value: "minor_issues", label: "Minor issues" },
+  { value: "major_issues", label: "Major issues" },
+  { value: "broken", label: "Broken / unusable" },
+];
+
+function laptopStatus(c: ClearanceCase): { label: string; color: string } {
+  if (!c.laptop_has_device) return { label: "No laptop issued", color: "text-white/40" };
+  if (c.laptop_reset_done && c.laptop_returned_at)
+    return { label: "✓ Cleared", color: "text-emerald-400" };
+  if (c.laptop_returned_at && !c.laptop_reset_done)
+    return { label: "⚠ Reset Pending", color: "text-amber-400" };
+  return { label: "⚠ Return Pending", color: "text-rose-400" };
+}
+
+function LaptopDeviceSection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u: ClearanceCase) => void }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    laptop_has_device: c.laptop_has_device,
+    laptop_asset_tag: c.laptop_asset_tag,
+    laptop_serial: c.laptop_serial,
+    laptop_brand: c.laptop_brand,
+    laptop_model: c.laptop_model,
+    laptop_returned_at: c.laptop_returned_at ?? "",
+    laptop_returned_by: c.laptop_returned_by,
+    laptop_condition: c.laptop_condition,
+    laptop_condition_notes: c.laptop_condition_notes,
+    laptop_reset_done: c.laptop_reset_done,
+    laptop_reset_by: c.laptop_reset_by,
+    laptop_reset_at: c.laptop_reset_at ?? "",
+    laptop_storage_location: c.laptop_storage_location,
+    laptop_notes: c.laptop_notes,
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  // sync if parent updates
+  useEffect(() => {
+    setForm({
+      laptop_has_device: c.laptop_has_device,
+      laptop_asset_tag: c.laptop_asset_tag,
+      laptop_serial: c.laptop_serial,
+      laptop_brand: c.laptop_brand,
+      laptop_model: c.laptop_model,
+      laptop_returned_at: c.laptop_returned_at ?? "",
+      laptop_returned_by: c.laptop_returned_by,
+      laptop_condition: c.laptop_condition,
+      laptop_condition_notes: c.laptop_condition_notes,
+      laptop_reset_done: c.laptop_reset_done,
+      laptop_reset_by: c.laptop_reset_by,
+      laptop_reset_at: c.laptop_reset_at ?? "",
+      laptop_storage_location: c.laptop_storage_location,
+      laptop_notes: c.laptop_notes,
+    });
+  }, [c.updated_at]);
+
+  const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${c.id}/laptop`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          laptop_returned_at: form.laptop_returned_at || null,
+          laptop_reset_at: form.laptop_reset_at || null,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail ?? "Save failed");
+      onUpdated(d.case);
+      setOpen(false);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const status = laptopStatus(c);
+
+  return (
+    <div className="mt-4">
+      <div className={DIVIDER} />
+      <div className="mt-3">
+        <button
+          className="w-full flex items-center justify-between text-left"
+          onClick={() => setOpen(o => !o)}
+        >
+          <div className="flex items-center gap-2">
+            <p className={T_SECTION}>Laptop / Device</p>
+            <span className={`text-xs font-medium ${status.color}`}>{status.label}</span>
+          </div>
+          {open ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+        </button>
+
+        {open && (
+          <div className="mt-3 space-y-4">
+            {/* Device assignment */}
+            <div>
+              <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Device Assignment</p>
+              <label className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  checked={form.laptop_has_device}
+                  onChange={e => set("laptop_has_device", e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-white">This employee was issued a company laptop/device</span>
+              </label>
+              {form.laptop_has_device && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={T_LABEL}>Asset Tag</label>
+                    <input className={INPUT_CLASS} value={form.laptop_asset_tag} onChange={e => set("laptop_asset_tag", e.target.value)} placeholder="e.g. LT-0042" />
+                  </div>
+                  <div>
+                    <label className={T_LABEL}>Serial Number</label>
+                    <input className={INPUT_CLASS} value={form.laptop_serial} onChange={e => set("laptop_serial", e.target.value)} placeholder="Serial #" />
+                  </div>
+                  <div>
+                    <label className={T_LABEL}>Brand</label>
+                    <input className={INPUT_CLASS} value={form.laptop_brand} onChange={e => set("laptop_brand", e.target.value)} placeholder="e.g. Lenovo" />
+                  </div>
+                  <div>
+                    <label className={T_LABEL}>Model</label>
+                    <input className={INPUT_CLASS} value={form.laptop_model} onChange={e => set("laptop_model", e.target.value)} placeholder="e.g. ThinkPad L14" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {form.laptop_has_device && (
+              <>
+                {/* Return tracking */}
+                <div>
+                  <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Return Tracking</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={T_LABEL}>Date Returned</label>
+                      <input type="date" className={INPUT_CLASS} value={form.laptop_returned_at?.slice(0, 10) ?? ""} onChange={e => set("laptop_returned_at", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>Received by (HR)</label>
+                      <input className={INPUT_CLASS} value={form.laptop_returned_by} onChange={e => set("laptop_returned_by", e.target.value)} placeholder="HR staff name" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Condition report */}
+                <div>
+                  <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Condition Report</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={T_LABEL}>Condition</label>
+                      <SelectDark
+                        value={form.laptop_condition}
+                        onChange={v => set("laptop_condition", v)}
+                        options={LAPTOP_CONDITIONS}
+                        className={SELECT_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>Condition Notes</label>
+                      <input className={INPUT_CLASS} value={form.laptop_condition_notes} onChange={e => set("laptop_condition_notes", e.target.value)} placeholder="Describe any damage, issues" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Security reset — critical */}
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
+                  <p className="text-xs font-semibold text-rose-300 uppercase tracking-wide mb-2">Security Reset — Critical</p>
+                  <p className="text-xs text-white/50 mb-3">
+                    Factory reset or revoke all access (accounts, VPN, email) before reissuing to a new employee.
+                  </p>
+                  <label className="flex items-center gap-2 mb-3">
+                    <input
+                      type="checkbox"
+                      checked={form.laptop_reset_done}
+                      onChange={e => set("laptop_reset_done", e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-white font-medium">Security reset completed</span>
+                  </label>
+                  {form.laptop_reset_done && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={T_LABEL}>Reset performed by</label>
+                        <input className={INPUT_CLASS} value={form.laptop_reset_by} onChange={e => set("laptop_reset_by", e.target.value)} placeholder="IT/HR staff name" />
+                      </div>
+                      <div>
+                        <label className={T_LABEL}>Reset date</label>
+                        <input type="date" className={INPUT_CLASS} value={form.laptop_reset_at?.slice(0, 10) ?? ""} onChange={e => set("laptop_reset_at", e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Storage */}
+                <div>
+                  <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">Storage</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={T_LABEL}>Storage Location</label>
+                      <input className={INPUT_CLASS} value={form.laptop_storage_location} onChange={e => set("laptop_storage_location", e.target.value)} placeholder="e.g. Office cabinet B2" />
+                    </div>
+                    <div>
+                      <label className={T_LABEL}>Notes</label>
+                      <input className={INPUT_CLASS} value={form.laptop_notes} onChange={e => set("laptop_notes", e.target.value)} placeholder="Any additional notes" />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {err && <p className="text-xs text-rose-400">{err}</p>}
+
+            <div className="flex gap-2 justify-end">
+              <button className={SECONDARY_BUTTON} onClick={() => setOpen(false)}>Cancel</button>
+              <button className={PRIMARY_BUTTON} onClick={save} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -649,6 +900,8 @@ function CaseCard({ c, onUpdated, onCancel }: {
           </div>
 
           <LoanedAssetsSection employeeName={c.employee_name} city={c.city} />
+
+          <LaptopDeviceSection c={c} onUpdated={onUpdated} />
 
           <FinalPaySection c={c} onUpdated={onUpdated} />
 
