@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, RefreshCw, X, Laptop, Smartphone, Tablet, Package,
   AlertTriangle, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight,
+  Camera, ClipboardCheck, Wrench, FileText, Star,
 } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -71,6 +72,17 @@ interface Incident {
   description: string;
   status: string;
   created_at: string;
+}
+
+interface MaintenanceLog {
+  id: number;
+  asset_id: number;
+  event_type: string;
+  notes: string;
+  performed_by: string;
+  performed_at: string | null;
+  photo_data: string;
+  created_at: string | null;
 }
 
 interface KPIs { total: number; on_loan: number; available: number; open_incidents: number; }
@@ -380,6 +392,254 @@ function LoanHistoryPanel({ asset, auth }: { asset: Asset; auth: ReturnType<type
   );
 }
 
+// ─── Lifecycle Panel ─────────────────────────────────────────────────────────
+
+const EVENT_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+  condition_check: { label: "Condition Check", icon: <ClipboardCheck size={13} />, color: "text-blue-400 bg-blue-500/10 border-blue-500/30" },
+  cleaning:        { label: "Cleaning",         icon: <Star size={13} />,          color: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30" },
+  repair:          { label: "Repair",            icon: <Wrench size={13} />,        color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
+  ready:           { label: "Ready for Loan",    icon: <CheckCircle2 size={13} />,  color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
+  photo:           { label: "Photo",             icon: <Camera size={13} />,        color: "text-violet-400 bg-violet-500/10 border-violet-500/30" },
+  note:            { label: "Note",              icon: <FileText size={13} />,      color: "text-white/60 bg-white/5 border-white/10" },
+};
+
+const EVENT_OPTIONS = [
+  { value: "condition_check", label: "Condition Check" },
+  { value: "cleaning",        label: "Cleaning Complete" },
+  { value: "repair",          label: "Repair / Part Replacement" },
+  { value: "ready",           label: "Ready for Next Loan" },
+  { value: "photo",           label: "Photo Record" },
+  { value: "note",            label: "Note" },
+];
+
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = ev => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const MAX = 800;
+        const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = ev.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+type TLEvent =
+  | { kind: "loan";  date: string; label: string; sub: string; color: string }
+  | { kind: "log";   date: string; log: MaintenanceLog };
+
+function buildTimeline(loans: Loan[], logs: MaintenanceLog[]): TLEvent[] {
+  const events: TLEvent[] = [];
+  for (const l of loans) {
+    events.push({
+      kind: "loan", date: l.loaned_at,
+      label: `Loaned → ${l.assignee}`,
+      sub: `Condition: ${l.condition_on_loan}`,
+      color: "text-indigo-400",
+    });
+    if (l.returned_at) {
+      events.push({
+        kind: "loan", date: l.returned_at,
+        label: `Returned by ${l.assignee}`,
+        sub: `Condition: ${l.condition_on_return ?? "—"}${l.return_notes ? " · " + l.return_notes : ""}`,
+        color: "text-white/50",
+      });
+    }
+  }
+  for (const log of logs) {
+    events.push({ kind: "log", date: log.performed_at ?? "", log });
+  }
+  return events.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+}
+
+function LifecyclePanel({ asset, auth }: { asset: Asset; auth: ReturnType<typeof getAuth> }) {
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [logs, setLogs] = useState<MaintenanceLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    event_type: "condition_check",
+    notes: "",
+    performed_by: auth?.staffName ?? "",
+    performed_at: new Date().toISOString().slice(0, 10),
+    photo_data: "",
+  });
+  const [photoName, setPhotoName] = useState("");
+  const [compressing, setCompressing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const headers = { Authorization: `Bearer ${auth?.accessToken}` };
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`${API_BASE}/api/admin/assets/${asset.id}/loans`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/api/admin/assets/${asset.id}/maintenance-logs`, { headers }).then(r => r.json()),
+    ])
+      .then(([ld, md]) => {
+        setLoans(ld.loans ?? []);
+        setLogs(md.logs ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset.id, auth?.accessToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCompressing(true);
+    try {
+      const data = await compressImage(file);
+      setF("photo_data", data);
+      setPhotoName(file.name);
+    } finally {
+      setCompressing(false);
+    }
+  }
+
+  async function submit() {
+    if (!form.performed_at) { setErr("Date is required"); return; }
+    setSaving(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/assets/${asset.id}/maintenance-logs`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail ?? "Failed");
+      setShowForm(false);
+      setForm({ event_type: "condition_check", notes: "", performed_by: auth?.staffName ?? "", performed_at: new Date().toISOString().slice(0, 10), photo_data: "" });
+      setPhotoName("");
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p className={`${T_CAPTION} py-2`}>Loading...</p>;
+
+  const timeline = buildTimeline(loans, logs);
+
+  return (
+    <div className="mt-1">
+      {/* Add Log button */}
+      <div className="flex justify-end mb-2">
+        {!showForm && (
+          <button className="flex items-center gap-1 text-xs text-indigo-300 hover:text-indigo-200" onClick={() => setShowForm(true)}>
+            <Plus size={12} />Add Log
+          </button>
+        )}
+      </div>
+
+      {/* Inline form */}
+      {showForm && (
+        <div className="mb-3 rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Event type</label>
+              <SelectDark value={form.event_type} onChange={v => setF("event_type", v)} options={EVENT_OPTIONS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Date</label>
+              <input type="date" className={INPUT_CLASS} value={form.performed_at} onChange={e => setF("performed_at", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Performed by</label>
+            <input className={INPUT_CLASS} value={form.performed_by} onChange={e => setF("performed_by", e.target.value)} placeholder="Name" />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Notes</label>
+            <textarea className={TEXTAREA_CLASS} rows={2} value={form.notes} onChange={e => setF("notes", e.target.value)} placeholder="Details…" />
+          </div>
+          {/* Photo upload */}
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Photo (optional)</label>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-indigo-300 hover:text-indigo-200">
+              <Camera size={13} />
+              {compressing ? "Compressing…" : photoName || "Upload photo"}
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+            </label>
+            {form.photo_data && (
+              <div className="mt-1 relative w-fit">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={form.photo_data} alt="preview" className="h-16 w-auto rounded-lg object-cover" />
+                <button className="absolute -top-1 -right-1 bg-rose-500 rounded-full p-0.5 text-white" onClick={() => { setF("photo_data", ""); setPhotoName(""); }}><X size={10} /></button>
+              </div>
+            )}
+          </div>
+          {err && <p className="text-xs text-rose-400">{err}</p>}
+          <div className="flex gap-2 justify-end pt-1">
+            <button className={SECONDARY_BUTTON} onClick={() => { setShowForm(false); setErr(""); }}>Cancel</button>
+            <button className={PRIMARY_BUTTON} onClick={submit} disabled={saving || compressing}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      {timeline.length === 0 && <p className={`${T_CAPTION} py-2`}>No records yet.</p>}
+      <div className="space-y-1">
+        {timeline.map((ev, i) => {
+          if (ev.kind === "loan") {
+            return (
+              <div key={`loan-${i}`} className="flex items-start gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs">
+                <ArrowLeftRight size={12} className={`mt-0.5 shrink-0 ${ev.color}`} />
+                <div className="flex-1 min-w-0">
+                  <span className={`font-medium ${ev.color}`}>{ev.label}</span>
+                  {ev.sub && <span className="text-white/40 ml-2">{ev.sub}</span>}
+                </div>
+                <span className="text-white/30 shrink-0">{ev.date}</span>
+              </div>
+            );
+          }
+          const log = ev.log;
+          const meta = EVENT_META[log.event_type] ?? EVENT_META.note;
+          return (
+            <div key={`log-${log.id}`} className={`rounded-lg border px-3 py-2 text-xs ${meta.color}`}>
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 shrink-0">{meta.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium">{meta.label}</span>
+                  {log.performed_by && <span className="text-white/40 ml-2">by {log.performed_by}</span>}
+                  {log.notes && <p className="text-white/70 mt-0.5 whitespace-pre-wrap">{log.notes}</p>}
+                  {log.photo_data && (
+                    <a href={log.photo_data} target="_blank" rel="noreferrer" className="mt-1 block w-fit">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={log.photo_data} alt="log photo" className="h-20 w-auto rounded-lg object-cover hover:opacity-80 transition-opacity" />
+                    </a>
+                  )}
+                </div>
+                <span className="text-white/30 shrink-0">{log.performed_at}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Asset Row ────────────────────────────────────────────────────────────────
 
 function AssetRow({
@@ -391,6 +651,7 @@ function AssetRow({
   onUpdated: (a: Asset) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"history" | "lifecycle">("lifecycle");
   const [showLoan, setShowLoan] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
 
@@ -436,10 +697,29 @@ function AssetRow({
       </tr>
       {expanded && (
         <tr className="border-b border-white/5 bg-white/2">
-          <td colSpan={8} className="px-8 py-3">
-            <p className={`${T_CAPTION} mb-1`}>Loan History</p>
-            <LoanHistoryPanel asset={asset} auth={auth} />
-            {asset.notes && <p className={`${T_CAPTION} mt-2`}>Notes: {asset.notes}</p>}
+          <td colSpan={8} className="px-4 py-3">
+            {/* Tabs */}
+            <div className="flex gap-1 mb-3">
+              <button
+                className={`text-xs px-3 py-1 rounded-full transition ${activeTab === "lifecycle" ? "bg-indigo-500/30 text-indigo-200" : "text-white/40 hover:text-white/70"}`}
+                onClick={() => setActiveTab("lifecycle")}
+              >
+                Lifecycle Log
+              </button>
+              <button
+                className={`text-xs px-3 py-1 rounded-full transition ${activeTab === "history" ? "bg-indigo-500/30 text-indigo-200" : "text-white/40 hover:text-white/70"}`}
+                onClick={() => setActiveTab("history")}
+              >
+                Loan History
+              </button>
+            </div>
+            {activeTab === "lifecycle" && <LifecyclePanel asset={asset} auth={auth} />}
+            {activeTab === "history" && (
+              <>
+                <LoanHistoryPanel asset={asset} auth={auth} />
+                {asset.notes && <p className={`${T_CAPTION} mt-2`}>Notes: {asset.notes}</p>}
+              </>
+            )}
           </td>
         </tr>
       )}
