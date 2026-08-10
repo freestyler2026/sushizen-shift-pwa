@@ -370,38 +370,82 @@ function ChecklistView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch]);
 
-  // Load items when branch or section changes
+  // Load items when branch, section, or date changes — then check for an existing
+  // saved/submitted report for the same (branch, reportDate, section) and restore
+  // its entries so staff can see their previously saved work.
   useEffect(() => {
     let cancelled = false;
     setLoadingItems(true);
     setItems([]);
+    setReportId(null);
+    setReportStatus("DRAFT");
     const auth = getAuth();
     fetch(`${API_BASE}/api/travel-path/items?branch=${branch}&section=${section}`, {
       headers: getAuthHeaders(auth),
     })
       .then((r) => r.json())
-      .then((d: TravelPathItem[]) => {
-        if (!cancelled) {
-          setItems(Array.isArray(d) ? d : []);
-          // Pre-populate entries with unchecked state
-          const initial: Record<string, EntryState> = {};
-          (Array.isArray(d) ? d : []).forEach((item) => {
-            initial[item.item_code] = {
-              item_code: item.item_code,
-              checked: false,
-              note: "",
-              temp_values_json: {},
+      .then(async (d: TravelPathItem[]) => {
+        if (cancelled) return;
+        const itemList = Array.isArray(d) ? d : [];
+        setItems(itemList);
+        // Start with unchecked state as default
+        const initial: Record<string, EntryState> = {};
+        itemList.forEach((item) => {
+          initial[item.item_code] = {
+            item_code: item.item_code,
+            checked: false,
+            note: "",
+            temp_values_json: {},
+          };
+        });
+        setEntries(initial);
+
+        // Check if a report already exists for this (branch, date, section)
+        try {
+          const listRes = await fetch(
+            `${API_BASE}/api/travel-path/reports?branch=${branch}&date_from=${reportDate}&date_to=${reportDate}&section=${section}&limit=1`,
+            { headers: getAuthHeaders(auth) }
+          );
+          if (cancelled || !listRes.ok) return;
+          const list = await listRes.json() as Array<{ id: number; status: string }>;
+          if (!Array.isArray(list) || list.length === 0) return;
+
+          // Existing report found — load its saved entries
+          const existingId = list[0].id;
+          const detailRes = await fetch(
+            `${API_BASE}/api/travel-path/reports/${existingId}`,
+            { headers: getAuthHeaders(auth) }
+          );
+          if (cancelled || !detailRes.ok) return;
+          const detail = await detailRes.json() as {
+            id: number; status: string;
+            entries: Array<{
+              item_code: string; checked: boolean;
+              note: string | null; temp_values_json: Record<string, string>;
+            }>;
+          };
+          if (cancelled) return;
+          setReportId(detail.id);
+          setReportStatus(detail.status);
+          // Rebuild entries from saved server data
+          const loaded: Record<string, EntryState> = { ...initial };
+          for (const e of detail.entries ?? []) {
+            loaded[e.item_code] = {
+              item_code: e.item_code,
+              checked: Boolean(e.checked),
+              note: e.note ?? "",
+              temp_values_json: e.temp_values_json ?? {},
             };
-          });
-          setEntries(initial);
-          setReportId(null);
-          setReportStatus("DRAFT");
+          }
+          setEntries(loaded);
+        } catch {
+          // Non-critical: existing-report lookup failed; leave blank form
         }
       })
       .catch(() => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoadingItems(false); });
     return () => { cancelled = true; };
-  }, [branch, section]);
+  }, [branch, section, reportDate]);
 
   const checkedCount = Object.values(entries).filter((e) => e.checked).length;
   const totalCount = items.length;
