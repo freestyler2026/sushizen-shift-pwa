@@ -251,12 +251,7 @@ export default function TravelPathPage() {
           router.replace(`/login?next=${encodeURIComponent("/admin/travel-path")}`);
           return;
         }
-        // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
-        if (!resolved?.hasSession && !resolved?.accessToken) {
-          setAllowed(false);
-          setReady(true);
-          return;
-        }
+        // staffName present = authenticated. Let page-level API calls handle 401.
         setAllowed(true);
         setReady(true);
       } catch {
