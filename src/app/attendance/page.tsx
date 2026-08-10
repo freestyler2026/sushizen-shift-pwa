@@ -305,7 +305,6 @@ export default function AttendancePage() {
   const pendingOtPromptRef = useRef<number | null>(null);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
-  const [isIos, setIsIos] = useState(false);
   const wfhTodayRef = useRef(false);
   const gpsExemptRef = useRef(false);
   const multiBranchRef = useRef(false);
@@ -313,11 +312,6 @@ export default function AttendancePage() {
   const [breakElapsedSec, setBreakElapsedSec] = useState(0);
   const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breakReminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ─── iOS detection ────────────────────────────────────────────────────────
-  useEffect(() => {
-    setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream: unknown }).MSStream);
-  }, []);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -889,16 +883,6 @@ export default function AttendancePage() {
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
-          {isIos && error.includes("NotAllowedError") && (
-            <div className="rounded-xl bg-amber-950/40 border border-amber-700/30 px-3 py-2.5 text-xs text-amber-200 space-y-1">
-              <p className="font-semibold">iPhone/iPad tip — if Face ID was denied:</p>
-              <ol className="list-decimal list-inside space-y-1 text-zinc-300">
-                <li>Go to <strong className="text-white">Settings → Safari → Face ID &amp; Passcode</strong> (or Touch ID)</li>
-                <li>Make sure <strong className="text-white">Safari</strong> is allowed to use Face ID</li>
-                <li>Return here and try again</li>
-              </ol>
-            </div>
-          )}
         </div>
       )}
       {success && (
@@ -1125,18 +1109,7 @@ export default function AttendancePage() {
       {!wauSupported && (
         <div className={`${GLASS_CARD} rounded-2xl p-4 space-y-2`}>
           <p className="text-sm font-semibold text-amber-300">Passkeys not supported on this browser</p>
-          {isIos ? (
-            <div className="text-xs text-zinc-300 space-y-1">
-              <p>On iPhone/iPad, please:</p>
-              <ol className="list-decimal list-inside space-y-1 text-zinc-400">
-                <li>Open this page in <strong className="text-white">Safari</strong> (not Chrome or other apps)</li>
-                <li>Make sure iOS is <strong className="text-white">version 16 or later</strong></li>
-                <li>Go to <strong className="text-white">Settings → Safari → Advanced → Experimental Features</strong> and enable WebAuthn</li>
-              </ol>
-            </div>
-          ) : (
-            <p className="text-xs text-zinc-300">Please use Chrome or Safari on a device that supports biometric authentication (Face ID or fingerprint).</p>
-          )}
+          <p className="text-xs text-zinc-300">Please use Chrome or Safari on a device that supports biometric authentication (Face ID or fingerprint).</p>
         </div>
       )}
 
