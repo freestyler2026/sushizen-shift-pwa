@@ -1,10 +1,26 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (NavBar badge persist for EPR/SPR — Heroku v1872 / Vercel 3a5e9da)
+Last updated: 2026-08-10 (NavBar badge early-return bugfix — Vercel 180125f)
 
 ---
 
-## ✅ Completed: NavBar Badge Persist for EPR & Spot Purchase (2026-08-10, Heroku v1872 / Vercel 3a5e9da)
+## ✅ Completed: NavBar Badge Persist for EPR & Spot Purchase (2026-08-10, Heroku v1872 / Vercel 180125f)
+
+### Bug Found & Fixed During Testing: NavBar early-return blocked EPR badge (Vercel 180125f)
+**Root cause**: `loadAuth()` in NavBar.tsx had two early `return` statements inside the procurement badge try-block:
+- `if (!canAccessProcurementAdmin(...)) return;` — HQ users can't access procurement → returned early
+- `if (!sumRes.ok) return;` — procurement API returned 401 → returned early
+
+Both caused the entire `loadAuth` function to return before reaching the EPR badge fetch (lines 743-759), OT badge, petty cash badge, etc. **Result: ALL badges blocked for non-procurement roles.**
+
+**Fix** (NavBar.tsx commit 180125f): Wrapped procurement fetch in a conditional block (`if (canAccessProcurementAdmin(...)) { ... }`) and changed `if (!sumRes.ok) return` to `if (sumRes.ok) { ... }` so a failed procurement fetch no longer exits `loadAuth`.
+
+**Test result (production)**:
+- EPR badge: **5** ✅ (Pending:1 + Dispatched:2 + Received:2)
+- SPR badge: **34** ✅ (PENDING + APPROVED)
+- Both persist through all in-flight statuses until terminal status
+
+## ✅ Completed: NavBar Badge Persist for EPR & Spot Purchase — Backend (2026-08-10, Heroku v1872 / Vercel 3a5e9da)
 
 **Request**: Badges on Emergency Requests and Spot Purchase nav items disappear when requests move past Pending. Badge should remain until request reaches a terminal status.
 
