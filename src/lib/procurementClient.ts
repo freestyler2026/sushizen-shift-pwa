@@ -119,6 +119,11 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
   }
   if (!accessToken && !hasActiveSession) accessToken = await remintAccessTokenWithPin();
   if (!accessToken && !hasActiveSession) throw new Error("Please login again.");
+  // Phase 3 cookie-auth: hasSession=true but no accessToken → proxy injects Bearer from
+  // sz_access httpOnly cookie; sending "Bearer " (empty) would override that and cause 401.
+  if (!accessToken) {
+    return stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {};
+  }
   return {
     Authorization: `Bearer ${accessToken}`,
     ...(stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {}),

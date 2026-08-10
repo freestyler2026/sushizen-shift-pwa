@@ -1078,7 +1078,7 @@ function DailyReportTab({ city }: { city: string }) {
       fd.append("city", city);
       const res = await fetch("/api/admin/attendance/import-bayzat-timesheet-csv", {
         method: "POST",
-        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+        headers: auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
         body: fd,
       });
       const text = await res.text();
