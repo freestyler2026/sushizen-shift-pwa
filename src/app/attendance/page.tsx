@@ -305,6 +305,7 @@ export default function AttendancePage() {
   const pendingOtPromptRef = useRef<number | null>(null);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
+  const [isIos, setIsIos] = useState(false);
   const wfhTodayRef = useRef(false);
   const gpsExemptRef = useRef(false);
   const multiBranchRef = useRef(false);
@@ -312,6 +313,11 @@ export default function AttendancePage() {
   const [breakElapsedSec, setBreakElapsedSec] = useState(0);
   const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breakReminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── iOS detection ────────────────────────────────────────────────────────
+  useEffect(() => {
+    setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream: unknown }).MSStream);
+  }, []);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -878,9 +884,21 @@ export default function AttendancePage() {
 
       {/* Alerts */}
       {error && (
-        <div className="flex items-start gap-2 rounded-xl bg-red-900/30 border border-red-700/40 px-3 py-2.5 text-sm text-red-300">
-          <AlertCircle size={15} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 rounded-xl bg-red-900/30 border border-red-700/40 px-3 py-2.5 text-sm text-red-300">
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+          {isIos && error.includes("NotAllowedError") && (
+            <div className="rounded-xl bg-amber-950/40 border border-amber-700/30 px-3 py-2.5 text-xs text-amber-200 space-y-1">
+              <p className="font-semibold">iPhone/iPad tip — if Face ID was denied:</p>
+              <ol className="list-decimal list-inside space-y-1 text-zinc-300">
+                <li>Go to <strong className="text-white">Settings → Safari → Face ID &amp; Passcode</strong> (or Touch ID)</li>
+                <li>Make sure <strong className="text-white">Safari</strong> is allowed to use Face ID</li>
+                <li>Return here and try again</li>
+              </ol>
+            </div>
+          )}
         </div>
       )}
       {success && (
@@ -1105,8 +1123,20 @@ export default function AttendancePage() {
 
       {/* WebAuthn not supported */}
       {!wauSupported && (
-        <div className={`${GLASS_CARD} rounded-2xl p-4 text-sm text-amber-300`}>
-          This browser does not support passkeys. Please use Chrome or Safari.
+        <div className={`${GLASS_CARD} rounded-2xl p-4 space-y-2`}>
+          <p className="text-sm font-semibold text-amber-300">Passkeys not supported on this browser</p>
+          {isIos ? (
+            <div className="text-xs text-zinc-300 space-y-1">
+              <p>On iPhone/iPad, please:</p>
+              <ol className="list-decimal list-inside space-y-1 text-zinc-400">
+                <li>Open this page in <strong className="text-white">Safari</strong> (not Chrome or other apps)</li>
+                <li>Make sure iOS is <strong className="text-white">version 16 or later</strong></li>
+                <li>Go to <strong className="text-white">Settings → Safari → Advanced → Experimental Features</strong> and enable WebAuthn</li>
+              </ol>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-300">Please use Chrome or Safari on a device that supports biometric authentication (Face ID or fingerprint).</p>
+          )}
         </div>
       )}
 
@@ -1443,18 +1473,29 @@ export default function AttendancePage() {
                   {busy ? "Authenticating..." : "Break Out (Return to Work)"}
                 </button>
               ) : (
-                <button
-                  onClick={() => void doAction("break_in")}
-                  disabled={busy}
-                  className="w-full rounded-xl bg-sky-700/80 py-3 text-sm font-semibold text-white disabled:opacity-30 hover:bg-sky-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Clock size={16} />
-                  {busy ? "Authenticating..." : "Break In"}
-                </button>
+                <div className="space-y-1.5">
+                  <button
+                    onClick={() => void doAction("break_in")}
+                    disabled={busy}
+                    className="w-full rounded-xl bg-sky-700/80 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-sky-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Clock size={18} />
+                    {busy ? "Authenticating..." : "Break In"}
+                  </button>
+                  <p className="text-center text-[11px] text-zinc-500">— or, if done for the day —</p>
+                  <button
+                    onClick={() => setShowClockOutConfirm(true)}
+                    disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
+                    className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    {busy ? "Authenticating..." : multiBranch ? "End Work Day" : "Clock Out"}
+                  </button>
+                </div>
               )}
 
               {/* Clock Out — show warning when on break; multi-branch staff see "End Work Day" */}
-              {isOnBreak ? (
+              {isOnBreak && (
                 <div className="rounded-xl bg-rose-950/50 border border-rose-500/30 px-4 py-3 text-center space-y-1">
                   <div className="flex items-center justify-center gap-1.5">
                     <AlertCircle size={14} className="text-rose-400 shrink-0" />
@@ -1462,15 +1503,6 @@ export default function AttendancePage() {
                   </div>
                   <p className="text-[11px] text-zinc-500">End your break before clocking out.</p>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowClockOutConfirm(true)}
-                  disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
-                  className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <LogOut size={18} />
-                  {busy ? "Authenticating..." : multiBranch ? "End Work Day" : "Clock Out"}
-                </button>
               )}
             </div>
           )}
@@ -1836,6 +1868,24 @@ export default function AttendancePage() {
               <h3 className="text-base font-semibold text-white">
                 {multiBranch ? "Confirm End Work Day" : "Confirm Clock Out"}
               </h3>
+            </div>
+
+            {/* Mispress safety: offer Break In as an escape hatch */}
+            <div className="flex items-center gap-3 rounded-xl bg-sky-900/40 border border-sky-500/30 px-3.5 py-3">
+              <Clock size={16} className="text-sky-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-sky-300">Just taking a break?</p>
+                <p className="text-[11px] text-zinc-400">Tap <strong className="text-white">Break In</strong> if you&apos;re returning later.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowClockOutConfirm(false);
+                  void doAction("break_in");
+                }}
+                className="shrink-0 rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-600 transition-colors"
+              >
+                Break In
+              </button>
             </div>
 
             {isCheckedIn && workedMinutes < 5 && (
