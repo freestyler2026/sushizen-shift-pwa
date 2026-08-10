@@ -814,6 +814,7 @@ export default function CostCalculationPage() {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLDivElement | null>(null);
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [allowed, setAllowed] = useState(false);
   // Persist city selection across AutoReload page reloads (sessionStorage survives
   // window.location.replace but is cleared when the tab/browser is closed).
@@ -998,8 +999,10 @@ export default function CostCalculationPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      setAllowed(canAccessCostAdmin(refreshed || auth));
+      const a = auth ?? getAuth(); // Re-read localStorage in case SSR returned null
+      const refreshed = await refreshAuthFromApi(a);
+      setAllowed(canAccessCostAdmin(refreshed ?? a));
+      setAuthChecked(true);
     }
     void init();
   }, [auth]);
@@ -3750,6 +3753,7 @@ export default function CostCalculationPage() {
     }
   };
 
+  if (!authChecked) return null; // Still checking auth — don't flash "not authorized"
   if (!allowed) {
     return <div className="text-sm text-red-300">Cost calculation is available only to authorized admin roles.</div>;
   }

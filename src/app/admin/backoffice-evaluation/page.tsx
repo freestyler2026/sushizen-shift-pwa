@@ -132,6 +132,7 @@ export default function AdminBackofficeEvaluationPage() {
   const apiBase = "";
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"dubai" | "manila">("manila");
   const [monthKey, setMonthKey] = useState(monthNow());
   const [approverName] = useState(auth?.staffName || "");
@@ -391,10 +392,12 @@ export default function AdminBackofficeEvaluationPage() {
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessBackofficeEvaluationAdmin(refreshed || auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const can = canAccessBackofficeEvaluationAdmin(refreshed || localAuth);
       if (cancelled) return;
       setAllowed(can);
+      setAuthChecked(true);
     }
     init();
     return () => {
@@ -420,6 +423,7 @@ export default function AdminBackofficeEvaluationPage() {
     loadActions(selectedStaff);
   }, [allowed, selectedStaff, loadActions]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return <div className="text-sm text-red-300">Backoffice Evaluation page is available only to HQ/HR Manager.</div>;
   }

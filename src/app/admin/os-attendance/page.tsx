@@ -7,7 +7,7 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { canAccessOsAttendanceAdmin, getAuth } from "@/lib/auth";
+import { canAccessOsAttendanceAdmin, getAuth, type Auth } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE,
   TAB_ACTIVE, TAB_INACTIVE, BADGE_SUCCESS, BADGE_ERROR, BADGE_WARNING,
@@ -2624,11 +2624,22 @@ type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance" | "l
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
-  const auth = useMemo(() => getAuth(), []);
-  const role = auth?.role ?? "";
+  // useState(null) avoids SSR/hydration mismatch; useEffect reads localStorage after mount
+  const [auth, setAuthState] = useState<Auth | null>(null);
   const [tab, setTab] = useState<Tab>("report");
   const [city, setCity] = useState<"dubai" | "manila">("manila");
   const [pendingCorrections, setPendingCorrections] = useState(0);
+
+  // Read auth from localStorage after mount (bypasses SSR where localStorage is unavailable)
+  useEffect(() => {
+    const a = getAuth();
+    setAuthState(a);
+    if (!a) { router.replace("/login"); return; }
+    const r = String(a.role ?? "").toUpperCase();
+    if (!canAccessOsAttendanceAdmin(a) && r !== "HQ" && r !== "ADMIN") {
+      router.replace("/week");
+    }
+  }, [router]);
 
   // Poll pending correction count for badge
   useEffect(() => {
@@ -2644,17 +2655,12 @@ export default function OsAttendanceAdminPage() {
     void fetchCount();
   }, [city]);
 
+  const role = auth?.role ?? "";
   // Per CLAUDE.md: always include role checks to avoid locking out HQ/ADMIN users
   // who may not have explicit channel permissions but still need full access.
-  const hasAccess = canAccessOsAttendanceAdmin(auth) || role === "HQ" || role === "ADMIN";
+  const hasAccess = !auth || canAccessOsAttendanceAdmin(auth) || role === "HQ" || role === "ADMIN";
 
-  useEffect(() => {
-    if (!hasAccess) {
-      router.replace("/week");
-    }
-  }, [hasAccess, router]);
-
-  if (!hasAccess) return null;
+  if (!auth || !hasAccess) return null;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">

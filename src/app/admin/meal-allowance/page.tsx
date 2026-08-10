@@ -38,6 +38,7 @@ function authHeaders(token: string | undefined) {
 export default function MealAllowancePage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState("manila");
 
   const [rows, setRows] = useState<SummaryRow[]>([]);
@@ -51,11 +52,13 @@ export default function MealAllowancePage() {
   // Auth check
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const resolved = refreshed || auth;
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const resolved = refreshed || localAuth;
       const role = String(resolved?.role || "").toUpperCase();
       setAllowed(ADMIN_ROLES.has(role));
       setCity(String(resolved?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
+      setAuthChecked(true);
     }
     void init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,6 +130,7 @@ export default function MealAllowancePage() {
     }
   };
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

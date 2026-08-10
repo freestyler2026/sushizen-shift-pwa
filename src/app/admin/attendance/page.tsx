@@ -101,9 +101,10 @@ export default function AttendanceAdminPage() {
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       if (cancelled) return;
-      const resolved = refreshed || auth;
+      const resolved = refreshed || localAuth;
       resolvedAuth.current = resolved;
       // Phase 3: accessToken is "" when auth lives in httpOnly sz_access cookie.
       if (!resolved?.staffName || (!resolved?.hasSession && !resolved?.accessToken)) {
