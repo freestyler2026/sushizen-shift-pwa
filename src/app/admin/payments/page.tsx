@@ -251,7 +251,11 @@ function AddPaymentModal({
           </div>
 
           <div className="flex items-center gap-3">
-            <input id="is_recurring" type="checkbox" className="w-4 h-4 accent-sky-500" checked={form.is_recurring} onChange={e => set("is_recurring", e.target.checked)} />
+            <input id="is_recurring" type="checkbox" className="w-4 h-4 accent-sky-500" checked={form.is_recurring}
+              onChange={e => {
+                const checked = e.target.checked;
+                setForm(f => ({ ...f, is_recurring: checked, recurrence: checked ? (f.recurrence || "monthly") : f.recurrence }));
+              }} />
             <label htmlFor="is_recurring" className="text-sm text-white/80">Recurring payment</label>
           </div>
 
