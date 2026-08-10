@@ -1,6 +1,31 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Missing API proxy routes 4件追加 — Vercel deploy 37bb1b4)
+Last updated: 2026-08-10 (Role downgrade fix + Admin Impersonation — Heroku v1865, Vercel 3b1a9f6)
+
+---
+
+## ✅ Completed: Role Downgrade Fix + Admin Impersonation (2026-08-10, Heroku v1865)
+
+**Bug**: カスタムロール (HR_MANAGER など) のユーザーが Thin JWT 導入後に STAFF 扱いされていた。
+- `legacy_permissions_for_role()` が `LEGACY_ROLE_PERMISSION_MAP` にないロールを STAFF にフォールバックしていた
+- **Fix**: `DEFAULT_ROLE_GRANTS` を先に確認するよう修正 (`security_tokens.py`)
+
+**New Feature: Admin Impersonation**
+- `POST /api/admin/impersonate` (HQ/ADMIN 専用): 任意スタッフの 4 時間トークンを発行。audit ログ記録
+- `issue_access_token()` に `ttl_seconds` パラメータ追加
+- フロントエンド: Role Management > Assignments タブで「Login As」ボタン → 対象スタッフとして全ページを閲覧可能
+- `ImpersonationBanner` コンポーネント (amber 色): 誰として閲覧中か表示 + Exit ボタン
+- `exitImpersonation()`: 元の admin auth を localStorage から復元してリダイレクト
+
+**Files changed**:
+- `sushizen_shift_app_clean/app/security_tokens.py` — legacy fallback fix + ttl_seconds
+- `sushizen_shift_app_clean/app/main.py` — impersonation endpoint
+- `src/lib/impersonation.ts` — startImpersonation / exitImpersonation helpers
+- `src/components/ImpersonationBanner.tsx` — banner component
+- `src/components/LayoutShell.tsx` — banner mount
+- `src/app/admin/staff/roles/page.tsx` — Login As button
+
+---
 
 ---
 
