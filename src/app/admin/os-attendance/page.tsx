@@ -927,7 +927,7 @@ function DailyReportTab({ city }: { city: string }) {
       // Fetch sessions + no-shows in parallel (no-shows only for single-day view)
       const sessionsFetch = apiFetch(`${API}/daily-report?${params}`);
       const noShowsFetch = !rangeMode
-        ? apiFetch(`${API}/no-shows?city=${city}&work_date=${date}`)
+        ? apiFetch(`${API}/no-shows?city=${city}&work_date=${date}${staffFilter ? `&staff_name=${encodeURIComponent(staffFilter)}` : ""}`)
         : Promise.resolve(null);
 
       const [r, nsR] = await Promise.all([sessionsFetch, noShowsFetch]);
