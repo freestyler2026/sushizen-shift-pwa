@@ -745,13 +745,13 @@ export default function NavBar() {
         const authForEpr = resolved || a;
         const eprRole = String(authForEpr?.role || "").toUpperCase();
         if (["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(eprRole)) {
-          const eprRes = await fetch("/api/admin/emergency-requests?status=pending&limit=200", {
+          const eprRes = await fetch("/api/admin/emergency-requests/badge-count", {
             cache: "no-store",
             headers: { Authorization: `Bearer ${authForEpr?.accessToken}` },
           });
           if (eprRes.ok) {
             const eprJson = await eprRes.json();
-            if (!cancelled) setEprBadge(Number((eprJson?.requests || []).length));
+            if (!cancelled) setEprBadge(Number(eprJson?.count || 0));
           }
         }
       } catch {
