@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Payment Schedule — Heroku v1871 / Vercel c127cc0)
+Last updated: 2026-08-10 (NavBar badge persist for EPR/SPR — Heroku v1872 / Vercel 3a5e9da)
+
+---
+
+## ✅ Completed: NavBar Badge Persist for EPR & Spot Purchase (2026-08-10, Heroku v1872 / Vercel 3a5e9da)
+
+**Request**: Badges on Emergency Requests and Spot Purchase nav items disappear when requests move past Pending. Badge should remain until request reaches a terminal status.
+
+**Backend** (db.py, db_spot_purchase.py, main.py):
+- `count_emergency_requests_incomplete()` in db.py — counts EPRs with status NOT IN ('completed', 'rejected')
+- `count_spot_purchase_incomplete()` in db_spot_purchase.py — counts SPRs with status != 'PURCHASED'
+- New endpoint: `GET /api/admin/emergency-requests/badge-count` (added BEFORE `/{request_id}` per FastAPI static-before-param rule)
+- Updated `GET /api/admin/spot-purchase/pending-count` to use `count_spot_purchase_incomplete`
+
+**Frontend** (NavBar.tsx):
+- EPR badge fetch changed from `?status=pending&limit=200` list count → `/badge-count` dedicated endpoint
+- EPR badge now shows count of all in-flight requests (pending→approved→arranging→dispatched→received)
+- SPR badge now shows count of PENDING + APPROVED requests (not just PENDING)
 
 ---
 
@@ -22,6 +39,31 @@ Last updated: 2026-08-10 (Payment Schedule — Heroku v1871 / Vercel c127cc0)
 - Add Payment modal, Edit modal, Mark Paid modal (paid date, amount, reference)
 
 **Post-deploy required**: Role Management → "Resync System Channels" to sync new channel to DB.
+
+### Bug Fix: Recurring recurrence defaults to "" (Vercel commit 4c32564)
+**Root cause**: `is_recurring` checkbox `onChange` only set `is_recurring: true` but left `recurrence: ""`. The controlled `<select>` rendered "Monthly" visually but React state stayed `""`. On submit, `recurrence: ""` was sent to backend; `mark_payment_paid` skipped auto-advance because `""` is falsy in `if row.get("recurrence"):`.
+
+**Fix** (`src/app/admin/payments/page.tsx` checkbox onChange):
+```tsx
+onChange={e => {
+  const checked = e.target.checked;
+  setForm(f => ({ ...f, is_recurring: checked, recurrence: checked ? (f.recurrence || "monthly") : f.recurrence }));
+}}
+```
+When checkbox is enabled, `recurrence` is atomically defaulted to `"monthly"` if it was empty.
+
+### Full Test Results (2026-08-10, production)
+✅ Add Payment modal — all fields fill correctly  
+✅ Recurring checkbox shows/hides Recurrence dropdown  
+✅ Form submit — card appears in Upcoming with correct Monthly tag  
+✅ Edit modal — pre-fills all data, saves correctly  
+✅ Mark Paid — auto-fills today + amount, moves card to Paid This Month  
+✅ History tab — paid records display correctly  
+✅ City / Category filters work  
+✅ Month navigation (prev/next) works  
+✅ NavBar badge polling active  
+✅ Delete unpaid payment — works (uses window.confirm)  
+✅ **Recurrence auto-advance end-to-end**: Added Dubai/Rent/Monthly payment (Aug 31), marked paid → Sep 30 entry auto-created in Sep 2026 with correct alert date (Sep 24)
 
 ---
 
