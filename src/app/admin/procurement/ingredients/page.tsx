@@ -111,6 +111,7 @@ export default function ProcurementIngredientsPage() {
   const auth = useMemo(() => getAuth(), []);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"dubai" | "manila">(String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai");
   const [searchText, setSearchText] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -182,8 +183,10 @@ export default function ProcurementIngredientsPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      setAllowed(canAccessCostAdmin(refreshed || auth));
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      setAllowed(canAccessCostAdmin(refreshed || localAuth));
+      setAuthChecked(true);
     }
     void init();
   }, [auth]);
@@ -354,6 +357,7 @@ export default function ProcurementIngredientsPage() {
     }
   };
 
+  if (!authChecked) return null;
   if (!allowed) {
     return <div className="text-sm text-red-300">Ingredient master is available only to authorized admin roles.</div>;
   }

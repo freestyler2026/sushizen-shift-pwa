@@ -64,6 +64,7 @@ function statusBadge(status: string) {
 export default function ProcurementPaymentsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
     String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
   );
@@ -191,10 +192,14 @@ export default function ProcurementPaymentsPage() {
   useEffect(() => {
     async function init() {
       // Immediate check from cached role — prevents false "denied" flash while API refreshes
-      const _mkt: "dubai" | "manila" = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
-      if (canAccessProcurementAdmin(String(auth?.role || ""), _mkt)) setAllowed(true);
-      const refreshed = await refreshAuthFromApi(auth);
-      const resolvedAuth = refreshed || auth;
+      const localAuth = auth ?? getAuth();
+      const _mkt: "dubai" | "manila" = String(localAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(localAuth?.role || ""), _mkt)) {
+        setAllowed(true);
+        setAuthChecked(true);
+      }
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const resolvedAuth = refreshed || localAuth;
       const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();
       setCity(resolvedCity === "dubai" ? "dubai" : "manila");
       const can = canAccessProcurementAdmin(
@@ -202,12 +207,14 @@ export default function ProcurementPaymentsPage() {
         resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

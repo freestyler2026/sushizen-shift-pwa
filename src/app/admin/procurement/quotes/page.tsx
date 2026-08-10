@@ -106,6 +106,7 @@ function deviationBadge(band: string, pct: number, benchmarkPrice: number) {
 export default function ProcurementQuotesPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
     String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
   );
@@ -214,15 +215,17 @@ export default function ProcurementQuotesPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       const resolvedCity: "manila" | "dubai" =
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+        String((refreshed || localAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
+        String((refreshed || localAuth)?.role || ""),
         resolvedCity,
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await loadAll();
     }
     void init();
@@ -237,6 +240,7 @@ export default function ProcurementQuotesPage() {
 
   const requestItems = Array.isArray(detail?.request?.items) ? detail.request.items : [];
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

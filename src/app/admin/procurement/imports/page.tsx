@@ -72,6 +72,7 @@ function fmtDateTime(value: string): string {
 export default function ProcurementImportsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
@@ -211,10 +212,12 @@ export default function ProcurementImportsPage() {
   useEffect(() => {
     let cancelled = false;
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       if (cancelled) return;
-      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), city === "dubai" ? "dubai" : "manila");
+      const can = canAccessProcurementAdmin(String((refreshed || localAuth)?.role || ""), city === "dubai" ? "dubai" : "manila");
       setAllowed(can);
+      setAuthChecked(true);
     }
     void init();
     return () => { cancelled = true; };
@@ -225,6 +228,7 @@ export default function ProcurementImportsPage() {
     void load();
   }, [allowed, load]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

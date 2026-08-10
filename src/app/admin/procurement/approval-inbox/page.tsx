@@ -86,6 +86,7 @@ function statusBadge(status: string) {
 export default function ProcurementApprovalInboxPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState(String(auth?.city || "manila").toLowerCase());
@@ -180,8 +181,9 @@ export default function ProcurementApprovalInboxPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const resolvedAuth = refreshed || auth;
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const resolvedAuth = refreshed || localAuth;
       const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();
       setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
@@ -189,6 +191,7 @@ export default function ProcurementApprovalInboxPage() {
         resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
@@ -201,6 +204,7 @@ export default function ProcurementApprovalInboxPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

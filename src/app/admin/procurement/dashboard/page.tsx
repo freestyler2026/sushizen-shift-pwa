@@ -127,6 +127,7 @@ function ActionCard({
 export default function ProcurementDashboardPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const requestedBy = defaultProcurementName();
   const pin = defaultProcurementPin();
   const [city, setCity] = useState(String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
@@ -181,8 +182,9 @@ export default function ProcurementDashboardPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const resolvedAuth = refreshed || auth;
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const resolvedAuth = refreshed || localAuth;
       const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();
       setCity(resolvedCity === "dubai" ? "dubai" : "manila");
       const can = canAccessProcurementAdmin(
@@ -190,12 +192,14 @@ export default function ProcurementDashboardPage() {
         resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

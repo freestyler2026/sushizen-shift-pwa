@@ -111,6 +111,7 @@ export default function ProcurementCaseDetailPage() {
   const caseId = String(params?.caseId || "");
 
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState("manila");
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -453,8 +454,9 @@ export default function ProcurementCaseDetailPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const resolvedAuth = refreshed || auth;
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const resolvedAuth = refreshed || localAuth;
       const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();
       setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
@@ -462,6 +464,7 @@ export default function ProcurementCaseDetailPage() {
         resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can && caseId) await load();
     }
     void init();
@@ -490,6 +493,7 @@ export default function ProcurementCaseDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle.request?.city, city]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

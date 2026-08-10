@@ -91,6 +91,7 @@ export default function ProcurementIntelligencePage() {
   const defaultCity: "dubai" | "manila" = String(defaultAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
 
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState<"dubai" | "manila">(defaultCity);
@@ -184,11 +185,15 @@ export default function ProcurementIntelligencePage() {
     async function init() {
       const currentAuth = getAuth();
       const _mkt: "dubai" | "manila" = String(currentAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
-      if (canAccessProcurementAdmin(String(currentAuth?.role || ""), _mkt)) setAllowed(true);
+      if (canAccessProcurementAdmin(String(currentAuth?.role || ""), _mkt)) {
+        setAllowed(true);
+        setAuthChecked(true);
+      }
       const refreshed = await refreshAuthFromApi(currentAuth);
       const nextCity: "dubai" | "manila" = String((refreshed || currentAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       const can = canAccessProcurementAdmin(String((refreshed || currentAuth)?.role || ""), nextCity);
       setAllowed(can);
+      setAuthChecked(true);
       if (can) setCity(nextCity);
     }
     void init();
@@ -254,6 +259,7 @@ export default function ProcurementIntelligencePage() {
 
   const currency = city === "dubai" ? "AED" : "PHP";
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

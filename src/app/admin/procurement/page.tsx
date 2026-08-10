@@ -79,6 +79,7 @@ export default function AdminProcurementPage() {
   const auth = useMemo(() => getAuth(), []);
   const initRef = useRef(false);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [error, setError] = useState("");
   const [approvalSuccess, setApprovalSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -331,9 +332,11 @@ export default function AdminProcurementPage() {
     if (initRef.current) return;
     initRef.current = true;
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), city === "dubai" ? "dubai" : "manila");
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const can = canAccessProcurementAdmin(String((refreshed || localAuth)?.role || ""), city === "dubai" ? "dubai" : "manila");
       setAllowed(can);
+      setAuthChecked(true);
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
       }
@@ -342,6 +345,7 @@ export default function AdminProcurementPage() {
     void init();
   }, [auth, city, loadAll, requestedBy]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

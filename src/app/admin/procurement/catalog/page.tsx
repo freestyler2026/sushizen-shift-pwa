@@ -61,6 +61,7 @@ export default function ProcurementCatalogPage() {
   const router = useRouter();
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState("manila");
@@ -127,12 +128,14 @@ export default function ProcurementCatalogPage() {
   const [deleteSupplierConfirm, setDeleteSupplierConfirm] = useState<string | null>(null);
 
   useEffect(() => {
-    const role = auth?.role || "";
-    if (canAccessProcurementAdmin(auth, "manila") || canAccessProcurementAdmin(auth, "dubai") || role === "HQ" || role === "ADMIN") {
+    const localAuth = auth ?? getAuth();
+    const role = localAuth?.role || "";
+    if (canAccessProcurementAdmin(localAuth, "manila") || canAccessProcurementAdmin(localAuth, "dubai") || role === "HQ" || role === "ADMIN") {
       setAllowed(true);
-    } else {
+    } else if (localAuth) {
       router.replace("/week");
     }
+    setAuthChecked(true);
   }, [auth, router]);
 
   const load = useCallback(async () => {
@@ -451,6 +454,7 @@ export default function ProcurementCatalogPage() {
     }
   }
 
+  if (!authChecked) return null;
   if (!allowed) return null;
 
   return (

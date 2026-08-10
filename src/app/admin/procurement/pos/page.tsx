@@ -187,6 +187,7 @@ function supplierConfBadge(status?: string) {
 export default function ProcurementPoPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
     String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
   );
@@ -563,7 +564,8 @@ export default function ProcurementPoPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       // Determine city: URL city param > request_no prefix (MAN-/DUB-) > user auth city
       const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
       const urlCity = (sp?.get("city") || "").toLowerCase();
@@ -573,13 +575,14 @@ export default function ProcurementPoPage() {
       else if (urlCity === "manila") resolvedCity = "manila";
       else if (urlRequestId.startsWith("MAN-")) resolvedCity = "manila";
       else if (urlRequestId.startsWith("DUB-")) resolvedCity = "dubai";
-      else resolvedCity = String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      else resolvedCity = String((refreshed || localAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
+        String((refreshed || localAuth)?.role || ""),
         resolvedCity,
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
@@ -594,6 +597,7 @@ export default function ProcurementPoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId, allowed]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

@@ -76,6 +76,7 @@ function gradeBadge(grade: string) {
 export default function ProcurementKpiPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [monthKey, setMonthKey] = useState(monthNow());
@@ -129,18 +130,21 @@ export default function ProcurementKpiPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        String((refreshed || localAuth)?.role || ""),
+        String((refreshed || localAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

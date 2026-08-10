@@ -62,11 +62,6 @@ const EXAMPLES = [
   { icon: "🚫", q: "Which Dubai platform had the most cancellation rows this month?" },
 ];
 
-function getApiBase() {
-  if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
-  const u = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
-  return u || "";
-}
 
 function isHtmlErrorPayload(t: string) {
   const s = t.trim();
@@ -226,7 +221,7 @@ export default function AIAnalyticsProTab() {
     setSavedLoading(true);
     setSavedError("");
     const run = () =>
-      fetch(`${getApiBase()}/api/ai/analytics/snapshots?limit=50`, {
+      fetch(`/api/ai/analytics/snapshots?limit=50`, {
         cache: "no-store",
         headers: getAuthHeaders(auth),
       });
@@ -262,8 +257,7 @@ export default function AIAnalyticsProTab() {
     body: Record<string, unknown>,
     onEvent?: OnEventCallback,
   ) => {
-    const base = getApiBase();
-    const url = `${base}/api/ai/analytics/chat-pro`;
+    const url = `/api/ai/analytics/chat-pro`;
     const run = () =>
       fetch(url, {
         method: "POST",
@@ -321,7 +315,7 @@ export default function AIAnalyticsProTab() {
     const city = String(auth.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
     const id = crypto.randomUUID();
     const run = () =>
-      fetch(`${getApiBase()}/api/ai/analytics/snapshots`, {
+      fetch(`/api/ai/analytics/snapshots`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(auth) },
         body: JSON.stringify({
@@ -359,7 +353,7 @@ export default function AIAnalyticsProTab() {
     const auth = getAuth();
     if (!auth?.hasSession && !auth?.accessToken) return;
     const run = () =>
-      fetch(`${getApiBase()}/api/ai/analytics/snapshots/${encodeURIComponent(id)}`, {
+      fetch(`/api/ai/analytics/snapshots/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: getAuthHeaders(auth),
         cache: "no-store",

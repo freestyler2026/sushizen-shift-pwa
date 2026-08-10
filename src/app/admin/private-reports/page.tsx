@@ -99,6 +99,7 @@ function pickText(payload: Record<string, any> | null | undefined, ...keys: stri
 
 export default function AdminPrivateReportsPage() {
   const auth = useMemo(() => getAuth(), []);
+  const [authChecked, setAuthChecked] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -113,10 +114,12 @@ export default function AdminPrivateReportsPage() {
 
   // Phase 3: accessToken is "" when auth lives in sz_access httpOnly cookie.
   // Use hasSession as the auth check; /api/admin/* route handler reads the cookie automatically.
+  // auth from useMemo may be null during SSR — always fall back to getAuth() to re-read localStorage.
   const tokenHeaders = useCallback(async () => {
-    const refreshed = await refreshAuthFromApi(auth);
-    const accessToken = refreshed?.accessToken || auth?.accessToken || "";
-    const hasSession = refreshed?.hasSession || auth?.hasSession;
+    const localAuth = auth ?? getAuth();
+    const refreshed = await refreshAuthFromApi(localAuth);
+    const accessToken = refreshed?.accessToken || localAuth?.accessToken || "";
+    const hasSession = refreshed?.hasSession || localAuth?.hasSession;
     if (!accessToken && !hasSession) throw new Error("Please log in again.");
     return {
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -194,13 +197,17 @@ export default function AdminPrivateReportsPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessPrivateReportAdmin(refreshed || auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
+      const can = canAccessPrivateReportAdmin(refreshed || localAuth);
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await loadList();
     }
     init();
   }, [auth, loadList]);
+
+  if (!authChecked) return null;
 
   if (!allowed) {
     return (

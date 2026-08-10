@@ -50,6 +50,7 @@ function statusBadge(status: string) {
 export default function ProcurementExceptionsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
     String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
   );
@@ -105,18 +106,21 @@ export default function ProcurementExceptionsPage() {
 
   useEffect(() => {
     async function init() {
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const refreshed = await refreshAuthFromApi(localAuth);
       const resolvedCity: "manila" | "dubai" =
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+        String((refreshed || localAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       setCity(resolvedCity);
-      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), resolvedCity);
+      const can = canAccessProcurementAdmin(String((refreshed || localAuth)?.role || ""), resolvedCity);
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

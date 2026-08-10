@@ -80,6 +80,7 @@ function riskBadge(level: string) {
 export default function ProcurementWhitelistPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [snapshotDate, setSnapshotDate] = useState(todayIso());
@@ -195,20 +196,26 @@ export default function ProcurementWhitelistPage() {
 
   useEffect(() => {
     async function init() {
-      const _mkt: "dubai" | "manila" = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
-      if (canAccessProcurementAdmin(String(auth?.role || ""), _mkt)) setAllowed(true);
-      const refreshed = await refreshAuthFromApi(auth);
+      const localAuth = auth ?? getAuth();
+      const _mkt: "dubai" | "manila" = String(localAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(localAuth?.role || ""), _mkt)) {
+        setAllowed(true);
+        setAuthChecked(true);
+      }
+      const refreshed = await refreshAuthFromApi(localAuth);
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        String((refreshed || localAuth)?.role || ""),
+        String((refreshed || localAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

@@ -118,6 +118,7 @@ export default function DirectPurchasesAdminPage() {
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin]                 = useState(defaultProcurementPin());
   const [allowed, setAllowed]         = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   // ── Filter ──
   const [cityFilter,   setCityFilter]   = useState("manila");
@@ -153,13 +154,15 @@ export default function DirectPurchasesAdminPage() {
   // ─── Init ────────────────────────────────────────────────────────────────
   useEffect(() => {
     async function init() {
-      const refreshed     = await refreshAuthFromApi(auth);
-      const resolvedAuth  = refreshed || auth;
+      const localAuth     = auth ?? getAuth();
+      const refreshed     = await refreshAuthFromApi(localAuth);
+      const resolvedAuth  = refreshed || localAuth;
       const can = canAccessProcurementAdmin(
         String(resolvedAuth?.role || ""),
         String(resolvedAuth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) {
         await load("manila", "", "");
         void loadCatalog();
@@ -339,6 +342,7 @@ export default function DirectPurchasesAdminPage() {
   }, [voidTarget, voidReason, requestedBy, pin, cityFilter, statusFilter, verifiedFilter, load]);
 
   // ─── Guard ───────────────────────────────────────────────────────────────
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">

@@ -411,6 +411,7 @@ export default function ProcurementInvoicesPage() {
   const defaultCity: "dubai" | "manila" = String(defaultAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [allowed, setAllowed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState<"dubai" | "manila">(defaultCity);
@@ -1034,6 +1035,7 @@ export default function ProcurementInvoicesPage() {
         nextCity,
       );
       setAllowed(can);
+      setAuthChecked(true);
       if (can) {
         setCity(nextCity);
       }
@@ -1108,6 +1110,7 @@ export default function ProcurementInvoicesPage() {
     return set;
   }, [vendorAlertData.new_suppliers]);
 
+  if (!authChecked) return null;
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
