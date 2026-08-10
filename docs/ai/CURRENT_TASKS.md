@@ -124,10 +124,19 @@ JWT の `pv=0`（issuance 時に DB が一時的に落ちていた場合）か�
 
 ---
 
-## 🐛 Pending: Previously submitted reports not visible (Kitchen Staff / Back Office)
+## ✅ Completed: Travel Path — submitted reports not visible to staff (2026-08-10, Vercel ddb3f62)
 
-**Reported**: Daily Inventory / Travel Path / Daily Check reports submitted by Kitchen Staff no longer visible.
-**Status**: Not yet investigated.
+**Reported**: Staff return to Travel Path Checklist Input tab for the same (branch, date, section) and see a blank form — as if their submission was never saved.
+
+**Root cause**: `ChecklistView`'s items `useEffect` (`[branch, section]` deps) always reset `entries` to empty and `reportId` to null. There was NO fetch to load an existing saved/submitted report for the currently selected (branch, date, section). Staff couldn't see their prior submission status, and if they clicked Submit on the empty re-loaded form, `upsert_travel_path_entries` would overwrite all entries with `checked=false` before submitting.
+
+**Fix (frontend, Vercel ddb3f62)** — `src/app/admin/travel-path/page.tsx`:
+- After loading master items and setting initial (empty) entries, the effect now fetches `GET /api/travel-path/reports?branch=...&date_from={date}&date_to={date}&section=...&limit=1`.
+- If a report exists, it fetches `GET /api/travel-path/reports/{id}` and populates the form with saved entries and correct `reportId`/`reportStatus`.
+- `reportDate` added to the useEffect dependency array (`[branch, section, reportDate]`) so changing the date also triggers the existence check.
+- Errors from the lookup are silently swallowed (non-critical — blank form is the safe fallback).
+
+**API confirmed working**: Backend API `/api/travel-path/reports?branch=TAFT&date_from=2026-08-09&date_to=2026-08-09&section=OPENING&limit=1` returns report #622 (SUBMITTED, 22/23 checked) ✓
 
 ---
 
