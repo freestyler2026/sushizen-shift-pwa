@@ -3,9 +3,10 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { AlertTriangle, Check, Layers3, Pencil, ShieldCheck, Trash2, UserPlus, Users, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, Check, Layers3, LogIn, Pencil, ShieldCheck, Trash2, UserPlus, Users, X } from "lucide-react";
 import { canAccessRoleManagement, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
+import { startImpersonation, type ImpersonateResp } from "@/lib/impersonation";
 import {
   BADGE_INFO,
   GLASS_CARD,
@@ -162,6 +163,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, auth?: Aut
 
 function StaffRolesPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -204,6 +206,7 @@ function StaffRolesPageInner() {
   // Cache of effective roles loaded from the access system (keyed by display_name)
   const [effectiveRoleCache, setEffectiveRoleCache] = useState<Record<string, string>>({});
   const [resyncBusy, setResyncBusy] = useState(false);
+  const [impersonateBusy, setImpersonateBusy] = useState(false);
 
   const canManage = canAccessRoleManagement(auth);
 
@@ -220,6 +223,25 @@ function StaffRolesPageInner() {
       setError(String(err?.message || err || "Resync failed"));
     } finally {
       setResyncBusy(false);
+    }
+  }
+
+  async function handleImpersonate(targetStaffName: string) {
+    if (!auth || !targetStaffName.trim()) return;
+    setImpersonateBusy(true);
+    setError("");
+    try {
+      const resp = await apiRequest<ImpersonateResp>(
+        "/api/admin/impersonate",
+        { method: "POST", body: JSON.stringify({ staff_name: targetStaffName.trim() }) },
+        auth,
+      );
+      startImpersonation(resp);
+      // Navigate to home so the user sees the site as the impersonated staff member
+      window.location.href = "/";
+    } catch (err: any) {
+      setError(String(err?.message || err || "Impersonation failed"));
+      setImpersonateBusy(false);
     }
   }
 
@@ -1208,8 +1230,24 @@ function StaffRolesPageInner() {
           </div>
 
           <div className={`${GLASS_CARD} p-5`}>
-            <h2 className={T_SECTION}>{staffAssignments?.staff_name || "No staff loaded"}</h2>
-            <p className={T_CAPTION}>Primary role decides the default role claim. Effective permissions are still merged from all active assignments.</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className={T_SECTION}>{staffAssignments?.staff_name || "No staff loaded"}</h2>
+                <p className={T_CAPTION}>Primary role decides the default role claim. Effective permissions are still merged from all active assignments.</p>
+              </div>
+              {staffAssignments?.staff_name ? (
+                <button
+                  type="button"
+                  onClick={() => handleImpersonate(staffAssignments.staff_name)}
+                  disabled={impersonateBusy}
+                  title="Login as this staff member to test their experience"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  {impersonateBusy ? "Loading…" : "Login As"}
+                </button>
+              ) : null}
+            </div>
             {staffAssignments ? (
               <>
                 <div className="mt-3 flex flex-wrap gap-2">
