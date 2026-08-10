@@ -461,7 +461,9 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 export default function PaymentsPage() {
   const router = useRouter();
-  const auth = getAuth();
+  // Read auth once at mount for access guard + canManage — stable, not a dep.
+  const authRef = useRef(getAuth());
+  const auth = authRef.current;
   const canManage = (() => {
     if (!auth) return false;
     const role = String(auth.role || "").toUpperCase();
@@ -471,8 +473,9 @@ export default function PaymentsPage() {
   })();
 
   useEffect(() => {
-    if (!canAccessPaymentsAdmin(auth)) router.replace("/admin");
-  }, [auth, router]);
+    if (!canAccessPaymentsAdmin(authRef.current)) router.replace("/admin");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   const [tab, setTab] = useState<Tab>("schedule");
 
@@ -498,6 +501,7 @@ export default function PaymentsPage() {
   const fetchSchedule = useCallback(async () => {
     setLoading(true);
     try {
+      const a = getAuth();
       const params = new URLSearchParams({
         year: String(scheduleYear),
         month: String(scheduleMonth),
@@ -506,7 +510,7 @@ export default function PaymentsPage() {
       if (filterCity !== "all") params.set("city", filterCity);
       if (filterCategory !== "all") params.set("category", filterCategory);
       const res = await fetch(`${API_BASE}/api/admin/payments?${params}`, {
-        headers: getAuthHeaders(auth),
+        headers: getAuthHeaders(a),
         cache: "no-store",
       });
       if (!res.ok) return;
@@ -515,14 +519,15 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [auth, scheduleYear, scheduleMonth, filterCity, filterCategory]);
+  }, [scheduleYear, scheduleMonth, filterCity, filterCategory]);
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
+      const a = getAuth();
       const params = new URLSearchParams({ year: String(histYear), month: String(histMonth), limit: "200" });
       const res = await fetch(`${API_BASE}/api/admin/payments/history?${params}`, {
-        headers: getAuthHeaders(auth),
+        headers: getAuthHeaders(a),
         cache: "no-store",
       });
       if (!res.ok) return;
@@ -531,7 +536,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [auth, histYear, histMonth]);
+  }, [histYear, histMonth]);
 
   useEffect(() => { if (tab === "schedule") void fetchSchedule(); }, [tab, fetchSchedule]);
   useEffect(() => { if (tab === "history") void fetchHistory(); }, [tab, fetchHistory]);
@@ -540,7 +545,7 @@ export default function PaymentsPage() {
     if (!confirm(`Delete "${p.payee_name}"?`)) return;
     await fetch(`${API_BASE}/api/admin/payments/${p.id}`, {
       method: "DELETE",
-      headers: getAuthHeaders(auth),
+      headers: getAuthHeaders(getAuth()),
     });
     void fetchSchedule();
   }
