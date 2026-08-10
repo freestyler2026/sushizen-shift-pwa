@@ -103,6 +103,7 @@ import {
   canAccessProbationAdmin,
   canAccessMarketAnalysisAdmin,
   canAccessStoreOpeningAdmin,
+  canAccessPaymentsAdmin,
   canAccessHrClearanceAdmin,
   canAccessAttendancePage,
   canAccessWeekPage,
@@ -242,6 +243,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },
   { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" },
+  { href: "/admin/payments", label: "Payment Schedule", icon: Coins, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" },
   { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
@@ -342,6 +344,7 @@ export default function NavBar() {
   const [supplierBadge, setSupplierBadge] = useState(0);
   const [absenceStaleBadge, setAbsenceStaleBadge] = useState(false);
   const [storeOpeningBadge, setStoreOpeningBadge] = useState(0);
+  const [paymentBadgeCount, setPaymentBadgeCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -402,6 +405,7 @@ export default function NavBar() {
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
     if (href === "/admin/market-analysis") return canAccessMarketAnalysisAdmin(auth);
     if (href === "/admin/store-opening") return canAccessStoreOpeningAdmin(auth);
+    if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
     if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     return false;
@@ -1008,6 +1012,32 @@ export default function NavBar() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
+  // Payment Schedule alert badge — polls every 60s
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPaymentBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.hasSession && !auth?.accessToken) {
+          if (!cancelled) setPaymentBadgeCount(0);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/admin/payments/badge-count`, {
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setPaymentBadgeCount(Number(data?.count ?? 0));
+      } catch { /* non-critical */ }
+    };
+    void fetchPaymentBadge();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchPaymentBadge();
+    }, 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   const staffItems = useMemo(() => {
     return [...PRIMARY, ...SECONDARY_BASE]
       .filter((item) => {
@@ -1093,9 +1123,11 @@ export default function NavBar() {
             ? { ...item, badgeWarning: absenceStaleBadge }
           : item.href === "/admin/store-opening"
             ? { ...item, badgeCount: storeOpeningBadge, badgeYellow: storeOpeningBadge > 0 }
+          : item.href === "/admin/payments"
+            ? { ...item, badgeCount: paymentBadgeCount, badgeCritical: paymentBadgeCount > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge, paymentBadgeCount]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 

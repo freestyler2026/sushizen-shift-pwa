@@ -688,6 +688,16 @@ export function canAccessIncidentReportAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.incident_reports.view", "incident_report.read", "incident_report.reply"], a);
 }
 
+/** Payment Schedule — matches `admin.payments` channel in `app/access_control.py`.
+ *  HQ/ADMIN always have access. Other roles can be granted via Role Management. */
+export function canAccessPaymentsAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  if (!x) return false;
+  const role = String(x.role || "").toUpperCase();
+  if (role === "HQ" || role === "ADMIN") return true;
+  return hasChannelAccess("admin.payments", ["view"], x);
+}
+
 /** HR Clearance admin — matches `admin.hr_clearance` channel in `app/access_control.py`. */
 export function canAccessHrClearanceAdmin(a?: Auth | null): boolean {
   const x = a ?? getAuth();
