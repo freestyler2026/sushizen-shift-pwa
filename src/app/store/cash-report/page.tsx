@@ -6,7 +6,7 @@ import {
   DollarSign, Send, RefreshCw, CheckCircle2, XCircle,
   AlertTriangle, ExternalLink, Camera, X, ChevronDown, ChevronUp, Banknote,
 } from "lucide-react";
-import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
+import { clearAuth, getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SELECT_CLASS, INPUT_CLASS, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
@@ -340,23 +340,37 @@ function hasAnyDisc(r: HistoryReport): boolean {
     || (r.cash_discrepancy != null && Math.abs(r.cash_discrepancy) >= DISC_THRESHOLD);
 }
 
+const DAYS_OPTIONS = [
+  { label: "Last 14 days", value: 14 },
+  { label: "Last 30 days", value: 30 },
+  { label: "Last 60 days", value: 60 },
+  { label: "Last 90 days", value: 90 },
+];
+
 function HistoryTab({ branch }: { branch: string }) {
   const auth = getAuth();
+  const router = useRouter();
   const [reports, setReports] = useState<HistoryReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [days, setDays] = useState(60);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     if (!branch) return;
     setLoading(true);
-    fetch(`/api/store/cash-report/history?branch=${branch}&days=14`, {
+    setAuthError(false);
+    fetch(`/api/store/cash-report/history?branch=${branch}&days=${days}`, {
       headers: getAuthHeaders(auth),
     })
-      .then((r) => r.json())
-      .then((d) => setReports(Array.isArray(d.reports) ? d.reports : []))
+      .then(async (r) => {
+        if (r.status === 401) { setAuthError(true); return; }
+        const d = await r.json();
+        setReports(Array.isArray(d.reports) ? d.reports : []);
+      })
       .catch(() => setReports([]))
       .finally(() => setLoading(false));
-  }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [branch, days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Group by date descending
   const grouped = useMemo(() => {
@@ -369,13 +383,22 @@ function HistoryTab({ branch }: { branch: string }) {
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
   }, [reports]);
 
+  const daysLabel = DAYS_OPTIONS.find((o) => o.value === days)?.label ?? `Last ${days} days`;
+
   if (loading) return (
     <div className="py-12 text-center text-sm text-zinc-500">Loading history…</div>
   );
 
-  if (grouped.length === 0) return (
-    <div className="py-12 text-center text-sm text-zinc-500">
-      No submissions found for the last 14 days.
+  if (authError) return (
+    <div className="py-12 text-center space-y-3">
+      <p className="text-sm text-amber-400 font-medium">Session expired.</p>
+      <p className="text-xs text-zinc-500">Please log out and log back in to view history.</p>
+      <button
+        className="mt-2 text-xs text-zinc-400 underline underline-offset-2"
+        onClick={() => { clearAuth(); router.push("/login"); }}
+      >
+        Log out now
+      </button>
     </div>
   );
 
@@ -383,7 +406,21 @@ function HistoryTab({ branch }: { branch: string }) {
 
   return (
     <div className="space-y-3">
-      {grouped.map(([dateStr, rows]) => {
+      {/* Range selector */}
+      <div className="flex justify-end">
+        <SelectDark
+          value={String(days)}
+          onChange={(v) => setDays(Number(v))}
+          options={DAYS_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+          className="text-xs py-1 px-2"
+        />
+      </div>
+
+      {grouped.length === 0 ? (
+        <div className="py-12 text-center text-sm text-zinc-500">
+          No submissions found for the {daysLabel.toLowerCase()}.
+        </div>
+      ) : grouped.map(([dateStr, rows]) => {
         const isToday = dateStr === today;
         const d = new Date(dateStr + "T00:00:00");
         const dateLabel = d.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
