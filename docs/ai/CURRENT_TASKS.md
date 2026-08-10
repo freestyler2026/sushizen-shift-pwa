@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Thin JWT バグ修正 v1863 + Test Account ブラウザ確認完了)
+Last updated: 2026-08-10 (Missing API proxy routes 4件追加 — Vercel deploy 37bb1b4)
+
+---
+
+## ✅ Completed: Missing API Proxy Routes 4件追加 (2026-08-10, Vercel 37bb1b4)
+
+**問題**: フロントエンドが呼ぶ以下 4 つの API パスに Next.js プロキシルートが存在しておらず、Vercel 経由でアクセスすると 404 になっていた。
+
+| 欠落パス | 使用箇所 |
+|---|---|
+| `/api/private_reports/*` | NavBar.tsx — `my_inbox` バッジ取得 |
+| `/api/request/*` | `src/app/request/page.tsx` — 申請・通知・休暇残高 |
+| `/api/shift_change/*` | `src/app/request/page.tsx` — シフト交代カウンターパーティ承認 |
+| `/api/staff/*` | `my-assets/page.tsx`、`store/ck-production-plan/page.tsx` — スタッフ名リスト・資産 |
+
+**修正**: 各パスに `src/app/api/<name>/[...slug]/route.ts` を作成。`daily-inventory` 既存プロキシと同構造で GET/POST/PUT/PATCH/DELETE を Heroku へ転送。
+
+**確認**: Heroku エンドポイントは全て存在 (401/403/200 — 404 なし)。
 
 ---
 
