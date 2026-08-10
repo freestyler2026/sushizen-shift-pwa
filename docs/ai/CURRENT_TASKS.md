@@ -1,6 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Phase 3 auth guard sweep + session keepalive — Vercel 201b34a)
+Last updated: 2026-08-10 (API_BASE="" browser fix + Bearer undefined sweep — Vercel 23d8b47)
+
+---
+
+## ✅ Completed: API_BASE="" browser fix + Bearer undefined sweep (2026-08-10)
+
+**Vercel 23d8b47** (31 files changed)
+
+### Root cause fixed: NEXT_PUBLIC_API_BASE_URL bypassing Next.js proxy
+`NEXT_PUBLIC_API_BASE_URL=https://sushizen-shift-app-038d846023bc.herokuapp.com` in Vercel caused
+all `${API_BASE}/api/...` client-side fetch calls to go directly to Heroku, bypassing the Next.js
+proxy at `/api/admin|store|auth|...` that converts the `sz_access` httpOnly cookie to a Bearer token.
+Phase 3 users (hasSession=true, no accessToken in JS) got 401 on every such call.
+
+**Fix (`src/lib/api.ts`)**: Added `typeof window === "undefined"` check → `API_BASE = ""` in the
+browser always, forcing all client-side fetches through the same-origin proxy.
+
+### Bearer undefined sweep
+20+ pages that manually constructed `Authorization: \`Bearer ${accessToken}\`` would send
+`Authorization: Bearer undefined` to Heroku when `accessToken` was undefined (Phase 3 users).
+Heroku's JWT verifier sees literal "undefined" as the token, returns null, overriding even the
+`sz_access` cookie fallback → 401.
+
+**Fix**: Replaced all manual header construction with `getAuthHeaders(auth)` from `@/lib/auth`,
+which conditionally omits the Authorization header when `accessToken` is falsy.
+
+**Files fixed**:
+- `src/lib/api.ts` — core fix (typeof window check)
+- `src/app/admin/draft/page.tsx`, `admin/absences/page.tsx`, `admin/corrections/page.tsx`,
+  `admin/discord-alerts/page.tsx`, `admin/page.tsx`, `admin/staff/audit/staff-audit-client.tsx`,
+  `admin/staff/create/page.tsx`, `admin/staff/onboarding/page.tsx` — local API_BASE → `""`
+- `src/app/setup-pin/page.tsx`, `swap-approve/page.tsx`, `change-pin/page.tsx` — same
+- `src/app/inbox/page.tsx`, `admin/backoffice-evaluation/page.tsx`, `admin/camera-monitoring/page.tsx`,
+  `admin/overtime/page.tsx`, `admin/expense-requests/page.tsx`, `admin/price-check/page.tsx`,
+  `store/expense-request/page.tsx`, `store/overtime-request/page.tsx` — inline apiBase → `""`
+- `src/components/admin/AdminDailyInventoryTab.tsx` — same
+- `src/app/request/page.tsx`, `my-assets/page.tsx`, `private-report/page.tsx` — Bearer undefined fix
+- `src/app/admin/hr/separation/page.tsx`, `admin/hr/onboarding/page.tsx` — Bearer undefined fix
+- `src/app/admin/store-opening/page.tsx`, `admin/procurement/page.tsx` — Bearer undefined fix
+- `src/app/admin/procurement/delivery-addresses/page.tsx` — Bearer undefined fix
+- `src/app/store/procurement/page.tsx`, `admin/procurement/price-search/page.tsx` — Phase 3 guards
+
+### Remaining known issues
+- My Shift page: `<input type="month">` shows "2026年08月" in Japanese locale browsers (UI-only bug)
+- admin/analytics: `apiDirectBase` intentionally bypasses proxy for SSE streaming (text/event-stream Vercel buffering)
 
 ---
 
