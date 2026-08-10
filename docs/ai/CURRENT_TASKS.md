@@ -1,6 +1,20 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Auth SSR fix — Vercel 1e26646)
+Last updated: 2026-08-10 (Private Reports + AI Analytics Pro auth fix — Vercel 871c747)
+
+---
+
+## ✅ Completed: Private Reports + AI Analytics Pro auth fix (2026-08-10, Vercel 871c747)
+
+**Reports**: Private Reports showed "Please log in again." in red; AI Analytics Pro showed "Authentication required" in Saved Answers section.
+
+**Root cause — Private Reports**: `tokenHeaders` callback captured `auth` from `useMemo` which may be null during SSR. `refreshAuthFromApi(null)` failing (session endpoint overloaded) left both `accessToken` and `hasSession` empty → threw "Please log in again.". Fix: added `localAuth = auth ?? getAuth()` inside `tokenHeaders` and `init()` so localStorage is always re-read as fallback.
+
+**Root cause — AI Analytics Pro**: `AIAnalyticsProTab.tsx` called `${getApiBase()}/api/ai/analytics/snapshots` directly to Heroku (full URL, bypassing Next.js proxy). Phase 3 users have `accessToken = ""` in localStorage; `sz_access` httpOnly cookie is domain-locked to Vercel and not forwarded in cross-domain browser→Heroku calls → Heroku returned 401 "Authentication required". Fix: created Next.js proxy routes for `/api/ai/analytics/snapshots` (GET/POST) and `/api/ai/analytics/snapshots/[id]` (DELETE) that read the `sz_access` cookie and forward it as Bearer auth. Updated `AIAnalyticsProTab` to use relative URLs for all calls including `postChat` (now uses existing `/api/ai/analytics/chat-pro` proxy instead of direct Heroku URL).
+
+**Also fixed**: All 21 procurement admin pages (background agent) — `authChecked` guard + `auth??getAuth()` fallback.
+
+**Pattern for future pages**: Any component that calls `${getApiBase()}/api/...` directly from the browser (not from a Next.js route handler) will break for Phase 3 cookie-auth users. Always use relative `/api/...` URLs in browser-side fetches so they route through the Next.js proxy.
 
 ---
 
@@ -15,7 +29,7 @@ Last updated: 2026-08-10 (Auth SSR fix — Vercel 1e26646)
 - `cost-calculation/page.tsx`: Added `authChecked` state + `auth??getAuth()` fallback in useEffect — page shows `null` (blank) while checking, never flashes "not authorized" to valid users
 - `attendance/page.tsx`: Added `auth??getAuth()` fallback in useEffect
 - `probation/page.tsx`, `meal-allowance/page.tsx`, `backoffice-evaluation/page.tsx`: Full `authChecked` guard + fallback
-- Procurement sub-pages (19+): Same pattern — handled by follow-up commit (pending agent)
+- Procurement sub-pages (21): Same pattern — applied by agent 2026-08-10 (pending deploy)
 
 **Pattern established**: For pages with `useMemo(() => getAuth(), [])` + `useState(false)`:
 - Either: `useState(null)+useEffect` (cleanest, for pages with synchronous redirect)
