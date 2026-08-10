@@ -334,6 +334,7 @@ export default function AttendancePage() {
         cache: "no-store",
       });
       if (!res.ok) {
+        if (res.status === 401) { router.replace("/login?next=%2Fattendance"); return; }
         const text = await res.text();
         let msg = text;
         try { const j = JSON.parse(text) as { detail?: string; message?: string }; msg = j.detail || j.message || text; } catch { /* non-JSON */ }
@@ -347,7 +348,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   const fetchWfhStatus = useCallback(async () => {
     const a = getAuth();

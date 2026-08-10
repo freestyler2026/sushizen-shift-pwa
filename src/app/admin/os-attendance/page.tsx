@@ -865,6 +865,7 @@ function DailyReportTab({ city }: { city: string }) {
   const csvImportRef = useRef<HTMLInputElement>(null);
   // Stale-fetch guard: increment on each load, discard results from older calls
   const loadCountRef = useRef(0);
+  const router = useRouter();
 
   // KPI summary — computed from unfiltered sessions so totals always show the full-day picture
   const kpis = useMemo(() => {
@@ -932,7 +933,10 @@ function DailyReportTab({ city }: { city: string }) {
       const [r, nsR] = await Promise.all([sessionsFetch, noShowsFetch]);
       if (id !== loadCountRef.current) return;
 
-      if (!r.ok) { setLoadErr(await extractApiError(r, "Failed to load attendance records")); return; }
+      if (!r.ok) {
+        if (r.status === 401) { router.replace("/login"); return; }
+        setLoadErr(await extractApiError(r, "Failed to load attendance records")); return;
+      }
       const d = await r.json() as { sessions?: AttendanceSession[] };
       if (id !== loadCountRef.current) return;
 
@@ -980,7 +984,7 @@ function DailyReportTab({ city }: { city: string }) {
     } finally {
       if (id === loadCountRef.current) setBusy(false);
     }
-  }, [city, date, dateTo, rangeMode, staffFilter, branchFilter]);
+  }, [city, date, dateTo, rangeMode, staffFilter, branchFilter, router]);
 
   useEffect(() => { void load(); }, [load]);
 
