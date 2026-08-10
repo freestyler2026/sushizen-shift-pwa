@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Rating System Upgrade — Heroku 36b0f18, Vercel 5fbcd97)
+Last updated: 2026-08-10 (Payment Schedule — Heroku v1871 / Vercel c127cc0)
+
+---
+
+## ✅ Completed: Payment Schedule Feature (2026-08-10, Heroku v1871 / Vercel c127cc0)
+
+**Request**: Government, rent, utilities and other recurring payment tracking system for HQ.
+
+**Backend** (db.py, main.py, access_control.py):
+- `payment_schedules` PostgreSQL table with full schema (city, category, amount, due_date, alert_date, is_recurring, recurrence, is_paid, paid_date, parent_id…)
+- Functions: `ensure_payment_tables`, `get_payment_badge_count`, `list_payments`, `list_payment_history`, `create_payment`, `update_payment`, `mark_payment_paid` (auto-advances recurring via dateutil.relativedelta), `delete_payment`
+- Endpoints: `GET /api/admin/payments/badge-count`, `GET /api/admin/payments/history`, `GET/POST /api/admin/payments`, `PUT/POST/DELETE /api/admin/payments/{row_id}`
+  - Static routes (badge-count, history) defined BEFORE `{row_id}` param routes (CLAUDE.md FastAPI rule)
+- `access_control.py`: `admin.payments` channel registered, `channel.admin.payments.view` + `.manage` permissions, ADMIN default grants added
+
+**Frontend** (auth.ts, NavBar.tsx, types/payment.ts, admin/payments/page.tsx):
+- `canAccessPaymentsAdmin()` in auth.ts — HQ/ADMIN always true, others via hasChannelAccess
+- NavBar: Coins icon, badge polling every 60s, red critical badge when alert_date past
+- `/admin/payments` page: Schedule tab (month navigator, city/category filters, Overdue/Due Soon/Upcoming/Paid groups) + History tab (month navigator, paid records)
+- Add Payment modal, Edit modal, Mark Paid modal (paid date, amount, reference)
+
+**Post-deploy required**: Role Management → "Resync System Channels" to sync new channel to DB.
 
 ---
 
