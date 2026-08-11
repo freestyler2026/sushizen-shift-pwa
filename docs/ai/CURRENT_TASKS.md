@@ -1,23 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (QC photo bytes storage — Heroku v1883)
+Last updated: 2026-08-11 (QC photo proxy fully resolved — Heroku v1884 + token update)
 
 ---
 
-## ✅ Completed: QC Product Scoring — store image bytes in DB (2026-08-11)
+## ✅ Completed: QC Product Scoring — photo display fully resolved (2026-08-11)
 
-**Problem (root cause found)**: The photo proxy (Heroku v1882) was returning "Image no longer available." because:
-1. `DISCORD_BOT_TOKEN` on Heroku returns `401: Unauthorized` from Discord's `refresh-urls` API — bot token is invalid or bot is not in the QC server
-2. Discord CDN URLs expire after ~24 hours; all existing score rows have expired image_url values
+**Root cause**: `DISCORD_BOT_TOKEN` on Heroku was revoked/outdated → `GET /users/@me` returned 401 → Discord CDN URL refresh failed → all photos showed "Image no longer available." Also caused QC scoring bot to silently stop processing new Discord photos (last score was 2026-08-08).
 
-**Fix** (Heroku v1883):
-- **`db.py`**: Added `image_data BYTEA` column to `product_score_results` (via `ADD COLUMN IF NOT EXISTS` safe migration). Updated `save_product_score()` to accept and persist `image_data: bytes`.
-- **`discord_bot_service.py`**: Pass `image_data=raw_bytes` to `save_product_score()` — raw bytes are already downloaded at score time for Claude Vision; now we also save them.
-- **`main.py` proxy endpoint**: Serve from `image_data` first (permanent, no expiry). Fall back to Discord URL + refresh only for legacy rows without stored bytes.
+**Fix sequence**:
+- **v1882**: Added photo proxy endpoint `GET /api/admin/qc/scores/{id}/photo`
+- **v1883**: Added `image_data BYTEA` column to `product_score_results`; `discord_bot_service.py` now saves raw image bytes at score time (permanent storage, no CDN expiry dependency)
+- **v1884**: Switched to Discord Message API (`GET /channels/{ch}/messages/{msg}`) for legacy scores without stored bytes; added diagnostic logging
+- **Token update**: User regenerated bot token in Discord Developer Portal and set via `heroku config:set DISCORD_BOT_TOKEN=...` → fully resolved
 
-**Result**: New scores from this point forward will always display their photo. Older scores (pre-v1883) still show "Image no longer available" as their bytes were never stored.
+**Result (confirmed working)**:
+- Old scores: retrieved via Discord Message API (fresh attachment URLs)
+- New scores from v1883+: bytes stored in DB permanently
+- QC scoring bot: reconnected, processing new Discord photos again
 
-**Commits**: Backend `e32b1f8` (Heroku v1883)
+**Commits**: Backend `9242b36` (v1882) + `e32b1f8` (v1883) + `242fbc1` (v1884)
 
 ---
 
