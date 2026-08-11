@@ -48,23 +48,43 @@ function canAccessProbation(role: string, permissions: string[]): boolean {
   return permissions.some((p) => p.includes("probation"));
 }
 
+// Count Mon–Sat days from start to end (both inclusive)
+function countWorkingDays(start: string | null, end: string | null): number {
+  if (!start || !end) return 0;
+  const s = new Date(start + "T00:00:00");
+  const e = new Date(end + "T00:00:00");
+  let count = 0;
+  const cur = new Date(s);
+  while (cur <= e) {
+    if (cur.getDay() !== 0) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
 function statusBadge(emp: ProbationEmployee) {
   if (emp.termination_flagged) return <span className={BADGE_ERROR}>⛔ Termination Risk</span>;
-  if (emp.graduated) return <span className={BADGE_SUCCESS}>✓ Graduated</span>;
-  if (emp.cycle_status === "PASSED") return <span className={BADGE_SUCCESS}>✓ Passed</span>;
+  if (emp.cycle_status === "PASSED") {
+    if (emp.graduated) return <span className={BADGE_WARNING}>✓ Passed · With Late or Absent</span>;
+    return <span className={BADGE_SUCCESS}>✓ Passed · Perfect Attendance</span>;
+  }
+  if (emp.graduated) return <span className={BADGE_WARNING}>⚠ With Late or Absent</span>;
   if (emp.cycle_status === "FAILED") return <span className={BADGE_WARNING}>↩ Failed — retry</span>;
   if (emp.cycle_status === "IN_PROGRESS") return <span className={BADGE_INFO}>In Progress</span>;
   return <span className={BADGE_INFO}>No cycle yet</span>;
 }
 
 function empToEditDraft(emp: ProbationEmployee): EditDraft {
+  const hasAttendanceIssues = emp.absent_count > 0 || emp.late_count > 0;
+  const totalDays = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
+  const bonusSuggested = totalDays > 0 && emp.absent_count === 0 && emp.late_count === 0;
   return {
     hired_at: emp.hired_at ? String(emp.hired_at).slice(0, 10) : "",
     cycle_start_date: emp.cycle_start_date ? String(emp.cycle_start_date).slice(0, 10) : "",
     cycle_end_date: emp.cycle_end_date ? String(emp.cycle_end_date).slice(0, 10) : "",
     cycle_status: emp.cycle_status || "",
-    graduated: emp.graduated,
-    bonus_awarded: emp.bonus_awarded,
+    graduated: hasAttendanceIssues,
+    bonus_awarded: bonusSuggested || emp.bonus_awarded,
     termination_flagged: emp.termination_flagged,
     termination_reason: emp.termination_reason || "",
   };
@@ -411,13 +431,33 @@ export default function ProbationPage() {
                       )}
                     </div>
 
+                    {emp.cycle_number !== null && emp.cycle_start_date && emp.cycle_end_date && (() => {
+                      const total = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
+                      const attended = total - emp.absent_count;
+                      const bonusEligible = emp.absent_count === 0 && emp.late_count === 0;
+                      return (
+                        <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs">
+                          <div className="flex flex-wrap gap-x-5 gap-y-1 items-center">
+                            <span className="text-zinc-400">Working days: <span className="font-semibold text-white">{total}</span></span>
+                            <span className="text-zinc-400">Attended: <span className={`font-semibold ${attended >= 12 ? "text-emerald-300" : "text-amber-300"}`}>{attended} / {total}</span></span>
+                            <span className="text-zinc-400">Absent: <span className={`font-semibold ${emp.absent_count > 0 ? "text-red-400" : "text-white"}`}>{emp.absent_count}</span></span>
+                            <span className="text-zinc-400">Late: <span className={`font-semibold ${emp.late_count > 0 ? "text-amber-300" : "text-white"}`}>{emp.late_count}</span></span>
+                            {bonusEligible
+                              ? <span className="text-emerald-300 font-semibold">✓ Bonus auto-suggested (perfect attendance)</span>
+                              : <span className="text-amber-300">⚠ Not eligible — has late or absent</span>
+                            }
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {emp.cycle_number !== null && (
                       <div className="flex flex-wrap gap-4">
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input type="checkbox" checked={editDraft.graduated}
                             onChange={(e) => setEditDraft({ ...editDraft, graduated: e.target.checked })}
-                            className="h-4 w-4 rounded border-white/20 bg-white/10 accent-emerald-500" />
-                          <span className="text-sm text-zinc-300">Graduated</span>
+                            className="h-4 w-4 rounded border-white/20 bg-white/10 accent-amber-400" />
+                          <span className="text-sm text-zinc-300">With Late or Absent</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input type="checkbox" checked={editDraft.bonus_awarded}
@@ -488,6 +528,18 @@ export default function ProbationPage() {
                         {emp.cycle_start_date ? ` · ${String(emp.cycle_start_date).slice(0, 10)} → ${String(emp.cycle_end_date || "").slice(0, 10)}` : ""}
                       </div>
                       <div className="flex gap-4">
+                        {emp.cycle_start_date && emp.cycle_end_date && (() => {
+                          const total = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
+                          const attended = total - emp.absent_count;
+                          return (
+                            <div className="text-center">
+                              <div className={`text-xl font-bold ${attended >= 12 ? "text-emerald-300" : "text-amber-300"}`}>
+                                {attended}<span className="text-xs text-zinc-500">/{total}</span>
+                              </div>
+                              <div className="text-[10px] text-zinc-500">Days</div>
+                            </div>
+                          );
+                        })()}
                         <div className="text-center">
                           <div className={`text-xl font-bold ${emp.absent_count >= 2 ? "text-red-400" : "text-white"}`}>
                             {emp.absent_count}
