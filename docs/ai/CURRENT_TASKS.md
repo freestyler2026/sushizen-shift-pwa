@@ -1,6 +1,29 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (QC photo proxy fully resolved — Heroku v1884 + token update)
+Last updated: 2026-08-11 (Price Pending Dismiss All added — Heroku v1885 + Vercel dd5afe9)
+
+---
+
+## ✅ Completed: Dubai Price Pending 90 stale entries — investigation + Dismiss All button (2026-08-11)
+
+**Staff report**: Dubai's "Price Pending" tab showed 90 items while Manila showed 0, even after manually updating prices in Ingredient Master for both cities.
+
+**Root cause investigation**:
+- Queried `ingredient_price_pending` table for Dubai entries with `status = 'pending'`
+- All 90 rows had `supplier_id = NULL`, `purchase_qty = 0`, `purchase_price = 0`, and `created_at` of 2026-08-07 19:09 UTC (23:09 Dubai time)
+- This matched the last run of the now-deleted Google Sheets / Invoice Price Sync (`cost_invoice_price_sync.py`), which was removed 37 minutes later at 23:46 Dubai time
+- The sync read per-package prices from Google Sheets instead of per-unit prices, generating extreme price ratios (e.g., 73,000% change for SWEET CHILI SAUCE)
+- Manila never had the Google Sheets sync connected, so 0 pending entries
+- The entries were stale/invalid artifacts from the deleted sync feature
+
+**Fix — bulk dismiss**:
+- **`db.py`**: Added `dismiss_all_ingredient_price_pending(city, dismissed_by)` — sets `status='dismissed'` for all pending rows in a city
+- **`cost_api.py`**: Added `POST /api/cost/price-pending/dismiss-all` endpoint
+- **`admin/cost-calculation/page.tsx`**: Added red "Dismiss All (N)" button next to Refresh in the Price Pending tab (only visible when items > 0)
+
+**Commits**: Frontend `dd5afe9` (Vercel) + Backend `9b2c6b7` (Heroku v1885)
+
+**Note**: Browser verification was blocked by a login rate limit triggered during debugging the in-app browser login flow. Code review confirms correct implementation — TypeScript check passed.
 
 ---
 
