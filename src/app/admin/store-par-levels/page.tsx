@@ -34,6 +34,8 @@ interface CatalogItem {
   category: string;
   unit: string;
   par_level: number;
+  par_level_weekday: number | null;
+  par_level_weekend: number | null;
   supplier_name: string;
   is_active: boolean;
   notes: string | null;
@@ -44,7 +46,8 @@ const EMPTY_FORM = {
   item_name: "",
   category: "VEGETABLES",
   unit: "kg",
-  par_level: 0,
+  par_level_weekday: 0,
+  par_level_weekend: 0,
   supplier_name: "",
   is_active: true,
   notes: "",
@@ -116,7 +119,8 @@ export default function StoreParLevelsPage() {
       item_name: item.item_name,
       category: item.category,
       unit: item.unit,
-      par_level: item.par_level,
+      par_level_weekday: item.par_level_weekday ?? item.par_level,
+      par_level_weekend: item.par_level_weekend ?? item.par_level,
       supplier_name: item.supplier_name,
       is_active: item.is_active,
       notes: item.notes ?? "",
@@ -136,7 +140,12 @@ export default function StoreParLevelsPage() {
       const res = await fetch(`${API_BASE}/api/admin/store-supplier/catalog/${store}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ ...form, par_level: Number(form.par_level) }),
+        body: JSON.stringify({
+          ...form,
+          par_level_weekday: Number(form.par_level_weekday) || 0,
+          par_level_weekend: Number(form.par_level_weekend) || 0,
+          par_level: Math.max(Number(form.par_level_weekday) || 0, Number(form.par_level_weekend) || 0),
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -248,7 +257,8 @@ export default function StoreParLevelsPage() {
                         <th className="px-4 py-2 text-left text-xs text-zinc-500 font-medium">Code</th>
                         <th className="px-4 py-2 text-left text-xs text-zinc-500 font-medium">Item Name</th>
                         <th className="px-4 py-2 text-left text-xs text-zinc-500 font-medium">Category</th>
-                        <th className="px-4 py-2 text-right text-xs text-zinc-500 font-medium">Par Level</th>
+                        <th className="px-4 py-2 text-right text-xs text-zinc-500 font-medium" title="Sun/Tue order → Mon/Wed delivery">Weekday Par</th>
+                        <th className="px-4 py-2 text-right text-xs text-zinc-500 font-medium" title="Thu order → Fri delivery">Weekend Par</th>
                         <th className="px-4 py-2 text-left text-xs text-zinc-500 font-medium">Unit</th>
                         <th className="px-4 py-2 text-center text-xs text-zinc-500 font-medium">Active</th>
                         <th className="px-4 py-2" />
@@ -260,7 +270,16 @@ export default function StoreParLevelsPage() {
                           <td className="px-4 py-2.5 text-xs text-zinc-400 font-mono">{item.item_code}</td>
                           <td className="px-4 py-2.5 text-white">{item.item_name}</td>
                           <td className="px-4 py-2.5 text-xs text-zinc-400">{item.category}</td>
-                          <td className="px-4 py-2.5 text-right font-mono text-amber-400 font-semibold tabular-nums">{item.par_level}</td>
+                          <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                            {item.par_level_weekday != null
+                              ? <span className="text-amber-400 font-semibold">{item.par_level_weekday}</span>
+                              : <span className="text-zinc-500 text-xs">{item.par_level}</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                            {item.par_level_weekend != null
+                              ? <span className="text-sky-400 font-semibold">{item.par_level_weekend}</span>
+                              : <span className="text-zinc-500 text-xs">{item.par_level}</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-xs text-zinc-400">{item.unit}</td>
                           <td className="px-4 py-2.5 text-center">
                             <span className={item.is_active ? "text-emerald-400 text-xs" : "text-zinc-500 text-xs"}>
@@ -353,14 +372,29 @@ export default function StoreParLevelsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-zinc-400">Par Level</label>
+                <label className="mb-1 block text-xs text-zinc-400">
+                  Weekday Par <span className="text-zinc-600">(Sun/Tue order → Mon/Wed delivery)</span>
+                </label>
                 <input
                   type="number"
                   min="0"
                   step="0.1"
                   className={INPUT_CLASS}
-                  value={form.par_level}
-                  onChange={(e) => setForm((f) => ({ ...f, par_level: parseFloat(e.target.value) || 0 }))}
+                  value={form.par_level_weekday}
+                  onChange={(e) => setForm((f) => ({ ...f, par_level_weekday: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-400">
+                  Weekend Par <span className="text-zinc-600">(Thu order → Fri delivery)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  className={INPUT_CLASS}
+                  value={form.par_level_weekend}
+                  onChange={(e) => setForm((f) => ({ ...f, par_level_weekend: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
               <div>
