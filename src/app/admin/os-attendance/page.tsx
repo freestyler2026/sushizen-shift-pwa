@@ -1592,7 +1592,7 @@ function CorrectionsTab({ city }: { city: string }) {
 
 // ── Shift Compliance Tab ──────────────────────────────────────────────────────
 
-type ComplianceStatus = "ON_TIME" | "LATE" | "NOT_CHECKED_IN" | "NO_SHOW" | "PENDING";
+type ComplianceStatus = "ON_TIME" | "LATE" | "NOT_CHECKED_IN" | "NO_SHOW" | "PENDING" | "DAY_OFF";
 
 type ComplianceRow = {
   branch_code: string;
@@ -1614,6 +1614,7 @@ type ComplianceSummary = {
   not_checked_in: number;
   no_show: number;
   pending: number;
+  day_off: number;
 };
 
 function fmtShiftHour(h: number): string {
@@ -1629,6 +1630,7 @@ const STATUS_META: Record<ComplianceStatus, { label: string; icon: string; cls: 
   NOT_CHECKED_IN: { label: "Not Clocked In", icon: "⏰", cls: "text-orange-400" },
   NO_SHOW:        { label: "No Show",        icon: "✕", cls: "text-red-400"    },
   PENDING:        { label: "Pending",        icon: "⏳", cls: "text-zinc-400"  },
+  DAY_OFF:        { label: "Day Off / Leave", icon: "○", cls: "text-blue-400"  },
 };
 
 function ShiftComplianceTab({ city }: { city: string }) {
@@ -1660,10 +1662,10 @@ function ShiftComplianceTab({ city }: { city: string }) {
   useEffect(() => { void fetchData(); }, [fetchData]);
 
   const displayRows = issuesOnly
-    ? rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING")
+    ? rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING" && r.status !== "DAY_OFF")
     : rows;
 
-  const issueCount = rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING").length;
+  const issueCount = rows.filter(r => r.status !== "ON_TIME" && r.status !== "PENDING" && r.status !== "DAY_OFF").length;
 
   return (
     <div className="space-y-4">
@@ -1706,6 +1708,9 @@ function ShiftComplianceTab({ city }: { city: string }) {
           )}
           {summary.pending > 0 && (
             <span className="text-zinc-400">⏳ {summary.pending} Pending</span>
+          )}
+          {(summary.day_off ?? 0) > 0 && (
+            <span className="text-blue-400">○ {summary.day_off} Day Off / Leave</span>
           )}
         </div>
       )}

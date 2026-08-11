@@ -1819,7 +1819,7 @@ export default function StoreProcurementHomePage() {
                 ]}
               />
             </div>
-            <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
+            <button type="button" onClick={() => { void loadMyRequests(); void loadPendingDeliveries(); }} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {loading ? "Loading..." : "Refresh"}
             </button>
