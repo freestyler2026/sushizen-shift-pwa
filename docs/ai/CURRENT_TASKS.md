@@ -1,6 +1,20 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (HR Offboarding sidebar — independent-scroll layout fix 57b59d6)
+Last updated: 2026-08-11 (HR Offboarding — centered document view d40eab8)
+
+---
+
+## ✅ Completed: HR Offboarding — centered document view (2026-08-11, Vercel d40eab8)
+
+**Request (Camilla Gadingan)**: The sidebar layout left a large empty black area in the left panel. She asked for the detail form to be centered so it's easier to use when drafting/preparing offboarding documents.
+
+**Changes** (`src/app/admin/hr/separation/page.tsx`):
+- Added `centered` prop to `DetailPanel`: removes `border-l` and non-sticky header in centered mode
+- Added `ChevronLeft` import
+- `recordsList` always uses 2-column grid (no more sidebar vertical list mode)
+- Main return: when `selectedRecord` is set → show sticky top nav (`← Back to list` + `+ Start Offboarding`) + centered form (`max-w-3xl mx-auto`); when null → full-width grid list
+
+**Verified (browser)**: List view 2-column grid ✓; View Details → centered form with sticky nav bar ✓; Back to list → returns to grid ✓; page height 3839px (all 13 checklist items render) ✓; no JS errors ✓.
 
 ---
 
