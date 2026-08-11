@@ -1,6 +1,25 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (DTR schedule display fix — sched shows start time even when end is null — Vercel deployed ed5f0f9)
+Last updated: 2026-08-11 (Probation page — 7 bugs fixed and deployed 282e470)
+
+---
+
+## ✅ Completed: Probation page — 7 bugs fixed (2026-08-11, Vercel 282e470)
+
+**Feature (Camilla Gadingan's requests)**: Auto-calculate 12-day attendance for bonus eligibility; rename "Graduated" → "With Late or Absent" checkbox. Implemented in commit 19d4ab8 then 7 bugs found in testing and fixed in 282e470.
+
+**Bugs fixed**:
+1. `statusBadge` was checking `emp.graduated` (stale old "has passed" meaning) → switched to `absent_count > 0 || late_count > 0`
+2. Days counter in card view showed for IN_PROGRESS employees (count = total - absent = 12/12 on day 1) → restricted to `cycle_status === "PASSED"` only
+3. KPI "In Probation" used `!e.graduated` → now `e.cycle_status === "IN_PROGRESS" || !e.cycle_number`
+4. KPI "Graduated" used `e.graduated` count → now `e.cycle_status === "PASSED"`
+5. `empToEditDraft` bonus auto-suggest fired for IN_PROGRESS cycles → added `cycle_status === "PASSED"` guard
+6. Edit panel info box showed "Attended: 12/12 · ✓ Bonus auto-suggested" for IN_PROGRESS cycles → split into two branches: IN_PROGRESS shows "Absences so far" + "Cycle in progress — bonus determined at end"; PASSED shows full attended count and bonus eligibility
+7. `attended = total - absent_count` could go negative → added `Math.max(0, ...)` clamp
+
+**Verified (browser)**: Gessa (PASSED, 0 lates) → "✓ Passed · Perfect Attendance" badge, edit shows "Attended: 12/12, ✓ Bonus auto-suggested". Nicko (IN_PROGRESS, 0 lates) → no Days counter, edit shows "Absences so far: 0, Cycle in progress". Aldrin (IN_PROGRESS, 3 lates) → "In Progress · With Late or Absent" badge, edit shows "With Late or Absent" auto-checked.
+
+**Lesson**: The `graduated` DB field was repurposed from "has passed probation" to "has late or absent". Stale `graduated=true` values from old meaning must never drive display logic — always derive fresh from `absent_count`/`late_count`.
 
 ---
 
