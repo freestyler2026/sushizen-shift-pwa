@@ -64,20 +64,24 @@ function countWorkingDays(start: string | null, end: string | null): number {
 
 function statusBadge(emp: ProbationEmployee) {
   if (emp.termination_flagged) return <span className={BADGE_ERROR}>⛔ Termination Risk</span>;
+  const hasIssues = emp.absent_count > 0 || emp.late_count > 0;
   if (emp.cycle_status === "PASSED") {
-    if (emp.graduated) return <span className={BADGE_WARNING}>✓ Passed · With Late or Absent</span>;
+    if (hasIssues) return <span className={BADGE_WARNING}>✓ Passed · With Late or Absent</span>;
     return <span className={BADGE_SUCCESS}>✓ Passed · Perfect Attendance</span>;
   }
-  if (emp.graduated) return <span className={BADGE_WARNING}>⚠ With Late or Absent</span>;
   if (emp.cycle_status === "FAILED") return <span className={BADGE_WARNING}>↩ Failed — retry</span>;
-  if (emp.cycle_status === "IN_PROGRESS") return <span className={BADGE_INFO}>In Progress</span>;
+  if (emp.cycle_status === "IN_PROGRESS") {
+    if (hasIssues) return <span className={BADGE_WARNING}>In Progress · With Late or Absent</span>;
+    return <span className={BADGE_INFO}>In Progress</span>;
+  }
   return <span className={BADGE_INFO}>No cycle yet</span>;
 }
 
 function empToEditDraft(emp: ProbationEmployee): EditDraft {
   const hasAttendanceIssues = emp.absent_count > 0 || emp.late_count > 0;
   const totalDays = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
-  const bonusSuggested = totalDays > 0 && emp.absent_count === 0 && emp.late_count === 0;
+  // Only auto-suggest bonus for completed (PASSED) cycles with perfect attendance
+  const bonusSuggested = emp.cycle_status === "PASSED" && totalDays > 0 && emp.absent_count === 0 && emp.late_count === 0;
   return {
     hired_at: emp.hired_at ? String(emp.hired_at).slice(0, 10) : "",
     cycle_start_date: emp.cycle_start_date ? String(emp.cycle_start_date).slice(0, 10) : "",
@@ -269,8 +273,8 @@ export default function ProbationPage() {
     );
   }
 
-  const active = employees.filter((e) => !e.graduated && e.cycle_status !== "TERMINATED");
-  const graduated = employees.filter((e) => e.graduated);
+  const active = employees.filter((e) => e.cycle_status === "IN_PROGRESS" || !e.cycle_number);
+  const passed = employees.filter((e) => e.cycle_status === "PASSED");
   const terminated = employees.filter((e) => e.termination_flagged);
 
   return (
@@ -354,7 +358,7 @@ export default function ProbationPage() {
           <div className="text-xs text-zinc-500 mt-1">In Probation</div>
         </div>
         <div className={`${GLASS_CARD} p-4 text-center`}>
-          <div className="text-2xl font-bold text-emerald-300">{graduated.length}</div>
+          <div className="text-2xl font-bold text-emerald-300">{passed.length}</div>
           <div className="text-xs text-zinc-500 mt-1">Graduated</div>
         </div>
         <div className={`${GLASS_CARD} p-4 text-center`}>
@@ -433,18 +437,23 @@ export default function ProbationPage() {
 
                     {emp.cycle_number !== null && emp.cycle_start_date && emp.cycle_end_date && (() => {
                       const total = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
-                      const attended = total - emp.absent_count;
-                      const bonusEligible = emp.absent_count === 0 && emp.late_count === 0;
+                      const attended = Math.max(0, total - emp.absent_count);
+                      const inProgress = emp.cycle_status === "IN_PROGRESS";
+                      const bonusEligible = !inProgress && emp.absent_count === 0 && emp.late_count === 0;
                       return (
                         <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs">
                           <div className="flex flex-wrap gap-x-5 gap-y-1 items-center">
                             <span className="text-zinc-400">Working days: <span className="font-semibold text-white">{total}</span></span>
-                            <span className="text-zinc-400">Attended: <span className={`font-semibold ${attended >= 12 ? "text-emerald-300" : "text-amber-300"}`}>{attended} / {total}</span></span>
-                            <span className="text-zinc-400">Absent: <span className={`font-semibold ${emp.absent_count > 0 ? "text-red-400" : "text-white"}`}>{emp.absent_count}</span></span>
+                            {inProgress
+                              ? <span className="text-zinc-400">Absences so far: <span className={`font-semibold ${emp.absent_count > 0 ? "text-red-400" : "text-white"}`}>{emp.absent_count}</span></span>
+                              : <span className="text-zinc-400">Attended: <span className={`font-semibold ${attended >= 12 ? "text-emerald-300" : "text-amber-300"}`}>{attended} / {total}</span></span>
+                            }
                             <span className="text-zinc-400">Late: <span className={`font-semibold ${emp.late_count > 0 ? "text-amber-300" : "text-white"}`}>{emp.late_count}</span></span>
-                            {bonusEligible
-                              ? <span className="text-emerald-300 font-semibold">✓ Bonus auto-suggested (perfect attendance)</span>
-                              : <span className="text-amber-300">⚠ Not eligible — has late or absent</span>
+                            {inProgress
+                              ? <span className="text-zinc-400 italic">Cycle in progress — bonus determined at end</span>
+                              : bonusEligible
+                                ? <span className="text-emerald-300 font-semibold">✓ Bonus auto-suggested (perfect attendance)</span>
+                                : <span className="text-amber-300">⚠ Not eligible — has late or absent</span>
                             }
                           </div>
                         </div>
@@ -528,9 +537,9 @@ export default function ProbationPage() {
                         {emp.cycle_start_date ? ` · ${String(emp.cycle_start_date).slice(0, 10)} → ${String(emp.cycle_end_date || "").slice(0, 10)}` : ""}
                       </div>
                       <div className="flex gap-4">
-                        {emp.cycle_start_date && emp.cycle_end_date && (() => {
+                        {emp.cycle_status === "PASSED" && emp.cycle_start_date && emp.cycle_end_date && (() => {
                           const total = countWorkingDays(emp.cycle_start_date, emp.cycle_end_date);
-                          const attended = total - emp.absent_count;
+                          const attended = Math.max(0, total - emp.absent_count);
                           return (
                             <div className="text-center">
                               <div className={`text-xl font-bold ${attended >= 12 ? "text-emerald-300" : "text-amber-300"}`}>
