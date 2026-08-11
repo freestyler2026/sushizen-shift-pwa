@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (HR Offboarding: silent fetch failure + NavBar flash fix — Vercel deployed 88a4990)
+Last updated: 2026-08-11 (HR Offboarding: fetchRecords wrong API key + progress display fix — Vercel deployed de42404)
+
+---
+
+## ✅ Completed: HR Offboarding — fetchRecords API key mismatch (2026-08-11, Vercel de42404)
+
+**Root cause 3 — fetchRecords parsed wrong key** (`src/app/admin/hr/separation/page.tsx` line 911):
+- The separations list API returns `{items: [...]}` but `fetchRecords` checked `data.separations` (undefined) then `data` as plain array (object) — both fell through to `[]`, emptying the list on every page refresh.
+- New records appeared after creation only because `handleCreated` prepended the new record to state directly (line 941), bypassing the API parse.
+- Fix: `setRecords(Array.isArray(data?.items) ? data.items : ...)` — check `items` key first (commit de42404).
+
+**Bonus fix — "/ done" progress display**: was a symptom of the same bug. Once `done_count` and `total_items` loaded from the API, progress correctly shows "0/13 done" etc.
+
+**Verified (browser)**: Full form submission flow tested on localhost: Manila city toggle ✓, 65 staff loaded per city ✓, record created (Aaron Jay Pamplona) ✓, details panel shows all fields ✓, F5 and Ctrl+R both preserve records ✓, no console errors ✓.
 
 ---
 
