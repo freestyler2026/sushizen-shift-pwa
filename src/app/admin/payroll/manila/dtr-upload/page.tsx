@@ -1219,8 +1219,10 @@ paid_leave       Y / N          (default: N)`}</code>
                     <tbody className="divide-y divide-white/5">
                       {filtered.map((row, idx) => {
                         const status = manilaRowStatus(row);
-                        const sched = row.scheduled_shift_start && row.scheduled_shift_end
-                          ? `${row.scheduled_shift_start.slice(0,5)}–${row.scheduled_shift_end.slice(0,5)}`
+                        const sched = row.scheduled_shift_start
+                          ? (row.scheduled_shift_end
+                            ? `${row.scheduled_shift_start.slice(0,5)}–${row.scheduled_shift_end.slice(0,5)}`
+                            : row.scheduled_shift_start.slice(0,5))
                           : "—";
                         return (
                           <tr key={row.id ?? idx} className={`hover:bg-white/5 ${idx % 2 === 1 ? "bg-white/[0.02]" : ""}`}>
@@ -1240,11 +1242,11 @@ paid_leave       Y / N          (default: N)`}</code>
                                     if (e.key === "Enter") saveScheduledShift(row.id, shiftEditVal);
                                     if (e.key === "Escape") setShiftEditId(null);
                                   }}
-                                  className="w-16 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-xs text-white placeholder-slate-600 focus:outline-none"
+                                  className="w-24 rounded border border-violet-500 bg-white/10 px-1 py-0.5 text-xs text-white placeholder-slate-600 focus:outline-none"
                                 />
                               ) : (
                                 <button
-                                  onClick={() => { setShiftEditId(row.id); setShiftEditVal(row.scheduled_shift_start ? row.scheduled_shift_start.slice(0,5) : ""); }}
+                                  onClick={() => { setShiftEditId(row.id); setShiftEditVal(sched === "—" ? "" : sched); }}
                                   title="Click to correct scheduled shift start"
                                   className={`group flex items-center gap-1 cursor-pointer rounded px-1.5 py-0.5 text-xs hover:bg-violet-500/20 border border-transparent hover:border-violet-500/50 ${
                                     shiftSavingId === row.id ? "text-slate-500" : "text-slate-400"
