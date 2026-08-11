@@ -1549,6 +1549,25 @@ export default function CostCalculationPage() {
     }
   }, [city]);
 
+  const [dismissAllLoading, setDismissAllLoading] = useState(false);
+  const dismissAllPricePending = useCallback(async () => {
+    if (!window.confirm(`Dismiss all ${pricePendingItems?.length ?? 0} pending price changes for ${city}?`)) return;
+    setDismissAllLoading(true);
+    setError("");
+    try {
+      await costJson("/api/cost/price-pending/dismiss-all", {
+        method: "POST",
+        body: JSON.stringify({ city }),
+      });
+      setPricePendingItems([]);
+      setPricePendingEdits({});
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setDismissAllLoading(false);
+    }
+  }, [city, pricePendingItems]);
+
   const clearPriceOverride = useCallback(async (item: PriceAuditItem) => {
     setPriceAuditClearingId(item.id);
     try {
@@ -5243,15 +5262,27 @@ export default function CostCalculationPage() {
                     Review price changes submitted by staff. Adjust if needed, then Apply or Dismiss.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void loadPricePending()}
-                  disabled={pricePendingLoading}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
-                >
-                  <RefreshCcw className={cx("h-3.5 w-3.5", pricePendingLoading && "animate-spin")} />
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {pricePendingItems && pricePendingItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void dismissAllPricePending()}
+                      disabled={dismissAllLoading || pricePendingLoading}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm text-red-400 transition hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50"
+                    >
+                      Dismiss All ({pricePendingItems.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void loadPricePending()}
+                    disabled={pricePendingLoading}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                  >
+                    <RefreshCcw className={cx("h-3.5 w-3.5", pricePendingLoading && "animate-spin")} />
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {pricePendingLoading && !pricePendingItems ? (
