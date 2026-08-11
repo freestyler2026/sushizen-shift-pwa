@@ -1,10 +1,51 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (Store Par Level weekday/weekend two-cycle — frontend 592a114 + backend Heroku v1881)
+Last updated: 2026-08-11 (QC photo bytes storage — Heroku v1883)
+
+---
+
+## ✅ Completed: QC Product Scoring — store image bytes in DB (2026-08-11)
+
+**Problem (root cause found)**: The photo proxy (Heroku v1882) was returning "Image no longer available." because:
+1. `DISCORD_BOT_TOKEN` on Heroku returns `401: Unauthorized` from Discord's `refresh-urls` API — bot token is invalid or bot is not in the QC server
+2. Discord CDN URLs expire after ~24 hours; all existing score rows have expired image_url values
+
+**Fix** (Heroku v1883):
+- **`db.py`**: Added `image_data BYTEA` column to `product_score_results` (via `ADD COLUMN IF NOT EXISTS` safe migration). Updated `save_product_score()` to accept and persist `image_data: bytes`.
+- **`discord_bot_service.py`**: Pass `image_data=raw_bytes` to `save_product_score()` — raw bytes are already downloaded at score time for Claude Vision; now we also save them.
+- **`main.py` proxy endpoint**: Serve from `image_data` first (permanent, no expiry). Fall back to Discord URL + refresh only for legacy rows without stored bytes.
+
+**Result**: New scores from this point forward will always display their photo. Older scores (pre-v1883) still show "Image no longer available" as their bytes were never stored.
+
+**Commits**: Backend `e32b1f8` (Heroku v1883)
+
+---
+
+## ✅ Completed: QC Product Scoring — photo proxy endpoint (2026-08-11)
+
+**Problem**: "View photo ↗" links in Analytics → Product Scoring showed "This content is no longer available." Discord CDN attachment URLs expire; the raw `att.url` was stored in `product_score_results.image_url` and used directly.
+
+**Fix**:
+- **Backend `main.py`**: Added `GET /api/admin/qc/scores/{score_id}/photo` endpoint.
+- **Frontend `ProductScoringTab.tsx`**: Changed "View photo ↗" `href` to proxy URL.
+
+**Commits**: Frontend `7e77b02` (Vercel) + Backend `9242b36` (Heroku v1882)
 
 ---
 
 ## ✅ Completed: Store Par Level — weekday/weekend two-cycle support (2026-08-11)
+
+**Full test results (2026-08-11)**:
+- UI: "Weekday Par" (amber) / "Weekend Par" (sky) columns display correctly ✅
+- Edit form pre-fills weekday/weekend values; fallback to legacy par_level for older items ✅
+- Save persists both values; par_level = max(weekday, weekend) computed automatically ✅
+- Generate orders: Sunday (weekday()=6) → schedule_type="weekday" ✅
+- Generate orders: Tuesday (weekday()=1) → schedule_type="weekday" ✅
+- Generate orders: Thursday (weekday()=3) → schedule_type="weekend" ✅
+- Generate orders: Monday (weekday()=0) → schedule_type="default" ✅
+- Weekday order (Tue Aug 18): Fresh Salmon qty_ordered=20 = par_level_weekday ✅
+- Weekend order (Thu Aug 13): Fresh Salmon qty_ordered=10 = par_level_weekend ✅
+- hr/separation SWC dev error: stale HMR artifact; tsc + next build both pass, file is valid ✅
 
 **Request**: Store Par Level items needed two separate par levels: one for the weekday order cycle (Sun/Tue order → Mon/Wed delivery) and one for the weekend cycle (Thu order → Fri delivery).
 
