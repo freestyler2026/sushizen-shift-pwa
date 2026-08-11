@@ -1,6 +1,64 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (HR Offboarding — centered document view d40eab8)
+Last updated: 2026-08-11 (Issues 2, 3, 4 from staff report — frontend 32a9c68 + backend Heroku v1880)
+
+---
+
+## ✅ Completed: Issue 2 — Pending Deliveries status out of sync (2026-08-11)
+
+**Report (staff)**: Pending Deliveries section in Store Procurement did not update after a delivery was confirmed in Procurement Hub. A request confirmed via Quick Entry PO match still appeared in Pending Deliveries.
+
+**Root causes**:
+1. **Frontend**: Main "Refresh" button only called `loadMyRequests()` — Pending Deliveries section was never refreshed. Fix: onClick now calls both `loadMyRequests()` and `loadPendingDeliveries()`.
+2. **Backend `list_pending_deliveries_for_store()`**: did not exclude rows where `proc_requests.receiving_status` was already CONFIRMED/NOT_RECEIVED/INVOICE_CHECKED. The Quick Entry PO match path (`_sync_po_match_to_procurement()`) sets `receiving_status = 'CONFIRMED'` without touching `proc_purchase_orders.receipt_confirmed_at`, so the old query still returned these "done" rows. Fix: Added `AND UPPER(COALESCE(r.receiving_status, '')) NOT IN ('CONFIRMED', 'NOT_RECEIVED', 'INVOICE_CHECKED')` to both the hidden_count and main queries.
+
+**Commits**: Frontend `32a9c68` (Vercel) + Backend `75e0a36` (Heroku v1880)
+
+---
+
+## ✅ Completed: Issue 3 — OS Attendance Day Off/Vacation Leave shown as No Show (2026-08-11)
+
+**Report (staff)**: Staff on approved Day Off or Vacation Leave appear as "No Show" in OS Attendance.
+
+**Root causes**:
+1. **`list_no_shows()` in db.py**: The shift_overrides lateral join only checked `override_type = 'day_off'`. Staff with `override_type = 'leave'` (Vacation Leave) had `is_day_off = False`, making them appear as "No Show" in the main attendance tab.
+2. **`api_admin_shift_compliance()` in main.py**: `has_leave_override` was returned from DB but completely ignored. Any staff without a clock-in was marked "NO_SHOW" regardless of approved leave.
+
+**Fixes**:
+- `db.py` `list_no_shows()`: Expanded shift_overrides check from `= 'day_off'` to `IN ('day_off', 'leave', 'absence')`.
+- `main.py` `api_admin_shift_compliance()`: Added `elif r.get("has_leave_override"):` branch — assigns `status = "DAY_OFF"` with no meal allowance penalty; added `day_off` key to summary response.
+- Frontend `os-attendance/page.tsx`: Added `"DAY_OFF"` to `ComplianceStatus` type and `STATUS_META`; shows blue "Day Off / Leave" badge. Excluded from "Issues Only" filter and issue count. Added Day Off/Leave chip to summary.
+
+**Commits**: Frontend `32a9c68` (Vercel) + Backend `75e0a36` (Heroku v1880)
+
+---
+
+## ✅ Completed: Issue 4 — Inbox "Late in Shift" notification sent to Day Off staff (2026-08-11)
+
+**Report (staff)**: Staff on Day Off / Vacation Leave receive "LATE_15" and "NO_SHOW_30" inbox notifications because the attendance alert worker did not check for leave overrides.
+
+**Root cause**: `run_attendance_alerts()` in db.py iterated ALL published shifts from `get_shift_compliance()` and sent LATE_15/NO_SHOW_30 notifications without checking `has_leave_override` or the shift role.
+
+**Fix**: Added two skip conditions at the top of the per-row loop:
+- `if row.get("has_leave_override"): continue` — skips staff with approved shift_override leave/day_off/absence
+- `if role.upper() in _NON_WORK_ROLES_ALERT: continue` — skips non-working role rows (DAY_OFF, VL, SL, ML, LEAVE, OFF, REST, etc.)
+
+**Commits**: Backend `75e0a36` (Heroku v1880)
+
+---
+
+## ✅ Completed: Issue 1 — Store Procurement "Continue Draft" retains original case number (2026-08-11)
+
+**Report (staff)**: Tapping "Continue Draft" on an existing draft, then submitting, created a brand-new case number (e.g., DUB-PR-202608-0250) instead of retaining the original (DUB-PR-202608-0241). The original draft was left orphaned at DRAFT-Level 0 forever.
+
+**Root cause**: `createRequest()` in `src/app/store/procurement/request/page.tsx` always called `POST /api/admin/procurement/requests` regardless of whether `editRequestId` was set. `editRequestId` was used only to pre-fill the form, never to update the original record.
+
+**Fix**:
+- **Backend db.py**: Added `update_proc_request_draft()` — updates `store_code`, `request_date`, `urgent_flag`, `new_vendor_flag`, `purchase_type`, `ec_order_url` for a DRAFT request in-place; `request_no` and `parent_case_no` are never touched
+- **Backend main.py**: Added `PATCH /api/admin/procurement/requests/{request_id}` endpoint; validates `status = 'DRAFT'`, calls `update_proc_request_draft()` + `replace_proc_request_items()` + `recalc_proc_request_total()` + CK/WH flag update
+- **Frontend request/page.tsx**: When `editRequestId` is set, `createRequest()` now calls `PATCH /{editRequestId}` instead of `POST /api/admin/procurement/requests`. Submit then uses the original `editRequestId` as the request_id — preserving the original case number end-to-end.
+
+**Commits**: Backend `8c35d7e` (Heroku) + Frontend `06102f9` (Vercel)
 
 ---
 
