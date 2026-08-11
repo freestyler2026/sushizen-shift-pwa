@@ -908,7 +908,7 @@ export default function HrSeparationPage() {
         return;
       }
       const data = await res.json();
-      setRecords(Array.isArray(data?.separations) ? data.separations : Array.isArray(data) ? data : []);
+      setRecords(Array.isArray(data?.items) ? data.items : Array.isArray(data?.separations) ? data.separations : Array.isArray(data) ? data : []);
     } catch {
       setFetchError("Network error. Please check your connection and try again.");
     } finally {
