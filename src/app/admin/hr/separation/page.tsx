@@ -855,15 +855,15 @@ export default function HrSeparationPage() {
   const router = useRouter();
 
   const [accessReady, setAccessReady] = useState(false);
-  const [authHeaders, setAuthHeaders] = useState<HeadersInit>({});
 
   const [records, setRecords] = useState<SeparationRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("in_progress");
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // ─── Auth init (Bug S2) ───────────────────────────────────────────────────
+  // ─── Auth init ────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -880,7 +880,6 @@ export default function HrSeparationPage() {
         return;
       }
       if (!cancelled) {
-        setAuthHeaders(getAuthHeaders(a));
         setAccessReady(true);
       }
     }
@@ -892,21 +891,31 @@ export default function HrSeparationPage() {
   const fetchRecords = useCallback(async () => {
     if (!accessReady) return;
     setLoading(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`${API_BASE}/api/admin/hr/separations?${params.toString()}`, {
-        headers: authHeaders,
+      const res = await fetch(`/api/admin/hr/separations?${params.toString()}`, {
+        credentials: "include",
+        headers: getAuthHeaders(getAuth()),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRecords(Array.isArray(data?.separations) ? data.separations : Array.isArray(data) ? data : []);
+      if (res.status === 401 || res.status === 403) {
+        setFetchError("Session expired or access denied. Please reload the page or log in again.");
+        return;
       }
+      if (!res.ok) {
+        setFetchError(`Failed to load records (HTTP ${res.status}). Please try again.`);
+        return;
+      }
+      const data = await res.json();
+      setRecords(Array.isArray(data?.separations) ? data.separations : Array.isArray(data) ? data : []);
+    } catch {
+      setFetchError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, accessReady, authHeaders]);
+  }, [statusFilter, accessReady]);
 
   useEffect(() => {
     void fetchRecords();
@@ -968,6 +977,17 @@ export default function HrSeparationPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : fetchError ? (
+        <div className={GLASS_CARD + " p-10 text-center"}>
+          <p className={T_SECTION + " text-red-400"}>Failed to load records</p>
+          <p className={T_BODY + " mt-1 text-zinc-400"}>{fetchError}</p>
+          <button
+            onClick={() => { void fetchRecords(); }}
+            className={PRIMARY_BUTTON + " mt-4"}
+          >
+            Retry
+          </button>
         </div>
       ) : records.length === 0 ? (
         <div className={GLASS_CARD + " p-10 text-center"}>

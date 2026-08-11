@@ -705,6 +705,12 @@ export default function NavBar() {
         }
         return;
       }
+      // Show nav items immediately from localStorage before the async refresh completes.
+      // This prevents the brief "staff-only" flash while refreshAuthFromApi is in flight.
+      if (!cancelled) {
+        setResolvedAuth(a);
+        setDisplayName(a.staffName || "");
+      }
       const resolved = await refreshAuthFromApi(a);
       if (!cancelled) {
         setResolvedAuth(resolved || a);
