@@ -1014,10 +1014,10 @@ export default function HrSeparationPage() {
   );
 
   return (
-    <div className={`min-h-screen ${selectedRecord ? "flex" : "space-y-6 p-4 pb-24 md:p-6 md:pb-8"}`}>
-      {/* Left panel: header + filters + list */}
+    <div className={selectedRecord ? "flex h-screen overflow-hidden" : "min-h-screen space-y-6 p-4 pb-24 md:p-6 md:pb-8"}>
+      {/* Left panel: fixed-height list that scrolls independently */}
       <div className={selectedRecord
-        ? "w-72 lg:w-80 xl:w-96 flex-none overflow-y-auto border-r border-white/10 p-4 pb-24 space-y-4"
+        ? "w-72 lg:w-80 xl:w-96 flex-none overflow-y-auto border-r border-white/10 p-4 pb-8 space-y-4"
         : "contents"
       }>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1030,7 +1030,7 @@ export default function HrSeparationPage() {
         {recordsList}
       </div>
 
-      {/* Right panel: detail (inline sidebar) */}
+      {/* Right panel: scrolls independently; sticky header inside DetailPanel sticks within this container */}
       {selectedRecord && (
         <div className="flex-1 min-w-0 overflow-y-auto">
           <DetailPanel
