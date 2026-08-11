@@ -344,8 +344,16 @@ export default function DtrUploadPage() {
     if (!trimmed) { setShiftEditId(null); return; }
     const parts = trimmed.split(/[–—-]/);
     const rawStart = parts[0]?.trim() ?? "";
-    if (!/^\d{1,2}:\d{2}$/.test(rawStart)) { setShiftEditId(null); return; }
-    const start = rawStart.padStart(5, "0");
+    // Accept "15" → "15:00" as well as full "15:00" format
+    let start: string;
+    if (/^\d{1,2}$/.test(rawStart)) {
+      start = rawStart.padStart(2, "0") + ":00";
+    } else if (/^\d{1,2}:\d{2}$/.test(rawStart)) {
+      start = rawStart.padStart(5, "0");
+    } else {
+      setShiftEditId(null);
+      return;
+    }
     const rawEnd = parts[1]?.trim();
     const end = rawEnd && /^\d{1,2}:\d{2}$/.test(rawEnd) ? rawEnd.padStart(5, "0") : undefined;
     setShiftSavingId(recordId);
@@ -357,8 +365,9 @@ export default function DtrUploadPage() {
       if (!r.ok) throw new Error(await r.text());
       const updated = await r.json() as ManilaAttRow;
       setDtrRecords(prev => prev.map(row => row.id === recordId ? { ...row, ...updated } : row));
-    } catch { /* best-effort — row unchanged */ }
-    finally { setShiftSavingId(null); setShiftEditId(null); }
+    } catch (e) {
+      alert(`Failed to save schedule: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setShiftSavingId(null); setShiftEditId(null); }
   }
 
   const loadOtApprovals = useCallback(async (periodId: string) => {
