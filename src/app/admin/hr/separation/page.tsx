@@ -239,10 +239,12 @@ function DetailPanel({
   record,
   onClose,
   onUpdated,
+  inline = false,
 }: {
   record: SeparationRecord;
   onClose: () => void;
   onUpdated: (updated: SeparationRecord) => void;
+  inline?: boolean;
 }) {
   const auth = getAuth();
 
@@ -385,202 +387,211 @@ function DetailPanel({
     items: (detail.items || []).filter((i) => i.category === cat.key),
   })).filter((cat) => cat.items.length > 0);
 
-  return (
-    <div className="fixed inset-0 z-50 flex md:justify-end">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <div className="relative z-10 flex w-full flex-col overflow-y-auto bg-[#0d1117] shadow-2xl md:w-[600px] md:border-l md:border-white/10">
-        {/* Panel header */}
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-[#0d1117] p-5">
-          <div className="flex-1 min-w-0">
-            <p className={T_SECTION}>{detail.staff_name}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <SepTypeBadge type={detail.separation_type} />
-              <StatusBadge status={detail.status} />
-            </div>
+  const panelInner = (
+    <>
+      {/* Panel header */}
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-[#0d1117] p-5">
+        <div className="flex-1 min-w-0">
+          <p className={T_SECTION}>{detail.staff_name}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <SepTypeBadge type={detail.separation_type} />
+            <StatusBadge status={detail.status} />
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 rounded-lg border border-white/10 p-1.5 text-zinc-400 hover:bg-white/8 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
+        <button
+          onClick={onClose}
+          className="shrink-0 rounded-lg border border-white/10 p-1.5 text-zinc-400 hover:bg-white/8 hover:text-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center p-10">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
-        ) : (
-          <div className="flex-1 space-y-6 p-5">
-            {/* Dates */}
-            <div>
-              <p className={T_SECTION + " mb-3"}>Key Dates</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div>
-                  <label className={T_LABEL + " mb-1 block"}>Resignation Date</label>
-                  <input
-                    type="date"
-                    value={resignationDate}
-                    onChange={(e) => setResignationDate(e.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                </div>
-                <div>
-                  <label className={T_LABEL + " mb-1 block"}>Last Working Date</label>
-                  <input
-                    type="date"
-                    value={lastWorkingDate}
-                    onChange={(e) => setLastWorkingDate(e.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                </div>
-                <div>
-                  <label className={T_LABEL + " mb-1 block"}>Exit Interview Date</label>
-                  <input
-                    type="date"
-                    value={exitInterviewDate}
-                    onChange={(e) => setExitInterviewDate(e.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Final Pay */}
-            <div>
-              <p className={T_SECTION + " mb-3"}>Final Pay</p>
-              <div className="space-y-3">
-                <div>
-                  <label className={T_LABEL + " mb-1 block"}>Final Pay Notes</label>
-                  <textarea
-                    value={finalPayNotes}
-                    onChange={(e) => setFinalPayNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Calculation details, deductions, allowances..."
-                    className={TEXTAREA_CLASS}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={T_LABEL + " mb-1 block"}>Final Pay Amount (PHP)</label>
-                    <input
-                      type="number"
-                      value={finalPayAmount}
-                      onChange={(e) => setFinalPayAmount(e.target.value)}
-                      placeholder="0.00"
-                      className={INPUT_CLASS}
-                    />
-                  </div>
-                  <div>
-                    <label className={T_LABEL + " mb-1 block"}>Released Date</label>
-                    <input
-                      type="date"
-                      value={finalPayReleasedDate}
-                      onChange={(e) => setFinalPayReleasedDate(e.target.value)}
-                      className={INPUT_CLASS}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* NTE Reference (only for termination) */}
-            {detail.separation_type === "termination" && (
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center p-10">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : (
+        <div className="flex-1 space-y-6 p-5">
+          {/* Dates */}
+          <div>
+            <p className={T_SECTION + " mb-3"}>Key Dates</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <p className={T_SECTION + " mb-3"}>NTE Reference</p>
+                <label className={T_LABEL + " mb-1 block"}>Resignation Date</label>
                 <input
-                  type="text"
-                  value={nteReference}
-                  onChange={(e) => setNteReference(e.target.value)}
-                  placeholder="NTE reference number or case ID..."
+                  type="date"
+                  value={resignationDate}
+                  onChange={(e) => setResignationDate(e.target.value)}
                   className={INPUT_CLASS}
                 />
               </div>
-            )}
+              <div>
+                <label className={T_LABEL + " mb-1 block"}>Last Working Date</label>
+                <input
+                  type="date"
+                  value={lastWorkingDate}
+                  onChange={(e) => setLastWorkingDate(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <label className={T_LABEL + " mb-1 block"}>Exit Interview Date</label>
+                <input
+                  type="date"
+                  value={exitInterviewDate}
+                  onChange={(e) => setExitInterviewDate(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+            </div>
+          </div>
 
-            {/* Notes */}
+          {/* Final Pay */}
+          <div>
+            <p className={T_SECTION + " mb-3"}>Final Pay</p>
+            <div className="space-y-3">
+              <div>
+                <label className={T_LABEL + " mb-1 block"}>Final Pay Notes</label>
+                <textarea
+                  value={finalPayNotes}
+                  onChange={(e) => setFinalPayNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Calculation details, deductions, allowances..."
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={T_LABEL + " mb-1 block"}>Final Pay Amount (PHP)</label>
+                  <input
+                    type="number"
+                    value={finalPayAmount}
+                    onChange={(e) => setFinalPayAmount(e.target.value)}
+                    placeholder="0.00"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <label className={T_LABEL + " mb-1 block"}>Released Date</label>
+                  <input
+                    type="date"
+                    value={finalPayReleasedDate}
+                    onChange={(e) => setFinalPayReleasedDate(e.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* NTE Reference (only for termination) */}
+          {detail.separation_type === "termination" && (
             <div>
-              <label className={T_LABEL + " mb-1 block"}>General Notes</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                placeholder="Additional notes..."
-                className={TEXTAREA_CLASS}
+              <p className={T_SECTION + " mb-3"}>NTE Reference</p>
+              <input
+                type="text"
+                value={nteReference}
+                onChange={(e) => setNteReference(e.target.value)}
+                placeholder="NTE reference number or case ID..."
+                className={INPUT_CLASS}
               />
             </div>
+          )}
 
-            {/* Save header button */}
-            <div className="flex justify-end">
-              <button onClick={patchHeader} disabled={saving} className={PRIMARY_BUTTON}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
+          {/* Notes */}
+          <div>
+            <label className={T_LABEL + " mb-1 block"}>General Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Additional notes..."
+              className={TEXTAREA_CLASS}
+            />
+          </div>
 
-            <div className={DIVIDER} />
+          {/* Save header button */}
+          <div className="flex justify-end">
+            <button onClick={patchHeader} disabled={saving} className={PRIMARY_BUTTON}>
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
 
-            {/* Progress summary */}
-            <div>
-              <ProgressBar done={detail.done_count} total={detail.total_items} />
-              {detail.pending_count > 0 && (
-                <div className="mt-2">
-                  <span className={BADGE_WARNING}>{detail.pending_count} pending</span>
-                </div>
-              )}
-            </div>
+          <div className={DIVIDER} />
 
-            {/* Checklist by category */}
-            {itemsByCategory.length > 0 ? (
-              <div className="space-y-6">
-                {itemsByCategory.map((cat) => (
-                  <div key={cat.key}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <span className="text-base">{cat.icon}</span>
-                      <p className={T_SECTION}>{cat.label}</p>
-                    </div>
-                    <div className="space-y-2">
-                      {cat.items.map((item) => (
-                        <ChecklistItemRow key={item.id} item={item} onSave={patchItem} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className={T_BODY + " text-center py-4"}>No checklist items found.</p>
-            )}
-
-            <div className={DIVIDER} />
-
-            {/* Mark complete */}
-            {detail.status !== "complete" && (
-              <div className="flex justify-center">
-                <button
-                  onClick={markComplete}
-                  disabled={!allDone || completing}
-                  className={
-                    allDone
-                      ? "rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] hover:from-emerald-400 hover:to-emerald-300 disabled:opacity-60"
-                      : "rounded-xl border border-white/10 bg-white/4 px-6 py-2.5 font-semibold text-zinc-500 cursor-not-allowed opacity-60"
-                  }
-                  title={!allDone ? "All checklist items must be done or N/A to complete" : undefined}
-                >
-                  {completing ? "Completing..." : "Mark Offboarding Complete"}
-                </button>
-              </div>
-            )}
-            {detail.status === "complete" && (
-              <div className="flex justify-center">
-                <span className={BADGE_SUCCESS + " px-5 py-2 text-sm"}>Offboarding Complete</span>
+          {/* Progress summary */}
+          <div>
+            <ProgressBar done={detail.done_count} total={detail.total_items} />
+            {detail.pending_count > 0 && (
+              <div className="mt-2">
+                <span className={BADGE_WARNING}>{detail.pending_count} pending</span>
               </div>
             )}
           </div>
-        )}
+
+          {/* Checklist by category */}
+          {itemsByCategory.length > 0 ? (
+            <div className="space-y-6">
+              {itemsByCategory.map((cat) => (
+                <div key={cat.key}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-base">{cat.icon}</span>
+                    <p className={T_SECTION}>{cat.label}</p>
+                  </div>
+                  <div className="space-y-2">
+                    {cat.items.map((item) => (
+                      <ChecklistItemRow key={item.id} item={item} onSave={patchItem} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={T_BODY + " text-center py-4"}>No checklist items found.</p>
+          )}
+
+          <div className={DIVIDER} />
+
+          {/* Mark complete */}
+          {detail.status !== "complete" && (
+            <div className="flex justify-center">
+              <button
+                onClick={markComplete}
+                disabled={!allDone || completing}
+                className={
+                  allDone
+                    ? "rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:scale-[1.02] hover:from-emerald-400 hover:to-emerald-300 disabled:opacity-60"
+                    : "rounded-xl border border-white/10 bg-white/4 px-6 py-2.5 font-semibold text-zinc-500 cursor-not-allowed opacity-60"
+                }
+                title={!allDone ? "All checklist items must be done or N/A to complete" : undefined}
+              >
+                {completing ? "Completing..." : "Mark Offboarding Complete"}
+              </button>
+            </div>
+          )}
+          {detail.status === "complete" && (
+            <div className="flex justify-center">
+              <span className={BADGE_SUCCESS + " px-5 py-2 text-sm"}>Offboarding Complete</span>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col bg-[#0d1117] border-l border-white/10 min-h-full">
+        {panelInner}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex md:justify-end">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex w-full flex-col overflow-y-auto bg-[#0d1117] shadow-2xl md:w-[600px] md:border-l md:border-white/10">
+        {panelInner}
       </div>
     </div>
   );
@@ -797,12 +808,14 @@ function AddSeparationModal({
 function SeparationCard({
   record,
   onClick,
+  isSelected = false,
 }: {
   record: SeparationRecord;
   onClick: () => void;
+  isSelected?: boolean;
 }) {
   return (
-    <div className={GLASS_CARD + " p-5 flex flex-col gap-4 cursor-pointer hover:border-violet-500/20 transition-all duration-200"} onClick={onClick}>
+    <div className={GLASS_CARD + ` p-5 flex flex-col gap-4 cursor-pointer transition-all duration-200 ${isSelected ? "border-violet-500/40 bg-violet-500/5" : "hover:border-violet-500/20"}`} onClick={onClick}>
       {/* Top row */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -941,90 +954,92 @@ export default function HrSeparationPage() {
     setRecords((prev) => [rec, ...prev]);
   }
 
-  return (
-    <div className="min-h-screen space-y-6 p-4 pb-24 md:p-6 md:pb-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className={T_PAGE_TITLE}>HR Offboarding</h1>
+  const filterTabs = (
+    <div className={TAB_CONTAINER}>
+      {(
+        [
+          { key: "in_progress", label: "In Progress" },
+          { key: "complete", label: "Complete" },
+          { key: "all", label: "All" },
+        ] as { key: StatusFilter; label: string }[]
+      ).map(({ key, label }) => (
         <button
-          onClick={() => setShowAddModal(true)}
-          className={PRIMARY_BUTTON}
+          key={key}
+          onClick={() => setStatusFilter(key)}
+          className={statusFilter === key ? TAB_ACTIVE : TAB_INACTIVE}
         >
-          + Start Offboarding
+          {label}
         </button>
-      </div>
+      ))}
+    </div>
+  );
 
-      {/* Filter tabs */}
-      <div className={TAB_CONTAINER}>
-        {(
-          [
-            { key: "in_progress", label: "In Progress" },
-            { key: "complete", label: "Complete" },
-            { key: "all", label: "All" },
-          ] as { key: StatusFilter; label: string }[]
-        ).map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setStatusFilter(key)}
-            className={statusFilter === key ? TAB_ACTIVE : TAB_INACTIVE}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+  const recordsList = loading ? (
+    <div className="flex items-center justify-center py-16">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+    </div>
+  ) : fetchError ? (
+    <div className={GLASS_CARD + " p-10 text-center"}>
+      <p className={T_SECTION + " text-red-400"}>Failed to load records</p>
+      <p className={T_BODY + " mt-1 text-zinc-400"}>{fetchError}</p>
+      <button onClick={() => { void fetchRecords(); }} className={PRIMARY_BUTTON + " mt-4"}>
+        Retry
+      </button>
+    </div>
+  ) : records.length === 0 ? (
+    <div className={GLASS_CARD + " p-10 text-center"}>
+      <p className={T_SECTION + " text-zinc-400"}>No offboarding records</p>
+      <p className={T_BODY + " mt-1"}>
+        {statusFilter === "in_progress"
+          ? "No active offboarding cases."
+          : statusFilter === "complete"
+          ? "No completed offboarding cases."
+          : "No offboarding records yet."}
+      </p>
+      <button onClick={() => setShowAddModal(true)} className={PRIMARY_BUTTON + " mt-4"}>
+        + Start Offboarding
+      </button>
+    </div>
+  ) : (
+    <div className={selectedRecord ? "space-y-3" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>
+      {records.map((rec) => (
+        <SeparationCard
+          key={rec.id}
+          record={rec}
+          isSelected={selectedRecord?.id === rec.id}
+          onClick={() => setSelectedRecord(rec)}
+        />
+      ))}
+    </div>
+  );
 
-      {/* Records grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-        </div>
-      ) : fetchError ? (
-        <div className={GLASS_CARD + " p-10 text-center"}>
-          <p className={T_SECTION + " text-red-400"}>Failed to load records</p>
-          <p className={T_BODY + " mt-1 text-zinc-400"}>{fetchError}</p>
-          <button
-            onClick={() => { void fetchRecords(); }}
-            className={PRIMARY_BUTTON + " mt-4"}
-          >
-            Retry
-          </button>
-        </div>
-      ) : records.length === 0 ? (
-        <div className={GLASS_CARD + " p-10 text-center"}>
-          <p className={T_SECTION + " text-zinc-400"}>No offboarding records</p>
-          <p className={T_BODY + " mt-1"}>
-            {statusFilter === "in_progress"
-              ? "No active offboarding cases."
-              : statusFilter === "complete"
-              ? "No completed offboarding cases."
-              : "No offboarding records yet."}
-          </p>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className={PRIMARY_BUTTON + " mt-4"}
-          >
+  return (
+    <div className={`min-h-screen ${selectedRecord ? "flex" : "space-y-6 p-4 pb-24 md:p-6 md:pb-8"}`}>
+      {/* Left panel: header + filters + list */}
+      <div className={selectedRecord
+        ? "w-72 lg:w-80 xl:w-96 flex-none overflow-y-auto border-r border-white/10 p-4 pb-24 space-y-4"
+        : "contents"
+      }>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className={T_PAGE_TITLE}>HR Offboarding</h1>
+          <button onClick={() => setShowAddModal(true)} className={PRIMARY_BUTTON}>
             + Start Offboarding
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {records.map((rec) => (
-            <SeparationCard
-              key={rec.id}
-              record={rec}
-              onClick={() => setSelectedRecord(rec)}
-            />
-          ))}
-        </div>
-      )}
+        {filterTabs}
+        {recordsList}
+      </div>
 
-      {/* Detail panel */}
+      {/* Right panel: detail (inline sidebar) */}
       {selectedRecord && (
-        <DetailPanel
-          record={selectedRecord}
-          onClose={() => setSelectedRecord(null)}
-          onUpdated={handleUpdated}
-        />
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          <DetailPanel
+            record={selectedRecord}
+            onClose={() => setSelectedRecord(null)}
+            onUpdated={handleUpdated}
+            inline
+          />
+        </div>
       )}
 
       {/* Add modal */}
