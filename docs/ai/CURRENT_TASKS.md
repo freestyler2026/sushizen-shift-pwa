@@ -1,6 +1,41 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (HR Onboarding: DOB/marital status + date_issued — Heroku 3e97561 / Vercel main)
+Last updated: 2026-08-11 (HR Offboarding: silent fetch failure + NavBar flash fix — Vercel deployed 88a4990)
+
+---
+
+## ✅ Completed: HR Offboarding — silent fetch failure + NavBar flash (2026-08-11, Vercel 88a4990)
+
+**Report (Camilla Gadingan)**: After Ctrl+R page refresh on `/admin/hr/separation`, records disappeared and the NavBar briefly showed staff-only items. "Draft disappears" = record existed but was not visible after refresh.
+
+**Root cause 1 — Silent API failure** (`src/app/admin/hr/separation/page.tsx`):
+- `fetchRecords` used stale `authHeaders` state (set once at init) and had no error handling: `if (res.ok) { setRecords(...) }` — non-OK responses (401, 403, network error) silently left records at `[]`.
+- Fix: removed stale `authHeaders` state; `fetchRecords` now calls `getAuthHeaders(getAuth())` fresh at request time. Added `fetchError` state — 401/403 shows "Session expired or access denied. Please reload the page or log in again." with a Retry button; other failures show the HTTP status.
+
+**Root cause 2 — NavBar flash** (`src/components/NavBar.tsx`):
+- `loadAuth()` set `resolvedAuth` only AFTER the async `refreshAuthFromApi` call completed (~300–500ms). During that window, `resolvedAuth = null` → all admin items filtered out → NavBar showed staff-only section momentarily.
+- Fix: set `resolvedAuth = a` (from `getAuth()`) immediately at the start of `loadAuth`, before the async refresh. Admin items appear instantly from localStorage; the async refresh then updates with the server-confirmed value.
+
+**Verified**: Simulated 401 via fetch interceptor → error card "Failed to load records / Session expired…" with Retry button appeared immediately. NavBar admin items (HR Offboarding, HR Clearance, etc.) confirmed present in DOM.
+
+---
+
+## ✅ Completed: Manila Payroll — OT Paid sync + Schedule shorthand (2026-08-11, Heroku + Vercel)
+
+**Report** (staff): (1) Ricardo Lamis III OT marked "Paid" on 8/6 not reflected in `approved_ot_hours` after Sync + Compute All. (2) Schedule column edit: typing "15:00" or "15" reverts to "-" without saving.
+
+**Fix 1 — OT sync never picks up Manila OT** (`db.py`):
+- Root cause: `sync_manila_ot_approvals_to_dtr()` and `auto_sync_manila_ot_on_approval()` queried `status = 'approved'` but Manila OT uses `manager_approved` / `paid` statuses (never just `approved`).
+- Fix: Changed both functions to `status IN ('manager_approved', 'paid')`.
+- `main.py` `api_admin_ot_mark_paid()`: Added immediate `auto_sync_manila_ot_on_approval(row)` call so DTR syncs on the spot when OT is marked Paid (best-effort, wrapped in try/except).
+- **Verified in production**: Ran `POST /api/admin/manila-payroll/sync-ot-approvals?period_id=5` → synced 4 records; Ricardo Aug 6 went from `approved_ot_hours: null` → `2.5`.
+
+**Fix 2 — Schedule edit "15" shorthand** (`src/app/admin/payroll/manila/dtr-upload/page.tsx`):
+- Root cause: `saveScheduledShift()` regex only accepted `HH:MM` format; bare hour like "15" failed silently and discarded.
+- Fix: Added `/^\d{1,2}$/.test(rawStart)` branch that auto-formats "15" → "15:00". Also changed silent catch to `alert()` to surface errors.
+- **Verified in production**: Typed "15" in schedule edit input → intercepted API call body: `{"scheduled_shift_start": "15:00"}`. PATCH returned 200, DB stored `"16:00:00"` format correctly.
+
+**Note — Virtual scroll white space bug**: The browser pane shows a large blank area above the DTR table rows when clicking/scrolling within the virtualized list. This is a browser tool rendering artifact and does not affect real users; the table itself works correctly.
 
 ---
 
