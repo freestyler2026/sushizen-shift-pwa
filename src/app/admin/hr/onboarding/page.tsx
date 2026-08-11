@@ -747,6 +747,7 @@ export default function HrOnboardingPage() {
 
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState("manila");
+  const [canSwitchCity, setCanSwitchCity] = useState(false);
   const [accessToken, setAccessToken] = useState("");
   const [hasSession, setHasSession] = useState(false);
 
@@ -779,7 +780,9 @@ export default function HrOnboardingPage() {
         setAllowed(true);
         setAccessToken(a.accessToken ?? "");
         setHasSession(a.hasSession ?? false);
-        setCity(String(a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
+        const isGlobal = role === "ADMIN" || role === "HQ";
+        setCanSwitchCity(isGlobal);
+        setCity(isGlobal ? "manila" : (String(a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila"));
       }
     }
     void init();
@@ -902,6 +905,21 @@ export default function HrOnboardingPage() {
           </button>
         </div>
       </div>
+
+      {/* City switcher (HQ / ADMIN only) */}
+      {canSwitchCity && (
+        <div className={`${TAB_CONTAINER} mb-4 w-fit`}>
+          {(["manila", "dubai"] as const).map((c) => (
+            <button
+              key={c}
+              onClick={() => setCity(c)}
+              className={city === c ? TAB_ACTIVE : TAB_INACTIVE}
+            >
+              {c === "manila" ? "🇵🇭 Manila" : "🇦🇪 Dubai"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Status filter tabs */}
       <div className={`${TAB_CONTAINER} mb-6 w-fit`}>
