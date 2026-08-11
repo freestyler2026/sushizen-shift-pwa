@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (Probation page — 7 bugs fixed and deployed 282e470)
+Last updated: 2026-08-11 (HR Offboarding sidebar — independent-scroll layout fix 57b59d6)
+
+---
+
+## ✅ Completed: HR Offboarding — sidebar independent-scroll layout (2026-08-11, Vercel 57b59d6)
+
+**Problem**: When a record was selected, the left panel (card list) used `position: sticky` to stay in place while the right panel (detail form) scrolled. Sticky failed because the `html` element was the actual scroll container (body's `clientHeight === scrollHeight` so body never scrolled), meaning sticky's anchor never fired — `panelTop` became -376px after 400px of scroll.
+
+**Fix** (`src/app/admin/hr/separation/page.tsx`):
+- Outer container: `"flex"` → `"flex h-screen overflow-hidden"` — prevents window scroll entirely
+- Left panel: removed `sticky top-0 h-screen`, kept `overflow-y-auto` — scrolls its own list independently
+- Right panel wrapper: `"flex-1 min-w-0"` → `"flex-1 min-w-0 overflow-y-auto"` — scrolls the detail form independently
+
+**Verified (browser)**: After right panel scrolled 400px, `leftPanelTop: 24` (unchanged), `windowScrollY: 0`. All filter tab states (In Progress / Complete / All), X close button, and + Start Offboarding modal also confirmed working.
 
 ---
 
