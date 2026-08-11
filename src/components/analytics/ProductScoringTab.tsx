@@ -1524,7 +1524,7 @@ export default function ProductScoringTab({
                           </div>
                           {row.image_url && (
                             <a
-                              href={row.image_url}
+                              href={`/api/admin/qc/scores/${row.id}/photo?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="mt-2 inline-block text-xs text-violet-400 underline"
