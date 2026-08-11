@@ -754,39 +754,71 @@ export default function StoreProcurementRequestPage() {
     setInfo("");
     try {
       const createdItemsSnapshot = validItems.map((item) => ({ ...item }));
-      const created = await procurementJson<{ request?: { id: string; request_no: string } }>(
-        "/api/admin/procurement/requests",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            city,
-            requested_by: requestedBy.trim(),
-            store_code: storeCode.trim(),
-            request_date: requestDate.trim(),
-            urgent_flag: urgentFlag,
-            new_vendor_flag: newVendorFlag,
-            is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
-            is_ck_order: city !== "dubai" && selectedCatalogCategory === "CK",
-            purchase_type: purchaseType,
-            ec_order_url: ecOrderUrl.trim(),
-            items: validItems.map((item) => ({
-              item_name: item.item_name,
-              category: item.category,
-              spec: item.spec,
-              qty: Number(item.qty || 0),
-              unit: item.unit,
-              unit_price: Number(item.unit_price || 0),
-              vendor_name: item.vendor_name,
-              needed_by_date: item.needed_by_date || "",
-            })),
-          }),
-        },
-        requestedBy,
-        pin,
-      );
-      const requestId = String(created?.request?.id || "").trim();
-      const requestNo = String(created?.request?.request_no || "").trim();
+      const itemsPayload = validItems.map((item) => ({
+        item_name: item.item_name,
+        category: item.category,
+        spec: item.spec,
+        qty: Number(item.qty || 0),
+        unit: item.unit,
+        unit_price: Number(item.unit_price || 0),
+        vendor_name: item.vendor_name,
+        needed_by_date: item.needed_by_date || "",
+      }));
+
+      let requestId: string;
+      let requestNo: string;
+
+      if (editRequestId) {
+        // Continue Draft: update the existing DRAFT in-place (preserves original case number)
+        const updated = await procurementJson<{ request?: { id: string; request_no: string } }>(
+          `/api/admin/procurement/requests/${editRequestId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              store_code: storeCode.trim(),
+              request_date: requestDate.trim(),
+              urgent_flag: urgentFlag,
+              new_vendor_flag: newVendorFlag,
+              is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
+              is_ck_order: city !== "dubai" && selectedCatalogCategory === "CK",
+              purchase_type: purchaseType,
+              ec_order_url: ecOrderUrl.trim(),
+              items: itemsPayload,
+            }),
+          },
+          requestedBy,
+          pin,
+        );
+        requestId = editRequestId;
+        requestNo = String(updated?.request?.request_no || editRequestNo || "").trim();
+      } else {
+        const created = await procurementJson<{ request?: { id: string; request_no: string } }>(
+          "/api/admin/procurement/requests",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              city,
+              requested_by: requestedBy.trim(),
+              store_code: storeCode.trim(),
+              request_date: requestDate.trim(),
+              urgent_flag: urgentFlag,
+              new_vendor_flag: newVendorFlag,
+              is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
+              is_ck_order: city !== "dubai" && selectedCatalogCategory === "CK",
+              purchase_type: purchaseType,
+              ec_order_url: ecOrderUrl.trim(),
+              items: itemsPayload,
+            }),
+          },
+          requestedBy,
+          pin,
+        );
+        requestId = String(created?.request?.id || "").trim();
+        requestNo = String(created?.request?.request_no || "").trim();
+      }
+
       const createdAt = new Date().toISOString();
       if (!requestId) throw new Error("Request ID was not returned.");
       setLastCreatedRequestId(requestId);
