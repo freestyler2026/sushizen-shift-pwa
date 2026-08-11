@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (Issues 2, 3, 4 from staff report — frontend 32a9c68 + backend Heroku v1880)
+Last updated: 2026-08-11 (Store Par Level weekday/weekend two-cycle — frontend 592a114 + backend Heroku v1881)
+
+---
+
+## ✅ Completed: Store Par Level — weekday/weekend two-cycle support (2026-08-11)
+
+**Request**: Store Par Level items needed two separate par levels: one for the weekday order cycle (Sun/Tue order → Mon/Wed delivery) and one for the weekend cycle (Thu order → Fri delivery).
+
+**Changes**:
+- **`db_store_supplier.py`**: Added `par_level_weekday` / `par_level_weekend` columns to `store_supplier_catalog` (ALTER TABLE IF NOT EXISTS for existing DBs). Added `schedule_type` column to `store_supplier_orders`. Updated `list_store_supplier_catalog` SELECT, `upsert_store_supplier_catalog_item` INSERT/UPDATE. In `generate_store_supplier_orders`: detect weekday (Python `.weekday()`: Sun=6/Tue=1 → "weekday", Thu=3 → "weekend", else "default"), then pick the appropriate par level; falls back to legacy `par_level` if weekday/weekend-specific values are not set.
+- **`store_supplier_api.py`**: `CatalogItemIn` model extended with `par_level_weekday: Optional[float]` and `par_level_weekend: Optional[float]`; passed through to DB upsert.
+- **`store-par-levels/page.tsx`**: Replaced single "Par Level" column/input with "Weekday Par" (amber, Sun/Tue order → Mon/Wed delivery) and "Weekend Par" (sky, Thu order → Fri delivery). Edit pre-fills from item's weekday/weekend values, falling back to legacy par_level. Save sends both + par_level = max(weekday, weekend) for backward compat.
+
+**Commits**: Frontend `592a114` (Vercel) + Backend `648a662` (Heroku v1881)
 
 ---
 
