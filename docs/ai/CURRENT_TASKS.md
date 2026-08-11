@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (HR Offboarding: fetchRecords wrong API key + progress display fix — Vercel deployed de42404)
+Last updated: 2026-08-11 (DTR schedule display fix — sched shows start time even when end is null — Vercel deployed ed5f0f9)
 
 ---
 
@@ -30,6 +30,23 @@ Last updated: 2026-08-11 (HR Offboarding: fetchRecords wrong API key + progress 
 - Fix: set `resolvedAuth = a` (from `getAuth()`) immediately at the start of `loadAuth`, before the async refresh. Admin items appear instantly from localStorage; the async refresh then updates with the server-confirmed value.
 
 **Verified**: Simulated 401 via fetch interceptor → error card "Failed to load records / Session expired…" with Retry button appeared immediately. NavBar admin items (HR Offboarding, HR Clearance, etc.) confirmed present in DOM.
+
+---
+
+## ✅ Completed: DTR Schedule — display fix + input UX (2026-08-11, Vercel ed5f0f9)
+
+**Report (staff)**: Typing "15" or "08" into the Schedule field still didn't work (appeared to save but display remained "—").
+
+**Root cause — `sched` display required BOTH start AND end** (`src/app/admin/payroll/manila/dtr-upload/page.tsx` lines 1222-1226):
+- `sched = row.scheduled_shift_start && row.scheduled_shift_end ? ... : "—"` — when user typed "08" the save succeeded (PATCH to backend stored `scheduled_shift_start = "08:00"`), but since `scheduled_shift_end` was null the display stayed "—". Made it look like the save failed.
+- The `saveScheduledShift()` shorthand conversion ("08" → "08:00") was already working from the previous fix.
+
+**Fix**:
+1. `sched` now shows start time alone when end is null: `row.scheduled_shift_start ? (row.scheduled_shift_end ? "start–end" : "start") : "—"`
+2. Input widened `w-16` → `w-24` (fits "15:00–23:00" ranges)
+3. Edit button pre-fills with full `sched` value (including end if set) instead of only start
+
+**Verified (browser JS)**: Clicked schedule cell on row with "—", typed "08", pressed Enter → cell now displays "08:00". ✓
 
 ---
 
