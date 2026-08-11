@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, ChevronLeft, Loader2, Plus, RefreshCw,
-  Users, X, Pencil, CheckCircle2, XCircle, Link2, Link2Off, Wand2,
+  Users, X, Pencil, CheckCircle2, XCircle, Link2, Link2Off, Wand2, PowerOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -639,6 +639,58 @@ export default function StaffProfilesPage() {
     });
   }
 
+  async function deactivateProfile(p: StaffProfile) {
+    if (!window.confirm(`Deactivate "${p.staff_name}"?\n\nThe profile will be hidden from active lists. This can be reversed by toggling "Showing All" and editing the profile.`)) return;
+    setError("");
+    try {
+      const body = {
+        staff_name: p.staff_name,
+        bayzat_employee_id: p.bayzat_employee_id || null,
+        sss_number: p.sss_number || null,
+        philhealth_id: p.philhealth_id || null,
+        tin: p.tin || null,
+        pagibig_mid: p.pagibig_mid || null,
+        employment_type: p.employment_type,
+        salary_type: p.salary_type,
+        hire_date: p.hire_date || null,
+        official_hire_date: p.official_hire_date || null,
+        department: p.department || null,
+        position: p.position || null,
+        monthly_rate: p.monthly_rate ? parseFloat(p.monthly_rate) : null,
+        daily_rate: p.daily_rate ? parseFloat(p.daily_rate) : null,
+        bank_name: p.bank_name || null,
+        bank_account_no: p.bank_account_no || null,
+        gcash_number: p.gcash_number || null,
+        is_active: false,
+        civil_status: p.civil_status || null,
+        num_qualified_dependents: p.num_qualified_dependents,
+        mdr_submitted: p.mdr_submitted,
+        mdr_submitted_date: p.mdr_submitted_date || null,
+        mdr_notes: p.mdr_notes,
+        cola: p.cola ? parseFloat(p.cola) : 0,
+        is_minimum_wage_earner: p.is_minimum_wage_earner,
+        rice_allowance: p.rice_allowance ? parseFloat(p.rice_allowance) : 0,
+        clothing_allowance: p.clothing_allowance ? parseFloat(p.clothing_allowance) : 0,
+        laundry_allowance: p.laundry_allowance ? parseFloat(p.laundry_allowance) : 0,
+        medical_allowance: p.medical_allowance ? parseFloat(p.medical_allowance) : 0,
+        pagibig_voluntary: p.pagibig_voluntary ? parseFloat(p.pagibig_voluntary) : 0,
+      };
+      const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(p.staff_name)}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { setError(await r.text()); return; }
+      const updated = await r.json() as StaffProfile;
+      setProfiles(prev =>
+        showInactive
+          ? prev.map(x => x.staff_name === p.staff_name ? updated : x)
+          : prev.filter(x => x.staff_name !== p.staff_name)
+      );
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   function php(v: string | null) {
     if (!v) return "—";
     return `₱${parseFloat(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -886,11 +938,22 @@ export default function StaffProfilesPage() {
                           )}
                         </td>
                         <td className="py-3 pr-3">
-                          <button
-                            onClick={() => { setEditing(p); setShowModal(true); }}
-                            className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white transition">
-                            <Pencil size={11} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { setEditing(p); setShowModal(true); }}
+                              title="Edit profile"
+                              className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white transition">
+                              <Pencil size={11} />
+                            </button>
+                            {p.is_active && (
+                              <button
+                                onClick={() => void deactivateProfile(p)}
+                                title="Deactivate profile"
+                                className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-900/10 px-2 py-1.5 text-xs text-red-400 hover:bg-red-900/30 hover:text-red-300 transition">
+                                <PowerOff size={11} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
