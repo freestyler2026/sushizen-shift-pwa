@@ -73,6 +73,9 @@ export default function CreateStaffPage() {
     "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
   >("");
 
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [maritalStatus, setMaritalStatus] = useState<string>("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CreateStaffResp | null>(null);
@@ -125,11 +128,15 @@ export default function CreateStaffPage() {
         status,
         approver_name: approverName.trim(),
         pin: pin.trim(),
+        date_of_birth: dateOfBirth.trim() || undefined,
+        marital_status: maritalStatus || undefined,
       });
       setResult(res);
       setDisplayName("");
       setRole("STAFF");
       setStatus("ACTIVE");
+      setDateOfBirth("");
+      setMaritalStatus("");
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to create staff"));
     } finally {
@@ -189,6 +196,32 @@ export default function CreateStaffPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 className={INPUT_CLASS}
                 placeholder="Enter staff full name"
+              />
+            </div>
+
+            <div>
+              <div className={T_LABEL + " mb-1.5"}>Date of Birth</div>
+              <input
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </div>
+
+            <div>
+              <div className={T_LABEL + " mb-1.5"}>Marital Status</div>
+              <SelectDark
+                value={maritalStatus}
+                onChange={setMaritalStatus}
+                className={SELECT_CLASS}
+                options={[
+                  { value: "", label: "— Not specified —" },
+                  { value: "single", label: "Single" },
+                  { value: "married", label: "Married" },
+                  { value: "widowed", label: "Widowed" },
+                  { value: "separated", label: "Separated" },
+                ]}
               />
             </div>
 

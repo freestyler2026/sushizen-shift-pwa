@@ -49,7 +49,7 @@ type OnboardingItem = {
   category: string;
   status: ItemStatus;
   id_number: string;
-  expiry_date: string;
+  date_issued: string;
   notes: string;
   submitted_at: string;
   verified_by: string;
@@ -70,6 +70,8 @@ type OnboardingRecord = {
   pending_count: number;
   created_at: string;
   items?: OnboardingItem[];
+  date_of_birth?: string | null;
+  marital_status?: string;
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -142,11 +144,9 @@ function ProgressBar({
 
 function ItemRow({
   item,
-  accessToken,
   onUpdated,
 }: {
   item: OnboardingItem;
-  accessToken: string;
   onUpdated: (updated: OnboardingItem) => void;
 }) {
   const [draft, setDraft] = useState<OnboardingItem>({ ...item });
@@ -157,7 +157,7 @@ function ItemRow({
   const isDirty =
     draft.status !== item.status ||
     draft.id_number !== item.id_number ||
-    draft.expiry_date !== item.expiry_date ||
+    draft.date_issued !== item.date_issued ||
     draft.notes !== item.notes ||
     draft.verified_by !== item.verified_by;
 
@@ -171,7 +171,7 @@ function ItemRow({
         body: JSON.stringify({
           status: draft.status,
           id_number: draft.id_number,
-          expiry_date: draft.expiry_date,
+          date_issued: draft.date_issued,
           notes: draft.notes,
           verified_by: draft.verified_by,
         }),
@@ -226,11 +226,11 @@ function ItemRow({
               />
             </div>
             <div>
-              <label className={`${T_LABEL} block mb-1`}>Expiry Date</label>
+              <label className={`${T_LABEL} block mb-1`}>Date Issued</label>
               <input
                 type="date"
-                value={draft.expiry_date}
-                onChange={(e) => setDraft((prev) => ({ ...prev, expiry_date: e.target.value }))}
+                value={draft.date_issued}
+                onChange={(e) => setDraft((prev) => ({ ...prev, date_issued: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet-500/50"
               />
             </div>
@@ -278,13 +278,11 @@ function ItemRow({
 
 function DetailPanel({
   record,
-  accessToken,
   onClose,
   onCompleted,
   onItemsUpdated,
 }: {
   record: OnboardingRecord;
-  accessToken: string;
   onClose: () => void;
   onCompleted: (id: string) => void;
   onItemsUpdated: (id: string, items: OnboardingItem[]) => void;
@@ -370,23 +368,41 @@ function DetailPanel({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0d1117] px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-white">{record.staff_name}</h2>
-            <p className={T_CAPTION}>
-              {record.position}{record.branch ? ` · ${record.branch}` : ""} · Start:{" "}
-              {record.start_date || "—"}
-            </p>
+        <div className="sticky top-0 z-10 border-b border-white/10 bg-[#0d1117] px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-semibold text-white">{record.staff_name}</h2>
+              <p className={T_CAPTION}>
+                {record.position}{record.branch ? ` · ${record.branch}` : ""} · Start:{" "}
+                {record.start_date || "—"}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {onboardingBadge(record.status)}
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {onboardingBadge(record.status)}
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          {(record.date_of_birth || record.marital_status) && (
+            <div className="mt-2 flex flex-wrap gap-3">
+              {record.date_of_birth && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/8 px-2.5 py-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-400">DOB</span>
+                  <span className="text-xs font-medium text-white">{record.date_of_birth}</span>
+                </div>
+              )}
+              {record.marital_status && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Status</span>
+                  <span className="text-xs font-medium text-white capitalize">{record.marital_status}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Complete button */}
@@ -427,7 +443,6 @@ function DetailPanel({
                     <ItemRow
                       key={it.id}
                       item={it}
-                      accessToken={accessToken}
                       onUpdated={handleItemUpdated}
                     />
                   ))}
@@ -946,7 +961,6 @@ export default function HrOnboardingPage() {
       {selectedRecord && (
         <DetailPanel
           record={selectedRecord}
-          accessToken={accessToken}
           onClose={() => setSelectedRecord(null)}
           onCompleted={handleCompleted}
           onItemsUpdated={handleItemsUpdated}
