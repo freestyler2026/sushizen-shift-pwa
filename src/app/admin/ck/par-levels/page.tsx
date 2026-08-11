@@ -92,6 +92,11 @@ export default function CkParLevelsPage() {
   const [suppValue, setSuppValue] = useState<string>("");
   const [savingSup, setSavingSup] = useState(false);
 
+  // add vendor inline
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
+  const [savingVendor, setSavingVendor] = useState(false);
+
   // create direct purchase orders modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPin, setCreatePin] = useState("");
@@ -159,6 +164,31 @@ export default function CkParLevelsPage() {
     } finally {
       setSavingSup(false);
       setEditingSupId(null);
+    }
+  };
+
+  // ── add vendor ────────────────────────────────────────────────────────────
+  const addVendor = async () => {
+    const name = newVendorName.trim();
+    if (!name) return;
+    setSavingVendor(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/ck/par-levels/vendors`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({ name, city: cityParam(city) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to add vendor");
+      if (data.vendors) setVendors(data.vendors);
+      setSuppValue(name);
+      setNewVendorName("");
+      setAddingVendor(false);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingVendor(false);
     }
   };
 
@@ -786,31 +816,65 @@ export default function CkParLevelsPage() {
                         {tab === "supplier" && (
                           <td className="px-4 py-2.5 text-xs">
                             {editingSupId === row.id ? (
-                              <div className="flex items-center gap-1">
-                                <select
-                                  autoFocus
-                                  value={suppValue}
-                                  onChange={(e) => setSuppValue(e.target.value)}
-                                  className="rounded bg-zinc-800 border border-teal-500/50 px-2 py-0.5 text-xs text-white outline-none max-w-[160px]"
-                                >
-                                  <option value="">— None —</option>
-                                  {vendors.map((v) => (
-                                    <option key={v} value={v}>{v}</option>
-                                  ))}
-                                </select>
-                                <button
-                                  onClick={() => saveSupplier(row, suppValue)}
-                                  disabled={savingSup}
-                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-teal-500/20 text-teal-300 hover:bg-teal-500/35 disabled:opacity-60"
-                                >
-                                  {savingSup ? "…" : "✓"}
-                                </button>
-                                <button
-                                  onClick={() => setEditingSupId(null)}
-                                  className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
-                                >
-                                  ✕
-                                </button>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                  <select
+                                    autoFocus
+                                    value={suppValue}
+                                    onChange={(e) => setSuppValue(e.target.value)}
+                                    className="rounded bg-zinc-800 border border-teal-500/50 px-2 py-0.5 text-xs text-white outline-none max-w-[160px]"
+                                  >
+                                    <option value="">— None —</option>
+                                    {vendors.map((v) => (
+                                      <option key={v} value={v}>{v}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => saveSupplier(row, suppValue)}
+                                    disabled={savingSup}
+                                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-teal-500/20 text-teal-300 hover:bg-teal-500/35 disabled:opacity-60"
+                                  >
+                                    {savingSup ? "…" : "✓"}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingSupId(null)}
+                                    className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                                  >
+                                    ✕
+                                  </button>
+                                  <button
+                                    onClick={() => { setAddingVendor(v => !v); setNewVendorName(""); }}
+                                    title="Add new vendor"
+                                    className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-violet-500/15 text-violet-400 hover:bg-violet-500/30"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                {addingVendor && (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      autoFocus
+                                      value={newVendorName}
+                                      onChange={e => setNewVendorName(e.target.value)}
+                                      onKeyDown={e => { if (e.key === "Enter") void addVendor(); if (e.key === "Escape") setAddingVendor(false); }}
+                                      placeholder="New vendor name…"
+                                      className="rounded bg-zinc-800 border border-violet-500/50 px-2 py-0.5 text-xs text-white outline-none w-[150px]"
+                                    />
+                                    <button
+                                      onClick={() => void addVendor()}
+                                      disabled={savingVendor || !newVendorName.trim()}
+                                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-violet-500/20 text-violet-300 hover:bg-violet-500/35 disabled:opacity-50"
+                                    >
+                                      {savingVendor ? "…" : "Add"}
+                                    </button>
+                                    <button
+                                      onClick={() => setAddingVendor(false)}
+                                      className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <button
