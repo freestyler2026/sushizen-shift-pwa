@@ -1,6 +1,30 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-10 (Private Reports + AI Analytics Pro auth fix — Vercel 871c747)
+Last updated: 2026-08-11 (HR Onboarding: DOB/marital status + date_issued — Heroku 3e97561 / Vercel main)
+
+---
+
+## ✅ Completed: HR Onboarding — DOB/marital status + date_issued (2026-08-11, Heroku 3e97561 / Vercel main)
+
+**Request (Camilla Gadingan's suggestions)**: Add date of birth and marital status to staff profiles for easy reference when accessing SSS/PhilHealth/Pag-IBIG portals; rename "Expiry Date" → "Date Issued" on onboarding document items.
+
+**Backend** (`db.py`, `db_hr.py`, `main.py`):
+- `staff_master`: `ALTER TABLE ADD COLUMN IF NOT EXISTS date_of_birth DATE` and `marital_status TEXT`
+- `create_staff_with_setup_code()`: Added optional `date_of_birth` and `marital_status` params; INSERTs both (NULL if empty)
+- `get_staff_master_row()`: SELECT + return `date_of_birth` and `marital_status`
+- `StoreStaffCreateReq` Pydantic model: Added `date_of_birth: Optional[str] = None` and `marital_status: Optional[str] = None`
+- `api_store_staff_create()`: Passes new fields through to `create_staff_with_setup_code()`
+- `hr_onboarding_items`: Migration DO block renames `expiry_date` → `date_issued`; `ADD COLUMN IF NOT EXISTS date_issued DATE` as safety net for new tables
+- `update_onboarding_item()`: Param `expiry_date` → `date_issued`
+- `get_onboarding_detail()`: SELECT `date_issued`; added subquery LEFT JOIN to `staff_master` to pull `date_of_birth` and `marital_status` into the parent record
+- `api_hr_update_onboarding_item()`: Body key `expiry_date` → `date_issued`
+
+**Frontend** (`staff/create/page.tsx`, `hr/onboarding/page.tsx`):
+- Staff Create: DOB date picker + Marital Status SelectDark dropdown (Single/Married/Widowed/Separated) between Staff Name and Role
+- Onboarding: `OnboardingItem.expiry_date` → `date_issued`; label "Expiry Date" → "Date Issued"
+- Onboarding: `OnboardingRecord` gains `date_of_birth?` and `marital_status?`
+- Onboarding: `DetailPanel` header conditionally renders violet DOB chip and neutral marital status chip below staff name
+- Cleanup: Removed unused `accessToken` prop from `ItemRow` and `DetailPanel`
 
 ---
 
