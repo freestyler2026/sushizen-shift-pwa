@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle, Minus, X, ChevronRight } from "lucide-react";
+import { CheckCircle2, Circle, Minus, X, ChevronRight, ChevronLeft } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -240,11 +240,13 @@ function DetailPanel({
   onClose,
   onUpdated,
   inline = false,
+  centered = false,
 }: {
   record: SeparationRecord;
   onClose: () => void;
   onUpdated: (updated: SeparationRecord) => void;
   inline?: boolean;
+  centered?: boolean;
 }) {
   const auth = getAuth();
 
@@ -390,7 +392,7 @@ function DetailPanel({
   const panelInner = (
     <>
       {/* Panel header */}
-      <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-[#0d1117] p-5">
+      <div className={`${centered ? "" : "sticky top-0 z-10 "}flex items-start justify-between gap-3 border-b border-white/10 bg-[#0d1117] p-5`}>
         <div className="flex-1 min-w-0">
           <p className={T_SECTION}>{detail.staff_name}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -581,7 +583,7 @@ function DetailPanel({
 
   if (inline) {
     return (
-      <div className="flex flex-col bg-[#0d1117] border-l border-white/10 min-h-full">
+      <div className={centered ? "flex flex-col" : "flex flex-col bg-[#0d1117] border-l border-white/10 min-h-full"}>
         {panelInner}
       </div>
     );
@@ -1001,7 +1003,7 @@ export default function HrSeparationPage() {
       </button>
     </div>
   ) : (
-    <div className={selectedRecord ? "space-y-3" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {records.map((rec) => (
         <SeparationCard
           key={rec.id}
@@ -1014,31 +1016,46 @@ export default function HrSeparationPage() {
   );
 
   return (
-    <div className={selectedRecord ? "flex h-screen overflow-hidden" : "min-h-screen space-y-6 p-4 pb-24 md:p-6 md:pb-8"}>
-      {/* Left panel: fixed-height list that scrolls independently */}
-      <div className={selectedRecord
-        ? "w-72 lg:w-80 xl:w-96 flex-none overflow-y-auto border-r border-white/10 p-4 pb-8 space-y-4"
-        : "contents"
-      }>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className={T_PAGE_TITLE}>HR Offboarding</h1>
-          <button onClick={() => setShowAddModal(true)} className={PRIMARY_BUTTON}>
-            + Start Offboarding
-          </button>
+    <>
+      {selectedRecord ? (
+        /* ── Centered document view ─────────────────────────────────────── */
+        <div className="min-h-screen">
+          {/* Sticky top nav: Back button + Start Offboarding */}
+          <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-[#0d1117] px-4 py-3">
+            <button
+              onClick={() => setSelectedRecord(null)}
+              className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to list
+            </button>
+            <span className="flex-1" />
+            <button onClick={() => setShowAddModal(true)} className={PRIMARY_BUTTON}>
+              + Start Offboarding
+            </button>
+          </div>
+          {/* Form centered and max-width constrained */}
+          <div className="mx-auto max-w-3xl px-4 py-6 pb-24">
+            <DetailPanel
+              record={selectedRecord}
+              onClose={() => setSelectedRecord(null)}
+              onUpdated={handleUpdated}
+              inline
+              centered
+            />
+          </div>
         </div>
-        {filterTabs}
-        {recordsList}
-      </div>
-
-      {/* Right panel: scrolls independently; sticky header inside DetailPanel sticks within this container */}
-      {selectedRecord && (
-        <div className="flex-1 min-w-0 overflow-y-auto">
-          <DetailPanel
-            record={selectedRecord}
-            onClose={() => setSelectedRecord(null)}
-            onUpdated={handleUpdated}
-            inline
-          />
+      ) : (
+        /* ── Full-width list view ───────────────────────────────────────── */
+        <div className="min-h-screen space-y-6 p-4 pb-24 md:p-6 md:pb-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className={T_PAGE_TITLE}>HR Offboarding</h1>
+            <button onClick={() => setShowAddModal(true)} className={PRIMARY_BUTTON}>
+              + Start Offboarding
+            </button>
+          </div>
+          {filterTabs}
+          {recordsList}
         </div>
       )}
 
@@ -1049,6 +1066,6 @@ export default function HrSeparationPage() {
           onCreated={handleCreated}
         />
       )}
-    </div>
+    </>
   );
 }
