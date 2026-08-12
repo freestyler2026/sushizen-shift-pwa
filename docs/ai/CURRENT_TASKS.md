@@ -23,6 +23,14 @@ Last updated: 2026-08-12 (Manila Payroll — mid-period new hire pro-rating impl
 
 **注意**: `hire_date` は既にStaffProfileにDBからロードされており、追加のAPI変更不要。次回「Compute Payroll」を実行すると自動適用される。
 
+**Browser verification (2026-08-12)**:
+- ✅ Period 2026-08-1H (2026-07-26→2026-08-10) で Anthony Andales を選択
+- ✅ 「Compute All」→「Compute Anyway」でエンジン再実行
+- ✅ Earningsに "Monthly Basic Pay (Pro-rated, New Hire)" が表示
+- ✅ 10 day(s) × ₱769.2700、note "Hired 2026-07-30 · 10 working days in period"
+- ✅ 合計: ₱7,692.70（旧: ₱10,032.50 flat）
+- ✅ Gross Pay: ₱7,812.90 → Net Pay: ₱6,962.08
+
 ---
 
 ## ✅ Completed: CK Production Plan — A案+B案 DRAFT可視性制御 + 削除機能 (browser verified, 2026-08-12)
