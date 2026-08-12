@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Feature ④ complete: auto-email to supplier on Mark as Sent — Heroku v1898, Vercel deploy pending)
+Last updated: 2026-08-12 (Feature ④ fully tested & verified — 2 emails delivered to freestyler2026@gmail.com, message_ids confirmed in DB)
 
 ---
 
@@ -65,6 +65,13 @@ Last updated: 2026-08-12 (Feature ④ complete: auto-email to supplier on Mark a
 - Status→"sent" triggers email send; `email_sent_at`, `email_message_id`, `email_error` recorded on order
 - Frontend: "Supplier Emails" tab (manager-only) with inline-editable To/CC per supplier
 - Mail icon badge on order card row when email sent; toast with success/error after Mark as Sent
+
+**Testing completed (2026-08-12, same session)**:
+- Fixed Bug 1: `list_store_supplier_orders` SELECT was missing `email_sent_at`/`email_error` columns → added to GROUP BY aggregate query (Heroku v1899)
+- Fixed Bug 2: PATCH `/orders/{id}/status` returned stale order (email_sent_at=null) because order was fetched before `mark_order_email_sent` ran → added re-fetch after email send (Heroku v1899)
+- Fixed Bug 3: Unused imports (`API_BASE`, `KPI_CARD`) removed from store-supplier-orders/page.tsx
+- Email delivery confirmed: Order #11 (message_id: 19ff6f194cc7cf99) + Order #3 (message_id: 19ff6fef8002a2a9) both sent to freestyler2026@gmail.com
+- UI verified: ✉ badge on sent orders, green toast on Mark as Sent, Supplier Emails tab inline editing
 
 ---
 
