@@ -749,9 +749,11 @@ function StageLine({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u: Clearanc
   const [emailTo, setEmailTo] = useState(c.employee_email || "");
   const [doing, setDoing] = useState(false);
   const [err, setErr] = useState("");
+  const [confirmingAdvance, setConfirmingAdvance] = useState(false);
+  const myName = getAuth()?.staffName || "you";
 
   async function act(action: "advance" | "return") {
-    setDoing(true); setErr("");
+    setDoing(true); setErr(""); setConfirmingAdvance(false);
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${c.id}/stage`, {
         method: "POST",
@@ -825,9 +827,32 @@ function StageLine({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u: Clearanc
             </div>
           )}
 
+          {/* Advance confirmation banner */}
+          {confirmingAdvance && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p className="text-amber-300 font-medium mb-1">Confirm advance?</p>
+              <p className="text-white/70 mb-2">
+                <span className="font-semibold text-white">{myName}</span> will be recorded as the{" "}
+                <span className="font-semibold text-white">{STAGES[cur + 1]?.label}</span> approver.
+              </p>
+              <div className="flex gap-2">
+                <button className={PRIMARY_BUTTON} onClick={() => act("advance")} disabled={doing}>
+                  {doing ? "..." : "Yes, advance"}
+                </button>
+                <button className={SECONDARY_BUTTON} onClick={() => setConfirmingAdvance(false)} disabled={doing}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            {cur < 6 && (
-              <button className={PRIMARY_BUTTON} onClick={() => act("advance")} disabled={doing}>
+            {!confirmingAdvance && cur < 6 && (
+              <button
+                className={PRIMARY_BUTTON}
+                onClick={() => cur < 4 ? setConfirmingAdvance(true) : act("advance")}
+                disabled={doing}
+              >
                 {doing ? "..." : cur === 5 ? <><Check size={14} className="inline mr-1" />Mark Payment Done</> : cur === 4 ? <><Send size={14} className="inline mr-1" />Mark Email Sent</> : <><ChevronDown size={14} className="inline mr-1" />Advance</>}
               </button>
             )}
