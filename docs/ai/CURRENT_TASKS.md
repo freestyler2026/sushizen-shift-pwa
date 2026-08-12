@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Manila Payroll Engine: Bug A/B/C/D all fixed — closing-shift date-rollover + late recomputation guards + NSD ot_start override guard)
+Last updated: 2026-08-12 (Feature ④ complete: auto-email to supplier on Mark as Sent — Heroku v1898, Vercel deploy pending)
 
 ---
 
@@ -58,10 +58,13 @@ Last updated: 2026-08-12 (Manila Payroll Engine: Bug A/B/C/D all fixed — closi
   - Managers can edit at draft/confirmed status; HQ/Admin can edit at approved status
 - Frontend: hover pencil icon on ordered qty cell → inline input (Enter=save, Escape=cancel, ✓/✕ buttons)
 
-**Staff question ④ (auto email to supplier on Mark as Sent):**
-- Currently NOT implemented — Mark as Sent only updates status in DB
-- To implement: needs supplier email per catalog/master + SendGrid template + trigger on status→sent
-- Pending user decision on whether to build this
+**Feature ④: Auto-email to supplier on Mark as Sent — COMPLETED (2026-08-12, Heroku v1898)**
+- New `store_supplier_emails` table: per-store per-supplier To/CC email config
+- New `app/services/store_supplier_mail.py`: HTML+text PO email via existing Gmail service account
+- API: `GET/PUT /api/admin/store-supplier/emails/{store}/{supplier_name}`
+- Status→"sent" triggers email send; `email_sent_at`, `email_message_id`, `email_error` recorded on order
+- Frontend: "Supplier Emails" tab (manager-only) with inline-editable To/CC per supplier
+- Mail icon badge on order card row when email sent; toast with success/error after Mark as Sent
 
 ---
 
