@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (CK Production Plan A案+B案 — browser verified PASS)
+Last updated: 2026-08-12 (Manila Payroll — mid-period new hire pro-rating implemented)
+
+---
+
+## ✅ Completed: Manila Payroll — mid-period new hire pro-rating (2026-08-12)
+
+**Issue**: 月途中入社スタッフ（例: Anthony Andales 7/30入社）の給与が日割りにならず満額支給されていた。Staff ProfileのSalary Type「Daily Paid」は完全に無視されており、エンジンは常に`monthly_rate ÷ 2`を固定で計算していた。
+
+**Root cause**: `manila_payroll_engine.py`の`compute_gross_pay()`が`hire_date`を参照しておらず、`period_basic = monthly_rate / 2`を無条件で適用していた。
+
+**Fix (`manila_payroll_engine.py`, Heroku v1889)**:
+- `_working_days_in_range(start, end)` ヘルパー追加（月〜土をカウント、日曜除外、26日divisorと一致）
+- `ITEM_LABELS` に `"MONTHLY_BASIC_PRORATED": "Monthly Basic Pay (Pro-rated, New Hire)"` 追加
+- `compute_gross_pay()` の基本給ブロックを分岐:
+  - `hire_date` が当期間内 (`period.start_date < hire_date <= period.end_date`): `daily_rate × eligible_working_days` で日割り計算。payslipに `MONTHLY_BASIC_PRORATED` + note表示
+  - それ以外: 従来通り `monthly_rate / 2`
+
+**例 (Anthony Andales)**:
+- Monthly Rate: ₱20,065 → Daily Rate: ₱771.73 (÷26)
+- 8/1〜8/15期間に7/30入社なら全11日分が自動計算: ₱771.73 × 11 = ₱8,489.03
+
+**注意**: `hire_date` は既にStaffProfileにDBからロードされており、追加のAPI変更不要。次回「Compute Payroll」を実行すると自動適用される。
 
 ---
 
