@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Store Supplier Orders: inventory deduction bug fixed + qty editing added)
+Last updated: 2026-08-12 (Manila Payroll Engine: Bug A/B/C fixed — closing-shift date-rollover + late recomputation guards)
+
+---
+
+## ✅ Completed: Manila Payroll Engine — Bug A/B/C fixed (2026-08-12, Heroku v1896)
+
+**Root cause identified**: Bayzat stored closing-shift check-out as `work_date 00:30` (same day) instead of `work_date+1 00:30` (next day). When the payroll engine saw `actual_time_out < actual_time_in`, this caused two cascading bugs:
+
+- **Bug A (24h undertime)**: Engine's auto-undertime block computed `shift_end_dt (next-day 00:30) − wrong_actual_time_out (same-day 00:30) = 1440 min`. This appeared in payslip as 24h × hourly_rate undertime deduction.
+- **Bug B (ND lost)**: `raw_secs < 0 → raw_hours < 0 → regular_hours = 0 → NSD = 0`. Night differential not calculated for affected closing-shift days.
+- **Bug C (phantom late)**: Bayzat stored `scheduled_shift_start = time(0,0)` (midnight) for some closing-shift workers. Engine recomputed late_minutes from midnight vs actual PM check-in → 14+h phantom late deduction.
+
+**Fix (`manila_payroll_engine.py`, commit 99db62a → Heroku v1896)**:
+- **Bug A/B**: Added `if raw_secs <= 0: logger.warning(...); skip_block` guard. When `actual_time_out ≤ actual_time_in`, the entire worked-hours block (regular_hours, OT, NSD, auto-undertime) is skipped. Warning logged to Heroku logs.
+- **Bug C**: Enhanced late recomputation guard. Added `_baddata_guard = (sched_start.hour < 6 and actual_time_in.hour >= 14)` to skip midnight-scheduled-start + PM-actual combinations. Existing `_overnight_guard` (PM sched + AM actual) retained.
+
+**Evidence (Cristella Tayor, period Jul 26 – Aug 10)**:
+- DB confirmed two staff_name variants: "Cristella Marie Tayor" (Bayzat, wrong dates) and "Cristella Marie C. Tayor" (DTR upload, correct)
+- Wrong records: `actual_time_out = work_date 00:30` (before time_in) → raw_secs < 0 → Bug A
+- Fix prevents the 1440-min undertime deduction and correctly skips hours computation for those bad records
+
+**Pending**: After fix, the 6 staff (Jennylyn, Cristella, Nicko, Abegail, Ricardo, Xydney) need DTR corrections, then "Compute Payroll" re-run for the period.
 
 ---
 
@@ -69,7 +90,7 @@ Last updated: 2026-08-12 (Store Supplier Orders: inventory deduction bug fixed +
 
 **Request**: Compare OS payroll calculations against staff manual spreadsheet (Jul 26–Aug 10 period) and identify root causes of discrepancies.
 
-**Finding**: OS calculation logic is correct. All discrepancies trace to DTR input data (Bayzat sync timestamp errors), not engine bugs.
+**Finding (revised)**: Both DTR input data errors AND engine bugs contributed. Engine bugs (A/B/C) have now been fixed (see above).
 
 | Staff | Root Cause | Details |
 |---|---|---|
