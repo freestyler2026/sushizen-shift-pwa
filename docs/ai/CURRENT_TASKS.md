@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Manila Payroll Engine: Bug A/B/C fixed — closing-shift date-rollover + late recomputation guards)
+Last updated: 2026-08-12 (Manila Payroll Engine: Bug A/B/C/D all fixed — closing-shift date-rollover + late recomputation guards + NSD ot_start override guard)
+
+---
+
+## ✅ Completed: Manila Payroll Engine — Bug D fixed (2026-08-12, Heroku v1897)
+
+**Root cause**: In `_compute_ot_and_nsd()`, the `scheduled_shift_end` override unconditionally replaced `ot_start` with `work_date + scheduled_shift_end` whenever `scheduled_shift_end.hour >= 12`. For a closing-shift worker (ATI=15:00) whose `scheduled_shift_end` was stored as a morning-shift time (e.g., `time(13,0)` — data artifact), this set `ot_start = 13:00` (before clock-in), causing `calc_night_hours(ATI, 13:00)` to return 0 and silently zeroing all NSD.
+
+**Fix (`manila_payroll_engine.py`, commit 7c1a6a8 → Heroku v1897)**:
+- Changed unconditional `ot_start = candidate` to `if candidate_ot_start > actual_time_in: ot_start = candidate_ot_start`
+- Closing-shift workers with mismatched `scheduled_shift_end` now retain the correct `ot_start = 00:30 next day` formula result
+- Normal day-shift workers with valid `scheduled_shift_end` (after ATI) are unaffected
+
+**Tests (24/24 PASS)**:
+- Bug A/B: raw_secs negative → skip (correct), raw_secs positive → NSD 2.5h (correct)
+- Bug C: midnight sched_start + PM actual → late=0 (guard); 09:00 sched + 09:30 actual → late=30 (correct)
+- Bug D: wrong sched_end (13:00) for closing shift → NSD 2.5h (correct, guard prevented bad override); valid sched_end (21:00) → OT/NSD computed correctly; correct sched_end time(0,30) → NSD 2.5h + 2h OT (correct)
+
+**Note on Ricardo/Xydney NSD discrepancy**: The ₱44 and ₱6 differences are expected to partially resolve after the 6-staff DTR corrections + payroll recompute. The Bayzat date-rollover records will be corrected, restoring proper NSD computation for those days.
 
 ---
 
