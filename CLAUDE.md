@@ -45,7 +45,7 @@
 |---|---|---|
 | HR系ページ（Probation / NTE / Recruitment / Onboarding / Performance / Offboarding / Clearance） | **HR Manual** | `docs/manuals/hr-manual.html` |
 | Inventory系ページ（Items / Count Templates / Recipes / POS Sync / Hub / Productions / CK・WH Inventory / Daily Inventory / Disposal / Backup / Full Count / Spot Check / Transfers / Qty・Cost Adj / Ledger） | **Inventory Manual** | `docs/manuals/inventory-manual.html` |
-| Procurement系ページ（Approval Inbox / CK Orders / POs / Invoices / Payments / Vendors / Scorecards / Risk Lab / KPI / Exceptions / Cold Chain / Delivery Schedule / Whitelist / Catalog / Receiving / Evaluation） | **Procurement Manual** | `docs/manuals/procurement-manual.html` |
+| Procurement系ページ（**Store Supplier Orders** / Approval Inbox / CK Orders / POs / Invoices / Payments / Vendors / Scorecards / Risk Lab / KPI / Exceptions / Cold Chain / Delivery Schedule / Whitelist / Catalog / Receiving / Evaluation） | **Procurement Manual** | `docs/manuals/procurement-manual.html` |
 | Payroll系ページ（Manila Payroll / Dubai Payroll / Adjustments / Transactions / Loans / Leave Salary / Staff Profiles / Gov Tables / DTR Upload / Allowances / Remittances / My Pay / Inquiries） | **Payroll Manual** | `docs/manuals/payroll-manual.html` |
 
 **Republish 手順:**
@@ -74,6 +74,8 @@
 - 既存の動作が変更された → 既存の説明を修正
 - バグ修正で挙動が変わった → 該当箇所を更新
 - 単なるバックエンド内部変更・見た目に影響のない修正 → 更新不要
+
+> ⚠️ **新規ページ追加時の必須作業**: 新しいページを実装したら、上記テーブルの該当行にそのページ名を追加すること。リストに載っていないページは自動更新ルールが発動しない（2026-08 Store Supplier Ordersで実際に発生）。HR/Inventory/Procurement/Payroll系のページを変更・追加した際は、**明示的な指示がなくても必ずマニュアルを更新してartifactを再publishすること**。
 
 ---
 
