@@ -1,6 +1,87 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Payroll Manual created — full EN/JA artifact published)
+Last updated: 2026-08-12 (Store Supplier Orders: inventory deduction bug fixed + qty editing added)
+
+---
+
+## ✅ Completed: Store Supplier Orders — inventory deduction bug + qty editing (2026-08-12)
+
+**Changes (Heroku v deployed + Vercel auto-deploy):**
+
+**Bug ②: Daily Inventory not deducted from order qty**
+- Root cause: `status = 'SUBMITTED'` filter in `generate_store_supplier_orders()` excluded inventory reports still in DRAFT status
+- Fix (`db_store_supplier.py`): Changed to `status IN ('SUBMITTED', 'DRAFT')` so today's inventory is used even if not yet submitted
+- Also added `inventory_date_used` field to generate response; frontend now shows "Inventory ref: YYYY-MM-DD" after generating, or amber warning if no inventory found
+
+**Feature ③: Qty editing at Confirm/Approve stages**
+- New DB function: `update_store_supplier_order_item_qty(order_id, item_id, qty_ordered)`
+- New API: `PATCH /api/admin/store-supplier/orders/{order_id}/items/{item_id}` with `{qty_ordered: float}`
+  - Managers can edit at draft/confirmed status; HQ/Admin can edit at approved status
+- Frontend: hover pencil icon on ordered qty cell → inline input (Enter=save, Escape=cancel, ✓/✕ buttons)
+
+**Staff question ④ (auto email to supplier on Mark as Sent):**
+- Currently NOT implemented — Mark as Sent only updates status in DB
+- To implement: needs supplier email per catalog/master + SendGrid template + trigger on status→sent
+- Pending user decision on whether to build this
+
+---
+
+## 🚨 BLOCKING: Discord QC Bot — removed from servers, needs re-invite (2026-08-12)
+
+**Root cause of "no photos scored since Aug 9"**: The bot (`upload pictures bot`, ID: `1316013419190685787`) is no longer a member of ANY Discord server. `GET /users/@me/guilds` returns 0 guilds; all QC channels return "Missing Access". Last scores were 2026-08-09.
+
+**Two bugs were fixed (both correct, both needed)**:
+1. `intents.members = True` → `PrivilegedIntentsRequired` crash (v1892 — fixed)
+2. No watchdog → dead thread never restarts (v1891 — fixed)
+
+**But neither fix helps until the bot is back in the servers.**
+
+**Action required by Discord server admin**:
+1. Open this invite URL in a browser (any server admin can do it):
+   `https://discord.com/api/oauth2/authorize?client_id=1316013419190685787&permissions=99328&scope=bot`
+2. Select each Discord server that has QC channels → click Authorize
+3. After re-inviting, confirm bot connects: `heroku logs -a sushizen-shift-app | grep "Discord Bot"`
+   - Expected: `[Discord Bot] Connected as upload pictures bot (1316013419190685787)`
+
+**QC channels expected in servers (from qc_discord_channel_map)**:
+- Channel IDs 1294567212488720488 (BB), 1294567173422977115 (JLT), 1294567115268947970 (ARJ), 1294567049082835016 (AM) — Dubai
+- Channel IDs 1416953135154597991 (Paranaque), 1440718790525583443 (Cubao), 1443907365010407485 (Taft) — Manila
+- And 1306266203425341470 (unknown)
+
+**Note**: PYTHONUNBUFFERED=1 env var also set (v1893) — worker stdout now visible in Heroku logs.
+
+---
+
+## ✅ Completed: Product Scoring — verified working after 2026-08-11 fix (2026-08-12)
+
+**Context**: User reported Product Scoring not loading since Aug 9. This was previously fixed (Discord bot token renewal, photo proxy/byte storage). Verified today that it's fully operational.
+
+**Verification (2026-08-12)**:
+- All 4 QC API endpoints → 200 OK: `/api/admin/qc/summary`, `/api/admin/qc/scores`, `/api/admin/qc/channels`, `/api/admin/qc/order-totals`
+- Data confirmed: 2,399 total photos scored, 8 stores tracked, overall avg 77.1, latest scores through 2026-08-09
+- No errors in console; all network requests healthy
+
+**Status**: No code changes needed. System is working correctly.
+
+---
+
+## ✅ Completed: Manila Payroll Discrepancy Analysis — Aug 10 manual vs OS (2026-08-12)
+
+**Request**: Compare OS payroll calculations against staff manual spreadsheet (Jul 26–Aug 10 period) and identify root causes of discrepancies.
+
+**Finding**: OS calculation logic is correct. All discrepancies trace to DTR input data (Bayzat sync timestamp errors), not engine bugs.
+
+| Staff | Root Cause | Details |
+|---|---|---|
+| James | DTR timestamp errors | Late: 998min (16.6h) impossible → wrong sched_start or time_in. Undertime: 1,547min accumulated → wrong sched_end across multiple days |
+| Aaron | DTR timestamp error (07/27) + possible basic count | 07/27: 448min (7.5h) late. Basic: OS ₱10,500 vs Manual ₱11,282.50 |
+| Wallen | Rest day (08/02 Sunday) undertime deduction | 08/02 is_worked=True with 124min undertime deducted — day_type likely not 'rest_day' |
+| Angelica R. | sched_end mismatch (08/06) + SSS bracket | 08/06: 379min phantom undertime. OS SSS ₱514.13 is correct; Manual ₱450 uses wrong bracket |
+| Karen | ~503min phantom undertime (rows hidden in spreadsheet) | Full ₱1,005.03 gap; likely one day with missing checkout or wrong sched_end |
+
+**Action needed**: DTR corrections per staff per anomalous date (Bayzat admin side).
+
+**No code changes made.**
 
 ---
 
