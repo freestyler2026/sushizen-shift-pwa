@@ -154,6 +154,7 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="nav-item active" onclick="show('overview')"><span class="nav-icon">🗺️</span><span data-en="System Overview" data-ja="システム概要">System Overview</span></div>
 
   <div class="sidebar-label" data-en="Store Operations" data-ja="店舗オペレーション">Store Operations</div>
+  <div class="nav-item" onclick="show('supplier-orders')"><span class="nav-icon">📋</span><span data-en="Store Supplier Orders" data-ja="店舗サプライヤー発注">Store Supplier Orders</span></div>
   <div class="nav-item" onclick="show('place-order')"><span class="nav-icon">🛒</span><span data-en="Place an Order" data-ja="発注する">Place an Order</span></div>
   <div class="nav-item" onclick="show('ck-receive')"><span class="nav-icon">📦</span><span data-en="CK Receiving" data-ja="CK商品の受取">CK Receiving</span></div>
   <div class="nav-item" onclick="show('vendor-receive')"><span class="nav-icon">🚚</span><span data-en="Vendor Receiving" data-ja="仕入先納品の受取">Vendor Receiving</span></div>
@@ -372,6 +373,80 @@ td.muted { color:var(--muted); font-size:12px; }
 </div>
 
 <!-- ═══════════ PLACE AN ORDER ═══════════ -->
+<!-- ═══════════ STORE SUPPLIER ORDERS ═══════════ -->
+<div class="section" id="sec-supplier-orders">
+  <div class="section-hero">
+    <div class="hero-icon">📋</div>
+    <div>
+      <div class="section-title" data-en="Store Supplier Orders" data-ja="店舗サプライヤー発注">Store Supplier Orders</div>
+      <div class="section-path">/admin/store-supplier-orders</div>
+      <div class="section-desc" data-en="A separate ordering channel from Procurement. Generate draft orders from par levels, confirm them in-store, get HQ approval, mark as sent, then receive. Does NOT flow into the Procurement Approval Inbox or PO system." data-ja="Procurementとは独立した発注チャンネル。パーレベルからドラフトを生成し、店舗内で確認・HQ承認・送付済みマーク・受取という流れ。ProcurementのApproval InboxやPOシステムには流れない。">Separate from Procurement. Par-level based ordering with its own draft→confirmed→approved→sent→received flow. Does NOT connect to the Procurement PO or Approval Inbox.</div>
+    </div>
+  </div>
+
+  <div class="card amber-border">
+    <div class="card-title" data-en="⚠️ Key Difference from Store Procurement" data-ja="⚠️ Store Procurementとの違い">⚠️ Key Difference from Store Procurement</div>
+    <div class="table-wrap"><table>
+      <tr><th></th><th data-en="Store Supplier Orders" data-ja="Store Supplier Orders">Store Supplier Orders</th><th data-en="Store Procurement (Place an Order)" data-ja="Store Procurement（Place an Order）">Store Procurement</th></tr>
+      <tr><td data-en="Channel" data-ja="チャンネル">Channel</td><td class="muted">/admin/store-supplier-orders</td><td class="muted">/store/procurement/request</td></tr>
+      <tr><td data-en="Based on" data-ja="基準">Based on</td><td class="muted" data-en="Par levels — auto-calculates order qty" data-ja="パーレベル — 発注数量を自動計算">Par levels → auto qty</td><td class="muted" data-en="Manual item entry by staff" data-ja="スタッフが手動でアイテム入力">Manual item entry by staff</td></tr>
+      <tr><td data-en="Order generation" data-ja="発注生成">Order generation</td><td class="muted" data-en="Manual only — Generate Now button" data-ja="手動のみ — Generate Nowボタン">Manual only — Generate Now</td><td class="muted" data-en="Staff submits at any time" data-ja="スタッフがいつでも提出">Staff submits anytime</td></tr>
+      <tr><td data-en="After approval" data-ja="承認後">After approval</td><td class="muted" data-en="Stays in this channel → Mark as Sent → Receiving" data-ja="このチャンネル内 → Mark as Sent → 受取">Stays in this channel → Sent → Receiving</td><td class="muted" data-en="Creates a PO → Approval Inbox → Invoice flow" data-ja="POを作成 → Approval Inbox → インボイスフロー">Creates PO → Approval Inbox → Invoice</td></tr>
+      <tr><td data-en="Procurement Inbox?" data-ja="Procurement Inboxに流れる？">Procurement Inbox?</td><td class="muted"><span style="color:var(--red);font-weight:700">No — does NOT appear</span></td><td class="muted"><span style="color:var(--green);font-weight:700">Yes</span></td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Full Status Flow" data-ja="ステータスフロー全体">Full Status Flow</div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:10px">
+      <span class="chip">draft</span><span style="color:var(--muted)">→</span>
+      <span class="chip blue">confirmed</span><span style="color:var(--muted)">→</span>
+      <span class="chip violet">approved</span><span style="color:var(--muted)">→</span>
+      <span class="chip amber">sent</span><span style="color:var(--muted)">→</span>
+      <span class="chip green">received</span>
+    </div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Status" data-ja="ステータス">Status</th><th data-en="Who" data-ja="担当">Who</th><th data-en="Action" data-ja="操作">Action</th></tr>
+      <tr><td><span class="chip">draft</span></td><td class="muted" data-en="System / Manager" data-ja="システム / マネージャー">System / Manager</td><td class="muted" data-en="Generated by Generate Now button. Review and edit ordered quantities if needed." data-ja="Generate Nowボタンで生成。必要に応じて発注数量を確認・編集。">Generated by Generate Now. Review / edit ordered quantities.</td></tr>
+      <tr><td><span class="chip blue">confirmed</span></td><td class="muted" data-en="MANILA_MANAGEMENT / HQ" data-ja="マニラ管理 / HQ">MANILA_MANAGEMENT / HQ</td><td class="muted" data-en="Click Mark as Confirmed. Order is locked and awaiting HQ approval." data-ja="Mark as Confirmedをクリック。オーダーがロックされHQ承認待ちに。">Click Mark as Confirmed. Locked, awaiting HQ approval.</td></tr>
+      <tr><td><span class="chip violet">approved</span></td><td class="muted">HQ / ADMIN</td><td class="muted" data-en="HQ clicks Approve in the same Store Supplier Orders page. Does NOT go to Procurement Inbox." data-ja="HQが同じStore Supplier Ordersページ内でApproveをクリック。Procurement Inboxには流れない。">HQ clicks Approve in Store Supplier Orders. NOT in Procurement Inbox.</td></tr>
+      <tr><td><span class="chip amber">sent</span></td><td class="muted" data-en="Manager" data-ja="マネージャー">Manager</td><td class="muted" data-en="After contacting the supplier and sending the order, click Mark as Sent." data-ja="サプライヤーに連絡してオーダーを送付後、Mark as Sentをクリック。">After sending order to supplier, click Mark as Sent.</td></tr>
+      <tr><td><span class="chip green">received</span></td><td class="muted" data-en="Store Staff / Manager" data-ja="店舗スタッフ / マネージャー">Store Staff / Manager</td><td class="muted" data-en="At /store/supplier-receiving, enter received quantities per item. Partial receipt is also supported." data-ja="/store/supplier-receivingで品目ごとに受取数量を入力。一部受取も対応。">At /store/supplier-receiving, enter qty received per item. Partial receipt supported.</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Generating Orders — Generate Now" data-ja="発注生成 — Generate Now">Generating Orders — Generate Now</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select store tab (Paranaque / Cubao / Taft)" data-ja="店舗タブを選択（Paranaque / Cubao / Taft）">Select store tab</strong><p data-en="Each store's orders are managed separately. Switch to the correct store tab first." data-ja="各店舗の発注は別々に管理されます。まず正しい店舗タブに切り替えてください。">Each store is managed separately. Select the correct store tab.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Set the date and click Generate Now" data-ja="日付を設定してGenerate Nowをクリック">Set date → Generate Now</strong><p data-en="The system calculates order_qty = par_level − current_stock per item. If an order already exists for that supplier+store+date, it is skipped (shown as 'skipped N already existed')." data-ja="システムがアイテムごとにorder_qty = par_level − current_stockを計算。同一サプライヤー・店舗・日付のオーダーが既存の場合はスキップ（'skipped N already existed'と表示）。">Calculates order_qty = par_level − current_stock. Already-existing orders are skipped.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review generated drafts" data-ja="生成されたドラフトを確認">Review generated drafts</strong><p data-en="One draft order is created per supplier. Expand each to see the items and quantities. Adjust quantities if needed before confirming." data-ja="サプライヤーごとにドラフトオーダーが1件作成されます。各ドラフトを展開してアイテムと数量を確認。確認前に数量を調整できます。">One draft per supplier. Expand to see items. Adjust quantities before confirming.</p></div></li>
+    </ol>
+    <div class="tip info" style="margin-top:8px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="Par levels must be set in advance (weekday and weekend schedules) for the system to calculate order quantities. Set par levels at /admin/store-supplier-catalog." data-ja="システムが発注数量を計算するには、事前にパーレベル（平日・週末スケジュール）を設定する必要があります。/admin/store-supplier-catalogで設定してください。">Par levels (weekday + weekend) must be set in advance at /admin/store-supplier-catalog.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="HQ Approval — Where to Find It" data-ja="HQ承認 — 確認場所">HQ Approval — Where to Find It</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="After a manager clicks Mark as Confirmed, the order status becomes 'confirmed' and an Approve button appears for HQ / Admin users on the same Store Supplier Orders page. There is no separate Procurement Inbox entry for these orders." data-ja="マネージャーがMark as Confirmedをクリックした後、ステータスが'confirmed'になり、同じStore Supplier OrdersページにHQ / AdminユーザーのためのApproveボタンが表示されます。これらのオーダーには別のProcurement Inboxエントリーはありません。">After Mark as Confirmed, the Approve button appears for HQ/Admin on the same Store Supplier Orders page. No separate Procurement Inbox entry.</p>
+    <div class="tip danger">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Confirmed orders do NOT appear in Procurement → Approval Inbox, Needs Approval, or Direct Purchase. Always look for them in Store Supplier Orders (/admin/store-supplier-orders) filtered by 'confirmed' status." data-ja="確認済みオーダーはProcurement → Approval Inbox、Needs Approval、Direct Purchaseには表示されません。'confirmed'ステータスでフィルターしたStore Supplier Orders（/admin/store-supplier-orders）で確認してください。">Confirmed orders do NOT appear in Procurement Approval Inbox or Needs Approval. Find them in Store Supplier Orders filtered by 'confirmed' status.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Receiving — After Mark as Sent" data-ja="受取 — Mark as Sent後">Receiving — After Mark as Sent</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Once approved, a manager contacts the supplier and sends the order. After sending, click Mark as Sent. Store staff then receive the delivery at:" data-ja="承認後、マネージャーがサプライヤーに連絡してオーダーを送付。送付後にMark as Sentをクリック。次に店舗スタッフが以下で受取を行います：">After approval, contact supplier → Mark as Sent. Staff receive at:</p>
+    <div class="chip-row">
+      <span style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:3px 8px;border-radius:4px;color:var(--blue)">/store/supplier-receiving</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Enter actual received quantities per item. Partial receipts are supported — status becomes 'partial' and the remaining quantity stays open. Once all items are received, status becomes 'received'." data-ja="品目ごとの実際の受取数量を入力。一部受取に対応 — ステータスが'partial'になり残数量がオープンのまま。全アイテム受取完了でステータスが'received'に。">Enter qty received per item. Partial receipt → status 'partial'. All items received → status 'received'.</p>
+  </div>
+</div>
+
 <div class="section" id="sec-place-order">
   <div class="section-hero">
     <div class="hero-icon">🛒</div>
