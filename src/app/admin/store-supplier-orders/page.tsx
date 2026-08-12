@@ -20,10 +20,8 @@ import {
   BADGE_WARNING,
   BADGE_ERROR,
   BADGE_INFO,
-  KPI_CARD,
 } from "@/lib/ui-tokens";
 import { getAuthHeaders, getAuth } from "@/lib/auth";
-import { API_BASE } from "@/lib/api";
 
 const STORES = ["PAR", "CUB", "TAFT"] as const;
 type Store = (typeof STORES)[number];
