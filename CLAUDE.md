@@ -37,6 +37,34 @@
 2. デプロイ待ちの変更を記録
 3. 新たな既知問題・教訓を追記
 
+### 📖 マニュアルArtifact 自動更新ルール
+
+以下のページ・機能に変更・追加があった場合、**明示的な指示がなくてもセッション終了前に必ずマニュアルを更新して republish すること**。
+
+| 変更があった対象 | 更新するマニュアル | ソースファイル |
+|---|---|---|
+| HR系ページ（Probation / NTE / Recruitment / Onboarding / Performance / Offboarding / Clearance） | **HR Manual** | `docs/manuals/hr-manual.html` |
+| Inventory系ページ（Items / Count Templates / Recipes / POS Sync / Hub / Productions / CK・WH Inventory / Daily Inventory / Disposal / Backup / Full Count / Spot Check / Transfers / Qty・Cost Adj / Ledger） | **Inventory Manual** | `docs/manuals/inventory-manual.html` |
+
+**Republish 手順:**
+```
+1. docs/manuals/hr-manual.html (または inventory-manual.html) を Edit で更新
+2. Artifact tool で以下を指定して publish:
+   - file_path: docs/manuals/hr-manual.html
+   - url: https://claude.ai/code/artifact/fbe4c31a-c572-4cc5-a46a-70b62c4dbdb8   ← HR Manual
+   - favicon: 📋  (HR) / 📦 (Inventory)
+
+   - file_path: docs/manuals/inventory-manual.html
+   - url: https://claude.ai/code/artifact/f4964149-6a34-432c-b86e-46f55b14ce31   ← Inventory Manual
+   - favicon: 📦
+```
+
+**更新対象の判断基準:**
+- 新しいUI要素・ステップが追加された → 対応セクションに手順を追記
+- 既存の動作が変更された → 既存の説明を修正
+- バグ修正で挙動が変わった → 該当箇所を更新
+- 単なるバックエンド内部変更・見た目に影響のない修正 → 更新不要
+
 ---
 
 ## アプリ概要

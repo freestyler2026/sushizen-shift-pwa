@@ -1,0 +1,875 @@
+<title>Sushi ZEN — Inventory Operations Manual</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0F1623; --surface: #1A2336; --surface2: #223047; --border: #2A3D5A;
+    --accent: #F59E0B; --accent-dim: rgba(245,158,11,0.12);
+    --text: #E2E8F0; --muted: #7A90AA;
+    --green: #34D399; --red: #F87171; --blue: #60A5FA; --violet: #A78BFA;
+    --sidebar-w: 240px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#F0F4F9; --surface:#FFFFFF; --surface2:#EEF2F8; --border:#CBD5E1; --text:#1E2B3C; --muted:#5A7090; --accent-dim:rgba(245,158,11,0.10); }
+  }
+  :root[data-theme="dark"]  { --bg:#0F1623; --surface:#1A2336; --surface2:#223047; --border:#2A3D5A; --text:#E2E8F0; --muted:#7A90AA; --accent-dim:rgba(245,158,11,0.12); }
+  :root[data-theme="light"] { --bg:#F0F4F9; --surface:#FFFFFF; --surface2:#EEF2F8; --border:#CBD5E1; --text:#1E2B3C; --muted:#5A7090; --accent-dim:rgba(245,158,11,0.10); }
+
+  body { font-family: system-ui,-apple-system,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.6; font-size:14px; }
+
+  .topbar { position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 calc(var(--sidebar-w)+20px); }
+  .topbar-title { font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase; }
+  .lang-toggle { display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--surface2); }
+  .lang-btn { padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:background .15s,color .15s;letter-spacing:.03em; }
+  .lang-btn.active { background:var(--accent);color:#0F1623; }
+
+  .sidebar { position:fixed;top:52px;left:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:12px 0; }
+  .sidebar-label { font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:8px 16px 4px; }
+  .nav-item { display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:500;border-left:3px solid transparent;transition:color .15s,background .15s,border-color .15s; }
+  .nav-item:hover { color:var(--text);background:var(--accent-dim); }
+  .nav-item.active { color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim); }
+  .nav-icon { font-size:14px;flex-shrink:0; }
+
+  .main { margin-left:var(--sidebar-w);margin-top:52px;padding:32px 36px 80px;max-width:880px; }
+  .section { display:none; }
+  .section.active { display:block; }
+
+  .section-hero { display:flex;align-items:flex-start;gap:14px;margin-bottom:24px; }
+  .hero-icon { width:46px;height:46px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
+  .section-title { font-size:20px;font-weight:700;color:var(--text);line-height:1.2; }
+  .section-path { font-size:11px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;margin-top:3px; }
+  .section-desc { font-size:13px;color:var(--muted);margin-top:5px; }
+
+  .card { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px; }
+  .card-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px; }
+  .card.green-border { border-color:rgba(52,211,153,.35); }
+  .card.blue-border  { border-color:rgba(96,165,250,.35); }
+  .card.violet-border{ border-color:rgba(167,139,250,.35); }
+
+  .steps { list-style:none; }
+  .step { display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border); }
+  .step:last-child { border-bottom:none; }
+  .step-num { width:20px;height:20px;border-radius:50%;flex-shrink:0;background:var(--accent);color:#0F1623;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px; }
+  .step-body { flex:1; }
+  .step-body strong { color:var(--text);font-weight:600; }
+  .step-body p { color:var(--muted);font-size:12px;margin-top:1px; }
+
+  .chip-row { display:flex;flex-wrap:wrap;gap:5px;margin-top:6px; }
+  .chip { padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text); }
+  .chip.green  { background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3); }
+  .chip.amber  { background:var(--accent-dim);color:var(--accent);border-color:rgba(245,158,11,.3); }
+  .chip.red    { background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3); }
+  .chip.blue   { background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3); }
+  .chip.violet { background:rgba(167,139,250,.12);color:var(--violet);border-color:rgba(167,139,250,.3); }
+
+  .tip { display:flex;gap:8px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:11px 13px;margin-top:4px;font-size:12px;color:var(--muted); }
+  .tip-icon { flex-shrink:0;color:var(--accent);font-size:14px; }
+
+  .table-wrap { overflow-x:auto; }
+  table { width:100%;border-collapse:collapse;font-size:12px; }
+  th { text-align:left;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border); }
+  td { padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  td.muted { color:var(--muted);font-size:12px; }
+
+  .two-col { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+  @media(max-width:620px){ .two-col{grid-template-columns:1fr;} }
+
+  /* Flow diagram */
+  .flow-wrap { overflow-x:auto;margin-bottom:14px; }
+  .flow { display:flex;align-items:flex-start;gap:4px;min-width:600px; }
+  .flow-col { display:flex;flex-direction:column;gap:4px;min-width:110px; }
+  .flow-col-title { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:center;padding-bottom:4px; }
+  .flow-box { font-size:10px;font-weight:600;padding:5px 8px;border-radius:6px;text-align:center;border:1px solid var(--border);background:var(--surface2);color:var(--text); }
+  .flow-box.green  { background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.4);color:var(--green); }
+  .flow-box.amber  { background:var(--accent-dim);border-color:rgba(245,158,11,.4);color:var(--accent); }
+  .flow-box.blue   { background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.4);color:var(--blue); }
+  .flow-box.violet { background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.4);color:var(--violet); }
+  .flow-box.red    { background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.4);color:var(--red); }
+  .flow-arrow { font-size:18px;color:var(--muted);align-self:center;margin-top:16px;flex-shrink:0; }
+
+  .divider { height:1px;background:var(--border);margin:20px 0; }
+  .sub-title { font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;padding-top:4px; }
+
+  @media(max-width:700px){
+    :root{--sidebar-w:0px;}
+    .sidebar{display:none;}
+    .topbar{padding:0 16px;}
+    .main{margin-left:0;padding:16px 14px 60px;}
+  }
+</style>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — Inventory Manual</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    <button class="lang-btn" onclick="setLang('ja')" id="btn-ja">日本語</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-label" data-en="Overview" data-ja="概要">Overview</div>
+  <div class="nav-item active" onclick="show('overview')"><span class="nav-icon">🗺️</span><span data-en="System Overview" data-ja="システム概要">System Overview</span></div>
+
+  <div class="sidebar-label" data-en="Setup" data-ja="セットアップ">Setup</div>
+  <div class="nav-item" onclick="show('items')"><span class="nav-icon">🏷️</span><span data-en="Items Master" data-ja="食材・商品マスタ">Items Master</span></div>
+  <div class="nav-item" onclick="show('count-sheets')"><span class="nav-icon">📄</span><span data-en="Count Templates" data-ja="棚卸しテンプレート">Count Templates</span></div>
+  <div class="nav-item" onclick="show('recipes')"><span class="nav-icon">🍣</span><span data-en="Recipes / BOM" data-ja="レシピ／BOM">Recipes / BOM</span></div>
+  <div class="nav-item" onclick="show('pos-sync')"><span class="nav-icon">🔄</span><span data-en="POS Sync" data-ja="POSデータ同期">POS Sync</span></div>
+
+  <div class="sidebar-label" data-en="Daily Operations" data-ja="日次業務">Daily Operations</div>
+  <div class="nav-item" onclick="show('hub')"><span class="nav-icon">📦</span><span data-en="Inventory Hub" data-ja="在庫ハブ">Inventory Hub</span></div>
+  <div class="nav-item" onclick="show('productions')"><span class="nav-icon">🏭</span><span data-en="CK Production" data-ja="CKプロダクション">CK Production</span></div>
+  <div class="nav-item" onclick="show('ck-inventory')"><span class="nav-icon">🏢</span><span data-en="CK Inventory" data-ja="CK在庫">CK Inventory</span></div>
+  <div class="nav-item" onclick="show('wh-inventory')"><span class="nav-icon">🏬</span><span data-en="WH Inventory" data-ja="倉庫在庫">WH Inventory</span></div>
+  <div class="nav-item" onclick="show('daily-inventory')"><span class="nav-icon">📅</span><span data-en="Daily Inventory" data-ja="日次在庫確認">Daily Inventory</span></div>
+  <div class="nav-item" onclick="show('disposal')"><span class="nav-icon">🗑️</span><span data-en="Disposal Report" data-ja="廃棄レポート">Disposal Report</span></div>
+  <div class="nav-item" onclick="show('backup')"><span class="nav-icon">💾</span><span data-en="Backup Report" data-ja="仕込みレポート">Backup Report</span></div>
+
+  <div class="sidebar-label" data-en="Counting" data-ja="棚卸し">Counting</div>
+  <div class="nav-item" onclick="show('counts')"><span class="nav-icon">📋</span><span data-en="Full Count" data-ja="定期棚卸し">Full Count</span></div>
+  <div class="nav-item" onclick="show('spot-checks')"><span class="nav-icon">🔍</span><span data-en="Spot Check" data-ja="スポット点検">Spot Check</span></div>
+
+  <div class="sidebar-label" data-en="Adjustments" data-ja="調整">Adjustments</div>
+  <div class="nav-item" onclick="show('transfers')"><span class="nav-icon">↔️</span><span data-en="Transfer Orders" data-ja="在庫移送">Transfer Orders</span></div>
+  <div class="nav-item" onclick="show('qty-adj')"><span class="nav-icon">⚖️</span><span data-en="Qty Adjustments" data-ja="数量調整">Qty Adjustments</span></div>
+  <div class="nav-item" onclick="show('cost-adj')"><span class="nav-icon">💰</span><span data-en="Cost Adjustments" data-ja="コスト調整">Cost Adjustments</span></div>
+
+  <div class="sidebar-label" data-en="Reporting" data-ja="レポート">Reporting</div>
+  <div class="nav-item" onclick="show('ledger')"><span class="nav-icon">📊</span><span data-en="Ledger" data-ja="在庫台帳">Ledger</span></div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+<!-- ═══ OVERVIEW ═══ -->
+<div class="section active" id="sec-overview">
+  <div class="section-hero"><div class="hero-icon">🗺️</div><div>
+    <div class="section-title" data-en="Inventory System Overview" data-ja="在庫システム概要">Inventory System Overview</div>
+    <div class="section-path">Admin → Inventory</div>
+    <div class="section-desc" data-en="17 pages covering stock, counting, adjustments, production, and reporting — all connected through the central Ledger." data-ja="在庫・棚卸し・調整・プロダクション・レポートの17ページ構成。すべてが中央台帳（Ledger）でつながります。">17 pages covering stock, counting, adjustments, production, and reporting.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="System Data Flow" data-ja="システムデータフロー">System Data Flow</div>
+    <div class="flow-wrap"><div class="flow">
+      <div class="flow-col">
+        <div class="flow-col-title" data-en="External" data-ja="外部">External</div>
+        <div class="flow-box blue" data-en="POS/UrbanPiper" data-ja="POS/UrbanPiper">POS/UrbanPiper</div>
+        <div class="flow-box blue" data-en="Cost Calculation" data-ja="コスト計算">Cost Calculation</div>
+        <div class="flow-box blue" data-en="Procurement" data-ja="調達">Procurement</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col">
+        <div class="flow-col-title" data-en="Foundation" data-ja="基盤">Foundation</div>
+        <div class="flow-box amber" data-en="POS Sync" data-ja="POS同期">POS Sync</div>
+        <div class="flow-box amber" data-en="Items Master" data-ja="食材マスタ">Items Master</div>
+        <div class="flow-box amber" data-en="Recipes/BOM" data-ja="レシピ/BOM">Recipes/BOM</div>
+        <div class="flow-box amber" data-en="Count Templates" data-ja="棚卸しテンプレート">Count Templates</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col">
+        <div class="flow-col-title" data-en="Daily Ops" data-ja="日次業務">Daily Ops</div>
+        <div class="flow-box green" data-en="CK Production" data-ja="CKプロダクション">CK Production</div>
+        <div class="flow-box green" data-en="CK Inventory" data-ja="CK在庫">CK Inventory</div>
+        <div class="flow-box green" data-en="WH Inventory" data-ja="倉庫在庫">WH Inventory</div>
+        <div class="flow-box green" data-en="Disposal" data-ja="廃棄">Disposal</div>
+        <div class="flow-box green" data-en="Backup" data-ja="仕込み">Backup</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col">
+        <div class="flow-col-title" data-en="Count / Adjust" data-ja="棚卸し・調整">Count / Adjust</div>
+        <div class="flow-box violet" data-en="Full Count" data-ja="定期棚卸し">Full Count</div>
+        <div class="flow-box violet" data-en="Spot Check" data-ja="スポット点検">Spot Check</div>
+        <div class="flow-box violet" data-en="Qty Adjustment" data-ja="数量調整">Qty Adjustment</div>
+        <div class="flow-box violet" data-en="Transfer Orders" data-ja="在庫移送">Transfer Orders</div>
+        <div class="flow-box violet" data-en="Cost Adjustment" data-ja="コスト調整">Cost Adjustment</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col">
+        <div class="flow-col-title" data-en="View" data-ja="閲覧">View</div>
+        <div class="flow-box red" data-en="Ledger" data-ja="在庫台帳">Ledger</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Role Access" data-ja="アクセス権限">Role Access</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Page Group" data-ja="ページ">Page Group</th><th data-en="Access" data-ja="権限">Access</th></tr>
+        <tr><td data-en="Items, Templates, Recipes, Ledger, Qty/Cost Adj, POS Sync" data-ja="食材・テンプレート・レシピ・台帳・調整・POS同期">Items, Templates, Recipes, Ledger, Adj, POS Sync</td><td><span class="chip amber">HQ / Admin</span></td></tr>
+        <tr><td data-en="Full Count, Spot Check, Transfers, Productions, CK/WH" data-ja="定期棚卸し・スポット・移送・プロダクション">Full Count, Spot Check, Transfers, Productions</td><td><span class="chip blue">All Inventory Staff</span></td></tr>
+        <tr><td data-en="Daily Inventory, Disposal, Backup Report" data-ja="日次在庫・廃棄・仕込み">Daily Inventory, Disposal, Backup</td><td><span class="chip green">All Authenticated Staff</span></td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Common 3-Step Workflow" data-ja="共通3ステップワークフロー">Common 3-Step Workflow</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Full Count, Spot Check, Adjustments, and CK Production all follow this pattern:" data-ja="定期棚卸し・スポット点検・各調整・CKプロダクションはすべてこのパターンに従います：">Used by Full Count, Spot Check, Adjustments, CK Production:</p>
+      <div class="chip-row" style="align-items:center">
+        <span class="chip amber" data-en="1 Save Draft" data-ja="1 下書き保存">1 Save Draft</span>
+        <span style="color:var(--muted)">→</span>
+        <span class="chip blue" data-en="2 Review" data-ja="2 確認">2 Review</span>
+        <span style="color:var(--muted)">→</span>
+        <span class="chip green" data-en="3 Close &amp; Post" data-ja="3 締めて台帳反映">3 Close &amp; Post</span>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Close &amp; Post is irreversible — it permanently posts stock movements to the Ledger." data-ja="Close &amp; Post は取り消し不可です。台帳に在庫変動が恒久的に記録されます。">⚠ Close &amp; Post is irreversible — posts to Ledger permanently.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INVENTORY HUB ═══ -->
+<div class="section" id="sec-hub">
+  <div class="section-hero"><div class="hero-icon">📦</div><div>
+    <div class="section-title" data-en="Inventory Hub" data-ja="在庫ハブ">Inventory Hub</div>
+    <div class="section-path">Admin → Inventory</div>
+    <div class="section-desc" data-en="Central landing page with module cards and live activity stats. Role-gated: Staff/Manager see 4 modules; HQ/Admin see all 10." data-ja="モジュールカードとリアルタイム活動情報の中央画面。スタッフ・マネージャーは4モジュール、HQ・Adminは全10モジュールを表示。">Landing page with live stats. Staff/Manager: 4 modules. HQ/Admin: all 10.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Module Cards &amp; Live Badges" data-ja="モジュールカードとライブバッジ">Module Cards &amp; Live Badges</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Module" data-ja="モジュール">Module</th><th data-en="Live stat shown on card" data-ja="カードの表示情報">Live stat on card</th><th data-en="Access" data-ja="権限">Access</th></tr>
+      <tr><td>Items Master</td><td class="muted">—</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+      <tr><td>POS Sync</td><td class="muted">—</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+      <tr><td>Ledger / Balances</td><td class="muted">—</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+      <tr><td>Full Count</td><td class="muted" data-en="Last count date" data-ja="最終棚卸し日">Last count date</td><td><span class="chip blue">All</span></td></tr>
+      <tr><td>Count Templates</td><td class="muted">—</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+      <tr><td>Spot Check</td><td class="muted" data-en="Last check date + open draft count" data-ja="最終点検日＋未締め下書き数">Last check + open drafts</td><td><span class="chip blue">All</span></td></tr>
+      <tr><td>Transfer Orders</td><td class="muted">—</td><td><span class="chip blue">All</span></td></tr>
+      <tr><td>CK Production</td><td class="muted" data-en="Pending branch orders (amber badge)" data-ja="店舗待機オーダー数（アンバー）">Pending branch orders</td><td><span class="chip blue">All</span></td></tr>
+      <tr><td>Qty Adjustments</td><td class="muted" data-en="Last adjustment date" data-ja="最終調整日">Last adjustment date</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+      <tr><td>Cost Adjustments</td><td class="muted">—</td><td><span class="chip amber">HQ/Admin</span></td></tr>
+    </table></div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="Quick links: 'Back to Admin Dashboard' and 'Open Procurement' appear in the header area. The hub also shows system status and POS data source (UrbanPiper)." data-ja="ヘッダーに「Admin Dashboardへ戻る」「Procurementを開く」のクイックリンクあり。POSデータソース（UrbanPiper）の接続状態も確認できます。">Header links: Back to Admin Dashboard and Open Procurement. Shows POS (UrbanPiper) connection status.</span></div>
+</div>
+
+<!-- ═══ ITEMS MASTER ═══ -->
+<div class="section" id="sec-items">
+  <div class="section-hero"><div class="hero-icon">🏷️</div><div>
+    <div class="section-title" data-en="Items Master" data-ja="食材・商品マスタ">Items Master</div>
+    <div class="section-path">Admin → Inventory → Items</div>
+    <div class="section-desc" data-en="Register and manage all inventory items (raw ingredients and CK products). The foundation for counts, adjustments, recipes, and productions." data-ja="全在庫アイテム（食材・CK商品）の登録・管理。棚卸し・調整・レシピ・プロダクションの基盤です。">Register all ingredients and CK products. Foundation for the entire inventory system.</div>
+  </div></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Create a New Item" data-ja="新規アイテム作成">Create a New Item</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select city" data-ja="都市を選択">Select city</strong><p data-en="Toggle Manila / Dubai at the top." data-ja="上部のManilaまたはDubaiを選択します。">Toggle Manila / Dubai.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill the create form" data-ja="作成フォームに入力">Fill the form</strong><p data-en="Name, SKU (auto-suggested), Category, Unit, Cost, Type (Ingredient or CK Product)." data-ja="名前・SKU（自動提案）・カテゴリ・単位・コスト・タイプ（Ingredient / CK Product）を入力。">Name, SKU, Category, Unit, Cost, Type.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save" data-ja="保存">Save</strong><p data-en="Item appears in the list and is available for all inventory modules." data-ja="アイテムが一覧に表示され、全在庫モジュールで利用可能になります。">Item becomes available across all modules.</p></div></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Sync from Cost Calculation" data-ja="コスト計算から同期">Sync from Cost Calculation</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click 'Check Missing Items'" data-ja="「不足アイテムを確認」をクリック">Click Check Missing Items</strong><p data-en="The system compares items in Cost Calculation with the inventory master." data-ja="コスト計算の食材とインベントリマスタを比較します。">Compares Cost Calc vs. inventory master.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Select items to import" data-ja="インポートするアイテムを選択">Select items</strong><p data-en="Check boxes for specific items, or use Select All." data-ja="個別チェックボックスまたは「全選択」を使用。">Checkboxes per item, or Select All.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Import" data-ja="インポートをクリック">Click Import</strong><p data-en="Items are added to the inventory master with name, unit, cost, and category from Cost Calc." data-ja="名前・単位・コスト・カテゴリがコスト計算から取得されてマスタに追加されます。">Items added with Cost Calc data.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Edit &amp; Delete" data-ja="編集・削除">Edit &amp; Delete</div>
+    <p style="color:var(--muted);font-size:12px" data-en="Click Edit (pencil icon) on any row to open the edit modal. Click Delete for a soft-delete (reversible by support). Deleted items are hidden from active lists but visible via the 'Deleted' filter tab." data-ja="行のEditボタン（鉛筆アイコン）で編集モーダルを開きます。Deleteはソフト削除（サポートで復元可能）。削除済みアイテムは「Deleted」フィルタで確認できます。">Edit button opens a modal. Delete is a soft-delete (reversible). View deleted items with the "Deleted" filter.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row">
+      <span class="chip blue">Full Count</span><span class="chip blue">Spot Check</span><span class="chip blue">Transfer Orders</span>
+      <span class="chip amber">Qty Adjustments</span><span class="chip amber">Cost Adjustments</span>
+      <span class="chip amber">Recipes / BOM</span><span class="chip blue">CK Production</span>
+      <span class="chip violet">Cost Calculation (source)</span>
+    </div>
+  </div>
+  <div class="tip"><span class="tip-icon">⚠️</span><span data-en="For food ingredients and products, register in Cost Calculation first, then sync here. This keeps SKUs and costs consistent." data-ja="食材・商品はまずコスト計算で登録してから、ここで同期することを推奨します。SKUとコストの一貫性が保たれます。">Register in Cost Calculation first, then sync here to keep costs consistent.</span></div>
+</div>
+
+<!-- ═══ COUNT TEMPLATES ═══ -->
+<div class="section" id="sec-count-sheets">
+  <div class="section-hero"><div class="hero-icon">📄</div><div>
+    <div class="section-title" data-en="Count Templates" data-ja="棚卸しテンプレート">Count Templates</div>
+    <div class="section-path">Admin → Inventory → Count Templates</div>
+    <div class="section-desc" data-en="Build reusable templates to pre-populate Full Inventory Count sessions. HQ/Admin only." data-ja="定期棚卸しを事前に準備するための再利用可能なテンプレートを作成します。HQ/Adminのみ。">Build reusable templates to pre-populate Full Count sessions. HQ/Admin only.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Building a Template (Two-Panel Editor)" data-ja="テンプレートの作成（2パネルエディタ）">Building a Template</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Set city, branch, cycle" data-ja="都市・店舗・サイクルを設定">Set city, branch, cycle</strong><p data-en="Choose Manila or Dubai, select the branch, and pick 15TH or MONTH_END cycle." data-ja="都市・店舗を選択し、15TH（15日）またはMONTH_END（月末）サイクルを選びます。">City → Branch → Cycle (15TH or MONTH_END).</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Add items from the library (left panel)" data-ja="ライブラリ（左パネル）からアイテムを追加">Add from Item Library</strong><p data-en="Search by name/SKU/supplier. Click + to add a single item, or 'Add All' for an entire supplier group." data-ja="名前・SKU・仕入先で検索。「+」で個別追加、「Add All」でサプライヤー丸ごと追加します。">Search and click + to add. "Add All" adds an entire supplier group.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Edit cells inline (right panel)" data-ja="インラインで編集（右パネル）">Edit cells inline</strong><p data-en="All cells are editable: Item Name, Invoice Name, Unit, Counted Qty, Memo. Tab/Enter navigates like a spreadsheet." data-ja="Item Name・Invoice Name・Unit・Counted Qty・Memoをインラインで編集。Tab/EnterキーでExcel風のナビゲーション。">Tab/Enter to navigate. Edit: Name, Invoice Name, Unit, Qty, Memo.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Click Save Count Sheet" data-ja="「Save Count Sheet」をクリック">Save Count Sheet</strong><p data-en="A new version is created. Previous versions are kept in Version History." data-ja="新バージョンが作成されます。旧バージョンはVersion Historyに保存されます。">Saves a new version. Previous versions preserved in history.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Template Actions" data-ja="テンプレート操作">Template Actions</div>
+      <div class="chip-row" style="flex-direction:column;gap:6px">
+        <div><span class="chip green">Load to Grid</span> <span style="color:var(--muted);font-size:12px" data-en="— edit and re-save" data-ja="— 編集して再保存"> edit and re-save</span></div>
+        <div><span class="chip blue">Duplicate</span> <span style="color:var(--muted);font-size:12px" data-en="— copy for another branch/cycle" data-ja="— 別の店舗・サイクル用にコピー"> copy for another branch</span></div>
+        <div><span class="chip red">Delete</span> <span style="color:var(--muted);font-size:12px" data-en="— permanently removes the template" data-ja="— テンプレートを完全削除"> permanently removes</span></div>
+        <div><span class="chip">Version History</span> <span style="color:var(--muted);font-size:12px" data-en="— view any past snapshot" data-ja="— 過去バージョンを閲覧"> view any past snapshot</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+      <div class="chip-row"><span class="chip amber">Items Master</span><span class="chip green">Full Count</span></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Templates appear as a dropdown in Full Count. Selecting one pre-populates all items and quantities, saving significant setup time." data-ja="テンプレートはFull Countのドロップダウンに表示されます。選択するとアイテムと数量が自動入力され、設定時間を大幅に節約できます。">Templates appear in Full Count's dropdown to pre-populate the entire count session.</p>
+    </div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="Register a new item inline without leaving the page: use the 'Register new item' quick form at the bottom of the Item Library panel." data-ja="ページを離れずにアイテムをインラインで登録できます。アイテムライブラリ下部の「Register new item」フォームを使用してください。">Register new items inline via the quick form at the bottom of the Item Library panel.</span></div>
+</div>
+<!-- ═══ RECIPES / BOM ═══ -->
+<div class="section" id="sec-recipes">
+  <div class="section-hero"><div class="hero-icon">🍣</div><div>
+    <div class="section-title" data-en="Recipes / Sales BOM" data-ja="レシピ・販売BOM">Recipes / Sales BOM</div>
+    <div class="section-path">Admin → Inventory → Recipes</div>
+    <div class="section-desc" data-en="Link POS menu items to their ingredients (Bill of Materials). Required for automatic stock deduction from CK Production and for POS BOM coverage analysis." data-ja="POSメニューアイテムと食材を紐付け（部品表）。CKプロダクションの自動在庫控除とPOS BOMカバレッジ分析に必要です。">Link POS items to ingredients. Required for stock deduction and coverage analysis.</div>
+  </div></div>
+
+  <div class="card green-border">
+    <div class="card-title" data-en="Section 1 — Sync from Cost Calculation" data-ja="セクション1 — コスト計算から同期">Section 1 — Sync from Cost Calculation</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click Preview" data-ja="Previewをクリック">Click Preview</strong><p data-en="Shows products in Cost Calc, existing BOM count, and a list of products with no BOM entry." data-ja="コスト計算内の商品数、既存BOM数、BOM未登録商品の一覧を表示します。">Shows missing BOM entries vs. Cost Calc.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Sync from Cost Calc" data-ja="「Sync from Cost Calc」をクリック">Click Sync from Cost Calc</strong><p data-en="Confirm in the modal. Replaces all BOM lines with fresh data from Cost Calculation." data-ja="モーダルで確認。コスト計算の最新データでBOMラインを全て置き換えます。">Confirm → replaces all BOM lines with latest Cost Calc data.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Section 2 — Sales BOM Viewer" data-ja="セクション2 — 販売BOMビューア">Section 2 — Sales BOM Viewer</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="Left panel: search and select any POS product. Right panel: ingredient breakdown (name, SKU, qty, unit, yield factor, waste %)." data-ja="左パネル：POSメニュー商品を検索・選択。右パネル：食材内訳（名前・SKU・数量・単位・歩留り・廃棄率）を表示。">Left: select product. Right: ingredient breakdown with qty, yield, waste %.</p>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Section 3 — POS BOM Coverage Check" data-ja="セクション3 — POS BOMカバレッジ確認">Section 3 — POS BOM Coverage Check</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Set date range and click Check Coverage" data-ja="期間を設定してCheck Coverageをクリック">Set date range → Check Coverage</strong><p data-en="Finds POS items sold in that period that have no BOM (ingredients never deducted)." data-ja="その期間に販売されたがBOM未登録のPOSアイテム（食材が控除されていないもの）を検出します。">Finds items sold with no BOM — ingredient stock never deducted.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Review the coverage %" data-ja="カバレッジ%を確認">Review coverage %</strong><p data-en="Green ≥90%, amber ≥70%, red below 70%. Unmatched items table shows name, qty sold, net sales." data-ja="緑≥90%・アンバー≥70%・赤70%未満。未対応アイテムの名前・販売数・売上も表示します。">Green ≥90%, amber ≥70%, red &lt;70%. Table shows sales data for unmatched items.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip violet">Cost Calculation (source)</span><span class="chip amber">POS Sync (coverage data)</span><span class="chip blue">CK Production (uses BOM)</span><span class="chip amber">Items Master</span></div>
+  </div>
+</div>
+
+<!-- ═══ POS SYNC ═══ -->
+<div class="section" id="sec-pos-sync">
+  <div class="section-hero"><div class="hero-icon">🔄</div><div>
+    <div class="section-title" data-en="POS Sync" data-ja="POSデータ同期">POS Sync</div>
+    <div class="section-path">Admin → Inventory → POS Sync</div>
+    <div class="section-desc" data-en="Import UrbanPiper sales CSV files from Google Drive into the inventory system. HQ/Admin only." data-ja="Google DriveのUrbanPiper売上CSVファイルをインベントリシステムに取り込みます。HQ/Adminのみ。">Import UrbanPiper sales CSVs from Google Drive. HQ/Admin only.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Sync Operations" data-ja="同期操作">Sync Operations</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Button" data-ja="ボタン">Button</th><th data-en="What it does" data-ja="操作内容">What it does</th><th data-en="When to use" data-ja="使用タイミング">When to use</th></tr>
+      <tr><td><strong data-en="Sync 20 Files" data-ja="Sync 20 Files">Sync 20 Files</strong></td><td class="muted" data-en="Imports one batch of up to 20 CSV files" data-ja="最大20ファイルを1バッチでインポート">One batch of up to 20 CSVs</td><td class="muted" data-en="Quick daily update" data-ja="日次の簡単更新">Quick daily update</td></tr>
+      <tr><td><strong data-en="Sync All" data-ja="Sync All">Sync All (green)</strong></td><td class="muted" data-en="Loops in rounds of 20 until all files are imported or all are duplicates (up to 1000 files)" data-ja="全ファイルがインポート済みか重複になるまで20ファイルずつループ（最大1000ファイル）">Loops until all files done (up to 1000)</td><td class="muted" data-en="Full catch-up after a gap" data-ja="未処理期間のまとめて取込み">Full catch-up</td></tr>
+      <tr><td><strong data-en="List Drive Files" data-ja="List Drive Files">List Drive Files (blue)</strong></td><td class="muted" data-en="Diagnostic scan — shows all CSV files in the Drive folder without importing" data-ja="診断スキャン — インポートせずにDriveフォルダ内のCSVファイルを確認">Diagnostic — lists files without importing</td><td class="muted" data-en="Troubleshooting" data-ja="トラブルシューティング">Troubleshooting</td></tr>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip violet">UrbanPiper (source)</span><span class="chip amber">Recipes / BOM (coverage check uses this data)</span></div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="All three buttons are disabled while a sync is in progress. 'Sync All' shows an animated round counter so you can see progress. Run this regularly (daily or weekly) to keep BOM coverage data accurate." data-ja="同期中はすべてのボタンが無効になります。「Sync All」は進行状況をアニメーションで表示します。BOMカバレッジデータを正確に保つため、定期的（毎日または毎週）に実行してください。">Run Sync All regularly to keep coverage data accurate. All buttons disabled during sync.</span></div>
+</div>
+
+<!-- ═══ CK PRODUCTION ═══ -->
+<div class="section" id="sec-productions">
+  <div class="section-hero"><div class="hero-icon">🏭</div><div>
+    <div class="section-title" data-en="CK Production" data-ja="CKプロダクション">CK Production</div>
+    <div class="section-path">Admin → Inventory → CK Production</div>
+    <div class="section-desc" data-en="Record daily CK production output, fulfill branch orders, and manage production recipes (BOM). Has 3 tabs." data-ja="CKの日次製造記録、店舗オーダーの対応、製造レシピ（BOM）の管理を行います。3つのタブで構成。">Record production, fulfill branch orders, manage recipes. 3 tabs.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Tab 1 — Stock (Daily Production Entry)" data-ja="タブ1 — Stock（日次製造入力）">Tab 1 — Stock (Daily Production Entry)</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select city and date" data-ja="都市と日付を選択">Select city &amp; date</strong><p data-en="Set the business date and responsible staff name." data-ja="営業日と担当スタッフ名を設定します。">Set business date and responsible staff.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Enter production quantities" data-ja="製造数量を入力">Enter quantities</strong><p data-en="Item grid shows all registered products. Enter Qty Produced and select unit per item. Items with a BOM recipe are highlighted." data-ja="登録済み商品グリッドに製造数量と単位を入力します。BOMレシピがある商品はハイライト表示されます。">Enter Qty + unit per product. Items with BOM are highlighted.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Add to Draft" data-ja="「Add to Draft」をクリック">Click Add to Draft</strong><p data-en="Selected quantities are merged into the production draft for review before closing." data-ja="選択した数量がプロダクション下書きに統合されます。締め前に確認できます。">Merges into draft for review.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Tab 2 — Pending Orders (Fulfill Branch Orders)" data-ja="タブ2 — Pending Orders（店舗オーダー対応）">Tab 2 — Pending Orders</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Review pending requests" data-ja="待機中の依頼を確認">Review pending requests</strong><p data-en="Each card shows: store code, request no., requested by, needed-by date." data-ja="各カードに店舗コード・依頼番号・依頼者・必要日が表示されます。">Each card: store, request no., requester, needed-by date.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Start Packing" data-ja="「Start Packing」をクリック">Click Start Packing</strong><p data-en="Enters checklist mode. Tap each item to mark it as packed. Progress counter shows X/N done." data-ja="チェックリストモードに入ります。各アイテムをタップして梱包済みにします。進捗カウンター表示あり。">Tap items to check them off. Progress counter shows X/N.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Complete &amp; Deliver" data-ja="「Complete &amp; Deliver」をクリック">Click Complete &amp; Deliver</strong><p data-en="Saves the production record, deducts from CK stock, and updates request status to IN_PRODUCTION. Delivery note can be printed." data-ja="製造記録を保存し、CK在庫から控除、依頼ステータスをIN_PRODUCTIONに更新します。納品書の印刷も可能。">Saves record, deducts CK stock, updates status. Print delivery note available.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Tab 3 — Custom Entry (Manual Production + Recipe Management)" data-ja="タブ3 — Custom Entry（手動製造・レシピ管理）">Tab 3 — Custom Entry</div>
+    <div class="two-col" style="margin-top:4px">
+      <div>
+        <p class="sub-title" data-en="Production Form" data-ja="製造フォーム">Production Form</p>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select product + qty + unit" data-ja="商品・数量・単位を選択">Select product + qty + unit</strong><p data-en="'Add' button adds to the draft output list." data-ja="「Add」でドラフトリストに追加。">Click Add.</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Set Purpose and notes" data-ja="目的とメモを設定">Set Purpose &amp; notes</strong><p data-en="STOCK (for CK storage) or STORE_ORDER (select destination branch)." data-ja="STOCK（CK保管）またはSTORE_ORDER（店舗配送先を選択）。">STOCK or STORE_ORDER + branch.</p></div></li>
+          <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Create Production → Close &amp; Post" data-ja="「Create Production」→「Close &amp; Post」">Create → Close &amp; Post</strong><p data-en="Posts to Ledger (PRODUCTION_CLOSE event) and deducts ingredients from CK stock." data-ja="台帳に反映（PRODUCTION_CLOSEイベント）し、CK在庫から食材を控除します。">Posts to Ledger + deducts CK stock.</p></div></li>
+        </ol>
+      </div>
+      <div>
+        <p class="sub-title" data-en="Recipe Management (BOM)" data-ja="レシピ管理（BOM）">Recipe Management</p>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select product + ingredient" data-ja="商品と食材を選択">Select product + ingredient</strong><p data-en="Set qty and unit, then click Add Line." data-ja="数量と単位を設定して「Add Line」をクリック。">Set qty/unit → Add Line.</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Save Recipe" data-ja="「Save Recipe」をクリック">Save Recipe</strong><p data-en="Recipe is linked to the product and used for ingredient consumption preview." data-ja="レシピが商品に紐付き、食材消費プレビューで使用されます。">BOM saved; used in consumption preview.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip green">CK Inventory (stock deductions)</span><span class="chip amber">Ledger (PRODUCTION_CLOSE event)</span><span class="chip amber">Recipes/BOM (ingredient consumption)</span><span class="chip blue">Store: CK Receiving (triggers pending orders)</span></div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="The 'Print Production Order' button generates a printable checklist with Prepared by / Checked by signature lines. The 'Print Delivery Note' appears after completing a STORE_ORDER." data-ja="「Print Production Order」ボタンで、担当者・確認者のサイン欄付きチェックリストが印刷されます。STORE_ORDERの完了後に「Print Delivery Note」が表示されます。">Print Production Order = checklist with signature lines. Print Delivery Note appears after completing a STORE_ORDER.</span></div>
+</div>
+
+<!-- ═══ CK INVENTORY ═══ -->
+<div class="section" id="sec-ck-inventory">
+  <div class="section-hero"><div class="hero-icon">🏢</div><div>
+    <div class="section-title" data-en="CK Inventory" data-ja="CK在庫">CK Inventory</div>
+    <div class="section-path">Admin → Inventory → CK Inventory</div>
+    <div class="section-desc" data-en="View current CK stock levels and enter physical counts. Theoretical stock is calculated from last count minus production deductions." data-ja="CKの現在の在庫水準を確認し、実際の棚卸し数を入力します。理論在庫は前回棚卸しからプロダクション控除を引いて算出されます。">View CK stock levels and enter physical counts. 2 tabs.</div>
+  </div></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Tab 1 — Current Stock" data-ja="タブ1 — Current Stock">Tab 1 — Current Stock</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Table columns: Item Name, Source (Ingredient/Processed), Category, Last Count, Adjustments, Theoretical, Last Count Date, Status." data-ja="列：アイテム名・ソース（食材/加工品）・カテゴリ・前回棚卸し・調整・理論在庫・最終棚卸し日・ステータス。">Columns: Item, Source, Category, Last Count, Adjustments, Theoretical, Status.</p>
+      <div class="chip-row">
+        <span class="chip green">OK</span>
+        <span class="chip amber">LOW (theoretical &lt; 1)</span>
+        <span class="chip red">OUT (theoretical ≤ 0)</span>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Use the search input or click category chips to filter the list." data-ja="テキスト入力またはカテゴリチップをクリックしてリストをフィルタリングします。">Filter by search or category chips.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Tab 2 — New Count" data-ja="タブ2 — New Count">Tab 2 — New Count</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Set count date and staff name" data-ja="棚卸し日とスタッフ名を設定">Set date &amp; staff</strong><p data-en="Defaults to today." data-ja="デフォルトは本日。">Defaults to today.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Enter counted quantities" data-ja="棚卸し数量を入力">Enter quantities</strong><p data-en="Count Qty column. Gap is auto-calculated and color-coded: red = short, green = surplus." data-ja="Count Qty列に入力。ギャップが自動計算され色分け表示：赤＝不足、緑＝過剰。">Gap auto-calculated: red = short, green = surplus.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Save Count" data-ja="「Save Count」をクリック">Save Count</strong><p data-en="Updates the CK stock baseline. Auto-switches to Current Stock tab after 1.8 seconds." data-ja="CK在庫ベースラインを更新。1.8秒後に自動的にCurrent Stockタブに切り替わります。">Updates stock baseline. Returns to Current Stock tab.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip blue">CK Production (deductions reduce theoretical stock)</span><span class="chip amber">Items Master (item list source)</span></div>
+  </div>
+</div>
+
+<!-- ═══ WH INVENTORY ═══ -->
+<div class="section" id="sec-wh-inventory">
+  <div class="section-hero"><div class="hero-icon">🏬</div><div>
+    <div class="section-title" data-en="WH Inventory" data-ja="倉庫在庫">WH Inventory</div>
+    <div class="section-path">Admin → Inventory → WH Inventory</div>
+    <div class="section-desc" data-en="Warehouse stocktaking, branch order fulfillment, and stock tracking. 4 tabs." data-ja="倉庫の棚卸し、店舗オーダーの対応、在庫追跡。4つのタブで構成。">Warehouse stocktaking, branch order fulfillment, and stock tracking. 4 tabs.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Tab 1 — WH Stock" data-ja="タブ1 — WH Stock">Tab 1 — WH Stock</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Columns: Item Name, Category, Unit, Last Count, Adjustments, Theoretical, Status (OK/LOW/OUT). Use search or category chips to filter." data-ja="列：アイテム名・カテゴリ・単位・前回棚卸し・調整・理論在庫・ステータス（OK/LOW/OUT）。検索またはカテゴリチップでフィルタ。">Columns: Item, Category, Unit, Counts, Theoretical, Status. Same OK/LOW/OUT badges as CK.</p>
+    <div class="chip-row">
+      <span class="chip green">Add Item (+ button)</span>
+      <span class="chip blue">Edit Item (pencil icon)</span>
+      <span class="chip red">Delete (soft)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Tab 2 — Order From Branch (Fulfill Orders)" data-ja="タブ2 — Order From Branch（店舗オーダー対応）">Tab 2 — Order From Branch</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Review pending orders" data-ja="待機中オーダーを確認">Review pending orders</strong><p data-en="Cards show: store code, request no., needed-by date, items list." data-ja="カードに店舗コード・依頼番号・必要日・アイテムリストが表示されます。">Cards: store code, request no., needed-by, items.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Start Packing → tap items to check off" data-ja="「Start Packing」→ アイテムをタップして完了チェック">Start Packing → tap to check</strong><p data-en="Active packing card (amber border) shows progress X/N." data-ja="梱包中カード（アンバーボーダー）にX/Nの進捗が表示されます。">Amber border + X/N counter.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Complete &amp; Deliver" data-ja="「Complete &amp; Deliver」をクリック">Complete &amp; Deliver</strong><p data-en="Deducts from WH stock. Print WH Delivery Note (A4 format) button appears." data-ja="WH在庫から控除。WH Delivery Note（A4形式）の印刷ボタンが表示されます。">Deducts stock. Print WH Delivery Note (A4) available.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Tab 3 — New Count" data-ja="タブ3 — New Count">Tab 3 — New Count</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Same pattern as CK Inventory New Count: set date/staff, enter quantities, Save Count → returns to WH Stock." data-ja="CK在庫のNew Countと同じパターン：日付・スタッフ設定、数量入力、Save Count → WH Stockへ戻る。">Same as CK New Count: date → quantities → Save Count.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Tab 4 — History" data-ja="タブ4 — History">Tab 4 — History</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Past stocktake sessions: Count Date, Counted By, Items count, Shortages (rose), Surpluses (emerald), Total Abs Gap." data-ja="過去の棚卸しセッション：棚卸し日・担当者・アイテム数・不足数（ローズ）・過剰数（エメラルド）・総絶対差。">Past sessions: date, counted by, shortages, surpluses, total gap.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip blue">Store Procurement (branch order source)</span><span class="chip amber">Delivery Note print (WH-DN-{request_no} format)</span></div>
+  </div>
+</div>
+
+<!-- ═══ DAILY INVENTORY ═══ -->
+<div class="section" id="sec-daily-inventory">
+  <div class="section-hero"><div class="hero-icon">📅</div><div>
+    <div class="section-title" data-en="Daily Inventory" data-ja="日次在庫確認">Daily Inventory</div>
+    <div class="section-path">Admin → Daily Inventory</div>
+    <div class="section-desc" data-en="Daily stock level check page. Available to all authenticated staff. Content is managed by the AdminDailyInventoryTab component." data-ja="日次の在庫水準確認ページ。認証済みスタッフ全員が利用可能。コンテンツはAdminDailyInventoryTabコンポーネントが管理します。">Daily stock level check. Available to all authenticated staff.</div>
+  </div></div>
+  <div class="card">
+    <div class="card-title" data-en="How to Access" data-ja="アクセス方法">How to Access</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Navigate to Admin → Daily Inventory" data-ja="Admin → Daily Inventoryへ移動">Navigate to Admin → Daily Inventory</strong><p data-en="Login required. If not logged in, you are redirected to the login page." data-ja="ログインが必要です。未ログインの場合はログインページにリダイレクトされます。">Login required. Unauthenticated users are redirected to login.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Use the daily check form" data-ja="日次確認フォームを使用">Use the daily check form</strong><p data-en="Record daily stock levels for key items at your branch." data-ja="店舗の主要アイテムの日次在庫水準を記録します。">Record daily stock levels for key items.</p></div></li>
+    </ol>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="This is an independent daily check page, separate from Full Count and Spot Check. Use it for quick daily stock confirmations without starting a formal count session." data-ja="このページはFull CountやSpot Checkとは独立した日次確認ページです。正式な棚卸しセッションを開始せずに、素早く日次の在庫確認を行う際に使用してください。">Independent from Full Count/Spot Check. Use for quick daily confirmations without a formal count session.</span></div>
+</div>
+
+<!-- ═══ DISPOSAL REPORT ═══ -->
+<div class="section" id="sec-disposal">
+  <div class="section-hero"><div class="hero-icon">🗑️</div><div>
+    <div class="section-title" data-en="Disposal Report" data-ja="廃棄レポート">Disposal Report</div>
+    <div class="section-path">Admin → Disposal Report (or via More menu)</div>
+    <div class="section-desc" data-en="Record end-of-day item disposal (leftover, spoilage, staff meal). Supports photo upload to Google Drive." data-ja="廃棄アイテムの日次記録（残り物・腐敗・まかない）。Google Driveへの写真アップロードをサポート。">Record end-of-day disposals with optional photos. All staff can submit.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Submitting a Disposal Report" data-ja="廃棄レポートの提出方法">Submitting a Disposal Report</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill report details" data-ja="レポート詳細を入力">Fill report details</strong><p data-en="City, Branch, Date, Reported By (your name), Shift (Closing / Morning / Midday / All Day), Notes." data-ja="都市・店舗・日付・レポーター名・シフト（Closing / Morning / Midday / All Day）・メモを入力します。">City, Branch, Date, Reporter, Shift, Notes.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Add disposal items" data-ja="廃棄アイテムを追加">Add disposal items</strong><p data-en="Search the item name in the search box — a dropdown suggests matching items. Select to add a line card. Or click '+ Add manually' for unlisted items." data-ja="検索ボックスでアイテム名を入力すると候補が表示されます。選択してラインカードを追加します。一覧にないアイテムは「+ Add manually」をクリック。">Search to add items. Or "+ Add manually" for unlisted items.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Fill each line card" data-ja="各ラインカードに入力">Fill each line card</strong><p data-en="Qty, Unit, Disposal Reason (End-of-Day Leftover / Spoilage / Staff Meal / Other), Notes." data-ja="数量・単位・廃棄理由（End-of-Day Leftover / Spoilage / Staff Meal / Other）・メモを入力。">Qty, Unit, Reason, Notes per item.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Upload photos (optional)" data-ja="写真をアップロード（任意）">Upload photos (optional)</strong><p data-en="Click the photo upload area — supports multiple images. Thumbnails preview inline. Photos upload to Google Drive after submit." data-ja="写真アップロードエリアをクリック（複数画像対応）。サムネイルがプレビュー表示されます。写真は送信後にGoogle Driveにアップロードされます。">Multiple photos supported. Uploaded to Google Drive after submit.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click Submit Disposal Report" data-ja="「Submit Disposal Report」をクリック">Submit Disposal Report</strong><p data-en="Validates at least one item with qty > 0 and a reporter name. Report appears in Past Reports." data-ja="数量>0のアイテムと担当者名が必要です。送信後はPast Reportsに表示されます。">Requires ≥1 item with qty &gt;0 + reporter name. Appears in Past Reports.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Disposal Reasons" data-ja="廃棄理由">Disposal Reasons</div>
+      <div class="chip-row" style="flex-direction:column;gap:5px">
+        <span class="chip">End-of-Day Leftover / 残り物</span>
+        <span class="chip">Spoilage / 腐敗・劣化</span>
+        <span class="chip blue" data-en="Staff Meal (Dubai only)" data-ja="Staff Meal（ドバイのみ）">Staff Meal (Dubai only)</span>
+        <span class="chip">Other / その他</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Past Reports Panel" data-ja="過去レポートパネル">Past Reports Panel</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Filter by date range (default last 7 days). Expand rows to see items, photos, and notes. Admin/HQ can delete individual lines or entire reports." data-ja="期間フィルタ（デフォルト直近7日）。行を展開するとアイテム・写真・メモが表示されます。Admin/HQは個別ラインまたはレポート全体を削除できます。">Filter last 7 days. Expand rows for items/photos. Admin/HQ can delete lines or reports.</p>
+    </div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="Your draft is auto-saved to local storage every time you make a change and expires after 24 hours. If you see an amber 'Restore draft?' banner, you can resume where you left off or discard it." data-ja="変更のたびにドラフトがローカルストレージに自動保存され、24時間後に期限切れになります。アンバーの「Restore draft?」バナーが表示されたら、再開または破棄を選択できます。">Draft auto-saved locally for 24h. Amber banner appears if a draft is waiting — resume or discard.</span></div>
+</div>
+
+<!-- ═══ BACKUP REPORT ═══ -->
+<div class="section" id="sec-backup">
+  <div class="section-hero"><div class="hero-icon">💾</div><div>
+    <div class="section-title" data-en="Backup Report (Kitchen Prep)" data-ja="バックアップレポート（仕込み）">Backup Report (Kitchen Prep)</div>
+    <div class="section-path">Admin → Backup Report (or via More menu)</div>
+    <div class="section-desc" data-en="Record kitchen prep quantities and backup stock levels. Fixed template sections per city. Shortage alerts highlight items below standard." data-ja="仕込み量とバックアップ在庫水準を記録します。都市ごとの固定テンプレートセクション。不足アラートが基準値を下回るアイテムをハイライト表示します。">Record prep quantities with fixed template sections. Shortage alerts show items below standard.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Submitting a Backup Report" data-ja="バックアップレポートの提出方法">Submitting a Backup Report</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill report details" data-ja="レポート詳細を入力">Fill report details</strong><p data-en="City, Branch, Date, Reported By, Shift." data-ja="都市・店舗・日付・担当者名・シフトを入力。">City, Branch, Date, Reporter, Shift.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill fixed template sections" data-ja="固定テンプレートセクションに入力">Fill fixed template sections</strong><p data-en="Sections differ by city. Manila: Condiments, Packaging, Prepared Ingredients, Toppings, Hot Section, Base Roll (6 sections). Dubai: Condiments, Packaging, Prepared Ingredients, Toppings, Sushi Rolls (5 sections). Tap the section header to expand/collapse." data-ja="セクションは都市により異なります。Manila：Condiments・Packaging・Prepared Ingredients・Toppings・Hot Section・Base Roll（6セクション）。Dubai：5セクション。ヘッダーをタップして展開/折りたたみ。">Expand sections by tapping the header. Enter quantities per item.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Watch the Shortage Alert panel" data-ja="不足アラートパネルを確認">Check Shortage Alert panel</strong><p data-en="Red panel appears if any item is below its standard. Red = below 70% of standard, amber = 70–100%." data-ja="赤いパネルは基準値を下回るアイテムがある場合に表示されます。赤＝基準の70%未満、アンバー＝70〜100%。">Red = below 70% of standard; amber = 70–100%. Resolve shortages before submitting.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Add extra items (optional)" data-ja="追加アイテムを入力（任意）">Add extra items (optional)</strong><p data-en="Use the item search to add items not in the template. Or click '+ Add blank line'." data-ja="テンプレートにないアイテムはアイテム検索で追加、または「+ Add blank line」をクリック。">Search or blank line for non-template items.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click Submit Report" data-ja="「Submit Report」をクリック">Submit Report</strong><p data-en="Requires reporter name and at least one quantity filled." data-ja="担当者名と少なくとも1つの数量入力が必要です。">Requires reporter name + ≥1 quantity entered.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Quantity Input Types" data-ja="数量入力タイプ">Quantity Input Types</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Most items: numeric input (e.g. 5 kg). Manila items with a % standard: Percentage Selector buttons (0% / 25% / 50% / 75% / 100%) instead of a number field." data-ja="ほとんどのアイテム：数値入力（例：5 kg）。Manila の%基準アイテム：数値フィールドの代わりにPercentage Selectorボタン（0% / 25% / 50% / 75% / 100%）。">Most items: numeric. Manila % items: 0/25/50/75/100% buttons.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+      <div class="chip-row"><span class="chip violet">Backup Standards library (Manila standards)</span><span class="chip amber">Disposal Report (shared item search API)</span></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:6px" data-en="Dubai has no defined standards — all inputs stay neutral color." data-ja="Dubaiには基準値が定義されていないため、すべての入力欄はニュートラルカラーのままです。">Dubai: no standards defined, all neutral color.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FULL COUNT ═══ -->
+<div class="section" id="sec-counts">
+  <div class="section-hero"><div class="hero-icon">📋</div><div>
+    <div class="section-title" data-en="Full Inventory Count" data-ja="定期棚卸し">Full Inventory Count</div>
+    <div class="section-path">Admin → Inventory → Full Count</div>
+    <div class="section-desc" data-en="Formal monthly stock count (15th and month-end cycles). Items grouped by supplier. Draft → Submit → Close &amp; Post workflow." data-ja="正式な月次棚卸し（15日サイクルと月末サイクル）。アイテムはサプライヤー別にグループ化。下書き → 提出 → 締めて台帳反映のワークフロー。">Formal monthly count (15th and month-end). Items by supplier. Draft → Submit → Close &amp; Post.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Starting a New Count" data-ja="新規棚卸しの開始">Starting a New Count</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Configure the header" data-ja="ヘッダーを設定">Configure header</strong><p data-en="City, Branch, Business Date, Cycle (15TH or MONTH_END), PIC, Approver, Notes." data-ja="都市・店舗・営業日・サイクル（15TH / MONTH_END）・担当者・承認者・メモを設定します。">City, Branch, Date, Cycle (15TH/MONTH_END), PIC, Approver.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Load a template or add items manually" data-ja="テンプレートを読み込むかアイテムを手動追加">Load template or add manually</strong><p data-en="Select a Count Template from the dropdown to pre-populate all items. Or use the manual item picker to add one by one." data-ja="ドロップダウンからCount Templateを選択すると全アイテムが事前入力されます。または手動アイテムピッカーで1件ずつ追加します。">Select a template to auto-populate, or add items one by one.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter counted quantities" data-ja="棚卸し数量を入力">Enter quantities</strong><p data-en="Items are grouped by supplier. Enter qty in each Counted Qty field. Arrow keys step the value; Enter moves to the next row." data-ja="アイテムはサプライヤー別にグループ化されています。各Counted Qtyフィールドに数量を入力。矢印キーで値を調整、Enterで次行へ移動します。">Items grouped by supplier. Arrow keys step value; Enter moves down.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Toggle Detail columns (optional)" data-ja="詳細列を表示切替（任意）">Toggle Detail columns</strong><p data-en="'Show Details' reveals: Theoretical Qty, Price, Variance (color-coded). Useful for checking discrepancies." data-ja="「Show Details」でTheoretical Qty・Price・Variance（色分け）を表示。差異の確認に役立ちます。">"Show Details" reveals Theoretical, Price, Variance per line.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click Save Draft" data-ja="「Save Draft」をクリック">Save Draft</strong><p data-en="Progress bar shows amber (counting) → emerald (100% complete)." data-ja="プログレスバーがアンバー（計数中）→エメラルド（100%完了）に変化します。">Progress bar: amber → emerald when done.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Count Status Lifecycle" data-ja="カウントステータスのライフサイクル">Count Status Lifecycle</div>
+    <div class="chip-row" style="align-items:center">
+      <span class="chip amber">DRAFT</span><span style="color:var(--muted)">→</span>
+      <span class="chip blue">SUBMITTED</span><span style="color:var(--muted)">→</span>
+      <span class="chip">CLOSED</span>
+    </div>
+    <div class="table-wrap" style="margin-top:10px"><table>
+      <tr><th>Action</th><th data-en="From status" data-ja="現在のステータス">From</th><th data-en="Result" data-ja="結果">Result</th></tr>
+      <tr><td data-en="Save Draft" data-ja="下書き保存">Save Draft</td><td><span class="chip amber">DRAFT</span></td><td class="muted" data-en="Saves progress" data-ja="進捗を保存">Saves progress</td></tr>
+      <tr><td data-en="Submit" data-ja="提出">Submit</td><td><span class="chip amber">DRAFT</span></td><td><span class="chip blue">SUBMITTED</span></td></tr>
+      <tr><td data-en="Reopen" data-ja="再開">Reopen</td><td><span class="chip blue">SUBMITTED</span></td><td><span class="chip amber">DRAFT</span></td></tr>
+      <tr><td><strong data-en="Close &amp; Post ⚠" data-ja="Close &amp; Post ⚠">Close &amp; Post ⚠</strong></td><td><span class="chip blue">SUBMITTED</span></td><td><span class="chip" data-en="CLOSED (irreversible, posts to Ledger)" data-ja="CLOSED（取消不可・台帳反映）">CLOSED (irreversible)</span></td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row"><span class="chip amber">Count Templates (pre-populates items)</span><span class="chip violet">Items Master (item data source)</span><span class="chip red">Ledger (COUNT_CLOSE event posted on close)</span></div>
+  </div>
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="Use 'Sync with Master' button to refresh unit prices and supplier info from the current Items Master without losing your entered quantities." data-ja="「Sync with Master」ボタンで、入力済みの数量を失わずに最新の食材マスタから単価とサプライヤー情報を更新できます。">"Sync with Master" updates prices/suppliers from Items Master without clearing your quantities.</span></div>
+</div>
+
+<!-- ═══ SPOT CHECK ═══ -->
+<div class="section" id="sec-spot-checks">
+  <div class="section-hero"><div class="hero-icon">🔍</div><div>
+    <div class="section-title" data-en="Spot Check" data-ja="スポット棚卸し">Spot Check</div>
+    <div class="section-path">Admin → Inventory → Spot Check</div>
+    <div class="section-desc" data-en="Targeted stock count for selected items only. Lighter than Full Count — no cycle, no approver. Draft → Close &amp; Post workflow." data-ja="選択したアイテムのみを対象とした在庫確認。Full Countより軽量 — サイクルや承認者は不要。下書き → 締めて台帳反映のワークフロー。">Targeted count for selected items. Lighter than Full Count — no cycle/approver needed. Draft → Close &amp; Post.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Running a Spot Check" data-ja="スポット棚卸しの実行">Running a Spot Check</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Set up the header" data-ja="ヘッダーを設定">Set up header</strong><p data-en="City, Branch, Date, PIC, Notes." data-ja="都市・店舗・日付・担当者・メモを入力。">City, Branch, Date, PIC, Notes.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Add items from the library" data-ja="ライブラリからアイテムを追加">Add items from the library</strong><p data-en="Use the supplier group selector to browse items. Check the boxes of items you want to count, then click 'Add Selected'. Or search by name." data-ja="サプライヤーグループセレクタでアイテムを参照します。カウントするアイテムのチェックボックスをオンにして「Add Selected」をクリック。または名前で検索します。">Browse by supplier group or search by name. Check items → Add Selected.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter counted quantities" data-ja="棚卸し数量を入力">Enter quantities</strong><p data-en="Items are grouped by supplier group, same as Full Count. Arrow keys and Enter for navigation." data-ja="Full Countと同様にサプライヤーグループ別にグループ化されています。矢印キーとEnterでナビゲート。">Items grouped by supplier. Arrow keys and Enter for navigation.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Save Draft (optional)" data-ja="Save Draft（任意）">Save Draft (optional)</strong><p data-en="Save progress before closing." data-ja="締める前に進捗を保存します。">Save progress before closing.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Close &amp; Post ⚠" data-ja="Close &amp; Post ⚠">Close &amp; Post ⚠</strong><p data-en="Irreversible. Posts a SPOT_CLOSE event to the Ledger for each counted item." data-ja="取消不可。カウントした各アイテムについてSPOT_CLOSEイベントが台帳に記録されます。">Irreversible. Posts SPOT_CLOSE to Ledger for each counted item.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="vs. Full Count" data-ja="Full Countとの比較">vs. Full Count</div>
+      <div class="table-wrap"><table>
+        <tr><th></th><th>Spot Check</th><th>Full Count</th></tr>
+        <tr><td data-en="Cycle" data-ja="サイクル">Cycle</td><td class="muted">—</td><td class="muted">15TH / MONTH_END</td></tr>
+        <tr><td data-en="Approver" data-ja="承認者">Approver</td><td class="muted">—</td><td class="muted">Required</td></tr>
+        <tr><td data-en="Submit step" data-ja="提出ステップ">Submit step</td><td class="muted">—</td><td class="muted">Required</td></tr>
+        <tr><td data-en="Ledger event" data-ja="台帳イベント">Ledger event</td><td>SPOT_CLOSE</td><td>COUNT_CLOSE</td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+      <div class="chip-row"><span class="chip violet">Items Master (item source)</span><span class="chip red">Ledger (SPOT_CLOSE event)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TRANSFER ORDERS ═══ -->
+<div class="section" id="sec-transfers">
+  <div class="section-hero"><div class="hero-icon">🔄</div><div>
+    <div class="section-title" data-en="Transfer Orders" data-ja="移転オーダー">Transfer Orders</div>
+    <div class="section-path">Admin → Inventory → Transfer Orders</div>
+    <div class="section-desc" data-en="Move stock between branches. PENDING → RECEIVED → COMPLETED lifecycle. Posts TRANSFER_OUT and TRANSFER_IN events to the Ledger." data-ja="店舗間在庫移転。PENDING → RECEIVED → COMPLETEDのライフサイクル。台帳にTRANSFER_OUTとTRANSFER_INイベントが記録されます。">Move stock between branches. PENDING → RECEIVED → COMPLETED. Posts TRANSFER_OUT/IN to Ledger.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Creating a Transfer Order" data-ja="移転オーダーの作成">Creating a Transfer Order</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill the header" data-ja="ヘッダーを入力">Fill the header</strong><p data-en="City, From Branch, To Branch, Requested By, Transfer Date, Notes." data-ja="都市・送り元店舗・送り先店舗・依頼者・移転日・メモを入力。">City, From Branch, To Branch, Requested By, Date, Notes.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Search and add ingredients" data-ja="食材を検索して追加">Add ingredients</strong><p data-en="Type in the ingredient search box — dropdown shows matching items from the Items Master. Select to add a line." data-ja="食材検索ボックスに入力するとItems Masterから一致するアイテムが表示されます。選択してラインを追加します。">Search from Items Master. Select to add lines.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Set quantities" data-ja="数量を設定">Set quantities</strong><p data-en="Enter the transfer quantity and unit for each line." data-ja="各ラインの移転数量と単位を入力します。">Enter qty and unit per line.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Click Create Transfer Order" data-ja="「Create Transfer Order」をクリック">Create Transfer Order</strong><p data-en="Status becomes PENDING. TRANSFER_OUT is posted to the From Branch's Ledger immediately." data-ja="ステータスがPENDINGになります。直ちに送り元店舗の台帳にTRANSFER_OUTが記録されます。">Creates with PENDING status. TRANSFER_OUT posted to From Branch immediately.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Transfer Lifecycle" data-ja="移転ライフサイクル">Transfer Lifecycle</div>
+    <div class="chip-row" style="align-items:center">
+      <span class="chip amber">PENDING</span><span style="color:var(--muted)">→</span>
+      <span class="chip blue">RECEIVED</span><span style="color:var(--muted)">→</span>
+      <span class="chip">COMPLETED</span>
+    </div>
+    <div class="table-wrap" style="margin-top:10px"><table>
+      <tr><th>Action</th><th data-en="Who" data-ja="誰が">Who</th><th data-en="What happens" data-ja="処理内容">What happens</th></tr>
+      <tr><td data-en="Create" data-ja="作成">Create</td><td class="muted" data-en="From branch" data-ja="送り元店舗">From branch</td><td class="muted" data-en="PENDING; TRANSFER_OUT posted to From Ledger" data-ja="PENDING; From台帳にTRANSFER_OUT記録">PENDING; TRANSFER_OUT to From Ledger</td></tr>
+      <tr><td data-en="Mark Received" data-ja="受取完了">Mark Received</td><td class="muted" data-en="To branch" data-ja="送り先店舗">To branch</td><td class="muted" data-en="RECEIVED; TRANSFER_IN posted to To Ledger" data-ja="RECEIVED; To台帳にTRANSFER_IN記録">RECEIVED; TRANSFER_IN to To Ledger</td></tr>
+      <tr><td data-en="Complete" data-ja="完了">Complete</td><td class="muted" data-en="Either branch" data-ja="どちらかの店舗">Either branch</td><td class="muted" data-en="COMPLETED (locked)" data-ja="COMPLETED（ロック）">COMPLETED (locked)</td></tr>
+      <tr><td data-en="Cancel" data-ja="キャンセル">Cancel</td><td class="muted" data-en="While PENDING only" data-ja="PENDINGのみ">While PENDING only</td><td class="muted" data-en="Reverses TRANSFER_OUT" data-ja="TRANSFER_OUTを取消">Reverses TRANSFER_OUT</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Export to CSV" data-ja="CSVエクスポート">Export to CSV</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Click the Export CSV button on any transfer order list view to download a spreadsheet of the filtered results." data-ja="移転オーダー一覧ビューのExport CSVボタンをクリックして、フィルタされた結果をスプレッドシートでダウンロードします。">Export filtered transfer list as CSV from the list view.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+      <div class="chip-row"><span class="chip violet">Items Master (ingredient source)</span><span class="chip red">Ledger (TRANSFER_OUT / TRANSFER_IN events)</span></div>
+    </div>
+  </div>
+  <div class="warn"><span class="warn-icon">⚠️</span><span data-en="Cancel is only possible while the order is PENDING. Once RECEIVED, only a new reverse transfer can undo the movement." data-ja="キャンセルはPENDINGステータスのみ可能です。RECEIVED後は逆方向の新しい移転オーダーでのみ在庫を戻せます。">Cancel only works while PENDING. After RECEIVED, create a reverse transfer to undo.</span></div>
+</div>
+
+<!-- ═══ QTY ADJUSTMENTS ═══ -->
+<div class="section" id="sec-qty-adj">
+  <div class="section-hero"><div class="hero-icon">⚖️</div><div>
+    <div class="section-title" data-en="Qty Adjustments" data-ja="数量調整">Qty Adjustments</div>
+    <div class="section-path">Admin → Inventory → Qty Adjustments</div>
+    <div class="section-desc" data-en="Record stock quantity increases or decreases with a reason code. Posts ADJ_CLOSE to the Ledger on close." data-ja="理由コードとともに在庫数量の増減を記録します。締めると台帳にADJ_CLOSEが記録されます。">Increase or decrease stock quantities with a reason. Posts ADJ_CLOSE to Ledger on close.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Creating an Adjustment" data-ja="調整の作成">Creating an Adjustment</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill the header" data-ja="ヘッダーを入力">Fill header</strong><p data-en="City, Branch, Date, Reason (WASTE / EXPIRED / LOSS / DAMAGE / MANUAL_FIX), Notes." data-ja="都市・店舗・日付・理由（WASTE / EXPIRED / LOSS / DAMAGE / MANUAL_FIX）・メモを入力。">City, Branch, Date, Reason, Notes.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Set direction" data-ja="方向を設定">Set direction</strong><p data-en="Toggle the INCREASE / DECREASE button to set whether quantities are going up or down." data-ja="INCREASE / DECREASEボタンで在庫が増えるか減るかを選択します。">Toggle INCREASE or DECREASE for the whole adjustment.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Add items" data-ja="アイテムを追加">Add items</strong><p data-en="Search from Items Master and add lines. Enter qty and unit per line." data-ja="Items Masterから検索してラインを追加します。各ラインに数量と単位を入力します。">Search from Items Master. Enter qty and unit per line.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Save Draft" data-ja="下書き保存">Save Draft</strong><p data-en="Save as DRAFT to edit later." data-ja="DRAFTとして保存して後で編集できます。">Save as DRAFT to resume later.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Close &amp; Post ⚠" data-ja="Close &amp; Post ⚠">Close &amp; Post ⚠</strong><p data-en="Irreversible. Posts ADJ_CLOSE event to Ledger." data-ja="取消不可。台帳にADJ_CLOSEイベントを記録します。">Irreversible. Posts ADJ_CLOSE to Ledger.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Reason Codes" data-ja="理由コード">Reason Codes</div>
+      <div class="chip-row" style="flex-direction:column;gap:5px">
+        <span class="chip">WASTE — 廃棄</span>
+        <span class="chip">EXPIRED — 期限切れ</span>
+        <span class="chip">LOSS — 紛失</span>
+        <span class="chip">DAMAGE — 破損</span>
+        <span class="chip amber">MANUAL_FIX — 手動修正</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Duplicate Feature" data-ja="複製機能">Duplicate Feature</div>
+      <p style="color:var(--muted);font-size:12px" data-en="On any existing adjustment, click 'Duplicate' to create a new DRAFT with the same header and items. Useful for recurring weekly adjustments." data-ja="既存の調整にある「Duplicate」をクリックすると、同じヘッダーとアイテムを持つ新しいDRAFTが作成されます。毎週の定期調整に便利です。">Duplicate any adjustment to start a new DRAFT with the same items — useful for recurring entries.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COST ADJUSTMENTS ═══ -->
+<div class="section" id="sec-cost-adj">
+  <div class="section-hero"><div class="hero-icon">💱</div><div>
+    <div class="section-title" data-en="Cost Adjustments" data-ja="コスト調整">Cost Adjustments</div>
+    <div class="section-path">Admin → Inventory → Cost Adjustments</div>
+    <div class="section-desc" data-en="Correct item unit prices when actual purchase cost differs from the current price on record. Posts ADJ_CLOSE (cost type) to Ledger on close." data-ja="実際の購入コストが現在の記録価格と異なる場合にアイテム単価を修正します。締めると台帳にADJ_CLOSE（コストタイプ）が記録されます。">Correct unit prices. Posts ADJ_CLOSE (cost) to Ledger on close.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Creating a Cost Adjustment" data-ja="コスト調整の作成">Creating a Cost Adjustment</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill the header" data-ja="ヘッダーを入力">Fill header</strong><p data-en="City, Branch, Date, Notes." data-ja="都市・店舗・日付・メモを入力。">City, Branch, Date, Notes.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Add items" data-ja="アイテムを追加">Add items</strong><p data-en="Search from Items Master. Each line shows Previous Cost and a New Cost input." data-ja="Items Masterから検索します。各ラインにPrevious CostとNew Cost入力欄が表示されます。">Search from Items Master. Each line shows Previous Cost and New Cost input.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter new costs" data-ja="新しいコストを入力">Enter new costs</strong><p data-en="Type the corrected unit cost in the New Cost field. The variance is shown automatically." data-ja="New Costフィールドに修正後の単価を入力します。差異が自動的に表示されます。">Enter New Cost. Variance displays automatically.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Check Item Price History" data-ja="アイテム価格履歴を確認">Check Price History</strong><p data-en="Click the clock icon on any line to open the Item Price History viewer — shows past cost entries sorted by date." data-ja="各ラインの時計アイコンをクリックするとアイテム価格履歴ビューアが開き、日付順で過去のコスト入力を確認できます。">Click the clock icon for full price history per item.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Save Draft → Close &amp; Post ⚠" data-ja="Save Draft → Close &amp; Post ⚠">Save Draft → Close &amp; Post ⚠</strong><p data-en="Irreversible. Updates item unit price in the Ledger." data-ja="取消不可。台帳のアイテム単価を更新します。">Irreversible. Updates unit price in the Ledger.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Duplicate &amp; Export" data-ja="複製とエクスポート">Duplicate &amp; Export</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Duplicate any cost adjustment to create a new DRAFT with the same items and costs as a starting point. Export CSV exports the filtered list." data-ja="任意のコスト調整を複製して、同じアイテムとコストを出発点とする新しいDRAFTを作成します。Export CSVはフィルタされた一覧をエクスポートします。">Duplicate for similar future entries. Export CSV for filtered list.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+      <div class="chip-row"><span class="chip violet">Items Master (price source)</span><span class="chip red">Ledger (ADJ_CLOSE cost event)</span></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:6px" data-en="Closing a cost adjustment updates the live cost of that item, which affects all future count valuations." data-ja="コスト調整を締めると、そのアイテムの最新コストが更新され、以降のカウント評価に影響します。">Closing updates live item cost — affects all future count valuations.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LEDGER ═══ -->
+<div class="section" id="sec-ledger">
+  <div class="section-hero"><div class="hero-icon">📒</div><div>
+    <div class="section-title" data-en="Inventory Ledger" data-ja="在庫台帳">Inventory Ledger</div>
+    <div class="section-path">Admin → Inventory → Ledger</div>
+    <div class="section-desc" data-en="Read-only audit log of all inventory movements. Every Close &amp; Post action across the system writes an immutable event here. The source of truth for current balances." data-ja="すべての在庫移動の読み取り専用監査ログ。システム全体のClose &amp; Postアクションは変更不可のイベントとしてここに記録されます。現在の残高の信頼できる情報源。">Read-only audit log. Every Close &amp; Post writes here. The source of truth for current stock.</div>
+  </div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Filters" data-ja="フィルタ">Filters</div>
+    <div class="chip-row"><span class="chip">City</span><span class="chip">Branch</span><span class="chip">Date range</span><span class="chip">Event type</span><span class="chip">Item name</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Default shows last 30 days. Adjust the date range to query historical data. All filters combine with AND logic." data-ja="デフォルトは直近30日間を表示します。日付範囲を調整して過去のデータを照会します。すべてのフィルタはAND条件で組み合わされます。">Default last 30 days. All filters combine with AND.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Current Balances Table" data-ja="現在残高テーブル">Current Balances Table</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Shows the latest balance for every item at the selected branch, calculated from all Ledger events. Columns: Item, Unit, Current Qty, Current Cost." data-ja="選択した店舗の全アイテムについて、全台帳イベントから算出した最新残高を表示します。列：アイテム・単位・現在数量・現在コスト。">Latest balance for every item at the selected branch. Columns: Item, Unit, Current Qty, Current Cost.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Ledger Movements — Event Types" data-ja="台帳移動 — イベントタイプ">Ledger Movements — Event Types</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Event" data-ja="イベント">Event</th><th data-en="Source action" data-ja="発生アクション">Source action</th><th data-en="Effect" data-ja="効果">Effect</th></tr>
+      <tr><td><span class="chip">COUNT_CLOSE</span></td><td class="muted" data-en="Full Count → Close &amp; Post" data-ja="Full Count → Close &amp; Post">Full Count → Close &amp; Post</td><td class="muted" data-en="Sets balance to counted qty" data-ja="残高を棚卸し数量に設定">Sets balance to counted qty</td></tr>
+      <tr><td><span class="chip">SPOT_CLOSE</span></td><td class="muted" data-en="Spot Check → Close &amp; Post" data-ja="Spot Check → Close &amp; Post">Spot Check → Close &amp; Post</td><td class="muted" data-en="Sets selected items to counted qty" data-ja="対象アイテムを棚卸し数量に設定">Sets selected items to counted qty</td></tr>
+      <tr><td><span class="chip">ADJ_CLOSE</span></td><td class="muted" data-en="Qty/Cost Adjustment → Close &amp; Post" data-ja="数量/コスト調整 → Close &amp; Post">Qty/Cost Adjustment → Close</td><td class="muted" data-en="Increases or decreases balance; or updates unit cost" data-ja="残高を増減、または単価を更新">+/− balance or updates cost</td></tr>
+      <tr><td><span class="chip">PRODUCTION_CLOSE</span></td><td class="muted" data-en="CK Production → Close" data-ja="CK Production → Close">CK Production → Close</td><td class="muted" data-en="Deducts raw materials used in production" data-ja="生産で使用した原材料を控除">Deducts raw materials used</td></tr>
+      <tr><td><span class="chip amber">TRANSFER_OUT</span></td><td class="muted" data-en="Transfer Order created" data-ja="移転オーダー作成">Transfer Order created</td><td class="muted" data-en="Reduces From Branch balance" data-ja="送り元店舗の残高を減少">Reduces From Branch balance</td></tr>
+      <tr><td><span class="chip amber">TRANSFER_IN</span></td><td class="muted" data-en="Transfer Order received" data-ja="移転オーダー受取">Transfer Order received</td><td class="muted" data-en="Increases To Branch balance" data-ja="送り先店舗の残高を増加">Increases To Branch balance</td></tr>
+      <tr><td><span class="chip blue">PURCHASE_RECEIVE</span></td><td class="muted" data-en="Purchase Order received (Procurement)" data-ja="発注書受領（調達）">Purchase Order received</td><td class="muted" data-en="Increases balance (from Procurement module)" data-ja="残高を増加（調達モジュールから）">Increases balance (from Procurement)</td></tr>
+      <tr><td><span class="chip">OPENING</span></td><td class="muted" data-en="Initial stock setup" data-ja="初期在庫設定">Initial stock setup</td><td class="muted" data-en="Sets opening balance for a new branch/item" data-ja="新規店舗・アイテムの開始残高を設定">Sets opening balance</td></tr>
+      <tr><td><span class="chip">MANUAL</span></td><td class="muted" data-en="Admin direct entry" data-ja="管理者直接入力">Admin direct entry</td><td class="muted" data-en="Free-form balance correction (admin only)" data-ja="自由形式の残高修正（管理者のみ）">Free-form correction (admin only)</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Connection to All Other Pages" data-ja="他の全ページとの連携">Connection to All Other Pages</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The Ledger is the central hub that every inventory page writes to on final close. No action can be undone once posted." data-ja="台帳はすべての在庫ページが最終締め時に書き込む中央ハブです。記録後はいかなるアクションも取り消せません。">The Ledger is the central hub — every Close &amp; Post writes here, irreversibly.</p>
+    <div class="chip-row">
+      <span class="chip">Full Count → COUNT_CLOSE</span>
+      <span class="chip">Spot Check → SPOT_CLOSE</span>
+      <span class="chip">Qty Adj → ADJ_CLOSE</span>
+      <span class="chip amber">Cost Adj → ADJ_CLOSE</span>
+      <span class="chip amber">Transfer → TRANSFER_OUT/IN</span>
+      <span class="chip blue">CK Production → PRODUCTION_CLOSE</span>
+      <span class="chip blue">Procurement → PURCHASE_RECEIVE</span>
+    </div>
+  </div>
+
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="The Ledger is read-only — you cannot edit or delete events here. To correct an error after posting, create a new adjustment that cancels out the wrong entry." data-ja="台帳は読み取り専用です — ここでイベントを編集・削除することはできません。記録後に誤りを修正するには、誤った入力を相殺する新しい調整を作成してください。">Ledger is read-only. To undo a wrong entry, create a new adjustment that offsets it.</span></div>
+</div>
+
+</main>
+
+<script>
+  let currentLang = 'en';
+  function setLang(lang) {
+    currentLang = lang;
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+    document.querySelectorAll('[data-en]').forEach(el => {
+      el.textContent = lang === 'ja' ? el.dataset.ja : el.dataset.en;
+    });
+  }
+  function show(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const sec = document.getElementById('sec-' + id);
+    if (sec) sec.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => {
+      if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  setLang('en');
+</script>
+

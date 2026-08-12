@@ -1,0 +1,755 @@
+<title>Sushi ZEN — HR Manual</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0F1623;
+    --surface: #1A2336;
+    --surface2: #223047;
+    --border: #2A3D5A;
+    --accent: #F59E0B;
+    --accent-dim: rgba(245,158,11,0.12);
+    --text: #E2E8F0;
+    --muted: #7A90AA;
+    --green: #34D399;
+    --red: #F87171;
+    --blue: #60A5FA;
+    --sidebar-w: 224px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #F0F4F9;
+      --surface: #FFFFFF;
+      --surface2: #EEF2F8;
+      --border: #CBD5E1;
+      --text: #1E2B3C;
+      --muted: #5A7090;
+      --accent-dim: rgba(245,158,11,0.10);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1623; --surface: #1A2336; --surface2: #223047; --border: #2A3D5A;
+    --text: #E2E8F0; --muted: #7A90AA; --accent-dim: rgba(245,158,11,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #F0F4F9; --surface: #FFFFFF; --surface2: #EEF2F8; --border: #CBD5E1;
+    --text: #1E2B3C; --muted: #5A7090; --accent-dim: rgba(245,158,11,0.10);
+  }
+
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px 0 calc(var(--sidebar-w) + 20px);
+  }
+  .topbar-title {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .lang-toggle {
+    display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+    background: var(--surface2);
+  }
+  .lang-btn {
+    padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: none; background: transparent; color: var(--muted);
+    transition: background 0.15s, color 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .lang-btn.active { background: var(--accent); color: #0F1623; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    position: fixed; top: 52px; left: 0; bottom: 0; width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .sidebar-label {
+    font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 8px 18px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; cursor: pointer;
+    color: var(--muted); font-size: 13px; font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .nav-item:hover { color: var(--text); background: var(--accent-dim); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+  .nav-icon { font-size: 15px; flex-shrink: 0; }
+
+  /* ── MAIN ── */
+  .main {
+    margin-left: var(--sidebar-w);
+    margin-top: 52px;
+    padding: 36px 40px 80px;
+    max-width: 860px;
+  }
+
+  /* ── SECTION ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .section-hero {
+    display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 28px;
+  }
+  .hero-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .section-title { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .section-path { font-size: 11px; color: var(--muted); font-family: 'SF Mono', 'Fira Code', monospace; margin-top: 4px; }
+  .section-desc { font-size: 14px; color: var(--muted); margin-top: 6px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--accent); margin-bottom: 12px;
+  }
+  .card.danger { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.04); }
+  .card.danger .card-title { color: var(--red); }
+
+  /* ── STEPS ── */
+  .steps { list-style: none; }
+  .step {
+    display: flex; gap: 12px; padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent); color: #0F1623;
+    font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .step-body { flex: 1; }
+  .step-body strong { color: var(--text); font-weight: 600; }
+  .step-body p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  /* ── CHIPS ── */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text);
+  }
+  .chip.green { background: rgba(52,211,153,0.12); color: var(--green); border-color: rgba(52,211,153,0.3); }
+  .chip.amber { background: var(--accent-dim); color: var(--accent); border-color: rgba(245,158,11,0.3); }
+  .chip.red { background: rgba(248,113,113,0.12); color: var(--red); border-color: rgba(248,113,113,0.3); }
+  .chip.blue { background: rgba(96,165,250,0.12); color: var(--blue); border-color: rgba(96,165,250,0.3); }
+
+  /* ── TIP BOX ── */
+  .tip {
+    display: flex; gap: 10px;
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 4px;
+    font-size: 13px; color: var(--muted);
+  }
+  .tip-icon { flex-shrink: 0; color: var(--accent); font-size: 15px; }
+  .tip.danger {
+    background: rgba(248,113,113,0.07);
+    border-color: rgba(248,113,113,0.3);
+  }
+  .tip.danger .tip-icon { color: var(--red); }
+
+  /* ── CONFIRM MOCK UI ── */
+  .confirm-mock {
+    background: var(--surface2);
+    border: 1px solid rgba(245,158,11,0.4);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 12px;
+  }
+  .confirm-mock-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .confirm-mock-title {
+    font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 4px;
+  }
+  .confirm-mock-body {
+    font-size: 13px; color: var(--muted); margin-bottom: 10px;
+  }
+  .confirm-mock-body strong { color: var(--text); }
+  .confirm-mock-btns { display: flex; gap: 8px; }
+  .mock-btn {
+    padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    border: none; cursor: default;
+  }
+  .mock-btn.primary { background: var(--accent); color: #0F1623; }
+  .mock-btn.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.muted { color: var(--muted); font-size: 12px; }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  /* ── COLUMNS ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 620px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── MOBILE ── */
+  @media (max-width: 700px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+    .topbar { padding: 0 16px; }
+    .main { margin-left: 0; padding: 20px 16px 60px; }
+    .sidebar { display: none; }
+  }
+</style>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — HR Manual</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    <button class="lang-btn" onclick="setLang('ja')" id="btn-ja">日本語</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-label" data-en="HR Modules" data-ja="HR モジュール">HR Modules</div>
+  <div class="nav-item active" onclick="show('probation')">
+    <span class="nav-icon">🔰</span>
+    <span data-en="Probation" data-ja="試用期間">Probation</span>
+  </div>
+  <div class="nav-item" onclick="show('nte')">
+    <span class="nav-icon">📋</span>
+    <span data-en="Notice to Explain" data-ja="説明要求書 (NTE)">Notice to Explain</span>
+  </div>
+  <div class="nav-item" onclick="show('recruitment')">
+    <span class="nav-icon">🧑‍💼</span>
+    <span data-en="HR Recruitment" data-ja="採用管理">HR Recruitment</span>
+  </div>
+  <div class="nav-item" onclick="show('onboarding')">
+    <span class="nav-icon">✅</span>
+    <span data-en="HR Onboarding" data-ja="入社手続き">HR Onboarding</span>
+  </div>
+  <div class="nav-item" onclick="show('performance')">
+    <span class="nav-icon">⭐</span>
+    <span data-en="HR Performance" data-ja="人事考課">HR Performance</span>
+  </div>
+  <div class="nav-item" onclick="show('offboarding')">
+    <span class="nav-icon">🚪</span>
+    <span data-en="HR Offboarding" data-ja="退職手続き">HR Offboarding</span>
+  </div>
+  <div class="nav-item" onclick="show('clearance')">
+    <span class="nav-icon">💼</span>
+    <span data-en="HR Clearance" data-ja="最終精算">HR Clearance</span>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- ═══════════ PROBATION ═══════════ -->
+  <div class="section active" id="sec-probation">
+    <div class="section-hero">
+      <div class="hero-icon">🔰</div>
+      <div>
+        <div class="section-title" data-en="Probation" data-ja="試用期間管理">Probation</div>
+        <div class="section-path">Admin → Probation</div>
+        <div class="section-desc" data-en="Track 14-day probation cycles for new employees across Manila and Dubai." data-ja="マニラ・ドバイ全店の新入社員14日間試用期間を一元管理します。">Track 14-day probation cycles for new employees across Manila and Dubai.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Status Badges" data-ja="ステータスバッジ">Status Badges</div>
+      <div class="chip-row">
+        <span class="chip blue" data-en="In Progress" data-ja="進行中">In Progress</span>
+        <span class="chip green" data-en="Passed" data-ja="合格">Passed</span>
+        <span class="chip green" data-en="Graduated" data-ja="正社員昇格">Graduated</span>
+        <span class="chip red" data-en="Failed" data-ja="不合格">Failed</span>
+        <span class="chip red" data-en="Termination Risk" data-ja="解雇リスク">Termination Risk</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="How to Add an Employee to Probation" data-ja="試用期間の登録方法">How to Add an Employee to Probation</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select city" data-ja="都市を選択">Select city</strong><p data-en="Use the Manila / Dubai toggle at the top to switch the list." data-ja="画面上部のマニラ／ドバイ切り替えで対象店舗を選択します。">Use the Manila / Dubai toggle at the top.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose the staff member" data-ja="スタッフを選択">Choose the staff member</strong><p data-en="Click the staff name dropdown and search for the new employee." data-ja="スタッフ名ドロップダウンをクリックして新入社員を検索します。">Click the staff name dropdown and search for the new employee.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Set hire date" data-ja="入社日を入力">Set hire date</strong><p data-en="Enter the hire date — the system calculates the 14-day cycle end date automatically." data-ja="入社日を入力すると14日後の終了日が自動計算されます。">Enter the hire date.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Save" data-ja="保存">Save</strong><p data-en="Click Add to register. The employee appears in the table." data-ja="追加ボタンをクリックするとテーブルに追加されます。">Click Add to register.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Updating a Probation Record" data-ja="試用期間レコードの更新">Updating a Probation Record</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click the row" data-ja="行をクリック">Click the row</strong><p data-en="Inline edit fields appear: cycle start/end dates, cycle status, graduated, bonus awarded, termination flag." data-ja="インライン編集フィールドが表示されます：サイクル開始／終了日、ステータス、昇格フラグ、ボーナス、解雇フラグ。">Inline edit fields appear.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Update fields as needed" data-ja="必要なフィールドを更新">Update fields</strong><p data-en="Mark Graduated once the employee passes and is confirmed regular. Add a termination reason if flagging for termination." data-ja="正社員昇格時にGraduatedをチェック。解雇の場合は理由を入力します。">Mark Graduated or set termination reason.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save changes" data-ja="変更を保存">Save changes</strong><p data-en="Click Save on the row." data-ja="行のSaveボタンをクリックします。">Click Save on the row.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="Absence, late, and early-leave counts are pulled automatically from attendance data. Review these counts when deciding Pass / Fail." data-ja="欠勤・遅刻・早退のカウントは勤怠データから自動取得されます。合否判定の参考にしてください。">Absence, late, and early-leave counts are pulled automatically from attendance data.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ NTE ═══════════ -->
+  <div class="section" id="sec-nte">
+    <div class="section-hero">
+      <div class="hero-icon">📋</div>
+      <div>
+        <div class="section-title" data-en="Notice to Explain (NTE)" data-ja="説明要求書・懲戒管理">Notice to Explain (NTE)</div>
+        <div class="section-path">Admin → Notice to Explain</div>
+        <div class="section-desc" data-en="Issue and track disciplinary notices — NTE, Warning Letters, and Final Warnings." data-ja="NTE・警告書・最終警告の発行と追跡を一元管理します。">Issue and track disciplinary notices — NTE, Warning Letters, and Final Warnings.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="8 Tabs Overview" data-ja="8タブの概要">8 Tabs Overview</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Tab" data-ja="タブ">Tab</th><th data-en="Purpose" data-ja="用途">Purpose</th></tr>
+          <tr><td><strong>Board</strong></td><td class="muted" data-en="Staff ranking by active case count" data-ja="アクティブケース数によるスタッフランキング">Staff ranking by active case count</td></tr>
+          <tr><td><strong>Request</strong></td><td class="muted" data-en="File a new NTE request" data-ja="新規NTE申請を提出">File a new NTE request</td></tr>
+          <tr><td><strong>Pending</strong></td><td class="muted" data-en="Approval queue — approve or reject requests" data-ja="承認キュー：申請を承認または却下">Approval queue — approve or reject</td></tr>
+          <tr><td><strong>Issue</strong></td><td class="muted" data-en="Officially issue an approved NTE to the employee" data-ja="承認済みNTEを従業員に正式発行">Issue approved NTE to employee</td></tr>
+          <tr><td><strong>History</strong></td><td class="muted" data-en="All past NTEs and their outcomes" data-ja="過去のNTE一覧と結果">All past NTEs and outcomes</td></tr>
+          <tr><td><strong>Catalog</strong></td><td class="muted" data-en="Violation code library (14 categories, PH/AE legal grounds)" data-ja="違反コードライブラリ（14カテゴリ、PH/AE法的根拠）">Violation code library</td></tr>
+          <tr><td><strong>IR</strong></td><td class="muted" data-en="Incident Reports — upload evidence photos" data-ja="インシデントレポート：証拠写真をアップロード">Incident Reports with evidence</td></tr>
+          <tr><td><strong>Cases</strong></td><td class="muted" data-en="NTE v2 full workflow cases" data-ja="NTE v2 フルワークフローケース">NTE v2 full workflow</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Filing a New NTE" data-ja="新規NTEの申請方法">Filing a New NTE</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Go to Request tab" data-ja="Requestタブへ移動">Go to Request tab</strong><p data-en="Select the employee, violation category, and specific violation code from the catalog." data-ja="従業員・違反カテゴリ・違反コードをカタログから選択します。">Select employee, category, and violation code.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose case type" data-ja="ケースタイプを選択">Choose case type</strong><p data-en="NTE / Warning Letter / Final Warning." data-ja="NTE・警告書・最終警告のいずれかを選択します。">NTE / Warning Letter / Final Warning.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Describe the incident" data-ja="インシデントの詳細を記入">Describe the incident</strong><p data-en="Fill in date, location, and narrative. Upload supporting evidence if available." data-ja="日時・場所・状況を記入し、証拠写真があればアップロードします。">Fill in date, narrative, and upload evidence.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Submit for approval" data-ja="承認申請">Submit for approval</strong><p data-en="The request moves to the Pending tab for an approver to review." data-ja="申請がPendingタブに送られ、承認者がレビューします。">Moves to Pending for approver review.</p></div></li>
+        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Issue once approved" data-ja="承認後に発行">Issue once approved</strong><p data-en="Go to the Issue tab, find the approved request, and click Issue to formally serve it to the employee." data-ja="Issueタブで承認済み申請を選び、Issueボタンで従業員に正式に発行します。">Issue tab → click Issue to serve.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Violation Categories" data-ja="違反カテゴリ">Violation Categories</div>
+      <div class="chip-row">
+        <span class="chip" data-en="Attendance" data-ja="出勤">Attendance</span>
+        <span class="chip" data-en="Performance" data-ja="業績">Performance</span>
+        <span class="chip" data-en="Hygiene" data-ja="衛生">Hygiene</span>
+        <span class="chip" data-en="Kitchen Ops" data-ja="キッチン">Kitchen Ops</span>
+        <span class="chip" data-en="Customer Service" data-ja="顧客対応">Customer Service</span>
+        <span class="chip" data-en="Safety" data-ja="安全">Safety</span>
+        <span class="chip" data-en="Conduct" data-ja="行動規範">Conduct</span>
+        <span class="chip" data-en="Fraud" data-ja="不正">Fraud</span>
+        <span class="chip" data-en="Inventory/Cash" data-ja="在庫・現金">Inventory/Cash</span>
+        <span class="chip" data-en="Policy" data-ja="規則">Policy</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ RECRUITMENT ═══════════ -->
+  <div class="section" id="sec-recruitment">
+    <div class="section-hero">
+      <div class="hero-icon">🧑‍💼</div>
+      <div>
+        <div class="section-title" data-en="HR Recruitment" data-ja="採用管理">HR Recruitment</div>
+        <div class="section-path">Admin → HR Recruitment</div>
+        <div class="section-desc" data-en="Manage the full hiring pipeline from application to offer, with scoring and interview scheduling." data-ja="応募から内定まで、採点・面接設定を含む採用フロー全体を管理します。">Manage the full hiring pipeline from application to offer.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Kanban Pipeline Stages" data-ja="採用カンバンステージ">Kanban Pipeline Stages</div>
+      <div class="chip-row">
+        <span class="chip" data-en="New" data-ja="新規">New</span>
+        <span class="chip blue" data-en="Screened" data-ja="書類選考済">Screened</span>
+        <span class="chip blue" data-en="Interview Scheduled" data-ja="面接設定済">Interview Scheduled</span>
+        <span class="chip amber" data-en="Interviewed" data-ja="面接済">Interviewed</span>
+        <span class="chip amber" data-en="Offer Sent" data-ja="オファー送付済">Offer Sent</span>
+        <span class="chip green" data-en="Hired" data-ja="採用決定">Hired</span>
+        <span class="chip red" data-en="Rejected" data-ja="不採用">Rejected</span>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title" data-en="Moving a Candidate" data-ja="候補者のステージ移動">Moving a Candidate</div>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Quick advance" data-ja="クイック進行">Quick advance</strong><p data-en="Click the → button on the card to move to the next stage instantly." data-ja="カードの→ボタンで次のステージへ即座に進めます。">Click the → button on the card.</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Or open detail panel" data-ja="または詳細パネルを開く">Open detail panel</strong><p data-en="Click the card to open the full detail view and change stage manually." data-ja="カードをクリックして詳細パネルからステージを変更します。">Click the card for full detail view.</p></div></li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="card-title" data-en="Scheduling an Interview" data-ja="面接の設定">Scheduling an Interview</div>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Open candidate detail" data-ja="候補者詳細を開く">Open candidate detail</strong><p data-en="Click the applicant card." data-ja="応募者カードをクリックします。">Click the applicant card.</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill interview fields" data-ja="面接情報を入力">Fill interview fields</strong><p data-en="Date, time, location, interviewer, type (Initial / Final / Practical)." data-ja="日時・場所・面接官・種類（初回・最終・実技）を入力します。">Date, time, location, interviewer, type.</p></div></li>
+          <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save" data-ja="保存">Save</strong><p data-en="Stage moves to Interview Scheduled." data-ja="ステージが「面接設定済」に移動します。">Stage → Interview Scheduled.</p></div></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Evaluation Scoring (out of 20)" data-ja="評価スコアリング（20点満点）">Evaluation Scoring</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Category" data-ja="カテゴリ">Category</th><th data-en="Score" data-ja="点数">Score</th><th data-en="Notes" data-ja="備考">Notes</th></tr>
+          <tr><td data-en="Communication" data-ja="コミュニケーション">Communication</td><td>1–5</td><td class="muted" data-en="Language, clarity" data-ja="言語力・明瞭さ">Language, clarity</td></tr>
+          <tr><td data-en="Experience" data-ja="経験">Experience</td><td>1–5</td><td class="muted" data-en="Relevant F&B background" data-ja="飲食業での経験">Relevant F&amp;B background</td></tr>
+          <tr><td data-en="Attitude" data-ja="態度">Attitude</td><td>1–5</td><td class="muted" data-en="Professionalism, enthusiasm" data-ja="プロ意識・積極性">Professionalism, enthusiasm</td></tr>
+          <tr><td data-en="Availability" data-ja="入社可能時期">Availability</td><td>1–5</td><td class="muted" data-en="Shift flexibility, start date" data-ja="シフト柔軟性・入社日">Shift flexibility, start date</td></tr>
+        </table>
+      </div>
+      <div class="chip-row" style="margin-top:12px">
+        <span class="chip green" data-en="Hire (16–20)" data-ja="採用推薦 (16–20)">Hire 16–20</span>
+        <span class="chip amber" data-en="Consider (10–15)" data-ja="検討 (10–15)">Consider 10–15</span>
+        <span class="chip red" data-en="Reject (≤9)" data-ja="不採用 (9以下)">Reject ≤9</span>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="Use Job Requisitions to pre-define the position, branch, and target start date before posting. This links hired candidates to the open slot automatically." data-ja="採用前にJob Requisitionでポジション・店舗・目標入社日を設定しておくと、採用決定後に自動的に空きポストと紐付きます。">Use Job Requisitions to pre-define the position before posting.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ ONBOARDING ═══════════ -->
+  <div class="section" id="sec-onboarding">
+    <div class="section-hero">
+      <div class="hero-icon">✅</div>
+      <div>
+        <div class="section-title" data-en="HR Onboarding" data-ja="入社手続き管理">HR Onboarding</div>
+        <div class="section-path">Admin → HR Onboarding</div>
+        <div class="section-desc" data-en="Track new-hire document checklists across five categories until all items are verified." data-ja="5カテゴリの入社書類チェックリストを全件確認まで追跡します。">Track new-hire document checklists until all items are verified.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Document Categories" data-ja="書類カテゴリ">Document Categories</div>
+      <div class="chip-row">
+        <span class="chip amber" data-en="Government Documents" data-ja="政府発行書類">Government Documents</span>
+        <span class="chip blue" data-en="Health &amp; Safety" data-ja="健康・安全">Health &amp; Safety</span>
+        <span class="chip green" data-en="Bank &amp; Payroll" data-ja="銀行・給与">Bank &amp; Payroll</span>
+        <span class="chip" data-en="Contracts &amp; Equipment" data-ja="契約・備品">Contracts &amp; Equipment</span>
+        <span class="chip" data-en="Orientation" data-ja="オリエンテーション">Orientation</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Creating an Onboarding Record" data-ja="入社手続きレコードの作成">Creating an Onboarding Record</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click New Onboarding" data-ja="New Onboardingをクリック">Click New Onboarding</strong><p data-en="Enter the new employee's name and branch." data-ja="新入社員の名前と店舗を入力します。">Enter name and branch.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Record appears in list" data-ja="一覧にレコードが表示される">Record appears in list</strong><p data-en="The dual progress bars show submitted (amber) and verified (green) counts." data-ja="提出済み（アンバー）と確認済み（グリーン）の2本のプログレスバーが表示されます。">Dual progress bars: submitted (amber) and verified (green).</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Processing Each Document Item" data-ja="各書類アイテムの処理">Processing Each Document Item</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click the record" data-ja="レコードをクリック">Click the record</strong><p data-en="The detail panel expands with all checklist items grouped by category." data-ja="詳細パネルが開き、カテゴリ別のチェックリストが表示されます。">Detail panel expands with all items.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Update each item's status" data-ja="各アイテムのステータスを更新">Update status</strong><p data-en="Dropdown: Pending → Submitted → Verified → N/A. Also enter ID/reference number, date issued, and notes." data-ja="ドロップダウン：Pending → Submitted → Verified → N/A。ID番号・発行日・メモも入力します。">Pending → Submitted → Verified → N/A.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save per item" data-ja="アイテムごとに保存">Save per item</strong><p data-en="Click Save on each row." data-ja="各行のSaveボタンをクリックします。">Click Save on each row.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Mark Complete" data-ja="完了としてマーク">Mark Complete</strong><p data-en="Once all items are Submitted, Verified, or N/A — the Mark Complete button activates. Click it to finalize." data-ja="全アイテムがSubmitted・Verified・N/Aになると「Mark Complete」ボタンが有効化されます。">Active once all items are resolved.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Staff Profile Chips in Detail Panel" data-ja="詳細パネルのスタッフプロフィールチップ">Staff Profile Chips in Detail Panel</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:10px" data-en="When you open an onboarding record, the detail panel header displays staff profile chips pulled from the employee's registration data." data-ja="入社手続きレコードを開くと、詳細パネルのヘッダーに従業員の登録データからプロフィールチップが表示されます。">When you open an onboarding record, the detail panel header shows staff profile chips from registration data.</p>
+      <div class="chip-row">
+        <span class="chip" style="background:rgba(139,92,246,0.12);color:#A78BFA;border-color:rgba(139,92,246,0.3);">DOB · 1995-04-22</span>
+        <span class="chip" data-en="Married" data-ja="既婚">Married</span>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px" data-en="The violet chip shows Date of Birth; the neutral chip shows Marital Status. Both appear only when the values were set during staff registration." data-ja="紫のチップが生年月日、グレーのチップが婚姻状況を示します。いずれもスタッフ登録時に値が入力されている場合のみ表示されます。">Violet chip = Date of Birth; neutral chip = Marital Status. Only shown when set at registration.</p>
+      <div class="tip" style="margin-top:12px">
+        <span class="tip-icon">📝</span>
+        <span data-en="To set or update DOB and Marital Status, go to Admin → Staff → Create Staff (for new hires) or the staff profile edit page. These fields are captured at registration: Date of Birth (date picker) and Marital Status (Single / Married / Widowed / Separated)." data-ja="生年月日と婚姻状況を設定・更新するには、Admin → Staff → Create Staff（新入社員の場合）またはスタッフプロフィール編集ページへ移動します。登録時に「Date of Birth」（日付入力）と「Marital Status」（Single / Married / Widowed / Separated）を入力します。">To set DOB / Marital Status: Admin → Staff → Create Staff. Fields: Date of Birth (date picker) and Marital Status (Single / Married / Widowed / Separated).</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="City Switcher (HQ &amp; Admin only)" data-ja="都市切り替え（HQ・Admin専用）">City Switcher (HQ &amp; Admin only)</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:10px" data-en="Users with the HQ or ADMIN role see a 🇵🇭 Manila / 🇦🇪 Dubai tab switcher at the top of the HR Onboarding page. The page defaults to Manila." data-ja="HQまたはADMINロールのユーザーはHR Onboardingページ上部に🇵🇭 Manila / 🇦🇪 Dubaiタブ切り替えが表示されます。デフォルトはManilaです。">HQ / ADMIN roles see a 🇵🇭 Manila / 🇦🇪 Dubai tab at the top. Default is Manila.</p>
+      <div class="chip-row">
+        <span class="chip blue">🇵🇭 Manila</span>
+        <span class="chip">🇦🇪 Dubai</span>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px" data-en="Other roles (Manila Management, Dubai Management, HR Manager, etc.) see only their assigned city's records and no tab is shown." data-ja="他のロール（Manila Management・Dubai Management・HR Manager等）は自拠点のレコードのみ表示され、タブは非表示です。">Other roles see only their city's records; no city tab is shown.</p>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="Items marked N/A still count toward completion. Use N/A for documents that don't apply to this employee (e.g. a visa for a local hire)." data-ja="N/Aとしたアイテムも完了数にカウントされます。該当しない書類（例：ローカル採用へのビザ）にはN/Aを使用してください。">Items marked N/A count toward completion.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ PERFORMANCE ═══════════ -->
+  <div class="section" id="sec-performance">
+    <div class="section-hero">
+      <div class="hero-icon">⭐</div>
+      <div>
+        <div class="section-title" data-en="HR Performance" data-ja="人事考課">HR Performance</div>
+        <div class="section-path">Admin → HR Performance</div>
+        <div class="section-desc" data-en="Schedule, conduct, and record performance reviews with a 5-category scorecard." data-ja="5カテゴリのスコアカードで人事考課のスケジュール・実施・記録を行います。">Schedule, conduct, and record performance reviews.</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title" data-en="Review Types" data-ja="考課種別">Review Types</div>
+        <div class="chip-row" style="flex-direction:column; gap:8px;">
+          <span class="chip amber" data-en="3-Month Probation" data-ja="試用3ヶ月考課">3-Month Probation</span>
+          <span class="chip blue" data-en="6-Month Regularization" data-ja="正社員化6ヶ月考課">6-Month Regularization</span>
+          <span class="chip green" data-en="Annual" data-ja="年次考課">Annual</span>
+          <span class="chip" data-en="Ad-hoc" data-ja="臨時考課">Ad-hoc</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" data-en="Grade Bands (out of 25)" data-ja="評価グレード（25点満点）">Grade Bands</div>
+        <div class="chip-row" style="flex-direction:column; gap:8px;">
+          <span class="chip green" data-en="Excellent (23–25)" data-ja="優秀 (23–25)">Excellent 23–25</span>
+          <span class="chip blue" data-en="Good (18–22)" data-ja="良好 (18–22)">Good 18–22</span>
+          <span class="chip amber" data-en="Satisfactory (13–17)" data-ja="普通 (13–17)">Satisfactory 13–17</span>
+          <span class="chip red" data-en="Needs Improvement (≤12)" data-ja="要改善 (12以下)">Needs Improvement ≤12</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="5 Scoring Categories" data-ja="5つの評価項目">5 Scoring Categories</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Category" data-ja="カテゴリ">Category</th><th data-en="Max" data-ja="満点">Max</th><th data-en="Covers" data-ja="評価内容">Covers</th></tr>
+          <tr><td data-en="Job Knowledge" data-ja="業務知識">Job Knowledge</td><td>5</td><td class="muted" data-en="Technical skills, procedures" data-ja="技術力・手順の理解">Technical skills, procedures</td></tr>
+          <tr><td data-en="Work Quality" data-ja="仕事の質">Work Quality</td><td>5</td><td class="muted" data-en="Accuracy, consistency" data-ja="正確性・一貫性">Accuracy, consistency</td></tr>
+          <tr><td data-en="Attendance" data-ja="出勤状況">Attendance</td><td>5</td><td class="muted" data-en="Punctuality, absences" data-ja="時間厳守・欠勤状況">Punctuality, absences</td></tr>
+          <tr><td data-en="Teamwork" data-ja="チームワーク">Teamwork</td><td>5</td><td class="muted" data-en="Collaboration, attitude" data-ja="協調性・積極性">Collaboration, attitude</td></tr>
+          <tr><td data-en="Initiative" data-ja="主体性">Initiative</td><td>5</td><td class="muted" data-en="Problem-solving, self-improvement" data-ja="問題解決・自己研鑽">Problem-solving, self-improvement</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="Add specific comments per category — these are shown to the employee and used to set improvement targets. Scores without comments have less coaching value." data-ja="カテゴリごとに具体的なコメントを入力してください。従業員に表示され、改善目標の設定に活用されます。コメントのないスコアはコーチング効果が低くなります。">Add specific comments per category — shown to the employee and used for improvement targets.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ OFFBOARDING ═══════════ -->
+  <div class="section" id="sec-offboarding">
+    <div class="section-hero">
+      <div class="hero-icon">🚪</div>
+      <div>
+        <div class="section-title" data-en="HR Offboarding" data-ja="退職手続き管理">HR Offboarding</div>
+        <div class="section-path">Admin → HR Offboarding</div>
+        <div class="section-desc" data-en="Manage employee separation checklists, exit interviews, and final pay details." data-ja="退職チェックリスト・退職面談・最終給与の明細を管理します。">Manage separation checklists, exit interviews, and final pay.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Separation Types" data-ja="退職区分">Separation Types</div>
+      <div class="chip-row">
+        <span class="chip" data-en="Voluntary Resignation" data-ja="自己都合退職">Voluntary Resignation</span>
+        <span class="chip" data-en="Mutual Agreement" data-ja="合意退職">Mutual Agreement</span>
+        <span class="chip red" data-en="Termination" data-ja="解雇">Termination</span>
+        <span class="chip blue" data-en="Retirement" data-ja="定年退職">Retirement</span>
+        <span class="chip" data-en="Contract End" data-ja="契約満了">Contract End</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Creating a Separation Record" data-ja="退職レコードの作成">Creating a Separation Record</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click New Separation" data-ja="New Separationをクリック">Click New Separation</strong><p data-en="Enter employee name, separation type, and key dates." data-ja="従業員名・退職区分・主要日付を入力します。">Enter name, type, and key dates.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill key dates" data-ja="主要日付を入力">Fill key dates</strong><p data-en="Resignation date, last working date, exit interview date." data-ja="退職申請日・最終出勤日・退職面談日。">Resignation date · Last working date · Exit interview date.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter final pay details" data-ja="最終給与を入力">Enter final pay details</strong><p data-en="Amount and expected release date." data-ja="金額と支払予定日を入力します。">Amount and expected release date.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Checklist Categories" data-ja="チェックリストカテゴリ">Checklist Categories</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Category" data-ja="カテゴリ">Category</th><th data-en="Includes" data-ja="内容">Includes</th></tr>
+          <tr><td data-en="Exit Process" data-ja="退職プロセス">Exit Process</td><td class="muted" data-en="Exit interview completed, access revoked, uniform returned" data-ja="退職面談実施・アクセス権削除・制服返却">Interview, access revocation, uniform return</td></tr>
+          <tr><td data-en="Clearance" data-ja="精算">Clearance</td><td class="muted" data-en="Asset return, loan clearance, department sign-off" data-ja="備品返却・ローン精算・部署承認">Asset return, loan clearance</td></tr>
+          <tr><td data-en="Final Pay" data-ja="最終給与">Final Pay</td><td class="muted" data-en="Pay computed, approved, released" data-ja="給与計算・承認・支払い">Pay computed, approved, released</td></tr>
+          <tr><td data-en="Documents" data-ja="書類">Documents</td><td class="muted" data-en="Certificate of employment, tax forms issued" data-ja="在職証明書・税務書類発行">COE, tax forms issued</td></tr>
+        </table>
+      </div>
+      <div class="tip" style="margin-top:14px">
+        <span class="tip-icon">💡</span>
+        <span data-en="Each checklist item has its own status dropdown (Pending / Done / N/A), notes, and Done By field. Save each row individually. Click Mark Complete when all items are resolved." data-ja="各チェックリストアイテムに個別のステータス（Pending/Done/N/A）・メモ・担当者フィールドがあります。行ごとに保存し、全件解決後にMark Completeをクリックします。">Each item has its own status, notes, and Done By. Save per row.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ CLEARANCE ═══════════ -->
+  <div class="section" id="sec-clearance">
+    <div class="section-hero">
+      <div class="hero-icon">💼</div>
+      <div>
+        <div class="section-title" data-en="HR Clearance" data-ja="最終精算（クリアランス）">HR Clearance</div>
+        <div class="section-path">Admin → HR Clearance</div>
+        <div class="section-desc" data-en="Formal final pay computation and multi-stage approval workflow before payment." data-ja="支払い前の多段階承認を含む正式な最終給与計算ワークフローです。">Formal final pay computation with multi-stage approval before payment.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="7-Stage Approval Workflow" data-ja="7段階承認ワークフロー">7-Stage Approval Workflow</div>
+      <div class="chip-row">
+        <span class="chip" data-en="Draft" data-ja="下書き">Draft</span>
+        <span class="chip blue" data-en="1st Review" data-ja="第1審査">1st Review</span>
+        <span class="chip blue" data-en="2nd Review" data-ja="第2審査">2nd Review</span>
+        <span class="chip amber" data-en="3rd Review" data-ja="第3審査">3rd Review</span>
+        <span class="chip amber" data-en="Finalized" data-ja="確定">Finalized</span>
+        <span class="chip green" data-en="Email Sent" data-ja="メール送信済">Email Sent</span>
+        <span class="chip green" data-en="Payment Done" data-ja="支払い完了">Payment Done</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Creating a Clearance Case" data-ja="クリアランスケースの作成">Creating a Clearance Case</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click New Clearance Case" data-ja="New Clearance Caseをクリック">Click New Clearance Case</strong><p data-en="Fill in city, separation type, employee name, employee ID, department, position, email, and last working day." data-ja="都市・退職区分・従業員名・社員ID・部署・ポジション・メール・最終出勤日を入力します。">Fill in city, separation type, employee info, and last working day.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Case is created as Draft" data-ja="Draftとして作成される">Case is created as Draft</strong><p data-en="Open the case to begin the computation and advance through the review stages." data-ja="ケースを開いて計算を開始し、審査ステージを進めます。">Open the case to begin computation and advance through stages.</p></div></li>
+      </ol>
+    </div>
+
+    <!-- NEW: Advancing Through Stages -->
+    <div class="card">
+      <div class="card-title" data-en="Advancing Through Stages" data-ja="ステージを進める手順">Advancing Through Stages</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px" data-en="Each stage must be advanced by the correct designated reviewer. The system records the name of whoever is logged in when Advance is clicked." data-ja="各ステージは担当する審査者が操作する必要があります。「Advance」を押した時点でログインしているユーザーの名前が承認者として記録されます。">Each stage must be advanced by the correct designated reviewer. The system records whoever is logged in when Advance is clicked.</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Open the case" data-ja="ケースを開く">Open the case</strong><p data-en="Click the employee row in the HR Clearance list." data-ja="HR Clearance一覧から該当する従業員の行をクリックします。">Click the employee row in the list.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Check computation and enter optional notes" data-ja="計算を確認し、任意でメモを入力">Check computation and enter optional notes</strong><p data-en="Review the Final Pay figures. Add notes in the text field if needed." data-ja="最終給与の数字を確認し、必要があればメモを入力します。">Review Final Pay figures. Add notes if needed.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Advance" data-ja="Advanceをクリック">Click Advance</strong><p data-en="For Stages 1–3 (review stages), a confirmation banner appears before the action completes." data-ja="Stage 1〜3（審査ステージ）では、アクション確定前に確認バナーが表示されます。">For Stages 1–3, a confirmation banner appears first.</p>
+          <div class="confirm-mock">
+            <div class="confirm-mock-label" data-en="System confirmation banner (example)" data-ja="システム確認バナー（例）">System confirmation banner (example)</div>
+            <div class="confirm-mock-title" data-en="Confirm advance?" data-ja="進行を確認してください">Confirm advance?</div>
+            <div class="confirm-mock-body" data-en="<strong>Ayako Nishimura</strong> will be recorded as the <strong>3rd Review</strong> approver." data-ja="<strong>綾子 西村</strong> が <strong>第3審査</strong> の承認者として記録されます。"><strong>Ayako Nishimura</strong> will be recorded as the <strong>3rd Review</strong> approver.</div>
+            <div class="confirm-mock-btns">
+              <button class="mock-btn primary" data-en="Yes, advance" data-ja="はい、進める">Yes, advance</button>
+              <button class="mock-btn secondary" data-en="Cancel" data-ja="キャンセル">Cancel</button>
+            </div>
+          </div>
+        </div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Verify the name shown, then click Yes, advance" data-ja="表示された名前を確認してから「はい、進める」をクリック">Verify the name shown, then click Yes, advance</strong><p data-en="If the wrong user is logged in, click Cancel and ask the correct reviewer to log in and advance." data-ja="違うユーザーがログインしている場合は「キャンセル」を押し、正しい審査者にログインしてもらってから進めてください。">If the wrong person is shown, cancel and have the correct reviewer log in first.</p></div></li>
+        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Stage 4 (Finalized) → Mark Email Sent" data-ja="Stage 4（確定）→ メール送信済みに変更">Stage 4 (Finalized) → Mark Email Sent</strong><p data-en="At Stage 4, enter the employee's email address and click Mark Email Sent once the final pay statement has been sent." data-ja="Stage 4では従業員のメールアドレスを入力し、最終給与明細を送付したら「Mark Email Sent」をクリックします。">Enter email and click Mark Email Sent after sending the statement.</p></div></li>
+        <li class="step"><span class="step-num">6</span><div class="step-body"><strong data-en="Stage 5 (Email Sent) → Mark Payment Done" data-ja="Stage 5（メール送信済）→ 支払い完了に変更">Stage 5 (Email Sent) → Mark Payment Done</strong><p data-en="Once actual payment is released, click Mark Payment Done to close the case." data-ja="実際の支払いが完了したら「Mark Payment Done」をクリックしてケースを完了します。">Click Mark Payment Done once payment is released.</p></div></li>
+      </ol>
+    </div>
+
+    <!-- NEW: Caution card -->
+    <div class="card danger">
+      <div class="card-title" data-en="Important: Who Gets Recorded as Approver" data-ja="重要：承認者として記録されるのは誰か">Important: Who Gets Recorded as Approver</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px" data-en="The system always records the name of the currently logged-in user as the approver for each stage. It does not ask who is approving — it records whoever clicked the button." data-ja="システムは常に「その時点でログインしているユーザー」を各ステージの承認者として記録します。誰が承認しているかは確認されず、ボタンを押した人が記録されます。">The system records the currently logged-in user as the approver — whoever clicks the button, regardless of who was designated.</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Stage" data-ja="ステージ">Stage</th><th data-en="Designated Reviewer" data-ja="担当審査者">Designated Reviewer</th><th data-en="Rule" data-ja="ルール">Rule</th></tr>
+          <tr><td><span class="chip blue" style="font-size:11px;" data-en="1st Review" data-ja="第1審査">1st Review</span></td><td class="muted" data-en="HR / Computation staff" data-ja="HR・計算担当者">HR / Computation staff</td><td class="muted" data-en="Must be logged in as that person" data-ja="その担当者がログインした状態で操作">Must be logged in as that person</td></tr>
+          <tr><td><span class="chip blue" style="font-size:11px;" data-en="2nd Review" data-ja="第2審査">2nd Review</span></td><td class="muted" data-en="HR / Computation staff" data-ja="HR・計算担当者">HR / Computation staff</td><td class="muted" data-en="Must be logged in as that person" data-ja="その担当者がログインした状態で操作">Must be logged in as that person</td></tr>
+          <tr><td><span class="chip amber" style="font-size:11px;" data-en="3rd Review" data-ja="第3審査">3rd Review</span></td><td class="muted" data-en="Senior manager / designated approver" data-ja="上位管理者・指定承認者">Senior manager / designated approver</td><td class="muted" data-en="Must be logged in as that person" data-ja="その担当者がログインした状態で操作">Must be logged in as that person</td></tr>
+          <tr><td><span class="chip amber" style="font-size:11px;" data-en="Finalized" data-ja="確定">Finalized</span></td><td class="muted" data-en="HQ / Admin" data-ja="HQ・管理者">HQ / Admin</td><td class="muted" data-en="Must be logged in as that person" data-ja="その担当者がログインした状態で操作">Must be logged in as that person</td></tr>
+        </table>
+      </div>
+      <div class="tip danger" style="margin-top:14px">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="If you clicked Advance as the wrong person, use Return to Draft immediately. This resets all stage history. The correct reviewers must re-advance through all stages from the beginning." data-ja="誤ったユーザーとして Advance を押してしまった場合は、すぐに「Return to Draft」をクリックしてください。これにより全ステージの承認履歴がリセットされます。正しい審査者が最初から全ステージをやり直す必要があります。">If you advanced as the wrong person, use <strong>Return to Draft</strong> immediately. This resets all stage history — all reviewers must re-advance from the beginning.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Final Pay Computation" data-ja="最終給与の計算項目">Final Pay Computation</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Item" data-ja="項目">Item</th><th data-en="Description" data-ja="説明">Description</th></tr>
+          <tr><td data-en="Basic Pay" data-ja="基本給">Basic Pay</td><td class="muted" data-en="Prorated for days worked in final month" data-ja="最終月の勤務日数で日割り計算">Prorated for days worked</td></tr>
+          <tr><td data-en="13th Month" data-ja="13ヶ月目給与">13th Month</td><td class="muted" data-en="Prorated 13th month pay" data-ja="日割りの13ヶ月目給与">Prorated</td></tr>
+          <tr><td data-en="Leave Conversion" data-ja="有給買取">Leave Conversion</td><td class="muted" data-en="Unused leave days converted to cash" data-ja="未使用有給日数の現金化">Unused leave → cash</td></tr>
+          <tr><td data-en="Separation Pay" data-ja="退職金">Separation Pay</td><td class="muted" data-en="If applicable by separation type" data-ja="退職区分による">If applicable</td></tr>
+          <tr><td data-en="Allowances / Earnings" data-ja="手当・その他収入">Allowances / Earnings</td><td class="muted" data-en="Any outstanding allowances or custom items" data-ja="未払い手当やカスタム項目">Outstanding allowances</td></tr>
+          <tr><td data-en="Deductions" data-ja="控除">Deductions</td><td class="muted" data-en="Statutory, loans, other" data-ja="法定控除・ローン・その他">Statutory, loans, other</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Laptop / Device Section" data-ja="ラップトップ・機器セクション">Laptop / Device Section</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Confirm device assignment" data-ja="機器の有無を確認">Confirm device assignment</strong><p data-en="Toggle Has Device. If yes, enter asset tag, serial, brand, model." data-ja="Has Deviceをオンにして資産番号・シリアル・ブランド・型番を入力します。">Toggle Has Device. Enter asset tag, serial, brand, model.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Track return" data-ja="返却を記録">Track return</strong><p data-en="Return date and returned-by name." data-ja="返却日と受取担当者名を記録します。">Return date and returned-by name.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Condition &amp; reset" data-ja="状態・リセット">Condition &amp; reset</strong><p data-en="Select condition (Working / Minor issues / Major issues / Broken). Mark data reset done with date and who did it." data-ja="状態を選択（動作OK・軽微な問題・重大な問題・故障）。データ消去完了にチェックし、日付と担当者を記録します。">Select condition. Mark data reset with date and responsible person.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Storage location" data-ja="保管場所">Storage location</strong><p data-en="Record where the device is stored after return." data-ja="返却後の保管場所を記録します。">Record post-return storage location.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="The Loaned Company Assets section auto-loads from the Assets module. Any unreturned assets are shown with a warning — resolve these before finalizing." data-ja="「貸出会社資産」セクションはAssetsモジュールから自動取得されます。未返却の資産がある場合は警告が表示されます。確定前に解決してください。">Loaned assets auto-load from the Assets module. Resolve warnings before finalizing.</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  let currentLang = 'en';
+  let currentSection = 'probation';
+
+  function setLang(lang) {
+    currentLang = lang;
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+    document.querySelectorAll('[data-en]').forEach(el => {
+      el.innerHTML = lang === 'ja' ? el.dataset.ja : el.dataset.en;
+    });
+  }
+
+  function show(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('sec-' + id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => {
+      if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+    });
+    currentSection = id;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  setLang('en');
+</script>
