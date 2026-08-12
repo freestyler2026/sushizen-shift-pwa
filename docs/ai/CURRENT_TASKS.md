@@ -1,6 +1,76 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-11 (Price Pending Dismiss All added — Heroku v1885 + Vercel dd5afe9)
+Last updated: 2026-08-12 (CK Production Plan A案+B案 — browser verified PASS)
+
+---
+
+## ✅ Completed: CK Production Plan — A案+B案 DRAFT可視性制御 + 削除機能 (browser verified, 2026-08-12)
+
+**Issue (Yusuke Uejima)**: DRAFTプランがスタッフに見えており、スタッフが誤って進捗を更新してしまった（11/08 DRAFTに12/20 done が入力された）。
+
+**A案 — Staff は PUBLISHED のみ表示**:
+- `db.py`: `list_ck_production_plans()` に `status: Optional[str]` 引数追加。`AND p.status = %s` を動的付与。
+- `main.py`: `GET /api/store/ck-production-plan/plans` に `status` クエリパラメータ追加。
+- `page.tsx`: `loadPlans` でスタッフには `&status=PUBLISHED` を付与、マネージャーは全プラン取得。
+
+**B案 — DRAFTプランの削除（マネージャーのみ）**:
+- `db.py`: `delete_ck_production_plan()` 追加（items→plan の順にDELETE、PUBLISHED は ValueError で拒否）。
+- `main.py`: `DELETE /api/store/ck-production-plan/plans/{plan_id}` エンドポイント追加（PUBLISHED → 403、not found → 404）。`delete_ck_production_plan` をimport追加。
+- `page.tsx`: `deletePlan()` 関数追加（confirm → DELETE API → リスト即時更新）。プランカードを `<button>` → `<div role="button">` に変更（ネスト禁止のため）。DRAFTバッジ横にゴミ箱ボタン表示（`canManage && status === "DRAFT"` のみ）。
+
+**Commits**: Backend `f3bcd9e` (Heroku v1888) / Frontend `5e73e57` (Vercel)
+
+**Browser verification (2026-08-12)**:
+- ✅ Staff view: `&status=PUBLISHED` クエリ確認、PUBLISHEDプランのみ表示
+- ✅ HQ view: DRAFTプランも表示、DRAFTバッジ横にゴミ箱アイコン
+- ✅ PUBLISHEDプランにゴミ箱アイコンなし
+- ✅ 確認ダイアログ文言正常
+- ✅ DELETE /plans/67 → 200、リスト即時更新
+- ✅ stopPropagation: ゴミ箱クリックでカード詳細が開かない
+- ✅ カード本体クリックで詳細パネルが正常表示
+
+---
+
+## ✅ Completed: CK Par Level — partial update bug fix + vendor quick-add (browser verified, 2026-08-11)
+
+**Issues (Yusuke Uejima)**:
+1. Saving Par Level cleared the existing Supplier
+2. Saving Supplier cleared the existing Par Level
+3. Some suppliers not in dropdown — no way to add new ones
+
+**Root cause**: `_update_par_level()` in `ck_par_level_api.py` always SET all 3 fields (`par_level`, `notes`, `supplier`) regardless of which were actually sent. Frontend only sent the changed field, so unsent fields became NULL.
+
+**Fix (Backend `a836dcc`, Heroku v1887)**:
+- `_update_par_level()` now accepts `fields_set: set` kwarg and builds dynamic SQL only for explicitly-provided fields using Pydantic's `__fields_set__` (partial update).
+- Added `VendorQuickCreateIn` model + `POST /api/admin/ck/par-levels/vendors` endpoint for inline vendor creation.
+
+**Fix (Frontend `ee1f2df`, Vercel)**:
+- Supplier edit UI now shows "+" button that reveals inline "New vendor name…" input + "Add" button.
+- On success, new vendor is added to dropdown and auto-selected.
+
+**Browser verification (2026-08-11)**:
+- ✅ Test 1: Set par level on WHIPPING CREAM (had supplier "Restaurant Depot") → par level saved as 10, supplier preserved
+- ✅ Test 2: Change supplier on WHIPPING CREAM (par level = 10) → supplier changed to "Cash & Carry Supermarket", par level preserved
+- ✅ Test 3: Add new vendor "Manila Test Vendor" via "+" → created, auto-selected in dropdown, saved, persisted after full page reload
+
+**Test data note**: WHIPPING CREAM in Manila Supplier Orders now has par level=10 and supplier="Manila Test Vendor" (test artifacts — user may revert if desired). "Manila Test Vendor" entry remains in `proc_vendor_master` for Manila city.
+
+---
+
+## ✅ Completed: Cost Calculation Manila errors — investigation (2026-08-11)
+
+**Report**: User screenshot showed "Invoice mapping data could not be loaded. Please retry in a few seconds." and "No ingredient data" on Cost Calculation page with Manila / PHP city selected (TOTAL ITEMS: 0, CATEGORIES: 0).
+
+**Investigation**:
+- Traced full auth flow: `costTokenHeaders()` → `refreshAuthFromApi()` → `sz_access` JWT used via Next.js proxy (`/api/cost/[...slug]/route.ts`) which reads `sz_access` httpOnly cookie
+- Confirmed HQ role bypasses city-scope check (both Dubai and Manila accessible)
+- Backend healthy: `session-check` returned 200 OK
+- Dubai city loaded successfully: 286 items, 96 categories — auth works
+- Manila city loaded successfully: 250 items, 72 categories — no errors reproduced
+
+**Root cause**: Transient expired `sz_access` JWT at the time of the screenshot. `refreshAuthFromApi()` automatically refreshes via `sz_session` cookie (7-day TTL). Both errors ("Invoice mapping data" uses `Promise.allSettled` so only shows when BOTH calls reject; "No ingredient data" appears when `filteredIngredientRows.length === 0`) would occur simultaneously if the JWT expired and the refresh cookie was also stale. Session self-healed on re-visit.
+
+**No code changes needed** — the auto-refresh logic is correct.
 
 ---
 
