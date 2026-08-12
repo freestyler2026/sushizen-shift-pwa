@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2,
-  BarChart2, ShieldCheck, Pencil,
+  BarChart2, ShieldCheck, Pencil, Mail, Users,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -43,6 +43,8 @@ interface OrderListItem {
   item_count: number;
   total_qty_ordered: number;
   total_qty_received: number;
+  email_sent_at: string | null;
+  email_error: string | null;
 }
 
 interface OrderItem {
@@ -71,7 +73,14 @@ interface PerformanceRow {
   on_time_rate: number | null;
 }
 
-type Tab = "orders" | "performance";
+type Tab = "orders" | "suppliers" | "performance";
+
+interface SupplierEmailRow {
+  supplier_name: string;
+  email: string;
+  cc_emails: string;
+  updated_at: string | null;
+}
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
   draft: BADGE_INFO,
@@ -130,6 +139,14 @@ export default function StoreSupplierOrdersPage() {
   const [perf, setPerf] = useState<PerformanceRow[]>([]);
   const [perfLoading, setPerfLoading] = useState(false);
 
+  const [suppliers, setSuppliers] = useState<SupplierEmailRow[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null); // supplier_name being edited
+  const [emailDraft, setEmailDraft] = useState<{ email: string; cc_emails: string }>({ email: "", cc_emails: "" });
+  const [emailSaving, setEmailSaving] = useState(false);
+
+  const [sendEmailResult, setSendEmailResult] = useState<{ orderId: number; sent: boolean; error: string | null } | null>(null);
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -138,7 +155,7 @@ export default function StoreSupplierOrdersPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const res = await fetch(`${API_BASE}/api/admin/store-supplier/orders?${params}`, {
+      const res = await fetch(`/api/admin/store-supplier/orders?${params}`, {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -154,7 +171,7 @@ export default function StoreSupplierOrdersPage() {
     setPerfLoading(true);
     try {
       const params = new URLSearchParams({ store, days: "90" });
-      const res = await fetch(`${API_BASE}/api/admin/store-supplier/performance?${params}`, {
+      const res = await fetch(`/api/admin/store-supplier/performance?${params}`, {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -166,10 +183,26 @@ export default function StoreSupplierOrdersPage() {
     }
   }, [store]);
 
+  const loadSuppliers = useCallback(async () => {
+    setSuppliersLoading(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/emails/${store}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      setSuppliers(data.suppliers ?? []);
+    } catch {
+      setSuppliers([]);
+    } finally {
+      setSuppliersLoading(false);
+    }
+  }, [store]);
+
   useEffect(() => {
     if (tab === "orders") loadOrders();
+    else if (tab === "suppliers") loadSuppliers();
     else loadPerf();
-  }, [tab, loadOrders, loadPerf]);
+  }, [tab, loadOrders, loadPerf, loadSuppliers]);
 
   async function toggleExpand(orderId: number) {
     if (expanded === orderId) {
@@ -181,7 +214,7 @@ export default function StoreSupplierOrdersPage() {
     setDetail(null);
     setDetailLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}`, {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}`, {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -195,11 +228,19 @@ export default function StoreSupplierOrdersPage() {
 
   async function handleStatusChange(orderId: number, newStatus: OrderStatus) {
     try {
-      await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}/status`, {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ status: newStatus }),
       });
+      const data = await res.json();
+      if (newStatus === "sent") {
+        setSendEmailResult({
+          orderId,
+          sent: !!data.email_sent,
+          error: data.email_error ?? null,
+        });
+      }
       await loadOrders();
       if (expanded === orderId) {
         setDetail((d) => d ? { ...d, status: newStatus } : d);
@@ -211,7 +252,7 @@ export default function StoreSupplierOrdersPage() {
 
   async function handleDelete(orderId: number) {
     try {
-      await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}`, {
+      await fetch(`/api/admin/store-supplier/orders/${orderId}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -230,7 +271,7 @@ export default function StoreSupplierOrdersPage() {
     setGenerateInvDate(null);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/store-supplier/generate`, {
+      const res = await fetch(`/api/admin/store-supplier/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ store, order_date: generateDate }),
@@ -251,12 +292,12 @@ export default function StoreSupplierOrdersPage() {
     if (isNaN(qty) || qty < 0) return;
     setQtyUpdating(true);
     try {
-      await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
+      await fetch(`/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ qty_ordered: qty }),
       });
-      const res = await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}`, {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}`, {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -272,6 +313,23 @@ export default function StoreSupplierOrdersPage() {
   const onTimeRate = (row: PerformanceRow) =>
     row.on_time_rate != null ? `${row.on_time_rate}%` : "—";
 
+  async function saveSupplierEmail(supplierName: string) {
+    setEmailSaving(true);
+    try {
+      await fetch(`/api/admin/store-supplier/emails/${store}/${encodeURIComponent(supplierName)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(emailDraft),
+      });
+      setEditingEmail(null);
+      await loadSuppliers();
+    } catch {
+      setError("Failed to save supplier email.");
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-violet-950/20 p-4 md:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -280,15 +338,20 @@ export default function StoreSupplierOrdersPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={T_PAGE_TITLE}>Store Supplier Orders</h1>
           <div className="flex gap-2">
-            <button onClick={tab === "orders" ? loadOrders : loadPerf} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
-              <RefreshCw className={`h-4 w-4 ${(loading || perfLoading) ? "animate-spin" : ""}`} />
+            <button onClick={tab === "orders" ? loadOrders : tab === "suppliers" ? loadSuppliers : loadPerf} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
+              <RefreshCw className={`h-4 w-4 ${(loading || perfLoading || suppliersLoading) ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
         {/* Top tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={() => setTab("orders")} className={tab === "orders" ? TAB_ACTIVE : TAB_INACTIVE}>Orders</button>
+          {isManager && (
+            <button onClick={() => setTab("suppliers")} className={tab === "suppliers" ? TAB_ACTIVE : TAB_INACTIVE}>
+              <Users className="inline h-4 w-4 mr-1.5" />Supplier Emails
+            </button>
+          )}
           <button onClick={() => setTab("performance")} className={tab === "performance" ? TAB_ACTIVE : TAB_INACTIVE}>
             <BarChart2 className="inline h-4 w-4 mr-1.5" />Supplier Performance
           </button>
@@ -305,6 +368,23 @@ export default function StoreSupplierOrdersPage() {
 
         {error && (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
+        )}
+
+        {sendEmailResult && (
+          <div className={`rounded-xl border p-3 text-sm flex items-center gap-2 ${
+            sendEmailResult.sent
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+          }`}>
+            <Mail className="h-4 w-4 shrink-0" />
+            {sendEmailResult.sent
+              ? `Email sent to supplier for order #${sendEmailResult.orderId}.`
+              : sendEmailResult.error
+                ? `Email not sent for order #${sendEmailResult.orderId}: ${sendEmailResult.error}`
+                : `No email configured for this supplier (order #${sendEmailResult.orderId}). Set it in Supplier Emails tab.`
+            }
+            <button onClick={() => setSendEmailResult(null)} className="ml-auto text-zinc-500 hover:text-zinc-300">✕</button>
+          </div>
         )}
 
         {/* ── ORDERS TAB ─────────────────────────────────────────────── */}
@@ -379,6 +459,11 @@ export default function StoreSupplierOrdersPage() {
                         {STATUS_ICON[order.status]} {order.status}
                       </span>
                       <span className="text-xs text-zinc-500 ml-auto">{order.item_count} item{order.item_count !== 1 ? "s" : ""}</span>
+                      {order.email_sent_at && (
+                        <span title={`Email sent ${order.email_sent_at}`} className="text-emerald-400">
+                          <Mail className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                       <span className="text-xs text-zinc-500">by {order.created_by}</span>
                     </button>
 
@@ -537,6 +622,107 @@ export default function StoreSupplierOrdersPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── SUPPLIER EMAILS TAB ────────────────────────────────────── */}
+        {tab === "suppliers" && (
+          <>
+            <p className="text-sm text-zinc-400">
+              Configure email addresses for each supplier. When an order is marked as <strong className="text-amber-300">Sent</strong>, a purchase order email is automatically sent to the supplier.
+            </p>
+            {suppliersLoading ? (
+              <div className="py-12 text-center text-zinc-500">Loading…</div>
+            ) : suppliers.length === 0 ? (
+              <div className="py-12 text-center text-zinc-500">No suppliers in catalog for {STORE_LABELS[store]}.</div>
+            ) : (
+              <div className={GLASS_CARD + " overflow-x-auto"}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Supplier</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">To Email</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">CC (comma-separated)</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Updated</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suppliers.map((row) => (
+                      <tr key={row.supplier_name} className="border-b border-white/5 last:border-0 hover:bg-white/3">
+                        <td className="px-4 py-3 font-semibold text-white">{row.supplier_name}</td>
+                        {editingEmail === row.supplier_name ? (
+                          <>
+                            <td className="px-4 py-2">
+                              <input
+                                type="email"
+                                className={INPUT_CLASS + " w-full min-w-[180px]"}
+                                value={emailDraft.email}
+                                onChange={(e) => setEmailDraft((d) => ({ ...d, email: e.target.value }))}
+                                placeholder="supplier@example.com"
+                                autoFocus
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                className={INPUT_CLASS + " w-full min-w-[180px]"}
+                                value={emailDraft.cc_emails}
+                                onChange={(e) => setEmailDraft((d) => ({ ...d, cc_emails: e.target.value }))}
+                                placeholder="cc1@example.com, cc2@example.com"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-zinc-500 text-xs">—</td>
+                            <td className="px-4 py-2">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => saveSupplierEmail(row.supplier_name)}
+                                  disabled={emailSaving}
+                                  className={PRIMARY_BUTTON + " text-xs px-3 py-1"}
+                                >
+                                  {emailSaving ? "Saving…" : "Save"}
+                                </button>
+                                <button
+                                  onClick={() => setEditingEmail(null)}
+                                  className={SECONDARY_BUTTON + " text-xs px-3 py-1"}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3">
+                              {row.email ? (
+                                <span className="text-emerald-400 flex items-center gap-1.5">
+                                  <Mail className="h-3.5 w-3.5" />{row.email}
+                                </span>
+                              ) : (
+                                <span className="text-zinc-600 italic">not set</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-zinc-400 text-xs">{row.cc_emails || "—"}</td>
+                            <td className="px-4 py-3 text-zinc-600 text-xs">{row.updated_at ? row.updated_at.slice(0, 10) : "—"}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => {
+                                  setEditingEmail(row.supplier_name);
+                                  setEmailDraft({ email: row.email, cc_emails: row.cc_emails });
+                                }}
+                                className={SECONDARY_BUTTON + " flex items-center gap-1.5 text-xs px-3 py-1"}
+                              >
+                                <Pencil className="h-3 w-3" /> Edit
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
