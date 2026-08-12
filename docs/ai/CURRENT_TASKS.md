@@ -1,6 +1,17 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Procurement Manual created — EN/JA artifact published)
+Last updated: 2026-08-12 (Payroll Manual created — full EN/JA artifact published)
+
+---
+
+## ✅ Completed: Payroll Manual artifact created (2026-08-12)
+
+**Deliverables**:
+- `docs/manuals/payroll-manual.html` — full Payroll operations manual (Manila + Dubai)
+- Artifact URL: https://claude.ai/code/artifact/8f872423-b304-402b-9125-29666285a6ce
+- CLAUDE.md auto-update rules updated to include Payroll Manual (placeholder URL replaced with real URL)
+
+**Coverage**: System Overview (Manila vs Dubai comparison table), Manila Payroll Flow (10-step lifecycle), Dubai Payroll Flow (8-step lifecycle), Manila Staff Profiles (required fields, de minimis, gov IDs), Government Tables (SSS/PhilHealth/Pag-IBIG/BIR/TRAIN formulas), DTR Upload & Sync (CSV/Bayzat/OT approvals), Meal Allowance & Perfect Attendance (eligibility rules, ₱50/day + ₱500/month), Compute Payroll (all item codes, formulas), Approve & Publish (13th Month, status flows), Government Remittances (SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF, BIR 1601-C), Dubai Salary Configs, Dubai DTR Upload, Adjustments (all types), Run Calculation (auto-engine rules, NTE trigger), Transactions & Payslips, Leave Salary Advance, Loans (lifecycle, types), Payroll Inquiries (status flow), My Pay (step-up auth passkey + PIN, staff view). EN/JA toggle.
 
 ---
 

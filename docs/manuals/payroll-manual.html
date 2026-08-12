@@ -1,0 +1,1272 @@
+<title>Sushi ZEN — Payroll Manual</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;
+  --accent:#F59E0B;--accent-dim:rgba(245,158,11,.12);
+  --text:#E2E8F0;--muted:#7A90AA;
+  --green:#34D399;--red:#F87171;--blue:#60A5FA;--violet:#A78BFA;--orange:#FB923C;
+  --manila:#60A5FA;--dubai:#FB923C;
+  --sidebar-w:248px;
+}
+@media(prefers-color-scheme:light){:root{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(245,158,11,.10)}}
+:root[data-theme="dark"]{--bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;--text:#E2E8F0;--muted:#7A90AA;--accent-dim:rgba(245,158,11,.12)}
+:root[data-theme="light"]{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(245,158,11,.10)}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;font-size:14px}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 calc(var(--sidebar-w)+20px)}
+.topbar-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.lang-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--surface2)}
+.lang-btn{padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:background .15s,color .15s}
+.lang-btn.active{background:var(--accent);color:#0F1623}
+.sidebar{position:fixed;top:52px;left:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:10px 0}
+.sidebar-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;padding:10px 16px 3px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:500;border-left:3px solid transparent;transition:color .15s,background .15s,border-color .15s}
+.nav-item:hover{color:var(--text);background:var(--accent-dim)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim)}
+.nav-icon{font-size:13px;flex-shrink:0}
+.main{margin-left:var(--sidebar-w);margin-top:52px;padding:32px 36px 80px;max-width:920px}
+.section{display:none}.section.active{display:block}
+.section-hero{display:flex;align-items:flex-start;gap:14px;margin-bottom:24px}
+.hero-icon{width:46px;height:46px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.section-title{font-size:20px;font-weight:700;color:var(--text)}
+.section-path{font-size:11px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;margin-top:3px}
+.section-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px}
+.card.blue-border{border-color:rgba(96,165,250,.4)}
+.card.orange-border{border-color:rgba(251,146,60,.4)}
+.card.red-border{border-color:rgba(248,113,113,.4)}
+.card.green-border{border-color:rgba(52,211,153,.4)}
+.card.violet-border{border-color:rgba(167,139,250,.4)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.steps{list-style:none}
+.step{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:20px;height:20px;border-radius:50%;flex-shrink:0;background:var(--accent);color:#0F1623;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body p{color:var(--muted);font-size:12px;margin-top:1px}
+.step-body code{font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--blue)}
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap}
+.chip.green{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3)}
+.chip.amber{background:var(--accent-dim);color:var(--accent);border-color:rgba(245,158,11,.3)}
+.chip.red{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3)}
+.chip.blue{background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3)}
+.chip.violet{background:rgba(167,139,250,.12);color:var(--violet);border-color:rgba(167,139,250,.3)}
+.chip.orange{background:rgba(251,146,60,.12);color:var(--orange);border-color:rgba(251,146,60,.3)}
+.tip{display:flex;gap:8px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:11px 13px;margin-top:4px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.tip-icon{flex-shrink:0;color:var(--accent);font-size:14px}
+.tip.danger{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.3)}
+.tip.danger .tip-icon{color:var(--red)}
+.tip.info{background:rgba(96,165,250,.07);border-color:rgba(96,165,250,.3)}
+.tip.info .tip-icon{color:var(--blue)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.muted{color:var(--muted);font-size:12px}
+.lifecycle{position:relative;padding-left:28px;margin:4px 0 14px}
+.lifecycle::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--border)}
+.lc-step{position:relative;margin-bottom:12px}
+.lc-step:last-child{margin-bottom:0}
+.lc-dot{position:absolute;left:-23px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--border)}
+.lc-dot.green{background:var(--green);border-color:var(--green)}
+.lc-dot.blue{background:var(--blue);border-color:var(--blue)}
+.lc-dot.amber{background:var(--accent);border-color:var(--accent)}
+.lc-dot.violet{background:var(--violet);border-color:var(--violet)}
+.lc-dot.red{background:var(--red);border-color:var(--red)}
+.lc-dot.orange{background:var(--orange);border-color:var(--orange)}
+.lc-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lc-status{font-size:11px;font-weight:700;color:var(--text)}
+.lc-who{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px}
+.lc-who.admin{background:rgba(245,158,11,.15);color:var(--accent)}
+.lc-who.staff{background:rgba(167,139,250,.15);color:var(--violet)}
+.lc-who.system{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-who.manila{background:rgba(96,165,250,.15);color:var(--blue)}
+.lc-who.dubai{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-detail{font-size:12px;color:var(--muted);margin-top:2px}
+.lc-path{font-family:'SF Mono','Fira Code',monospace;font-size:10px;color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:3px;margin-top:2px;display:inline-block}
+.formula-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:8px 0;font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:var(--green)}
+.formula-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;font-family:system-ui}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+.status-flow .arrow{color:var(--muted);font-size:12px}
+.city-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.city-badge.manila{background:rgba(96,165,250,.15);color:var(--manila)}
+.city-badge.dubai{background:rgba(251,146,60,.15);color:var(--dubai)}
+.city-badge.both{background:rgba(52,211,153,.15);color:var(--green)}
+@media(max-width:700px){:root{--sidebar-w:0px}.sidebar{display:none}.topbar{padding:0 16px}.main{margin-left:0;padding:16px 14px 60px}}
+</style>
+
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — Payroll Manual</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    <button class="lang-btn" onclick="setLang('ja')" id="btn-ja">日本語</button>
+  </div>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label" data-en="Overview" data-ja="概要">Overview</div>
+  <div class="nav-item active" onclick="show('overview')"><span class="nav-icon">🗺️</span><span data-en="System Overview" data-ja="システム概要">System Overview</span></div>
+  <div class="nav-item" onclick="show('manila-flow')"><span class="nav-icon">🇵🇭</span><span data-en="Manila Payroll Flow" data-ja="マニラ給与フロー">Manila Payroll Flow</span></div>
+  <div class="nav-item" onclick="show('dubai-flow')"><span class="nav-icon">🇦🇪</span><span data-en="Dubai Payroll Flow" data-ja="ドバイ給与フロー">Dubai Payroll Flow</span></div>
+
+  <div class="sidebar-label" data-en="Manila Admin" data-ja="マニラ管理">Manila Admin</div>
+  <div class="nav-item" onclick="show('staff-profiles')"><span class="nav-icon">👤</span><span data-en="Staff Profiles" data-ja="スタッフプロファイル">Staff Profiles</span></div>
+  <div class="nav-item" onclick="show('gov-tables')"><span class="nav-icon">🏛️</span><span data-en="Government Tables" data-ja="政府拠出金テーブル">Government Tables</span></div>
+  <div class="nav-item" onclick="show('dtr-upload')"><span class="nav-icon">📋</span><span data-en="DTR Upload & Sync" data-ja="DTRアップロード・同期">DTR Upload & Sync</span></div>
+  <div class="nav-item" onclick="show('allowances')"><span class="nav-icon">🍱</span><span data-en="Meal Allowance & PA" data-ja="食事手当・皆勤賞">Meal Allowance & PA</span></div>
+  <div class="nav-item" onclick="show('compute')"><span class="nav-icon">⚙️</span><span data-en="Compute Payroll" data-ja="給与計算">Compute Payroll</span></div>
+  <div class="nav-item" onclick="show('approve-publish')"><span class="nav-icon">✅</span><span data-en="Approve & Publish" data-ja="承認・公開">Approve & Publish</span></div>
+  <div class="nav-item" onclick="show('remittances')"><span class="nav-icon">🏦</span><span data-en="Gov. Remittances" data-ja="政府拠出金送金">Gov. Remittances</span></div>
+
+  <div class="sidebar-label" data-en="Dubai Admin" data-ja="ドバイ管理">Dubai Admin</div>
+  <div class="nav-item" onclick="show('salary-configs')"><span class="nav-icon">💼</span><span data-en="Salary Configs" data-ja="給与設定">Salary Configs</span></div>
+  <div class="nav-item" onclick="show('dubai-dtr')"><span class="nav-icon">📋</span><span data-en="Dubai DTR & Sync" data-ja="Dubai DTR・同期">Dubai DTR & Sync</span></div>
+  <div class="nav-item" onclick="show('adjustments')"><span class="nav-icon">±</span><span data-en="Adjustments" data-ja="調整額">Adjustments</span></div>
+  <div class="nav-item" onclick="show('dubai-calc')"><span class="nav-icon">🔢</span><span data-en="Run Calculation" data-ja="計算実行">Run Calculation</span></div>
+  <div class="nav-item" onclick="show('transactions')"><span class="nav-icon">📄</span><span data-en="Transactions & Payslips" data-ja="取引・給与明細">Transactions & Payslips</span></div>
+  <div class="nav-item" onclick="show('leave-salary')"><span class="nav-icon">🏖️</span><span data-en="Leave Salary Advance" data-ja="年次有給前払い">Leave Salary Advance</span></div>
+
+  <div class="sidebar-label" data-en="Cross-City" data-ja="共通">Cross-City</div>
+  <div class="nav-item" onclick="show('loans')"><span class="nav-icon">💳</span><span data-en="Loans" data-ja="ローン管理">Loans</span></div>
+  <div class="nav-item" onclick="show('inquiries')"><span class="nav-icon">💬</span><span data-en="Payroll Inquiries" data-ja="給与問い合わせ">Payroll Inquiries</span></div>
+
+  <div class="sidebar-label" data-en="Staff Portal" data-ja="スタッフポータル">Staff Portal</div>
+  <div class="nav-item" onclick="show('my-pay')"><span class="nav-icon">🔐</span><span data-en="My Pay" data-ja="マイ給与">My Pay</span></div>
+</nav>
+
+<main class="main">
+
+<!-- ══════════ OVERVIEW ══════════ -->
+<div class="section active" id="sec-overview">
+  <div class="section-hero">
+    <div class="hero-icon">🗺️</div>
+    <div>
+      <div class="section-title" data-en="Payroll System Overview" data-ja="給与システム概要">Payroll System Overview</div>
+      <div class="section-path">Admin → Payroll</div>
+      <div class="section-desc" data-en="Two independent payroll engines — Manila (PHP, semi-monthly, statutory deductions) and Dubai (AED, monthly, auto-adjustment engine) — managed from separate admin panels but sharing loans, inquiries, and the My Pay staff portal." data-ja="独立した2つの給与エンジン（マニラ：PHP・半月払い・法定控除、ドバイ：AED・月次・自動調整エンジン）を別々の管理画面から操作。ローン・問い合わせ・My Payポータルは共通。">Two independent engines — Manila (PHP, semi-monthly, statutory deductions) and Dubai (AED, monthly, auto-adjustment) — sharing loans, inquiries, and My Pay.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Manila vs Dubai — Key Differences" data-ja="マニラ vs ドバイ — 主な違い">Manila vs Dubai — Key Differences</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Item" data-ja="項目">Item</th><th><span class="city-badge manila">Manila</span></th><th><span class="city-badge dubai">Dubai</span></th></tr>
+      <tr><td data-en="Currency" data-ja="通貨">Currency</td><td class="muted">PHP (Philippine Peso)</td><td class="muted">AED (UAE Dirham)</td></tr>
+      <tr><td data-en="Pay period" data-ja="支払い期間">Pay period</td><td class="muted" data-en="Semi-monthly: 1H (26th–10th) / 2H (11th–25th)" data-ja="半月払い：1H（26日〜10日）/ 2H（11日〜25日）">Semi-monthly: 1H (26th–10th) / 2H (11th–25th)</td><td class="muted" data-en="Monthly (custom date range)" data-ja="月次（任意期間）">Monthly (custom date range)</td></tr>
+      <tr><td data-en="Basic pay base" data-ja="基本給の基準">Basic pay base</td><td class="muted" data-en="Monthly rate ÷ 2 (or pro-rated for new hires)" data-ja="月給 ÷ 2（新入社員は日割り）">Monthly rate ÷ 2 (pro-rated for new hires)</td><td class="muted" data-en="Monthly basic_salary + allowances" data-ja="月次基本給＋手当">Monthly basic_salary + allowances</td></tr>
+      <tr><td data-en="Salary divisor" data-ja="給与除数">Salary divisor</td><td class="muted">26 working days/month</td><td class="muted">26 days × 8 h</td></tr>
+      <tr><td data-en="Statutory deductions" data-ja="法定控除">Statutory deductions</td><td class="muted">SSS / PhilHealth / Pag-IBIG / BIR WHT</td><td class="muted" data-en="None (UAE has no income tax)" data-ja="なし（UAEは所得税なし）">None</td></tr>
+      <tr><td data-en="Holiday premium" data-ja="休日割増">Holiday premium</td><td class="muted" data-en="Regular Holiday 200%, Special 130%, Rest Day 130%" data-ja="正規休日200%、特別休日130%、週休日130%">Regular Holiday 200%, Special 130%, Rest Day 130%</td><td class="muted" data-en="Manual adjustment (no auto-premium)" data-ja="手動調整（自動割増なし）">Manual adjustment</td></tr>
+      <tr><td data-en="Night differential" data-ja="深夜手当">Night differential</td><td class="muted">10% (22:00–06:00)</td><td class="muted">10% (22:00–04:00)</td></tr>
+      <tr><td data-en="Late penalty" data-ja="遅刻ペナルティ">Late penalty</td><td class="muted" data-en="Minutes × hourly rate" data-ja="分数 × 時給">Minutes × hourly rate</td><td class="muted" data-en="15-min grace; ≥60 min net late → +10% daily salary surcharge; 3+ late in cycle → +5% monthly" data-ja="15分猶予、正味60分以上 → 日給10%割増、月3回以上 → 月給5%追加">15-min grace; ≥60 min → +10% daily; 3+ late → +5% monthly</td></tr>
+      <tr><td data-en="Government reports" data-ja="政府提出書類">Government reports</td><td class="muted">SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF, BIR 1601-C</td><td class="muted">—</td></tr>
+      <tr><td data-en="Leave benefit" data-ja="休暇給付">Leave benefit</td><td class="muted" data-en="SIL (5 days/year), 13th Month Pay" data-ja="SIL（年5日）、13ヶ月目給与">SIL (5 days/year), 13th Month Pay</td><td class="muted" data-en="Annual Leave Salary Advance" data-ja="年次有給前払い">Annual Leave Salary Advance</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="Who Runs Manila Payroll" data-ja="マニラ給与担当者">Who Runs Manila Payroll</div>
+      <div class="chip-row">
+        <span class="chip amber">HQ</span>
+        <span class="chip blue" data-en="MANILA_MANAGEMENT" data-ja="マニラ管理">MANILA_MANAGEMENT</span>
+        <span class="chip amber" data-en="channel.admin.payroll.manage" data-ja="給与管理権限">payroll.manage permission</span>
+      </div>
+    </div>
+    <div class="card orange-border">
+      <div class="card-title" data-en="Who Runs Dubai Payroll" data-ja="ドバイ給与担当者">Who Runs Dubai Payroll</div>
+      <div class="chip-row">
+        <span class="chip amber">HQ</span>
+        <span class="chip orange" data-en="DUBAI_MANAGEMENT" data-ja="ドバイ管理">DUBAI_MANAGEMENT</span>
+        <span class="chip amber" data-en="channel.admin.payroll.manage" data-ja="給与管理権限">payroll.manage permission</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Pre-Payroll Checklist (Manila)" data-ja="給与計算前チェックリスト（マニラ）">Pre-Payroll Checklist (Manila)</div>
+    <div class="table-wrap"><table>
+      <tr><th>#</th><th data-en="Check" data-ja="確認項目">Check</th><th data-en="Where" data-ja="確認場所">Where</th></tr>
+      <tr><td class="muted">1</td><td data-en="All staff profiles have monthly_rate, hire_date, salary divisor" data-ja="全スタッフに月給・入社日・給与除数が設定されている">Staff profiles: monthly_rate, hire_date, divisor set</td><td class="muted">/admin/payroll/manila/staff-profiles</td></tr>
+      <tr><td class="muted">2</td><td data-en="Government tables (SSS, PhilHealth, Pag-IBIG, BIR) are up to date" data-ja="政府テーブル（SSS・PhilHealth・Pag-IBIG・BIR）が最新">Gov tables current</td><td class="muted">/admin/payroll/manila/gov-tables</td></tr>
+      <tr><td class="muted">3</td><td data-en="Public holidays for the period are registered" data-ja="対象期間の祝日が登録されている">Holidays registered for the period</td><td class="muted">Gov Tables → Holidays tab</td></tr>
+      <tr><td class="muted">4</td><td data-en="DTR records uploaded and verified for all staff" data-ja="全スタッフのDTR記録がアップロード・検証済み">DTR uploaded and verified</td><td class="muted">/admin/payroll/manila/dtr-upload</td></tr>
+      <tr><td class="muted">5</td><td data-en="Meal allowance computed for the period's month" data-ja="対象月の食事手当が計算済み">Meal allowance computed</td><td class="muted">/admin/payroll/manila/allowances</td></tr>
+      <tr><td class="muted">6</td><td data-en="OT approvals synced for all overtime hours" data-ja="全残業時間のOT承認が同期済み">OT approvals synced</td><td class="muted">DTR Upload → OT Approvals tab</td></tr>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════════ MANILA FLOW ══════════ -->
+<div class="section" id="sec-manila-flow">
+  <div class="section-hero">
+    <div class="hero-icon">🇵🇭</div>
+    <div>
+      <div class="section-title" data-en="Manila Payroll Flow" data-ja="マニラ給与フロー">Manila Payroll Flow</div>
+      <div class="section-path">/admin/payroll/manila</div>
+      <div class="section-desc" data-en="Semi-monthly cycle: two periods per month (1H and 2H), each processed independently from DTR upload through to payslip publication." data-ja="半月サイクル：月2回（1Hと2H）、DTRアップロードから給与明細公開まで独立して処理。">Semi-monthly: two periods/month (1H + 2H), each independently from DTR to payslip.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Full Manila Payroll Lifecycle" data-ja="マニラ給与ライフサイクル全体">Full Manila Payroll Lifecycle</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="① Create Period" data-ja="① 期間作成">① Create Period</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Create 1H or 2H period for the month. 2H auto-links to its 1H sibling for statutory deduction carry-over (e.g. BIR uses full-month gross)." data-ja="月の1Hまたは2H期間を作成。2Hは1Hと自動紐付けされ、法定控除の引き継ぎに使用（BIRは月次総支給を使用）。">Create 1H or 2H for the month. 2H auto-links to 1H for statutory carryover (BIR uses full-month gross).</div>
+        <span class="lc-path">/admin/payroll/manila → Create Period</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="② Upload / Sync DTR" data-ja="② DTRアップロード・同期">② Upload / Sync DTR</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Upload CSV or sync from Bayzat. Each row: date, staff name, time-in/out, OT hours, NSD hours, late/undertime minutes, day type, leave flag." data-ja="CSVアップロードまたはBayzatから同期。各行：日付・スタッフ名・出退勤・残業・深夜時間・遅刻/早退分・勤務日種別・有給フラグ。">Upload CSV or sync from Bayzat. Each row = date, times, OT hours, NSD hours, late/undertime min, day type, leave flag.</div>
+        <span class="lc-path">/admin/payroll/manila/dtr-upload</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="③ Compute Meal Allowance" data-ja="③ 食事手当計算">③ Compute Meal Allowance</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Run the allowance engine for the month. Computes ₱50/day meal allowance and ₱500 perfect attendance bonus per eligibility rules." data-ja="月次手当エンジンを実行。資格ルールに基づき食事手当₱50/日と皆勤賞₱500を計算。">Run allowance engine: ₱50/day meal allowance + ₱500 perfect attendance bonus.</div>
+        <span class="lc-path">/admin/payroll/manila/allowances → Compute</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="④ Compute Payroll" data-ja="④ 給与計算">④ Compute Payroll</span><span class="lc-who system">System Engine</span></div>
+        <div class="lc-detail" data-en="Engine calculates for each staff: basic pay, OT, NSD, late/undertime deductions, holiday premiums, SSS/PhilHealth/Pag-IBIG/BIR, SIL, 13th Month accrual, and manual adjustments." data-ja="エンジンが各スタッフの基本給・残業・深夜・遅刻早退控除・休日割増・SSS/PhilHealth/Pag-IBIG/BIR・SIL・13ヶ月目積立・手動調整を計算。">Engine computes: basic pay, OT, NSD, late deductions, holiday premiums, SSS/PH/PI/BIR, SIL, 13th Month, manual adjustments.</div>
+        <span class="lc-path">/admin/payroll/manila/[periodId] → Compute All</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑤ Review & Correct DTR" data-ja="⑤ DTR確認・修正">⑤ Review & Correct DTR</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Check payroll readiness flags (missing IDs, bank account). Correct individual attendance records if needed, then recompute affected runs." data-ja="給与準備フラグ（ID・銀行口座欠落）を確認。必要に応じて出退勤記録を個別修正し、影響するランを再計算。">Check readiness flags. Correct attendance records if needed, then recompute individual runs.</div>
+        <span class="lc-path">Period detail → DTR Correction / Recompute</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑥ Add Manual Adjustments" data-ja="⑥ 手動調整追加">⑥ Add Manual Adjustments (optional)</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Add one-off additions (bonus, incentive) or deductions (loan repayment, damage) per run. Recompute after adding." data-ja="ランごとに一時加算（賞与・インセンティブ）または控除（ローン返済・損害）を追加。追加後に再計算。">Add one-off additions (bonus) or deductions (loan, damage) per run. Recompute after.</div>
+        <span class="lc-path">Period detail → Manual Adjustment</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑦ Approve Runs" data-ja="⑦ ランを承認">⑦ Approve Runs</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Approve each run (or approve the period). Run status moves: computed → approved." data-ja="各ランを承認（または期間全体を承認）。ランステータスがcomputed → approvedに移行。">Approve each run. Status: computed → approved.</div>
+        <span class="lc-path">Period detail → Approve (per run or period)</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑧ Mark Paid" data-ja="⑧ 支払い済みにマーク">⑧ Mark Paid</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="After actual bank transfer, mark each run as paid with paid_via, reference_no, date." data-ja="実際の銀行振込後、各ランを支払済みにマーク（paid_via・参照番号・日付）。">After bank transfer, mark paid with paid_via, reference, date. Status: approved → paid.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑨ Publish Payslips" data-ja="⑨ 給与明細を公開">⑨ Publish Payslips</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Publish All for the period. Staff can now see their payslip in My Pay (/my-pay) after step-up authentication." data-ja="期間の全明細を公開。スタッフがMy Pay（/my-pay）でステップアップ認証後に給与明細を確認できる。">Publish All → staff can see payslip in My Pay after step-up auth.</div>
+        <span class="lc-path">Period detail → Publish All</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑩ Generate Gov. Remittances" data-ja="⑩ 政府拠出金送金記録を生成">⑩ Generate Gov. Remittances</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Generate remittance records from the period (SSS, PhilHealth, Pag-IBIG, BIR). Track due dates and mark paid when filed." data-ja="期間からSSS・PhilHealth・Pag-IBIG・BIR送金記録を生成。納期を追跡し、申告済みになったら支払済みにマーク。">Generate remittances (SSS/PH/PI/BIR) from period. Track due dates, mark paid when filed.</div>
+        <span class="lc-path">/admin/payroll/manila/remittances</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Period Date Ranges" data-ja="期間の日付範囲">Period Date Ranges</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Half" data-ja="半期">Half</th><th data-en="Date range" data-ja="日付範囲">Date range</th><th data-en="Notes" data-ja="備考">Notes</th></tr>
+      <tr><td><span class="chip blue">1H</span></td><td class="muted" data-en="26th of previous month → 10th of current month" data-ja="前月26日 → 当月10日">26th prev. month → 10th current</td><td class="muted" data-en="SSS/PhilHealth/Pag-IBIG × 0.5 (estimated gross)" data-ja="SSS/PhilHealth/Pag-IBIG × 0.5（推定総支給）">Statutory deductions × 0.5 (estimated)</td></tr>
+      <tr><td><span class="chip blue">2H</span></td><td class="muted" data-en="11th → 25th of current month" data-ja="11日 → 25日">11th → 25th current</td><td class="muted" data-en="Remaining 50% of statutory deductions; BIR uses combined 1H+2H gross for bracket" data-ja="法定控除の残り50%；BIRは1H+2H合算総支給でブラケット決定">Remaining 50% statutory; BIR uses 1H+2H combined gross</td></tr>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════════ DUBAI FLOW ══════════ -->
+<div class="section" id="sec-dubai-flow">
+  <div class="section-hero">
+    <div class="hero-icon">🇦🇪</div>
+    <div>
+      <div class="section-title" data-en="Dubai Payroll Flow" data-ja="ドバイ給与フロー">Dubai Payroll Flow</div>
+      <div class="section-path">/admin/payroll/dubai  /admin/payroll/transactions</div>
+      <div class="section-desc" data-en="Monthly cycle: auto-adjustment engine calculates attendance penalties and night premiums, which feed into the shared adjustments table alongside manual entries." data-ja="月次サイクル：自動調整エンジンが出退勤ペナルティと深夜手当を計算し、手動入力と共に調整テーブルに反映。">Monthly: auto-adjustment engine calculates penalties + night premium, combined with manual adjustments.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Dubai Payroll Lifecycle" data-ja="ドバイ給与ライフサイクル">Dubai Payroll Lifecycle</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="① Open / Get Cycle" data-ja="① サイクルを開く">① Open / Get Cycle</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="A monthly cycle is auto-created (get-or-create) when you first visit the Dubai payroll page for a given year/month. Cycle opens with status 'open'." data-ja="ドバイ給与ページを初めて開くと月次サイクルが自動作成（get-or-create）。ステータスはopenで開始。">Cycle auto-created on first visit for the year/month. Status: open.</div>
+        <span class="lc-path">/admin/payroll/dubai</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="② Upload / Sync Dubai DTR" data-ja="② Dubai DTRアップロード・同期">② Upload / Sync Dubai DTR</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Upload CSV (includes annual_leave_flag, actual_break_minutes) or sync from OS attendance sessions. Verify records in the Attendance View tab." data-ja="CSV（年次有給フラグ・実際の休憩分含む）をアップロードまたはOSセッションから同期。出退勤ビュータブで確認。">Upload CSV (with annual_leave_flag, break_minutes) or sync from OS. Verify in Attendance View.</div>
+        <span class="lc-path">/admin/payroll/dubai/dtr-upload</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="③ Add Manual Adjustments" data-ja="③ 手動調整を追加">③ Add Manual Adjustments (optional)</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Add overtime pay, commissions, bonuses (additions), or loan repayments, damages (deductions) before running the engine." data-ja="エンジン実行前に残業代・コミッション・賞与（加算）やローン返済・損害（控除）を追加。">Add OT, commissions, bonuses (additions) or loan repayments, damages (deductions).</div>
+        <span class="lc-path">/admin/payroll/adjustments?city=dubai</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="④ Run Auto-Calculation Engine" data-ja="④ 自動計算エンジンを実行">④ Run Auto-Calculation Engine</span><span class="lc-who system">System Engine</span></div>
+        <div class="lc-detail" data-en="Click Calculate. Engine reads DTR records for the cycle's date range and inserts attendance_auto adjustment rows: late deductions, absent deductions, undertime, missing punch fees, break excess, night premium, monthly late surcharges." data-ja="Calculateをクリック。エンジンがDTR記録を読み込み、attendance_auto調整行を挿入：遅刻控除・欠勤控除・早退・パンチ漏れ手数料・休憩超過・深夜手当・月次遅刻割増。">Click Calculate. Engine inserts attendance_auto rows: late deductions, absent, undertime, missing punch, break excess, night premium, monthly late surcharge.</div>
+        <span class="lc-path">/admin/payroll/dubai → Calculate button</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑤ Review Calc Summary" data-ja="⑤ 計算サマリーを確認">⑤ Review Calc Summary</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Engine returns: staff_processed, night_premium_count, late_deduction_count, late_surcharge_count, absent_deduction_count, missing_punch_count, break_excess_count. If corrections needed: Clear and re-run." data-ja="エンジンが返す：処理スタッフ数・深夜手当件数・遅刻控除・割増・欠勤控除・パンチ漏れ・休憩超過件数。修正が必要な場合はClearして再実行。">Review summary counts. If corrections needed: Clear and re-run.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑥ Create Payroll Run (Snapshot)" data-ja="⑥ 給与ランを作成（スナップショット）">⑥ Create Payroll Run (Snapshot)</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="At /admin/payroll/transactions, create a run for the cycle. This snapshots the current adjustments table into run_records (basic salary + all adjustments → net pay per staff)." data-ja="/admin/payroll/transactionsで対象サイクルのランを作成。現在の調整テーブルをrun_recordsにスナップショット（基本給＋全調整 → 各スタッフのネット支払額）。">At Transactions, create a run. Snapshots adjustments → run_records (basic + all adjustments = net pay per staff).</div>
+        <span class="lc-path">/admin/payroll/transactions → Create Run</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑦ Finalize & Mark Paid" data-ja="⑦ 確定・支払済みにマーク">⑦ Finalize & Mark Paid</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Finalize the run (locks it), then mark individual staff as paid with paid_via, date, reference, note." data-ja="ランを確定（ロック）し、各スタッフを支払済みにマーク（paid_via・日付・参照・メモ）。">Finalize run (locks it), then mark each staff paid with paid_via, date, reference.</div>
+        <span class="lc-path">Transactions → Finalize → Mark Paid per staff</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="⑧ Close Cycle & Publish" data-ja="⑧ サイクルをクローズ・公開">⑧ Close Cycle & Publish</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Close the cycle from the Dubai payroll page. Then Publish All to make payslips visible in staff My Pay." data-ja="ドバイ給与ページからサイクルをクローズ。その後Publish Allでスタッフのマイ給与に明細を公開。">Close the cycle, then Publish All → payslips visible in staff My Pay.</div>
+        <span class="lc-path">/admin/payroll/dubai → Close Cycle → Publish All</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Dubai Auto-Adjustment Engine Rules" data-ja="ドバイ自動調整エンジンルール">Dubai Auto-Adjustment Engine Rules</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Rule" data-ja="ルール">Rule</th><th data-en="Trigger" data-ja="トリガー">Trigger</th><th data-en="Deduction / Addition" data-ja="控除・加算">Deduction / Addition</th></tr>
+      <tr><td data-en="Late arrival" data-ja="遅刻">Late arrival</td><td class="muted" data-en="Net late > 15 min (after grace)" data-ja="猶予後の正味遅刻 > 15分">Net late > 15 min</td><td class="muted" data-en="Net late minutes × hourly rate" data-ja="正味遅刻分 × 時給">Net late min × hourly rate</td></tr>
+      <tr><td data-en="Late surcharge" data-ja="遅刻割増">Late surcharge</td><td class="muted" data-en="Net late ≥ 60 min" data-ja="正味遅刻 ≥ 60分">Net late ≥ 60 min</td><td class="muted" data-en="+10% of daily salary" data-ja="日給の10%追加">+10% of daily salary</td></tr>
+      <tr><td data-en="Monthly late penalty" data-ja="月次遅刻ペナルティ">Monthly late penalty</td><td class="muted" data-en="≥3 late instances > 15 min in cycle" data-ja="サイクル内で15分超の遅刻が3回以上">≥3 late > 15 min in cycle</td><td class="muted" data-en="+5% of monthly salary (NTE flag added)" data-ja="月給の5%追加（NTEフラグ付き）">+5% monthly salary (+ NTE flag)</td></tr>
+      <tr><td data-en="Absent (AWP)" data-ja="欠勤（無断）">Absent (AWP)</td><td class="muted" data-en="absent_without_pay = true" data-ja="無断欠勤フラグがtrue">absent_without_pay = true</td><td class="muted" data-en="1 full daily rate" data-ja="日給1日分">1 daily rate</td></tr>
+      <tr><td data-en="Undertime" data-ja="早退">Undertime / Early leave</td><td class="muted" data-en="Actual undertime minutes recorded" data-ja="早退分が記録されている">Undertime minutes recorded</td><td class="muted" data-en="Minutes × hourly rate" data-ja="分数 × 時給">Minutes × hourly rate</td></tr>
+      <tr><td data-en="Missing punch" data-ja="打刻漏れ">Missing punch</td><td class="muted" data-en="Missing time-in or time-out" data-ja="打刻の入力・出力が漏れている">Missing time-in or time-out</td><td class="muted" data-en="1 hour admin fee per incident" data-ja="1件につき1時間分の管理手数料">1 hr admin fee per incident</td></tr>
+      <tr><td data-en="Break excess" data-ja="休憩超過">Break excess</td><td class="muted" data-en="Actual break > 60 min" data-ja="実際の休憩時間 > 60分">Actual break > 60 min</td><td class="muted" data-en="Excess minutes × hourly rate" data-ja="超過分 × 時給">Excess min × hourly rate</td></tr>
+      <tr><td data-en="Night premium" data-ja="深夜手当">Night premium</td><td class="muted" data-en="Hours worked 22:00–04:00" data-ja="22:00〜04:00の勤務時間">Hours 22:00–04:00</td><td class="muted" data-en="+10% × worked night hours × hourly rate" data-ja="10% × 深夜勤務時間 × 時給">+10% × night hours × hourly rate</td></tr>
+    </table></div>
+    <div class="tip info" style="margin-top:10px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="Night premium does NOT stack with public holiday premium — if a night shift overlaps a public holiday, the holiday rate takes priority." data-ja="深夜手当は祝日割増とは重複しません。深夜シフトが祝日と重なる場合、祝日レートが優先されます。">Night premium does NOT stack with public holiday premium — holiday rate takes priority on overlap.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ STAFF PROFILES ══════════ -->
+<div class="section" id="sec-staff-profiles">
+  <div class="section-hero">
+    <div class="hero-icon">👤</div>
+    <div>
+      <div class="section-title" data-en="Manila Staff Profiles" data-ja="マニラスタッフプロファイル">Manila Staff Profiles</div>
+      <div class="section-path">/admin/payroll/manila/staff-profiles</div>
+      <div class="section-desc" data-en="Master payroll data for each Manila staff member. Must be complete before running payroll. Missing fields cause readiness warnings during computation." data-ja="各マニラスタッフの給与マスタデータ。給与計算前に必ず完成させること。不足フィールドがあると計算中に準備警告が発生します。">Master payroll data per staff. Must be complete before computing. Missing fields = readiness warnings.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Required Fields (Payroll Readiness)" data-ja="必須フィールド（給与準備チェック）">Required Fields (Payroll Readiness)</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Field" data-ja="フィールド">Field</th><th data-en="Purpose" data-ja="目的">Purpose</th><th data-en="Used by" data-ja="使用先">Used by</th></tr>
+      <tr><td><code>monthly_rate</code></td><td class="muted" data-en="Gross monthly salary" data-ja="月次総支給額">Gross monthly salary</td><td class="muted">Basic pay, statutory deductions</td></tr>
+      <tr><td><code>hire_date</code></td><td class="muted" data-en="Employment start date (for new hire pro-ration)" data-ja="入社日（新入社員日割り用）">Employment start date</td><td class="muted">New hire pro-ration</td></tr>
+      <tr><td><code>sss_number</code></td><td class="muted">SSS ID</td><td class="muted">SSS contributions, R-3 report</td></tr>
+      <tr><td><code>philhealth_id</code></td><td class="muted">PhilHealth ID</td><td class="muted">PH contributions, RF-1 report</td></tr>
+      <tr><td><code>pagibig_mid</code></td><td class="muted">Pag-IBIG MID</td><td class="muted">PI contributions, MCRF report</td></tr>
+      <tr><td><code>tin</code></td><td class="muted">BIR Tax ID</td><td class="muted">WHT, 1601-C report</td></tr>
+      <tr><td><code>bank_account_no</code> or <code>gcash_number</code></td><td class="muted" data-en="Payment account" data-ja="支払口座">Payment account</td><td class="muted" data-en="Mark Paid flow" data-ja="支払済みフロー">Mark Paid flow</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Tax & Payroll Settings" data-ja="税務・給与設定">Tax & Payroll Settings</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip" data-en="civil_status — affects BIR bracket" data-ja="civil_status — BIRブラケットに影響">civil_status (BIR bracket)</span>
+        <span class="chip" data-en="num_qualified_dependents — additional BIR exemption" data-ja="扶養人数 — BIR追加免除">num_qualified_dependents</span>
+        <span class="chip" data-en="is_minimum_wage_earner — BIR exempt" data-ja="最低賃金者フラグ — BIR免除">is_minimum_wage_earner → BIR exempt</span>
+        <span class="chip" data-en="mdr_submitted + date — Pag-IBIG MDR" data-ja="MDR提出フラグ + 日付">mdr_submitted / mdr_submitted_date</span>
+        <span class="chip" data-en="pagibig_voluntary — voluntary contribution above mandatory" data-ja="任意拠出（法定以上）">pagibig_voluntary amount</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="De Minimis Allowances (BIR-exempt monthly caps)" data-ja="少額手当（BIR非課税月次上限）">De Minimis Allowances</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Field" data-ja="フィールド">Field</th><th data-en="BIR Cap/mo" data-ja="BIR上限/月">Cap/mo</th></tr>
+        <tr><td><code>rice_allowance</code></td><td class="muted">₱2,000</td></tr>
+        <tr><td><code>clothing_allowance</code></td><td class="muted">₱500</td></tr>
+        <tr><td><code>laundry_allowance</code></td><td class="muted">₱300</td></tr>
+        <tr><td><code>medical_allowance</code></td><td class="muted">₱250</td></tr>
+      </table></div>
+      <p style="color:var(--muted);font-size:11px;margin-top:6px" data-en="Amounts within caps reduce BIR taxable base. Excess over cap is taxable." data-ja="上限内の金額はBIR課税基準を減少させます。上限超過分は課税対象。">Within caps → reduces BIR taxable base. Excess → taxable.</p>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span data-en="Use the Auto-match button to link staff profiles to their Bayzat employee IDs. This enables Bayzat DTR sync to automatically match attendance records to the correct staff profile." data-ja="「Auto-match」ボタンでスタッフプロファイルをBayzat従業員IDに紐付けます。これによりBayzat DTR同期が出退勤記録を正しいプロファイルに自動マッチングできます。">Use Auto-match to link profiles to Bayzat employee IDs — enables automatic matching during DTR sync.</span>
+  </div>
+</div>
+
+<!-- ══════════ GOV TABLES ══════════ -->
+<div class="section" id="sec-gov-tables">
+  <div class="section-hero">
+    <div class="hero-icon">🏛️</div>
+    <div>
+      <div class="section-title" data-en="Government Tables" data-ja="政府拠出金テーブル">Government Tables</div>
+      <div class="section-path">/admin/payroll/manila/gov-tables</div>
+      <div class="section-desc" data-en="Configure the statutory contribution tables used by the Manila payroll engine. Update these whenever the government issues new rates." data-ja="マニラ給与エンジンが使用する法定拠出金テーブルを設定。政府が新しいレートを発行したら必ず更新してください。">Configure statutory contribution tables. Update whenever government issues new rates.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">SSS</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Lookup by Monthly Salary Credit (MSC). Each row: compensation range min/max, MSC, EE/ER/EC amounts. WISP applies when MSC > ₱20,000." data-ja="月次給与信用額（MSC）で参照。各行：補償範囲の最小/最大・MSC・EE/ER/EC額。MSCが₱20,000超でWISP適用。">Lookup by Monthly Salary Credit (MSC). Rows: comp range, MSC, EE/ER/EC amounts. WISP when MSC > ₱20,000.</p>
+    <div class="chip-row">
+      <span class="chip red" data-en="EE share — deducted from staff payslip" data-ja="EE分担 — 給与明細から控除">EE share (deducted from staff)</span>
+      <span class="chip amber" data-en="ER share — employer cost, not deducted" data-ja="ER分担 — 雇用主負担、控除なし">ER share (employer cost)</span>
+      <span class="chip blue" data-en="EC — employee compensation" data-ja="EC — 従業員補償">EC</span>
+      <span class="chip violet" data-en="WISP EE + ER — for MSC > ₱20,000" data-ja="WISP EE + ER — MSC > ₱20,000">WISP (MSC > ₱20,000)</span>
+    </div>
+    <p style="color:var(--muted);font-size:11px;margin-top:8px" data-en="Upload: Gov Tables → SSS tab → Upload CSV (columns: compensation_from, compensation_to, msc, ee_amount, er_amount, ec_amount, wisp_ee, wisp_er, effective_date)" data-ja="アップロード：政府テーブル → SSSタブ → CSV（columns: compensation_from, compensation_to, msc, ee_amount, er_amount, ec_amount, wisp_ee, wisp_er, effective_date）">Upload via Gov Tables → SSS tab → Upload CSV (columns: compensation_from/to, msc, ee/er/ec_amount, wisp_ee/er, effective_date)</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">PhilHealth</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="Single rate % with min/max premium range. Currently 5% total (EE 2.5% + ER 2.5%), clamped to ₱10,000–₱100,000 monthly basic." data-ja="単一レート%と最小/最大保険料範囲。現在5%（EE 2.5% + ER 2.5%）、月次基本給₱10,000〜₱100,000に制限。">Rate % with min/max. Currently 5% total (EE+ER 2.5% each), clamped ₱10k–₱100k basic.</p>
+      <div class="formula-label" data-en="Base for calculation" data-ja="計算基準">Base for calculation</div>
+      <div class="formula-box">base = monthly_basic_rate (NOT gross — OT excluded)</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Pag-IBIG / HDMF</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="EE rate: 1% if monthly basic ≤ ₱1,500; else 2%. ER rate: always 2%. Capped at ₱10,000 base." data-ja="EEレート：月次基本 ≤ ₱1,500なら1%、それ以外は2%。ERレート：常に2%。基準は₱10,000が上限。">EE: 1% if basic ≤ ₱1,500, else 2%. ER: always 2%. Base capped at ₱10,000.</p>
+      <div class="formula-label" data-en="Typical result" data-ja="典型的な結果">Typical result</div>
+      <div class="formula-box">EE ₱200 + ER ₱200 = ₱400/month</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">BIR / TRAIN Law (Withholding Tax)</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Annual bracket table. Engine annualizes taxable income, looks up bracket, computes annual tax, then divides by 12 for monthly WHT." data-ja="年次ブラケットテーブル。エンジンが課税所得を年換算し、ブラケットを参照して年次税額を計算、12で割って月次源泉徴収税額を算出。">Annual bracket table. Engine annualizes taxable income → lookup bracket → annual tax ÷ 12 = monthly WHT.</p>
+    <div class="formula-label" data-en="WHT Calculation Steps" data-ja="源泉徴収税計算ステップ">WHT Calculation Steps</div>
+    <div class="formula-box" style="line-height:1.8">
+      1. taxable_monthly = gross_monthly − (EE_SSS + EE_PH + EE_PI) − de_minimis_exempt<br>
+      2. annual_taxable = taxable_monthly × 12<br>
+      3. annual_tax = base_tax + excess_rate × max(annual_taxable − excess_over, 0)<br>
+      4. monthly_WHT = annual_tax / 12<br>
+      5. per_cutoff = monthly_WHT × 0.5
+    </div>
+    <div class="tip danger" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Minimum Wage Earners (is_minimum_wage_earner = true) are fully BIR-exempt under RA 9504 — including OT and holiday pay. No WHT is deducted." data-ja="最低賃金労働者（is_minimum_wage_earner = true）はRA 9504により残業・休日給与を含め完全BIR免除。源泉徴収税は控除されません。">Minimum Wage Earners (is_minimum_wage_earner = true) are fully BIR-exempt including OT/holiday — no WHT deducted.</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Pay Rate Rules" data-ja="支払レートルール">Pay Rate Rules</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="Day-type multipliers used by the engine. Key multipliers (base already in monthly — only the premium % is added):" data-ja="エンジンが使用する勤務日種別乗数。主要乗数（月給に基本分含む — 割増%のみ加算）：">Day-type multipliers. Base already in monthly — only premium % added:</p>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Day Type" data-ja="勤務日種別">Day Type</th><th data-en="Worked" data-ja="勤務">Worked</th><th data-en="Not worked" data-ja="非勤務">Not worked</th></tr>
+        <tr><td data-en="Ordinary" data-ja="通常">Ordinary</td><td class="muted" data-en="No premium (base in monthly)" data-ja="割増なし">No premium</td><td class="muted" data-en="Deducted (AWP)" data-ja="控除（無断欠勤）">Deducted</td></tr>
+        <tr><td data-en="Rest day" data-ja="週休日">Rest day</td><td class="muted">+30%</td><td class="muted" data-en="No deduction" data-ja="控除なし">No deduction</td></tr>
+        <tr><td data-en="Special holiday" data-ja="特別休日">Special holiday</td><td class="muted">+30%</td><td class="muted" data-en="Deducted (NWNP)" data-ja="控除（ノーワーク・ノーペイ）">NWNP — deducted</td></tr>
+        <tr><td data-en="Regular holiday" data-ja="正規休日">Regular holiday</td><td class="muted">+100%</td><td class="muted" data-en="No deduction if qualified (prev. day worked)" data-ja="資格あり（前日出勤）なら控除なし">No deduction if qualified</td></tr>
+        <tr><td data-en="Reg. holiday + Rest" data-ja="正規休日＋週休日">Reg. holiday + Rest</td><td class="muted">+160%</td><td class="muted">—</td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Holidays & Settings" data-ja="祝日・設定">Holidays & Settings</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="Register public holidays per year so the engine applies correct day-type multipliers. Also configure:" data-ja="エンジンが正しい勤務日種別乗数を適用するために年次祝日を登録。また以下も設定：">Register holidays per year. Also configure:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip" data-en="salary_divisor — default 26 (working days/month)" data-ja="給与除数 — デフォルト26（稼働日/月）">salary_divisor (default: 26)</span>
+        <span class="chip" data-en="minimum_wage_ncr — current NCR minimum daily wage" data-ja="NCR最低日給 — 現在のNCR最低賃金">minimum_wage_ncr (NCR daily min wage)</span>
+        <span class="chip" data-en="SIL entitlement (5 days/year after 1 year)" data-ja="SIL資格（1年後に年5日）">SIL: 5 days/year after 1 year service</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DTR UPLOAD ══════════ -->
+<div class="section" id="sec-dtr-upload">
+  <div class="section-hero">
+    <div class="hero-icon">📋</div>
+    <div>
+      <div class="section-title" data-en="Manila DTR Upload & Sync" data-ja="マニラDTRアップロード・同期">Manila DTR Upload & Sync</div>
+      <div class="section-path">/admin/payroll/manila/dtr-upload</div>
+      <div class="section-desc" data-en="Three ways to get attendance data into the system: CSV upload, Bayzat sync, or OT approval sync. All methods feed the same attendance table." data-ja="出退勤データをシステムに取り込む3つの方法：CSVアップロード・Bayzat同期・OT承認同期。いずれも同じ出退勤テーブルに反映。">Three ways to load attendance: CSV upload, Bayzat sync, OT approval sync. All feed the same table.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Tab 1 — CSV Upload" data-ja="タブ1 — CSVアップロード">Tab 1 — CSV Upload</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Upload a CSV file with one row per staff per working day. Required columns:" data-ja="勤務日ごとにスタッフ1行のCSVファイルをアップロード。必須カラム：">Upload CSV: one row per staff per working day. Required columns:</p>
+    <div class="chip-row">
+      <span class="chip blue">work_date</span>
+      <span class="chip blue">staff_name</span>
+      <span class="chip blue">actual_time_in</span>
+      <span class="chip blue">actual_time_out</span>
+      <span class="chip">regular_hours</span>
+      <span class="chip">overtime_hours</span>
+      <span class="chip">night_regular_hours</span>
+      <span class="chip">night_overtime_hours</span>
+      <span class="chip">late_minutes</span>
+      <span class="chip">undertime_minutes</span>
+      <span class="chip">day_type</span>
+      <span class="chip">is_scheduled_rest_day</span>
+      <span class="chip">absent_without_pay</span>
+      <span class="chip">paid_leave_flag</span>
+    </div>
+    <div class="tip info" style="margin-top:10px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="day_type values: ordinary, rest_day, special_holiday, special_holiday_and_rest_day, regular_holiday, regular_holiday_and_rest_day" data-ja="day_typeの値: ordinary, rest_day, special_holiday, special_holiday_and_rest_day, regular_holiday, regular_holiday_and_rest_day">day_type values: ordinary / rest_day / special_holiday / special_holiday_and_rest_day / regular_holiday / regular_holiday_and_rest_day</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Tab 2 — Bayzat Sync" data-ja="タブ2 — Bayzat同期">Tab 2 — Bayzat Sync</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Preview sync" data-ja="同期をプレビュー">Preview sync</strong><p data-en="Click Preview to see what Bayzat data will be imported. Review unmatched employees and errors." data-ja="Previewをクリックしてインポートされるデータを確認。未マッチ従業員とエラーを確認。">Click Preview — shows what Bayzat will import. Check unmatched employees.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fix unmatched staff" data-ja="未マッチスタッフを修正">Fix unmatched staff</strong><p data-en="Unmatched means the Bayzat employee_id isn't linked to a staff profile. Run Auto-match in Staff Profiles first." data-ja="未マッチはBayzat従業員IDがプロファイルに紐付いていないことを意味します。まずスタッフプロファイルでAuto-matchを実行。">Unmatched = Bayzat employee_id not linked. Run Auto-match in Staff Profiles.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Confirm sync" data-ja="同期を確認">Confirm sync</strong><p data-en="Click Sync to commit the records. Existing records for the same staff/date are overwritten." data-ja="Syncをクリックして記録を確定。同一スタッフ/日付の既存記録は上書きされます。">Click Sync. Existing records for same staff/date are overwritten.</p></div></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Tab 3 — OT Approvals Sync" data-ja="タブ3 — OT承認同期">Tab 3 — OT Approvals Sync</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="After OT requests are approved in the OT system, sync them here to update approved_ot_hours in the attendance records. This overrides the raw computed OT hours from the CSV/Bayzat upload." data-ja="OTシステムでOTリクエストが承認された後、ここで同期して出退勤記録のapproved_ot_hoursを更新。CSV/Bayzatアップロードから計算された生OT時間を上書きします。">After OT requests are approved, sync here to update approved_ot_hours. Overrides raw computed OT.</p>
+      <div class="tip danger">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="Always sync OT approvals AFTER uploading the base DTR — syncing before the DTR upload will have no effect as there are no attendance rows to update." data-ja="必ず基本DTRアップロード後にOT承認を同期してください。DTRアップロード前に同期しても更新する出退勤行がないため効果がありません。">Always sync OT approvals AFTER uploading DTR — syncing first has no effect (no rows to update).</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Correcting Individual Records (Post-Compute)" data-ja="個別記録の修正（計算後）">Correcting Individual Records (Post-Compute)</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="On the Period Detail page, use the DTR Correction panel to edit individual attendance rows (time-in/out, late minutes, day type, paid leave flag) and then Recompute the affected run." data-ja="期間詳細ページのDTR Correctionパネルで個別出退勤行（時刻・遅刻分・勤務日種別・有給フラグ）を編集し、影響するランを再計算します。">Period Detail → DTR Correction → edit fields → click Recompute on that staff's run.</p>
+    <div class="chip-row">
+      <span class="chip" data-en="actual_time_in / actual_time_out" data-ja="実際の出退勤時刻">actual_time_in / actual_time_out</span>
+      <span class="chip">late_minutes</span>
+      <span class="chip">undertime_minutes</span>
+      <span class="chip">day_type</span>
+      <span class="chip">paid_leave_flag</span>
+      <span class="chip">absent_without_pay</span>
+      <span class="chip">approved_ot_hours</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ALLOWANCES ══════════ -->
+<div class="section" id="sec-allowances">
+  <div class="section-hero">
+    <div class="hero-icon">🍱</div>
+    <div>
+      <div class="section-title" data-en="Meal Allowance & Perfect Attendance" data-ja="食事手当・皆勤賞">Meal Allowance & Perfect Attendance</div>
+      <div class="section-path">/admin/payroll/manila/allowances</div>
+      <div class="section-desc" data-en="Monthly computation of two Manila-specific allowances. Run this before computing payroll for the 2H period (since the bonus spans both cutoffs)." data-ja="マニラ固有の2つの手当を月次計算。2H給与計算前に実行してください（ボーナスは両カットオフをまたぐため）。">Monthly computation of two Manila-specific allowances. Run before 2H payroll computation.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="Meal Allowance — ₱50/day" data-ja="食事手当 — ₱50/日">Meal Allowance — ₱50/day</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Awarded per working day in the cutoff. DISQUALIFIED if any of the following in the cutoff:" data-ja="カットオフ内の各勤務日に付与。以下のいずれかに該当する場合は失格：">₱50 per working day in cutoff. DISQUALIFIED if any of:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip red" data-en="AWOL (absent_without_pay ≥ 1 day)" data-ja="無断欠勤 ≥ 1日">AWOL (absent_without_pay ≥ 1 day)</span>
+        <span class="chip red" data-en="Shift request filed < 15 days in advance" data-ja="シフト変更申請が15日前以内">Shift request < 15 days advance</span>
+        <span class="chip red" data-en="Any shift request REJECTED" data-ja="シフト変更申請が却下">Any shift request REJECTED</span>
+        <span class="chip red" data-en="Late count ≥ 3 in the cutoff" data-ja="カットオフ内の遅刻 ≥ 3回">Late count ≥ 3 in cutoff</span>
+        <span class="chip red" data-en="Total late minutes > 60 in the cutoff" data-ja="カットオフ内の合計遅刻分 > 60分">Total late minutes > 60</span>
+        <span class="chip red" data-en="No Prior Notice flag set by admin" data-ja="Adminによるノープライアーノーティスフラグ">No Prior Notice flag (admin-set)</span>
+      </div>
+    </div>
+    <div class="card blue-border">
+      <div class="card-title" data-en="Perfect Attendance Bonus — ₱500/month" data-ja="皆勤賞 — ₱500/月">Perfect Attendance Bonus — ₱500/month</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Flat ₱500 if staff has zero late AND zero AWOL across BOTH cutoffs for the month." data-ja="月の両カットオフで遅刻ゼロかつ無断欠勤ゼロの場合に₱500一律支給。">₱500 flat if zero late AND zero AWOL across BOTH cutoffs for the month.</p>
+      <div class="tip" style="margin-top:0">
+        <span class="tip-icon">💡</span>
+        <span data-en="The Perfect Attendance Bonus is added to the 2H run. It appears as a single ₱500 item when 2H payroll is computed." data-ja="皆勤賞は2Hランに追加されます。2H給与計算時に₱500の単一アイテムとして表示されます。">Bonus is added to the 2H run. Appears as ₱500 item when 2H is computed.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How to Compute Allowances" data-ja="手当の計算方法">How to Compute Allowances</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the month" data-ja="月を選択">Select the month</strong><p data-en="Use the month picker to choose the month. Both Cutoff 1 and Cutoff 2 data for that month will be processed." data-ja="月ピッカーで月を選択。その月のカットオフ1と2の両方のデータが処理されます。">Month picker → select month. Both Cutoff 1 (26th–10th) and Cutoff 2 (11th–25th) processed.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Compute" data-ja="Computeをクリック">Click Compute</strong><p data-en="Engine reads DTR records for each cutoff, applies eligibility rules, and stores meal allowance and bonus amounts per staff per cutoff." data-ja="エンジンが各カットオフのDTR記録を読み込み、資格ルールを適用し、スタッフ・カットオフごとに食事手当とボーナス額を保存。">Engine reads DTR, applies rules, stores amounts per staff per cutoff.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review results" data-ja="結果を確認">Review results</strong><p data-en="Expand each staff row to see per-cutoff eligibility and disqualification reasons. Set No Prior Notice flag if needed." data-ja="各スタッフ行を展開してカットオフごとの資格と失格理由を確認。必要に応じてノープライアーノーティスフラグを設定。">Expand staff rows to see per-cutoff eligibility + reasons. Set No Prior Notice flags if needed.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="The amounts are automatically picked up when payroll is computed" data-ja="給与計算時に自動取得される">Auto-picked up during payroll compute</strong><p data-en="No further action needed. When you run Compute Payroll, the engine reads the stored allowance amounts and includes them as MEAL_ALLOWANCE and PERFECT_ATTENDANCE line items." data-ja="追加操作は不要。給与計算を実行すると、エンジンが保存された手当額を読み込み、MEAL_ALLOWANCEとPERFECT_ATTENDANCEとして明細に含めます。">Compute Payroll automatically reads stored amounts → MEAL_ALLOWANCE + PERFECT_ATTENDANCE line items.</p></div></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══════════ COMPUTE PAYROLL ══════════ -->
+<div class="section" id="sec-compute">
+  <div class="section-hero">
+    <div class="hero-icon">⚙️</div>
+    <div>
+      <div class="section-title" data-en="Compute Payroll (Manila)" data-ja="給与計算（マニラ）">Compute Payroll (Manila)</div>
+      <div class="section-path">/admin/payroll/manila/[periodId]</div>
+      <div class="section-desc" data-en="The main computation page for a Manila payroll period. Click Compute All to run the engine for all staff, then review each run's line items." data-ja="マニラ給与期間の主要計算ページ。Compute Allをクリックして全スタッフのエンジンを実行し、各ランの明細を確認します。">Main computation page. Click Compute All → engine runs for all staff. Review each run.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="What the Engine Computes (per staff per period)" data-ja="エンジンが計算するもの（スタッフ・期間ごと）">What the Engine Computes (per staff per period)</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Item Code" data-ja="明細コード">Item Code</th><th data-en="Description" data-ja="説明">Description</th><th data-en="Taxable?" data-ja="課税？">Taxable?</th></tr>
+      <tr><td><code>MONTHLY_BASIC</code></td><td class="muted" data-en="Half-period basic pay (monthly_rate ÷ 2)" data-ja="半期基本給（月給÷2）">Half-period basic (monthly_rate ÷ 2)</td><td class="muted">Yes</td></tr>
+      <tr><td><code>MONTHLY_BASIC_PRORATED</code></td><td class="muted" data-en="New hire pro-ration (daily_rate × eligible working days)" data-ja="新入社員日割り（日給 × 資格勤務日数）">New hire: daily_rate × eligible working days</td><td class="muted">Yes</td></tr>
+      <tr><td><code>OVERTIME</code></td><td class="muted" data-en="OT hours × hourly rate × 1.25 (ordinary day OT)" data-ja="残業時間 × 時給 × 1.25（通常日残業）">OT hours × hourly × 1.25 (ordinary day)</td><td class="muted">Yes</td></tr>
+      <tr><td><code>NSD_*</code></td><td class="muted" data-en="Night Shift Differential (22:00–06:00): +10% per night hour" data-ja="深夜手当（22:00〜06:00）：深夜時間ごとに10%追加">NSD 22:00–06:00: +10% per night hour</td><td class="muted">Yes</td></tr>
+      <tr><td><code>REST_DAY_*</code> / <code>HOLIDAY_*</code></td><td class="muted" data-en="Day-type premium additions" data-ja="勤務日種別割増加算">Day-type premium additions</td><td class="muted">Yes</td></tr>
+      <tr><td><code>LATE_DEDUCTION</code></td><td class="muted" data-en="late_minutes × hourly_rate (deduction)" data-ja="遅刻分 × 時給（控除）">late_minutes × hourly_rate (deduction)</td><td class="muted">—</td></tr>
+      <tr><td><code>UNDERTIME_DEDUCTION</code></td><td class="muted" data-en="undertime_minutes × hourly_rate (deduction)" data-ja="早退分 × 時給（控除）">undertime_minutes × hourly_rate (deduction)</td><td class="muted">—</td></tr>
+      <tr><td><code>ABSENT_DEDUCTION</code></td><td class="muted" data-en="daily_rate × absent days (deduction)" data-ja="日給 × 欠勤日数（控除）">daily_rate × absent days (deduction)</td><td class="muted">—</td></tr>
+      <tr><td><code>MEAL_ALLOWANCE</code></td><td class="muted" data-en="₱50 × eligible days (from allowance engine)" data-ja="₱50 × 資格日数（手当エンジンから）">₱50 × eligible days</td><td class="muted" data-en="De minimis" data-ja="少額">De minimis</td></tr>
+      <tr><td><code>PERFECT_ATTENDANCE</code></td><td class="muted">₱500/month (2H run only)</td><td class="muted" data-en="De minimis" data-ja="少額">De minimis</td></tr>
+      <tr><td><code>EE_SSS</code> / <code>EE_PH</code> / <code>EE_PI</code></td><td class="muted" data-en="Employee share of SSS, PhilHealth, Pag-IBIG" data-ja="SSS・PhilHealth・Pag-IBIGの従業員負担分">Employee SSS / PhilHealth / Pag-IBIG shares</td><td class="muted" data-en="Deduction" data-ja="控除">Deduction</td></tr>
+      <tr><td><code>ER_SSS</code> / <code>ER_PH</code> / <code>ER_PI</code></td><td class="muted" data-en="Employer cost (not deducted from payslip)" data-ja="雇用主負担（給与明細から控除なし）">Employer cost (not deducted)</td><td class="muted">—</td></tr>
+      <tr><td><code>WHT</code></td><td class="muted" data-en="Withholding Tax (BIR TRAIN)" data-ja="源泉徴収税（BIR TRAIN）">Withholding Tax (BIR TRAIN)</td><td class="muted" data-en="Deduction" data-ja="控除">Deduction</td></tr>
+      <tr><td><code>SIL_EARNED</code></td><td class="muted" data-en="Service Incentive Leave (if paid_leave_flag used)" data-ja="有給休暇（paid_leave_flag使用時）">SIL (if paid_leave_flag used)</td><td class="muted">Yes</td></tr>
+      <tr><td><code>13TH_MONTH_ACCRUAL</code></td><td class="muted" data-en="monthly_basic ÷ 12 — reference only, excluded from gross" data-ja="月次基本 ÷ 12 — 参照のみ、総支給に含まず">monthly_basic ÷ 12 — reference only, excluded from gross</td><td class="muted">No</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Payroll Readiness Flags" data-ja="給与準備フラグ">Payroll Readiness Flags</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="The period detail page shows a readiness checklist. Staff with missing data are flagged:" data-ja="期間詳細ページに準備チェックリストを表示。データが不足しているスタッフにフラグ：">Period detail shows readiness checklist. Flags on missing data:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip red" data-en="Missing SSS number" data-ja="SSS番号なし">Missing SSS number</span>
+        <span class="chip red" data-en="Missing PhilHealth ID" data-ja="PhilHealth IDなし">Missing PhilHealth ID</span>
+        <span class="chip red" data-en="Missing Pag-IBIG MID" data-ja="Pag-IBIG MIDなし">Missing Pag-IBIG MID</span>
+        <span class="chip red" data-en="Missing TIN" data-ja="TINなし">Missing TIN</span>
+        <span class="chip red" data-en="Missing bank / GCash account" data-ja="銀行・GCash口座なし">Missing bank / GCash account</span>
+      </div>
+      <p style="color:var(--muted);font-size:11px;margin-top:8px" data-en="Fix missing data in Staff Profiles before computing." data-ja="計算前にスタッフプロファイルで不足データを修正。">Fix in Staff Profiles before computing.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Manual Adjustments" data-ja="手動調整">Manual Adjustments</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:6px" data-en="Add one-off items to a specific run after computing. Types:" data-ja="計算後に特定のランに一時項目を追加。タイプ：">Add one-off items to a run post-compute. Types:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip green">MANUAL_ADDITION</span>
+        <span class="chip red">MANUAL_DEDUCTION</span>
+        <span class="chip red">INCOME_TAX</span>
+        <span class="chip red">LOAN_DEDUCTION</span>
+      </div>
+      <div class="tip danger" style="margin-top:8px">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="After adding a manual adjustment, click Recompute on that run — the engine re-reads the run items and recalculates net pay." data-ja="手動調整追加後、そのランのRecomputeをクリック。エンジンがランの明細を再読み込みしてネット支払額を再計算します。">After adding manual adjustment → click Recompute. Engine re-reads items and recalculates net pay.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Key Formulas" data-ja="主要計算式">Key Formulas</div>
+    <div class="formula-label">daily_rate</div>
+    <div class="formula-box">daily_rate = max(monthly_rate / salary_divisor, minimum_wage_ncr)</div>
+    <div class="formula-label" style="margin-top:8px">hourly_rate</div>
+    <div class="formula-box">hourly_rate = daily_rate / 8</div>
+    <div class="formula-label" style="margin-top:8px" data-en="New hire pro-ration" data-ja="新入社員日割り">New hire pro-ration</div>
+    <div class="formula-box">basic_pay = daily_rate × working_days(hire_date → period_end)   [Mon–Sat only]</div>
+    <div class="formula-label" style="margin-top:8px" data-en="Overtime (ordinary day)" data-ja="残業（通常日）">Overtime (ordinary day)</div>
+    <div class="formula-box">OT_pay = hourly_rate × 1.25 × approved_ot_hours</div>
+    <div class="formula-label" style="margin-top:8px">NSD</div>
+    <div class="formula-box">NSD_pay = hourly_rate × base_multiplier × 0.10 × night_hours</div>
+  </div>
+</div>
+
+<!-- ══════════ APPROVE & PUBLISH ══════════ -->
+<div class="section" id="sec-approve-publish">
+  <div class="section-hero">
+    <div class="hero-icon">✅</div>
+    <div>
+      <div class="section-title" data-en="Approve & Publish (Manila)" data-ja="承認・公開（マニラ）">Approve &amp; Publish (Manila)</div>
+      <div class="section-path">/admin/payroll/manila/[periodId]</div>
+      <div class="section-desc" data-en="After computing, runs go through two approval stages (run-level, then period-level) before payslips are published to staff." data-ja="計算後、ランは2段階の承認（ランレベル、次に期間レベル）を経てから給与明細がスタッフに公開されます。">After computing, runs go through two approval stages before payslips are published to staff.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Run Status Flow" data-ja="ランステータスフロー">Run Status Flow</div>
+    <div class="status-flow">
+      <span class="chip">draft</span><span class="arrow">→</span>
+      <span class="chip amber">computed</span><span class="arrow">→</span>
+      <span class="chip blue">approved</span><span class="arrow">→</span>
+      <span class="chip green">paid</span>
+    </div>
+    <div class="status-flow" style="margin-top:8px">
+      <span class="chip" data-en="published (flag)" data-ja="公開済み（フラグ）">published</span><span class="arrow">→</span>
+      <span class="chip violet" data-en="visible in My Pay" data-ja="マイ給与で表示">visible in My Pay</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="'paid' and 'published' are independent — a run can be approved/paid before or after publishing. Typically: compute → review → approve → mark paid → publish." data-ja="「paid」と「published」は独立しています。ランは公開前後に承認・支払済みにできます。通常：計算 → 確認 → 承認 → 支払済み → 公開。">paid and published are independent. Typical order: compute → review → approve → mark paid → publish.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Approve Individual Runs" data-ja="個別ランを承認">Approve Individual Runs</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Review each run's breakdown" data-ja="各ランの内訳を確認">Review each run's breakdown</strong><p data-en="Click a staff row on the period detail page to see all line items: earnings, deductions, and net pay." data-ja="期間詳細ページのスタッフ行をクリックして全明細（収入・控除・ネット支払額）を確認。">Click staff row → see all line items: earnings, deductions, net pay.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Correct if needed, then re-compute" data-ja="必要に応じて修正して再計算">Correct if needed, re-compute</strong><p data-en="Use DTR Correction or Manual Adjustment. Click Recompute on that run before approving." data-ja="DTR修正または手動調整を使用。承認前にそのランのRecomputeをクリック。">DTR Correction or Manual Adjustment → Recompute before approving.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Approve on each run" data-ja="各ランのApproveをクリック">Click Approve on each run</strong><p data-en="Status moves from 'computed' to 'approved'. Approved runs cannot be recomputed without unapproving first." data-ja="ステータスがcomputedからapprovedに移行。承認済みランは一度承認を取り消さないと再計算できません。">Status: computed → approved. Cannot recompute without unapproving first.</p></div></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Mark Paid" data-ja="支払済みにマーク">Mark Paid</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Complete the actual bank transfer" data-ja="実際の銀行振込を完了">Complete bank transfer first</strong><p data-en="Only mark paid after the funds have actually been transferred. This is an accounting record." data-ja="資金が実際に振込まれた後のみ支払済みにマーク。これは会計記録です。">Mark paid only after the actual transfer has been sent.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Mark Paid per run" data-ja="ランごとにMark Paidをクリック">Click Mark Paid per run</strong><p data-en="Fill in: paid_via (Bank Transfer / GCash / Cash), reference_no, paid_date, optional notes." data-ja="入力：paid_via（銀行振込/GCash/現金）・参照番号・支払日・任意のメモ。">Fill: paid_via, reference_no, paid_date, notes.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Use Approve All / Mark All Paid for bulk" data-ja="一括処理はApprove All / Mark All Paidを使用">Bulk: Approve All / Mark All Paid</strong><p data-en="Period-level buttons approve or mark paid all runs at once. Useful after reviewing all runs individually." data-ja="期間レベルのボタンで全ランを一括承認・支払済みに。全ランを個別確認後に便利。">Period-level buttons for bulk approval or payment of all runs.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Publish Payslips" data-ja="給与明細を公開">Publish Payslips</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Publishing makes payslips visible in staff My Pay. Staff must complete step-up authentication (passkey or PIN) to view their payslip." data-ja="公開するとスタッフのマイ給与で給与明細が表示されます。スタッフはステップアップ認証（パスキーまたはPIN）を完了する必要があります。">Publishing makes payslips visible in staff My Pay. Staff must complete step-up auth (passkey or PIN) to view.</p>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click Publish All on the period" data-ja="期間のPublish Allをクリック">Click Publish All on the period</strong><p data-en="Sets is_published = true on all runs in the period simultaneously." data-ja="期間内の全ランのis_publishedを同時にtrueに設定。">Sets is_published = true on all runs at once.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Or publish individual runs" data-ja="または個別ランを公開">Or publish individual runs</strong><p data-en="Use per-run Publish toggle to publish selected staff early (e.g. staff leaving early on payday)." data-ja="ランごとのPublishトグルで特定スタッフを早めに公開（例：給料日に早退するスタッフ）。">Per-run toggle for selective early publishing.</p></div></li>
+    </ol>
+    <div class="tip danger" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Once published, staff can see their payslip immediately. Unpublish (set is_published = false) then recompute and re-publish if corrections are needed after publishing." data-ja="公開後はスタッフがすぐに給与明細を確認できます。公開後に修正が必要な場合は、is_publishedをfalseに戻して再計算・再公開してください。">Once published, staff can see it immediately. To correct after publishing: unpublish → recompute → re-publish.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="13th Month Pay — December 2H" data-ja="13ヶ月目給与 — 12月2H">13th Month Pay — December 2H</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="13th Month accrual is tracked each cutoff (monthly_basic ÷ 12 per half). The full 13th Month pay is disbursed in the December 2H run." data-ja="13ヶ月目の積立は各カットオフで追跡（月次基本 ÷ 12 × 半期）。完全な13ヶ月目給与は12月2Hランで支給。">Accrual tracked each cutoff. Full 13th Month disbursed in December 2H run.</p>
+    <div class="formula-label" data-en="13th Month calculation" data-ja="13ヶ月目計算">13th Month calculation</div>
+    <div class="formula-box">thirteenth_month = sum(monthly_basic_per_cutoff) / 12 × months_worked_in_year<br>  [excludes OT, allowances, bonuses — basic pay only]</div>
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="13th Month Pay is tax-exempt up to ₱90,000 under RA 10963 (TRAIN Law). The engine tracks this and only applies WHT on the excess over ₱90,000." data-ja="13ヶ月目給与はRA 10963（TRAIN法）により₱90,000まで非課税。エンジンはこれを追跡し、₱90,000超過分のみ源泉徴収税を適用。">13th Month Pay is tax-exempt up to ₱90,000 (TRAIN Law). WHT applied only on excess over ₱90,000.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ REMITTANCES ══════════ -->
+<div class="section" id="sec-remittances">
+  <div class="section-hero">
+    <div class="hero-icon">🏦</div>
+    <div>
+      <div class="section-title" data-en="Government Remittances (Manila)" data-ja="政府拠出金送金（マニラ）">Government Remittances (Manila)</div>
+      <div class="section-path">/admin/payroll/manila/remittances</div>
+      <div class="section-desc" data-en="Track and file mandatory government contributions after each payroll period. Generate contribution records and export government-formatted reports." data-ja="各給与期間後に義務的な政府拠出金を追跡・申告。拠出金記録を生成し、政府フォーマットのレポートをエクスポート。">Track and file mandatory government contributions after each period. Generate records and export reports.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Remittance Workflow" data-ja="送金ワークフロー">Remittance Workflow</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Generate from period" data-ja="期間から生成">Generate from period</strong><p data-en="Go to /admin/payroll/manila/remittances, select the period, click Generate. Creates remittance records for each agency (SSS, PhilHealth, Pag-IBIG, BIR) with totals and due dates." data-ja="送金ページで期間を選択してGenerateをクリック。各機関（SSS・PhilHealth・Pag-IBIG・BIR）の送金記録を合計額と納期付きで作成。">Select period → Generate. Creates records per agency with totals and due dates.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Export government reports" data-ja="政府レポートをエクスポート">Export government reports</strong><p data-en="Download the formatted file for each agency and upload to their respective portals." data-ja="各機関用のフォーマット済みファイルをダウンロードし、それぞれのポータルにアップロード。">Download formatted file per agency → upload to their portal.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Mark filed & paid" data-ja="申告済み・支払済みにマーク">Mark filed & paid</strong><p data-en="After submitting to the agency and paying, mark each remittance as filed (filed_date, reference_no) and paid (paid_date, amount_paid)." data-ja="機関に申告・支払後、各送金を申告済み（申告日・参照番号）および支払済み（支払日・支払額）にマーク。">After filing and paying: mark filed (filed_date, ref_no) and paid (paid_date, amount).</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Government Reports by Agency" data-ja="機関別政府レポート">Government Reports by Agency</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Agency" data-ja="機関">Agency</th><th data-en="Report" data-ja="レポート">Report</th><th data-en="Filing deadline" data-ja="申告期限">Filing deadline</th><th data-en="What it covers" data-ja="対象">What it covers</th></tr>
+      <tr><td><span class="chip red">SSS</span></td><td class="muted">R-3 (Contribution Collection List)</td><td class="muted" data-en="10th of following month" data-ja="翌月10日">10th of following month</td><td class="muted" data-en="EE + ER SSS contributions, EC, WISP" data-ja="EE + ER SSS拠出金・EC・WISP">EE + ER contributions, EC, WISP</td></tr>
+      <tr><td><span class="chip red">PhilHealth</span></td><td class="muted">RF-1 (Remittance Form 1)</td><td class="muted" data-en="Varies by employer; usually 10th or 15th" data-ja="雇用主によって異なる；通常10日または15日">10th or 15th (by employer)</td><td class="muted" data-en="EE + ER PhilHealth premiums" data-ja="EE + ER PhilHealth保険料">EE + ER PhilHealth premiums</td></tr>
+      <tr><td><span class="chip red">Pag-IBIG</span></td><td class="muted">MCRF (Monthly Collection and Remittance Form)</td><td class="muted" data-en="10th of following month" data-ja="翌月10日">10th of following month</td><td class="muted" data-en="EE + ER Pag-IBIG contributions (+ voluntary if any)" data-ja="EE + ER Pag-IBIG拠出金（任意拠出金含む）">EE + ER contributions (+ voluntary)</td></tr>
+      <tr><td><span class="chip red">BIR</span></td><td class="muted">1601-C (Monthly Remittance Return of Income Taxes Withheld)</td><td class="muted" data-en="10th of following month (large taxpayers: 15th)" data-ja="翌月10日（大規模納税者：15日）">10th (large taxpayers: 15th)</td><td class="muted" data-en="Total WHT deducted from employees for the month" data-ja="月次の従業員源泉徴収税合計">Total WHT for the month</td></tr>
+    </table></div>
+    <div class="tip info" style="margin-top:10px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="BIR 1601-C covers a full calendar month (both 1H and 2H). Generate it after closing the 2H period. The system sums WHT from both periods automatically." data-ja="BIR 1601-Cは暦月全体（1Hと2H両方）をカバー。2H期間クローズ後に生成。システムが両期間の源泉徴収税を自動合計。">BIR 1601-C covers the full month (1H + 2H). Generate after closing 2H — system auto-sums both periods' WHT.</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="ER Contribution Tracking" data-ja="ER拠出金追跡">ER Contribution Tracking</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Employer shares (ER_SSS, ER_PH, ER_PI, EC) are recorded per payroll run but not deducted from staff payslips. They appear in the remittance records as the company's payable to each agency." data-ja="雇用主分担（ER_SSS・ER_PH・ER_PI・EC）は給与ランごとに記録されますが、スタッフの給与明細からは控除されません。各機関への会社の支払額として送金記録に表示。">ER shares are recorded per run but not deducted from payslips. They appear as employer payable in remittance records.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="SIL Monetization / Cash Conversion" data-ja="SIL現金化">SIL Monetization / Cash Conversion</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Unused SIL at year-end (or upon separation) can be converted to cash at the daily rate. Admin generates a SIL conversion record; this is added as a manual addition to the next payroll run." data-ja="年末または退職時に未使用SILを日給レートで現金化可能。管理者がSIL換算記録を作成；次回給与ランへの手動加算として追加。">Unused SIL converted to cash at daily rate. Admin generates SIL conversion → added as manual addition to next run.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SALARY CONFIGS ══════════ -->
+<div class="section" id="sec-salary-configs">
+  <div class="section-hero">
+    <div class="hero-icon">💼</div>
+    <div>
+      <div class="section-title" data-en="Dubai Salary Configs" data-ja="ドバイ給与設定">Dubai Salary Configs</div>
+      <div class="section-path">/admin/payroll  (Staff Profiles → Dubai tab)</div>
+      <div class="section-desc" data-en="Set up each Dubai staff member's basic salary, allowances, and payroll parameters before running the first cycle." data-ja="最初のサイクルを実行する前に、各ドバイスタッフの基本給・手当・給与パラメーターを設定します。">Set up each Dubai staff member's basic salary, allowances, and parameters before the first cycle.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Dubai Staff Salary Fields" data-ja="ドバイスタッフ給与フィールド">Dubai Staff Salary Fields</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Field" data-ja="フィールド">Field</th><th data-en="Description" data-ja="説明">Description</th><th data-en="Notes" data-ja="備考">Notes</th></tr>
+      <tr><td><code>basic_salary</code></td><td class="muted" data-en="Monthly gross basic" data-ja="月次総基本給">Monthly gross basic (AED)</td><td class="muted" data-en="Base for daily rate and penalty calculations" data-ja="日給レートとペナルティ計算の基準">Base for daily_rate = basic_salary / 26</td></tr>
+      <tr><td><code>housing_allowance</code></td><td class="muted" data-en="Monthly housing allowance" data-ja="月次住宅手当">Monthly housing (AED)</td><td class="muted" data-en="Added to gross; not affected by late/absent penalties" data-ja="総支給に加算；遅刻・欠勤ペナルティ対象外">Added to gross, not penalized</td></tr>
+      <tr><td><code>transport_allowance</code></td><td class="muted" data-en="Monthly transport allowance" data-ja="月次交通手当">Monthly transport (AED)</td><td class="muted" data-en="Added to gross; not affected by penalties" data-ja="総支給に加算；ペナルティ対象外">Added to gross, not penalized</td></tr>
+      <tr><td><code>other_allowances</code></td><td class="muted" data-en="Any other fixed monthly amounts" data-ja="その他の固定月次金額">Other fixed monthly amounts</td><td class="muted">Added to gross</td></tr>
+      <tr><td><code>bank_account_no</code></td><td class="muted" data-en="Bank account for salary transfer" data-ja="給与振込銀行口座">Bank account for salary transfer</td><td class="muted" data-en="Required for Mark Paid flow" data-ja="支払済みフローに必須">Required for Mark Paid</td></tr>
+      <tr><td><code>visa_expiry</code></td><td class="muted" data-en="UAE visa expiry date" data-ja="UAE ビザ有効期限">UAE visa expiry date</td><td class="muted" data-en="Used for Leave Salary Advance eligibility check" data-ja="年次有給前払い資格確認に使用">Used for Leave Salary eligibility</td></tr>
+      <tr><td><code>contract_end_date</code></td><td class="muted" data-en="Contract end date (for gratuity calc)" data-ja="契約終了日（退職金計算用）">Contract end date</td><td class="muted" data-en="Reference for end-of-service gratuity" data-ja="勤続退職金の参考">Reference for end-of-service</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Gross Pay Formula (Dubai)" data-ja="総支給額計算式（ドバイ）">Gross Pay Formula (Dubai)</div>
+    <div class="formula-box">gross = basic_salary + housing_allowance + transport_allowance + other_allowances<br>daily_rate = gross / 26<br>hourly_rate = daily_rate / 8</div>
+    <div class="tip info" style="margin-top:8px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="Late / absent / undertime penalties are computed from daily_rate (which uses basic_salary / 26), not from gross. This means allowances are never penalized." data-ja="遅刻・欠勤・早退ペナルティはdaily_rate（basic_salary / 26を使用）から計算され、総支給額からではありません。つまり手当はペナルティ対象になりません。">Penalties use daily_rate = basic_salary / 26, not gross — allowances are never penalized.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DUBAI DTR ══════════ -->
+<div class="section" id="sec-dubai-dtr">
+  <div class="section-hero">
+    <div class="hero-icon">📋</div>
+    <div>
+      <div class="section-title" data-en="Dubai DTR Upload & Sync" data-ja="Dubai DTRアップロード・同期">Dubai DTR Upload &amp; Sync</div>
+      <div class="section-path">/admin/payroll/dubai/dtr-upload</div>
+      <div class="section-desc" data-en="Load Dubai attendance records for the cycle via CSV upload or OS session sync. These feed the auto-adjustment engine." data-ja="CSVアップロードまたはOSセッション同期でサイクルのドバイ出退勤記録を読み込みます。これが自動調整エンジンに供給されます。">Load Dubai attendance via CSV or OS session sync. Feeds the auto-adjustment engine.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Dubai DTR CSV Columns" data-ja="Dubai DTR CSVカラム">Dubai DTR CSV Columns</div>
+    <div class="chip-row">
+      <span class="chip orange">work_date</span>
+      <span class="chip orange">staff_name</span>
+      <span class="chip orange">actual_time_in</span>
+      <span class="chip orange">actual_time_out</span>
+      <span class="chip">scheduled_time_in</span>
+      <span class="chip">scheduled_time_out</span>
+      <span class="chip">actual_break_minutes</span>
+      <span class="chip">late_minutes</span>
+      <span class="chip">undertime_minutes</span>
+      <span class="chip">absent_without_pay</span>
+      <span class="chip">annual_leave_flag</span>
+      <span class="chip">is_day_off</span>
+    </div>
+    <div class="tip info" style="margin-top:10px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="annual_leave_flag = true marks the day as paid annual leave — the engine skips penalty calculations for that day but counts the hours toward night premium if the shift overlaps 22:00–04:00." data-ja="annual_leave_flag = trueはその日を年次有給休暇としてマーク。エンジンはその日のペナルティ計算をスキップしますが、シフトが22:00〜04:00と重なる場合は深夜手当の時間に算入。">annual_leave_flag = true = paid annual leave — engine skips penalties but counts night premium if shift overlaps 22:00–04:00.</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="OS Session Sync" data-ja="OSセッション同期">OS Session Sync</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="If Dubai staff clock in/out via the OS (Workforce OS attendance), their sessions can be synced directly to the DTR table:" data-ja="ドバイスタッフがOS（Workforce OS出退勤）で打刻する場合、セッションをDTRテーブルに直接同期できます：">If staff clock in/out via OS attendance, sync their sessions directly:</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select cycle date range" data-ja="サイクル日付範囲を選択">Select cycle date range</strong><p data-en="The page defaults to the current cycle's date range." data-ja="ページはデフォルトで現在のサイクルの日付範囲を表示。">Page defaults to current cycle date range.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Preview sync" data-ja="同期をプレビュー">Preview sync</strong><p data-en="Shows which staff sessions will be imported and flags unmatched names." data-ja="インポートされるスタッフセッションと未マッチ名前を表示。">Shows what will be imported; flags unmatched names.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Confirm sync" data-ja="同期を確認">Confirm sync</strong><p data-en="Overwrites existing DTR records for the same staff/date." data-ja="同一スタッフ/日付の既存DTR記録を上書き。">Overwrites existing records for same staff/date.</p></div></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Attendance View Tab" data-ja="出退勤ビュータブ">Attendance View Tab</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="After upload/sync, use the Attendance View tab to review all records for the cycle. Filter by staff, date range, or day type. Key checks:" data-ja="アップロード/同期後、出退勤ビュータブでサイクルの全記録を確認。スタッフ・日付範囲・勤務日種別でフィルター。主な確認事項：">After upload, use Attendance View to review all records. Key checks:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip" data-en="Missing punch — time_in or time_out is null" data-ja="打刻漏れ — time_inまたはtime_outがnull">Missing punch (null time_in or time_out)</span>
+        <span class="chip" data-en="Unusual break > 120 min" data-ja="休憩120分超">Unusual break > 120 min</span>
+        <span class="chip" data-en="Annual leave vs. absent_without_pay flags correct" data-ja="年次有給と欠勤フラグが正しい">Annual leave / AWP flags correct</span>
+        <span class="chip" data-en="Staff name matched to salary config" data-ja="スタッフ名が給与設定に一致">Staff name matched to salary config</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADJUSTMENTS ══════════ -->
+<div class="section" id="sec-adjustments">
+  <div class="section-hero">
+    <div class="hero-icon">±</div>
+    <div>
+      <div class="section-title" data-en="Adjustments (Dubai)" data-ja="調整額（ドバイ）">Adjustments (Dubai)</div>
+      <div class="section-path">/admin/payroll/adjustments?city=dubai</div>
+      <div class="section-desc" data-en="Manual adjustments — additions and deductions — that are combined with auto-calculated attendance penalties when the payroll engine runs." data-ja="給与エンジン実行時に自動計算された出退勤ペナルティと組み合わされる手動調整（加算・控除）。">Manual additions and deductions combined with auto-calculated penalties when the engine runs.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card green-border">
+      <div class="card-title" data-en="Additions" data-ja="加算">Additions</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip green">OVERTIME</span>
+        <span class="chip green">COMMISSION</span>
+        <span class="chip green">BONUS</span>
+        <span class="chip green">INCENTIVE</span>
+        <span class="chip green">MANUAL_ADDITION</span>
+        <span class="chip green">NIGHT_PREMIUM_MANUAL</span>
+        <span class="chip green">LEAVE_SALARY</span>
+        <span class="chip green">GRATUITY</span>
+        <span class="chip green">OTHER_ADDITION</span>
+      </div>
+      <p style="color:var(--muted);font-size:11px;margin-top:8px" data-en="Additions increase net pay. The engine's auto-calculated night premium (NIGHT_PREMIUM_AUTO) is separate and computed from DTR." data-ja="加算はネット支払額を増加。エンジンの自動深夜手当（NIGHT_PREMIUM_AUTO）は別途DTRから計算。">Additions increase net pay. Auto night premium (NIGHT_PREMIUM_AUTO) is separate from DTR.</p>
+    </div>
+    <div class="card red-border">
+      <div class="card-title" data-en="Deductions" data-ja="控除">Deductions</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip red">LOAN_DEDUCTION</span>
+        <span class="chip red">SALARY_ADVANCE</span>
+        <span class="chip red">DAMAGE</span>
+        <span class="chip red">UNIFORM</span>
+        <span class="chip red">FINE</span>
+        <span class="chip red">MANUAL_DEDUCTION</span>
+        <span class="chip red">OTHER_DEDUCTION</span>
+      </div>
+      <p style="color:var(--muted);font-size:11px;margin-top:8px" data-en="Deductions reduce net pay. Attendance auto-deductions (LATE_AUTO, ABSENT_AUTO, etc.) are added by the engine; don't add them manually." data-ja="控除はネット支払額を減少。出退勤自動控除（LATE_AUTO・ABSENT_AUTO等）はエンジンが追加するため手動追加不要。">Attendance auto-deductions (LATE_AUTO, ABSENT_AUTO, etc.) come from the engine — don't add manually.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Adding a Manual Adjustment" data-ja="手動調整の追加">Adding a Manual Adjustment</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click + Add Adjustment" data-ja="+ Add Adjustmentをクリック">Click + Add Adjustment</strong><p data-en="Fill in: staff, type, amount (AED), cycle, description." data-ja="入力：スタッフ・タイプ・金額（AED）・サイクル・説明。">Fill: staff, type, amount (AED), cycle, description.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Adjustments are captured at engine run time" data-ja="調整はエンジン実行時に取得">Adjustments captured at engine run time</strong><p data-en="When you click Calculate in the Dubai payroll page, the engine reads all adjustments for the cycle alongside DTR data." data-ja="ドバイ給与ページでCalculateをクリックすると、エンジンがDTRデータと合わせてサイクルの全調整を読み込む。">Click Calculate → engine reads all adjustments for the cycle alongside DTR.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Clear auto-calc before adding manual OT" data-ja="手動残業追加前に自動計算をクリア">Clear auto-calc before adding manual OT</strong><p data-en="If adding OT after the engine has already run, click Clear first to remove auto-rows, add the manual OT, then re-run Calculate." data-ja="エンジン実行後に残業を追加する場合は、まずClearをクリックして自動行を削除し、手動残業を追加してからCalculateを再実行。">If engine already ran: Clear → add manual OT → re-run Calculate.</p></div></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══════════ DUBAI CALC ══════════ -->
+<div class="section" id="sec-dubai-calc">
+  <div class="section-hero">
+    <div class="hero-icon">🔢</div>
+    <div>
+      <div class="section-title" data-en="Run Calculation (Dubai)" data-ja="計算実行（ドバイ）">Run Calculation (Dubai)</div>
+      <div class="section-path">/admin/payroll/dubai</div>
+      <div class="section-desc" data-en="The Calculate button triggers the auto-adjustment engine, which reads DTR records for the cycle and inserts attendance_auto adjustment rows for each staff member." data-ja="CalculateボタンがDTR記録を読み込み、各スタッフの出退勤自動調整行を挿入する自動調整エンジンをトリガーします。">Calculate button runs the engine: reads DTR for the cycle, inserts attendance_auto rows per staff.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Calculate & Review" data-ja="計算・確認">Calculate &amp; Review</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Ensure DTR is uploaded and adjustments added" data-ja="DTRがアップロードされ調整が追加されていることを確認">Ensure DTR uploaded, adjustments added</strong><p data-en="DTR must be uploaded for the cycle's date range before running Calculate." data-ja="Calculateを実行する前にサイクルの日付範囲のDTRをアップロードする必要があります。">DTR must be loaded for the cycle's date range first.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Calculate" data-ja="Calculateをクリック">Click Calculate</strong><p data-en="Engine processes all attendance records for the cycle. This may take 10–30 seconds depending on staff count." data-ja="エンジンがサイクルの全出退勤記録を処理。スタッフ数によって10〜30秒かかる場合があります。">Engine processes all attendance. Takes 10–30 seconds.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review the summary report" data-ja="サマリーレポートを確認">Review summary report</strong><p data-en="Engine returns counts: staff_processed, night_premium_count, late_deduction_count, late_surcharge_count, absent_deduction_count, missing_punch_count, break_excess_count. Any unexpected zeros deserve investigation." data-ja="エンジンが件数を返す：処理スタッフ・深夜手当・遅刻控除・割増・欠勤・打刻漏れ・休憩超過件数。予期しないゼロは要調査。">Review returned counts. Unexpected zeros deserve investigation.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Verify individual staff adjustments" data-ja="個別スタッフの調整を確認">Verify individual staff adjustments</strong><p data-en="Go to /admin/payroll/adjustments?city=dubai and filter by the cycle to see all generated auto-rows alongside manual ones." data-ja="/admin/payroll/adjustments?city=dubaiでサイクルでフィルターして、手動行と共に生成された自動行を全て確認。">Go to Adjustments → filter by cycle → see auto-rows + manual rows together.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="If corrections needed: Clear and re-run" data-ja="修正が必要な場合：Clearして再実行">If corrections needed: Clear then re-run</strong><p data-en="Clear removes all attendance_auto rows for the cycle. Fix the DTR, then click Calculate again." data-ja="Clearはサイクルの全出退勤自動行を削除。DTRを修正してCalculateを再クリック。">Clear removes all auto-rows. Fix DTR → Calculate again.</p></div></li>
+    </ol>
+    <div class="tip danger">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Clear only removes attendance_auto rows. Your manual additions and deductions are preserved even after clicking Clear." data-ja="ClearはATTENDANCE_AUTO行のみ削除します。手動の加算・控除はClearをクリックしても保持されます。">Clear only removes attendance_auto rows — manual additions and deductions are preserved.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Monthly Late Surcharge — NTE Trigger" data-ja="月次遅刻割増 — NTEトリガー">Monthly Late Surcharge — NTE Trigger</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="When a staff member has ≥3 late instances (each > 15 min) in the cycle, the engine adds a 5% monthly salary surcharge AND sets an NTE (Notice to Explain) flag." data-ja="スタッフがサイクル内に15分超の遅刻を3回以上発生させた場合、エンジンは月給の5%割増を追加し、NTE（説明要求通知）フラグを設定します。">≥3 late instances (> 15 min each) in a cycle → engine adds 5% monthly surcharge + NTE flag.</p>
+    <div class="chip-row">
+      <span class="chip red" data-en="adjustment_type: LATE_SURCHARGE_MONTHLY" data-ja="調整タイプ：LATE_SURCHARGE_MONTHLY">LATE_SURCHARGE_MONTHLY adjustment row</span>
+      <span class="chip amber" data-en="is_nte_flagged = true on the adjustment" data-ja="調整のis_nte_flagged = true">is_nte_flagged = true</span>
+    </div>
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">💡</span>
+      <span data-en="NTE-flagged staff appear in the HR Disciplinary module for follow-up. The payroll deduction and the HR process run in parallel — the deduction is not contingent on completing the NTE process." data-ja="NTEフラグが立ったスタッフはHR懲戒モジュールにフォローアップとして表示されます。給与控除とHRプロセスは並行して進み、控除はNTEプロセスの完了を条件としません。">NTE-flagged staff appear in HR Disciplinary for follow-up. The deduction is not contingent on completing the NTE process.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TRANSACTIONS ══════════ -->
+<div class="section" id="sec-transactions">
+  <div class="section-hero">
+    <div class="hero-icon">📄</div>
+    <div>
+      <div class="section-title" data-en="Transactions & Payslips (Dubai)" data-ja="取引・給与明細（ドバイ）">Transactions &amp; Payslips (Dubai)</div>
+      <div class="section-path">/admin/payroll/transactions</div>
+      <div class="section-desc" data-en="Create the payroll run snapshot for the cycle, finalize it, mark individual staff as paid, and publish payslips." data-ja="サイクルの給与ランスナップショットを作成・確定し、スタッフごとに支払済みにマークして給与明細を公開します。">Create the run snapshot, finalize, mark staff paid, and publish payslips.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Payroll Run Workflow" data-ja="給与ランワークフロー">Payroll Run Workflow</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the cycle and click Create Run" data-ja="サイクルを選択してCreate Runをクリック">Select cycle → Create Run</strong><p data-en="Snapshots the current state of all adjustments (manual + auto) into run_records. Each run_record = staff + total additions - total deductions = net_pay." data-ja="現在の全調整（手動＋自動）をrun_recordsにスナップショット。各run_record = スタッフ + 合計加算 - 合計控除 = ネット支払額。">Snapshots all adjustments into run_records. Each record = gross + additions − deductions = net_pay.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Review the run summary table" data-ja="ランサマリーテーブルを確認">Review run summary table</strong><p data-en="Table shows each staff member's gross, total additions, total deductions, and net pay. Click a row to see the itemized breakdown." data-ja="テーブルに各スタッフの総支給・合計加算・合計控除・ネット支払額を表示。行をクリックして明細内訳を確認。">Table shows gross / additions / deductions / net per staff. Click row for itemized breakdown.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Finalize the run" data-ja="ランを確定">Finalize the run</strong><p data-en="Locks the run. After finalization, adjustments for this cycle cannot be re-calculated into the run (you'd need to delete and recreate the run)." data-ja="ランをロック。確定後はこのサイクルの調整をランに再計算できません（ランを削除して再作成が必要）。">Locks the run. Cannot re-calculate after finalization without deleting and recreating the run.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Mark each staff as paid" data-ja="各スタッフを支払済みにマーク">Mark each staff as paid</strong><p data-en="Per-staff Mark Paid: paid_via, paid_date, reference_no, notes. Use after actual bank transfers are completed." data-ja="スタッフごとにMark Paid：paid_via・支払日・参照番号・メモ。実際の銀行振込完了後に使用。">Per-staff: paid_via, paid_date, reference_no, notes. Mark only after actual transfers.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Publish payslips" data-ja="給与明細を公開">Publish payslips</strong><p data-en="Click Publish All — staff can see their breakdown in My Pay after step-up authentication." data-ja="Publish Allをクリック。スタッフがステップアップ認証後にマイ給与で内訳を確認できる。">Publish All → staff see breakdown in My Pay after step-up auth.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Payslip Contents (Dubai)" data-ja="給与明細の内容（ドバイ）">Payslip Contents (Dubai)</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip orange" data-en="Basic salary + allowances" data-ja="基本給＋手当">Basic salary + allowances</span>
+        <span class="chip green" data-en="Manual additions (OT, bonus, etc.)" data-ja="手動加算（残業・賞与等）">Manual additions (OT, bonus, etc.)</span>
+        <span class="chip green" data-en="Auto: Night premium" data-ja="自動：深夜手当">Auto: Night premium</span>
+        <span class="chip red" data-en="Auto: Late / absent / undertime deductions" data-ja="自動：遅刻・欠勤・早退控除">Auto: Late / absent / undertime deductions</span>
+        <span class="chip red" data-en="Auto: Missing punch fees" data-ja="自動：打刻漏れ手数料">Auto: Missing punch fees</span>
+        <span class="chip red" data-en="Auto: Monthly late surcharge" data-ja="自動：月次遅刻割増">Auto: Monthly late surcharge</span>
+        <span class="chip red" data-en="Manual deductions (loan, etc.)" data-ja="手動控除（ローン等）">Manual deductions (loan, etc.)</span>
+        <span class="chip amber" data-en="Net pay (AED)" data-ja="ネット支払額（AED）">Net pay (AED)</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Exporting Payroll Data" data-ja="給与データのエクスポート">Exporting Payroll Data</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="From the Transactions page, export the run as CSV or Excel for bank upload or accounting records. Available exports:" data-ja="取引ページからランをCSVまたはExcelでエクスポートして銀行アップロードや会計記録に使用。利用可能なエクスポート：">Export the run as CSV or Excel for bank upload or accounting:</p>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip" data-en="Summary CSV — one row per staff (net pay)" data-ja="サマリーCSV — スタッフ1行（ネット支払額）">Summary CSV — one row per staff (net pay)</span>
+        <span class="chip" data-en="Detailed Excel — itemized adjustments per staff" data-ja="詳細Excel — スタッフごとの明細調整">Detailed Excel — itemized per staff</span>
+        <span class="chip" data-en="Bank transfer file — formatted for WPS (UAE)" data-ja="銀行振込ファイル — WPS（UAE）形式">Bank transfer / WPS file</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LEAVE SALARY ══════════ -->
+<div class="section" id="sec-leave-salary">
+  <div class="section-hero">
+    <div class="hero-icon">🏖️</div>
+    <div>
+      <div class="section-title" data-en="Leave Salary Advance (Dubai)" data-ja="年次有給前払い（ドバイ）">Leave Salary Advance (Dubai)</div>
+      <div class="section-path">/admin/payroll/leave-salary</div>
+      <div class="section-desc" data-en="Dubai staff on annual leave receive their salary in advance before departure. This page creates the advance payment and adjusts the cycle accordingly." data-ja="ドバイスタッフは年次休暇前に給与を前払いで受け取ります。このページで前払いを作成し、サイクルを適宜調整します。">Dubai staff on annual leave receive salary in advance before departure. Creates advance and adjusts cycle.</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Leave Salary Advance Workflow" data-ja="年次有給前払いワークフロー">Leave Salary Advance Workflow</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select staff and leave dates" data-ja="スタッフと休暇日程を選択">Select staff and leave dates</strong><p data-en="Enter the staff member, leave start date, and return date. System checks visa expiry and entitlement days." data-ja="スタッフ・休暇開始日・復帰日を入力。システムがビザ有効期限と資格日数を確認。">Enter staff, leave_start_date, return_date. System checks visa_expiry and entitlement.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Calculate advance amount" data-ja="前払い額を計算">Calculate advance amount</strong><p data-en="System calculates: basic + housing + transport for the leave days. Preview the amount before confirming." data-ja="システムが計算：休暇日数分の基本給＋住宅手当＋交通手当。確認前に金額をプレビュー。">Calculates: (basic + housing + transport) × (leave_days / 26). Preview before confirming.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Approve the advance" data-ja="前払いを承認">Approve the advance</strong><p data-en="Creates a LEAVE_SALARY adjustment row in the current or specified cycle. This appears as an addition on the staff's payslip." data-ja="現在または指定されたサイクルにLEAVE_SALARY調整行を作成。スタッフの給与明細に加算として表示。">Creates LEAVE_SALARY adjustment in the cycle — appears as addition on payslip.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Optional: Mark cash paid separately" data-ja="オプション：現金支払いを別途マーク">Optional: Mark cash paid separately</strong><p data-en="If paying the advance in cash before the cycle is finalized, mark it paid with the cash reference and date." data-ja="サイクル確定前に現金で前払いする場合は、現金参照番号と日付で支払済みにマーク。">If paying in cash before cycle finalization, mark paid with cash reference and date.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Leave Salary Entitlement Rules" data-ja="年次有給前払い資格ルール">Leave Salary Entitlement Rules</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Criterion" data-ja="基準">Criterion</th><th data-en="Rule" data-ja="ルール">Rule</th></tr>
+      <tr><td data-en="Minimum service" data-ja="最低勤務期間">Minimum service</td><td class="muted" data-en="1 year of continuous employment (UAE Labour Law)" data-ja="1年以上の継続雇用（UAE労働法）">1 year continuous employment (UAE Labour Law)</td></tr>
+      <tr><td data-en="Annual leave days" data-ja="年次休暇日数">Annual leave days</td><td class="muted" data-en="30 calendar days per year of service" data-ja="勤続1年あたり30暦日">30 calendar days per year of service</td></tr>
+      <tr><td data-en="Advance period" data-ja="前払い期間">Advance period</td><td class="muted" data-en="Typically paid 2–7 days before leave start" data-ja="通常、休暇開始2〜7日前に支払い">Typically paid 2–7 days before leave start</td></tr>
+      <tr><td data-en="Visa expiry check" data-ja="ビザ有効期限確認">Visa expiry check</td><td class="muted" data-en="System warns if visa expires before return date" data-ja="帰国日前にビザが失効する場合にシステムが警告">System warns if visa expires before return date</td></tr>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════════ LOANS ══════════ -->
+<div class="section" id="sec-loans">
+  <div class="section-hero">
+    <div class="hero-icon">💳</div>
+    <div>
+      <div class="section-title" data-en="Loans" data-ja="ローン管理">Loans</div>
+      <div class="section-path">/admin/payroll/loans</div>
+      <div class="section-desc" data-en="Manage staff salary loans and advance deductions for both Manila and Dubai. Approved loans are automatically deducted each payroll cycle." data-ja="マニラとドバイ両方のスタッフ給与ローンと前払い控除を管理。承認されたローンは毎給与サイクルに自動控除されます。">Manage staff loans for Manila and Dubai. Approved loans auto-deduct each payroll cycle.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Loan Lifecycle" data-ja="ローンライフサイクル">Loan Lifecycle</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="① Create Loan" data-ja="① ローンを作成">① Create Loan</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Fill in: staff, city, loan_type, principal_amount, monthly_deduction, start_date. Loan is created with status 'pending'." data-ja="入力：スタッフ・都市・ローンタイプ・元本金額・月次控除額・開始日。ローンがpendingステータスで作成。">Fill: staff, city, loan_type, principal, monthly_deduction, start_date. Status: pending.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="② Approve Loan" data-ja="② ローンを承認">② Approve Loan</span><span class="lc-who admin">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Approving the loan enables automatic deduction. Status moves to 'active'." data-ja="ローンを承認すると自動控除が有効になります。ステータスがactiveに移行。">Approving enables auto-deduction. Status: active.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="③ Auto-deduction each cycle" data-ja="③ サイクルごとに自動控除">③ Auto-deduction each cycle</span><span class="lc-who system">System</span></div>
+        <div class="lc-detail" data-en="Each payroll cycle, the system creates a LOAN_DEDUCTION adjustment row for the staff equal to the monthly_deduction amount (or remaining balance if less)." data-ja="毎給与サイクル、システムがスタッフのLOAN_DEDUCTION調整行を月次控除額（または残高が少ない場合はその額）で作成。">Each cycle: system creates LOAN_DEDUCTION row = monthly_deduction (or remaining balance).</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="④ Auto-closed when paid off" data-ja="④ 完済時に自動クローズ">④ Auto-closed when paid off</span><span class="lc-who system">System</span></div>
+        <div class="lc-detail" data-en="When the remaining balance reaches zero, the loan status moves to 'closed' and no further deductions are made." data-ja="残高がゼロになると、ローンステータスがclosedに移行し、それ以上の控除は行われません。">Balance reaches zero → status: closed. No further deductions.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Loan Types" data-ja="ローンタイプ">Loan Types</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip blue">SALARY_ADVANCE</span>
+        <span class="chip">SSS_CALAMITY</span>
+        <span class="chip">SSS_SALARY</span>
+        <span class="chip">PAGIBIG_MULTI_PURPOSE</span>
+        <span class="chip">PAGIBIG_CALAMITY</span>
+        <span class="chip">COMPANY_LOAN</span>
+        <span class="chip">EMERGENCY_ADVANCE</span>
+        <span class="chip orange">DUBAI_ADVANCE</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Manual Adjustments" data-ja="手動調整">Manual Adjustments</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="For one-off corrections to loan balances (early payoff, partial payment, etc.), admins can manually adjust the remaining_balance without creating a new deduction cycle." data-ja="ローン残高の一時修正（早期完済・一部支払い等）には、管理者が新しい控除サイクルを作成せずにremaining_balanceを手動調整できます。">For one-off corrections (early payoff, partial payment), manually adjust remaining_balance.</p>
+      <div class="chip-row">
+        <span class="chip red" data-en="Reduce balance manually" data-ja="残高を手動削減">Reduce balance manually</span>
+        <span class="chip amber" data-en="Suspend / pause deductions" data-ja="控除を一時停止">Suspend / pause</span>
+        <span class="chip green" data-en="Reactivate after suspension" data-ja="一時停止後に再開">Reactivate</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ INQUIRIES ══════════ -->
+<div class="section" id="sec-inquiries">
+  <div class="section-hero">
+    <div class="hero-icon">💬</div>
+    <div>
+      <div class="section-title" data-en="Payroll Inquiries (Admin)" data-ja="給与問い合わせ（管理者）">Payroll Inquiries (Admin)</div>
+      <div class="section-path">/admin/payroll/inquiries</div>
+      <div class="section-desc" data-en="Staff submit payslip questions and disputes through My Pay. Admins review and resolve them here, with responses visible to staff." data-ja="スタッフがマイ給与から給与明細の質問や異議を申請。管理者がここで確認・解決し、回答がスタッフに表示されます。">Staff submit payslip questions via My Pay. Admins review and resolve here.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Inquiry Status Flow" data-ja="問い合わせステータスフロー">Inquiry Status Flow</div>
+    <div class="status-flow">
+      <span class="chip violet" data-en="open (staff submitted)" data-ja="オープン（スタッフ申請）">open</span><span class="arrow">→</span>
+      <span class="chip amber" data-en="in_review (admin working)" data-ja="確認中（管理者対応）">in_review</span><span class="arrow">→</span>
+      <span class="chip green" data-en="resolved (admin replied)" data-ja="解決済み（管理者回答済み）">resolved</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Staff can see the status change and admin's resolution note in My Pay. If the inquiry reveals a payroll error, correct the underlying payroll data and re-publish before marking resolved." data-ja="スタッフはマイ給与でステータス変更と管理者の解決メモを確認できます。問い合わせが給与エラーを示す場合は、解決済みにマークする前に元の給与データを修正して再公開してください。">Staff see status + resolution note in My Pay. If a payroll error is found: correct data → re-publish → mark resolved.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Common Inquiry Types" data-ja="よくある問い合わせタイプ">Common Inquiry Types</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip" data-en="Wrong late deduction amount" data-ja="遅刻控除額が違う">Wrong late deduction amount</span>
+        <span class="chip" data-en="OT hours not reflected" data-ja="残業時間が反映されていない">OT hours not reflected</span>
+        <span class="chip" data-en="Meal allowance missing" data-ja="食事手当が欠落">Meal allowance missing</span>
+        <span class="chip" data-en="SSS/PhilHealth deduction discrepancy" data-ja="SSS/PhilHealth控除の不一致">SSS/PhilHealth deduction discrepancy</span>
+        <span class="chip" data-en="Loan deduction after payoff" data-ja="完済後のローン控除">Loan deduction after payoff</span>
+        <span class="chip" data-en="Holiday premium missing" data-ja="休日割増が欠落">Holiday premium missing</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Admin Resolution Steps" data-ja="管理者解決手順">Admin Resolution Steps</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Open the inquiry" data-ja="問い合わせを開く">Open the inquiry</strong><p data-en="Click the inquiry to see the staff's question, the payslip period, and attached screenshot (if any)." data-ja="問い合わせをクリックしてスタッフの質問・対象期間・添付スクリーンショット（ある場合）を確認。">See staff's question, period, and attachment.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Investigate the payslip data" data-ja="給与明細データを調査">Investigate payslip data</strong><p data-en="Check the run items in the period detail page. Cross-reference DTR and allowance records." data-ja="期間詳細ページのランアイテムを確認。DTRと手当記録と照合。">Check run items in period detail. Cross-reference DTR and allowances.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Respond with resolution note" data-ja="解決メモで回答">Respond with resolution note</strong><p data-en="Write a clear explanation. If correcting the payslip, explain the change. Mark as resolved." data-ja="明確な説明を記載。給与明細を修正する場合は変更内容を説明。解決済みにマーク。">Write explanation. Note any correction made. Mark resolved.</p></div></li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MY PAY ══════════ -->
+<div class="section" id="sec-my-pay">
+  <div class="section-hero">
+    <div class="hero-icon">🔐</div>
+    <div>
+      <div class="section-title" data-en="My Pay (Staff Self-Service)" data-ja="マイ給与（スタッフセルフサービス）">My Pay (Staff Self-Service)</div>
+      <div class="section-path">/my-pay</div>
+      <div class="section-desc" data-en="Staff access their own payslips through a step-up authenticated portal. Admins can also view any staff member's payslip history from the admin panel." data-ja="スタッフはステップアップ認証ポータルから自分の給与明細にアクセスします。管理者は管理パネルから任意のスタッフの給与明細履歴を確認できます。">Staff access payslips via step-up auth. Admins can view any staff's history from the admin panel.</div>
+    </div>
+  </div>
+
+  <div class="card violet-border">
+    <div class="card-title" data-en="Step-Up Authentication" data-ja="ステップアップ認証">Step-Up Authentication</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="My Pay requires additional authentication beyond the regular login, because payslip data is sensitive. Staff complete step-up auth once per session." data-ja="給与明細データは機密性が高いため、マイ給与では通常のログインに加えて追加認証が必要です。スタッフはセッションごとに1回ステップアップ認証を完了します。">Payslip data is sensitive — My Pay requires step-up auth once per session beyond the regular login.</p>
+    <div class="two-col">
+      <div>
+        <div class="card-title" style="font-size:10px;margin-bottom:6px" data-en="Option A — Passkey (WebAuthn)" data-ja="オプションA — パスキー（WebAuthn）">Option A — Passkey (WebAuthn)</div>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Register a passkey" data-ja="パスキーを登録">Register passkey</strong><p data-en="In My Pay settings, register a device passkey (Touch ID / Face ID / Windows Hello)." data-ja="マイ給与設定でデバイスパスキー（Touch ID/Face ID/Windows Hello）を登録。">Register device passkey (Touch ID / Face ID).</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Authenticate with biometric" data-ja="生体認証で認証">Authenticate biometrically</strong><p data-en="On My Pay access, device prompts for biometric. Issues x-step-up-token header on success." data-ja="マイ給与アクセス時にデバイスが生体認証を促す。成功するとx-step-up-tokenヘッダーを発行。">Device prompts biometric → issues x-step-up-token on success.</p></div></li>
+        </ol>
+      </div>
+      <div>
+        <div class="card-title" style="font-size:10px;margin-bottom:6px" data-en="Option B — Staff PIN" data-ja="オプションB — スタッフPIN">Option B — Staff PIN</div>
+        <ol class="steps">
+          <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Enter your staff login PIN" data-ja="スタッフログインPINを入力">Enter staff login PIN</strong><p data-en="Staff type the same PIN used to log into the shift system." data-ja="シフトシステムのログインに使用するPINと同じものを入力。">Same PIN used to log into the shift system.</p></div></li>
+          <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="PIN verified → payslips unlock" data-ja="PIN検証 → 給与明細がアンロック">PIN verified → payslips unlock</strong><p data-en="Correct PIN issues x-step-up-token. Session valid for the current browser session." data-ja="正しいPINでx-step-up-tokenを発行。現在のブラウザセッション中有効。">Correct PIN → x-step-up-token. Valid for the browser session.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="What Staff Can See in My Pay" data-ja="スタッフがマイ給与で確認できること">What Staff Can See in My Pay</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Section" data-ja="セクション">Section</th><th data-en="Contents" data-ja="内容">Contents</th></tr>
+      <tr><td data-en="Payslip History" data-ja="給与明細履歴">Payslip History</td><td class="muted" data-en="All published payslips. Tap to expand itemized earnings, deductions, and net pay for each period." data-ja="公開済みの全給与明細。タップして各期間の収入・控除・ネット支払額の明細を展開。">All published payslips. Tap to expand itemized breakdown per period.</td></tr>
+      <tr><td data-en="YTD Summary" data-ja="年度累計サマリー">YTD Summary</td><td class="muted" data-en="Year-to-date totals: gross earnings, total deductions, net pay, statutory contributions." data-ja="年度累計合計：総収入・合計控除・ネット支払額・法定拠出金。">YTD totals: gross, deductions, net pay, statutory contributions.</td></tr>
+      <tr><td data-en="Loan Status" data-ja="ローン状況">Loan Status</td><td class="muted" data-en="Active loans: principal, monthly deduction, remaining balance, estimated payoff date." data-ja="有効なローン：元本・月次控除・残高・推定完済日。">Active loans: principal, monthly_deduction, remaining_balance, payoff estimate.</td></tr>
+      <tr><td data-en="Submit Inquiry" data-ja="問い合わせを申請">Submit Inquiry</td><td class="muted" data-en="Select a payslip period, describe the issue, attach a screenshot (optional). Inquiry goes to admin Inquiries page." data-ja="給与明細期間を選択し、問題を説明し、スクリーンショットを添付（任意）。問い合わせが管理者の問い合わせページに送信。">Select period → describe issue → attach screenshot → sent to admin Inquiries page.</td></tr>
+      <tr><td data-en="13th Month Tracker" data-ja="13ヶ月目追跡">13th Month Tracker</td><td class="muted" data-en="(Manila only) Running total of accrued 13th month, updated each cutoff." data-ja="（マニラのみ）各カットオフごとに更新される13ヶ月目積立合計。">(Manila) Running 13th month accrual total, updated each cutoff.</td></tr>
+    </table></div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span data-en="Staff only see payslips with is_published = true. Unpublished periods are not visible even if computed and paid. This lets admin verify payslips internally before making them visible to staff." data-ja="スタッフはis_published = trueの給与明細のみ確認できます。未公開の期間は計算・支払済みでもスタッフには表示されません。これにより管理者はスタッフに表示する前に内部検証ができます。">Staff only see is_published = true payslips. Unpublished periods remain hidden even if computed and paid — allowing internal verification before release.</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Admin: View Staff Payslips" data-ja="管理者：スタッフ給与明細を確認">Admin: View Staff Payslips</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Admins can look up any staff member's payslip without step-up authentication. Navigate to the period detail page and open the staff's run." data-ja="管理者はステップアップ認証なしで任意のスタッフの給与明細を参照できます。期間詳細ページに移動してスタッフのランを開きます。">Admins view any staff's payslip without step-up auth from the period detail page.</p>
+    <div class="chip-row">
+      <span class="lc-path">/admin/payroll/manila/[periodId] → staff row → View Payslip</span>
+      <span class="lc-path">/admin/payroll/transactions → run → staff row → View Payslip</span>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+let lang='en';
+function setLang(l){
+  lang=l;
+  document.getElementById('btn-en').classList.toggle('active',l==='en');
+  document.getElementById('btn-ja').classList.toggle('active',l==='ja');
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    const v=l==='ja'?el.dataset.ja:el.dataset.en;
+    if(v!==undefined)el.innerHTML=v;
+  });
+}
+function show(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const s=document.getElementById('sec-'+id);
+  if(s)s.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick')==="show('"+id+"')")n.classList.add('active');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+setLang('en');
+</script>

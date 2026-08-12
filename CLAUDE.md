@@ -46,6 +46,7 @@
 | HR系ページ（Probation / NTE / Recruitment / Onboarding / Performance / Offboarding / Clearance） | **HR Manual** | `docs/manuals/hr-manual.html` |
 | Inventory系ページ（Items / Count Templates / Recipes / POS Sync / Hub / Productions / CK・WH Inventory / Daily Inventory / Disposal / Backup / Full Count / Spot Check / Transfers / Qty・Cost Adj / Ledger） | **Inventory Manual** | `docs/manuals/inventory-manual.html` |
 | Procurement系ページ（Approval Inbox / CK Orders / POs / Invoices / Payments / Vendors / Scorecards / Risk Lab / KPI / Exceptions / Cold Chain / Delivery Schedule / Whitelist / Catalog / Receiving / Evaluation） | **Procurement Manual** | `docs/manuals/procurement-manual.html` |
+| Payroll系ページ（Manila Payroll / Dubai Payroll / Adjustments / Transactions / Loans / Leave Salary / Staff Profiles / Gov Tables / DTR Upload / Allowances / Remittances / My Pay / Inquiries） | **Payroll Manual** | `docs/manuals/payroll-manual.html` |
 
 **Republish 手順:**
 ```
@@ -62,6 +63,10 @@
    - file_path: docs/manuals/procurement-manual.html
    - url: https://claude.ai/code/artifact/16adcf00-0548-4a96-9be1-3e6a228f0ec3   ← Procurement Manual
    - favicon: 🛒
+
+   - file_path: docs/manuals/payroll-manual.html
+   - url: https://claude.ai/code/artifact/8f872423-b304-402b-9125-29666285a6ce   ← Payroll Manual
+   - favicon: 💰
 ```
 
 **更新対象の判断基準:**
