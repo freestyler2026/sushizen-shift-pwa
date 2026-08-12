@@ -318,14 +318,28 @@ export default function CKProductionPlanPage() {
   const loadPlans = useCallback(async () => {
     setLoadingPlans(true);
     try {
-      const data = await apiFetch(`/api/store/ck-production-plan/plans?city=${city}&limit=30`);
+      const statusFilter = canManage ? "" : "&status=PUBLISHED";
+      const data = await apiFetch(`/api/store/ck-production-plan/plans?city=${city}&limit=30${statusFilter}`);
       setPlans(data.plans || []);
     } catch (e: unknown) {
       showToast((e as Error).message, false);
     } finally {
       setLoadingPlans(false);
     }
-  }, [city]);
+  }, [city, canManage]);
+
+  async function deletePlan(e: React.MouseEvent, plan: Plan) {
+    e.stopPropagation();
+    if (!window.confirm(`Delete DRAFT plan for ${fmtDate(plan.plan_date)}?\n\nThis cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/store/ck-production-plan/plans/${plan.id}`, { method: "DELETE" });
+      setPlans(prev => prev.filter(p => p.id !== plan.id));
+      if (activePlan?.id === plan.id) setActivePlan(null);
+      showToast("Draft plan deleted");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    }
+  }
 
   const loadPlanDetail = useCallback(async (planId: number) => {
     setLoadingDetail(true);
@@ -905,10 +919,13 @@ export default function CKProductionPlanPage() {
               const progress = plan.item_count ? Math.round(((plan.done_count || 0) / plan.item_count) * 100) : 0;
               const isAssignedToMe = userName ? (plan.assigned_staff || []).includes(userName) : false;
               return (
-                <button
+                <div
                   key={plan.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => loadPlanDetail(plan.id)}
-                  className={`w-full rounded-xl border p-3 text-left transition-all duration-150 ${
+                  onKeyDown={ev => { if (ev.key === "Enter" || ev.key === " ") loadPlanDetail(plan.id); }}
+                  className={`w-full cursor-pointer rounded-xl border p-3 text-left transition-all duration-150 ${
                     isActive
                       ? "border-violet-500/40 bg-violet-500/15"
                       : isAssignedToMe
@@ -918,7 +935,18 @@ export default function CKProductionPlanPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-semibold text-white">{fmtDate(plan.plan_date)}</span>
-                    <span className={PLAN_STATUS_BADGE[plan.status]}>{plan.status}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={PLAN_STATUS_BADGE[plan.status]}>{plan.status}</span>
+                      {canManage && plan.status === "DRAFT" && (
+                        <button
+                          onClick={ev => deletePlan(ev, plan)}
+                          className="rounded p-0.5 text-zinc-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                          title="Delete draft plan"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {plan.delivery_date && (
                     <div className="mt-1 flex items-center gap-1">
@@ -961,7 +989,7 @@ export default function CKProductionPlanPage() {
                   ) : plan.created_by ? (
                     <p className={T_CAPTION + " mt-1 truncate"}>by {plan.created_by}</p>
                   ) : null}
-                </button>
+                </div>
               );
             })}
           </div>
