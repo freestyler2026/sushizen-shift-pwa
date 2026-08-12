@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2,
-  BarChart2, ShieldCheck,
+  BarChart2, ShieldCheck, Pencil,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -97,6 +97,7 @@ export default function StoreSupplierOrdersPage() {
   const auth = getAuth();
   const userRole = (auth?.role ?? "").toUpperCase();
   const canApprove = userRole === "HQ" || userRole === "ADMIN";
+  const isManager = ["MANILA_MANAGEMENT", "HQ", "ADMIN"].includes(userRole);
 
   const [tab, setTab] = useState<Tab>("orders");
   const [store, setStore] = useState<Store>("PAR");
@@ -118,6 +119,11 @@ export default function StoreSupplierOrdersPage() {
   const [generating, setGenerating] = useState(false);
   const [generateDate, setGenerateDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
+  const [generateInvDate, setGenerateInvDate] = useState<string | null>(null);
+
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editQty, setEditQty] = useState<string>("");
+  const [qtyUpdating, setQtyUpdating] = useState(false);
 
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
@@ -221,6 +227,7 @@ export default function StoreSupplierOrdersPage() {
   async function handleGenerate() {
     setGenerating(true);
     setGenerateMsg(null);
+    setGenerateInvDate(null);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/admin/store-supplier/generate`, {
@@ -230,11 +237,35 @@ export default function StoreSupplierOrdersPage() {
       });
       const data = await res.json();
       setGenerateMsg(data.message ?? `Created ${data.created} order(s)`);
+      setGenerateInvDate(data.inventory_date_used ?? null);
       await loadOrders();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Generation failed.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleUpdateItemQty(orderId: number, itemId: number) {
+    const qty = parseFloat(editQty);
+    if (isNaN(qty) || qty < 0) return;
+    setQtyUpdating(true);
+    try {
+      await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ qty_ordered: qty }),
+      });
+      const res = await fetch(`${API_BASE}/api/admin/store-supplier/orders/${orderId}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      setDetail(data.order);
+      setEditingItemId(null);
+    } catch {
+      setError("Failed to update quantity.");
+    } finally {
+      setQtyUpdating(false);
     }
   }
 
@@ -297,7 +328,13 @@ export default function StoreSupplierOrdersPage() {
                 {generating ? "Generating…" : "Generate Now"}
               </button>
               {generateMsg && (
-                <span className="text-sm text-emerald-400">{generateMsg}</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm text-emerald-400">{generateMsg}</span>
+                  {generateInvDate
+                    ? <span className="text-xs text-zinc-400">Inventory ref: {generateInvDate}</span>
+                    : <span className="text-xs text-amber-400">⚠ No inventory data found — full par levels used</span>
+                  }
+                </div>
               )}
             </div>
 
@@ -353,37 +390,87 @@ export default function StoreSupplierOrdersPage() {
                         ) : detail && detail.id === order.id ? (
                           <>
                             {/* Items table */}
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b border-white/5">
-                                    <th className="px-3 py-2 text-left text-xs text-zinc-500">Item</th>
-                                    <th className="px-3 py-2 text-right text-xs text-zinc-500">Ordered</th>
-                                    <th className="px-3 py-2 text-right text-xs text-zinc-500">Received</th>
-                                    <th className="px-3 py-2 text-left text-xs text-zinc-500">Note</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {detail.items.map((item) => (
-                                    <tr key={item.id} className="border-b border-white/5 last:border-0">
-                                      <td className="px-3 py-2">
-                                        <div className="text-white">{item.item_name}</div>
-                                        <div className="text-xs text-zinc-500">{item.item_code}</div>
-                                      </td>
-                                      <td className="px-3 py-2 text-right tabular-nums text-amber-400 font-semibold">
-                                        {item.qty_ordered} {item.unit}
-                                      </td>
-                                      <td className="px-3 py-2 text-right tabular-nums">
-                                        {item.qty_received != null
-                                          ? <span className="text-emerald-400 font-semibold">{item.qty_received} {item.unit}</span>
-                                          : <span className="text-zinc-600">—</span>}
-                                      </td>
-                                      <td className="px-3 py-2 text-xs text-zinc-400">{item.receive_note ?? "—"}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                            {(() => {
+                              const canEditQty =
+                                (detail.status === "draft" || detail.status === "confirmed") ? isManager
+                                : detail.status === "approved" ? canApprove
+                                : false;
+                              return (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b border-white/5">
+                                        <th className="px-3 py-2 text-left text-xs text-zinc-500">Item</th>
+                                        <th className="px-3 py-2 text-right text-xs text-zinc-500">Ordered{canEditQty && <span className="ml-1 text-zinc-600">(editable)</span>}</th>
+                                        <th className="px-3 py-2 text-right text-xs text-zinc-500">Received</th>
+                                        <th className="px-3 py-2 text-left text-xs text-zinc-500">Note</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {detail.items.map((item) => (
+                                        <tr key={item.id} className="border-b border-white/5 last:border-0">
+                                          <td className="px-3 py-2">
+                                            <div className="text-white">{item.item_name}</div>
+                                            <div className="text-xs text-zinc-500">{item.item_code}</div>
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums">
+                                            {editingItemId === item.id ? (
+                                              <div className="flex items-center gap-1 justify-end">
+                                                <input
+                                                  type="number"
+                                                  className={INPUT_CLASS + " w-20 py-0.5 px-2 text-sm text-right"}
+                                                  value={editQty}
+                                                  onChange={(e) => setEditQty(e.target.value)}
+                                                  min="0"
+                                                  step="0.001"
+                                                  autoFocus
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === "Enter") handleUpdateItemQty(detail.id, item.id);
+                                                    if (e.key === "Escape") setEditingItemId(null);
+                                                  }}
+                                                />
+                                                <button
+                                                  onClick={() => handleUpdateItemQty(detail.id, item.id)}
+                                                  disabled={qtyUpdating}
+                                                  className="text-emerald-400 hover:text-emerald-300 text-xs font-bold px-1"
+                                                >
+                                                  {qtyUpdating ? "…" : "✓"}
+                                                </button>
+                                                <button
+                                                  onClick={() => setEditingItemId(null)}
+                                                  className="text-zinc-500 hover:text-zinc-400 text-xs px-1"
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center gap-1 justify-end group">
+                                                <span className="text-amber-400 font-semibold">{item.qty_ordered} {item.unit}</span>
+                                                {canEditQty && (
+                                                  <button
+                                                    onClick={() => { setEditingItemId(item.id); setEditQty(String(item.qty_ordered)); }}
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300"
+                                                    title="Edit quantity"
+                                                  >
+                                                    <Pencil className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums">
+                                            {item.qty_received != null
+                                              ? <span className="text-emerald-400 font-semibold">{item.qty_received} {item.unit}</span>
+                                              : <span className="text-zinc-600">—</span>}
+                                          </td>
+                                          <td className="px-3 py-2 text-xs text-zinc-400">{item.receive_note ?? "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })()}
 
                             {/* Action buttons */}
                             <div className="flex flex-wrap gap-2 pt-1 items-center">
