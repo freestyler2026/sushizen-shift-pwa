@@ -1,6 +1,17 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Manila Payroll — mid-period new hire pro-rating implemented)
+Last updated: 2026-08-12 (Procurement Manual created — EN/JA artifact published)
+
+---
+
+## ✅ Completed: Procurement Manual artifact created (2026-08-12)
+
+**Deliverables**:
+- `docs/manuals/procurement-manual.html` — full Procurement channel manual
+- Artifact URL: https://claude.ai/code/artifact/16adcf00-0548-4a96-9be1-3e6a228f0ec3
+- CLAUDE.md auto-update rules updated to include Procurement Manual
+
+**Coverage**: 3 major flows (Standard Order, CK Order, Direct Purchase) with vertical lifecycle diagrams + 13 sections: Place Order, CK Receiving, Vendor Receiving, Cold Chain Log, Claims, Evaluation, Approval Inbox, CK Orders, POs & Invoices, Payments, Vendors & Scorecards, Risk & KPI, Cold Chain Monitor. All connected channels documented (Inventory, Cold Chain, Evaluation, Invoice Intelligence, Scorecards, KPI, Risk Lab, Exception Engine). EN/JA toggle button.
 
 ---
 

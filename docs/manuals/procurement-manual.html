@@ -1,0 +1,955 @@
+<title>Sushi ZEN — Procurement Manual</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0F1623; --surface: #1A2336; --surface2: #223047; --border: #2A3D5A;
+  --accent: #F59E0B; --accent-dim: rgba(245,158,11,0.12);
+  --text: #E2E8F0; --muted: #7A90AA;
+  --green: #34D399; --red: #F87171; --blue: #60A5FA; --violet: #A78BFA; --orange: #FB923C;
+  --sidebar-w: 240px;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#F0F4F9; --surface:#FFFFFF; --surface2:#EEF2F8; --border:#CBD5E1; --text:#1E2B3C; --muted:#5A7090; --accent-dim:rgba(245,158,11,0.10); }
+}
+:root[data-theme="dark"]  { --bg:#0F1623; --surface:#1A2336; --surface2:#223047; --border:#2A3D5A; --text:#E2E8F0; --muted:#7A90AA; --accent-dim:rgba(245,158,11,0.12); }
+:root[data-theme="light"] { --bg:#F0F4F9; --surface:#FFFFFF; --surface2:#EEF2F8; --border:#CBD5E1; --text:#1E2B3C; --muted:#5A7090; --accent-dim:rgba(245,158,11,0.10); }
+
+body { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; line-height:1.6; font-size:14px; }
+
+/* TOP BAR */
+.topbar { position:fixed; top:0; left:0; right:0; z-index:100; height:52px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 20px 0 calc(var(--sidebar-w)+20px); }
+.topbar-title { font-size:13px; font-weight:600; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; }
+.lang-toggle { display:flex; border:1px solid var(--border); border-radius:20px; overflow:hidden; background:var(--surface2); }
+.lang-btn { padding:5px 14px; font-size:12px; font-weight:600; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:background .15s,color .15s; }
+.lang-btn.active { background:var(--accent); color:#0F1623; }
+
+/* SIDEBAR */
+.sidebar { position:fixed; top:52px; left:0; bottom:0; width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; padding:10px 0; }
+.sidebar-label { font-size:10px; font-weight:700; color:var(--muted); letter-spacing:.10em; text-transform:uppercase; padding:10px 16px 3px; }
+.nav-item { display:flex; align-items:center; gap:8px; padding:7px 16px; cursor:pointer; color:var(--muted); font-size:12px; font-weight:500; border-left:3px solid transparent; transition:color .15s,background .15s,border-color .15s; }
+.nav-item:hover { color:var(--text); background:var(--accent-dim); }
+.nav-item.active { color:var(--accent); border-left-color:var(--accent); background:var(--accent-dim); }
+.nav-icon { font-size:13px; flex-shrink:0; }
+
+/* MAIN */
+.main { margin-left:var(--sidebar-w); margin-top:52px; padding:32px 36px 80px; max-width:900px; }
+.section { display:none; }
+.section.active { display:block; }
+
+/* HERO */
+.section-hero { display:flex; align-items:flex-start; gap:14px; margin-bottom:24px; }
+.hero-icon { width:46px; height:46px; border-radius:10px; background:var(--accent-dim); border:1px solid var(--accent); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.section-title { font-size:20px; font-weight:700; color:var(--text); }
+.section-path { font-size:11px; color:var(--muted); font-family:'SF Mono','Fira Code',monospace; margin-top:3px; }
+.section-desc { font-size:13px; color:var(--muted); margin-top:4px; }
+
+/* CARDS */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin-bottom:14px; }
+.card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin-bottom:10px; }
+.card.green-border { border-color:rgba(52,211,153,.35); }
+.card.blue-border  { border-color:rgba(96,165,250,.35); }
+.card.amber-border { border-color:rgba(245,158,11,.4); }
+.card.red-border   { border-color:rgba(248,113,113,.35); }
+.card.violet-border{ border-color:rgba(167,139,250,.35); }
+
+/* STEPS */
+.steps { list-style:none; }
+.step { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); }
+.step:last-child { border-bottom:none; }
+.step-num { width:20px; height:20px; border-radius:50%; flex-shrink:0; background:var(--accent); color:#0F1623; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+.step-body { flex:1; }
+.step-body strong { color:var(--text); font-weight:600; }
+.step-body p { color:var(--muted); font-size:12px; margin-top:1px; }
+.step-body code { font-family:'SF Mono','Fira Code',monospace; font-size:11px; background:var(--surface2); padding:1px 5px; border-radius:3px; color:var(--blue); }
+
+/* CHIPS */
+.chip-row { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.chip { padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; border:1px solid var(--border); background:var(--surface2); color:var(--text); white-space:nowrap; }
+.chip.green  { background:rgba(52,211,153,.12); color:var(--green); border-color:rgba(52,211,153,.3); }
+.chip.amber  { background:var(--accent-dim); color:var(--accent); border-color:rgba(245,158,11,.3); }
+.chip.red    { background:rgba(248,113,113,.12); color:var(--red); border-color:rgba(248,113,113,.3); }
+.chip.blue   { background:rgba(96,165,250,.12); color:var(--blue); border-color:rgba(96,165,250,.3); }
+.chip.violet { background:rgba(167,139,250,.12); color:var(--violet); border-color:rgba(167,139,250,.3); }
+.chip.orange { background:rgba(251,146,60,.12); color:var(--orange); border-color:rgba(251,146,60,.3); }
+
+/* TIPS */
+.tip { display:flex; gap:8px; background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.25); border-radius:8px; padding:11px 13px; margin-top:4px; font-size:12px; color:var(--muted); }
+.tip-icon { flex-shrink:0; color:var(--accent); font-size:14px; }
+.tip.danger { background:rgba(248,113,113,.07); border-color:rgba(248,113,113,.3); }
+.tip.danger .tip-icon { color:var(--red); }
+.tip.info { background:rgba(96,165,250,.07); border-color:rgba(96,165,250,.3); }
+.tip.info .tip-icon { color:var(--blue); }
+
+/* TABLE */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { text-align:left; padding:7px 10px; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border); }
+td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+td.muted { color:var(--muted); font-size:12px; }
+
+/* TWO-COL */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media(max-width:640px){ .two-col{ grid-template-columns:1fr; } }
+
+/* ── LIFECYCLE FLOW (vertical timeline) ── */
+.lifecycle { position:relative; padding-left:28px; margin:4px 0 14px; }
+.lifecycle::before { content:''; position:absolute; left:9px; top:0; bottom:0; width:2px; background:var(--border); }
+.lc-step { position:relative; margin-bottom:12px; }
+.lc-step:last-child { margin-bottom:0; }
+.lc-dot { position:absolute; left:-23px; top:4px; width:14px; height:14px; border-radius:50%; background:var(--surface2); border:2px solid var(--border); }
+.lc-dot.green  { background:var(--green); border-color:var(--green); }
+.lc-dot.blue   { background:var(--blue); border-color:var(--blue); }
+.lc-dot.amber  { background:var(--accent); border-color:var(--accent); }
+.lc-dot.violet { background:var(--violet); border-color:var(--violet); }
+.lc-dot.red    { background:var(--red); border-color:var(--red); }
+.lc-dot.orange { background:var(--orange); border-color:var(--orange); }
+.lc-header { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.lc-status { font-size:11px; font-weight:700; color:var(--text); }
+.lc-who { font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px; }
+.lc-who.store  { background:rgba(96,165,250,.15); color:var(--blue); }
+.lc-who.ck     { background:rgba(52,211,153,.15); color:var(--green); }
+.lc-who.admin  { background:rgba(245,158,11,.15); color:var(--accent); }
+.lc-who.vendor { background:rgba(167,139,250,.15); color:var(--violet); }
+.lc-who.system { background:rgba(251,146,60,.15); color:var(--orange); }
+.lc-detail { font-size:12px; color:var(--muted); margin-top:2px; }
+.lc-path   { font-family:'SF Mono','Fira Code',monospace; font-size:10px; color:var(--blue); background:var(--surface2); padding:1px 5px; border-radius:3px; margin-top:2px; display:inline-block; }
+
+/* CONNECTED CHANNEL GRID */
+.channel-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:14px; }
+.channel-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; cursor:pointer; transition:border-color .15s,background .15s; }
+.channel-card:hover { border-color:var(--accent); background:var(--accent-dim); }
+.channel-card .cc-icon { font-size:20px; margin-bottom:4px; }
+.channel-card .cc-name { font-size:12px; font-weight:700; color:var(--text); }
+.channel-card .cc-desc { font-size:11px; color:var(--muted); margin-top:2px; }
+
+/* ROLE LEGEND */
+.role-legend { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+
+/* STATUS FLOW ARROWS */
+.status-flow { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:6px; }
+.status-flow .arrow { color:var(--muted); font-size:12px; }
+
+/* MOBILE */
+@media(max-width:700px){
+  :root{--sidebar-w:0px;}
+  .sidebar{display:none;}
+  .topbar{padding:0 16px;}
+  .main{margin-left:0;padding:16px 14px 60px;}
+}
+</style>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — Procurement Manual</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    <button class="lang-btn" onclick="setLang('ja')" id="btn-ja">日本語</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-label" data-en="Overview" data-ja="概要">Overview</div>
+  <div class="nav-item active" onclick="show('overview')"><span class="nav-icon">🗺️</span><span data-en="System Overview" data-ja="システム概要">System Overview</span></div>
+
+  <div class="sidebar-label" data-en="Store Operations" data-ja="店舗オペレーション">Store Operations</div>
+  <div class="nav-item" onclick="show('place-order')"><span class="nav-icon">🛒</span><span data-en="Place an Order" data-ja="発注する">Place an Order</span></div>
+  <div class="nav-item" onclick="show('ck-receive')"><span class="nav-icon">📦</span><span data-en="CK Receiving" data-ja="CK商品の受取">CK Receiving</span></div>
+  <div class="nav-item" onclick="show('vendor-receive')"><span class="nav-icon">🚚</span><span data-en="Vendor Receiving" data-ja="仕入先納品の受取">Vendor Receiving</span></div>
+  <div class="nav-item" onclick="show('cold-chain')"><span class="nav-icon">🌡️</span><span data-en="Cold Chain Log" data-ja="コールドチェーン記録">Cold Chain Log</span></div>
+  <div class="nav-item" onclick="show('claims')"><span class="nav-icon">⚠️</span><span data-en="Submit a Claim" data-ja="クレーム申請">Submit a Claim</span></div>
+  <div class="nav-item" onclick="show('evaluation')"><span class="nav-icon">⭐</span><span data-en="Store Evaluation" data-ja="店舗評価">Store Evaluation</span></div>
+
+  <div class="sidebar-label" data-en="Admin Operations" data-ja="管理業務">Admin Operations</div>
+  <div class="nav-item" onclick="show('approval-inbox')"><span class="nav-icon">✅</span><span data-en="Approval Inbox" data-ja="承認受信箱">Approval Inbox</span></div>
+  <div class="nav-item" onclick="show('ck-orders')"><span class="nav-icon">🏭</span><span data-en="CK Orders" data-ja="CKオーダー">CK Orders</span></div>
+  <div class="nav-item" onclick="show('pos-invoices')"><span class="nav-icon">📄</span><span data-en="POs & Invoices" data-ja="PO・インボイス">POs &amp; Invoices</span></div>
+  <div class="nav-item" onclick="show('payments')"><span class="nav-icon">💳</span><span data-en="Payments" data-ja="支払い管理">Payments</span></div>
+  <div class="nav-item" onclick="show('vendors')"><span class="nav-icon">🏪</span><span data-en="Vendors & Scorecards" data-ja="仕入先・スコアカード">Vendors &amp; Scorecards</span></div>
+  <div class="nav-item" onclick="show('risk-kpi')"><span class="nav-icon">📊</span><span data-en="Risk & KPI" data-ja="リスク・KPI">Risk &amp; KPI</span></div>
+  <div class="nav-item" onclick="show('cold-chain-admin')"><span class="nav-icon">❄️</span><span data-en="Cold Chain Monitor" data-ja="コールドチェーン監視">Cold Chain Monitor</span></div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ═══════════ OVERVIEW ═══════════ -->
+<div class="section active" id="sec-overview">
+  <div class="section-hero">
+    <div class="hero-icon">🗺️</div>
+    <div>
+      <div class="section-title" data-en="Procurement System Overview" data-ja="調達システム概要">Procurement System Overview</div>
+      <div class="section-path">Admin → Procurement</div>
+      <div class="section-desc" data-en="End-to-end supply chain: from store order submission to vendor payment, with CK production, cold chain, and evaluation fully integrated." data-ja="店舗の発注から仕入先への支払いまで、CKプロダクション・コールドチェーン・評価を統合したエンドツーエンドのサプライチェーン管理。">End-to-end: store order → vendor payment, with CK production, cold chain, and evaluation integrated.</div>
+    </div>
+  </div>
+
+  <!-- ROLE LEGEND -->
+  <div class="card">
+    <div class="card-title" data-en="Who Does What — Role Legend" data-ja="役割一覧">Who Does What — Role Legend</div>
+    <div class="role-legend">
+      <span class="chip blue" data-en="🏪 Store Staff — Submit orders, receive deliveries, log cold chain, file claims" data-ja="🏪 店舗スタッフ — 発注・納品受取・コールドチェーン記録・クレーム申請">🏪 Store Staff — Submit / Receive / Cold Chain / Claims</span>
+      <span class="chip green" data-en="🏭 CK Staff — Accept production orders, dispatch to branches" data-ja="🏭 CKスタッフ — プロダクション受注・店舗へのディスパッチ">🏭 CK Staff — Production &amp; Dispatch</span>
+      <span class="chip amber" data-en="🔑 Admin/HQ — Approve cases, create POs, manage invoices &amp; payments" data-ja="🔑 Admin/HQ — ケース承認・PO作成・インボイス・支払い管理">🔑 Admin/HQ — Approve / PO / Invoice / Payment</span>
+      <span class="chip violet" data-en="📧 Vendor — Receives PO email, confirms receipt" data-ja="📧 仕入先 — POメール受取・受領確認">📧 Vendor — Confirm PO receipt</span>
+      <span class="chip orange" data-en="⚙️ System — Auto-approve CK orders, send notifications, compute risk" data-ja="⚙️ システム — CK自動承認・通知送信・リスク計算">⚙️ System — Auto-approve / Notify / Risk</span>
+    </div>
+  </div>
+
+  <!-- FLOW 1: STANDARD ORDER -->
+  <div class="card blue-border">
+    <div class="card-title" data-en="Flow A — Standard Vendor Order" data-ja="フローA — 通常仕入先発注">Flow A — Standard Vendor Order</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="DRAFT → SUBMITTED" data-ja="下書き → 提出">DRAFT → SUBMITTED</span><span class="lc-who store" data-en="Store Staff" data-ja="店舗スタッフ">Store Staff</span></div>
+        <div class="lc-detail" data-en="Store submits order request with items, quantities, and urgency level." data-ja="店舗スタッフが発注アイテム・数量・緊急度を入力して送信。">Store submits order with items, quantities, urgency level.</div>
+        <span class="lc-path">/store/procurement/request</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="OPEN → IN_REVIEW" data-ja="オープン → 審査中">OPEN → IN_REVIEW</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Admin evaluates the request, creates a case, and claims it for review." data-ja="Adminがリクエストを評価・ケースを作成してクレーム（担当割り当て）する。">Admin evaluates request, creates case, claims for review.</div>
+        <span class="lc-path">/admin/procurement/approval-inbox</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="APPROVED" data-ja="承認">APPROVED</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Case approved → PO auto-created → PO email sent to vendor with PDF and tracking pixel." data-ja="ケース承認 → PO自動作成 → PDFと追跡ピクセル付きでベンダーへPOメール送信。">Case approved → PO created → vendor email sent (PDF + tracking pixel).</div>
+        <span class="lc-path">/admin/procurement/cases/[caseId]</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Vendor Confirms" data-ja="仕入先が確認">Vendor Confirms</span><span class="lc-who vendor" data-en="Vendor" data-ja="仕入先">Vendor</span></div>
+        <div class="lc-detail" data-en="Vendor opens email (open tracked) and clicks the confirmation link to acknowledge the PO." data-ja="仕入先がメールを開封（追跡記録）し、確認リンクをクリックしてPOを受領確認。">Vendor opens email and clicks confirmation link → `receipt_confirmed_at` set.</div>
+        <span class="lc-path">Vendor-facing confirmation URL (no login required)</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="RECEIVED" data-ja="受領">RECEIVED</span><span class="lc-who store" data-en="Store Staff" data-ja="店舗スタッフ">Store Staff</span></div>
+        <div class="lc-detail" data-en="Goods arrive. Store confirms delivery and records quantities received." data-ja="商品到着後、店舗スタッフが納品確認と受領数量を記録。">Goods arrive. Store confirms delivery and records received quantities.</div>
+        <span class="lc-path">/store/procurement/receiving</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Invoice Upload + Document Gate" data-ja="インボイスアップロード + 書類ゲート">Invoice Upload + Document Gate (Phase 1)</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Admin uploads invoice and matches it to the PO. Document validation gate must pass before payment." data-ja="Adminがインボイスをアップロードし、POとマッチング。書類検証ゲートをパスしないと支払いに進めない。">Upload &amp; match invoice to PO. Document gate must pass before payment.</div>
+        <span class="lc-path">/admin/procurement/invoices</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot red"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Payment Gate + Execute" data-ja="支払いゲート + 実行">Payment Gate + Execute (Phase 2)</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Payment queued, held/released, then executed. Phase 2 gate must pass first." data-ja="支払いキュー → 保留・解除 → 実行。Phase 2ゲートをパスしてから実行。">Payment queued → held/released → executed. Phase 2 gate must pass.</div>
+        <span class="lc-path">/admin/procurement/payments</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status">CLOSED</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="Order fully closed. All records preserved in the audit log." data-ja="発注完全完了。全記録が監査ログに保存されます。">Order fully closed. All records in audit log.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW 2: CK ORDER -->
+  <div class="card green-border">
+    <div class="card-title" data-en="Flow B — CK Order (Commissary Kitchen)" data-ja="フローB — CKオーダー（コミサリーキッチン）">Flow B — CK Order (Commissary Kitchen)</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Store Submits (vendor = CK)" data-ja="店舗が送信（仕入先=CK）">Store Submits (vendor = CK)</span><span class="lc-who store" data-en="Store Staff" data-ja="店舗スタッフ">Store Staff</span></div>
+        <div class="lc-detail" data-en="Store selects CK as vendor. System auto-approves — no manual approval needed." data-ja="店舗スタッフがCKを仕入先として選択。システムが自動承認（人的承認不要）。">Select CK as vendor → system auto-approves, skips approval queue.</div>
+        <span class="lc-path">/store/procurement/request</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="APPROVED (auto) → PO created" data-ja="承認済（自動）→ PO作成">APPROVED (auto) → PO created</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="Order appears in the CK production queue immediately." data-ja="注文がCKプロダクションキューに即座に表示される。">Order appears in CK production queue immediately.</div>
+        <span class="lc-path">/admin/procurement/ck-orders  /admin/inventory/productions</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status" data-en="IN_PRODUCTION → Dispatched" data-ja="製造中 → ディスパッチ">IN_PRODUCTION → Dispatched</span><span class="lc-who ck" data-en="CK Staff" data-ja="CKスタッフ">CK Staff</span></div>
+        <div class="lc-detail" data-en="CK marks order in production, then dispatches with item quantities and shortage flags recorded." data-ja="CKスタッフが製造開始をマークし、ディスパッチ時に数量と不足フラグを記録。">CK marks in-production, then dispatches — records `dispatched_items_json`, shortage flags.</div>
+        <span class="lc-path">/store/ck-production</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Store CK Receiving" data-ja="店舗CK受取">Store CK Receiving</span><span class="lc-who store" data-en="Store Staff" data-ja="店舗スタッフ">Store Staff</span></div>
+        <div class="lc-detail" data-en="Store checks dispatched items vs. received quantities. Shortages are flagged automatically." data-ja="店舗がディスパッチ数量と実受取数量を照合。不足は自動でフラグが立つ。">Check dispatched vs. received quantities. Shortages auto-flagged.</div>
+        <span class="lc-path">/store/receiving</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Cold Chain Log" data-ja="コールドチェーン記録">Cold Chain Log</span><span class="lc-who store" data-en="Store / CK Staff" data-ja="店舗・CKスタッフ">Store / CK Staff</span></div>
+        <div class="lc-detail" data-en="Record cooler box temperatures at dispatch, receipt, and storage. Out-of-range readings raise alert flags." data-ja="ディスパッチ・受取・保管の各時点でクーラーボックスの温度を記録。規定外はアラートフラグが立つ。">Record temps at dispatch / receipt / storage. Violations raise alert flags.</div>
+        <span class="lc-path">/store/cold-chain</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Admin Reviews Shortages" data-ja="Admin が不足を確認">Admin Reviews Shortages</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Admin reviews shortage flags and cold chain violations at the CK Orders page." data-ja="Adminが不足フラグとコールドチェーン違反をCK Ordersページで確認。">Admin reviews shortage flags and cold chain violations.</div>
+        <span class="lc-path">/admin/procurement/ck-orders</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW 3: DIRECT PURCHASE -->
+  <div class="card violet-border">
+    <div class="card-title" data-en="Flow C — Direct Purchase (Philippines)" data-ja="フローC — 直接購入（フィリピン）">Flow C — Direct Purchase (Philippines)</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Buyer Records Purchase" data-ja="購買担当者が購入記録">Buyer Records Purchase</span><span class="lc-who store" data-en="Buyer (Mariano)" data-ja="購買担当者（マリアノ）">Buyer (Mariano)</span></div>
+        <div class="lc-detail" data-en="Buyer enters purchase details directly — no pre-approval required." data-ja="購買担当者が直接購入内容を入力（事前承認不要）。">Buyer enters purchase details directly without pre-approval.</div>
+        <span class="lc-path">/store/purchase</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Admin Verifies" data-ja="Admin が確認">Admin Verifies</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Admin reviews and verifies direct purchases against receipts and amounts." data-ja="Adminが直接購入を領収書・金額と照合して確認。">Admin reviews and verifies against receipts and amounts.</div>
+        <span class="lc-path">/admin/procurement/direct-purchases</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status">CLOSED</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="Verified purchase closed and recorded." data-ja="確認済みの購入が完了・記録される。">Verified purchase closed and recorded.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONNECTED CHANNELS -->
+  <div class="card">
+    <div class="card-title" data-en="Connected Channels" data-ja="連携チャンネル">Connected Channels</div>
+    <div class="channel-grid">
+      <div class="channel-card" onclick="show('ck-orders')">
+        <div class="cc-icon">🏭</div>
+        <div class="cc-name" data-en="Inventory / Productions" data-ja="在庫・プロダクション">Inventory / Productions</div>
+        <div class="cc-desc" data-en="CK orders feed into production queue; receiving updates stock" data-ja="CKオーダーが製造キューに入り、受取で在庫更新">CK orders → production queue; receiving updates stock</div>
+      </div>
+      <div class="channel-card" onclick="show('cold-chain')">
+        <div class="cc-icon">🌡️</div>
+        <div class="cc-name" data-en="Cold Chain" data-ja="コールドチェーン">Cold Chain</div>
+        <div class="cc-desc" data-en="Post-dispatch: log cooler temps at 3 checkpoints" data-ja="ディスパッチ後：3ポイントで温度記録">Post-dispatch: log temps at 3 checkpoints</div>
+      </div>
+      <div class="channel-card" onclick="show('evaluation')">
+        <div class="cc-icon">⭐</div>
+        <div class="cc-name" data-en="Store Evaluation" data-ja="店舗評価">Store Evaluation</div>
+        <div class="cc-desc" data-en="Score production quality per delivery run" data-ja="デリバリーごとに製造品質をスコアリング">Score production quality per delivery</div>
+      </div>
+      <div class="channel-card" onclick="show('pos-invoices')">
+        <div class="cc-icon">🔍</div>
+        <div class="cc-name" data-en="Invoice Intelligence" data-ja="インボイス分析">Invoice Intelligence</div>
+        <div class="cc-desc" data-en="Drive sync, price alerts, integrity checks" data-ja="Drive同期・価格アラート・整合性チェック">Drive sync, price alerts, integrity checks</div>
+      </div>
+      <div class="channel-card" onclick="show('vendors')">
+        <div class="cc-icon">📈</div>
+        <div class="cc-name" data-en="Vendor Scorecards" data-ja="仕入先スコアカード">Vendor Scorecards</div>
+        <div class="cc-desc" data-en="On-time, quality, price variance KPIs" data-ja="納期・品質・価格差異KPI">On-time, quality, price variance KPIs</div>
+      </div>
+      <div class="channel-card" onclick="show('risk-kpi')">
+        <div class="cc-icon">⚡</div>
+        <div class="cc-name" data-en="Risk Lab &amp; KPI" data-ja="リスクラボ・KPI">Risk Lab &amp; KPI</div>
+        <div class="cc-desc" data-en="Stockout risk, exception alerts, staff KPIs" data-ja="在庫切れリスク・例外アラート・スタッフKPI">Stockout risk, exceptions, staff KPIs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS REFERENCE -->
+  <div class="card">
+    <div class="card-title" data-en="Order Status Reference" data-ja="発注ステータス一覧">Order Status Reference</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Status" data-ja="ステータス">Status</th><th data-en="Meaning" data-ja="意味">Meaning</th><th data-en="Next action" data-ja="次のアクション">Next Action</th></tr>
+      <tr><td><span class="chip">DRAFT</span></td><td class="muted" data-en="Saved but not yet submitted" data-ja="保存済みだが未提出">Saved but not submitted</td><td class="muted" data-en="Store: submit" data-ja="店舗：提出">Store: submit</td></tr>
+      <tr><td><span class="chip blue">SUBMITTED</span></td><td class="muted" data-en="Submitted, awaiting evaluation" data-ja="提出済み、評価待ち">Submitted, awaiting evaluation</td><td class="muted" data-en="Admin: evaluate → create case" data-ja="Admin：評価 → ケース作成">Admin: evaluate → create case</td></tr>
+      <tr><td><span class="chip blue">IN_REVIEW</span></td><td class="muted" data-en="Case claimed and under review" data-ja="ケースがクレーム済みで審査中">Case claimed, under review</td><td class="muted" data-en="Admin: approve / reject / escalate" data-ja="Admin：承認・却下・エスカレーション">Admin: approve / reject / escalate</td></tr>
+      <tr><td><span class="chip amber">APPROVED</span></td><td class="muted" data-en="Approved — PO created" data-ja="承認済み — PO作成">Approved — PO created</td><td class="muted" data-en="Vendor confirms; store receives" data-ja="仕入先確認；店舗受取">Vendor confirms; store receives</td></tr>
+      <tr><td><span class="chip green">RECEIVED</span></td><td class="muted" data-en="Goods received at store" data-ja="店舗で商品を受取済">Goods received at store</td><td class="muted" data-en="Admin: upload invoice" data-ja="Admin：インボイスアップロード">Admin: upload invoice</td></tr>
+      <tr><td><span class="chip green">CLOSED</span></td><td class="muted" data-en="Fully completed" data-ja="完全完了">Fully completed</td><td class="muted">—</td></tr>
+      <tr><td><span class="chip red">REJECTED</span></td><td class="muted" data-en="Rejected by approver" data-ja="承認者により却下">Rejected by approver</td><td class="muted" data-en="Store: revise or escalate" data-ja="店舗：修正またはエスカレーション">Store: revise or escalate</td></tr>
+    </table></div>
+  </div>
+</div>
+
+<!-- ═══════════ PLACE AN ORDER ═══════════ -->
+<div class="section" id="sec-place-order">
+  <div class="section-hero">
+    <div class="hero-icon">🛒</div>
+    <div>
+      <div class="section-title" data-en="Place an Order" data-ja="発注する">Place an Order</div>
+      <div class="section-path">/store/procurement/request</div>
+      <div class="section-desc" data-en="Store staff submit procurement requests for vendor items or CK products. Choose the right order type for your purchase." data-ja="店舗スタッフが仕入先アイテムまたはCK商品の調達リクエストを提出します。購入内容に合った発注タイプを選んでください。">Store staff submit requests for vendor items or CK products. Choose the right order type.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Order Types" data-ja="発注タイプ">Order Types</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Type" data-ja="タイプ">Type</th><th data-en="When to use" data-ja="使用場面">When to use</th><th data-en="Approval" data-ja="承認">Approval</th></tr>
+      <tr><td><span class="chip blue" data-en="Standard" data-ja="通常">Standard</span></td><td class="muted" data-en="Regular vendor orders — goes through full approval and PO flow" data-ja="通常の仕入先発注 — 完全な承認・POフローを経る">Regular vendor orders — full approval + PO flow</td><td class="muted" data-en="Manual approval required" data-ja="人的承認が必要">Manual approval</td></tr>
+      <tr><td><span class="chip green" data-en="CK Order" data-ja="CKオーダー">CK Order</span></td><td class="muted" data-en="Products from the Commissary Kitchen — auto-approved" data-ja="コミサリーキッチンからの商品 — 自動承認">Products from Commissary Kitchen — auto-approved</td><td class="muted" data-en="Auto-approved by system" data-ja="システムが自動承認">Auto-approved</td></tr>
+      <tr><td><span class="chip amber" data-en="Cash Purchase" data-ja="現金購入">Cash Purchase</span></td><td class="muted" data-en="Small cash buys. Buyer marks purchased manually after approval." data-ja="少額現金購入。承認後に購買担当者が手動でマーク。">Small cash buys. Buyer marks purchased after approval.</td><td class="muted" data-en="Manual approval required" data-ja="人的承認が必要">Manual approval</td></tr>
+      <tr><td><span class="chip amber" data-en="EC Purchase" data-ja="EC購入">EC Purchase</span></td><td class="muted" data-en="Online (e-commerce) purchase. Includes an EC order URL field." data-ja="オンライン購入。ECオーダーURLフィールドあり。">Online purchase with EC order URL field.</td><td class="muted" data-en="Manual approval required" data-ja="人的承認が必要">Manual approval</td></tr>
+      <tr><td><span class="chip violet" data-en="Prepaid" data-ja="前払い">Prepaid</span></td><td class="muted" data-en="Prepaid orders — requires payment confirmation to close." data-ja="前払い発注 — 支払い確認完了でクローズ。">Prepaid orders — needs payment confirmation to close.</td><td class="muted" data-en="Manual approval required" data-ja="人的承認が必要">Manual approval</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Standard / Vendor Order — Step by Step" data-ja="通常発注の手順">Standard / Vendor Order — Step by Step</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select branch and order type" data-ja="店舗と発注タイプを選択">Select branch and order type</strong><p data-en="Choose your branch and set order type to Standard (or Cash / EC / Prepaid as needed)." data-ja="自店舗を選択し、発注タイプをStandard（または現金・EC・前払い）に設定します。">Choose branch and order type.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Select vendor" data-ja="仕入先を選択">Select vendor</strong><p data-en="Search the vendor list. For CK items, select CK as the vendor — the order auto-approves." data-ja="仕入先リストから検索。CK商品はCKを選択すると自動承認されます。">Search vendor list. Selecting CK triggers auto-approval.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Add items from catalog or enter manually" data-ja="カタログから追加または手入力">Add items</strong><p data-en="Use the curated catalog for pre-approved items, or enter item name, qty, unit, and estimated price manually." data-ja="事前承認済みカタログを使うか、品名・数量・単位・概算価格を手入力します。">Use catalog or enter name, qty, unit, estimated price.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Set urgency and delivery date" data-ja="緊急度と納品日を設定">Set urgency and delivery date</strong><p data-en="Low / Medium / High / Critical. High and Critical urgency triggers faster admin review." data-ja="Low / Medium / High / Critical。High・Criticalは管理者の優先審査が入ります。">Low / Medium / High / Critical — higher urgency = faster admin review.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Add notes and submit" data-ja="メモを追加して提出">Add notes and submit</strong><p data-en="Include any special instructions for the vendor or Admin. Click Submit." data-ja="仕入先・管理者への特記事項を入力してSubmitをクリック。">Add special instructions, then click Submit.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="After Submitting" data-ja="提出後の流れ">After Submitting</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Track your order status at /store/procurement. The status progresses automatically:" data-ja="/store/procurement で発注ステータスを追跡。自動的に進行します：">/store/procurement でステータスを追跡。自動的に進行します：</p>
+      <div class="status-flow">
+        <span class="chip">DRAFT</span><span class="arrow">→</span>
+        <span class="chip blue">SUBMITTED</span><span class="arrow">→</span>
+        <span class="chip blue">IN_REVIEW</span><span class="arrow">→</span>
+        <span class="chip amber">APPROVED</span><span class="arrow">→</span>
+        <span class="chip green">RECEIVED</span><span class="arrow">→</span>
+        <span class="chip green">CLOSED</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="If Your Order Is Rejected" data-ja="却下された場合">If Your Order Is Rejected</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Admin will add a reason note. You can view it in the case detail. Contact your manager to revise and resubmit, or to escalate the case to HQ." data-ja="Adminが却下理由を記入します。ケース詳細で確認できます。上司に相談して修正・再提出するか、HQへのエスカレーションをリクエストしてください。">Admin adds a reason. View in case detail. Revise and resubmit, or ask manager to escalate to HQ.</p>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span data-en="Use the Order Catalog (/admin/procurement/catalog) for pre-approved items with fixed prices — no manual price entry needed and approvals are faster." data-ja="事前承認済みの固定価格アイテムはOrder Catalog（/admin/procurement/catalog）を活用しましょう。手動価格入力が不要で承認も速くなります。">Use the Order Catalog for pre-approved items with fixed prices — faster approvals.</span>
+  </div>
+</div>
+
+<!-- ═══════════ CK RECEIVING ═══════════ -->
+<div class="section" id="sec-ck-receive">
+  <div class="section-hero">
+    <div class="hero-icon">📦</div>
+    <div>
+      <div class="section-title" data-en="CK Receiving" data-ja="CK商品の受取">CK Receiving</div>
+      <div class="section-path">/store/receiving</div>
+      <div class="section-desc" data-en="After CK dispatches your order, check actual received quantities against the dispatched list and flag any shortages." data-ja="CKがディスパッチした後、実際の受取数量をディスパッチリストと照合し、不足をフラグします。">Check actual received quantities against CK's dispatched list. Flag shortages.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How to Confirm CK Receipt" data-ja="CK受取確認の手順">How to Confirm CK Receipt</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Open your pending CK order" data-ja="保留中のCKオーダーを開く">Open your pending CK order</strong><p data-en="The page shows orders dispatched by CK but not yet confirmed by your store." data-ja="CKがディスパッチ済みで、まだ自店舗が確認していないオーダーが表示されます。">Lists orders dispatched by CK but not yet confirmed.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Compare dispatched vs. received quantities" data-ja="ディスパッチ数量と受取数量を照合">Compare dispatched vs. received</strong><p data-en="The dispatched_items_json from CK is shown per item. Enter what you actually received." data-ja="CKからのディスパッチ数量が品目ごとに表示されます。実際に受け取った数量を入力してください。">CK's dispatched quantities shown per item. Enter what you actually received.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Flag shortages if any" data-ja="不足があればフラグを立てる">Flag shortages</strong><p data-en="If received qty is less than dispatched, the system auto-flags a shortage. Add a note describing the gap." data-ja="受取数量がディスパッチ数量より少ない場合、システムが自動的に不足フラグを立てます。状況を説明するメモを追加してください。">If received &lt; dispatched, system auto-flags a shortage. Add a note.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Confirm receipt" data-ja="受取を確認">Confirm receipt</strong><p data-en="Click Confirm. The order status updates and Admin can review any shortage flags at /admin/procurement/ck-orders." data-ja="Confirmをクリック。ステータスが更新され、AdminがCK Ordersページで不足フラグを確認できます。">Click Confirm. Admin reviews shortage flags at /admin/procurement/ck-orders.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">ℹ️</span>
+    <span data-en="After confirming CK receipt, log the cold chain data immediately while temperatures are still accurate. Go to /store/cold-chain." data-ja="CK受取確認後は、温度が正確なうちにすぐにコールドチェーンデータを記録してください。/store/cold-chain へ移動します。">After CK receipt, log cold chain data immediately while temperatures are accurate.</span>
+  </div>
+</div>
+
+<!-- ═══════════ VENDOR RECEIVING ═══════════ -->
+<div class="section" id="sec-vendor-receive">
+  <div class="section-hero">
+    <div class="hero-icon">🚚</div>
+    <div>
+      <div class="section-title" data-en="Vendor Receiving" data-ja="仕入先納品の受取">Vendor Receiving</div>
+      <div class="section-path">/store/procurement/receiving</div>
+      <div class="section-desc" data-en="When a vendor delivers goods for an approved PO, store staff confirm receipt and record actual quantities." data-ja="承認済みPOの仕入先が納品した際、店舗スタッフが受取を確認し実際の数量を記録します。">Confirm vendor delivery and record actual quantities received for approved POs.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Vendor Delivery Confirmation Steps" data-ja="仕入先納品確認の手順">Vendor Delivery Confirmation Steps</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Find the order in your pending list" data-ja="保留リストから発注を見つける">Find the order in pending list</strong><p data-en="Orders in APPROVED status with a confirmed PO appear here awaiting delivery confirmation." data-ja="PO確認済みのAPPROVEDステータスの発注が、納品確認待ちとしてここに表示されます。">APPROVED orders with confirmed PO appear here pending delivery.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Enter received quantities per item" data-ja="品目ごとに受取数量を入力">Enter received quantities</strong><p data-en="Compare with the PO quantity. Note any discrepancies — they may trigger a claim." data-ja="PO数量と照合。差異は後でクレームのきっかけになる場合があります。">Compare with PO quantity. Discrepancies may trigger a claim.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Record delivery date and sign-off" data-ja="納品日と確認者を記録">Record delivery date and sign-off</strong><p data-en="Enter the actual delivery date and the name of the person who received the goods." data-ja="実際の納品日と受取担当者名を入力します。">Enter actual delivery date and receiving person's name.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Confirm receipt" data-ja="受取を確認">Confirm receipt</strong><p data-en="Status updates to RECEIVED. Admin can now upload and match the invoice." data-ja="ステータスがRECEIVEDに更新。AdminがインボイスをアップロードしてPOとマッチングできます。">Status → RECEIVED. Admin can now upload and match the invoice.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="If you receive damaged, wrong, or short-quantity items, submit a claim at /store/procurement/claim immediately after confirming receipt. Do not delay — claims should be filed within 24 hours of delivery." data-ja="破損品・誤品・数量不足があった場合、受取確認直後に/store/procurement/claimからクレームを申請してください。クレームは納品後24時間以内に提出することをおすすめします。">If you receive damaged, wrong, or short items, file a claim immediately after confirming receipt. Within 24 hours.</span>
+  </div>
+</div>
+
+<!-- ═══════════ COLD CHAIN ═══════════ -->
+<div class="section" id="sec-cold-chain">
+  <div class="section-hero">
+    <div class="hero-icon">🌡️</div>
+    <div>
+      <div class="section-title" data-en="Cold Chain Log" data-ja="コールドチェーン記録">Cold Chain Log</div>
+      <div class="section-path">/store/cold-chain</div>
+      <div class="section-desc" data-en="Record cooler box temperatures at three checkpoints for every CK dispatch. Critical for food safety compliance." data-ja="CKディスパッチごとに3つのチェックポイントでクーラーボックスの温度を記録。食品安全コンプライアンスに不可欠です。">Record cooler box temps at 3 checkpoints for every CK dispatch. Required for food safety.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="3 Temperature Checkpoints" data-ja="3つの温度チェックポイント">3 Temperature Checkpoints</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Checkpoint" data-ja="チェックポイント">Checkpoint</th><th data-en="Who records" data-ja="記録者">Who</th><th data-en="What to measure" data-ja="測定内容">What to measure</th></tr>
+      <tr><td><span class="chip green" data-en="① Dispatch" data-ja="① ディスパッチ時">① Dispatch</span></td><td class="muted" data-en="CK Staff (at CK)" data-ja="CKスタッフ（CKにて）">CK Staff (at CK)</td><td class="muted" data-en="Temperature inside the cooler box at time of dispatch" data-ja="ディスパッチ時のクーラーボックス内温度">Temp inside cooler at dispatch time</td></tr>
+      <tr><td><span class="chip blue" data-en="② Received" data-ja="② 受取時">② Received</span></td><td class="muted" data-en="Store Staff (at branch)" data-ja="店舗スタッフ（店舗にて）">Store Staff (at branch)</td><td class="muted" data-en="Temperature inside the cooler when goods arrive at branch" data-ja="商品が店舗に到着した時のクーラー内温度">Temp inside cooler on arrival at branch</td></tr>
+      <tr><td><span class="chip amber" data-en="③ Stored" data-ja="③ 保管時">③ Stored</span></td><td class="muted" data-en="Store Staff (at branch)" data-ja="店舗スタッフ（店舗にて）">Store Staff (at branch)</td><td class="muted" data-en="Temperature after items are placed in the storage unit" data-ja="保管庫に入れた後の温度">Temp after placing items in storage unit</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="What to Record" data-ja="記録項目">What to Record</div>
+    <div class="two-col">
+      <div>
+        <p class="card-title" style="margin-bottom:6px" data-en="Cooler Box Info" data-ja="クーラーボックス情報">Cooler Box Info</p>
+        <div class="chip-row">
+          <span class="chip" data-en="Box size: 65L / 45L / 8L" data-ja="ボックスサイズ：65L / 45L / 8L">Box: 65L / 45L / 8L</span>
+          <span class="chip" data-en="Ice packs: 400ml / 600ml / 1000ml" data-ja="保冷剤：400ml / 600ml / 1000ml">Ice: 400ml / 600ml / 1000ml</span>
+          <span class="chip" data-en="Thermometer type" data-ja="温度計の種類">Thermometer type</span>
+          <span class="chip" data-en="Time held (minutes)" data-ja="保持時間（分）">Time held (min)</span>
+        </div>
+      </div>
+      <div>
+        <p class="card-title" style="margin-bottom:6px" data-en="Alert Flags" data-ja="アラートフラグ">Alert Flags</p>
+        <p style="color:var(--muted);font-size:12px" data-en="The system automatically raises alert flags when temperatures exceed safe ranges. These are visible to Admin at /admin/cold-chain and require follow-up." data-ja="温度が安全範囲を超えると、システムが自動的にアラートフラグを立てます。Adminが/admin/cold-chainで確認し、フォローアップが必要です。">System auto-flags out-of-range readings. Admin reviews at /admin/cold-chain.</p>
+        <div class="chip-row"><span class="chip red" data-en="🚨 Alert raised" data-ja="🚨 アラート発生">🚨 Alert raised</span><span class="chip green" data-en="✓ Within range" data-ja="✓ 正常範囲">✓ Within range</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Log cold chain data immediately after receiving — do not wait. Delayed logging creates inaccurate temperature records and may trigger compliance issues." data-ja="受取直後にコールドチェーンを記録してください。後回しにすると温度記録が不正確になり、コンプライアンス問題が発生する場合があります。">Log cold chain immediately after receiving. Delayed logging = inaccurate records and compliance risk.</span>
+  </div>
+</div>
+
+<!-- ═══════════ CLAIMS ═══════════ -->
+<div class="section" id="sec-claims">
+  <div class="section-hero">
+    <div class="hero-icon">⚠️</div>
+    <div>
+      <div class="section-title" data-en="Submit a Claim" data-ja="クレーム申請">Submit a Claim</div>
+      <div class="section-path">/store/procurement/claim</div>
+      <div class="section-desc" data-en="File a claim when you receive a delivery with shortages, damage, wrong items, or quality issues." data-ja="数量不足・破損・誤品・品質問題のある納品を受け取った際にクレームを申請します。">File a claim for shortages, damage, wrong items, or quality issues on delivery.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Claim Types" data-ja="クレームタイプ">Claim Types</div>
+    <div class="chip-row">
+      <span class="chip red" data-en="Shortage" data-ja="数量不足">Shortage</span>
+      <span class="chip red" data-en="Damaged" data-ja="破損">Damaged</span>
+      <span class="chip red" data-en="Wrong Item" data-ja="誤品">Wrong Item</span>
+      <span class="chip red" data-en="Quality Issue" data-ja="品質問題">Quality Issue</span>
+      <span class="chip red" data-en="Price Discrepancy" data-ja="価格相違">Price Discrepancy</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How to Submit a Claim" data-ja="クレーム申請の手順">How to Submit a Claim</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the related order" data-ja="関連する発注を選択">Select the related order</strong><p data-en="Link the claim to the specific PO or order that has the issue." data-ja="問題のある発注またはPOにクレームを紐付けます。">Link to the specific PO or order with the issue.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose claim type and describe the issue" data-ja="クレームタイプを選択し問題を説明">Choose type and describe</strong><p data-en="Select the claim type, enter affected item(s), quantities, and a clear description of what went wrong." data-ja="タイプを選択し、対象品目・数量・問題の詳細説明を入力します。">Select type, enter affected items, quantities, and clear description.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Attach evidence photos" data-ja="証拠写真を添付">Attach evidence photos</strong><p data-en="Upload photos of the damage, shortage, or wrong items. Strong evidence speeds up resolution." data-ja="破損・不足・誤品の写真をアップロード。証拠があると解決が速くなります。">Upload photos of damage, shortage, or wrong items. Evidence speeds resolution.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Submit" data-ja="提出">Submit</strong><p data-en="Admin reviews the claim at /admin/procurement/claims and contacts the vendor for resolution." data-ja="AdminがClaims管理ページでクレームを確認し、仕入先に解決を求めます。">Admin reviews at /admin/procurement/claims and contacts vendor for resolution.</p></div></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══════════ EVALUATION ═══════════ -->
+<div class="section" id="sec-evaluation">
+  <div class="section-hero">
+    <div class="hero-icon">⭐</div>
+    <div>
+      <div class="section-title" data-en="Store Evaluation" data-ja="店舗評価">Store Evaluation</div>
+      <div class="section-path">/store/evaluation</div>
+      <div class="section-desc" data-en="Rate CK production quality after each delivery. Scores feed into the vendor scorecard system." data-ja="デリバリーごとにCKプロダクション品質を評価します。スコアは仕入先スコアカードシステムに反映されます。">Rate CK production quality after each delivery. Scores feed into vendor scorecards.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="11 Evaluation Criteria (each scored 1–5)" data-ja="11の評価基準（各1〜5点）">11 Evaluation Criteria (each scored 1–5)</div>
+    <div class="two-col">
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip amber" data-en="Backup Score" data-ja="仕込みスコア">Backup Score</span>
+        <span class="chip amber" data-en="Station Balance" data-ja="ステーションバランス">Station Balance</span>
+        <span class="chip amber" data-en="Quality" data-ja="品質">Quality</span>
+        <span class="chip amber" data-en="Cleanliness" data-ja="清潔さ">Cleanliness</span>
+        <span class="chip amber" data-en="Team Support" data-ja="チームサポート">Team Support</span>
+        <span class="chip amber" data-en="Coaching" data-ja="コーチング">Coaching</span>
+      </div>
+      <div class="chip-row" style="flex-direction:column;gap:4px">
+        <span class="chip amber" data-en="Problem Awareness" data-ja="問題認識">Problem Awareness</span>
+        <span class="chip amber" data-en="Prep Time" data-ja="準備時間">Prep Time</span>
+        <span class="chip amber" data-en="Food Safety" data-ja="食品安全">Food Safety</span>
+        <span class="chip amber" data-en="Organization" data-ja="整頓">Organization</span>
+        <span class="chip amber" data-en="SOP Compliance" data-ja="SOP遵守">SOP Compliance</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Who Can Submit Evaluations" data-ja="評価提出可能なロール">Who Can Submit</div>
+    <div class="chip-row">
+      <span class="chip amber">ADMIN</span><span class="chip amber">HQ</span><span class="chip blue">HR_MANAGER</span>
+      <span class="chip blue">MANILA_MANAGEMENT</span><span class="chip blue">MANILA_MANAGER</span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px" data-en="Admin reviews all scores at /admin/store-evaluations and /admin/backoffice-evaluation." data-ja="Adminがすべてのスコアを/admin/store-evaluationsおよび/admin/backoffice-evaluationで確認します。">Admin reviews all scores at /admin/store-evaluations and /admin/backoffice-evaluation.</p>
+  </div>
+</div>
+
+<!-- ═══════════ APPROVAL INBOX ═══════════ -->
+<div class="section" id="sec-approval-inbox">
+  <div class="section-hero">
+    <div class="hero-icon">✅</div>
+    <div>
+      <div class="section-title" data-en="Approval Inbox" data-ja="承認受信箱">Approval Inbox</div>
+      <div class="section-path">/admin/procurement/approval-inbox</div>
+      <div class="section-desc" data-en="Admin's primary queue for reviewing and acting on all submitted procurement requests." data-ja="提出された全調達リクエストを確認・処理するAdminの主要キュー。">Admin's primary queue for reviewing all submitted procurement requests.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Case Lifecycle" data-ja="ケースのライフサイクル">Case Lifecycle</div>
+    <div class="status-flow">
+      <span class="chip">OPEN</span><span class="arrow">→</span>
+      <span class="chip blue">CLAIMED</span><span class="arrow">→</span>
+      <span class="chip blue">IN_REVIEW</span><span class="arrow">→</span>
+      <span class="chip amber">APPROVED</span>
+      <span class="arrow"> or </span>
+      <span class="chip red">REJECTED</span>
+      <span class="arrow"> or </span>
+      <span class="chip orange">ESCALATED</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Processing a Case — Step by Step" data-ja="ケース処理の手順">Processing a Case</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Review the request" data-ja="リクエストを確認">Review the request</strong><p data-en="Check items, quantities, vendor, urgency level, and any store notes. Reference the price search for benchmarks." data-ja="品目・数量・仕入先・緊急度・店舗メモを確認。価格検索でベンチマーク価格を参照します。">Check items, quantities, vendor, urgency, notes. Use price search for benchmarks.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Claim the case" data-ja="ケースをクレーム">Claim the case</strong><p data-en="Click Claim to assign the case to yourself. Status moves to CLAIMED → IN_REVIEW." data-ja="Claimをクリックして自分にアサイン。ステータスがCLAIMED → IN_REVIEWに進みます。">Click Claim to self-assign. Status → CLAIMED → IN_REVIEW.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Take action" data-ja="アクションを実行">Take action</strong><p data-en="Options: Approve (PO created + vendor email sent), Reject (with reason), Return for revision, Escalate to HQ, or Message the store." data-ja="選択肢：Approve（PO作成+メール送信）・Reject（理由付き）・修正差戻し・HQへエスカレーション・店舗へメッセージ。">Approve → PO + vendor email. Reject → with reason. Return. Escalate. Message store.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="On Approve: verify PO was sent" data-ja="承認後：PO送信を確認">On Approve: verify PO sent</strong><p data-en="Check that the vendor email was sent and the vendor's open/confirm status updates in the PO detail." data-ja="ベンダーへのメール送信を確認し、PO詳細でOpen/Confirm状態が更新されることを確認します。">Verify vendor email sent. Monitor vendor open/confirm in PO detail.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Escalation" data-ja="エスカレーション">Escalation</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Click Escalate to move the case to HQ level. Set target_role (usually HQ) and add a comment explaining why. Use when the purchase exceeds your approval authority or requires senior judgment." data-ja="EscalateをクリックしてケースをHQレベルに移動。target_role（通常HQ）を設定し、理由コメントを追加します。購入額が承認権限を超える場合や上位判断が必要な場合に使用。">Click Escalate → set target role (usually HQ) + add reason comment. Use when exceeding approval authority.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Resend Notification" data-ja="通知の再送">Resend Notification</div>
+      <p style="color:var(--muted);font-size:12px" data-en="If a store notification failed to deliver, use Resend Push on the case detail page. Each notification shows DELIVERED or FAILED status with provider reference." data-ja="店舗への通知が失敗した場合、ケース詳細ページのResend Pushを使用。各通知のDELIVERED/FAILED状態とプロバイダー参照が表示されます。">Case detail → Resend Push for failed notifications. Each shows DELIVERED / FAILED + provider ref.</p>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span data-en="The NavBar badge shows pending approvals at a glance. It refreshes automatically after each approve/reject/claim action without a page reload." data-ja="NavBarバッジで保留中の承認件数を一目で確認できます。承認・却下・クレーム操作後は自動更新されます（ページリロード不要）。">NavBar badge shows pending count — auto-refreshes after each approve/reject/claim action.</span>
+  </div>
+</div>
+
+<!-- ═══════════ CK ORDERS ═══════════ -->
+<div class="section" id="sec-ck-orders">
+  <div class="section-hero">
+    <div class="hero-icon">🏭</div>
+    <div>
+      <div class="section-title" data-en="CK Orders" data-ja="CKオーダー">CK Orders</div>
+      <div class="section-path">/admin/procurement/ck-orders  /admin/inventory/productions</div>
+      <div class="section-desc" data-en="Monitor auto-approved CK orders, track production and dispatch status, and review shortage flags." data-ja="自動承認されたCKオーダーの監視、プロダクション・ディスパッチ状態の追跡、不足フラグのレビュー。">Monitor auto-approved CK orders, production status, dispatch, and shortage flags.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Two Places to Watch" data-ja="確認が必要な2つの画面">Two Places to Watch</div>
+    <div class="two-col">
+      <div>
+        <p style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:4px">/admin/inventory/productions</p>
+        <p style="color:var(--muted);font-size:12px" data-en="Shows pending CK orders that have been auto-approved and need CK staff to start production. Each order shows branch, items, and due time." data-ja="自動承認済みでCKスタッフのプロダクション開始待ちのCKオーダーを表示。店舗・品目・期限時刻が表示されます。">Pending CK orders awaiting CK production start. Shows branch, items, due time.</p>
+      </div>
+      <div>
+        <p style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:4px">/admin/procurement/ck-orders</p>
+        <p style="color:var(--muted);font-size:12px" data-en="Shows dispatched CK orders with shortage flags. Admin reviews and follows up on shortages with CK or adjusts inventory accordingly." data-ja="ディスパッチ済みCKオーダーと不足フラグを表示。Adminが不足をCKとフォローアップするか、在庫を適宜調整します。">Dispatched orders with shortage flags. Admin follows up with CK or adjusts inventory.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="CK Staff: Managing Production at /store/ck-production" data-ja="CKスタッフ：/store/ck-productionでのプロダクション管理">CK Staff: Production at /store/ck-production</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="View pending orders" data-ja="保留オーダーを確認">View pending orders</strong><p data-en="All auto-approved CK orders from all branches appear here in order of priority." data-ja="全店舗からの自動承認済みCKオーダーが優先度順に表示されます。">All auto-approved orders from all branches shown in priority order.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Mark IN_PRODUCTION" data-ja="「製造中」にマーク">Mark IN_PRODUCTION</strong><p data-en="Click Start Production on the order. Admin and the store see the status update in real time." data-ja="オーダーのStart Productionをクリック。Adminとストアがリアルタイムでステータス更新を確認できます。">Click Start Production. Admin and store see real-time status update.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Dispatch with item quantities" data-ja="品目数量を記録してディスパッチ">Dispatch with quantities</strong><p data-en="Enter the actual quantity dispatched for each item. If an item is short, enter the lower quantity and the shortage is auto-flagged." data-ja="各品目の実際のディスパッチ数量を入力。不足品目はより少ない数量を入力すると不足が自動フラグ。">Enter dispatched qty per item. Short qty → auto-flagged as shortage.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Confirm dispatch" data-ja="ディスパッチを確定">Confirm dispatch</strong><p data-en="Click Dispatch. The order moves to the store's receiving queue and the dispatched_at timestamp is recorded." data-ja="Dispatchをクリック。オーダーが店舗の受取キューに移動し、dispatched_atタイムスタンプが記録されます。">Click Dispatch → moves to store receiving queue + `dispatched_at` recorded.</p></div></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══════════ POs & INVOICES ═══════════ -->
+<div class="section" id="sec-pos-invoices">
+  <div class="section-hero">
+    <div class="hero-icon">📄</div>
+    <div>
+      <div class="section-title" data-en="POs &amp; Invoices" data-ja="PO・インボイス管理">POs &amp; Invoices</div>
+      <div class="section-path">/admin/procurement/pos  /admin/procurement/invoices</div>
+      <div class="section-desc" data-en="Manage purchase orders sent to vendors and match incoming invoices. Two validation gates must pass before payment." data-ja="仕入先へのPO管理と受取インボイスのマッチング。支払い前に2つの検証ゲートをクリアする必要があります。">Manage POs sent to vendors. Match invoices. Two validation gates before payment.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="PO Lifecycle" data-ja="POのライフサイクル">PO Lifecycle</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="PO Created (auto on case approve)" data-ja="PO作成（ケース承認時に自動）">PO Created (auto on case approve)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="PO is auto-generated and a PDF email is sent to the vendor with a tracking pixel and confirmation link." data-ja="POが自動生成され、追跡ピクセルと確認リンク付きのPDF形式メールが仕入先に送信されます。">PO auto-generated. Vendor email sent with PDF + tracking pixel + confirmation link.</div>
+        <span class="lc-path">/admin/procurement/pos</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Vendor Opens / Confirms" data-ja="仕入先が開封・確認">Vendor Opens / Confirms</span><span class="lc-who vendor" data-en="Vendor" data-ja="仕入先">Vendor</span></div>
+        <div class="lc-detail" data-en="Tracking pixel logs email opens (open_count). Vendor clicks confirmation → receipt_confirmed_at set." data-ja="追跡ピクセルがメール開封を記録（open_count）。仕入先が確認リンクをクリック → receipt_confirmed_at が設定されます。">Pixel logs opens. Confirmation link sets `receipt_confirmed_at`.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Invoice Upload &amp; Matching" data-ja="インボイスアップロード・マッチング">Invoice Upload &amp; Matching</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="After goods are received, upload the supplier invoice and match it to the corresponding PO line items." data-ja="商品受取後、仕入先インボイスをアップロードし、対応するPO品目とマッチングします。">After receiving, upload invoice and match to PO line items.</div>
+        <span class="lc-path">/admin/procurement/invoices</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Document Gate (Phase 1)" data-ja="書類ゲート（フェーズ1）">Document Gate (Phase 1)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="document_validation.status must pass before payment can proceed. Resolve any flagged document issues first." data-ja="document_validation.statusをパスしないと支払いに進めません。フラグが立った書類の問題を先に解決してください。">`document_validation.status` must pass. Resolve flagged issues before proceeding.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot red"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Payment Gate (Phase 2)" data-ja="支払いゲート（フェーズ2）">Payment Gate (Phase 2)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="phase2_validation.status must pass before payment execution. Both gates passing is required." data-ja="phase2_validation.statusが支払い実行前にパスする必要があります。両ゲートの通過が必要です。">`phase2_validation.status` must pass before payment execution.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Invoice Intelligence" data-ja="インボイス分析">Invoice Intelligence</div>
+    <div class="section-path" style="margin-bottom:8px">/admin/procurement/invoices/intelligence</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Feature" data-ja="機能">Feature</th><th data-en="What it does" data-ja="内容">What it does</th></tr>
+      <tr><td><span class="chip blue" data-en="Drive Sync" data-ja="Driveと同期">Drive Sync</span></td><td class="muted" data-en="Syncs supplier invoices from Google Drive automatically" data-ja="仕入先インボイスをGoogle Driveから自動同期">Syncs supplier invoices from Google Drive</td></tr>
+      <tr><td><span class="chip red" data-en="Price Alerts" data-ja="価格アラート">Price Alerts</span></td><td class="muted" data-en="Flags invoices where prices deviate significantly from benchmarks" data-ja="価格がベンチマークから大きく逸脱したインボイスをフラグ">Flags significant price deviations from benchmarks</td></tr>
+      <tr><td><span class="chip orange" data-en="Integrity Alerts" data-ja="整合性アラート">Integrity Alerts</span></td><td class="muted" data-en="Detects duplicate invoices, format errors, and data inconsistencies" data-ja="重複インボイス・フォーマットエラー・データ不整合を検出">Detects duplicates, format errors, data inconsistencies</td></tr>
+      <tr><td><span class="chip violet" data-en="Spend Summary" data-ja="支出サマリー">Spend Summary</span></td><td class="muted" data-en="Breaks down spend by supplier and category with cross-market benchmarks" data-ja="仕入先・カテゴリ別の支出内訳と市場間ベンチマーク">Spend by supplier/category with cross-market benchmarks</td></tr>
+    </table></div>
+  </div>
+</div>
+
+<!-- ═══════════ PAYMENTS ═══════════ -->
+<div class="section" id="sec-payments">
+  <div class="section-hero">
+    <div class="hero-icon">💳</div>
+    <div>
+      <div class="section-title" data-en="Payments" data-ja="支払い管理">Payments</div>
+      <div class="section-path">/admin/procurement/payments</div>
+      <div class="section-desc" data-en="Manage the payment queue — hold, release, and execute vendor payments after both validation gates have passed." data-ja="支払いキューを管理 — 両方の検証ゲート通過後に仕入先への支払いを保留・解除・実行します。">Manage payment queue — hold, release, execute. Both gates must pass first.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Payment Flow" data-ja="支払いフロー">Payment Flow</div>
+    <div class="status-flow">
+      <span class="chip blue" data-en="Queued" data-ja="キュー済">Queued</span><span class="arrow">→</span>
+      <span class="chip orange" data-en="Held (optional)" data-ja="保留（任意）">Held (opt.)</span><span class="arrow">→</span>
+      <span class="chip amber" data-en="Released" data-ja="解除">Released</span><span class="arrow">→</span>
+      <span class="chip green" data-en="Executed" data-ja="実行済">Executed</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Executing a Payment" data-ja="支払いの実行">Executing a Payment</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Verify both gates have passed" data-ja="両ゲートの通過を確認">Verify both gates have passed</strong><p data-en="Phase 1 (document gate) and Phase 2 (payment gate) must both show a passing status." data-ja="フェーズ1（書類ゲート）とフェーズ2（支払いゲート）の両方がパス状態であることを確認します。">Phase 1 (document gate) and Phase 2 (payment gate) must both pass.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Check payment is not on hold" data-ja="支払いが保留でないことを確認">Check payment is not on hold</strong><p data-en="If the payment is Held, release it first using the Release action." data-ja="支払いが保留（Hold）の場合は、Releaseアクションで先に解除します。">If Held, click Release first.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Execute payment" data-ja="支払いを実行">Execute payment</strong><p data-en="Click Execute. The payment is marked as executed and the order moves toward CLOSED." data-ja="Executeをクリック。支払いが実行済みとしてマークされ、発注がCLOSEDに向かって進みます。">Click Execute → payment marked executed → order moves toward CLOSED.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Never execute a payment before both validation gates have passed. Bypassing gates can create audit compliance issues and make payment recovery difficult." data-ja="両検証ゲートがパスする前に絶対に支払いを実行しないでください。ゲートをバイパスすると監査コンプライアンス問題が発生し、支払い回収が困難になります。">Never execute payment before both gates pass. Bypassing creates audit issues and makes recovery difficult.</span>
+  </div>
+</div>
+
+<!-- ═══════════ VENDORS ═══════════ -->
+<div class="section" id="sec-vendors">
+  <div class="section-hero">
+    <div class="hero-icon">🏪</div>
+    <div>
+      <div class="section-title" data-en="Vendors &amp; Scorecards" data-ja="仕入先・スコアカード">Vendors &amp; Scorecards</div>
+      <div class="section-path">/admin/procurement/vendors  /admin/procurement/scorecards</div>
+      <div class="section-desc" data-en="Manage vendor master data and track vendor performance with KPI scorecards." data-ja="仕入先マスタデータの管理とKPIスコアカードによる仕入先パフォーマンスの追跡。">Manage vendor master data and track vendor performance with KPI scorecards.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Vendor Master" data-ja="仕入先マスタ">Vendor Master</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Register and manage all vendors. Each vendor record includes:" data-ja="全仕入先を登録・管理。各仕入先レコードには以下が含まれます：">Register and manage all vendors. Each record includes:</p>
+      <div class="chip-row">
+        <span class="chip" data-en="Name &amp; contact" data-ja="名前・連絡先">Name &amp; contact</span>
+        <span class="chip" data-en="Payment terms" data-ja="支払い条件">Payment terms</span>
+        <span class="chip" data-en="Lead time" data-ja="リードタイム">Lead time</span>
+        <span class="chip" data-en="Delivery schedule" data-ja="配送スケジュール">Delivery schedule</span>
+        <span class="chip" data-en="Categories supplied" data-ja="供給カテゴリ">Categories</span>
+        <span class="chip" data-en="Active / Inactive" data-ja="有効・無効">Active / Inactive</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Vendor Scorecards" data-ja="仕入先スコアカード">Vendor Scorecards</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Automatically computed from delivery records. Key KPIs tracked per vendor:" data-ja="納品記録から自動計算。仕入先ごとにトラッキングされる主要KPI：">Auto-computed from delivery records. Key KPIs:</p>
+      <div class="chip-row">
+        <span class="chip green" data-en="On-time delivery %" data-ja="納期遵守率%">On-time delivery %</span>
+        <span class="chip green" data-en="Quality pass rate" data-ja="品質合格率">Quality rate</span>
+        <span class="chip amber" data-en="Price variance" data-ja="価格差異">Price variance</span>
+        <span class="chip red" data-en="Claim rate" data-ja="クレーム率">Claim rate</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Emergency Vendor Whitelist" data-ja="緊急仕入先ホワイトリスト">Emergency Vendor Whitelist</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/whitelist</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Add vendors temporarily for emergency or one-off purchases without going through the standard onboarding process. Requires HQ approval." data-ja="緊急・スポット購入のために、標準オンボーディングなしで仕入先を一時的に追加。HQの承認が必要です。">Add vendors temporarily for emergencies without standard onboarding. Requires HQ approval.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Delivery Schedules" data-ja="配送スケジュール">Delivery Schedules</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/delivery-schedule</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Configure the days and time windows when each vendor delivers to each branch. Orders are matched against the delivery schedule during submission." data-ja="各仕入先が各店舗に配送する曜日と時間枠を設定。発注時に配送スケジュールと照合されます。">Configure delivery days and time windows per vendor per branch.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ RISK & KPI ═══════════ -->
+<div class="section" id="sec-risk-kpi">
+  <div class="section-hero">
+    <div class="hero-icon">📊</div>
+    <div>
+      <div class="section-title" data-en="Risk &amp; KPI" data-ja="リスク・KPI">Risk &amp; KPI</div>
+      <div class="section-path">/admin/procurement/risk-lab  /admin/procurement/kpi  /admin/procurement/exceptions</div>
+      <div class="section-desc" data-en="Proactive risk monitoring: stockout risk scoring, exception alerts, per-staff KPIs, and the approval matrix configuration." data-ja="プロアクティブなリスク監視：在庫切れリスクスコアリング・例外アラート・スタッフKPI・承認マトリックス設定。">Stockout risk, exception alerts, staff KPIs, and approval matrix configuration.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Stockout Risk" data-ja="在庫切れリスク">Stockout Risk</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/risk-lab</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The system calculates stockout risk by city based on current stock levels, consumption rates, and pending orders. Risks are color-coded by severity:" data-ja="現在の在庫水準・消費率・保留中の発注に基づき、都市ごとに在庫切れリスクを計算。重大度別に色分けされます：">Calculates risk by city from stock levels, consumption rates, and pending orders.</p>
+      <div class="chip-row">
+        <span class="chip red" data-en="Critical" data-ja="緊急">Critical</span>
+        <span class="chip orange" data-en="High" data-ja="高">High</span>
+        <span class="chip amber" data-en="Medium" data-ja="中">Medium</span>
+        <span class="chip green" data-en="Low" data-ja="低">Low</span>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Click Recompute Risk to trigger a fresh calculation." data-ja="Recompute Riskをクリックで最新計算を実行。">Click Recompute Risk for a fresh calculation.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Exception Alerts" data-ja="例外アラート">Exception Alerts</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/exceptions</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The system auto-generates exception alerts for anomalies: price spikes, late deliveries, unapproved vendors, etc." data-ja="システムが価格急騰・遅延・未承認仕入先などの異常を自動で例外アラートとして生成。">Auto-generated alerts for: price spikes, late deliveries, unapproved vendors, etc.</p>
+      <p style="color:var(--muted);font-size:12px" data-en="Admin reviews each alert, adds a review note, and dismisses when resolved. Severity and status are tracked." data-ja="Adminが各アラートを確認し、レビューメモを追加して解決時にDismissします。重大度とステータスが追跡されます。">Admin reviews → add note → Dismiss when resolved. Severity and status tracked.</p>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Staff KPI Dashboard" data-ja="スタッフKPIダッシュボード">Staff KPI Dashboard</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/kpi</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="KPI Metric" data-ja="KPI指標">KPI Metric</th></tr>
+        <tr><td class="muted" data-en="Orders processed per period" data-ja="期間中の処理発注数">Orders processed per period</td></tr>
+        <tr><td class="muted" data-en="Average approval time" data-ja="平均承認時間">Average approval time</td></tr>
+        <tr><td class="muted" data-en="Rejection rate" data-ja="却下率">Rejection rate</td></tr>
+        <tr><td class="muted" data-en="Escalation rate" data-ja="エスカレーション率">Escalation rate</td></tr>
+        <tr><td class="muted" data-en="On-time PO issue rate" data-ja="PO適時発行率">On-time PO issue rate</td></tr>
+      </table></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Click Recompute KPIs to refresh monthly data." data-ja="Recompute KPIsで月次データを更新。">Click Recompute KPIs to refresh monthly data.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Approval Matrix" data-ja="承認マトリックス">Approval Matrix</div>
+      <div class="section-path" style="margin-bottom:6px">/admin/procurement/approval-matrix</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Configure who can approve what, based on order amount and category. Higher-value orders escalate to higher approval levels automatically." data-ja="発注金額とカテゴリに基づいて誰が何を承認できるかを設定。高額発注は自動的に上位承認レベルへエスカレーション。">Configure who approves what by order amount and category. High-value orders auto-escalate.</p>
+      <div class="chip-row" style="margin-top:8px">
+        <span class="chip blue" data-en="Level 1: Store Manager" data-ja="レベル1：ストアマネージャー">L1: Store Manager</span>
+        <span class="chip amber" data-en="Level 2: Admin" data-ja="レベル2：Admin">L2: Admin</span>
+        <span class="chip red" data-en="Level 3: HQ" data-ja="レベル3：HQ">L3: HQ</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ COLD CHAIN MONITOR ═══════════ -->
+<div class="section" id="sec-cold-chain-admin">
+  <div class="section-hero">
+    <div class="hero-icon">❄️</div>
+    <div>
+      <div class="section-title" data-en="Cold Chain Monitor" data-ja="コールドチェーン監視">Cold Chain Monitor</div>
+      <div class="section-path">/admin/cold-chain</div>
+      <div class="section-desc" data-en="HQ/Admin oversight of all cold chain records across branches. Review temperature readings, time-held data, and alert flags." data-ja="全店舗のコールドチェーン記録のHQ/Admin監視。温度データ・保持時間・アラートフラグを確認。">HQ/Admin oversight of all cold chain records. Review temps, time-held, and alert flags.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="What Admin Sees" data-ja="Adminが確認できる情報">What Admin Sees</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Field" data-ja="フィールド">Field</th><th data-en="Source" data-ja="ソース">Source</th><th data-en="Purpose" data-ja="用途">Purpose</th></tr>
+      <tr><td class="muted" data-en="Dispatch timestamp" data-ja="ディスパッチタイムスタンプ">Dispatch timestamp</td><td class="muted" data-en="CK dispatch record" data-ja="CKディスパッチ記録">CK dispatch record</td><td class="muted" data-en="Verify dispatch timing" data-ja="ディスパッチタイミングの確認">Verify dispatch timing</td></tr>
+      <tr><td class="muted" data-en="Receive timestamp" data-ja="受取タイムスタンプ">Receive timestamp</td><td class="muted" data-en="Store cold chain log" data-ja="店舗コールドチェーン記録">Store cold chain log</td><td class="muted" data-en="Calculate transit time" data-ja="輸送時間の計算">Calculate transit time</td></tr>
+      <tr><td class="muted" data-en="Temperature readings (3 points)" data-ja="温度記録（3ポイント）">Temperature readings (3 points)</td><td class="muted" data-en="Store cold chain log" data-ja="店舗コールドチェーン記録">Store cold chain log</td><td class="muted" data-en="Safety compliance check" data-ja="安全性コンプライアンス確認">Safety compliance check</td></tr>
+      <tr><td class="muted" data-en="Alert flags" data-ja="アラートフラグ">Alert flags array</td><td class="muted" data-en="Auto-generated on out-of-range" data-ja="範囲外で自動生成">Auto-generated on out-of-range</td><td class="muted" data-en="Immediate follow-up required" data-ja="即時フォローアップ必要">Immediate follow-up required</td></tr>
+      <tr><td class="muted" data-en="Branch filter" data-ja="店舗フィルター">Branch filter</td><td class="muted">—</td><td class="muted" data-en="View by individual branch" data-ja="店舗ごとに閲覧">View by individual branch</td></tr>
+    </table></div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Any alert flag in cold chain records must be investigated promptly. Contact the branch manager and CK supervisor. If food safety may be compromised, follow the escalation protocol immediately." data-ja="コールドチェーン記録のアラートフラグは速やかに調査してください。店舗マネージャーとCKスーパーバイザーに連絡。食品安全が損なわれている可能性がある場合は、直ちにエスカレーションプロトコルに従ってください。">Alert flags must be investigated promptly. Contact branch manager and CK supervisor. Food safety compromise → escalation protocol immediately.</span>
+  </div>
+</div>
+
+</main>
+
+<script>
+let currentLang = 'en';
+
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+  document.querySelectorAll('[data-en]').forEach(el => {
+    const val = lang === 'ja' ? el.dataset.ja : el.dataset.en;
+    if (val !== undefined) el.innerHTML = val;
+  });
+}
+
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-' + id);
+  if (sec) sec.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+setLang('en');
+</script>
