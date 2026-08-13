@@ -49,7 +49,7 @@ const DEPARTMENTS = ["Kitchen", "Operations", "Admin", "Maintenance", "Logistics
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemRow = { id: string; name: string; amount: string };
+type ItemRow = { id: string; name: string; qty: string; unit: string; amount: string };
 type CatalogItem = { item_name: string; unit: string; supplier_name: string };
 type Entry = {
   id: string;
@@ -57,7 +57,7 @@ type Entry = {
   department: string;
   purchase_date: string;
   supplier_name: string;
-  items: { name: string; amount: number }[];
+  items: { name: string; qty?: number | null; unit?: string | null; amount: number }[];
   total_amount: number;
   receipt_url: string;
   submitted_by: string;
@@ -66,7 +66,7 @@ type Entry = {
 };
 
 function newItem(): ItemRow {
-  return { id: Math.random().toString(36).slice(2), name: "", amount: "" };
+  return { id: Math.random().toString(36).slice(2), name: "", qty: "", unit: "", amount: "" };
 }
 
 function todayLocal(): string {
@@ -244,7 +244,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       : vendorCatalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
 
   // ── Item row helpers ──
-  const updateItemField = (id: string, field: "name" | "amount", val: string) =>
+  const updateItemField = (id: string, field: "name" | "amount" | "qty" | "unit", val: string) =>
     setItems((prev) => prev.map((it) => it.id === id ? { ...it, [field]: val } : it));
 
   const handleItemNameChange = (id: string, val: string) => {
@@ -254,7 +254,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
 
   const selectCatalogItem = (rowId: string, cat: CatalogItem) => {
     setItems((prev) => prev.map((it) =>
-      it.id === rowId ? { ...it, name: cat.item_name } : it,
+      it.id === rowId ? { ...it, name: cat.item_name, unit: cat.unit || it.unit } : it,
     ));
     setActiveSuggestId(null);
   };
@@ -280,7 +280,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       supplier_name: supplier.trim(),
       items: items
         .filter((it) => it.name.trim() && parseFloat(it.amount) > 0)
-        .map((it) => ({ name: it.name.trim(), amount: parseFloat(it.amount) })),
+        .map((it) => ({
+          name: it.name.trim(),
+          qty: it.qty ? parseFloat(it.qty) : null,
+          unit: it.unit.trim() || null,
+          amount: parseFloat(it.amount),
+        })),
       total_amount: total,
       receipt_url: receiptUrl,
       notes: notes.trim(),
@@ -471,11 +476,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className={T_LABEL}>Items</p>
-            <span className={`${T_CAPTION} text-zinc-500`}>item name + amount</span>
+            <span className={`${T_CAPTION} text-zinc-500`}>name · qty · unit · amount</span>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {items.map((it) => (
               <div key={it.id} className="relative" onClick={(e) => e.stopPropagation()}>
+                {/* Row 1: Item name + trash */}
                 <div className="flex gap-2 items-center">
                   <div className="relative flex-1 min-w-0">
                     <input
@@ -509,16 +515,6 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                       </div>
                     )}
                   </div>
-                  <input
-                    type="number"
-                    value={it.amount}
-                    onChange={(e) => updateItemField(it.id, "amount", e.target.value)}
-                    placeholder="₱ 0"
-                    min="0"
-                    step="0.01"
-                    className={`${INPUT_BASE} w-28 shrink-0 text-right`}
-                    onFocus={() => setActiveSuggestId(null)}
-                  />
                   <button
                     type="button"
                     onClick={() => removeItem(it.id)}
@@ -526,6 +522,37 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                   >
                     <Trash2 size={15} />
                   </button>
+                </div>
+                {/* Row 2: Qty + Unit + Amount */}
+                <div className="flex gap-2 mt-1.5">
+                  <input
+                    type="number"
+                    value={it.qty}
+                    onChange={(e) => updateItemField(it.id, "qty", e.target.value)}
+                    placeholder="Qty"
+                    min="0"
+                    step="0.01"
+                    className={`${INPUT_BASE} w-20 shrink-0`}
+                    onFocus={() => setActiveSuggestId(null)}
+                  />
+                  <input
+                    type="text"
+                    value={it.unit}
+                    onChange={(e) => updateItemField(it.id, "unit", e.target.value)}
+                    placeholder="Unit (KG…)"
+                    className={`${INPUT_BASE} w-24 shrink-0`}
+                    autoComplete="off"
+                  />
+                  <input
+                    type="number"
+                    value={it.amount}
+                    onChange={(e) => updateItemField(it.id, "amount", e.target.value)}
+                    placeholder="₱ Amount"
+                    min="0"
+                    step="0.01"
+                    className={`${INPUT_BASE} flex-1 text-right`}
+                    onFocus={() => setActiveSuggestId(null)}
+                  />
                 </div>
               </div>
             ))}
@@ -625,9 +652,17 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                 {expanded === e.id && (
                   <div className="mt-3 pt-3 border-t border-zinc-700/50 space-y-2">
                     {e.items.map((it, i) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span className="text-zinc-300">{it.name}</span>
-                        <span className="text-zinc-400">₱ {fmtAmt(it.amount)}</span>
+                      <div key={i} className="flex justify-between text-sm gap-2">
+                        <span className="text-zinc-300">
+                          {it.name}
+                          {(it.qty || it.unit) && (
+                            <span className="text-zinc-500 text-xs ml-1.5">
+                              {it.qty != null ? `× ${it.qty}` : ""}
+                              {it.unit ? ` ${it.unit}` : ""}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-zinc-400 shrink-0">₱ {fmtAmt(it.amount)}</span>
                       </div>
                     ))}
                     {e.notes && (
