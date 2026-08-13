@@ -1797,17 +1797,19 @@ export default function ManilaPayrollPeriodPage() {
                             {run.status}
                           </span>
                         </td>
-                        <td className="py-2.5 text-center relative">
-                          {run.published_at
-                            ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
-                            : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
-                          <button
-                            title="Delete this payroll run"
-                            onClick={e => { e.stopPropagation(); deleteRun(run.id, run.staff_name); }}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-500 opacity-0 group-hover:opacity-100 hover:bg-red-900/30 hover:text-red-400 transition-all z-10"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        <td className="py-2.5 text-center">
+                          <div className="flex items-center justify-center gap-0.5">
+                            {run.published_at
+                              ? <Eye size={12} title="Published" className="text-emerald-400 shrink-0" />
+                              : <EyeOff size={12} title="Unpublished" className="text-slate-600 shrink-0" />}
+                            <button
+                              title="Delete this payroll run"
+                              onClick={e => { e.stopPropagation(); deleteRun(run.id, run.staff_name); }}
+                              className="rounded p-0.5 text-slate-600 opacity-0 group-hover:opacity-100 hover:bg-red-900/30 hover:text-red-400 transition-all"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
