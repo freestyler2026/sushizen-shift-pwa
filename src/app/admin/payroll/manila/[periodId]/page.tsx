@@ -1797,17 +1797,17 @@ export default function ManilaPayrollPeriodPage() {
                             {run.status}
                           </span>
                         </td>
-                        <td className="py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                        <td className="py-2.5 pr-1 text-center" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-0.5">
                             {run.published_at
-                              ? <span title="Published"><Eye size={13} className="text-emerald-400" /></span>
-                              : <span title="Unpublished"><EyeOff size={13} className="text-slate-600" /></span>}
+                              ? <span title="Published"><Eye size={12} className="text-emerald-400" /></span>
+                              : <span title="Unpublished"><EyeOff size={12} className="text-slate-600" /></span>}
                             <button
                               title="Delete this payroll run"
                               onClick={() => deleteRun(run.id, run.staff_name)}
-                              className="rounded p-1 text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+                              className="rounded p-px text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                         </td>
