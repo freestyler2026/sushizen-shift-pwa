@@ -36,6 +36,7 @@ type StaffProfile = {
   salary_type: string;
   hire_date: string | null;
   official_hire_date: string | null;
+  last_working_date: string | null;
   department: string | null;
   position: string | null;
   monthly_rate: string | null;
@@ -71,6 +72,7 @@ type FormState = {
   salary_type: string;
   hire_date: string;
   official_hire_date: string;
+  last_working_date: string;
   department: string;
   position: string;
   monthly_rate: string;
@@ -98,7 +100,7 @@ function emptyForm(): FormState {
     staff_name: "", bayzat_employee_id: "",
     sss_number: "", philhealth_id: "", tin: "", pagibig_mid: "",
     employment_type: "regular", salary_type: "monthly_paid",
-    hire_date: "", official_hire_date: "",
+    hire_date: "", official_hire_date: "", last_working_date: "",
     department: "", position: "",
     monthly_rate: "", daily_rate: "",
     bank_name: "", bank_account_no: "", gcash_number: "",
@@ -122,6 +124,7 @@ function profileToForm(p: StaffProfile): FormState {
     salary_type: p.salary_type,
     hire_date: p.hire_date ?? "",
     official_hire_date: p.official_hire_date ?? "",
+    last_working_date: p.last_working_date ?? "",
     department: p.department ?? "",
     position: p.position ?? "",
     monthly_rate: p.monthly_rate ?? "",
@@ -196,6 +199,7 @@ function ProfileModal({
         pagibig_mid: form.pagibig_mid.trim() || null,
         hire_date: form.hire_date || null,
         official_hire_date: form.official_hire_date || null,
+        last_working_date: form.last_working_date || null,
         department: form.department.trim() || null,
         position: form.position.trim() || null,
         monthly_rate: form.monthly_rate ? parseFloat(form.monthly_rate) : null,
@@ -400,6 +404,11 @@ function ProfileModal({
               <label className={L}>Official Hire Date</label>
               <input className={I} type="date" value={form.official_hire_date} onChange={e => set("official_hire_date", e.target.value)} />
               <p className="mt-1 text-xs text-slate-500">Used for SIL accrual (5 days after 12 months)</p>
+            </div>
+            <div>
+              <label className={L}>Last Working Date</label>
+              <input className={I} type="date" value={form.last_working_date} onChange={e => set("last_working_date", e.target.value)} />
+              <p className="mt-1 text-xs text-slate-500">Set on resignation — payroll will pro-rate and stop deductions after this date</p>
             </div>
 
             {/* Government IDs */}
@@ -654,6 +663,7 @@ export default function StaffProfilesPage() {
         salary_type: p.salary_type,
         hire_date: p.hire_date || null,
         official_hire_date: p.official_hire_date || null,
+        last_working_date: p.last_working_date || null,
         department: p.department || null,
         position: p.position || null,
         monthly_rate: p.monthly_rate ? parseFloat(p.monthly_rate) : null,
@@ -867,6 +877,9 @@ export default function StaffProfilesPage() {
                         <td className={TABLE_CELL + " px-4 py-3"}>
                           <p className="font-semibold text-white">{p.staff_name}</p>
                           {p.department && <p className="text-xs text-slate-500">{p.department}</p>}
+                          {p.last_working_date && (
+                            <p className="text-xs text-amber-400 mt-0.5">Last day: {p.last_working_date}</p>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-center">
                           {p.bayzat_employee_id ? (
