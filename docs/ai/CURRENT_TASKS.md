@@ -1,6 +1,29 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (Jennyleen Jul 31 DTR fix — PATCH API bug fixed + DB corrected, Heroku f65a858)
+Last updated: 2026-08-13 (Bayzat removal — all Bayzat code removed from frontend + backend, Heroku v1906 + Vercel 7801164)
+
+---
+
+## ✅ Completed: Bayzat removal — all Bayzat code removed (2026-08-13, Heroku v1906 + Vercel 7801164)
+
+**Scope**: Bayzat contract ended. Removed ALL Bayzat-related code from frontend and backend.
+
+**Backend removals** (`sushizen_shift_app_clean/app/main.py`, commit e38cea8):
+- `_parse_bayzat_shift_times` helper
+- `manila_sync_dtr_from_bayzat` — POST `/api/admin/manila-payroll/sync-dtr`
+- `manila_staff_auto_match_bayzat` — POST `/api/admin/manila-payroll/staff-profiles/auto-match`
+- `api_admin_attendance_bayzat_delete` — DELETE `/api/admin/attendance/bayzat/{record_id}`
+- `api_admin_backoffice_eval_bayzat_sync` — POST `/api/admin/backoffice-evaluation/bayzat-sync`
+- `_load_bayzat_service_account_info`, `_get_drive_service`, `_bayzat_service_account_email`
+- All `api_admin_attendance_drive_*` endpoints (~1244 lines)
+- `api_import_bayzat_timesheet_csv`
+- `api_bayzat_parse` — POST `/api/admin/shifts/bayzat_parse`
+- `api_bayzat_excel_bulk_import` — POST `/api/admin/shifts/bayzat_excel_bulk_import`
+
+**Frontend removals** (`sushizen-shift-pwa`, commit 7801164):
+- Deleted 5 pages: `admin/attendance/` hub + employees + history + import + locations
+- `admin/page.tsx`: Bayzat sync button, `syncAttendanceNow`, `normalizeAttendanceSyncMessage`
+- `admin/manual-shift/page.tsx`: Bayzat import modal, `handleBayzatFile`, `applyBayzatToGrid`, `applyBayzatToAllBranches`, `BayzatRow`/`BayzatResult` types, `BAYZAT_NAME_MAP`, all Bayzat state vars — and orphaned dangling modal JSX fixed
 
 ---
 
