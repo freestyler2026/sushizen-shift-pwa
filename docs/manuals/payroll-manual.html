@@ -388,6 +388,8 @@ td.muted{color:var(--muted);font-size:12px}
       <tr><th data-en="Field" data-ja="フィールド">Field</th><th data-en="Purpose" data-ja="目的">Purpose</th><th data-en="Used by" data-ja="使用先">Used by</th></tr>
       <tr><td><code>monthly_rate</code></td><td class="muted" data-en="Gross monthly salary" data-ja="月次総支給額">Gross monthly salary</td><td class="muted">Basic pay, statutory deductions</td></tr>
       <tr><td><code>hire_date</code></td><td class="muted" data-en="Employment start date (for new hire pro-ration)" data-ja="入社日（新入社員日割り用）">Employment start date</td><td class="muted">New hire pro-ration</td></tr>
+      <tr><td><code>official_hire_date</code></td><td class="muted" data-en="Regularization date — used for SIL accrual (5 days after 12 months)" data-ja="正規化日 — SIL積立に使用">Regularization date (optional)</td><td class="muted">SIL accrual</td></tr>
+      <tr><td><code>last_working_date</code></td><td class="muted" data-en="Last day on payroll — set when staff resigns mid-period" data-ja="給与最終日 — 月中退職時に設定">Last day on payroll (resignations)</td><td class="muted">Mid-period pay pro-ration; stops absence deductions after this date</td></tr>
       <tr><td><code>sss_number</code></td><td class="muted">SSS ID</td><td class="muted">SSS contributions, R-3 report</td></tr>
       <tr><td><code>philhealth_id</code></td><td class="muted">PhilHealth ID</td><td class="muted">PH contributions, RF-1 report</td></tr>
       <tr><td><code>pagibig_mid</code></td><td class="muted">Pag-IBIG MID</td><td class="muted">PI contributions, MCRF report</td></tr>
@@ -417,6 +419,20 @@ td.muted{color:var(--muted);font-size:12px}
         <tr><td><code>medical_allowance</code></td><td class="muted">₱250</td></tr>
       </table></div>
       <p style="color:var(--muted);font-size:11px;margin-top:6px" data-en="Amounts within caps reduce BIR taxable base. Excess over cap is taxable." data-ja="上限内の金額はBIR課税基準を減少させます。上限超過分は課税対象。">Within caps → reduces BIR taxable base. Excess → taxable.</p>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:3px solid var(--warning)">
+    <div class="card-title" data-en="Mid-Period Hire &amp; Resignation Handling" data-ja="月中入社・退職の処理">Mid-Period Hire &amp; Resignation Handling</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.7">
+      <p data-en="When a staff member joins or resigns in the middle of a pay period, payroll automatically pro-rates their pay:" data-ja="スタッフが給与期間の途中で入社または退職した場合、給与は自動的に日割り計算されます：">When hire or resign falls mid-period, payroll automatically pro-rates:</p>
+      <ul style="margin:8px 0 0 16px">
+        <li data-en="<strong>New hire</strong>: set hire_date. Compute All calculates basic pay from hire_date (or official_hire_date) to period end. Pre-employment days are auto-set to rest days — no absence deductions." data-ja="<strong>新入社員</strong>：hire_dateを設定。Compute Allが入社日から期末まで基本給を計算。入社前日は自動的に休日に設定（欠勤控除なし）。"><strong>New hire</strong> — set <code>hire_date</code>. Engine pays from hire_date → period end. Pre-employment days auto-set to rest (no deductions).</li>
+        <li data-en="<strong>Resignation</strong>: set last_working_date. Engine pays from period start → last_working_date and stops all deductions after that date. Post-resignation days auto-set to rest." data-ja="<strong>退職</strong>：last_working_datを設定。エンジンは期間開始から最終勤務日まで支払い、以降の控除を停止。退職後の日は自動的に休日に設定。"><strong>Resignation</strong> — set <code>last_working_date</code>. Engine pays period start → last_working_date. Post-resignation days auto-set to rest (no deductions).</li>
+        <li data-en="The system auto-syncs last_working_date from HR Separation records if not set manually." data-ja="手動設定がない場合、HR Separationレコードからlast_working_dateが自動同期されます。">The system auto-syncs <code>last_working_date</code> from HR Separation records if not set manually.</li>
+        <li data-en="Both conditions can combine: a staff member hired and resigned in the same period gets paid only for working days between hire and last_working_date." data-ja="両条件を組み合わせることもできます：同じ期間内に入社・退職したスタッフは入社日から最終勤務日までの勤務日分のみ支払われます。">Both conditions can combine in one period (early hire + early resign).</li>
+      </ul>
+      <p style="margin-top:10px;color:var(--warning)" data-en="⚠️ After setting last_working_date, run Compute All to apply the pro-ration. The table shows an amber &quot;Last day: YYYY-MM-DD&quot; badge for any staff with this field set." data-ja="⚠️ last_working_dateを設定後、Compute Allを実行して日割りを適用。このフィールドが設定されたスタッフは一覧にオレンジ色の「Last day: YYYY-MM-DD」バッジが表示されます。">⚠️ After setting, run Compute All. Staff with this field show an amber "Last day" badge in the table.</p>
     </div>
   </div>
 
@@ -544,16 +560,29 @@ td.muted{color:var(--muted);font-size:12px}
 
   <div class="two-col">
     <div class="card">
-      <div class="card-title" data-en="Tab 2 — Bayzat Sync" data-ja="タブ2 — Bayzat同期">Tab 2 — Bayzat Sync</div>
+      <div class="card-title" data-en="Tab 2 — Sync from OS Attendance" data-ja="タブ2 — OS出退勤から同期">Tab 2 — Sync from OS Attendance</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="From Aug 2026, use this tab instead of Bayzat (Bayzat contract ended July 2026). Pulls punch-in/out logs from the OS attendance system." data-ja="2026年8月以降、Bayzatの代わりにこのタブを使用（Bayzat契約は2026年7月終了）。OSの打刻ログを取り込みます。">From Aug 2026: use this tab (Bayzat ended July 2026). Pulls punch-in/out logs from OS attendance.</p>
       <ol class="steps">
-        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Preview sync" data-ja="同期をプレビュー">Preview sync</strong><p data-en="Click Preview to see what Bayzat data will be imported. Review unmatched employees and errors." data-ja="Previewをクリックしてインポートされるデータを確認。未マッチ従業員とエラーを確認。">Click Preview — shows what Bayzat will import. Check unmatched employees.</p></div></li>
-        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fix unmatched staff" data-ja="未マッチスタッフを修正">Fix unmatched staff</strong><p data-en="Unmatched means the Bayzat employee_id isn't linked to a staff profile. Run Auto-match in Staff Profiles first." data-ja="未マッチはBayzat従業員IDがプロファイルに紐付いていないことを意味します。まずスタッフプロファイルでAuto-matchを実行。">Unmatched = Bayzat employee_id not linked. Run Auto-match in Staff Profiles.</p></div></li>
-        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Confirm sync" data-ja="同期を確認">Confirm sync</strong><p data-en="Click Sync to commit the records. Existing records for the same staff/date are overwritten." data-ja="Syncをクリックして記録を確定。同一スタッフ/日付の既存記録は上書きされます。">Click Sync. Existing records for same staff/date are overwritten.</p></div></li>
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the payroll period" data-ja="給与期間を選択">Select the payroll period</strong><p data-en="The date range is pre-filled from the selected period." data-ja="選択した期間から日付範囲が自動入力されます。">The date range is pre-filled from the selected period.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Preview Sync first" data-ja="最初に「Preview Sync」をクリック">Click Preview Sync first</strong><p data-en="Shows what will be synced without writing to the database. Check the result for warnings before running the real sync." data-ja="DBに書き込まずに何が同期されるかを表示します。実際の同期を実行する前に警告を確認してください。">Shows what will be synced without writing to the DB. Review all warnings before proceeding.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review sync warnings" data-ja="同期の警告を確認">Review sync warnings</strong>
+          <p data-en="Two warning types may appear:" data-ja="2種類の警告が表示される場合があります：">Two warning types may appear:</p>
+          <ul style="margin-top:6px;padding-left:16px;font-size:12px;color:var(--muted);line-height:1.8">
+            <li><strong style="color:var(--warning)">Unmatched Staff</strong> — OS name not found in Manila Staff Profiles. The sync still proceeds but the row is flagged. Usually ex-staff or temporary guests. No action needed unless they are active Manila staff (update their Staff Profile name to match).</li>
+            <li><strong style="color:var(--danger)">Shift schedule not found</strong> — The staff's name exists in OS attendance but has no published shift for this period. The system cannot determine their rest day, so it defaults to ordinary day. <strong>Fix:</strong> check whether the shift is published for that staff. If it's a name mismatch between the shift system and OS attendance, contact a developer to add a name mapping.</li>
+          </ul>
+        </div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Click Sync from OS Attendance" data-ja="「OS出退勤から同期」をクリック">Click Sync from OS Attendance</strong><p data-en="Writes all punch sessions to DTR records. Rows already manually approved (approval_status = approved) are protected and will not be overwritten." data-ja="全パンチセッションをDTR記録に書き込みます。手動承認済みの行（approval_status = approved）は保護され、上書きされません。">Writes sessions to DTR records. Manually approved rows are protected — sync will not overwrite them.</p></div></li>
+        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Run DTR pre-check via Compute All" data-ja="Compute AllでDTR事前チェックを実行">Run DTR pre-check via Compute All</strong><p data-en="After sync, click Compute All on the Period Detail page — the pre-check will catch overnight date errors and unscheduled absences automatically." data-ja="同期後、期間詳細ページのCompute Allをクリック。事前チェックが深夜シフト日付エラーと未スケジュール欠勤を自動検出します。">After sync, Compute All → DTR pre-check catches overnight errors and unscheduled absences.</p></div></li>
       </ol>
+      <div class="tip danger">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="Closing shift staff (15:30–00:30) may have their checkout recorded as same calendar day as check-in. The system auto-corrects this during sync. If a time_out ≤ time_in error still appears in the DTR pre-check, use Edit DTR to set the Time Out date to the next day." data-ja="クロージングシフトスタッフ（15:30〜00:30）の退勤がチェックインと同日として記録される場合があります。同期時に自動修正されますが、DTR事前チェックでエラーが残る場合はDTR編集で翌日に設定してください。">Closing shift (15:30–00:30): checkout may record as same day as check-in. Sync auto-corrects this. If time_out ≤ time_in still appears in DTR pre-check, use Edit DTR → set Time Out to next day.</span>
+      </div>
     </div>
     <div class="card">
       <div class="card-title" data-en="Tab 3 — OT Approvals Sync" data-ja="タブ3 — OT承認同期">Tab 3 — OT Approvals Sync</div>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="After OT requests are approved in the OT system, sync them here to update approved_ot_hours in the attendance records. This overrides the raw computed OT hours from the CSV/Bayzat upload." data-ja="OTシステムでOTリクエストが承認された後、ここで同期して出退勤記録のapproved_ot_hoursを更新。CSV/Bayzatアップロードから計算された生OT時間を上書きします。">After OT requests are approved, sync here to update approved_ot_hours. Overrides raw computed OT.</p>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="After OT requests are approved in the OT system, sync them here to update approved_ot_hours in the attendance records. This overrides the raw computed OT hours from the OS sync." data-ja="OTシステムでOTリクエストが承認された後、ここで同期して出退勤記録のapproved_ot_hoursを更新。OS同期から計算された生OT時間を上書きします。">After OT requests are approved, sync here to update approved_ot_hours. Overrides raw computed OT from OS sync.</p>
       <div class="tip danger">
         <span class="tip-icon">⚠️</span>
         <span data-en="Always sync OT approvals AFTER uploading the base DTR — syncing before the DTR upload will have no effect as there are no attendance rows to update." data-ja="必ず基本DTRアップロード後にOT承認を同期してください。DTRアップロード前に同期しても更新する出退勤行がないため効果がありません。">Always sync OT approvals AFTER uploading DTR — syncing first has no effect (no rows to update).</span>
@@ -652,6 +681,33 @@ td.muted{color:var(--muted);font-size:12px}
       <tr><td><code>SIL_EARNED</code></td><td class="muted" data-en="Service Incentive Leave (if paid_leave_flag used)" data-ja="有給休暇（paid_leave_flag使用時）">SIL (if paid_leave_flag used)</td><td class="muted">Yes</td></tr>
       <tr><td><code>13TH_MONTH_ACCRUAL</code></td><td class="muted" data-en="monthly_basic ÷ 12 — reference only, excluded from gross" data-ja="月次基本 ÷ 12 — 参照のみ、総支給に含まず">monthly_basic ÷ 12 — reference only, excluded from gross</td><td class="muted">No</td></tr>
     </table></div>
+  </div>
+
+  <!-- DTR Pre-check -->
+  <div class="card blue-border">
+    <div class="card-title" data-en="DTR Pre-check — What Happens When You Click Compute All" data-ja="DTR事前チェック — Compute All実行時の挙動">DTR Pre-check — What Happens When You Click Compute All</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Before running the engine, Compute All performs a DTR integrity check and shows a modal if any issues are found. This prevents wrong undertime/absence deductions from reaching payslips." data-ja="エンジン実行前に、Compute AllがDTR整合性チェックを実行し、問題が見つかった場合はモーダルを表示します。誤った早退/欠勤控除が給与明細に反映されるのを防ぎます。">Before running the engine, Compute All checks DTR integrity and shows a modal if issues are found. Prevents wrong deductions reaching payslips.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Severity" data-ja="重要度">Severity</th><th data-en="Condition" data-ja="条件">Condition</th><th data-en="Action required" data-ja="必要なアクション">Action required</th></tr>
+      <tr>
+        <td><span class="chip red">ERROR</span></td>
+        <td class="muted" data-en="undertime_minutes &gt; 480, or actual_time_out ≤ actual_time_in" data-ja="undertime_minutes &gt; 480、またはactual_time_out ≤ actual_time_in">undertime_minutes &gt; 480, or time_out ≤ time_in</td>
+        <td class="muted" data-en="Compute All is blocked. Fix the DTR record first (Edit DTR → correct Time Out date to next day), then retry." data-ja="Compute Allがブロックされます。DTR記録を修正してから再試行してください（Edit DTR → Time Outを翌日に修正）。">Compute All blocked. Fix DTR (Edit DTR → set Time Out to next day) then retry.</td>
+      </tr>
+      <tr>
+        <td><span class="chip amber">WARNING</span></td>
+        <td class="muted" data-en="Absent day with no published shift (unscheduled rest day)" data-ja="シフト未公開の欠勤日（未スケジュール休日）">Absent with no published shift — likely rest day</td>
+        <td class="muted" data-en="Auto-fixed by Compute All (marks as scheduled rest day before running engine). Or click 'Compute Anyway' to proceed." data-ja="Compute Allが自動修正（エンジン実行前に休日として設定）。または「Compute Anyway」をクリックして続行。">Auto-fixed by Compute All. Or click "Compute Anyway (warnings only)" to proceed.</td>
+      </tr>
+    </table></div>
+    <div class="tip info" style="margin-top:10px">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="The pre-check only flags issues for staff who have an active Manila payroll profile. Staff without a profile are skipped by the engine and their DTR issues are not shown." data-ja="事前チェックはアクティブなマニラ給与プロファイルを持つスタッフのみを対象とします。プロファイルのないスタッフはエンジンにスキップされるため表示されません。">Pre-check only flags issues for staff with an active Manila payroll profile. Staff without a profile are skipped.</span>
+    </div>
+    <div class="tip danger" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="After using Edit DTR to fix a Time Out date, always click Recompute on that staff's run — the engine won't automatically clear stale undertime_minutes from a previous compute." data-ja="Edit DTRでTime Out日付を修正した後は、必ずそのスタッフのランでRecomputeをクリックしてください。エンジンは以前の計算から古いundertime_minutesを自動クリアしません。">After Edit DTR, always click Recompute on that staff's run — the engine won't auto-clear stale undertime from a previous compute.</span>
+    </div>
   </div>
 
   <div class="two-col">

@@ -1,6 +1,222 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (Bayzat removal — all Bayzat code removed from frontend + backend, Heroku v1906 + Vercel 7801164)
+Last updated: 2026-08-13 (last_working_date feature deployed: Heroku v1921 + Vercel c9f448a)
+
+---
+
+## ⏳ Pending: Period 5 DTR — HR confirmation required
+
+### Cristella Marie Tayor — Late arrival fix needed
+- Aug 2: Approved row (ID 21451) has wrong late_minutes=0 (should be 33). Fix via Edit DTR → set shift start 15:30 → Recompute. Manual calculation: **₱51.91** is correct.
+- Aug 3: Pending row (ID 21452) has late_minutes=0 (should be 4 min). Fix via Edit DTR → set shift start 15:30 → Recompute. Manual calculation: **₱6.29** is correct.
+- ALSO: Duplicate row issue — "Cristella Marie Tayor" and "Cristella Marie C. Tayor" both exist in DB. Needs deduplication to avoid double-counting in Compute All.
+
+### Staff requiring HR investigation (cannot fix without HR input):
+1. **Wallen Galisanao Jul 26**: 10:02 → 07:05+1day (21h). What was actual clock-out time?
+2. **Tricia Andrea Estrada**:
+   - Aug 3: 00:06→00:31 (25 min, UT=1439). Main evening shift session missing. HR investigation needed.
+   - Aug 5: 15:41→21:09 (UT=201 min). Was early departure approved?
+   - Aug 6: 14:55→翌10:04 (19h). **Forgotten clock-out** — fix time_out to ~00:30 Aug 7.
+   - Aug 7: 13:05→22:03 (UT=147 min). Early departure — was this approved?
+3. **John Rey Diaz Aug 9**: 15:24→18:50 (UT=340 min ≈ 5.7h early). Reason?
+4. **Xydney aerol Y. Buenaseda Jul 27**: 13:12→17:03 (UT=296 min ≈ 4.9h early). Reason?
+5. **Richard S. Gante Aug 5**: 10:58→17:00 (UT=180 min ≈ 3h early). Reason?
+
+### After HR confirmations:
+- Fix clock times via Edit DTR
+- Run Compute All for Period 5
+- Verify Louiela and Cristella recomputed values
+
+---
+
+## ✅ Completed: last_working_date — mid-period resignation support (2026-08-13, Heroku v1921 + Vercel c9f448a)
+
+### What was implemented
+- **db.py**: `ALTER TABLE manila_staff_profiles ADD COLUMN IF NOT EXISTS last_working_date DATE` (auto-migrates on startup)
+- **main.py**: Pre-compute adds 3rd UPDATE — sets `day_type='rest_day'` for days after `last_working_date`; auto-syncs from `hr_separation` when field is NULL; PUT endpoint saves field
+- **manila_payroll_engine.py**: `StaffProfile.last_working_date` field; unified hire+resign base pay pro-ration (`MONTHLY_BASIC_PRORATED`); attendance filter excludes post-resignation rows
+- **staff-profiles/page.tsx**: Form field, type/state, `save()` body, `deactivateProfile()` body; amber "Last day" badge in table
+
+### Current state in DB
+- Tricia Andrea Estrada: `last_working_date = 2026-08-10` (last day of Period 5 → full period pay, no change needed)
+- Aaron Jay Pamplona: `last_working_date = 2026-08-31` (synced from hr_separation)
+
+### Action required
+- To handle a mid-period resignation: Staff Profiles → Edit → set Last Working Date → Save → Compute All
+- After Compute All, verify `MONTHLY_BASIC_PRORATED` appears in the staff's payroll slip
+
+---
+
+## ✅ Completed: Pre-employment absence deduction fix (2026-08-13, Heroku v1920)
+
+### Root cause (Anthony Andales ₱769.27×3 for Jul 26-28)
+- Anthony's hire_date = 2026-07-30, but DB had `ordinary_day / is_worked=FALSE` rows for Jul 26-28
+- Old pre-compute in `manila_compute_period`: set `is_scheduled_rest_day=TRUE` but NOT `day_type='rest_day'`
+- Payroll engine `_calc_absence_deduction` checks ONLY `day_type` — ignored `is_scheduled_rest_day` entirely
+- Result: pre-compute was silently broken; deductions applied despite is_scheduled_rest_day=TRUE
+
+### Three-layer fix deployed (Heroku v1920)
+1. **Pre-compute fix (main.py)**: SET clause now includes `day_type = 'rest_day'` alongside `is_scheduled_rest_day = TRUE`. Previous code only set `is_scheduled_rest_day`, which the engine ignores.
+2. **Hire-date pre-compute (main.py)**: New second UPDATE marks all rows with `work_date < hire_date` as `rest_day` — catches pre-employment days even if `is_scheduled_rest_day` was already TRUE (which would skip the first UPDATE's WHERE guard).
+3. **Engine filter (manila_payroll_engine.py)**: Filters out pre-employment attendance rows before the payroll loop — safety net when `compute_payroll_for_staff` is called directly without a full period pre-compute.
+
+### Action required
+- Once Wallen Galisanao Jul 26 clock-out is corrected, run **Compute All for Period 5**
+- Anthony's ₱769.27×3 = ₱2,307.81 spurious deductions will be eliminated automatically
+
+---
+
+## ✅ Completed: OS Sync hard blocks — prevent data corruption (2026-08-13, Heroku v1919 + Vercel 24f3167)
+
+### Root cause of July–Aug 2026 rest_day corruption:
+17 rows got wrong `day_type=rest_day` on Sundays (Jul 26, Aug 2, Aug 9) because:
+1. Wrong name mappings in `_MANILA_SHIFT_TO_ATT` caused staff to not be found in shift_staff_names
+2. Old Sunday fallback (`d.weekday() == 6`) assigned rest_day when shift data was missing
+
+### Preventive safeguards added:
+**Guard 1 — shift_data_missing blocks sync** (`main.py` line ~37910):
+- If ANY staff has an OS session but no published shift → actual sync returns `shift_data_missing_blocked`
+- Admin must fix the shift schedule or staff name, then re-run Preview → Sync
+- Frontend shows 🚫 red block; Sync button disabled
+
+**Guard 2 — suspicious_sessions blocks sync** (`main.py` line ~37785):
+- Sessions > 13 hours flagged as `suspicious_sessions` (threshold: `_MAX_SESSION_HOURS = 13`)
+- Sync blocked unless `allow_suspicious_sessions=true` body param passed
+- Frontend shows 🚫 orange block with session details (staff, date, CI→CO, duration); Sync button disabled
+- This would have caught Tricia Aug 6 (19h), Wallen Jul 26 (21h)
+
+---
+
+## ✅ Completed: OS Sync shift_data_missing — bugs found and fixed (2026-08-13, Heroku v1917/v1918 + Vercel 2273e00)
+
+### Bugs found during testing:
+
+**Bug 1 — Wrong `_MANILA_SHIFT_TO_ATT` mappings (Heroku v1917/v1918)**
+- All 10 entries in `_MANILA_SHIFT_TO_ATT` were wrong: they mapped shift names to non-existent OS attendance names
+- Root cause: OS attendance uses the SAME names as the shift system for these staff, so any mapping was counterproductive (made shift_staff_names contain mapped names that no OS session would ever match)
+- Evidence: all 10 mapping keys appeared in `shift_data_missing` (the alert worked as designed to expose this)
+- Fix: cleared all 10 wrong entries; shift_data_missing dropped from **10 → 1 genuine name mismatch**
+- Cristella mapping was correct (shift: "Cristella Marie C. Tayor", OS attendance: "Cristella Marie Tayor") → restored only her entry
+
+**Bug 2 — Wrong text in preview mode (Vercel 2273e00)**
+- Warning showed "Synced as ordinary day" even in Preview Sync mode (nothing had been synced yet)
+- Fix: text is now dynamic — "Would sync as ordinary day" in preview, "Synced as ordinary day" after real sync
+
+### Remaining shift_data_missing (2 staff — genuine data issues, not code bugs):
+- **Cristella Marie C. Tayor** — Some OS sessions use "C. Tayor" variant. Mapping handles "Cristella Marie Tayor" variant. Data inconsistency in OS attendance app (same person, two name formats).
+- **Junowel Coronado Trespecios** — No published shift in this period. Alert correctly surfaces this for admin review.
+
+### Payroll manual updated
+- Tab 2 (OS Attendance Sync) expanded with: Preview Sync step, Unmatched Staff warning explanation, Shift schedule not found warning + fix instructions, approved-row protection note
+
+---
+
+## ✅ Completed: OS Sync Sunday fallback removal + shift_data_missing alert (2026-08-13, Heroku v1916 + Vercel e4fcce4)
+
+**Problem**: When a staff member's shift data was not found in OS Sync, the code used `d.weekday() == 6` (Sunday) as a rest-day fallback, creating incorrect `is_day_off=True` records for staff whose actual rest day is not Sunday (e.g., Cristella's rest day is Wednesday).
+
+**Fix — Backend** (`main.py`, `manila_sync_dtr_from_os_attendance`):
+- Removed Sunday fallback entirely
+- Staff with no shift data get `is_day_off = False` (treated as ordinary day)
+- Their names are collected into `shift_data_missing_names` set
+- Both preview and final sync responses now include `"shift_data_missing": [...]`
+
+**Fix — Frontend** (`/admin/payroll/manila/dtr-upload/page.tsx`):
+- Added `shift_data_missing?: string[]` to SyncResult type
+- Red warning block shown after sync when staff are in `shift_data_missing`:
+  - "⚠️ Shift schedule not found (N staff) — rest day could not be determined. Synced as ordinary day."
+  - Shows name chips for each affected staff member
+  - Instructs admin to add a name mapping or fix the shift system name
+
+**Why**: Admin explicitly requested this — wrong data from silent fallback creates more correction work than a visible alert.
+
+---
+
+## ✅ Completed: Manila Payroll Period 5 — Discord bot + Louiela + Cristella fixes (2026-08-13)
+
+### Discord Notification Bot (Heroku v1913)
+- `send_discord_dm()` in `discord_webhook.py` now prefers `Notification_bot` env var (green bot for late-shift alerts)
+- Falls back to `DISCORD_BOT_TOKEN` (product scoring bot) only if `Notification_bot` is absent
+- `Notification_bot` config var added to Heroku (was at 60,100 bytes; freed space by removing old vars first)
+
+### Louiela Chica — Aug 09 corrected (DB + frontend + sync guard)
+- **Root cause (1)**: OS Sync was overwriting manual DB fixes (full overwrite for any row with an OS session)
+- **Root cause (2)**: Frontend `saveRow` was passing stale `is_worked`/`undertime_minutes`/`absent_without_pay` from DB row instead of deriving from edited time fields
+- **Fix — DB**: `approval_status='approved'` guard added to OS Sync `ON CONFLICT DO UPDATE` (v1914); sync now skips approved rows
+- **Fix — Frontend**: `saveRow` derives `derivedIsWorked`, `derivedUndertime`, `derivedAWP` from edited `time_in`/`time_out` before PATCH (commit c7748a0)
+- **Fix — Data**: Aug 09 OS session deleted (it was falsely entered by back office); row set to `approval_status='approved'`
+- Status: Recompute needed to confirm ABSENT_DEDUCTION shows
+
+### Cristella Marie Tayor — Aug 10 ND + day_type errors (DB + name mapping)
+- **ND fix**: ATO updated from `06:42` → `00:30` (correct closing-shift checkout). Will give 2.5h ND = ₱23.60 on Recompute
+- **day_type errors** (Aug 2/9 wrongly Rest Day Work, Aug 5 wrongly Ordinary):
+  - Root cause: Cristella's shift-system name "Cristella Marie C. Tayor" ≠ OS attendance name "Cristella Marie Tayor"
+  - Name mapping added to `_MANILA_SHIFT_TO_ATT` in main.py (v1915)
+  - DB day_types corrected directly: Aug 2/9 → `ordinary`, Aug 5 → `rest_day`
+- Status: Recompute needed to confirm
+
+---
+
+## 🔴 Pending: Wallen Galisanao Jul 26 DTR — HR confirmation needed
+
+**Issue**: `actual_time_in=10:02, actual_time_out=07:05` (same day, ATO < ATI). Both are morning times, so this is NOT an overnight date bug — it's a genuine data error.
+**Cannot auto-fix**: Correct checkout time is unknown. Must be verified with Wallen or HR.
+**Impact**: This 1 ERROR blocks Compute All for Period 5. Fix via Edit DTR once correct time is confirmed.
+
+---
+
+## 🔴 Pending: Manila Payroll Period 5 — Compute All blocked until Wallen Jul 26 fixed
+
+After fixing Wallen's DTR: click Compute All → modal will show only warnings (auto-fixed) → "Compute Anyway" to proceed.
+
+**10 auto-fix WARNINGS** (unscheduled absences → will be marked as rest days by Compute All):
+Aaron Jay Pamplona Jul 30/31, Aldrin Jay Alowa Jul 31, Anthony Andales Jul 26/27/28, Anthony M. Tabios Jul 31, Cyrine Fernandez Jul 30, Karen Jane Borja Jul 31, Rhemar Guerrero Jul 30.
+
+---
+
+## ✅ Completed: Manila Payroll Period 5 — DTR systemic fixes + pre-check system (2026-08-13)
+
+### DB fixes (direct SQL, 6 overnight date errors corrected)
+All had `actual_time_out` stored as same-day (OS sync rollover bug). Fixed by adding 1 day + zeroing undertime:
+- Cristella Marie Tayor: Jul 27, Jul 28
+- Jennyleen Valera Pepelar: Jul 31, Aug 09
+- Abegail A. Dalida: Aug 09
+- Nicko Villacorte: Jul 28
+
+### Backend improvements (Heroku)
+
+**1. Engine undertime recalculation** (`manila_payroll_engine.py`):
+- When closing-shift worker's `actual_time_out >= shift_end_dt`, engine now zeros any stale `undertime_minutes` from DB.
+- Previously: stale value from OS sync dominated even after Edit DTR fixed the time.
+
+**2. OS Sync overnight date fix** (`main.py`, `manila_sync_dtr_from_os_attendance`):
+- Added `if co_mnl <= ci_mnl: co_mnl += timedelta(days=1)` guard after `_to_mnl_naive()` conversion.
+- Prevents checkout of closing shift (00:30) being stored as same calendar day as check-in (15:30).
+
+**3. New DTR Check endpoint** (`GET /api/admin/manila-payroll/periods/{period_id}/dtr-check`):
+- Returns 3 issue types: `high_undertime` (>480 min), `time_out_before_time_in`, `unscheduled_absence`
+- Active-staff filter: only flags staff with `is_active=TRUE` in `manila_staff_profiles`
+- Deduplication: same staff+date appears in at most one issue (highest severity wins)
+
+**4. Compute All auto rest-day pre-step** (`manila_compute_period`):
+- Before running engine, marks all `is_worked=FALSE, is_scheduled_rest_day=FALSE, absent_without_pay=FALSE` rows that have no published shift as `is_scheduled_rest_day=TRUE`.
+- Prevents "absent with no shift = AWP deduction" for routine rest days.
+
+**5. DTR check deduplication fix** (`main.py`, issues endpoint):
+- `seen` dict keyed by (staff_name, work_date); error beats warning.
+- Sorted errors-first.
+
+### Frontend improvements (Vercel)
+**DTR Issues modal** (`/admin/payroll/manila/[periodId]/page.tsx`):
+- `computeAllWithCheck()` calls `/dtr-check` first; shows modal if any issues found
+- ERRORs block Compute All; WARNINGs show "Compute Anyway (warnings only)" button
+- Count summary added: "1 error · 10 warnings"
+- `max-h-72` → `max-h-[50vh]` so all items visible without guessing scroll exists
+
+### Payroll manual updated (`docs/manuals/payroll-manual.html`, republished to Artifact)
+- Tab 2: Bayzat → "Sync from OS Attendance" (Bayzat ended July 2026)
+- New "DTR Pre-check" card in Compute Payroll section documenting ERROR/WARNING behavior
+- Warning note about overnight date + Recompute requirement after Edit DTR
 
 ---
 
