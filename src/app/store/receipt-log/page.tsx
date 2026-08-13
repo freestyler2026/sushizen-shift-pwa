@@ -435,6 +435,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
               value={supplier}
               onChange={(e) => { setSupplier(e.target.value); setSupplierOpen(true); }}
               onFocus={() => setSupplierOpen(true)}
+              onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
               placeholder="e.g. SM Supermarket"
               className={INPUT_CLASS}
               autoComplete="off"
@@ -482,6 +483,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                       value={it.name}
                       onChange={(e) => handleItemNameChange(it.id, e.target.value)}
                       onFocus={() => setActiveSuggestId(it.id)}
+                      onBlur={() => setTimeout(() => setActiveSuggestId(null), 150)}
                       placeholder="Item name"
                       className={`${INPUT_BASE} w-full`}
                       autoComplete="off"
