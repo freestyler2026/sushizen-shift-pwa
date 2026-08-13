@@ -1,6 +1,33 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (last_working_date feature deployed: Heroku v1921 + Vercel c9f448a)
+Last updated: 2026-08-13 (DTR root cause fixes deployed: Heroku v1922 + Vercel 72423c6)
+
+---
+
+## ✅ Completed: DTR 3-root-cause fixes (2026-08-13, Heroku v1922 + Vercel 72423c6)
+
+### Root Cause A — late_minutes NOT auto-recalculated on time_in edit (FIXED)
+- **File**: `[periodId]/page.tsx` (Edit DTR modal)
+- **Problem**: When editing `actual_time_in`, `late_minutes` field stayed at old DB value. Staff had to manually update it too, which they often forgot.
+- **Fix**: Added `calcLateMinutes()` helper. `time_in` onChange now auto-sets `late_minutes = max(0, new_time_in - scheduled_shift_start)`. Overnight guard: shift_start ≥ 14:00 AND clock-in < 08:00 → 0 late (matches backend logic).
+
+### Root Cause B — DTR Bulk Upload overwrites manually edited/approved rows (FIXED)
+- **File**: `main.py` bulk-upload endpoint (~line 37362)
+- **Problem**: `ON CONFLICT DO UPDATE SET ... approval_status = 'pending'` had NO `WHERE approval_status != 'approved'` guard. A subsequent DTR CSV upload after manual correction silently destroyed the correction and reset status to pending.
+- **Fix**: Added `WHERE manila_attendance_daily.approval_status != 'approved'` to conflict clause (matches OS Sync behavior).
+
+### Root Cause C — OS Sync blocked when Back Office staff have no shift (FIXED)
+- **File**: `main.py` sync-dtr-os endpoint (~line 37807)
+- **Problem**: `shift_data_missing` guard added ALL staff with OS sessions but no published shift. Back Office staff (Cyrine, Marithel, Rose) not in payroll/shift but clocking via OS blocked sync for entire payroll group.
+- **Fix**: Guard now only adds staff who are in `known_staff` (i.e., in `manila_staff_profiles`). Non-payroll staff without a shift schedule are silently ignored (they'll still appear in `unmatched`).
+
+### Root Cause D — OS Sync protects approved rows (by design, no fix needed)
+- OS Sync has `WHERE approval_status != 'approved'` guard (line 38049). This is CORRECT behavior — manually corrected rows are protected from OS Sync overwrite. For rows that were approved with wrong data, use Edit DTR to fix directly.
+
+### Immediate action needed for Period 5
+1. Run **OS Sync** again (Back Office staff no longer block)
+2. For Gessa Aug 10: Row was overwritten by DTR Upload. Edit DTR → set time_in=08:38 (late_minutes will auto-calculate to 0)
+3. **Compute All** for Period 5 after corrections
 
 ---
 

@@ -602,6 +602,14 @@ td.muted{color:var(--muted);font-size:12px}
       <span class="chip">absent_without_pay</span>
       <span class="chip">approved_ot_hours</span>
     </div>
+    <div class="tip" style="margin-top:10px">
+      <span class="tip-icon">✅</span>
+      <span data-en="As of 2026-08-13: when you change Time In, Late Minutes auto-updates based on the scheduled shift start. You no longer need to manually recalculate and enter late_minutes after correcting a clock-in time." data-ja="2026-08-13以降：Time Inを変更すると、シフト開始時刻に基づいてLate Minutesが自動更新されます。出勤時刻を修正した後に遅刻分を手動で再計算して入力する必要はなくなりました。">Since 2026-08-13: changing Time In auto-updates Late Minutes from the scheduled shift start. No need to manually recalculate late_minutes after correcting clock-in.</span>
+    </div>
+    <div class="tip danger" style="margin-top:6px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="DTR Upload (CSV) no longer overwrites rows you have already corrected and saved in Edit DTR (approved rows are protected). However, the first upload before any correction still overwrites freely — always run corrections AFTER the final DTR upload for the period." data-ja="DTRアップロード（CSV）は、すでにEdit DTRで修正・保存した行（approvedの行）を上書きしなくなりました。ただし、修正前の最初のアップロードは通常どおり上書きされます。修正は必ず期間の最終DTRアップロード後に行ってください。">DTR Upload no longer overwrites rows already corrected in Edit DTR (approved rows protected). But first-time uploads before any correction still overwrite freely — always correct AFTER the final upload for the period.</span>
+    </div>
   </div>
 </div>
 
