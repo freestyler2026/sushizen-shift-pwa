@@ -618,7 +618,7 @@ export default function DtrUploadPage() {
                     </p>
                     <p className="text-xs text-amber-200">
                       This will write OS Attendance data for {selectedPeriod?.period_label} directly to DTR records.
-                      Existing rows will be updated (set to &ldquo;pending&rdquo; approval status).
+                      Rows with <strong>approval_status = &ldquo;approved&rdquo;</strong> are protected and will not be overwritten — only &ldquo;pending&rdquo; rows are updated.
                     </p>
                     <div className="flex gap-2">
                       <button onClick={() => setSyncConfirming(false)}
@@ -756,7 +756,7 @@ export default function DtrUploadPage() {
                         <table className="w-full text-xs" style={{ minWidth: "800px" }}>
                           <thead>
                             <tr className="border-b border-white/10 bg-white/5">
-                              {["Date","Staff","Store","Sched","Clock In","Clock Out","Day Type","Bayzat","Status"].map(h => (
+                              {["Date","Staff","Store","Sched","Clock In","Clock Out","Late","Day Type","Status"].map(h => (
                                 <th key={h} className="px-3 py-2 text-left text-slate-400">{h}</th>
                               ))}
                             </tr>
@@ -780,12 +780,14 @@ export default function DtrUploadPage() {
                                 <td className="px-3 py-1.5 tabular-nums text-slate-300">
                                   {row.actual_time_out ? fmtTime(row.actual_time_out) : "—"}
                                 </td>
+                                <td className={`px-3 py-1.5 tabular-nums text-xs font-medium ${(row.late_minutes ?? 0) > 0 ? "text-amber-400" : "text-slate-500"}`}>
+                                  {(row.late_minutes ?? 0) > 0 ? `${row.late_minutes}m` : "—"}
+                                </td>
                                 <td className="px-3 py-1.5">
                                   <span className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-400">
                                     {DAY_TYPE_LABELS[row.day_type] ?? row.day_type}
                                   </span>
                                 </td>
-                                <td className="px-3 py-1.5 text-slate-500 text-xs">{row._bayzat_status}</td>
                                 <td className="px-3 py-1.5">
                                   {row.absent_without_pay ? (
                                     <span className="text-red-400 font-semibold">AWP</span>
