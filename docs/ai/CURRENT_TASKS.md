@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-12 (Feature ④ fully tested & verified — 2 emails delivered to freestyler2026@gmail.com, message_ids confirmed in DB)
+Last updated: 2026-08-13 (Manila Payroll delete-row feature — backend DELETE endpoint deployed, delete button moved to right panel action bar)
+
+---
+
+## ✅ Completed: Manila Payroll — Delete Run per Staff Row (2026-08-13, Heroku v1902 + Vercel 170b711)
+
+**Feature**: Delete a specific staff member's payroll run from within a period.
+
+**Backend** (`main.py`, Heroku v1902):
+```python
+DELETE /api/admin/manila-payroll/runs/{run_id}
+```
+Deletes `manila_payroll_items` first (FK), then `manila_payroll_runs`. Returns 404 if run not found.
+
+**Frontend** (`/admin/payroll/manila/[periodId]/page.tsx`, commit 170b711):
+- `deleteRun(runId, staffName)` function: shows confirm dialog, calls DELETE endpoint, removes row from state, clears selected run if deleted
+- Delete button placed in right panel action bar (red trash icon, next to Print/Close)
+- To use: click a staff row → right panel opens → click 🗑 trash button → confirm dialog → row removed instantly, totals update
+
+**Architecture note**: Initial approach placed the button in the table row (last column), but this caused the table to overflow the scroll container width by ~40px, pushing the button behind the right panel. Final approach moves the button to the right panel — cleaner UX (no accidental clicks) and zero layout impact.
+
+**Functional test (2026-08-13)**: Deleted duplicate "Lowegie D. Dumangcas" row. Staff count 55→54, totals updated correctly.
 
 ---
 
