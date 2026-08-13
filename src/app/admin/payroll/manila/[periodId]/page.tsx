@@ -1761,6 +1761,7 @@ export default function ManilaPayrollPeriodPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/5 text-xs text-slate-500">
+                      <th className="py-2 w-5" />
                       <th className="py-2 text-left cursor-pointer select-none hover:text-white"
                           onClick={() => toggleSort("name")}>
                         <span className="flex items-center gap-1">
@@ -1784,10 +1785,19 @@ export default function ManilaPayrollPeriodPage() {
                       <tr
                         key={run.id}
                         onClick={() => setSelectedRun(run)}
-                        className={`cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
+                        className={`group cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
                           selectedRun?.id === run.id ? "bg-violet-900/20 border-l-2 border-l-violet-500" : "border-l-2 border-l-transparent"
                         }`}
                       >
+                        <td className="py-2.5 relative w-5">
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteRun(run.id, run.staff_name); }}
+                            className="absolute inset-0 flex items-center justify-center text-slate-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                            title="Delete this payroll run"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
                         <td className="py-2.5 text-left">
                           <div className="flex items-center gap-2">
                             {run.minimum_wage_compliant === false && (
@@ -1817,6 +1827,7 @@ export default function ManilaPayrollPeriodPage() {
                   {/* Table footer totals */}
                   <tfoot>
                     <tr className="border-t-2 border-white/10">
+                      <td />
                       <td className="py-2.5 text-xs font-semibold text-slate-400">Total ({runs.length})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{fmtPHP(totals.gross)}</td>
                       <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
