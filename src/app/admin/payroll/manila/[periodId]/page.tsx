@@ -81,6 +81,7 @@ type AttendanceRow = {
   period_id: number | null;
   approved_ot_hours: number | null;
   actual_break_minutes: number | null;
+  scheduled_shift_start: string | null;
 };
 
 type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION";
@@ -178,6 +179,18 @@ function isoToManilaInput(ts: string | null): string {
 function manilaInputToISO(manilaStr: string): string {
   if (!manilaStr) return "";
   return new Date(manilaStr + "Z").toISOString();
+}
+
+// Auto-calculate late minutes from datetime-local input vs scheduled shift start ("HH:MM:SS").
+// Mirrors the backend logic: overnight shifts (shift_start >= 14:00, clock-in < 08:00) = not late.
+function calcLateMinutes(timeInValue: string, shiftStart: string | null): number {
+  if (!shiftStart || !timeInValue) return 0;
+  const timePart = timeInValue.split("T")[1];
+  if (!timePart) return 0;
+  const [ciH, ciM] = timePart.split(":").map(Number);
+  const [ssH, ssM] = shiftStart.split(":").map(Number);
+  if (ssH >= 14 && ciH < 8) return 0; // overnight: no late
+  return Math.max(0, (ciH * 60 + ciM) - (ssH * 60 + ssM));
 }
 
 function DTRModal({
@@ -471,10 +484,14 @@ function DTRModal({
                         <input
                           type="datetime-local"
                           value={ed.time_in}
-                          onChange={e => setEdits(prev => ({
-                            ...prev,
-                            [row.work_date]: { ...prev[row.work_date], time_in: e.target.value }
-                          }))}
+                          onChange={e => {
+                            const newTimeIn = e.target.value;
+                            const autoLate = calcLateMinutes(newTimeIn, row.scheduled_shift_start);
+                            setEdits(prev => ({
+                              ...prev,
+                              [row.work_date]: { ...prev[row.work_date], time_in: newTimeIn, late_minutes: String(autoLate) }
+                            }));
+                          }}
                           className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-white text-xs focus:border-blue-500/60 focus:outline-none"
                           style={{ colorScheme: "dark" }}
                         />
