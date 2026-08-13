@@ -118,6 +118,16 @@ type AttendanceStat = {
 };
 
 type MissingEntry = { staff_name: string; missing: string[] };
+type DtrIssue = {
+  type: string;
+  severity: "error" | "warning";
+  staff_name: string;
+  work_date: string;
+  detail: string;
+  fix: string;
+  actual_time_in?: string;
+  actual_time_out?: string;
+};
 
 const PAYROLL_REQUIRED = [
   { label: "Rate",       check: (p: StaffProfileMin) => !!(p.monthly_rate || p.daily_rate) },
@@ -1296,6 +1306,7 @@ export default function ManilaPayrollPeriodPage() {
   const [attSummary, setAttSummary] = useState<AttendanceStat[]>([]);
   const [showAttSummary, setShowAttSummary] = useState(false);
   const [computeCheckEntries, setComputeCheckEntries] = useState<MissingEntry[]>([]);
+  const [dtrIssues, setDtrIssues] = useState<{ errors: DtrIssue[]; warnings: DtrIssue[] } | null>(null);
 
   const loadRef = useRef(0);
 
@@ -1386,6 +1397,19 @@ export default function ManilaPayrollPeriodPage() {
   };
 
   const computeAllWithCheck = async () => {
+    // 1. Check DTR issues first
+    try {
+      const r = await apiFetch(`${API}/periods/${periodId}/dtr-check`);
+      if (r.ok) {
+        const data = await r.json() as { errors: DtrIssue[]; warnings: DtrIssue[]; ok: boolean };
+        if (data.errors.length > 0 || data.warnings.length > 0) {
+          setDtrIssues(data);
+          return;
+        }
+      }
+    } catch { /* ignore check failure, proceed */ }
+
+    // 2. Check missing profile data
     if (profiles.size > 0) {
       const missing: MissingEntry[] = runs
         .map(r => ({ staff_name: r.staff_name, missing: getMissingFields(profiles.get(r.staff_name)) }))
@@ -1501,6 +1525,63 @@ export default function ManilaPayrollPeriodPage() {
 
   return (
     <>
+      {/* DTR Issues modal */}
+      {dtrIssues && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-red-500/20 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-1">
+              <AlertTriangle size={20} className="text-red-400 shrink-0" />
+              <h3 className="text-base font-semibold text-white">DTR Issues Detected</h3>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">
+              Fix errors before computing payroll. Warnings are auto-corrected by Compute All.
+            </p>
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+              {dtrIssues.errors.map((issue, i) => (
+                <div key={i} className="rounded-lg border border-red-500/20 bg-red-950/30 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-white">{issue.staff_name} — {issue.work_date}</p>
+                      <p className="text-xs text-red-300 mt-0.5">{issue.detail}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-medium text-red-300">ERROR</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1.5">Fix: {issue.fix}</p>
+                </div>
+              ))}
+              {dtrIssues.warnings.map((issue, i) => (
+                <div key={i} className="rounded-lg border border-amber-500/20 bg-amber-950/20 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-white">{issue.staff_name} — {issue.work_date}</p>
+                      <p className="text-xs text-amber-300 mt-0.5">{issue.detail}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">WARNING</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1.5">Auto-fix: {issue.fix}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                onClick={() => setDtrIssues(null)}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              {dtrIssues.errors.length === 0 && (
+                <button
+                  onClick={() => { setDtrIssues(null); void computeAll(); }}
+                  className={PRIMARY_BUTTON + " text-sm"}
+                >
+                  Compute Anyway (warnings only)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Missing profile data modal */}
       {computeCheckEntries.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
