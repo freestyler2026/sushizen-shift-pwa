@@ -1767,8 +1767,7 @@ export default function ManilaPayrollPeriodPage() {
                         </span>
                       </th>
                       <th className="py-2 text-center text-xs text-slate-500">Status</th>
-                      <th className="py-2 text-center text-xs text-violet-400/70">Published</th>
-                      <th className="py-2 w-8" />
+                      <th className="py-2 text-center text-xs text-violet-400/70 w-16">Published</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1798,19 +1797,19 @@ export default function ManilaPayrollPeriodPage() {
                             {run.status}
                           </span>
                         </td>
-                        <td className="py-2.5 text-center">
-                          {run.published_at
-                            ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
-                            : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
-                        </td>
                         <td className="py-2.5 text-center" onClick={e => e.stopPropagation()}>
-                          <button
-                            title="Delete this payroll run"
-                            onClick={() => deleteRun(run.id, run.staff_name)}
-                            className="rounded p-1 text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div className="flex items-center justify-center gap-0.5">
+                            {run.published_at
+                              ? <span title="Published"><Eye size={13} className="text-emerald-400" /></span>
+                              : <span title="Unpublished"><EyeOff size={13} className="text-slate-600" /></span>}
+                            <button
+                              title="Delete this payroll run"
+                              onClick={() => deleteRun(run.id, run.staff_name)}
+                              className="rounded p-1 text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1822,7 +1821,6 @@ export default function ManilaPayrollPeriodPage() {
                       <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{fmtPHP(totals.gross)}</td>
                       <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{fmtPHP(totals.net)}</td>
-                      <td />
                       <td />
                       <td />
                     </tr>
