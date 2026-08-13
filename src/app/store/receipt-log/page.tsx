@@ -343,7 +343,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       </div>
 
       {/* ── Form ── */}
-      <form onSubmit={handleSubmit} className={`${GLASS_CARD} space-y-5`} onClick={(e) => e.stopPropagation()}>
+      <form onSubmit={handleSubmit} className={`${GLASS_CARD} space-y-5`} onClick={(e) => { e.stopPropagation(); setSupplierOpen(false); setActiveSuggestId(null); }}>
 
         {/* Receipt photo upload */}
         <div>
@@ -428,7 +428,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
               required
             />
           </div>
-          <div className="relative">
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
             <label className={`${T_LABEL} block mb-1`}>Supplier / Store</label>
             <input
               type="text"
@@ -475,7 +475,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
           </div>
           <div className="space-y-2">
             {items.map((it) => (
-              <div key={it.id} className="relative">
+              <div key={it.id} className="relative" onClick={(e) => e.stopPropagation()}>
                 <div className="flex gap-2 items-center">
                   <div className="relative flex-1 min-w-0">
                     <input
