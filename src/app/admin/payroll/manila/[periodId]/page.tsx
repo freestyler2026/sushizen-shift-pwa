@@ -1429,6 +1429,18 @@ export default function ManilaPayrollPeriodPage() {
     }
   };
 
+  const deleteRun = async (runId: number, staffName: string) => {
+    if (!confirm(`Delete payroll run for "${staffName}" from this period?\n\nThis cannot be undone. Re-run "Compute All" to regenerate.`)) return;
+    try {
+      const r = await apiFetch(`${API}/runs/${runId}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      setRuns(prev => prev.filter(ru => ru.id !== runId));
+      if (selectedRun?.id === runId) setSelectedRun(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const publishAll = async () => {
     if (!period) return;
     if (!confirm(`Publish all computed/approved payslips for this period to staff My Pay?`)) return;
@@ -1756,6 +1768,7 @@ export default function ManilaPayrollPeriodPage() {
                       </th>
                       <th className="py-2 text-center text-xs text-slate-500">Status</th>
                       <th className="py-2 text-center text-xs text-violet-400/70">Published</th>
+                      <th className="py-2 w-8" />
                     </tr>
                   </thead>
                   <tbody>
@@ -1790,6 +1803,15 @@ export default function ManilaPayrollPeriodPage() {
                             ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
                             : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
                         </td>
+                        <td className="py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                          <button
+                            title="Delete this payroll run"
+                            onClick={() => deleteRun(run.id, run.staff_name)}
+                            className="rounded p-1 text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1800,6 +1822,7 @@ export default function ManilaPayrollPeriodPage() {
                       <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{fmtPHP(totals.gross)}</td>
                       <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{fmtPHP(totals.net)}</td>
+                      <td />
                       <td />
                       <td />
                     </tr>
