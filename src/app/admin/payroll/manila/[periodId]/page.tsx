@@ -258,17 +258,24 @@ function DTRModal({
     setSaving(row.work_date);
     setError("");
     const isRestDay = ed.day_type === "rest_day";
+    // If both times are cleared, treat as not worked (absent or rest)
+    const hasTimeIn  = !!ed.time_in;
+    const hasTimeOut = !!ed.time_out;
+    const timesCleared = !hasTimeIn && !hasTimeOut;
+    const derivedIsWorked = timesCleared ? false : (hasTimeIn ? true : row.is_worked);
+    const derivedUndertime = timesCleared ? 0 : row.undertime_minutes;
+    const derivedAWP = isRestDay ? false : (timesCleared ? true : row.absent_without_pay);
     try {
       const body: Record<string, unknown> = {
         day_type:             ed.day_type,
-        is_worked:            row.is_worked,
+        is_worked:            derivedIsWorked,
         is_scheduled_rest_day: isRestDay,
-        actual_time_in:  ed.time_in  ? manilaInputToISO(ed.time_in)  : null,
-        actual_time_out: ed.time_out ? manilaInputToISO(ed.time_out) : null,
+        actual_time_in:  hasTimeIn  ? manilaInputToISO(ed.time_in)  : null,
+        actual_time_out: hasTimeOut ? manilaInputToISO(ed.time_out) : null,
         late_minutes:    parseInt(ed.late_minutes || "0", 10) || 0,
-        undertime_minutes: row.undertime_minutes,
+        undertime_minutes: derivedUndertime,
         // rest_day → no absent deduction regardless of is_worked; clear the AWP flag
-        absent_without_pay: isRestDay ? false : row.absent_without_pay,
+        absent_without_pay: derivedAWP,
         paid_leave_flag: row.paid_leave_flag,
         period_id:  row.period_id ?? periodId,
         approval_status: "approved",
