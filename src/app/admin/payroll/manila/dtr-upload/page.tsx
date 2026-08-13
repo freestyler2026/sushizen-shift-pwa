@@ -692,7 +692,8 @@ export default function DtrUploadPage() {
                     {(syncResult.shift_data_missing?.length ?? 0) > 0 && (
                       <div className="rounded-xl border border-red-500/30 bg-red-900/15 p-3 space-y-1">
                         <p className="text-xs font-semibold text-red-300">
-                          ⚠️ Shift schedule not found ({syncResult.shift_data_missing!.length} staff) — rest day could not be determined. Synced as ordinary day.
+                          ⚠️ Shift schedule not found ({syncResult.shift_data_missing!.length} staff) — rest day could not be determined.{" "}
+                          {syncResult.preview_only ? "Would sync as ordinary day." : "Synced as ordinary day."}
                         </p>
                         <p className="text-xs text-red-400/70">
                           Fix: add a name mapping in the sync code or correct the staff name in the shift system.
