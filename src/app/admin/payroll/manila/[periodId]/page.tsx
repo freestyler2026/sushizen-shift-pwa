@@ -825,6 +825,7 @@ function PayslipDetail({
   onApprove,
   onPublish,
   onUnpublish,
+  onDelete,
   onClose,
   onRecomputed,
   period,
@@ -837,6 +838,7 @@ function PayslipDetail({
   onApprove: (id: number) => void;
   onPublish: (id: number) => void;
   onUnpublish: (id: number) => void;
+  onDelete: (id: number, name: string) => void;
   onClose: () => void;
   onRecomputed: () => void;
   period: Period | null;
@@ -1005,6 +1007,13 @@ function PayslipDetail({
                 <Send size={12} /> Publish
               </button>
             )}
+            <button
+              onClick={() => onDelete(run.id, run.staff_name)}
+              className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-900/20 p-1.5 text-xs text-red-400 hover:bg-red-900/40"
+              title="Delete this payroll run"
+            >
+              <Trash2 size={12} />
+            </button>
             <button
               onClick={() => window.print()}
               className="flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 p-1.5 text-xs text-slate-300 hover:bg-slate-700"
@@ -1775,7 +1784,7 @@ export default function ManilaPayrollPeriodPage() {
                       <tr
                         key={run.id}
                         onClick={() => setSelectedRun(run)}
-                        className={`group cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
+                        className={`cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
                           selectedRun?.id === run.id ? "bg-violet-900/20 border-l-2 border-l-violet-500" : "border-l-2 border-l-transparent"
                         }`}
                       >
@@ -1798,18 +1807,9 @@ export default function ManilaPayrollPeriodPage() {
                           </span>
                         </td>
                         <td className="py-2.5 text-center">
-                          <div className="flex items-center justify-center gap-0.5">
-                            {run.published_at
-                              ? <Eye size={12} title="Published" className="text-emerald-400 shrink-0" />
-                              : <EyeOff size={12} title="Unpublished" className="text-slate-600 shrink-0" />}
-                            <button
-                              title="Delete this payroll run"
-                              onClick={e => { e.stopPropagation(); deleteRun(run.id, run.staff_name); }}
-                              className="rounded p-0.5 text-slate-600 opacity-0 group-hover:opacity-100 hover:bg-red-900/30 hover:text-red-400 transition-all"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
+                          {run.published_at
+                            ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
+                            : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
                         </td>
                       </tr>
                     ))}
@@ -1854,6 +1854,7 @@ export default function ManilaPayrollPeriodPage() {
                 onApprove={approveRun}
                 onPublish={publishRun}
                 onUnpublish={unpublishRun}
+                onDelete={deleteRun}
                 onClose={() => setSelectedRun(null)}
                 onRecomputed={handleRecomputed}
                 period={period}
