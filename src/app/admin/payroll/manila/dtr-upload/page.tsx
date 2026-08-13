@@ -99,6 +99,7 @@ type SyncApiResult = {
   new_staff?: { staff_name: string; bayzat_employee_id: string; would_create?: boolean }[];
   new_staff_created?: number;
   unmatched?: { employee_id?: string; staff_name?: string; name_raw?: string; work_date: string; reason?: string }[];
+  shift_data_missing?: string[];
   errors?: { employee_id?: string; staff_name?: string; work_date: string; message: string }[];
   preview?: SyncPreviewRow[];
 };
@@ -682,6 +683,23 @@ export default function DtrUploadPage() {
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {[...new Set(syncResult.unmatched!.map(u => u.name_raw || u.staff_name || u.employee_id || "?"))].map(name => (
                             <span key={name} className="rounded bg-amber-900/40 px-2 py-0.5 text-xs text-amber-200">{name}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Shift data missing warning */}
+                    {(syncResult.shift_data_missing?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-red-500/30 bg-red-900/15 p-3 space-y-1">
+                        <p className="text-xs font-semibold text-red-300">
+                          ⚠️ Shift schedule not found ({syncResult.shift_data_missing!.length} staff) — rest day could not be determined. Synced as ordinary day.
+                        </p>
+                        <p className="text-xs text-red-400/70">
+                          Fix: add a name mapping in the sync code or correct the staff name in the shift system.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {syncResult.shift_data_missing!.map(name => (
+                            <span key={name} className="rounded bg-red-900/40 px-2 py-0.5 text-xs text-red-200">{name}</span>
                           ))}
                         </div>
                       </div>
