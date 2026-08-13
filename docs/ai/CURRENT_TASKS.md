@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (Manila Payroll delete-row feature — backend DELETE endpoint deployed, delete button moved to right panel action bar)
+Last updated: 2026-08-13 (Receipt Log qty/unit fields + Manila Payroll row-level delete icon — Vercel commit 9d6ff04)
 
 ---
 
