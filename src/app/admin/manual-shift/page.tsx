@@ -30,25 +30,6 @@ function cellsOf(c: ShiftCell | ShiftCell[] | null | undefined): ShiftCell[] {
 type EditTarget = { staffName: string; dateStr: string } | null;
 type PageView = "edit" | "published" | "search" | "monthly";
 
-type BayzatRow = {
-  work_date: string;
-  bayzat_name: string;
-  staff_name: string;
-  branch_code: string;
-  start_hour: number;
-  end_hour: number;
-  role: string;
-  type: "shift" | "day_off";
-  matched: boolean;
-};
-type BayzatResult = {
-  ok: boolean;
-  city: string;
-  total_rows: number;
-  unmatched_count: number;
-  unmatched_names: string[];
-  rows: BayzatRow[];
-};
 
 type SearchResultRow = {
   staff_name: string;
@@ -71,7 +52,7 @@ const START_HOUR_OPTIONS = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5); //
 // 30-minute steps: 6:00, 6:30, … 29:00 (+5:00)
 const END_HOUR_OPTIONS = Array.from({ length: 47 }, (_, i) => 6 + i * 0.5);   // 6..29
 
-// ─── Time-based color (like Bayzat) ──────────────────────────────────────────
+// ─── Time-based color ────────────────────────────────────────────────────────
 type TimeColors = { cell: string; time: string; role: string; dot: string };
 
 function timeColor(startHour: number): TimeColors {
@@ -98,26 +79,6 @@ type SpecialRole = (typeof SPECIAL_TYPES)[number]["role"];
 const SPECIAL_ROLE_SET = new Set<string>(SPECIAL_TYPES.map((s) => s.role));
 function isSpecialRole(role: string) { return SPECIAL_ROLE_SET.has(role); }
 
-// ─── Bayzat → Staff Master name corrections ───────────────────────────────────
-// Maps raw Bayzat file name (key) → staff master base name (value).
-// Backend now handles suffix differences (e.g. "Chandra Gurung" ↔ "Chandra Gurung (AL)"),
-// contains matches ("Kapil Bahadur Khati" → "Kapil Bahadur"), and
-// token-subset matches ("Udaya Mohan Singh Gurung" → "Udaya Gurung").
-// Only cases backend CANNOT resolve (spelling differences) are listed here.
-const BAYZAT_NAME_MAP: Record<string, string> = {
-  // ── JLT ──────────────────────────────────────────────────────────────────
-  "Pukar K C":                    "Puker KC",            // DB has old spelling "Puker"
-  "Ashik Khan":                   "Ashik Kahn",          // "Khan" → "Kahn" spelling
-  "Ma Rosario Sandoval Paguyan":  "Ma. Rosario Paguyan", // extra middle name + "Ma."
-  // ── Al Mina (Bayzat office: "Al Hudaiba") ────────────────────────────────
-  "Aris Jhon De Ocampo":          "Aris John De Ocampo", // "Jhon" → "John"
-  "Bijen Mijar":                  "Bijien Mijar",         // "Bijen" → "Bijien"
-  // ── Al Barsha ─────────────────────────────────────────────────────────────
-  "Padam Bahadur K C":            "Padam",               // DB stores short name
-  // ── Business Bay ──────────────────────────────────────────────────────────
-  "Sandesh Pun Magar":            "Sandesh",             // DB stores short name
-  "Sita Gurmachhan":              "Gumachhan Sita",      // spelling diff + word order
-};
 function specialStyle(role: string) {
   return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-gray-300 bg-gray-100 text-gray-600";
 }
@@ -438,9 +399,6 @@ export default function ManualShiftPage() {
   const [timeError, setTimeError] = useState("");
   const [editShiftIndex, setEditShiftIndex] = useState<number | null>(null);
   const [editBranchCode, setEditBranchCode] = useState<string>(branchCode);
-  const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
-  const [bayzatImporting, setBayzatImporting] = useState(false);
-  const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
   const [dbImporting, setDbImporting] = useState(false);
   const [draftImporting, setDraftImporting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -482,13 +440,11 @@ export default function ManualShiftPage() {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
-  const bayzatFileRef = useRef<HTMLInputElement>(null);
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
   const staffListRef = useRef<string[]>([]);
-  // Tracks all Bayzat-applied shifts so loadExistingShifts can restore them
+  // Tracks locally-applied shifts so loadExistingShifts can restore them
   // after a server reload (which only knows about published/server data).
-  const bayzatAppliedRef = useRef<GridData>({});
   // Tracks the current draft key so the auto-save effect can skip writes
   // when week/branch just changed (prevents old grid data corrupting the new key).
   const draftKeyRef = useRef(draftKey(city, branchCode, weekStart));
@@ -524,7 +480,6 @@ export default function ManualShiftPage() {
     setBranchCode(BRANCHES[city][0].code);
     setStaffList([]);
     setGridData({});
-    bayzatAppliedRef.current = {};
     setEditTarget(null);
     setView("edit");
     setPublishedCount(0);
@@ -611,17 +566,6 @@ export default function ManualShiftPage() {
           }
         }
 
-        // Restore any Bayzat-applied shifts for dates the server doesn't know about yet
-        // (e.g. Sunday 5/10 that hasn't been published). Server data always takes priority.
-        for (const [name, days] of Object.entries(bayzatAppliedRef.current)) {
-          if (!nextGrid[name]) nextGrid[name] = {};
-          for (const [date, shift] of Object.entries(days)) {
-            if (nextGrid[name][date] == null) {
-              nextGrid[name][date] = shift;
-            }
-          }
-        }
-
         return nextGrid;
       });
 
@@ -649,7 +593,6 @@ export default function ManualShiftPage() {
     // it before each setState call — prevents stale fetches from overwriting newer results.
     const cancelledRef = { current: false };
     const savedDraft = loadDraft(city, branchCode, weekStart);
-    bayzatAppliedRef.current = {};
     setServerDraftCells(new Set());
     setServerDraftSavedAt(null);
     setPublishedCount(0);
@@ -885,52 +828,12 @@ export default function ManualShiftPage() {
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
 
-  // ─── Bayzat Import ───────────────────────────────────────────────────────────
 
-  async function handleBayzatFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBayzatImporting(true);
-    setBayzatAllApplied(null);
-    setError("");
-    try {
-      const form = new FormData();
-      form.append("city", city);
-      form.append("file", file);
-      const auth = getAuth();
-      // Strip Content-Type from headers — FormData requires the browser to set
-      // multipart/form-data with the boundary automatically. If we pass
-      // Content-Type: application/json (from getAuthHeaders), the server
-      // receives the wrong content type and returns 422.
-      const allHeaders = getAuthHeaders(auth) as Record<string, string>;
-      const { "Content-Type": _ignored, ...formHeaders } = allHeaders;
-      void _ignored;
-      const res = await fetch("/api/admin/shifts/bayzat_parse", {
-        method: "POST",
-        body: form,
-        headers: formHeaders,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Parse failed" }));
-        const detail = err?.detail;
-        setError(typeof detail === "string" ? detail : Array.isArray(detail) ? "Bayzat parse failed (422)" : "Bayzat parse failed");
-        return;
-      }
-      const data = (await res.json()) as BayzatResult;
-      setBayzatResult(data);
-    } catch (ex: unknown) {
-      setError(ex instanceof Error ? ex.message : "Upload failed");
-    } finally {
-      setBayzatImporting(false);
-      e.target.value = ""; // allow re-selecting the same file
-    }
-  }
-
-  // ─── Load from Bayzat DB (base_shift_normalized → published) ────────────────
+  // ─── Load from DB (base_shift_normalized → published) ───────────────────────
   async function handleLoadFromDb() {
     if (!branchCode) { setError("Branch not selected"); return; }
     if (!window.confirm(
-      `Load shifts from Bayzat DB for ${labelOf(city, branchCode)} — week of ${weekStart}?\n\n` +
+      `Load shifts from DB for ${labelOf(city, branchCode)} — week of ${weekStart}?\n\n` +
       `This will replace any existing published shifts for this branch+week.`
     )) return;
 
@@ -952,7 +855,7 @@ export default function ManualShiftPage() {
       if (!staffOk) return;
       await loadExistingShifts(true);
       setError("");
-      alert(`Loaded ${res.rows_copied} shifts from Bayzat DB for ${labelOf(city, branchCode)}.`);
+      alert(`Loaded ${res.rows_copied} shifts from DB for ${labelOf(city, branchCode)}.`);
     } catch (ex: unknown) {
       setError(ex instanceof Error ? ex.message : "Load from DB failed");
     } finally {
@@ -1022,150 +925,13 @@ export default function ManualShiftPage() {
     }
   }
 
-  // ─── Apply Bayzat rows for ALL branches in the file at once ─────────────────
-  // Saves each branch's Bayzat data to localStorage (draft). When the user
-  // switches to any branch that branch's draft will be auto-loaded, so they
-  // never need to re-upload the file. The current branch is also applied live.
-  function applyBayzatToAllBranches(rows: BayzatRow[]) {
-    const weekEnd = addDays(weekStart, 6);
-    const weekRows = rows.filter(
-      (r) => r.work_date >= weekStart && r.work_date <= weekEnd
-    );
-
-    // Group rows by branch_code
-    const byBranch: Record<string, BayzatRow[]> = {};
-    for (const r of weekRows) {
-      if (!r.branch_code) continue;
-      if (!byBranch[r.branch_code]) byBranch[r.branch_code] = [];
-      byBranch[r.branch_code].push(r);
-    }
-
-    const summary: string[] = [];
-
-    // Suffix-strip resolver (same logic as resolveStaffName in applyBayzatToGrid)
-    const stripSuffix = (s: string) => s.replace(/(\s*\([^)]+\))+\s*$/, "").trim().toLowerCase();
-    const resolveNameForBranch = (r: BayzatRow): string => {
-      const mapped = BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
-      if (staffListRef.current.includes(mapped)) return mapped;
-      const mappedBase = stripSuffix(mapped);
-      const hit = staffListRef.current.find((s) => stripSuffix(s) === mappedBase);
-      return hit ?? mapped;
-    };
-
-    for (const [bc, bRows] of Object.entries(byBranch)) {
-      // Build a GridData from Bayzat rows for this branch
-      const grid: GridData = {};
-      for (const r of bRows) {
-        const staffName = resolveNameForBranch(r);
-        if (!staffName) continue;
-        if (!grid[staffName]) grid[staffName] = {};
-        const cell: ShiftCell = { start_hour: r.start_hour, end_hour: r.end_hour, role: r.role || "STAFF" };
-        const existing = grid[staffName][r.work_date];
-        if (existing == null) {
-          grid[staffName][r.work_date] = cell;
-        } else {
-          const arr = Array.isArray(existing) ? existing : [existing];
-          const merged = [...arr, cell].sort((a, b) => a.start_hour - b.start_hour);
-          grid[staffName][r.work_date] = merged.length === 1 ? merged[0] : merged;
-        }
-      }
-      // Persist to this branch's localStorage draft
-      saveDraft(city, bc, weekStart, grid);
-      const shiftCount = bRows.filter((r) => r.type === "shift").length;
-      summary.push(`${bc}: ${shiftCount} shifts`);
-    }
-
-    setBayzatAllApplied(summary);
-
-    // Also apply to the currently-viewed branch immediately (live grid update)
-    applyBayzatToGrid(rows, branchCode, weekStart);
-  }
-
-  function applyBayzatToGrid(rows: BayzatRow[], targetBranch: string, targetWeekStart: string) {
-    const weekEnd = addDays(targetWeekStart, 6);
-    const filtered = rows.filter(
-      (r) =>
-        r.branch_code === targetBranch &&
-        r.work_date >= targetWeekStart &&
-        r.work_date <= weekEnd
-    );
-
-    // Resolve the final staff name:
-    // 1. Apply BAYZAT_NAME_MAP override (key = Bayzat name, value = base staff name)
-    // 2. Exact match against current staffList
-    // 3. Suffix-stripped match: "Ashik Kahn" matches "Ashik Kahn (AL)" in staffList
-    function resolveStaffName(r: BayzatRow): string {
-      const mapped = BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
-      // Exact match — already correct
-      if (staffListRef.current.includes(mapped)) return mapped;
-      // Suffix-strip: normalize by removing trailing (XX)(YY) role codes
-      const stripSuffix = (s: string) => s.replace(/(\s*\([^)]+\))+\s*$/, "").trim().toLowerCase();
-      const mappedBase = stripSuffix(mapped);
-      const hit = staffListRef.current.find((s) => stripSuffix(s) === mappedBase);
-      if (hit) return hit;
-      return mapped; // fall through — creates new row (name truly not in master)
-    }
-
-    // Add staff names not yet in the grid
-    const newNames = [...new Set(filtered.map(resolveStaffName).filter(Boolean))].filter(
-      (n) => !staffList.includes(n)
-    );
-    if (newNames.length > 0) {
-      setStaffList((prev) => [...new Set([...prev, ...newNames])].sort((a, b) => a.localeCompare(b)));
-      setGridData((prev) => {
-        const next = { ...prev };
-        for (const n of newNames) if (!next[n]) next[n] = {};
-        return next;
-      });
-    }
-
-    // Group filtered rows by staff+date to support split shifts
-    const grouped: Record<string, Record<string, ShiftCell[]>> = {};
-    for (const r of filtered) {
-      const staffName = resolveStaffName(r);
-      if (!staffName) continue;
-      if (!grouped[staffName]) grouped[staffName] = {};
-      if (!grouped[staffName][r.work_date]) grouped[staffName][r.work_date] = [];
-      grouped[staffName][r.work_date].push({
-        start_hour: r.type === "day_off" ? 0 : r.start_hour,
-        end_hour: r.type === "day_off" ? 0 : r.end_hour,
-        role: r.type === "day_off" ? (r.role || "DAY_OFF") : (r.role || "STAFF"),
-      });
-    }
-
-    // Save the computed shifts to bayzatAppliedRef so that subsequent calls to
-    // loadExistingShifts can restore them — this is the primary guard against
-    // server reloads wiping data for unpublished dates (e.g. Sunday 5/10).
-    for (const [name, days] of Object.entries(grouped)) {
-      if (!bayzatAppliedRef.current[name]) bayzatAppliedRef.current[name] = {};
-      for (const [date, shifts] of Object.entries(days)) {
-        const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
-        bayzatAppliedRef.current[name][date] = sorted.length === 1 ? sorted[0] : sorted;
-      }
-    }
-
-    // Apply to React state
-    setGridData((prev) => {
-      const next = { ...prev };
-      for (const [name, days] of Object.entries(grouped)) {
-        if (!next[name]) next[name] = {};
-        for (const [date, shifts] of Object.entries(days)) {
-          const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
-          next[name][date] = sorted.length === 1 ? sorted[0] : sorted;
-        }
-      }
-      return next;
-    });
-    setHasDraft(true);
-    setBayzatResult(null);
-  }
 
   const buildRows = useCallback(() => {
     const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number; note: string; branch_code?: string }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         for (const c of cellsOf(cell)) {
-          // Include shifts with valid times even if role is empty (e.g. Bayzat imports).
+          // Include shifts with valid times even if role is empty.
           // Fall back to "STAFF" so the row isn't silently dropped on publish.
           if (c.role || c.start_hour || c.end_hour) {
             rows.push({ work_date: dateStr, staff_name: staffName, role: c.role || "STAFF", start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "", branch_code: c.branch_code || undefined });
@@ -1489,14 +1255,6 @@ export default function ManualShiftPage() {
               />
             </div>
             <div className="flex items-end gap-2 flex-wrap">
-              {/* Hidden file input for Bayzat xlsx */}
-              <input
-                ref={bayzatFileRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleBayzatFile}
-              />
               <button
                 type="button"
                 onClick={async () => {
@@ -1539,21 +1297,12 @@ export default function ManualShiftPage() {
                   ↺ Reload from Server
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => bayzatFileRef.current?.click()}
-                disabled={bayzatImporting}
-                title="Import shift schedule from a Bayzat Excel export"
-                className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 transition hover:bg-sky-100 disabled:opacity-50"
-              >
-                {bayzatImporting ? "Parsing…" : "📥 Bayzat Import"}
-              </button>
               {staffList.length > 0 && (
                 <button
                   type="button"
                   onClick={handleLoadFromDb}
                   disabled={dbImporting || loading}
-                  title="Load this week's shifts directly from the Bayzat schedule already in the database"
+                  title="Load this week's shifts from the base schedule already in the database"
                   className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
                 >
                   {dbImporting ? "Loading…" : "🗄️ Load from DB"}
@@ -2383,230 +2132,7 @@ export default function ManualShiftPage() {
         document.body
       )}
 
-      {/* ── Bayzat Import Preview Modal ─────────────────────────────────────── */}
-      {bayzatResult && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
-          <div className="flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
 
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4 rounded-t-2xl shrink-0">
-              <div>
-                <p className="font-semibold text-gray-900">📥 Bayzat Import — Preview</p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  {bayzatResult.total_rows} rows parsed · {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setBayzatResult(null)}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 transition"
-              >✕ Close</button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 shrink-0">
-              {[
-                { value: bayzatResult.total_rows, label: "Total rows in file", color: "text-gray-900" },
-                {
-                  value: bayzatResult.rows.filter(
-                    (r) => r.branch_code === branchCode &&
-                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                  ).length,
-                  label: `${labelOf(city, branchCode)} · this week`,
-                  color: "text-indigo-600",
-                },
-                {
-                  value: bayzatResult.unmatched_count,
-                  label: "Unmatched staff names",
-                  color: bayzatResult.unmatched_count > 0 ? "text-amber-600" : "text-gray-900",
-                },
-              ].map((s) => (
-                <div key={s.label} className="px-6 py-4 text-center">
-                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  <p className="mt-0.5 text-[11px] text-gray-500">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-
-              {/* Unmatched names warning */}
-              {bayzatResult.unmatched_names.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="mb-2 text-xs font-semibold text-amber-700">
-                    ⚠ Staff names not found in Staff Master — will be added as-is
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {bayzatResult.unmatched_names.map((n) => (
-                      <span key={n} className="rounded-lg bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{n}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Preview for current branch + week */}
-              {(() => {
-                const weekEnd = addDays(weekStart, 6);
-                const preview = bayzatResult.rows.filter(
-                  (r) => r.branch_code === branchCode && r.work_date >= weekStart && r.work_date <= weekEnd
-                );
-                const previewStaff = [...new Set(preview.map((r) => r.staff_name))].sort();
-
-                return (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold text-gray-700">
-                      Shifts to apply: {labelOf(city, branchCode)} · Week of {weekStart}
-                    </p>
-                    {preview.length === 0 ? (
-                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
-                        No data for this branch + week in the file.<br />
-                        <span className="text-xs">Check that the correct city and branch are selected, or choose a different week.</span>
-                      </div>
-                    ) : (
-                      <div className="overflow-hidden rounded-xl border border-gray-200">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-gray-100 bg-gray-50">
-                              <th className="px-3 py-2 text-left font-semibold text-gray-500">Staff</th>
-                              {weekDates.map((d) => (
-                                <th key={d} className="px-2 py-2 text-center font-semibold text-gray-500">{formatDate(d)}</th>
-                              ))}
-                              <th className="px-3 py-2 text-center font-semibold text-gray-500">Role</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {previewStaff.map((name, i) => {
-                              const staffRows = preview.filter((r) => r.staff_name === name);
-                              const role = staffRows.find((r) => r.type === "shift")?.role || "";
-                              return (
-                                <tr key={name} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
-                                  <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">
-                                    {stripRoleSuffix(name)}
-                                    {!bayzatResult.rows.find((r) => r.staff_name === name)?.matched && (
-                                      <span className="ml-1 text-[9px] text-amber-600">●new</span>
-                                    )}
-                                  </td>
-                                  {weekDates.map((d) => {
-                                    const r = staffRows.find((x) => x.work_date === d);
-                                    if (!r) return <td key={d} className="px-2 py-2 text-center text-gray-300">—</td>;
-                                    if (r.type === "day_off") {
-                                      return (
-                                        <td key={d} className="px-2 py-2 text-center">
-                                          <span className="rounded-lg bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
-                                            Day Off
-                                          </span>
-                                        </td>
-                                      );
-                                    }
-                                    const tc = timeColor(r.start_hour);
-                                    return (
-                                      <td key={d} className="px-1.5 py-1.5 text-center">
-                                        <div className={`rounded-lg border px-1.5 py-1 ${tc.cell.split(" ").filter((c) => !c.startsWith("hover:")).join(" ")}`}>
-                                          <div className={`text-[10px] font-semibold leading-tight ${tc.time}`}>
-                                            {fmtHour(r.start_hour)}–{fmtHour(r.end_hour)}
-                                          </div>
-                                        </div>
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="px-3 py-2 text-center">
-                                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
-                                      {role || "—"}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Other branches/weeks in the file */}
-              {(() => {
-                const branches = [...new Set(bayzatResult.rows.map((r) => r.branch_code).filter(Boolean))].sort();
-                const weeks = [...new Set(bayzatResult.rows.map((r) => {
-                  const d = new Date(r.work_date + "T00:00:00");
-                  const day = d.getDay();
-                  const diff = day === 0 ? -6 : 1 - day;
-                  d.setDate(d.getDate() + diff);
-                  return d.toISOString().slice(0, 10);
-                }))].sort();
-                return (
-                  <div className="text-[11px] text-gray-500">
-                    <span className="font-semibold text-gray-600">File contains: </span>
-                    {branches.join(", ")} · {weeks.length} week{weeks.length !== 1 ? "s" : ""} ({weeks[0]} → {weeks[weeks.length - 1]})
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Footer actions */}
-            <div className="shrink-0 border-t border-gray-100 px-6 py-4 rounded-b-2xl bg-gray-50 space-y-3">
-
-              {/* Success message after Apply All */}
-              {bayzatAllApplied && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
-                  <span className="font-semibold">✅ Saved to all branches:</span>{" "}
-                  {bayzatAllApplied.join(" · ")}
-                  <br />
-                  <span className="text-emerald-700">Data will be reflected automatically when switching branches.</span>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3">
-                {/* Apply All Branches — saves every branch's data to draft at once */}
-                {(() => {
-                  const allWeekRows = bayzatResult.rows.filter(
-                    (r) => r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                  );
-                  const branchesInFile = [...new Set(allWeekRows.map((r) => r.branch_code).filter(Boolean))];
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => applyBayzatToAllBranches(bayzatResult.rows)}
-                      disabled={loading || allWeekRows.length === 0}
-                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                    >
-                      🌐 Save All Branches ({branchesInFile.length} branches)
-                    </button>
-                  );
-                })()}
-
-                {/* Apply current branch only */}
-                <button
-                  type="button"
-                  onClick={() => applyBayzatToGrid(bayzatResult.rows, branchCode, weekStart)}
-                  disabled={loading || bayzatResult.rows.filter(
-                    (r) => r.branch_code === branchCode &&
-                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                  ).length === 0}
-                  className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
-                >
-                  {loading ? "⏳ Loading..." : `✅ Apply to This Branch (${bayzatResult.rows.filter(
-                    (r) => r.branch_code === branchCode &&
-                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                  ).length} rows)`}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setBayzatResult(null); setBayzatAllApplied(null); }}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

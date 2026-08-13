@@ -261,11 +261,7 @@ type ExportConfirmResp = {
   headcount_url?: string;
   meta?: any;
 };
-type AttendanceDriveSyncResp = {
-  ok?: boolean;
-  duplicate?: boolean;
-  message?: string;
-};
+
 
 const BUCKET_ORDER: Array<keyof Overview["buckets"]> = [
   "red_open",
@@ -595,8 +591,6 @@ function AdminPageInner() {
   const [pin, setPin] = useState(initialAuth?.pin || "");
   const [opMsg, setOpMsg] = useState("");
   const [opLoading, setOpLoading] = useState(false);
-  const [attendanceSyncing, setAttendanceSyncing] = useState(false);
-  const [attendanceSyncMessage, setAttendanceSyncMessage] = useState("");
 
   // ---- HQ Export state ----
   const [myRole, setMyRole] = useState<
@@ -1034,45 +1028,6 @@ function AdminPageInner() {
     }
   };
 
-  const normalizeAttendanceSyncMessage = (raw: string, fallback: string) => {
-    const text = String(raw || "").trim();
-    const lower = text.toLowerCase();
-    if (!text) return fallback;
-    if (lower.includes("invalid pin")) return "Incorrect PIN.";
-    if (lower.includes("forbidden") || lower.includes("permission")) return "Sync permission denied (HQ/ADMIN PIN required).";
-    if (lower.includes("attendance drive source not found")) return "Sync source not configured.";
-    if (lower.includes("no attendance files found")) return "No attendance files found in Drive folder.";
-    if (lower.includes("already imported") || lower.includes("duplicate")) return "Latest file already imported.";
-    return text;
-  };
-
-  const syncAttendanceNow = async () => {
-    if (!approverName.trim() || !pin.trim()) {
-      setAttendanceSyncMessage("Approver name and PIN are required to sync.");
-      return;
-    }
-    setAttendanceSyncing(true);
-    setAttendanceSyncMessage("");
-    try {
-      const res = await apiPost<AttendanceDriveSyncResp>("/api/admin/attendance/drive/sync", {
-        approver_name: approverName.trim(),
-        pin: pin.trim(),
-        city_hint: city,
-      });
-      const rawMsg = String(res?.message || "").trim();
-      if (res?.duplicate) {
-        setAttendanceSyncMessage("Latest file already imported.");
-      } else if (rawMsg) {
-        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat sync complete."));
-      } else {
-        setAttendanceSyncMessage("Bayzat sync complete.");
-      }
-    } catch (e: any) {
-      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat sync failed."));
-    } finally {
-      setAttendanceSyncing(false);
-    }
-  };
 
   const rangeLabel = useMemo(() => {
     if (!data) return "";
@@ -1383,20 +1338,10 @@ function AdminPageInner() {
             <button className={PRIMARY_BUTTON} onClick={fetchLatest} disabled={loading} type="button">
               Latest Week
             </button>
-            <button
-              className={SECONDARY_BUTTON}
-              onClick={syncAttendanceNow}
-              disabled={attendanceSyncing || !approverName.trim() || !pin.trim()}
-              type="button"
-              title={!pin.trim() ? "PIN required" : "Sync latest Bayzat attendance data"}
-            >
-              <RefreshCw className="mr-1.5 h-4 w-4" />
-              {attendanceSyncing ? "Syncing..." : "Sync Latest Bayzat"}
-            </button>
           </div>
         </div>
 
-        {(search.trim() || loading || attendanceSyncMessage) ? (
+        {(search.trim() || loading) ? (
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {search.trim() ? (
               <span className={T_CAPTION}>
@@ -1405,7 +1350,6 @@ function AdminPageInner() {
               </span>
             ) : null}
             {loading ? <span className={BADGE_INFO}>Loading...</span> : null}
-            {attendanceSyncMessage ? <span className={BADGE_INFO}>{attendanceSyncMessage}</span> : null}
           </div>
         ) : null}
 

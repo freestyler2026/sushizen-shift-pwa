@@ -1,6 +1,38 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (Receipt Log qty/unit fields + Manila Payroll row-level delete icon — Vercel commit 9d6ff04)
+Last updated: 2026-08-13 (Jennyleen Jul 31 DTR fix — PATCH API bug fixed + DB corrected, Heroku f65a858)
+
+---
+
+## ✅ Completed: Manila Payroll — Jennyleen Jul 31 DTR fix (2026-08-13, Heroku f65a858)
+
+**Issue reported**: Jennyleen Valera Pepelar's 2026-07-31 record showed "15:30-00:30". Staff tried to:
+1. Edit to just "15:30" → didn't save (API bug)
+2. Delete record → reappeared as "15:30-00:30" (Bayzat sync restores it)
+
+**Root cause 1 — API bug** (`main.py` line ~39024):
+`PATCH .../scheduled-shift` parsed both `scheduled_shift_start` and `scheduled_shift_end` via `body.get(...)`. Sending `scheduled_shift_end: ""` returned `None` from `_parse_hhmm`, but `None` was indistinguishable from "key absent", so the fallback `new_end if new_end is not None else rec.get("scheduled_shift_end")` preserved the existing "00:30" value.
+
+**Fix**: Used sentinel `_UNSET = object()` to distinguish "key absent" from "key present with empty/null value". Three lines changed (line ~39025, ~39056, ~39078). Now sending `scheduled_shift_end: ""` correctly clears it to NULL.
+
+**Root cause 2 — undertime=1410min**:
+Engine saw overnight shift (00:30 < 15:30), set `sched_end_dt = Aug 1 00:30`. But `actual_time_out` was stored as `Jul 31 01:00` (Bayzat rollover bug). Diff = 23.5h = 1410 min.
+
+**Root cause 3 — record reappears after delete**:
+Bayzat sync UPSERT writes `scheduled_shift_start/end` from Bayzat data (which has "15:30-00:30"). After delete, next sync recreates the record with "15:30-00:30".
+
+**Fix applied to DB** (direct SQL, record id=21527):
+```sql
+UPDATE manila_attendance_daily
+   SET scheduled_shift_end = NULL, undertime_minutes = 0
+ WHERE id = 21527;
+```
+Result: `scheduled_shift_end=NULL, undertime_minutes=0, late_minutes=0`.
+
+**Why this survives future OS syncs**:
+OS sync's `schedule_map` reads existing records with `sched_start IS NOT NULL`. Since `sched_start=15:30` is preserved, the fallback to `shift_times_map` (which would restore "15:30-00:30") is skipped. The UPSERT will write `sched_end=NULL` on next sync.
+
+**Pending**: Jennyleen's Period 5 payroll run needs a "Compute Payroll" re-run to recalculate REG/OT hours with corrected undertime_minutes.
 
 ---
 
