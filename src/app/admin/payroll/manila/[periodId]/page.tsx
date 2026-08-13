@@ -1775,7 +1775,7 @@ export default function ManilaPayrollPeriodPage() {
                       <tr
                         key={run.id}
                         onClick={() => setSelectedRun(run)}
-                        className={`cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
+                        className={`group cursor-pointer border-b border-white/5 hover:bg-violet-900/10 transition-colors ${
                           selectedRun?.id === run.id ? "bg-violet-900/20 border-l-2 border-l-violet-500" : "border-l-2 border-l-transparent"
                         }`}
                       >
@@ -1797,19 +1797,17 @@ export default function ManilaPayrollPeriodPage() {
                             {run.status}
                           </span>
                         </td>
-                        <td className="py-2.5 pr-1 text-center" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-0.5">
-                            {run.published_at
-                              ? <span title="Published"><Eye size={12} className="text-emerald-400" /></span>
-                              : <span title="Unpublished"><EyeOff size={12} className="text-slate-600" /></span>}
-                            <button
-                              title="Delete this payroll run"
-                              onClick={() => deleteRun(run.id, run.staff_name)}
-                              className="rounded p-px text-slate-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                        <td className="py-2.5 text-center relative">
+                          {run.published_at
+                            ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
+                            : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
+                          <button
+                            title="Delete this payroll run"
+                            onClick={e => { e.stopPropagation(); deleteRun(run.id, run.staff_name); }}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-500 opacity-0 group-hover:opacity-100 hover:bg-red-900/30 hover:text-red-400 transition-all z-10"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </td>
                       </tr>
                     ))}
