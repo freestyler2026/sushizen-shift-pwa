@@ -50,6 +50,7 @@ const DEPARTMENTS = ["Kitchen", "Operations", "Admin", "Maintenance", "Logistics
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ItemRow = { id: string; name: string; amount: string };
+type CatalogItem = { item_name: string; unit: string; supplier_name: string };
 type Entry = {
   id: string;
   branch_code: string;
@@ -119,9 +120,15 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   const [dept, setDept]         = useState(DEPARTMENTS[0]);
   const [date, setDate]         = useState(todayLocal);
   const [supplier, setSupplier] = useState("");
+  const [supplierOpen, setSupplierOpen] = useState(false);
   const [items, setItems]       = useState<ItemRow[]>([newItem()]);
   const [notes, setNotes]       = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
+
+  // ── Catalog state ──
+  const [vendors, setVendors]   = useState<string[]>([]);
+  const [catalog, setCatalog]   = useState<CatalogItem[]>([]);
+  const [activeSuggestId, setActiveSuggestId] = useState<string | null>(null);
 
   // ── Upload state ──
   const fileRef = useRef<HTMLInputElement>(null);
@@ -142,7 +149,30 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   useEffect(() => {
     const keys = city === "dubai" ? Object.keys(DUBAI_BRANCHES) : Object.keys(MANILA_BRANCHES);
     setBranch(keys[0]);
+    setSupplier("");
   }, [city]);
+
+  // Load catalog (vendors + items) when city changes
+  const loadCatalog = useCallback(async () => {
+    try {
+      const [vRes, iRes] = await Promise.all([
+        fetch(`/api/store/receipt-log/catalog/vendors?city=${city}`, { headers: getAuthHeaders(auth) }),
+        fetch(`/api/store/receipt-log/catalog/items?city=${city}`, { headers: getAuthHeaders(auth) }),
+      ]);
+      if (vRes.ok) {
+        const vj = await vRes.json();
+        setVendors(vj.vendors ?? []);
+      }
+      if (iRes.ok) {
+        const ij = await iRes.json();
+        setCatalog(ij.items ?? []);
+      }
+    } catch {
+      // Catalog is optional — silently ignore
+    }
+  }, [auth, city]);
+
+  useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
   const total = items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0);
 
@@ -188,9 +218,46 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
     }
   };
 
+  // ── Supplier helpers ──
+  const supplierSuggestions = (() => {
+    if (!supplier.trim()) return vendors;
+    const q = supplier.toLowerCase();
+    return vendors.filter((v) => v.toLowerCase().includes(q) && v.toLowerCase() !== q);
+  })();
+
+  const selectSupplier = (name: string) => {
+    setSupplier(name);
+    setSupplierOpen(false);
+  };
+
+  // ── Item catalog helpers ──
+  const vendorCatalog = (() => {
+    if (!supplier.trim()) return catalog;
+    const vl = supplier.toLowerCase();
+    const filtered = catalog.filter((c) => c.supplier_name.toLowerCase() === vl);
+    return filtered.length > 0 ? filtered : catalog;
+  })();
+
+  const getItemSuggestions = (query: string): CatalogItem[] =>
+    query.length < 1
+      ? vendorCatalog.slice(0, 12)
+      : vendorCatalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
+
   // ── Item row helpers ──
-  const updateItem = (id: string, field: "name" | "amount", val: string) =>
+  const updateItemField = (id: string, field: "name" | "amount", val: string) =>
     setItems((prev) => prev.map((it) => it.id === id ? { ...it, [field]: val } : it));
+
+  const handleItemNameChange = (id: string, val: string) => {
+    updateItemField(id, "name", val);
+    setActiveSuggestId(id);
+  };
+
+  const selectCatalogItem = (rowId: string, cat: CatalogItem) => {
+    setItems((prev) => prev.map((it) =>
+      it.id === rowId ? { ...it, name: cat.item_name } : it,
+    ));
+    setActiveSuggestId(null);
+  };
 
   const removeItem = (id: string) =>
     setItems((prev) => prev.length > 1 ? prev.filter((it) => it.id !== id) : prev);
@@ -200,6 +267,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
     e.preventDefault();
     setErrMsg("");
     setSuccessMsg("");
+    setActiveSuggestId(null);
 
     if (!supplier.trim()) { setErrMsg("Supplier / store name is required."); return; }
     if (total <= 0) { setErrMsg("At least one item with an amount is required."); return; }
@@ -244,7 +312,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-lg mx-auto px-4 py-6 space-y-6" onClick={() => { setSupplierOpen(false); setActiveSuggestId(null); }}>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
@@ -260,7 +328,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
               <button
                 key={c}
                 type="button"
-                onClick={() => setCity(c)}
+                onClick={(ev) => { ev.stopPropagation(); setCity(c); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   city === c
                     ? "bg-violet-600 text-white shadow"
@@ -275,7 +343,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       </div>
 
       {/* ── Form ── */}
-      <form onSubmit={handleSubmit} className={`${GLASS_CARD} space-y-5`}>
+      <form onSubmit={handleSubmit} className={`${GLASS_CARD} space-y-5`} onClick={(e) => e.stopPropagation()}>
 
         {/* Receipt photo upload */}
         <div>
@@ -360,16 +428,41 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
               required
             />
           </div>
-          <div>
+          <div className="relative">
             <label className={`${T_LABEL} block mb-1`}>Supplier / Store</label>
             <input
               type="text"
               value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
+              onChange={(e) => { setSupplier(e.target.value); setSupplierOpen(true); }}
+              onFocus={() => setSupplierOpen(true)}
               placeholder="e.g. SM Supermarket"
               className={INPUT_CLASS}
+              autoComplete="off"
               required
             />
+            {supplierOpen && (supplierSuggestions.length > 0 || vendors.length > 0) && (
+              <div className="absolute z-30 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-zinc-900 shadow-xl max-h-48 overflow-y-auto">
+                {(supplier.trim() ? supplierSuggestions : vendors).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectSupplier(v); }}
+                    className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition-colors"
+                  >
+                    {v}
+                  </button>
+                ))}
+                {supplier.trim() && !vendors.some((v) => v.toLowerCase() === supplier.toLowerCase()) && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectSupplier(supplier.trim()); setSupplierOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-sm text-zinc-500 italic hover:bg-white/10"
+                  >
+                    Use &quot;{supplier.trim()}&quot; (not in catalog)
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -381,30 +474,57 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
           </div>
           <div className="space-y-2">
             {items.map((it) => (
-              <div key={it.id} className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={it.name}
-                  onChange={(e) => updateItem(it.id, "name", e.target.value)}
-                  placeholder="Item name"
-                  className={`${INPUT_BASE} flex-1 min-w-0`}
-                />
-                <input
-                  type="number"
-                  value={it.amount}
-                  onChange={(e) => updateItem(it.id, "amount", e.target.value)}
-                  placeholder="₱ 0"
-                  min="0"
-                  step="0.01"
-                  className={`${INPUT_BASE} w-28 shrink-0 text-right`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeItem(it.id)}
-                  className="text-zinc-600 hover:text-red-400 shrink-0"
-                >
-                  <Trash2 size={15} />
-                </button>
+              <div key={it.id} className="relative">
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={it.name}
+                      onChange={(e) => handleItemNameChange(it.id, e.target.value)}
+                      onFocus={() => setActiveSuggestId(it.id)}
+                      placeholder="Item name"
+                      className={`${INPUT_BASE} w-full`}
+                      autoComplete="off"
+                    />
+                    {activeSuggestId === it.id && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-zinc-900 shadow-xl max-h-44 overflow-y-auto">
+                        {getItemSuggestions(it.name).map((cat) => (
+                          <button
+                            key={cat.item_name}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); selectCatalogItem(it.id, cat); }}
+                            className="w-full text-left px-3 py-2 hover:bg-white/10 transition-colors"
+                          >
+                            <span className="text-sm text-zinc-200">{cat.item_name}</span>
+                            {cat.unit && (
+                              <span className="text-xs text-zinc-500 ml-1">· {cat.unit}</span>
+                            )}
+                          </button>
+                        ))}
+                        {getItemSuggestions(it.name).length === 0 && it.name.trim() && (
+                          <div className="px-3 py-2 text-xs text-zinc-600 italic">No matches in catalog</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    value={it.amount}
+                    onChange={(e) => updateItemField(it.id, "amount", e.target.value)}
+                    placeholder="₱ 0"
+                    min="0"
+                    step="0.01"
+                    className={`${INPUT_BASE} w-28 shrink-0 text-right`}
+                    onFocus={() => setActiveSuggestId(null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(it.id)}
+                    className="text-zinc-600 hover:text-red-400 shrink-0"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
