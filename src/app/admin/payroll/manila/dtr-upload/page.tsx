@@ -89,6 +89,15 @@ type SyncPreviewRow = {
   _bayzat_status: string;
 };
 
+type SuspiciousSession = {
+  staff_name: string;
+  work_date: string;
+  check_in: string;
+  check_out: string;
+  duration_hours: number;
+  reason: string;
+};
+
 type SyncApiResult = {
   preview_only?: boolean;
   total_os_rows?: number;
@@ -100,8 +109,12 @@ type SyncApiResult = {
   new_staff_created?: number;
   unmatched?: { employee_id?: string; staff_name?: string; name_raw?: string; work_date: string; reason?: string }[];
   shift_data_missing?: string[];
+  suspicious_sessions?: SuspiciousSession[];
   errors?: { employee_id?: string; staff_name?: string; work_date: string; message: string }[];
   preview?: SyncPreviewRow[];
+  // Blocking error responses from the backend
+  error?: "shift_data_missing_blocked" | "suspicious_sessions_blocked" | string;
+  message?: string;
 };
 
 type OtApprovalRow = {
@@ -688,19 +701,50 @@ export default function DtrUploadPage() {
                       </div>
                     )}
 
-                    {/* Shift data missing warning */}
+                    {/* Backend blocking error (shift_data_missing_blocked or suspicious_sessions_blocked) */}
+                    {syncResult.error && (
+                      <div className="rounded-xl border border-red-500/50 bg-red-900/20 p-3 space-y-1">
+                        <p className="text-xs font-bold text-red-300">🚫 Sync blocked by the server</p>
+                        <p className="text-xs text-red-300">{syncResult.message}</p>
+                      </div>
+                    )}
+
+                    {/* Shift data missing — BLOCKS sync */}
                     {(syncResult.shift_data_missing?.length ?? 0) > 0 && (
-                      <div className="rounded-xl border border-red-500/30 bg-red-900/15 p-3 space-y-1">
-                        <p className="text-xs font-semibold text-red-300">
-                          ⚠️ Shift schedule not found ({syncResult.shift_data_missing!.length} staff) — rest day could not be determined.{" "}
-                          {syncResult.preview_only ? "Would sync as ordinary day." : "Synced as ordinary day."}
+                      <div className="rounded-xl border border-red-500/50 bg-red-900/20 p-3 space-y-1">
+                        <p className="text-xs font-bold text-red-300">
+                          🚫 Sync blocked — no published shift found ({syncResult.shift_data_missing!.length} staff)
                         </p>
-                        <p className="text-xs text-red-400/70">
-                          Fix: add a name mapping in the sync code or correct the staff name in the shift system.
+                        <p className="text-xs text-red-300">
+                          The system cannot determine the day type without shift data. Publishing rest days arbitrarily is what caused the July–Aug 2026 payroll corruption.
+                          Fix the shift schedule or correct the staff name in the shift system, then re-run Preview.
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {syncResult.shift_data_missing!.map(name => (
                             <span key={name} className="rounded bg-red-900/40 px-2 py-0.5 text-xs text-red-200">{name}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Suspicious sessions (>13h) — BLOCKS sync */}
+                    {(syncResult.suspicious_sessions?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-orange-500/50 bg-orange-900/20 p-3 space-y-2">
+                        <p className="text-xs font-bold text-orange-300">
+                          🚫 Sync blocked — suspicious sessions detected ({syncResult.suspicious_sessions!.length})
+                        </p>
+                        <p className="text-xs text-orange-300">
+                          The following sessions exceed 13 hours — almost certainly a forgotten clock-out.
+                          Fix the clock-out in OS Attendance first, then re-run Preview.
+                        </p>
+                        <div className="space-y-1 mt-1">
+                          {syncResult.suspicious_sessions!.map((s, i) => (
+                            <div key={i} className="flex flex-wrap items-center gap-2 rounded bg-orange-900/30 px-2 py-1">
+                              <span className="text-xs font-medium text-orange-200">{s.staff_name}</span>
+                              <span className="text-xs text-orange-400">{s.work_date}</span>
+                              <span className="text-xs text-orange-300 tabular-nums">{s.check_in} → {s.check_out}</span>
+                              <span className="text-xs font-bold text-orange-200">{s.duration_hours}h</span>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -769,15 +813,26 @@ export default function DtrUploadPage() {
                         className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 hover:text-white">
                         {syncResult.preview_only ? "Back" : "Done"}
                       </button>
-                      {syncResult.preview_only && (
-                        <button
-                          onClick={() => handleSync(false)}
-                          disabled={syncLoading}
-                          className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm text-white hover:bg-violet-500 disabled:opacity-40">
-                          {syncLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                          {syncLoading ? "Syncing…" : "Sync to DTR"}
-                        </button>
-                      )}
+                      {syncResult.preview_only && (() => {
+                        const hasShiftMissing = (syncResult.shift_data_missing?.length ?? 0) > 0;
+                        const hasSuspicious   = (syncResult.suspicious_sessions?.length ?? 0) > 0;
+                        const blocked         = hasShiftMissing || hasSuspicious;
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => handleSync(false)}
+                              disabled={syncLoading || blocked}
+                              title={blocked ? "Fix blocking issues above before syncing" : undefined}
+                              className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                              {syncLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                              {syncLoading ? "Syncing…" : "Sync to DTR"}
+                            </button>
+                            {blocked && (
+                              <p className="text-xs text-red-400 text-center">Fix issues above first</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
