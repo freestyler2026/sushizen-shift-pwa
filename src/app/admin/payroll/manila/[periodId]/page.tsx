@@ -1767,7 +1767,7 @@ export default function ManilaPayrollPeriodPage() {
                         </span>
                       </th>
                       <th className="py-2 text-center text-xs text-slate-500">Status</th>
-                      <th className="py-2 text-center text-xs text-violet-400/70 w-16">Published</th>
+                      <th className="py-2 text-center text-xs text-violet-400/70">Published</th>
                     </tr>
                   </thead>
                   <tbody>
