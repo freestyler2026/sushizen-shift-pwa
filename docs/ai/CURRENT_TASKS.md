@@ -1,6 +1,36 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (DTR root cause fixes deployed: Heroku v1922 + Vercel 72423c6)
+Last updated: 2026-08-13 (OS Sync deep audit + 7-bug fix: Heroku v1923 + Vercel 3131639)
+
+---
+
+## ✅ Completed: OS Sync deep audit — 7 bugs fixed (2026-08-13, Heroku v1923 + Vercel 3131639)
+
+### Additional bugs found and fixed in OS Sync endpoint
+
+**Bug 1&8 (Critical): scheduled_shift_start/end not stored on new INSERT**
+- OS Sync computed sched_start/end for late_minutes calculation but never saved them to DB
+- New rows inserted by OS Sync had scheduled_shift_start = NULL
+- This broke the frontend auto-late-calculation (calcLateMinutes returns 0 if shiftStart is null)
+- Fix: Added scheduled_shift_start/end to INSERT column list. Conflict UPDATE uses COALESCE to preserve existing values from prior DTR uploads.
+
+**Bug 3&9 (Confirmed): Multiple sessions per (staff_name, work_date) — last one silently overwrites first**
+- OS session query returned all sessions per day; loop appended all to synced_rows without dedup
+- Second INSERT for same day overwrote first: wrong clock-in time, wrong late_minutes, wrong break_minutes
+- Fix: Pre-process sessions — keep earliest check_in per (staff_name, work_date), log duplicates in errors
+
+**Bug 5 (Confirmed): Absence rows UPDATE had no approval_status guard**
+- Clock-in rows had `WHERE approval_status != 'approved'` but absence rows did not
+- Manually approved absence rows (e.g. approved leave) could have day_type/absent_without_pay silently overwritten on re-sync
+- Fix: Added the same guard to absence row ON CONFLICT UPDATE
+
+**Bug 6 (Cosmetic): _bayzat_status column in OS Sync preview always blank**
+- Stale Bayzat field shown in preview table; OS Sync never populates it
+- Fix: Replaced with "Late" column showing late_minutes (amber if > 0)
+
+**Bug 7 (UX): Confirm dialog text misleadingly said "set to pending"**
+- Text implied ALL rows would be set to pending; approved rows are actually protected
+- Fix: Updated text to explicitly state approved rows are protected
 
 ---
 
