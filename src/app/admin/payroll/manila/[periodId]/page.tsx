@@ -1533,10 +1533,17 @@ export default function ManilaPayrollPeriodPage() {
               <AlertTriangle size={20} className="text-red-400 shrink-0" />
               <h3 className="text-base font-semibold text-white">DTR Issues Detected</h3>
             </div>
-            <p className="text-sm text-slate-400 mb-4">
+            <p className="text-sm text-slate-400 mb-1">
               Fix errors before computing payroll. Warnings are auto-corrected by Compute All.
             </p>
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+            {(dtrIssues.errors.length + dtrIssues.warnings.length) > 0 && (
+              <p className="text-xs text-slate-500 mb-3">
+                {dtrIssues.errors.length > 0 && <span className="text-red-400">{dtrIssues.errors.length} error{dtrIssues.errors.length > 1 ? "s" : ""}</span>}
+                {dtrIssues.errors.length > 0 && dtrIssues.warnings.length > 0 && <span className="text-slate-600"> · </span>}
+                {dtrIssues.warnings.length > 0 && <span className="text-amber-400">{dtrIssues.warnings.length} warning{dtrIssues.warnings.length > 1 ? "s" : ""}</span>}
+              </p>
+            )}
+            <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
               {dtrIssues.errors.map((issue, i) => (
                 <div key={i} className="rounded-lg border border-red-500/20 bg-red-950/30 px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
