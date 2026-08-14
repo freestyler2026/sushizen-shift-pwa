@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  Loader2, Lock, Package, Plus, Save, X, Trash2, Settings2,
+  Loader2, Lock, Package, Plus, RefreshCw, Save, X, Trash2, Settings2, Users,
+  AlertCircle,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
@@ -12,7 +13,7 @@ import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON,
   TABLE_CELL, TABLE_HEADER, TABLE_ROW,
   T_CAPTION, T_PAGE_TITLE, T_SECTION,
-  BADGE_SUCCESS, KPI_CARD,
+  KPI_CARD,
 } from "@/lib/ui-tokens";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -33,6 +34,9 @@ type InventoryEntry = {
   quantity: number;
   unit: string;
   notes: string;
+  filled_by?: string;
+  filled_at?: string;
+  version?: number;
   updated_at?: string;
 };
 
@@ -43,7 +47,9 @@ type Session = {
   session_date: string;
   notes: string;
   created_by: string;
+  contributors?: string;
   is_finalized: boolean;
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
   entry_count?: number;
@@ -77,6 +83,11 @@ function sessionTypeBadge(t: SessionType | string) {
   return "bg-violet-500/15 text-violet-300 border-violet-500/25";
 }
 
+function parseContributors(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(",").map(s => s.trim()).filter(Boolean);
+}
+
 const AVAILABLE_UNITS = ["pc", "g", "kg", "ml", "L", "portion", "tray", "bag", "pack", "box"];
 
 async function apiFetch(path: string, opts?: RequestInit) {
@@ -101,9 +112,8 @@ function isManager(auth: ReturnType<typeof getAuth>): boolean {
 
 export default function CKInventoryPage() {
   const auth = getAuth();
+  const myName = auth?.staffName || "";
   const canManage = isManager(auth);
-  // CK is a Manila operation, so managers default to Manila and can toggle to
-  // Dubai. Non-managers stay on their own city.
   const [city, setCity] = useState<"manila" | "dubai">(
     canManage ? "manila" : ((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
   );
@@ -117,8 +127,14 @@ export default function CKInventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Draft entries: item_id → {quantity, unit, notes}
-  const [draftEntries, setDraftEntries] = useState<Record<number, { quantity: string; unit: string; notes: string }>>({});
+  // Draft entries: item_id → {quantity, unit, notes, version}
+  const [draftEntries, setDraftEntries] = useState<Record<number, { quantity: string; unit: string; notes: string; version: number }>>({});
+
+  // Track which items the current user has edited locally (unsaved)
+  const dirtyItemIdsRef = useRef<Set<number>>(new Set());
+
+  // Overwrite confirmation when editing an item owned by someone else
+  const [overwriteConfirm, setOverwriteConfirm] = useState<{ itemId: number; filledBy: string } | null>(null);
 
   // Collapsed categories
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -134,7 +150,11 @@ export default function CKInventoryPage() {
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
-  // Manage items (Manila only) — add/delete shares the Daily Inventory commissary list
+  // Auto-refresh interval reference
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeSessionIdRef = useRef<number | null>(null);
+
+  // Manage items
   const [showManageItems, setShowManageItems] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("");
@@ -147,8 +167,8 @@ export default function CKInventoryPage() {
     try {
       const data = await apiFetch(`/api/store/ck-inventory/items?city=${encodeURIComponent(city)}`);
       setProcessedItems(Array.isArray(data?.items) ? data.items : []);
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, [city]);
 
@@ -156,12 +176,77 @@ export default function CKInventoryPage() {
     try {
       const data = await apiFetch(`/api/store/ck-inventory/sessions?city=${encodeURIComponent(city)}&limit=30`);
       setSessions(Array.isArray(data?.sessions) ? data.sessions : []);
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, [city]);
 
-  // ── Manage items (add / delete) ────────────────────────────────────────────
+  const loadSession = useCallback(async (sessionId: number, silent = false) => {
+    if (!silent) { setLoading(true); setError(null); }
+    try {
+      const data = await apiFetch(`/api/store/ck-inventory/sessions/${sessionId}`);
+      const sess: Session = data?.session;
+      if (!sess) throw new Error("Session not found");
+      setActiveSession(sess);
+      activeSessionIdRef.current = sess.id;
+
+      setDraftEntries(prev => {
+        const draft: Record<number, { quantity: string; unit: string; notes: string; version: number }> = {};
+        // Initialize all items with defaults
+        for (const item of processedItems) {
+          draft[item.id] = prev[item.id] || { quantity: "", unit: item.output_unit || "pc", notes: "", version: 0 };
+        }
+        // Override with server entries — but skip items the user is actively editing
+        for (const entry of sess.entries || []) {
+          const isDirty = dirtyItemIdsRef.current.has(entry.item_id);
+          if (!isDirty) {
+            draft[entry.item_id] = {
+              quantity: entry.quantity > 0 ? String(entry.quantity) : "",
+              unit: entry.unit || "pc",
+              notes: entry.notes || "",
+              version: entry.version ?? 0,
+            };
+          }
+        }
+        return draft;
+      });
+    } catch (e: unknown) {
+      if (!silent) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [processedItems]);
+
+  // ── Auto-refresh every 30s for non-finalized sessions ─────────────────────
+  useEffect(() => {
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    if (!activeSession || activeSession.is_finalized) return;
+
+    refreshTimerRef.current = setInterval(async () => {
+      const sid = activeSessionIdRef.current;
+      if (!sid) return;
+      await loadSession(sid, true); // silent refresh
+      await loadSessions();
+    }, 30_000);
+
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession?.id, activeSession?.is_finalized, loadSession, loadSessions]);
+
+  // ── Auto-run merge migration once per browser session (managers only) ───────
+  useEffect(() => {
+    if (!canManage) return;
+    const key = `ck_inv_migrated_${city}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    apiFetch("/api/store/ck-inventory/sessions/merge-migrate", { method: "POST" })
+      .then(() => { /* silent */ })
+      .catch(() => { /* silent */ });
+  }, [canManage, city]);
+
+  // ── Manage items ─────────────────────────────────────────────────────────
   const createItem = async () => {
     if (!newItemName.trim()) return;
     setItemBusy(true);
@@ -173,11 +258,9 @@ export default function CKInventoryPage() {
       setNewItemName(""); setNewItemCategory("");
       await loadItems();
       setSuccessMsg("Item added.");
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setItemBusy(false);
-    }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setItemBusy(false); }
   };
 
   const removeItem = async (id: number, name: string) => {
@@ -187,43 +270,10 @@ export default function CKInventoryPage() {
       await apiFetch(`/api/store/ck-inventory/items/${id}?city=${encodeURIComponent(city)}`, { method: "DELETE" });
       await loadItems();
       setSuccessMsg("Item removed.");
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setItemBusy(false);
-    }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setItemBusy(false); }
   };
-
-  const loadSession = useCallback(async (sessionId: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiFetch(`/api/store/ck-inventory/sessions/${sessionId}`);
-      const sess: Session = data?.session;
-      if (!sess) throw new Error("Session not found");
-      setActiveSession(sess);
-
-      // Initialize draft entries from existing entries
-      const draft: Record<number, { quantity: string; unit: string; notes: string }> = {};
-      // First, populate all processed items with defaults
-      for (const item of processedItems) {
-        draft[item.id] = { quantity: "", unit: item.output_unit || "pc", notes: "" };
-      }
-      // Override with saved entries
-      for (const entry of sess.entries || []) {
-        draft[entry.item_id] = {
-          quantity: entry.quantity > 0 ? String(entry.quantity) : "",
-          unit: entry.unit || "pc",
-          notes: entry.notes || "",
-        };
-      }
-      setDraftEntries(draft);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [processedItems]);
 
   useEffect(() => {
     void loadItems();
@@ -237,7 +287,8 @@ export default function CKInventoryPage() {
     const totalItems = processedItems.length;
     const prevMap = activeSession.prev_quantities || {};
     const prevCount = Object.keys(prevMap).length;
-    return { filledCount, totalItems, prevCount };
+    const contributors = parseContributors(activeSession.contributors);
+    return { filledCount, totalItems, prevCount, contributors };
   }, [activeSession, processedItems, draftEntries]);
 
   // ── Grouped items ─────────────────────────────────────────────────────────
@@ -251,7 +302,43 @@ export default function CKInventoryPage() {
     return groups;
   }, [processedItems]);
 
+  // ── Entry map for quick lookup ─────────────────────────────────────────────
+  const entryMap = useMemo(() => {
+    const m: Record<number, InventoryEntry> = {};
+    for (const e of activeSession?.entries || []) m[e.item_id] = e;
+    return m;
+  }, [activeSession]);
+
+  // ── Grouped sessions by date ───────────────────────────────────────────────
+  const sessionsByDate = useMemo(() => {
+    const groups: Record<string, Session[]> = {};
+    for (const s of sessions) {
+      const key = `${s.session_date}::${s.session_type}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(s);
+    }
+    // Flatten: use the session with the most entries as the "primary" to display
+    // (after migration there should be only 1 per key)
+    return Object.entries(groups)
+      .map(([, group]) => {
+        const primary = group.reduce((best, s) =>
+          (s.entry_count ?? 0) >= (best.entry_count ?? 0) ? s : best, group[0]);
+        const totalItems = group.reduce((sum, s) => sum + (s.entry_count ?? 0), 0);
+        const allContributors = [
+          ...new Set(
+            group.flatMap(s => [
+              ...parseContributors(s.contributors),
+              s.created_by,
+            ]).filter(Boolean)
+          ),
+        ];
+        return { ...primary, entry_count: totalItems, _mergedContributors: allContributors, _allIds: group.map(s => s.id) };
+      })
+      .sort((a, b) => b.session_date.localeCompare(a.session_date) || b.created_at.localeCompare(a.created_at));
+  }, [sessions]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
+
   const createSession = async () => {
     if (!newDate) return;
     setCreatingSession(true);
@@ -264,18 +351,21 @@ export default function CKInventoryPage() {
           session_type: newType,
           session_date: newDate,
           notes: newNotes,
-          created_by: auth?.staffName || "",
+          created_by: myName,
         }),
       });
       setShowNewSession(false);
       setNewNotes("");
+      dirtyItemIdsRef.current = new Set();
+      const joined: boolean = data?.joined === true;
+      setSuccessMsg(joined
+        ? `Joined existing ${sessionTypeLabel(newType)} session for ${fmtDate(newDate)}.`
+        : "New session created.");
       await loadSessions();
       if (data?.session?.id) await loadSession(data.session.id);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setCreatingSession(false);
-    }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setCreatingSession(false); }
   };
 
   const saveEntries = useCallback(async () => {
@@ -293,41 +383,50 @@ export default function CKInventoryPage() {
           quantity: Number(draftEntries[item.id]?.quantity || 0),
           unit: draftEntries[item.id]?.unit || item.output_unit || "pc",
           notes: draftEntries[item.id]?.notes || "",
+          filled_by: myName,
+          version: draftEntries[item.id]?.version ?? 0,
         }));
 
-      await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/entries`, {
+      const res = await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/entries`, {
         method: "POST",
         body: JSON.stringify({ entries }),
       });
-      setSuccessMsg(`Saved ${entries.length} items.`);
+
+      // Clear dirty tracking after successful save
+      dirtyItemIdsRef.current = new Set();
+
+      const conflicts: number[] = res?.conflicts || [];
+      if (conflicts.length > 0) {
+        setSuccessMsg(`Saved. ${conflicts.length} item(s) were updated by another staff — data refreshed.`);
+      } else {
+        setSuccessMsg(`Saved ${entries.length} items.`);
+      }
+      // Reload to pick up server versions + other staff changes
+      await loadSession(activeSession.id, true);
       await loadSessions();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [activeSession, processedItems, draftEntries, loadSessions]);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setSaving(false); }
+  }, [activeSession, processedItems, draftEntries, myName, loadSession, loadSessions]);
 
   const finalizeSession = async () => {
     if (!activeSession) return;
     setFinalizing(true);
     setError(null);
     try {
-      // Save first, then finalize
       await saveEntries();
       await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/finalize`, { method: "POST" });
       setShowFinalizeConfirm(false);
       setSuccessMsg("Session finalized and locked.");
       await loadSessions();
       await loadSession(activeSession.id);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setFinalizing(false);
-    }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setFinalizing(false); }
   };
 
   const updateEntry = (itemId: number, field: "quantity" | "unit" | "notes", value: string) => {
+    dirtyItemIdsRef.current.add(itemId);
     setDraftEntries(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], [field]: value },
@@ -340,6 +439,13 @@ export default function CKInventoryPage() {
       if (next.has(cat)) next.delete(cat); else next.add(cat);
       return next;
     });
+  };
+
+  const manualRefresh = async () => {
+    if (!activeSession) return;
+    await loadSession(activeSession.id, false);
+    await loadSessions();
+    setSuccessMsg("Refreshed.");
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -361,7 +467,7 @@ export default function CKInventoryPage() {
                 {(["manila", "dubai"] as const).map(c => (
                   <button
                     key={c}
-                    onClick={() => { setCity(c); setActiveSession(null); }}
+                    onClick={() => { setCity(c); setActiveSession(null); activeSessionIdRef.current = null; }}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition ${
                       city === c ? "bg-violet-500/20 text-violet-200" : "text-zinc-400 hover:text-zinc-200"
                     }`}
@@ -372,18 +478,12 @@ export default function CKInventoryPage() {
               </div>
             )}
             {canManageItems && (
-              <button
-                onClick={() => setShowManageItems(true)}
-                className={`${SECONDARY_BUTTON} flex items-center gap-2`}
-              >
+              <button onClick={() => setShowManageItems(true)} className={`${SECONDARY_BUTTON} flex items-center gap-2`}>
                 <Settings2 className="h-4 w-4" />
                 Manage Items
               </button>
             )}
-            <button
-              onClick={() => setShowNewSession(true)}
-              className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-            >
+            <button onClick={() => setShowNewSession(true)} className={`${PRIMARY_BUTTON} flex items-center gap-2`}>
               <Plus className="h-4 w-4" />
               New Session
             </button>
@@ -405,48 +505,56 @@ export default function CKInventoryPage() {
 
         <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
 
-          {/* ── Left: Session List ─────────────────────────────────────────── */}
+          {/* ── Left: Session List (grouped by date) ─────────────────────── */}
           <div className={`${GLASS_CARD} p-4 self-start sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
             <h2 className={`${T_SECTION} mb-3`}>Sessions</h2>
 
-            {sessions.length === 0 ? (
+            {sessionsByDate.length === 0 ? (
               <div className="rounded-xl border border-white/8 bg-white/[0.02] py-8 text-center">
                 <ClipboardList className="mx-auto h-8 w-8 text-zinc-600 mb-2" />
                 <p className={T_CAPTION}>No sessions yet.<br />Create the first one.</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {sessions.map(sess => (
-                  <button
-                    key={sess.id}
-                    onClick={() => void loadSession(sess.id)}
-                    className={`w-full rounded-xl border px-3 py-3 text-left transition ${
-                      activeSession?.id === sess.id
-                        ? "border-violet-500/40 bg-violet-500/10"
-                        : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-white">{fmtDate(sess.session_date)}</div>
-                        <span className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${sessionTypeBadge(sess.session_type)}`}>
-                          {sessionTypeLabel(sess.session_type)}
-                        </span>
+                {sessionsByDate.map(sess => {
+                  const isActive = activeSession?.id === sess.id ||
+                    (sess as unknown as { _allIds: number[] })._allIds?.includes(activeSession?.id ?? -1);
+                  const contributors = (sess as unknown as { _mergedContributors: string[] })._mergedContributors || [];
+                  return (
+                    <button
+                      key={`${sess.session_date}-${sess.session_type}`}
+                      onClick={() => void loadSession(sess.id)}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                        isActive
+                          ? "border-violet-500/40 bg-violet-500/10"
+                          : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-white">{fmtDate(sess.session_date)}</div>
+                          <span className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${sessionTypeBadge(sess.session_type)}`}>
+                            {sessionTypeLabel(sess.session_type)}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {sess.is_finalized ? (
+                            <Lock className="h-3.5 w-3.5 text-zinc-500 mt-0.5" />
+                          ) : (
+                            <span className="text-[10px] text-amber-400">Draft</span>
+                          )}
+                          <div className="text-[10px] text-zinc-500 mt-0.5">{sess.entry_count || 0} items</div>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        {sess.is_finalized ? (
-                          <Lock className="h-3.5 w-3.5 text-zinc-500 mt-0.5" />
-                        ) : (
-                          <span className="text-[10px] text-amber-400">Draft</span>
-                        )}
-                        <div className="text-[10px] text-zinc-500 mt-0.5">{sess.entry_count || 0} items</div>
-                      </div>
-                    </div>
-                    {sess.notes && (
-                      <p className="mt-1.5 text-[11px] text-zinc-500 truncate">{sess.notes}</p>
-                    )}
-                  </button>
-                ))}
+                      {contributors.length > 0 && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          <Users className="h-3 w-3 text-zinc-600 shrink-0" />
+                          <p className="text-[10px] text-zinc-500 truncate">{contributors.join(", ")}</p>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -480,16 +588,32 @@ export default function CKInventoryPage() {
                           </span>
                         )}
                       </div>
-                      {activeSession.notes && (
-                        <p className={T_CAPTION}>{activeSession.notes}</p>
-                      )}
                       {activeSession.created_by && (
                         <p className={T_CAPTION}>Created by: {activeSession.created_by}</p>
                       )}
+                      {/* Contributors list */}
+                      {kpi && kpi.contributors.length > 0 && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-zinc-500" />
+                          <p className="text-xs text-zinc-400">
+                            Contributors: {kpi.contributors.join(" · ")}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
-                    {!activeSession.is_finalized && (
-                      <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
+                      {!activeSession.is_finalized && (
+                        <button
+                          onClick={() => void manualRefresh()}
+                          className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition"
+                          title="Refresh session to pick up other staff's entries"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Refresh
+                        </button>
+                      )}
+                      {!activeSession.is_finalized && (
                         <button
                           onClick={() => void saveEntries()}
                           disabled={saving}
@@ -498,6 +622,8 @@ export default function CKInventoryPage() {
                           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                           Save Draft
                         </button>
+                      )}
+                      {!activeSession.is_finalized && (
                         <button
                           onClick={() => setShowFinalizeConfirm(true)}
                           disabled={saving}
@@ -506,8 +632,8 @@ export default function CKInventoryPage() {
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Finalize
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
                   {/* KPI row */}
@@ -545,7 +671,6 @@ export default function CKInventoryPage() {
                       const filledInGroup = items.filter(i => draftEntries[i.id]?.quantity !== "").length;
                       return (
                         <div key={category} className={GLASS_CARD}>
-                          {/* Category header */}
                           <button
                             onClick={() => toggleCategory(category)}
                             className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] transition-colors rounded-2xl"
@@ -566,16 +691,20 @@ export default function CKInventoryPage() {
                                 <thead>
                                   <tr>
                                     <th className={`${TABLE_HEADER} px-5 text-left py-2`}>Item</th>
-                                    <th className={`${TABLE_HEADER} px-3 text-right py-2 w-32`}>Qty</th>
-                                    <th className={`${TABLE_HEADER} px-3 text-left py-2 w-28`}>Unit</th>
+                                    <th className={`${TABLE_HEADER} px-3 text-right py-2 w-28`}>Qty</th>
+                                    <th className={`${TABLE_HEADER} px-3 text-left py-2 w-24`}>Unit</th>
                                     <th className={`${TABLE_HEADER} px-3 text-right py-2 w-24`}>Previous</th>
-                                    <th className={`${TABLE_HEADER} px-3 text-right py-2 w-20`}>Delta</th>
+                                    <th className={`${TABLE_HEADER} px-3 text-right py-2 w-16`}>Delta</th>
+                                    <th className={`${TABLE_HEADER} px-3 text-left py-2 w-28`}>Filled By</th>
                                     <th className={`${TABLE_HEADER} px-5 text-left py-2`}>Notes</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {items.map(item => {
-                                    const draft = draftEntries[item.id] || { quantity: "", unit: item.output_unit || "pc", notes: "" };
+                                    const draft = draftEntries[item.id] || { quantity: "", unit: item.output_unit || "pc", notes: "", version: 0 };
+                                    const serverEntry = entryMap[item.id];
+                                    const filledBy = serverEntry?.filled_by || "";
+                                    const filledByOther = filledBy && filledBy !== myName;
                                     const currentQty = draft.quantity !== "" ? Number(draft.quantity) : null;
                                     const prev = activeSession.prev_quantities?.[item.id];
                                     const prevQty = prev?.quantity ?? null;
@@ -596,9 +725,22 @@ export default function CKInventoryPage() {
                                               min="0"
                                               step="0.1"
                                               value={draft.quantity}
+                                              onFocus={() => {
+                                                if (filledByOther) {
+                                                  // show confirmation before allowing edit
+                                                  setOverwriteConfirm({ itemId: item.id, filledBy });
+                                                  // blur will fire immediately — use a ref to track
+                                                }
+                                              }}
                                               onChange={e => updateEntry(item.id, "quantity", e.target.value)}
                                               placeholder="0"
-                                              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-right text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none tabular-nums"
+                                              className={`w-full rounded-lg border px-2 py-1 text-right text-sm text-white placeholder-zinc-600 focus:outline-none tabular-nums ${
+                                                filledByOther
+                                                  ? "border-amber-500/30 bg-amber-500/5 focus:border-amber-400/60"
+                                                  : filledBy === myName && draft.quantity !== ""
+                                                  ? "border-emerald-500/30 bg-emerald-500/5 focus:border-emerald-400/60"
+                                                  : "border-white/10 bg-white/[0.05] focus:border-violet-500/50"
+                                              }`}
                                             />
                                           )}
                                         </td>
@@ -619,6 +761,17 @@ export default function CKInventoryPage() {
                                         </td>
                                         <td className={`${TABLE_CELL} px-3 text-right tabular-nums font-medium ${deltaColor}`}>
                                           {delta !== null ? (delta > 0 ? `+${Number.isInteger(delta) ? delta : delta.toFixed(1)}` : `${Number.isInteger(delta) ? delta : delta.toFixed(1)}`) : "—"}
+                                        </td>
+                                        <td className={`${TABLE_CELL} px-3`}>
+                                          {filledBy ? (
+                                            <span className={`text-[11px] font-medium ${
+                                              filledBy === myName ? "text-emerald-400" : "text-amber-400"
+                                            }`}>
+                                              {filledBy === myName ? "You" : filledBy.split(" ")[0]}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[11px] text-zinc-600">—</span>
+                                          )}
                                         </td>
                                         <td className={`${TABLE_CELL} px-5`}>
                                           {isFinalized ? (
@@ -675,7 +828,42 @@ export default function CKInventoryPage() {
         </div>
       </div>
 
-      {/* ── New Session Modal ─────────────────────────────────────────────── */}
+      {/* ── Overwrite Confirm Dialog ───────────────────────────────────────── */}
+      {overwriteConfirm && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-amber-500/30 bg-neutral-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+              <h2 className={T_SECTION}>Overwrite Entry?</h2>
+            </div>
+            <p className="mb-6 text-sm text-zinc-300">
+              This item was filled by <strong className="text-amber-300">{overwriteConfirm.filledBy}</strong>.
+              Do you want to overwrite their entry?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOverwriteConfirm(null)}
+                className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Allow the edit — just dismiss the dialog
+                  // The input is already focused; user can type
+                  setOverwriteConfirm(null);
+                }}
+                className="flex-1 rounded-xl border border-amber-500/40 bg-amber-500/20 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/30 transition"
+              >
+                Yes, Overwrite
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Manage Items Modal ─────────────────────────────────────────────── */}
       {showManageItems && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
@@ -693,7 +881,6 @@ export default function CKInventoryPage() {
             </div>
             <p className={`${T_CAPTION} mb-4`}>Shared with Daily Inventory (Central Kitchen). Adds/removes apply to both.</p>
 
-            {/* Add form */}
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 mb-4 space-y-2">
               <input
                 type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)}
@@ -723,7 +910,6 @@ export default function CKInventoryPage() {
               </div>
             </div>
 
-            {/* Item list */}
             <div className="space-y-1">
               {processedItems.length === 0 ? (
                 <p className={`${T_CAPTION} py-6 text-center`}>No items yet. Add the first one above.</p>
@@ -753,6 +939,7 @@ export default function CKInventoryPage() {
         document.body
       )}
 
+      {/* ── New Session Modal ─────────────────────────────────────────────── */}
       {showNewSession && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
@@ -767,6 +954,14 @@ export default function CKInventoryPage() {
               <button onClick={() => setShowNewSession(false)} className="rounded-full p-1.5 text-white/40 hover:bg-white/10 hover:text-white transition-colors">
                 <X className="h-4 w-4" />
               </button>
+            </div>
+
+            {/* Info banner about shared sessions */}
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-violet-500/20 bg-violet-500/8 px-3 py-2.5">
+              <Users className="h-4 w-4 text-violet-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-violet-300">
+                If a session already exists for the selected date and type, you will automatically join it instead of creating a new one.
+              </p>
             </div>
 
             <div className="space-y-4">
@@ -814,7 +1009,7 @@ export default function CKInventoryPage() {
                 className={`${PRIMARY_BUTTON} flex-1 flex items-center justify-center gap-2 py-2 text-sm disabled:opacity-50`}
               >
                 {creatingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Create Session
+                Open / Create Session
               </button>
             </div>
           </div>
