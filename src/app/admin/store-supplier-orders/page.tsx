@@ -725,7 +725,6 @@ export default function StoreSupplierOrdersPage() {
   }
 
   return (
-    <>
     <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-violet-950/20 p-4 md:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
 
@@ -1791,105 +1790,104 @@ export default function StoreSupplierOrdersPage() {
           </>
         )}
       </div>
-    </div>
 
-    {/* ── Receive Confirmation Modal ──────────────────────────────────────── */}
-    {receiveModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-        <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-white/10 shadow-2xl">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-            <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              <PackageCheck className="h-5 w-5 text-emerald-400" /> Confirm Receipt
-            </h2>
-            <button onClick={() => setReceiveModal(null)} className="text-zinc-500 hover:text-zinc-300">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-            {/* Invoice number */}
-            <div>
-              <label className="text-xs text-zinc-400 font-medium">Invoice Number</label>
-              <input
-                className={INPUT_CLASS + " mt-1 text-sm"}
-                placeholder="e.g. INV-2026-0814"
-                value={receiveModal.invoiceNumber}
-                onChange={(e) => setReceiveModal((m) => m ? { ...m, invoiceNumber: e.target.value } : m)}
-              />
+      {/* ── Receive Confirmation Modal ──────────────────────────────────────── */}
+      {receiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+              <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                <PackageCheck className="h-5 w-5 text-emerald-400" /> Confirm Receipt
+              </h2>
+              <button onClick={() => setReceiveModal(null)} className="text-zinc-500 hover:text-zinc-300">
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            {/* Receive status */}
-            <div className="flex gap-2">
-              {(["received", "partial", "issue"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setReceiveModal((m) => m ? { ...m, receiveStatus: s } : m)}
-                  className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-colors ${
-                    receiveModal.receiveStatus === s
-                      ? s === "received" ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
-                        : s === "partial" ? "border-amber-500/50 bg-amber-500/20 text-amber-300"
-                        : "border-red-500/50 bg-red-500/20 text-red-300"
-                      : "border-white/10 text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ))}
-            </div>
-            {/* Items */}
-            <div className="space-y-2">
-              {receiveModal.items.map((it, idx) => (
-                <div key={it.item_id} className="rounded-lg bg-white/3 border border-white/5 p-3">
-                  <div className="text-xs font-medium text-white mb-2">{it.item_name}</div>
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1">
-                      <label className="text-xs text-zinc-500">Qty Received ({it.unit})</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        className={INPUT_CLASS + " mt-0.5 text-sm"}
-                        value={it.qty_received}
-                        onChange={(e) => setReceiveModal((m) => {
-                          if (!m) return m;
-                          const items = [...m.items];
-                          items[idx] = { ...items[idx], qty_received: e.target.value };
-                          return { ...m, items };
-                        })}
-                      />
+            <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Invoice number */}
+              <div>
+                <label className="text-xs text-zinc-400 font-medium">Invoice Number</label>
+                <input
+                  className={INPUT_CLASS + " mt-1 text-sm"}
+                  placeholder="e.g. INV-2026-0814"
+                  value={receiveModal.invoiceNumber}
+                  onChange={(e) => setReceiveModal((m) => m ? { ...m, invoiceNumber: e.target.value } : m)}
+                />
+              </div>
+              {/* Receive status */}
+              <div className="flex gap-2">
+                {(["received", "partial", "issue"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setReceiveModal((m) => m ? { ...m, receiveStatus: s } : m)}
+                    className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-colors ${
+                      receiveModal.receiveStatus === s
+                        ? s === "received" ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                          : s === "partial" ? "border-amber-500/50 bg-amber-500/20 text-amber-300"
+                          : "border-red-500/50 bg-red-500/20 text-red-300"
+                        : "border-white/10 text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {/* Items */}
+              <div className="space-y-2">
+                {receiveModal.items.map((it, idx) => (
+                  <div key={it.item_id} className="rounded-lg bg-white/3 border border-white/5 p-3">
+                    <div className="text-xs font-medium text-white mb-2">{it.item_name}</div>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1">
+                        <label className="text-xs text-zinc-500">Qty Received ({it.unit})</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          className={INPUT_CLASS + " mt-0.5 text-sm"}
+                          value={it.qty_received}
+                          onChange={(e) => setReceiveModal((m) => {
+                            if (!m) return m;
+                            const items = [...m.items];
+                            items[idx] = { ...items[idx], qty_received: e.target.value };
+                            return { ...m, items };
+                          })}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-zinc-500">Note (optional)</label>
+                        <input
+                          className={INPUT_CLASS + " mt-0.5 text-sm"}
+                          placeholder="e.g. Short delivery"
+                          value={it.receive_note}
+                          onChange={(e) => setReceiveModal((m) => {
+                            if (!m) return m;
+                            const items = [...m.items];
+                            items[idx] = { ...items[idx], receive_note: e.target.value };
+                            return { ...m, items };
+                          })}
+                        />
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-4">/ {it.qty_ordered}</div>
                     </div>
-                    <div className="flex-1">
-                      <label className="text-xs text-zinc-500">Note (optional)</label>
-                      <input
-                        className={INPUT_CLASS + " mt-0.5 text-sm"}
-                        placeholder="e.g. Short delivery"
-                        value={it.receive_note}
-                        onChange={(e) => setReceiveModal((m) => {
-                          if (!m) return m;
-                          const items = [...m.items];
-                          items[idx] = { ...items[idx], receive_note: e.target.value };
-                          return { ...m, items };
-                        })}
-                      />
-                    </div>
-                    <div className="text-xs text-zinc-500 mt-4">/ {it.qty_ordered}</div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex gap-2 px-6 py-4 border-t border-white/10">
-            <button
-              onClick={handleConfirmReceipt}
-              disabled={receiveSaving}
-              className={PRIMARY_BUTTON + " flex items-center gap-2"}
-            >
-              <PackageCheck className="h-4 w-4" />
-              {receiveSaving ? "Saving…" : "Confirm Receipt"}
-            </button>
-            <button onClick={() => setReceiveModal(null)} className={SECONDARY_BUTTON}>Cancel</button>
+            <div className="flex gap-2 px-6 py-4 border-t border-white/10">
+              <button
+                onClick={handleConfirmReceipt}
+                disabled={receiveSaving}
+                className={PRIMARY_BUTTON + " flex items-center gap-2"}
+              >
+                <PackageCheck className="h-4 w-4" />
+                {receiveSaving ? "Saving…" : "Confirm Receipt"}
+              </button>
+              <button onClick={() => setReceiveModal(null)} className={SECONDARY_BUTTON}>Cancel</button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-    </>
+      )}
+    </div>
   );
 }
