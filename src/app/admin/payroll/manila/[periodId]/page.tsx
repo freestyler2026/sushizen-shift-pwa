@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
-  ChevronUp, Clock, Download, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
+  ChevronUp, Clock, Download, Eye, EyeOff, History, Loader2, MinusCircle, PlusCircle,
   Play, Printer, Send, Trash2, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -95,6 +95,18 @@ type Adjustment = {
   reason: string | null;
   created_by: string | null;
   created_at: string;
+};
+
+type DtrEditLogEntry = {
+  id: number;
+  dtr_record_id: number;
+  staff_name: string;
+  work_date: string;
+  editor_name: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  edited_at_phst: string | null;
 };
 
 type StaffProfileMin = {
@@ -214,6 +226,8 @@ function DTRModal({
   const [error, setError] = useState("");
   // editing state: work_date → {time_in, time_out, day_type}
   const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string; day_type: string; late_minutes: string; approved_ot_hours: string; break_minutes: string }>>({});
+  // history: record_id whose edit log is being shown
+  const [historyRecordId, setHistoryRecordId] = useState<number | null>(null);
 
   const loadRows = useCallback(() => {
     setLoading(true);
@@ -554,13 +568,22 @@ function DTRModal({
                         />
                       </td>
                       <td className="py-2 text-center">
-                        <button
-                          onClick={() => saveRow(row)}
-                          disabled={isSaving}
-                          className="rounded-lg border border-blue-500/30 bg-blue-900/30 px-2 py-1 text-blue-300 hover:bg-blue-900/50 disabled:opacity-40 text-xs"
-                        >
-                          {isSaving ? <Loader2 size={10} className="animate-spin inline" /> : "Save"}
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => saveRow(row)}
+                            disabled={isSaving}
+                            className="rounded-lg border border-blue-500/30 bg-blue-900/30 px-2 py-1 text-blue-300 hover:bg-blue-900/50 disabled:opacity-40 text-xs"
+                          >
+                            {isSaving ? <Loader2 size={10} className="animate-spin inline" /> : "Save"}
+                          </button>
+                          <button
+                            onClick={() => setHistoryRecordId(row.id)}
+                            title="View edit history"
+                            className="rounded border border-slate-600 bg-slate-800 p-1 text-slate-400 hover:text-slate-200 hover:border-slate-500"
+                          >
+                            <History size={10} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -585,9 +608,121 @@ function DTRModal({
           </button>
         </div>
       </div>
+
+      {historyRecordId !== null && (
+        <DtrHistoryModal
+          recordId={historyRecordId}
+          onClose={() => setHistoryRecordId(null)}
+        />
+      )}
     </div>
   );
 }
+
+// ─── DTR History Modal ─────────────────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  actual_time_in:      "Time In",
+  actual_time_out:     "Time Out",
+  day_type:            "Day Type",
+  is_worked:           "Worked",
+  late_minutes:        "Late (min)",
+  undertime_minutes:   "Undertime (min)",
+  absent_without_pay:  "AWP",
+  paid_leave_flag:     "Paid Leave",
+  actual_break_minutes:"Break (min)",
+  approved_ot_hours:   "Approved OT (h)",
+  scheduled_shift_start: "Shift Start",
+  scheduled_shift_end:   "Shift End",
+};
+
+function formatDtrValue(field: string, value: string | null): string {
+  if (value === null || value === "None" || value === "none") return "—";
+  if (field === "actual_time_in" || field === "actual_time_out") {
+    // Show only HH:MM from ISO timestamp
+    const m = value.match(/T?(\d{2}:\d{2})/);
+    if (m) return m[1];
+    return value;
+  }
+  if (field === "is_worked" || field === "absent_without_pay" || field === "paid_leave_flag") {
+    return value === "True" || value === "true" ? "Yes" : "No";
+  }
+  return value;
+}
+
+function DtrHistoryModal({ recordId, onClose }: { recordId: number; onClose: () => void }) {
+  const [entries, setEntries] = useState<DtrEditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    apiFetch(`${API}/dtr-edit-log?record_id=${recordId}`)
+      .then(r => r.json())
+      .then((d: DtrEditLogEntry[]) => setEntries(d))
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [recordId]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+        <div className="flex-none flex items-center justify-between border-b border-white/10 px-5 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <History size={14} className="text-slate-400" />
+            DTR Edit History
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={16}/></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {error && (
+            <p className="text-xs text-red-400 mb-3">{error}</p>
+          )}
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 size={20} className="animate-spin text-slate-400"/>
+            </div>
+          ) : entries.length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-8">No edit history for this record.</p>
+          ) : (
+            <div className="space-y-2">
+              {entries.map(e => (
+                <div key={e.id} className="rounded-lg border border-white/5 bg-slate-800/60 px-4 py-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-slate-200">
+                      {FIELD_LABELS[e.field_name] ?? e.field_name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {e.edited_at_phst ? e.edited_at_phst.replace("T", " ").slice(0, 16) + " PHT" : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-red-400/80 line-through">
+                      {formatDtrValue(e.field_name, e.old_value)}
+                    </span>
+                    <span className="text-slate-600">→</span>
+                    <span className="text-emerald-400">
+                      {formatDtrValue(e.field_name, e.new_value)}
+                    </span>
+                  </div>
+                  {e.editor_name && (
+                    <p className="text-[10px] text-slate-500 mt-1">by {e.editor_name}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex-none border-t border-white/10 px-5 py-3 flex justify-end">
+          <button onClick={onClose} className="rounded-lg border border-slate-600 bg-slate-800 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-700">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // ─── Manual Adjustment Modal ──────────────────────────────────────────────────
 
