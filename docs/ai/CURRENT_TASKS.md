@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (CK Daily Inventory — bug fix: approvedOverwritesRef reset on silent refresh, commit 304a977; Inventory Manual artifact republished)
+Last updated: 2026-08-14 (Manila Cancellation: Bug ① fixed Heroku v1935; Feature ③ kitchen staff form + Drive photo upload Heroku v1936 / Vercel 31bde3f)
 
 ---
 
@@ -33,6 +33,25 @@ Last updated: 2026-08-14 (CK Daily Inventory — bug fix: approvedOverwritesRef 
 - 30s auto-refresh in Draft state (preserves locally dirty items)
 - `dirtyItemIdsRef` prevents auto-refresh from overwriting in-progress edits
 - Auto-triggers `merge-migrate` once per browser session (managers only, silent)
+
+---
+
+## ✅ Completed: Manila Cancellation — Bug ①②③ (2026-08-14, Heroku v1935/v1936, Vercel 31bde3f)
+
+**Bug ①: workflow_status reverts to "Select Status" after save** — FIXED (Heroku v1935)
+- Root cause: `ManilaCancellationUpsertIn` Pydantic model was missing `workflow_status` and `no_refund_reason` fields → FastAPI silently dropped them → DB saved NULL → UI reverted
+- Fix: Added both fields to Pydantic model and to the upsert dict in `main.py`
+
+**Bug ②: Sync Grab Finance shows 0 files** — DIAGNOSED (operational issue, no code fix needed)
+- Investigation: Google Drive folder `1vv7tpR1yFnzfkWAFjEKjHKpeBoyG4QNk` is completely empty (0 files, 0 subfolders)
+- Staff need to: (1) Download GrabFood Finance Transaction CSV from GrabFood Merchant Portal → (2) Upload to that Drive folder → (3) Filename must match `{StoreName}_{YYYY-MM-DD}_to_{YYYY-MM-DD}_{timestamp}.csv`
+
+**Feature ③: Kitchen staff cancellation input with photo upload** — IMPLEMENTED (Heroku v1936, Vercel 31bde3f)
+- **DB** (`db_manila_cancellations.py`): added `photo_upload_urls TEXT` column; `store_submit_cancellation()` function (no management PIN, sets `workflow_status='Pending Review'`); `append_cancellation_photo_url()` function
+- **Drive service** (`procurement_drive_chain.py`): `upload_cancellation_photo()` — uploads to `CancellationPhotos_Manila/{date}/{branch}/` subfolder using existing procurement Drive service
+- **Backend** (`main.py`): `POST /api/store/cancellation/upload-photo` (photo upload, token auth) and `POST /api/store/cancellation/submit` (record submission, token auth, no PIN)
+- **Frontend**: new `/store/cancellation-input/page.tsx` — Platform/Branch/Date/OrderNo/Time/Items/Reason + up to 2 photo uploads (each uploaded to Drive before form submit)
+- **Admin modal** (`cancellations/page.tsx`): `DetailModal` now shows staff-uploaded photos as clickable Drive links for Manila records
 
 ---
 
