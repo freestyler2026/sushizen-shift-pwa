@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2, Plus,
@@ -179,6 +179,14 @@ export default function StoreSupplierOrdersPage() {
   const [addForm, setAddForm] = useState({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "", unit_price: "" });
   const [addSaving, setAddSaving] = useState(false);
   const [deleteConfirmCatalog, setDeleteConfirmCatalog] = useState<number | null>(null);
+
+  type InlineEditState =
+    | { id: number; field: "unit_price"; value: string }
+    | { id: number; field: "par"; wkday: string; wkend: string; def: string }
+    | null;
+  const [inlineEdit, setInlineEdit] = useState<InlineEditState>(null);
+  const [inlineSaving, setInlineSaving] = useState(false);
+  const skipInlineSaveRef = useRef(false);
 
   const [sendEmailResult, setSendEmailResult] = useState<{ orderId: number; sent: boolean; error: string | null } | null>(null);
 
@@ -470,6 +478,51 @@ export default function StoreSupplierOrdersPage() {
       await loadCatalog();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to delete catalog item.");
+    }
+  }
+
+  async function saveInlineEdit(editState: NonNullable<InlineEditState>) {
+    if (inlineSaving || skipInlineSaveRef.current) { skipInlineSaveRef.current = false; return; }
+    const item = catalogItems.find(i => i.id === editState.id);
+    if (!item) return;
+    setInlineSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        item_code: item.item_code,
+        item_name: item.item_name,
+        category: item.category,
+        unit: item.unit,
+        par_level: item.par_level,
+        par_level_weekday: item.par_level_weekday,
+        par_level_weekend: item.par_level_weekend,
+        supplier_name: item.supplier_name,
+        is_active: item.is_active,
+        notes: item.notes,
+        daily_inv_item_code: item.daily_inv_item_code,
+        unit_price: item.unit_price,
+      };
+      if (editState.field === "unit_price") {
+        body.unit_price = editState.value.trim() === "" ? null : parseFloat(editState.value);
+      } else {
+        body.par_level = parseFloat(editState.def) || 0;
+        body.par_level_weekday = editState.wkday.trim() === "" ? null : parseFloat(editState.wkday);
+        body.par_level_weekend = editState.wkend.trim() === "" ? null : parseFloat(editState.wkend);
+      }
+      const res = await fetch(`/api/admin/store-supplier/catalog/${store}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail ?? `Save failed (${res.status})`);
+      }
+      setInlineEdit(null);
+      await loadCatalog();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to save.");
+    } finally {
+      setInlineSaving(false);
     }
   }
 
@@ -987,13 +1040,103 @@ export default function StoreSupplierOrdersPage() {
                           <div className="text-xs text-zinc-500">{item.item_code} · {item.unit}</div>
                         </td>
                         <td className="px-4 py-3 text-zinc-400 text-xs">{item.supplier_name}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-xs">
-                          {item.unit_price != null
-                            ? <span className="text-amber-300 font-medium">₱{Number(item.unit_price).toFixed(2)}</span>
-                            : <span className="text-zinc-600">—</span>}
+                        {/* ── Unit Price (inline editable) ── */}
+                        <td
+                          className="px-4 py-3 text-right tabular-nums text-xs cursor-pointer group"
+                          onClick={() => {
+                            if (inlineEdit?.id === item.id && inlineEdit.field === "unit_price") return;
+                            setInlineEdit({ id: item.id, field: "unit_price", value: item.unit_price?.toString() ?? "" });
+                          }}
+                        >
+                          {inlineEdit?.id === item.id && inlineEdit.field === "unit_price" ? (
+                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                              <span className="text-zinc-500">₱</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="w-24 rounded border border-violet-500/50 bg-slate-800 px-2 py-0.5 text-right text-xs text-white outline-none focus:border-violet-400"
+                                value={inlineEdit.value}
+                                autoFocus
+                                onChange={e => setInlineEdit(prev => prev?.field === "unit_price" ? { ...prev, value: e.target.value } : prev)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                                  if (e.key === "Escape") { skipInlineSaveRef.current = true; e.currentTarget.blur(); setInlineEdit(null); }
+                                }}
+                                onBlur={() => { if (inlineEdit) saveInlineEdit(inlineEdit); }}
+                                disabled={inlineSaving}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              {item.unit_price != null
+                                ? <span className="text-amber-300 font-medium">₱{Number(item.unit_price).toFixed(2)}</span>
+                                : <span className="text-zinc-600 group-hover:text-zinc-400 italic">click to add</span>}
+                              <Pencil className="h-2.5 w-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 ml-0.5 shrink-0" />
+                            </div>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-xs tabular-nums text-zinc-300">
-                          {item.par_level_weekday != null ? item.par_level_weekday : "—"} / {item.par_level_weekend != null ? item.par_level_weekend : "—"} / {item.par_level}
+                        {/* ── Par levels (inline editable) ── */}
+                        <td
+                          className="px-4 py-3 text-xs tabular-nums text-zinc-300 cursor-pointer group"
+                          onClick={() => {
+                            if (inlineEdit?.id === item.id && inlineEdit.field === "par") return;
+                            setInlineEdit({
+                              id: item.id, field: "par",
+                              wkday: item.par_level_weekday?.toString() ?? "",
+                              wkend: item.par_level_weekend?.toString() ?? "",
+                              def: item.par_level.toString(),
+                            });
+                          }}
+                        >
+                          {inlineEdit?.id === item.id && inlineEdit.field === "par" ? (
+                            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="number" min="0" step="0.01" placeholder="wkday"
+                                title="Weekday par"
+                                className="w-14 rounded border border-violet-500/50 bg-slate-800 px-1 py-0.5 text-xs text-center text-white outline-none focus:border-violet-400"
+                                value={inlineEdit.wkday}
+                                autoFocus
+                                onChange={e => setInlineEdit(prev => prev?.field === "par" ? { ...prev, wkday: e.target.value } : prev)}
+                                onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
+                                disabled={inlineSaving}
+                              />
+                              <span className="text-zinc-600">/</span>
+                              <input
+                                type="number" min="0" step="0.01" placeholder="wkend"
+                                title="Weekend par"
+                                className="w-14 rounded border border-violet-500/50 bg-slate-800 px-1 py-0.5 text-xs text-center text-white outline-none focus:border-violet-400"
+                                value={inlineEdit.wkend}
+                                onChange={e => setInlineEdit(prev => prev?.field === "par" ? { ...prev, wkend: e.target.value } : prev)}
+                                onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
+                                disabled={inlineSaving}
+                              />
+                              <span className="text-zinc-600">/</span>
+                              <input
+                                type="number" min="0" step="0.01" placeholder="default"
+                                title="Default par"
+                                className="w-14 rounded border border-violet-500/50 bg-slate-800 px-1 py-0.5 text-xs text-center text-white outline-none focus:border-violet-400"
+                                value={inlineEdit.def}
+                                onChange={e => setInlineEdit(prev => prev?.field === "par" ? { ...prev, def: e.target.value } : prev)}
+                                onKeyDown={e => { if (e.key === "Escape") setInlineEdit(null); }}
+                                disabled={inlineSaving}
+                              />
+                              <button
+                                onClick={() => saveInlineEdit(inlineEdit)}
+                                disabled={inlineSaving}
+                                className="rounded bg-violet-600 px-2 py-0.5 text-xs text-white hover:bg-violet-500 disabled:opacity-50"
+                              >{inlineSaving ? "…" : "✓"}</button>
+                              <button
+                                onClick={() => setInlineEdit(null)}
+                                className="text-xs text-zinc-500 hover:text-white px-1"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span>{item.par_level_weekday != null ? item.par_level_weekday : "—"} / {item.par_level_weekend != null ? item.par_level_weekend : "—"} / {item.par_level}</span>
+                              <Pencil className="h-2.5 w-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 ml-0.5 shrink-0" />
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           {editingCatalogId === item.id ? (
