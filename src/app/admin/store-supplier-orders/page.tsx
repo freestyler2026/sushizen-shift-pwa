@@ -281,6 +281,10 @@ export default function StoreSupplierOrdersPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail ?? `Failed to update status (${res.status})`);
+        return;
+      }
       if (newStatus === "sent") {
         setSendEmailResult({
           orderId,
@@ -339,11 +343,17 @@ export default function StoreSupplierOrdersPage() {
     if (isNaN(qty) || qty < 0) return;
     setQtyUpdating(true);
     try {
-      await fetch(`/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
+      const patchRes = await fetch(`/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ qty_ordered: qty }),
       });
+      if (!patchRes.ok) {
+        const errData = await patchRes.json().catch(() => ({}));
+        setError(errData.detail ?? `Failed to update quantity (${patchRes.status})`);
+        setQtyUpdating(false);
+        return;
+      }
       const res = await fetch(`/api/admin/store-supplier/orders/${orderId}`, {
         headers: getAuthHeaders(),
       });
@@ -363,7 +373,7 @@ export default function StoreSupplierOrdersPage() {
   async function saveCatalogLink(item: CatalogItem) {
     setCatalogSaving(true);
     try {
-      await fetch(`/api/admin/store-supplier/catalog/${store}`, {
+      const res = await fetch(`/api/admin/store-supplier/catalog/${store}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
@@ -380,10 +390,14 @@ export default function StoreSupplierOrdersPage() {
           daily_inv_item_code: catalogLinkCode || null,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail ?? `Save failed (${res.status})`);
+      }
       setEditingCatalogId(null);
       await loadCatalog();
-    } catch {
-      setError("Failed to save catalog item link.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to save catalog item link.");
     } finally {
       setCatalogSaving(false);
     }
@@ -414,8 +428,8 @@ export default function StoreSupplierOrdersPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={T_PAGE_TITLE}>Store Supplier Orders</h1>
           <div className="flex gap-2">
-            <button onClick={tab === "orders" ? loadOrders : tab === "suppliers" ? loadSuppliers : loadPerf} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
-              <RefreshCw className={`h-4 w-4 ${(loading || perfLoading || suppliersLoading) ? "animate-spin" : ""}`} />
+            <button onClick={tab === "orders" ? loadOrders : tab === "suppliers" ? loadSuppliers : tab === "catalog" ? loadCatalog : loadPerf} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
+              <RefreshCw className={`h-4 w-4 ${(loading || perfLoading || suppliersLoading || catalogLoading) ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
