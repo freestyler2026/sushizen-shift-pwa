@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
-  CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2,
+  CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2, Plus,
   BarChart2, ShieldCheck, Pencil, Mail, Users,
 } from "lucide-react";
 import {
@@ -173,6 +173,10 @@ export default function StoreSupplierOrdersPage() {
   const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null);
   const [catalogLinkCode, setCatalogLinkCode] = useState<string>("");
   const [catalogSaving, setCatalogSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "" });
+  const [addSaving, setAddSaving] = useState(false);
+  const [deleteConfirmCatalog, setDeleteConfirmCatalog] = useState<number | null>(null);
 
   const [sendEmailResult, setSendEmailResult] = useState<{ orderId: number; sent: boolean; error: string | null } | null>(null);
 
@@ -229,6 +233,8 @@ export default function StoreSupplierOrdersPage() {
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
+    setShowAddForm(false);
+    setDeleteConfirmCatalog(null);
     try {
       const [catRes, supplierInvRes, ckInvRes] = await Promise.all([
         fetch(`/api/admin/store-supplier/catalog/${store}`, { headers: getAuthHeaders() }),
@@ -245,6 +251,7 @@ export default function StoreSupplierOrdersPage() {
       ]);
     } catch {
       setCatalogItems([]);
+      setError("Failed to load catalog.");
     } finally {
       setCatalogLoading(false);
     }
@@ -406,6 +413,60 @@ export default function StoreSupplierOrdersPage() {
       setError(e instanceof Error ? e.message : "Failed to save catalog item link.");
     } finally {
       setCatalogSaving(false);
+    }
+  }
+
+  async function saveNewCatalogItem() {
+    if (!addForm.item_code.trim() || !addForm.item_name.trim() || !addForm.supplier_name.trim() || !addForm.par_level) {
+      setError("Item Code, Item Name, Supplier, and Default Par Level are required.");
+      return;
+    }
+    setAddSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/catalog/${store}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          item_code: addForm.item_code.trim().toUpperCase(),
+          item_name: addForm.item_name.trim(),
+          supplier_name: addForm.supplier_name.trim(),
+          category: addForm.supplier_name.trim().toLowerCase().includes("central kitchen") ? "CK" : "GENERAL",
+          unit: addForm.unit.trim() || "kg",
+          par_level: parseFloat(addForm.par_level) || 0,
+          par_level_weekday: addForm.par_level_weekday ? parseFloat(addForm.par_level_weekday) : null,
+          par_level_weekend: addForm.par_level_weekend ? parseFloat(addForm.par_level_weekend) : null,
+          daily_inv_item_code: addForm.daily_inv_item_code || null,
+          is_active: true,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail ?? `Save failed (${res.status})`);
+      }
+      setAddForm({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "" });
+      setShowAddForm(false);
+      await loadCatalog();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to add catalog item.");
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  async function deleteCatalogItem(itemId: number) {
+    try {
+      const res = await fetch(`/api/admin/store-supplier/catalog/${store}/${itemId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail ?? `Delete failed (${res.status})`);
+      }
+      setDeleteConfirmCatalog(null);
+      await loadCatalog();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to delete catalog item.");
     }
   }
 
@@ -731,13 +792,142 @@ export default function StoreSupplierOrdersPage() {
         {/* ── CATALOG TAB ────────────────────────────────────────────── */}
         {tab === "catalog" && (
           <>
-            <p className="text-sm text-zinc-400">
-              Link each catalog item to its corresponding <strong className="text-white">Daily Inventory item code</strong> so Generate Orders can subtract current stock from the par level.
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-zinc-400">
+                Link each catalog item to its corresponding <strong className="text-white">Daily Inventory item code</strong> so Generate Orders can subtract current stock from the par level. Add CK items here with <strong className="text-white">Supplier = &quot;Central Kitchen&quot;</strong>.
+              </p>
+              <button
+                onClick={() => setShowAddForm((v) => !v)}
+                className={PRIMARY_BUTTON + " flex items-center gap-1.5 text-xs px-3 py-1.5 shrink-0"}
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Item
+              </button>
+            </div>
+
+            {/* ── Add Item inline form ── */}
+            {showAddForm && (
+              <div className={GLASS_CARD + " p-4 space-y-3"}>
+                <p className="text-xs font-medium text-zinc-300">New Catalog Item</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-zinc-500">Item Code *</label>
+                    <input
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="e.g. CK-SPICY-MAYO"
+                      value={addForm.item_code}
+                      onChange={(e) => setAddForm((f) => ({ ...f, item_code: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Item Name *</label>
+                    <input
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="e.g. Spicy Miso Mayo"
+                      value={addForm.item_name}
+                      onChange={(e) => setAddForm((f) => ({ ...f, item_name: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Supplier *</label>
+                    <input
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="Central Kitchen"
+                      value={addForm.supplier_name}
+                      onChange={(e) => setAddForm((f) => ({ ...f, supplier_name: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Unit</label>
+                    <input
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="kg / pcs / L"
+                      value={addForm.unit}
+                      onChange={(e) => setAddForm((f) => ({ ...f, unit: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Default Par *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="0"
+                      value={addForm.par_level}
+                      onChange={(e) => setAddForm((f) => ({ ...f, par_level: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Weekday Par</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="(optional)"
+                      value={addForm.par_level_weekday}
+                      onChange={(e) => setAddForm((f) => ({ ...f, par_level_weekday: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Weekend Par</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="(optional)"
+                      value={addForm.par_level_weekend}
+                      onChange={(e) => setAddForm((f) => ({ ...f, par_level_weekend: e.target.value }))}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs text-zinc-500">Daily Inv Link (optional)</label>
+                    <select
+                      className={SELECT_CLASS + " mt-1 text-xs w-full"}
+                      value={addForm.daily_inv_item_code}
+                      onChange={(e) => setAddForm((f) => ({ ...f, daily_inv_item_code: e.target.value }))}
+                    >
+                      <option value="">(none — use par only)</option>
+                      {dailyInvItems.filter(d => d.source_type === "supplier").length > 0 && (
+                        <optgroup label="── Supplier Items ──">
+                          {dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
+                            <option key={d.item_code} value={d.item_code}>{d.item_code} — {d.item_name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {dailyInvItems.filter(d => d.source_type === "ck").length > 0 && (
+                        <optgroup label="── CK Items ──">
+                          {dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
+                            <option key={d.item_code} value={d.item_code}>{d.item_code} — {d.item_name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={saveNewCatalogItem}
+                    disabled={addSaving}
+                    className={PRIMARY_BUTTON + " text-xs px-4 py-1.5"}
+                  >
+                    {addSaving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setShowAddForm(false)}
+                    className={SECONDARY_BUTTON + " text-xs px-4 py-1.5"}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {catalogLoading ? (
               <div className="py-12 text-center text-zinc-500">Loading…</div>
             ) : catalogItems.length === 0 ? (
-              <div className="py-12 text-center text-zinc-500">No catalog items for {STORE_LABELS[store]}.</div>
+              <div className="py-12 text-center text-zinc-500">No catalog items for {STORE_LABELS[store]}. Use &quot;Add Item&quot; above to add CK items.</div>
             ) : (
               <div className={GLASS_CARD + " overflow-x-auto"}>
                 <table className="w-full text-sm">
@@ -812,15 +1002,42 @@ export default function StoreSupplierOrdersPage() {
                         </td>
                         <td className="px-4 py-3">
                           {editingCatalogId !== item.id && (
-                            <button
-                              onClick={() => {
-                                setEditingCatalogId(item.id);
-                                setCatalogLinkCode(item.daily_inv_item_code ?? "");
-                              }}
-                              className={SECONDARY_BUTTON + " flex items-center gap-1.5 text-xs px-3 py-1"}
-                            >
-                              <Pencil className="h-3 w-3" /> Link
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingCatalogId(item.id);
+                                  setCatalogLinkCode(item.daily_inv_item_code ?? "");
+                                }}
+                                className={SECONDARY_BUTTON + " flex items-center gap-1.5 text-xs px-3 py-1"}
+                              >
+                                <Pencil className="h-3 w-3" /> Link
+                              </button>
+                              {deleteConfirmCatalog === item.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-red-400">Delete?</span>
+                                  <button
+                                    onClick={() => deleteCatalogItem(item.id)}
+                                    className="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmCatalog(null)}
+                                    className={SECONDARY_BUTTON + " text-xs px-2 py-1"}
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirmCatalog(item.id)}
+                                  className="text-xs px-2 py-1 rounded text-zinc-500 hover:text-red-400 hover:bg-red-400/10"
+                                  title="Delete item"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
