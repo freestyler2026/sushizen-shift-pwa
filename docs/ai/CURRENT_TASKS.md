@@ -1,6 +1,62 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (CK orders via Store Supplier Orders — Add/Delete Catalog UI complete, E2E tested)
+Last updated: 2026-08-14 (Store Supplier Orders — unit_price + PO email pricing columns implemented and tested)
+
+---
+
+## ✅ Completed: Store Supplier Orders — unit_price + PO email pricing (2026-08-14, Heroku v1930 + Vercel 702441f)
+
+**Request**: Staff asked to switch procurement ordering to Store Supplier Orders system. Also requested that the PO email include Unit Price and Total Price columns (like procurement PO emails), since existing email only showed Item | Code | Qty.
+
+**Backend changes** (Heroku v1930, commit `a27b389`):
+- `db_store_supplier.py`: Added `unit_price NUMERIC(10,2)` to `store_supplier_catalog` and `store_supplier_order_items` via `ALTER TABLE IF NOT EXISTS`. `upsert_store_supplier_catalog_item()` now accepts `unit_price` param with upsert ON CONFLICT UPDATE. `generate_store_supplier_orders()` copies unit_price from catalog → order_items at generation time (price snapshot, not live-linked).
+- `store_supplier_api.py`: `CatalogItemIn` model: added `unit_price: Optional[float] = None`. `api_upsert_catalog_item()` passes it through.
+- `services/store_supplier_mail.py`: Full rework of item table. `has_price` flag: only shows price columns if at least one item has unit_price set. `_price_cells()` helper per item. Grand Total row at bottom (green style). Bug fixed: grand_total_row had wrong colspan — fixed to 5 columns (Item+Code+Qty=colspan3, Unit Price label td, Total value td).
+
+**Frontend changes** (Vercel `702441f`):
+- `CatalogItem` and `OrderItem` interfaces: added `unit_price: number | null`.
+- Catalog table: new "Unit Price" column; shows ₱X.XX in amber or "—".
+- Add Item form: new "Unit Price (₱, optional)" number input.
+- Order detail items table: new "Unit Price" and "Total" columns (total = unit_price × qty_ordered).
+- Grand Total row at bottom of order detail (colSpan 3+1+2=6 ✓).
+- `saveNewCatalogItem()`: sends `unit_price` in POST body.
+
+**Price upsert pattern**: Existing catalog items can have prices added by re-posting with same item_code via Add Item form → triggers ON CONFLICT DO UPDATE, no duplicate created.
+
+**Price snapshot**: unit_price copied from catalog at order generation time. Later catalog price changes don't retroactively affect existing orders.
+
+**Test results (2026-08-14)**:
+- Added TEST-P001 (₱150.00/kg, par=2) → catalog shows ₱150.00 ✓
+- Generated order for 2026-08-16 (order 41) → unit_price=150 stored, null for other items ✓
+- UI: ₱150.00 Unit Price, ₱300.00 Total (2kg × ₱150), Grand Total ₱300.00 ✓
+- Qty edit: 2→3 → Total updates to ₱450.00, Grand Total ₱450.00 ✓ (re-fetch after PATCH works correctly)
+- Test data cleaned up: TEST-P001 deleted from catalog, draft order 41 deleted ✓
+
+**Email HTML column count bug**: When `has_price=True`, table has 5 columns. Original grand_total_row had only 4 cells (colspan=3 + 1 empty + 1 value). Fixed to: colspan=3 (blank) + td "Grand Total" label (Unit Price col) + td value (Total col) = 5 total.
+
+---
+
+## ✅ Completed: Dubai DTR — Sync from OS Attendance (2026-08-14, Vercel 8eef2c9)
+
+**問題**: Dubai DTR Upload で Clock In/Clock Out が全て「—」表示。OS Attendance にはデータがあるにもかかわらず、Download OS CSV ボタンが `preview_only: true` でAPIを呼ぶだけでDBに書き込んでいなかった（フロントエンドの Sync ボタンが存在しなかった）。
+
+**実装**: Manila と同じ「Sync from OS Attendance」タブを Dubai DTR Upload ページに追加。
+- `SyncApiResult` 型追加
+- `handleSync(previewOnly: boolean)` 関数 — `/api/admin/dubai-payroll/sync-dtr` を呼ぶ
+- `activeTab` のデフォルトを `"sync"` に変更
+- Sync タブ UI: Preview Sync / Sync Now ボタン、確認ダイアログ、4統計カード、プレビューテーブル、成功バナー、エラー一覧
+- 実際のSync後にDTRテーブルを自動リフレッシュ
+
+**バグ発見・修正（テスト中）**: プレビューテーブルが `.slice(11, 16)` を使っておりUTC時刻を表示していた。`os_attendance_sessions.check_in_at` は真のUTC（例: 12:51 UTC = 16:51 UAE）のため、`fmtTime()` (timeZone: "Asia/Dubai" 変換あり) を使う必要があった。修正後:
+- プレビューテーブル: 16:51 UAE ✓（修正前: 12:51 UTC ✗）
+- メインDTRテーブル: 既にfmtTime()を使用していたため正常 ✓
+
+**テスト結果**:
+- Preview Sync: 835 OS Records, 835 Would Sync, 0 Errors ✓
+- 実Sync: 835件書き込み成功 ✓
+- Clock In/Clock Out が正しいUAE時刻で表示（Sanam KC: 16:50 for 17:00 shift ✓）
+
+**Commits**: `1b914fe` (feat), `690112a` (wrong fix reverted), `8eef2c9` (correct timezone fix)
 
 ---
 

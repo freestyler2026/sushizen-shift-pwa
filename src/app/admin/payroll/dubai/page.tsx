@@ -7,7 +7,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 
 const API      = "/api/admin/dubai-payroll";
@@ -73,8 +73,7 @@ export default function DubaiPayrollPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    const role = auth?.role ?? "";
-    if (!auth || (role !== "ADMIN" && role !== "HQ")) router.replace("/week");
+    if (!auth || !canAccessPayrollAdmin(auth)) router.replace("/week");
   }, [router]);
 
   const [periods, setPeriods]     = useState<Period[]>([]);

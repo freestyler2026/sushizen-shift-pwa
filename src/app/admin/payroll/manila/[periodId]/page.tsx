@@ -8,7 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { getAuth, canAccessPayrollAdmin, hasPayrollViewSalary } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 
 const API = "/api/admin/manila-payroll";
@@ -864,6 +864,7 @@ function PayslipDetail({
   onRecomputed,
   period,
   profileMonthlyRate,
+  canSeeSalary,
 }: {
   run: Run;
   items: PayrollItem[];
@@ -877,6 +878,7 @@ function PayslipDetail({
   onRecomputed: () => void;
   period: Period | null;
   profileMonthlyRate?: number | null;
+  canSeeSalary: boolean;
 }) {
   const [showDTR, setShowDTR]         = useState(false);
   const [showAdj, setShowAdj]         = useState(false);
@@ -984,14 +986,14 @@ function PayslipDetail({
             )}
             <p className="text-xs text-slate-400 mt-0.5">
               {run.salary_type === "monthly" ? "Monthly" : "Daily"}
-              &nbsp;·&nbsp;Monthly Rate: {fmtPHP(run.monthly_rate)}
+              &nbsp;·&nbsp;Monthly Rate: {canSeeSalary ? fmtPHP(run.monthly_rate) : <span className="font-mono text-slate-600">₱ ****</span>}
               &nbsp;·&nbsp;Divisor: {run.salary_divisor != null ? Number(run.salary_divisor).toFixed(2) : "—"}
               &nbsp;·&nbsp;Days Worked: {run.days_worked ?? "—"}
-              {run.monthly_rate != null && run.salary_divisor != null && (
+              {canSeeSalary && run.monthly_rate != null && run.salary_divisor != null && (
                 <>&nbsp;·&nbsp;<span className="text-violet-300/80">Hourly: {fmtPHP(run.monthly_rate / run.salary_divisor / 8)}/hr</span></>
               )}
             </p>
-            {basisParts.length > 0 && (
+            {canSeeSalary && basisParts.length > 0 && (
               <p className="text-xs text-violet-300/70 mt-1 font-mono">
                 Basic Pay: {basisParts.join(" + ")}
               </p>
@@ -1065,7 +1067,9 @@ function PayslipDetail({
          Math.abs(profileMonthlyRate - run.monthly_rate) > 1 && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-900/20 px-3 py-2 text-xs text-orange-300">
             <AlertTriangle size={12} />
-            Salary mismatch: this run used ₱{run.monthly_rate.toLocaleString("en-PH")} but the Staff Profile now shows ₱{profileMonthlyRate.toLocaleString("en-PH")}. Click &quot;Compute All&quot; to recompute with the updated rate.
+            {canSeeSalary
+              ? <>Salary mismatch: this run used ₱{run.monthly_rate.toLocaleString("en-PH")} but the Staff Profile now shows ₱{profileMonthlyRate.toLocaleString("en-PH")}. Click &quot;Compute All&quot; to recompute with the updated rate.</>
+              : <>Salary mismatch detected — amounts hidden. Click &quot;Compute All&quot; to recompute with the updated rate.</>}
           </div>
         )}
 
@@ -1103,7 +1107,7 @@ function PayslipDetail({
           {/* Gross */}
           <div className="flex-1 bg-slate-800/80 px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Gross Pay</p>
-            <p className="text-base font-bold text-white tabular-nums">{fmtPHP(run.gross_pay)}</p>
+            <p className="text-base font-bold text-white tabular-nums">{canSeeSalary ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-500">₱ ****</span>}</p>
           </div>
           {/* Minus sign */}
           <div className="flex items-center justify-center bg-slate-900/60 px-2 text-xl font-light text-slate-500 select-none">
@@ -1112,7 +1116,7 @@ function PayslipDetail({
           {/* Deductions */}
           <div className="flex-1 bg-slate-800/80 px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Total Deductions</p>
-            <p className="text-base font-bold text-red-300 tabular-nums">{fmtPHPAbs(run.total_deductions)}</p>
+            <p className="text-base font-bold text-red-300 tabular-nums">{canSeeSalary ? fmtPHPAbs(run.total_deductions) : <span className="font-mono text-slate-500">₱ ****</span>}</p>
           </div>
           {/* Equals sign */}
           <div className="flex items-center justify-center bg-slate-900/60 px-2 text-xl font-light text-slate-500 select-none">
@@ -1121,7 +1125,7 @@ function PayslipDetail({
           {/* Net pay */}
           <div className="flex-1 bg-gradient-to-br from-violet-900/70 to-purple-900/70 border-l border-violet-500/20 px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-300 mb-1">Net Pay</p>
-            <p className="text-base font-bold text-emerald-300 tabular-nums">{fmtPHP(run.net_pay)}</p>
+            <p className="text-base font-bold text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(run.net_pay) : <span className="font-mono text-slate-500">₱ ****</span>}</p>
           </div>
         </div>
       </div>
@@ -1164,7 +1168,7 @@ function PayslipDetail({
                         </div>
                         {item.quantity != null && item.unit_rate != null && (
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.quantity} day(s) × ₱{item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                            {item.quantity} day(s) × {canSeeSalary ? `₱${item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : "₱ ****"}
                           </p>
                         )}
                         {item.note && (
@@ -1176,7 +1180,7 @@ function PayslipDetail({
                       </div>
                       <div className="ml-4 flex items-center gap-2 shrink-0">
                         <span className="tabular-nums text-sm font-semibold text-emerald-300">
-                          {fmtPHP(item.amount)}
+                          {canSeeSalary ? fmtPHP(item.amount) : "₱ ****"}
                         </span>
                         {item.source === "manual" && (
                           <button
@@ -1194,7 +1198,7 @@ function PayslipDetail({
                   {/* Earnings subtotal */}
                   <div className="flex items-center justify-between bg-emerald-900/20 border-t border-emerald-500/20 px-4 py-2.5">
                     <p className="text-xs font-bold text-emerald-400/80 uppercase tracking-wide">Total Earnings</p>
-                    <span className="tabular-nums text-sm font-bold text-emerald-300">{fmtPHP(earningsTotal)}</span>
+                    <span className="tabular-nums text-sm font-bold text-emerald-300">{canSeeSalary ? fmtPHP(earningsTotal) : "₱ ****"}</span>
                   </div>
                 </div>
               </section>
@@ -1226,7 +1230,7 @@ function PayslipDetail({
                               <span className="rounded-full border border-red-500/30 bg-red-900/20 px-1.5 py-0.5 text-[9px] text-red-400 uppercase tracking-wide">Manual</span>
                             )}
                           </div>
-                          {formula && (
+                          {formula && canSeeSalary && (
                             <p className="text-[10px] text-slate-500 mt-0.5 font-mono leading-relaxed">{formula}</p>
                           )}
                           {item.note && (
@@ -1235,7 +1239,7 @@ function PayslipDetail({
                         </div>
                         <div className="ml-4 flex items-center gap-2 shrink-0">
                           <span className="tabular-nums text-sm font-semibold text-red-300">
-                            ({fmtPHPAbs(item.amount)})
+                            {canSeeSalary ? `(${fmtPHPAbs(item.amount)})` : "(****)"}
                           </span>
                           {item.source === "manual" && (
                             <button
@@ -1254,7 +1258,7 @@ function PayslipDetail({
                   {/* Deductions subtotal */}
                   <div className="flex items-center justify-between bg-red-900/20 border-t border-red-500/20 px-4 py-2.5">
                     <p className="text-xs font-bold text-red-400/80 uppercase tracking-wide">Total Deductions</p>
-                    <span className="tabular-nums text-sm font-bold text-red-300">({fmtPHP(deductionsTotal)})</span>
+                    <span className="tabular-nums text-sm font-bold text-red-300">{canSeeSalary ? `(${fmtPHP(deductionsTotal)})` : "(****)"}</span>
                   </div>
                 </div>
               </section>
@@ -1266,11 +1270,13 @@ function PayslipDetail({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-violet-300/70 uppercase tracking-wide font-semibold mb-0.5">Net Pay</p>
-                    <p className="text-[11px] text-slate-500">
-                      {fmtPHP(earningsTotal)} − {fmtPHP(deductionsTotal)}
-                    </p>
+                    {canSeeSalary && (
+                      <p className="text-[11px] text-slate-500">
+                        {fmtPHP(earningsTotal)} − {fmtPHP(deductionsTotal)}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-2xl font-black text-emerald-300 tabular-nums">{fmtPHP(run.net_pay)}</p>
+                  <p className="text-2xl font-black text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(run.net_pay) : "₱ ****"}</p>
                 </div>
               </div>
             )}
@@ -1290,13 +1296,13 @@ function PayslipDetail({
                       } hover:bg-white/5`}
                     >
                       <p className="text-xs text-slate-500">{item.label}</p>
-                      <span className="text-xs text-slate-500 tabular-nums">{fmtPHP(item.amount)}</span>
+                      <span className="text-xs text-slate-500 tabular-nums">{canSeeSalary ? fmtPHP(item.amount) : "₱ ****"}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between bg-slate-800/60 border-t border-white/5 px-4 py-2">
                     <p className="text-xs text-slate-600 uppercase tracking-wide">Total Employer Costs</p>
                     <span className="text-xs text-slate-500 tabular-nums">
-                      {fmtPHP(employerCosts.reduce((s, i) => s + i.amount, 0))}
+                      {canSeeSalary ? fmtPHP(employerCosts.reduce((s, i) => s + i.amount, 0)) : "₱ ****"}
                     </span>
                   </div>
                 </div>
@@ -1384,11 +1390,11 @@ export default function ManilaPayrollPeriodPage() {
 
   useEffect(() => { void loadPeriod(); }, [loadPeriod]);
 
-  // Auth guard
+  // Auth guard + salary visibility
+  const canSeeSalary = hasPayrollViewSalary(getAuth());
   useEffect(() => {
     const auth = getAuth();
-    const role = auth?.role ?? "";
-    if (!auth || (role !== "ADMIN" && role !== "HQ")) {
+    if (!auth || !canAccessPayrollAdmin(auth)) {
       router.replace("/week");
     }
   }, [router]);
@@ -1918,11 +1924,11 @@ export default function ManilaPayrollPeriodPage() {
                             <span className={selectedRun?.id === run.id ? "text-violet-300 font-medium" : "text-white"}>{run.staff_name}</span>
                           </div>
                         </td>
-                        <td className="py-2.5 text-right text-slate-300 tabular-nums">{fmtPHP(run.gross_pay)}</td>
+                        <td className="py-2.5 text-right text-slate-300 tabular-nums">{canSeeSalary ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-600">****</span>}</td>
                         <td className="py-2.5 text-right text-red-300/80 tabular-nums text-xs">
-                          ({fmtPHPAbs(run.total_deductions)})
+                          {canSeeSalary ? `(${fmtPHPAbs(run.total_deductions)})` : <span className="font-mono text-slate-600">(****)</span>}
                         </td>
-                        <td className="py-2.5 text-right font-bold text-emerald-300 tabular-nums">{fmtPHP(run.net_pay)}</td>
+                        <td className="py-2.5 text-right font-bold text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(run.net_pay) : <span className="font-mono text-slate-600">****</span>}</td>
                         <td className="py-2.5 text-center">
                           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[run.status] ?? STATUS_BADGE.draft}`}>
                             {run.status}
@@ -1941,9 +1947,9 @@ export default function ManilaPayrollPeriodPage() {
                     <tr className="border-t-2 border-white/10">
                       <td />
                       <td className="py-2.5 text-xs font-semibold text-slate-400">Total ({runs.length})</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{fmtPHP(totals.gross)}</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{fmtPHP(totals.net)}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{canSeeSalary ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600">****</span>}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">{canSeeSalary ? `(${fmtPHP(totals.ded)})` : <span className="font-mono text-slate-600">(****)</span>}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(totals.net) : <span className="font-mono text-slate-600">****</span>}</td>
                       <td />
                       <td />
                     </tr>
@@ -1986,6 +1992,7 @@ export default function ManilaPayrollPeriodPage() {
                     ? (Number(profiles.get(selectedRun.staff_name)?.monthly_rate) || null)
                     : null
                 }
+                canSeeSalary={canSeeSalary}
               />
             )}
           </div>

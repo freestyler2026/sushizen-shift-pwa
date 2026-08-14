@@ -765,6 +765,11 @@ export function canAccessPayrollAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.payroll.view", "channel.admin.payroll.manage"], a);
 }
 
+/** Can view actual salary amounts (Gross/Net/Rate). HQ has wildcard so always true; others need explicit grant. */
+export function hasPayrollViewSalary(a?: Auth | null): boolean {
+  return hasPermission("payroll.view_salary", a);
+}
+
 /** Store Evaluations admin — matches `admin.store_evaluations` channel in `app/access_control.py`. */
 export function canAccessStoreEvaluationsAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.store_evaluations.view"], a);
