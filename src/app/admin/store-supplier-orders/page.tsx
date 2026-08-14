@@ -55,6 +55,7 @@ interface OrderItem {
   qty_received: number | null;
   receive_note: string | null;
   received_at: string | null;
+  unit_price: number | null;
 }
 
 interface OrderDetail extends OrderListItem {
@@ -94,6 +95,7 @@ interface CatalogItem {
   is_active: boolean;
   notes: string | null;
   daily_inv_item_code: string | null;
+  unit_price: number | null;
 }
 
 interface DailyInvItem {
@@ -174,7 +176,7 @@ export default function StoreSupplierOrdersPage() {
   const [catalogLinkCode, setCatalogLinkCode] = useState<string>("");
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "" });
+  const [addForm, setAddForm] = useState({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "", unit_price: "" });
   const [addSaving, setAddSaving] = useState(false);
   const [deleteConfirmCatalog, setDeleteConfirmCatalog] = useState<number | null>(null);
 
@@ -436,6 +438,7 @@ export default function StoreSupplierOrdersPage() {
           par_level_weekday: addForm.par_level_weekday ? parseFloat(addForm.par_level_weekday) : null,
           par_level_weekend: addForm.par_level_weekend ? parseFloat(addForm.par_level_weekend) : null,
           daily_inv_item_code: addForm.daily_inv_item_code || null,
+          unit_price: addForm.unit_price ? parseFloat(addForm.unit_price) : null,
           is_active: true,
         }),
       });
@@ -443,7 +446,7 @@ export default function StoreSupplierOrdersPage() {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail ?? `Save failed (${res.status})`);
       }
-      setAddForm({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "" });
+      setAddForm({ item_code: "", item_name: "", supplier_name: "Central Kitchen", unit: "kg", par_level: "", par_level_weekday: "", par_level_weekend: "", daily_inv_item_code: "", unit_price: "" });
       setShowAddForm(false);
       await loadCatalog();
     } catch (e: unknown) {
@@ -649,6 +652,8 @@ export default function StoreSupplierOrdersPage() {
                                       <tr className="border-b border-white/5">
                                         <th className="px-3 py-2 text-left text-xs text-zinc-500">Item</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Ordered{canEditQty && <span className="ml-1 text-zinc-600">(editable)</span>}</th>
+                                        <th className="px-3 py-2 text-right text-xs text-zinc-500">Unit Price</th>
+                                        <th className="px-3 py-2 text-right text-xs text-zinc-500">Total</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Received</th>
                                         <th className="px-3 py-2 text-left text-xs text-zinc-500">Note</th>
                                       </tr>
@@ -705,6 +710,16 @@ export default function StoreSupplierOrdersPage() {
                                               </div>
                                             )}
                                           </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-xs">
+                                            {item.unit_price != null
+                                              ? <span className="text-zinc-300">₱{Number(item.unit_price).toFixed(2)}</span>
+                                              : <span className="text-zinc-600">—</span>}
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-xs">
+                                            {item.unit_price != null
+                                              ? <span className="text-amber-300 font-medium">₱{(Number(item.unit_price) * Number(item.qty_ordered)).toFixed(2)}</span>
+                                              : <span className="text-zinc-600">—</span>}
+                                          </td>
                                           <td className="px-3 py-2 text-right tabular-nums">
                                             {item.qty_received != null
                                               ? <span className="text-emerald-400 font-semibold">{item.qty_received} {item.unit}</span>
@@ -713,6 +728,17 @@ export default function StoreSupplierOrdersPage() {
                                           <td className="px-3 py-2 text-xs text-zinc-400">{item.receive_note ?? "—"}</td>
                                         </tr>
                                       ))}
+                                      {(() => {
+                                        const grandTotal = detail.items.reduce((sum, it) =>
+                                          it.unit_price != null ? sum + Number(it.unit_price) * Number(it.qty_ordered) : sum, 0);
+                                        return grandTotal > 0 ? (
+                                          <tr className="border-t border-white/10 bg-white/3">
+                                            <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-zinc-400">Grand Total</td>
+                                            <td className="px-3 py-2 text-right tabular-nums font-bold text-amber-300">₱{grandTotal.toFixed(2)}</td>
+                                            <td colSpan={2} />
+                                          </tr>
+                                        ) : null;
+                                      })()}
                                     </tbody>
                                   </table>
                                 </div>
@@ -881,6 +907,18 @@ export default function StoreSupplierOrdersPage() {
                       onChange={(e) => setAddForm((f) => ({ ...f, par_level_weekend: e.target.value }))}
                     />
                   </div>
+                  <div>
+                    <label className="text-xs text-zinc-500">Unit Price (₱, optional)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={INPUT_CLASS + " mt-1 text-xs"}
+                      placeholder="e.g. 180.00"
+                      value={addForm.unit_price}
+                      onChange={(e) => setAddForm((f) => ({ ...f, unit_price: e.target.value }))}
+                    />
+                  </div>
                   <div className="md:col-span-2">
                     <label className="text-xs text-zinc-500">Daily Inv Link (optional)</label>
                     <select
@@ -935,6 +973,7 @@ export default function StoreSupplierOrdersPage() {
                     <tr className="border-b border-white/5">
                       <th className="px-4 py-3 text-left text-xs text-zinc-500">Item</th>
                       <th className="px-4 py-3 text-left text-xs text-zinc-500">Supplier</th>
+                      <th className="px-4 py-3 text-right text-xs text-zinc-500">Unit Price</th>
                       <th className="px-4 py-3 text-left text-xs text-zinc-500">Par (wkday / wkend / default)</th>
                       <th className="px-4 py-3 text-left text-xs text-zinc-500">Daily Inv Link</th>
                       <th className="px-4 py-3" />
@@ -948,6 +987,11 @@ export default function StoreSupplierOrdersPage() {
                           <div className="text-xs text-zinc-500">{item.item_code} · {item.unit}</div>
                         </td>
                         <td className="px-4 py-3 text-zinc-400 text-xs">{item.supplier_name}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-xs">
+                          {item.unit_price != null
+                            ? <span className="text-amber-300 font-medium">₱{Number(item.unit_price).toFixed(2)}</span>
+                            : <span className="text-zinc-600">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-xs tabular-nums text-zinc-300">
                           {item.par_level_weekday != null ? item.par_level_weekday : "—"} / {item.par_level_weekend != null ? item.par_level_weekend : "—"} / {item.par_level}
                         </td>
