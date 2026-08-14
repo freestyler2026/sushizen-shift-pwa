@@ -1,6 +1,36 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (Store Supplier Orders Bug ② item-code mismatch fix: Heroku v1927/v1928)
+Last updated: 2026-08-14 (CK orders via Store Supplier Orders — Add/Delete Catalog UI complete, E2E tested)
+
+---
+
+## ✅ Completed: CK Orders via Store Supplier Orders — full implementation (2026-08-14, Heroku d093037 + Vercel cd2dd9a)
+
+**Feature**: Uejima-san wanted CK (Central Kitchen) orders to work exactly like Store Supplier Orders. Instead of a separate system, extended the existing flow to treat "Central Kitchen" as another supplier.
+
+**Backend changes** (Heroku commit d093037):
+- `db_store_supplier.py`: `list_daily_inv_supplier_items()` now accepts `source_type` param (`supplier` or `ck`). Auto-link startup block extended to include `source_type IN ('supplier', 'ck')` items.
+- `store_supplier_api.py`: `GET /api/admin/store-supplier/daily-inv-items?source_type=ck` endpoint added.
+- No new tables — CK items reuse `store_supplier_catalog` with `supplier_name = 'Central Kitchen'`.
+- `generate_store_supplier_orders()` already groups by supplier_name, so CK orders are auto-separated.
+
+**Frontend changes** (Vercel cd2dd9a):
+- Catalog tab: "Add Item" button + inline form (item_code, item_name, supplier, unit, par levels, daily_inv_link). Supplier defaults to "Central Kitchen".
+- Catalog tab: Daily Inv Link dropdown now shows both Supplier Items and CK Items as `<optgroup>` groups.
+- Catalog tab: Trash icon per row with Delete? Yes/No confirmation.
+- `saveNewCatalogItem()` and `deleteCatalogItem()` functions added.
+
+**E2E test result (2026-08-14)**:
+1. Added "Spicy Miso Mayo" (CK-SPICY-MAYO-PAR, par=10, linked CK-463E352F) to PAR catalog ✓
+2. Generated order for 2026-08-15 → "Created 1 order(s), skipped 1 (already existed)" ✓
+3. Central Kitchen order shows: Spicy Miso Mayo, **9.5 kg** (par 10 - stock 0.5 = 9.5) ✓ Stock deduction works
+4. Delete button removes catalog item ✓, Delete Draft removes test order ✓
+
+**Admin workflow for real use**:
+1. Catalog tab → Add Item (supplier="Central Kitchen", set par levels, link to CK-xxx Daily Inv code)
+2. Orders tab → Generate Now for the desired date
+3. A separate "Central Kitchen" order is created alongside the Three-S order
+4. Central Kitchen order can be confirmed → approved → sent (email optional) → received
 
 ---
 
