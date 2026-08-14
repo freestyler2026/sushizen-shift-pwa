@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (Store Supplier Orders Catalog — inline editing for Unit Price and Par levels)
+Last updated: 2026-08-14 (DTR Edit Audit Log — field-level change tracking with editor name)
+
+---
+
+## ✅ Completed: DTR Edit Audit Log (2026-08-14, Heroku + Vercel)
+
+**Request**: Track who edited DTR records, when, and what changed — so WFH team edits can be audited. Three data points: edit datetime, editor name, old value → new value.
+
+**Implementation**:
+- `db.py`: New `dtr_edit_log` table (dtr_record_id, staff_name, work_date, editor_name, field_name, old_value, new_value, edited_at). Added as a migration in `ensure_manila_payroll_tables()`.
+- `db.py`: `insert_dtr_edit_log()` helper (fire-and-forget, swallows errors to avoid breaking the edit endpoint) and `list_dtr_edit_logs()` that queries newest-first with PHT timezone conversion.
+- `main.py`: `PUT /attendance/{staff}/{date}` — reads existing row before upsert, diffs 10 tracked fields (actual_time_in, actual_time_out, day_type, is_worked, late_minutes, undertime_minutes, absent_without_pay, paid_leave_flag, actual_break_minutes, approved_ot_hours). New rows log all non-null fields. **Approval_status explicitly NOT tracked** (per spec).
+- `main.py`: `PATCH /attendance/{id}/approved-ot` — logs approved_ot_hours change.
+- `main.py`: `PATCH /attendance/{id}/scheduled-shift` — logs scheduled_shift_start, scheduled_shift_end, late_minutes, undertime_minutes changes.
+- `main.py`: `GET /api/admin/manila-payroll/dtr-edit-log?record_id=X` — new endpoint returning log for one record.
+- `[periodId]/page.tsx`: Added `DtrEditLogEntry` type, `historyRecordId` state, History icon button (next to Save on each DTR row), `DtrHistoryModal` component showing edit timeline with old → new value (with formatting: timestamps as HH:MM, booleans as Yes/No).
+- Editor name: extracted from authenticated actor's `staff_name` (JWT claims).
+
+**Scope explicitly excluded**: approval_status changes (pending→approved etc.) are NOT logged.
 
 ---
 
