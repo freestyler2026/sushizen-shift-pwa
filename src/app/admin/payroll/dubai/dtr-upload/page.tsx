@@ -81,6 +81,17 @@ type AttendanceRow = {
   is_generated: boolean;
 };
 
+type SyncApiResult = {
+  preview_only?: boolean;
+  total_os_rows?: number;
+  would_sync?: number;
+  synced?: number;
+  new_staff?: { staff_name: string; would_create?: boolean }[];
+  new_staff_created?: number;
+  errors?: { staff_name?: string; work_date: string; message: string }[];
+  preview?: SyncPreviewRow[];
+};
+
 const DAY_TYPE_OPTIONS = [
   "ordinary_day", "rest_day", "public_holiday", "public_holiday_and_rest_day",
 ];
@@ -245,7 +256,13 @@ export default function DubaiDtrUploadPage() {
   const [uploadResult, setUploadResult]     = useState<UploadResult | null>(null);
   const [insertOnly, setInsertOnly]         = useState(false);
 
-  const [activeTab, setActiveTab]           = useState<"download" | "csv" | "guide">("download");
+  const [activeTab, setActiveTab]           = useState<"sync" | "download" | "csv" | "guide">("sync");
+
+  // Sync-from-OS state
+  const [syncLoading, setSyncLoading]       = useState(false);
+  const [syncResult, setSyncResult]         = useState<SyncApiResult | null>(null);
+  const [syncError, setSyncError]           = useState("");
+  const [syncConfirming, setSyncConfirming] = useState(false);
 
   const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
@@ -282,6 +299,33 @@ export default function DubaiDtrUploadPage() {
   useEffect(() => { void loadPeriods(); }, [loadPeriods]);
 
   const selectedPeriod = periods.find(p => String(p.id) === selectedPeriodId);
+
+  async function handleSync(previewOnly: boolean) {
+    if (!selectedPeriodId) { setSyncError("Please select a payroll period first."); return; }
+    setSyncLoading(true); setSyncError(""); setSyncResult(null);
+    try {
+      const r = await apiFetch(`${API}/sync-dtr`, {
+        method: "POST",
+        body: JSON.stringify({ period_id: parseInt(selectedPeriodId), preview_only: previewOnly, auto_create_staff: true }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as SyncApiResult;
+      setSyncResult(data);
+      if (!previewOnly) {
+        setSyncConfirming(false);
+        // Refresh DTR records table
+        if (selectedPeriodId) {
+          setDtrLoading(true);
+          void apiFetch(`${API}/attendance-full?period_id=${selectedPeriodId}`)
+            .then(r2 => r2.json())
+            .then(d => setDtrRecords(Array.isArray(d.rows) ? d.rows : []))
+            .catch(() => {})
+            .finally(() => setDtrLoading(false));
+        }
+      }
+    } catch (e) { setSyncError(`Sync error: ${String(e)}`); }
+    finally { setSyncLoading(false); }
+  }
 
   async function downloadOsAttendance() {
     setDownloadError(""); setDownloadCount(null); setDownloading(true);
@@ -403,7 +447,7 @@ export default function DubaiDtrUploadPage() {
           </p>
           <SelectDark
             value={selectedPeriodId}
-            onChange={v => { setSelectedPeriodId(v); setDownloadCount(null); setDownloadError(""); }}
+            onChange={v => { setSelectedPeriodId(v); setDownloadCount(null); setDownloadError(""); setSyncResult(null); setSyncError(""); setSyncConfirming(false); }}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-sky-500 focus:outline-none min-w-[280px]"
             options={[
               { value: "", label: "— Select a payroll period —" },
@@ -424,6 +468,10 @@ export default function DubaiDtrUploadPage() {
 
         {/* Tabs */}
         <div className={TAB_CONTAINER}>
+          <button onClick={() => setActiveTab("sync")} className={activeTab === "sync" ? TAB_ACTIVE : TAB_INACTIVE}>
+            <Zap size={14} className="inline mr-1.5" />
+            Sync from OS Attendance
+          </button>
           <button onClick={() => setActiveTab("download")} className={activeTab === "download" ? TAB_ACTIVE : TAB_INACTIVE}>
             <Download size={14} className="inline mr-1.5" />
             Download OS CSV
@@ -437,6 +485,206 @@ export default function DubaiDtrUploadPage() {
             CSV Format Guide
           </button>
         </div>
+
+        {/* ── TAB: Sync from OS Attendance ─────────────────────────────────── */}
+        {activeTab === "sync" && (
+          <div className="space-y-4">
+            {!selectedPeriodId ? (
+              <div className={GLASS_CARD + " p-6 text-center"}>
+                <Zap size={32} className="mx-auto mb-3 text-slate-600" />
+                <p className="text-sm text-slate-400">Select a payroll period above to sync OS Attendance data.</p>
+              </div>
+            ) : (
+              <div className={GLASS_CARD + " p-5 space-y-4"}>
+                <div>
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Zap size={15} className="text-violet-400" />
+                    Sync from OS Attendance
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Pulls clock-in/clock-out records from the OS Attendance app for the selected period and writes them directly to DTR records.
+                    {selectedPeriod && (
+                      <span className="ml-1 text-violet-300 font-medium">
+                        Range: {selectedPeriod.start_date} – {selectedPeriod.end_date}
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {syncError && (
+                  <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+                    <AlertCircle size={13} /> {syncError}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {!syncResult && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleSync(true)}
+                      disabled={syncLoading}
+                      className="flex items-center gap-2 rounded-xl border border-white/15 px-5 py-2.5 text-sm text-slate-300 hover:bg-white/10 disabled:opacity-40">
+                      {syncLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      Preview Sync
+                    </button>
+                    <button
+                      onClick={() => setSyncConfirming(true)}
+                      disabled={syncLoading}
+                      className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-40`}>
+                      <Zap size={14} /> Sync from OS Attendance
+                    </button>
+                  </div>
+                )}
+
+                {/* Confirm dialog */}
+                {syncConfirming && !syncResult && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+                      <AlertCircle size={15} /> Confirm Direct Sync
+                    </p>
+                    <p className="text-xs text-amber-200">
+                      This will write OS Attendance data for <strong>{selectedPeriod?.period_label}</strong> directly to DTR records.
+                      Rows with <strong>approval_status = &ldquo;approved&rdquo;</strong> are protected and will not be overwritten — only &ldquo;pending&rdquo; rows are updated.
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setSyncConfirming(false)}
+                        className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 hover:text-white">
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSync(false)}
+                        disabled={syncLoading}
+                        className="flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm text-white hover:bg-amber-500 disabled:opacity-40">
+                        {syncLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                        {syncLoading ? "Syncing…" : "Confirm Sync"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Result display */}
+                {syncResult && (
+                  <div className="space-y-4">
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+                        <p className="text-xl font-bold text-white tabular-nums">{syncResult.total_os_rows ?? 0}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">OS Records</p>
+                      </div>
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-3 text-center">
+                        <p className="text-xl font-bold text-emerald-300 tabular-nums">
+                          {syncResult.synced ?? syncResult.would_sync ?? 0}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {syncResult.preview_only ? "Would Sync" : "Synced"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+                        <p className="text-xl font-bold text-slate-300 tabular-nums">
+                          {syncResult.new_staff_created ?? syncResult.new_staff?.length ?? 0}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">New Staff</p>
+                      </div>
+                      <div className={`rounded-xl border p-3 text-center ${
+                        (syncResult.errors?.length ?? 0) > 0
+                          ? "border-red-500/20 bg-red-900/20" : "border-white/10 bg-white/5"
+                      }`}>
+                        <p className={`text-xl font-bold tabular-nums ${
+                          (syncResult.errors?.length ?? 0) > 0 ? "text-red-300" : "text-slate-500"
+                        }`}>{syncResult.errors?.length ?? 0}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Errors</p>
+                      </div>
+                    </div>
+
+                    {/* Success banner */}
+                    {!syncResult.preview_only && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-3 text-sm text-emerald-300">
+                        <CheckCircle2 size={15} /> Sync complete — {syncResult.synced} rows written to DTR records.
+                        {(syncResult.new_staff_created ?? 0) > 0 && (
+                          <span className="ml-1 text-emerald-400 font-medium">
+                            {syncResult.new_staff_created} new staff profile(s) created.
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Errors */}
+                    {(syncResult.errors?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-red-500/20 bg-red-900/10 p-3 space-y-1">
+                        <p className="text-xs font-semibold text-red-300">Errors ({syncResult.errors!.length})</p>
+                        {syncResult.errors!.slice(0, 5).map((e, i) => (
+                          <p key={i} className="text-xs text-red-400">{e.staff_name} {e.work_date}: {e.message}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Preview table */}
+                    {syncResult.preview_only && syncResult.preview && syncResult.preview.length > 0 && (
+                      <div className="overflow-x-auto rounded-xl border border-white/10">
+                        <table className="w-full text-xs" style={{ minWidth: "680px" }}>
+                          <thead>
+                            <tr className="border-b border-white/10 bg-white/5">
+                              {["Date","Staff","Clock In","Clock Out","Reg Hrs","OT Hrs","Worked"].map(h => (
+                                <th key={h} className="px-3 py-2 text-left text-slate-400">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {syncResult.preview.map((row, i) => (
+                              <tr key={i} className={`border-b border-white/5 hover:bg-white/5 ${!row.is_worked ? "opacity-50" : ""}`}>
+                                <td className="px-3 py-1.5 font-mono text-slate-300">{row.work_date}</td>
+                                <td className="px-3 py-1.5 font-medium text-white">{row.staff_name}</td>
+                                <td className="px-3 py-1.5 font-mono text-emerald-300">{row.actual_time_in ? row.actual_time_in.slice(11, 16) : "—"}</td>
+                                <td className="px-3 py-1.5 font-mono text-emerald-300">{row.actual_time_out ? row.actual_time_out.slice(11, 16) : "—"}</td>
+                                <td className="px-3 py-1.5 text-right text-slate-300">{row.regular_hours}h</td>
+                                <td className="px-3 py-1.5 text-right text-amber-300">{row.overtime_hours > 0 ? `${row.overtime_hours}h` : "—"}</td>
+                                <td className="px-3 py-1.5">
+                                  {row.is_worked
+                                    ? <span className="rounded bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">Worked</span>
+                                    : row.absent_without_pay
+                                      ? <span className="rounded bg-red-900/40 px-2 py-0.5 text-xs text-red-300">AWP</span>
+                                      : <span className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">Rest</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {(syncResult.total_os_rows ?? 0) > (syncResult.preview?.length ?? 0) && (
+                          <p className="px-4 py-2 text-xs text-slate-500">
+                            Showing first {syncResult.preview!.length} of {syncResult.total_os_rows} records
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Re-run buttons after preview */}
+                    {syncResult.preview_only && (
+                      <div className="flex gap-3 pt-1">
+                        <button onClick={() => { setSyncResult(null); setSyncConfirming(false); }}
+                          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 hover:text-white">
+                          ← Back
+                        </button>
+                        <button
+                          onClick={() => { setSyncResult(null); setSyncConfirming(true); }}
+                          className={`${PRIMARY_BUTTON} flex items-center gap-2`}>
+                          <Zap size={14} /> Run Actual Sync
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Reset after actual sync */}
+                    {!syncResult.preview_only && (
+                      <button onClick={() => { setSyncResult(null); setSyncConfirming(false); }}
+                        className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 hover:text-white">
+                        ← Run Again
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── TAB: Download OS Attendance ───────────────────────────────────── */}
         {activeTab === "download" && (
