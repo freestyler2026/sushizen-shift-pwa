@@ -101,6 +101,7 @@ interface DailyInvItem {
   item_name: string;
   unit: string;
   supplier_name: string;
+  source_type: "supplier" | "ck";
 }
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
@@ -229,14 +230,19 @@ export default function StoreSupplierOrdersPage() {
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     try {
-      const [catRes, invRes] = await Promise.all([
+      const [catRes, supplierInvRes, ckInvRes] = await Promise.all([
         fetch(`/api/admin/store-supplier/catalog/${store}`, { headers: getAuthHeaders() }),
-        fetch(`/api/admin/store-supplier/daily-inv-items`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/store-supplier/daily-inv-items?source_type=supplier`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/store-supplier/daily-inv-items?source_type=ck`, { headers: getAuthHeaders() }),
       ]);
       const catData = await catRes.json();
-      const invData = await invRes.json();
+      const supplierInvData = await supplierInvRes.json();
+      const ckInvData = await ckInvRes.json();
       setCatalogItems(catData.items ?? []);
-      setDailyInvItems(invData.items ?? []);
+      setDailyInvItems([
+        ...(supplierInvData.items ?? []),
+        ...(ckInvData.items ?? []),
+      ]);
     } catch {
       setCatalogItems([]);
     } finally {
@@ -765,11 +771,24 @@ export default function StoreSupplierOrdersPage() {
                                 autoFocus
                               >
                                 <option value="">(none — use par only)</option>
-                                {dailyInvItems.map((d) => (
-                                  <option key={d.item_code} value={d.item_code}>
-                                    {d.item_code} — {d.item_name}
-                                  </option>
-                                ))}
+                                {dailyInvItems.filter(d => d.source_type === "supplier").length > 0 && (
+                                  <optgroup label="── Supplier Items ──">
+                                    {dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
+                                      <option key={d.item_code} value={d.item_code}>
+                                        {d.item_code} — {d.item_name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {dailyInvItems.filter(d => d.source_type === "ck").length > 0 && (
+                                  <optgroup label="── CK Items ──">
+                                    {dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
+                                      <option key={d.item_code} value={d.item_code}>
+                                        {d.item_code} — {d.item_name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
                               </select>
                               <button
                                 onClick={() => saveCatalogLink(item)}
