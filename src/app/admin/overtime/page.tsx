@@ -370,7 +370,7 @@ export default function AdminOvertimePage() {
                       <span className="text-white">{formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}</span>
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                     </div>
-                    <p className="text-sm text-white/70 line-clamp-2">{r.reason}</p>
+                    <p className="text-sm text-white/70">{r.reason}</p>
                     {r.manager_approved_by && (
                       <p className="text-xs text-blue-400">Stage 1: {r.manager_approved_by}</p>
                     )}
@@ -438,7 +438,7 @@ export default function AdminOvertimePage() {
                           <br /><span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
                         </td>
                         <td className={TABLE_CELL}>
-                          <span className="line-clamp-2 max-w-[180px]" title={r.reason}>{r.reason}</span>
+                          <span className="max-w-[260px] break-words whitespace-pre-wrap">{r.reason}</span>
                           {r.manager_approved_by && (
                             <span className="block text-blue-400 text-xs mt-0.5">✓ {r.manager_approved_by}</span>
                           )}
