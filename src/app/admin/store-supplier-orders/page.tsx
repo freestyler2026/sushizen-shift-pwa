@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2, Plus,
-  BarChart2, ShieldCheck, Pencil, Mail, Users,
+  BarChart2, ShieldCheck, Pencil, Mail, Users, Bell, FileCheck, TrendingUp, TrendingDown,
+  CalendarClock, X,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -56,10 +57,25 @@ interface OrderItem {
   receive_note: string | null;
   received_at: string | null;
   unit_price: number | null;
+  unit_price_actual: number | null;
+  price_variance_pct: number | null;
+  price_flagged: boolean;
 }
 
 interface OrderDetail extends OrderListItem {
+  delivery_date: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  received_by: string | null;
+  invoice_checked_at: string | null;
+  invoice_checked_by: string | null;
   items: OrderItem[];
+}
+
+interface AlertData {
+  overdue: { id: number; store: string; supplier_name: string; order_date: string; delivery_date: string; status: string }[];
+  uninvoiced: { id: number; store: string; supplier_name: string; order_date: string; status: string; updated_at: string }[];
+  flagged_items: { id: number; store: string; supplier_name: string; order_date: string; status: string }[];
 }
 
 interface PerformanceRow {
@@ -192,6 +208,35 @@ export default function StoreSupplierOrdersPage() {
 
   const [sendEmailResult, setSendEmailResult] = useState<{ orderId: number; sent: boolean; error: string | null } | null>(null);
 
+  // Post-order flow state
+  const [alerts, setAlerts] = useState<AlertData | null>(null);
+  const [deliveryDateEdit, setDeliveryDateEdit] = useState<{ orderId: number; value: string } | null>(null);
+  const [deliveryDateSaving, setDeliveryDateSaving] = useState(false);
+
+  // Receive modal
+  const [receiveModal, setReceiveModal] = useState<{
+    orderId: number;
+    items: { item_id: number; item_name: string; unit: string; qty_ordered: number; qty_received: string; receive_note: string }[];
+    invoiceNumber: string;
+    receiveStatus: "received" | "partial" | "issue";
+  } | null>(null);
+  const [receiveSaving, setReceiveSaving] = useState(false);
+
+  // Invoice check state
+  const [actualPrices, setActualPrices] = useState<Record<number, string>>({});
+  const [actualPriceSaving, setActualPriceSaving] = useState<number | null>(null);
+  const [invoiceCheckSaving, setInvoiceCheckSaving] = useState(false);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/store-supplier/alerts", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts({ overdue: data.overdue ?? [], uninvoiced: data.uninvoiced ?? [], flagged_items: data.flagged_items ?? [] });
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -275,6 +320,8 @@ export default function StoreSupplierOrdersPage() {
     else if (tab === "catalog") loadCatalog();
     else loadPerf();
   }, [tab, loadOrders, loadPerf, loadSuppliers, loadCatalog]);
+
+  useEffect(() => { loadAlerts(); }, [loadAlerts]);
 
   useEffect(() => { setInlineEdit(null); }, [store]);
 
@@ -535,6 +582,131 @@ export default function StoreSupplierOrdersPage() {
     }
   }
 
+  async function handleSetDeliveryDate(orderId: number, dateStr: string) {
+    setDeliveryDateSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/delivery-date`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ delivery_date: dateStr }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.detail ?? "Failed to set delivery date.");
+        return;
+      }
+      setDeliveryDateEdit(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadOrders();
+    } catch {
+      setError("Failed to set delivery date.");
+    } finally {
+      setDeliveryDateSaving(false);
+    }
+  }
+
+  function openReceiveModal(order: OrderDetail) {
+    setReceiveModal({
+      orderId: order.id,
+      items: order.items.map((it) => ({
+        item_id: it.id,
+        item_name: it.item_name,
+        unit: it.unit,
+        qty_ordered: it.qty_ordered,
+        qty_received: it.qty_received != null ? String(it.qty_received) : String(it.qty_ordered),
+        receive_note: it.receive_note ?? "",
+      })),
+      invoiceNumber: order.invoice_number ?? "",
+      receiveStatus: "received",
+    });
+  }
+
+  async function handleConfirmReceipt() {
+    if (!receiveModal) return;
+    setReceiveSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}/receive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          items: receiveModal.items.map((it) => ({
+            item_id: it.item_id,
+            qty_received: parseFloat(it.qty_received) || 0,
+            receive_note: it.receive_note || null,
+          })),
+          status: receiveModal.receiveStatus,
+          invoice_number: receiveModal.invoiceNumber.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail ?? "Failed to confirm receipt.");
+        return;
+      }
+      setReceiveModal(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadOrders();
+      await loadAlerts();
+    } catch {
+      setError("Failed to confirm receipt.");
+    } finally {
+      setReceiveSaving(false);
+    }
+  }
+
+  async function handleSetActualPrice(orderId: number, itemId: number, priceStr: string) {
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price < 0) return;
+    setActualPriceSaving(itemId);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/items/${itemId}/actual-price`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ unit_price_actual: price }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.detail ?? "Failed to save actual price.");
+        return;
+      }
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadAlerts();
+    } catch {
+      setError("Failed to save actual price.");
+    } finally {
+      setActualPriceSaving(null);
+    }
+  }
+
+  async function handleInvoiceCheck(orderId: number) {
+    setInvoiceCheckSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/invoice-check`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail ?? "Failed to mark invoice checked.");
+        return;
+      }
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadAlerts();
+    } catch {
+      setError("Failed to mark invoice checked.");
+    } finally {
+      setInvoiceCheckSaving(false);
+    }
+  }
+
   async function saveSupplierEmail(supplierName: string) {
     setEmailSaving(true);
     try {
@@ -553,6 +725,7 @@ export default function StoreSupplierOrdersPage() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-violet-950/20 p-4 md:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
 
@@ -611,6 +784,52 @@ export default function StoreSupplierOrdersPage() {
                 : `No email configured for this supplier (order #${sendEmailResult.orderId}). Set it in Supplier Emails tab.`
             }
             <button onClick={() => setSendEmailResult(null)} className="ml-auto text-zinc-500 hover:text-zinc-300">✕</button>
+          </div>
+        )}
+
+        {/* ── Alert banner ──────────────────────────────────────────── */}
+        {alerts && (alerts.overdue.length > 0 || alerts.uninvoiced.length > 0 || alerts.flagged_items.length > 0) && (
+          <div className="space-y-2">
+            {alerts.overdue.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                <div>
+                  <span className="font-semibold text-red-300">Overdue Deliveries ({alerts.overdue.length})</span>
+                  <div className="mt-1 text-xs text-red-400/80">
+                    {alerts.overdue.map((o) => (
+                      <span key={o.id} className="mr-3">{o.store} · {o.supplier_name} (due {o.delivery_date})</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {alerts.flagged_items.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-300">
+                <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-orange-400" />
+                <div>
+                  <span className="font-semibold text-orange-300">Price Variance Flagged ({alerts.flagged_items.length} order{alerts.flagged_items.length !== 1 ? "s" : ""})</span>
+                  <div className="mt-1 text-xs text-orange-400/80">
+                    {alerts.flagged_items.map((o) => (
+                      <span key={o.id} className="mr-3">{o.store} · {o.supplier_name} · #{o.id}</span>
+                    ))}
+                    <span className="ml-1">— Check Invoice section to review</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {alerts.uninvoiced.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+                <Bell className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+                <div>
+                  <span className="font-semibold text-amber-300">Invoice Check Pending ({alerts.uninvoiced.length} order{alerts.uninvoiced.length !== 1 ? "s" : ""} &gt;3 days)</span>
+                  <div className="mt-1 text-xs text-amber-400/80">
+                    {alerts.uninvoiced.map((o) => (
+                      <span key={o.id} className="mr-3">{o.store} · {o.supplier_name} · #{o.id}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -807,6 +1026,175 @@ export default function StoreSupplierOrdersPage() {
                               );
                             })()}
 
+                            {/* Delivery date row */}
+                            {(isManager || detail.status === "sent") && (
+                              <div className="flex flex-wrap items-center gap-3 py-1 border-t border-white/5 text-sm">
+                                <CalendarClock className="h-4 w-4 text-zinc-500 shrink-0" />
+                                <span className="text-zinc-400 text-xs font-medium">Expected Delivery:</span>
+                                {deliveryDateEdit?.orderId === order.id ? (
+                                  <>
+                                    <input
+                                      type="date"
+                                      className={INPUT_CLASS + " py-0.5 max-w-[150px] text-xs"}
+                                      value={deliveryDateEdit.value}
+                                      onChange={(e) => setDeliveryDateEdit({ orderId: order.id, value: e.target.value })}
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => handleSetDeliveryDate(order.id, deliveryDateEdit.value)}
+                                      disabled={deliveryDateSaving || !deliveryDateEdit.value}
+                                      className="text-emerald-400 hover:text-emerald-300 text-xs font-bold px-1"
+                                    >
+                                      {deliveryDateSaving ? "…" : "✓"}
+                                    </button>
+                                    <button onClick={() => setDeliveryDateEdit(null)} className="text-zinc-500 hover:text-zinc-400 text-xs px-1">✕</button>
+                                  </>
+                                ) : detail.delivery_date ? (
+                                  <>
+                                    <span className={`text-xs font-medium ${
+                                      order.status === "sent" && detail.delivery_date < new Date().toISOString().slice(0, 10)
+                                        ? "text-red-400" : "text-zinc-300"
+                                    }`}>
+                                      {detail.delivery_date}
+                                      {order.status === "sent" && detail.delivery_date < new Date().toISOString().slice(0, 10) && (
+                                        <span className="ml-1 text-red-400 text-xs">(overdue)</span>
+                                      )}
+                                    </span>
+                                    {isManager && (
+                                      <button
+                                        onClick={() => setDeliveryDateEdit({ orderId: order.id, value: detail.delivery_date! })}
+                                        className="text-zinc-600 hover:text-zinc-400"
+                                        title="Edit delivery date"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </>
+                                ) : isManager ? (
+                                  <button
+                                    onClick={() => setDeliveryDateEdit({ orderId: order.id, value: new Date().toISOString().slice(0, 10) })}
+                                    className="text-xs text-zinc-500 hover:text-zinc-300 italic flex items-center gap-1"
+                                  >
+                                    <Pencil className="h-3 w-3" /> Set date
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-zinc-600">Not set</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Invoice / receipt info (received/partial orders) */}
+                            {(detail.status === "received" || detail.status === "partial") && (
+                              <div className="space-y-3 border-t border-white/5 pt-3">
+                                {/* Receipt summary */}
+                                <div className="flex flex-wrap gap-4 text-xs">
+                                  {detail.invoice_number && (
+                                    <span className="flex items-center gap-1 text-zinc-300">
+                                      <FileCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                      Invoice: <strong className="text-white">{detail.invoice_number}</strong>
+                                    </span>
+                                  )}
+                                  {detail.received_by && (
+                                    <span className="text-zinc-500">Received by: <strong className="text-zinc-300">{detail.received_by}</strong></span>
+                                  )}
+                                  {detail.invoice_checked_at ? (
+                                    <span className="flex items-center gap-1 text-emerald-400">
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                      Invoice verified by {detail.invoice_checked_by} on {new Date(detail.invoice_checked_at).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1 text-amber-400">
+                                      <Bell className="h-3.5 w-3.5" />
+                                      Invoice not yet verified by back office
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Actual price entry table (managers only, until invoice checked) */}
+                                {isManager && (
+                                  <div>
+                                    <p className="text-xs font-medium text-zinc-400 mb-2">Invoice Price Matching</p>
+                                    <div className="overflow-x-auto rounded-lg border border-white/5">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="border-b border-white/5 bg-white/3">
+                                            <th className="px-3 py-2 text-left text-zinc-500">Item</th>
+                                            <th className="px-3 py-2 text-right text-zinc-500">PO Price</th>
+                                            <th className="px-3 py-2 text-right text-zinc-500">Invoice Price</th>
+                                            <th className="px-3 py-2 text-right text-zinc-500">Variance</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {detail.items.map((item) => {
+                                            const priceKey = actualPrices[item.id];
+                                            return (
+                                              <tr key={item.id} className={`border-b border-white/5 last:border-0 ${item.price_flagged ? "bg-red-500/5" : ""}`}>
+                                                <td className="px-3 py-2 text-white">{item.item_name}</td>
+                                                <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
+                                                  {item.unit_price != null ? `₱${Number(item.unit_price).toFixed(2)}` : "—"}
+                                                </td>
+                                                <td className="px-3 py-2 text-right tabular-nums">
+                                                  {detail.invoice_checked_at ? (
+                                                    <span className="text-zinc-300">
+                                                      {item.unit_price_actual != null ? `₱${Number(item.unit_price_actual).toFixed(2)}` : "—"}
+                                                    </span>
+                                                  ) : (
+                                                    <div className="flex items-center justify-end gap-1">
+                                                      <span className="text-zinc-500">₱</span>
+                                                      <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        className="w-24 rounded border border-white/10 bg-slate-800 px-2 py-0.5 text-right text-xs text-white outline-none focus:border-violet-400"
+                                                        placeholder={item.unit_price_actual != null ? String(Number(item.unit_price_actual).toFixed(2)) : "0.00"}
+                                                        value={priceKey ?? (item.unit_price_actual != null ? String(Number(item.unit_price_actual).toFixed(2)) : "")}
+                                                        onChange={(e) => setActualPrices((p) => ({ ...p, [item.id]: e.target.value }))}
+                                                        onBlur={(e) => {
+                                                          if (e.target.value.trim()) handleSetActualPrice(detail.id, item.id, e.target.value);
+                                                        }}
+                                                        disabled={actualPriceSaving === item.id}
+                                                      />
+                                                      {actualPriceSaving === item.id && <span className="text-zinc-500">…</span>}
+                                                    </div>
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 text-right tabular-nums">
+                                                  {item.price_variance_pct != null ? (
+                                                    <span className={`flex items-center justify-end gap-1 font-medium ${
+                                                      item.price_flagged ? "text-red-400" : "text-emerald-400"
+                                                    }`}>
+                                                      {item.price_variance_pct > 0
+                                                        ? <TrendingUp className="h-3 w-3" />
+                                                        : <TrendingDown className="h-3 w-3" />}
+                                                      {item.price_variance_pct > 0 ? "+" : ""}{Number(item.price_variance_pct).toFixed(1)}%
+                                                      {item.price_flagged && <AlertTriangle className="h-3 w-3" />}
+                                                    </span>
+                                                  ) : <span className="text-zinc-600">—</span>}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                    {!detail.invoice_checked_at && (
+                                      <div className="flex items-center gap-3 mt-3">
+                                        <button
+                                          onClick={() => handleInvoiceCheck(order.id)}
+                                          disabled={invoiceCheckSaving}
+                                          className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-1.5 px-3 transition-colors"
+                                        >
+                                          <FileCheck className="h-3.5 w-3.5" />
+                                          {invoiceCheckSaving ? "Saving…" : "Mark Invoice Checked"}
+                                        </button>
+                                        <span className="text-xs text-zinc-500">Enter actual prices above, then mark as verified.</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {/* Action buttons */}
                             <div className="flex flex-wrap gap-2 pt-1 items-center">
                               {/* draft → confirmed (any manager) */}
@@ -842,6 +1230,16 @@ export default function StoreSupplierOrdersPage() {
                                   className={PRIMARY_BUTTON + " text-sm py-1.5 px-3 flex items-center gap-1.5"}
                                 >
                                   <Send className="h-3.5 w-3.5" /> Mark as Sent
+                                </button>
+                              )}
+
+                              {/* sent → receive (all roles with view access) */}
+                              {order.status === "sent" && (
+                                <button
+                                  onClick={() => detail && openReceiveModal(detail)}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium py-1.5 px-3 transition-colors"
+                                >
+                                  <PackageCheck className="h-3.5 w-3.5" /> Confirm Receipt
                                 </button>
                               )}
 
@@ -1394,5 +1792,104 @@ export default function StoreSupplierOrdersPage() {
         )}
       </div>
     </div>
+
+    {/* ── Receive Confirmation Modal ──────────────────────────────────────── */}
+    {receiveModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-white/10 shadow-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <PackageCheck className="h-5 w-5 text-emerald-400" /> Confirm Receipt
+            </h2>
+            <button onClick={() => setReceiveModal(null)} className="text-zinc-500 hover:text-zinc-300">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Invoice number */}
+            <div>
+              <label className="text-xs text-zinc-400 font-medium">Invoice Number</label>
+              <input
+                className={INPUT_CLASS + " mt-1 text-sm"}
+                placeholder="e.g. INV-2026-0814"
+                value={receiveModal.invoiceNumber}
+                onChange={(e) => setReceiveModal((m) => m ? { ...m, invoiceNumber: e.target.value } : m)}
+              />
+            </div>
+            {/* Receive status */}
+            <div className="flex gap-2">
+              {(["received", "partial", "issue"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setReceiveModal((m) => m ? { ...m, receiveStatus: s } : m)}
+                  className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-colors ${
+                    receiveModal.receiveStatus === s
+                      ? s === "received" ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                        : s === "partial" ? "border-amber-500/50 bg-amber-500/20 text-amber-300"
+                        : "border-red-500/50 bg-red-500/20 text-red-300"
+                      : "border-white/10 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+            {/* Items */}
+            <div className="space-y-2">
+              {receiveModal.items.map((it, idx) => (
+                <div key={it.item_id} className="rounded-lg bg-white/3 border border-white/5 p-3">
+                  <div className="text-xs font-medium text-white mb-2">{it.item_name}</div>
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <label className="text-xs text-zinc-500">Qty Received ({it.unit})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        className={INPUT_CLASS + " mt-0.5 text-sm"}
+                        value={it.qty_received}
+                        onChange={(e) => setReceiveModal((m) => {
+                          if (!m) return m;
+                          const items = [...m.items];
+                          items[idx] = { ...items[idx], qty_received: e.target.value };
+                          return { ...m, items };
+                        })}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-zinc-500">Note (optional)</label>
+                      <input
+                        className={INPUT_CLASS + " mt-0.5 text-sm"}
+                        placeholder="e.g. Short delivery"
+                        value={it.receive_note}
+                        onChange={(e) => setReceiveModal((m) => {
+                          if (!m) return m;
+                          const items = [...m.items];
+                          items[idx] = { ...items[idx], receive_note: e.target.value };
+                          return { ...m, items };
+                        })}
+                      />
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-4">/ {it.qty_ordered}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 px-6 py-4 border-t border-white/10">
+            <button
+              onClick={handleConfirmReceipt}
+              disabled={receiveSaving}
+              className={PRIMARY_BUTTON + " flex items-center gap-2"}
+            >
+              <PackageCheck className="h-4 w-4" />
+              {receiveSaving ? "Saving…" : "Confirm Receipt"}
+            </button>
+            <button onClick={() => setReceiveModal(null)} className={SECONDARY_BUTTON}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
