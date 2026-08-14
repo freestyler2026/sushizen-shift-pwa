@@ -122,6 +122,7 @@
   <div class="nav-item" onclick="show('hub')"><span class="nav-icon">📦</span><span data-en="Inventory Hub" data-ja="在庫ハブ">Inventory Hub</span></div>
   <div class="nav-item" onclick="show('productions')"><span class="nav-icon">🏭</span><span data-en="CK Production" data-ja="CKプロダクション">CK Production</span></div>
   <div class="nav-item" onclick="show('ck-inventory')"><span class="nav-icon">🏢</span><span data-en="CK Inventory" data-ja="CK在庫">CK Inventory</span></div>
+  <div class="nav-item" onclick="show('ck-daily-session')"><span class="nav-icon">📝</span><span data-en="CK Daily Session" data-ja="CK日次セッション">CK Daily Session</span></div>
   <div class="nav-item" onclick="show('wh-inventory')"><span class="nav-icon">🏬</span><span data-en="WH Inventory" data-ja="倉庫在庫">WH Inventory</span></div>
   <div class="nav-item" onclick="show('daily-inventory')"><span class="nav-icon">📅</span><span data-en="Daily Inventory" data-ja="日次在庫確認">Daily Inventory</span></div>
   <div class="nav-item" onclick="show('disposal')"><span class="nav-icon">🗑️</span><span data-en="Disposal Report" data-ja="廃棄レポート">Disposal Report</span></div>
@@ -469,6 +470,72 @@
   <div class="card">
     <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
     <div class="chip-row"><span class="chip blue">CK Production (deductions reduce theoretical stock)</span><span class="chip amber">Items Master (item list source)</span></div>
+  </div>
+</div>
+
+<!-- ═══ CK DAILY SESSION ═══ -->
+<div class="section" id="sec-ck-daily-session">
+  <div class="section-hero"><div class="hero-icon">📝</div><div>
+    <div class="section-title" data-en="CK Daily Inventory Session" data-ja="CK日次在庫セッション">CK Daily Inventory Session</div>
+    <div class="section-path">Store → CK Daily Inventory &nbsp;/&nbsp; 店舗 → CK日次在庫</div>
+    <div class="section-desc" data-en="Central Kitchen staff use this page to record Pre-Delivery, Post-Delivery, or Daily inventory sessions. Multiple staff share one session per (date + type) — each entry shows who filled it." data-ja="セントラルキッチンスタッフが、Pre-Delivery・Post-Delivery・Daily の在庫セッションを記録するページです。1日に複数スタッフが同じセッションを共有でき、アイテムごとに入力担当者が表示されます。">CK staff record inventory sessions (Pre/Post-Delivery or Daily). Multiple staff share one session per day.</div>
+  </div></div>
+
+  <div class="card green-border">
+    <div class="card-title" data-en="🔑 Key Concept: Shared Session Model" data-ja="🔑 重要：共有セッションモデル">🔑 Key Concept: Shared Session Model</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Only ONE session exists per (date + session type + city). When you click New Session for a date that already has a session, you automatically JOIN that session instead of creating a separate one. The FILLED BY column shows which staff member entered each item." data-ja="1つの（日付＋セッションタイプ＋都市）の組み合わせにつき、セッションは1つだけ存在します。すでにセッションがある日に「New Session」を押すと、新規作成ではなく自動的にそのセッションに参加します。FILLED BY列で各アイテムの入力担当者が確認できます。">One session per date+type. New Session auto-joins an existing one. FILLED BY column shows attribution per item.</p>
+    <div class="chip-row">
+      <span class="chip green" data-en="You — entry was filled by you" data-ja="あなた — 自分が入力したアイテム">You (green) = your entry</span>
+      <span class="chip amber" data-en="Name — entry filled by another staff" data-ja="名前 — 他スタッフが入力したアイテム">First name (amber) = another staff's entry</span>
+      <span class="chip" data-en="— blank — no entry yet" data-ja="— 未入力">— = not filled yet</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How to Open or Join a Session" data-ja="セッションを開く・参加する方法">How to Open or Join a Session</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click 'New Session'" data-ja="「New Session」をクリック">Click "New Session"</strong><p data-en="Select the date and session type (Pre-Delivery / Post-Delivery / Daily). A banner explains that you will auto-join an existing session if one exists." data-ja="日付とセッションタイプ（Pre-Delivery・Post-Delivery・Daily）を選択。既存セッションがある場合は自動参加する旨がバナーで表示されます。">Select date and type. Banner shows auto-join behavior.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click 'Open / Create Session'" data-ja="「Open / Create Session」をクリック">Click "Open / Create Session"</strong><p data-en="If a draft session for that date + type already exists, you join it (toast: 'Joined existing session'). Otherwise a new session is created." data-ja="その日付＋タイプのDraftセッションが既に存在すれば参加（トースト：'Joined existing session'）。なければ新規作成。">Joins existing Draft, or creates new session.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter quantities in the table" data-ja="テーブルに数量を入力">Enter quantities</strong><p data-en="Items grouped by category. Qty column is editable; Unit dropdown follows each item. Previous session's qty shown for delta comparison. The FILLED BY column updates in real time as staff save entries." data-ja="アイテムはカテゴリ別にグループ化。Qty列は編集可能、Unitドロップダウンがついています。前回セッションの数量との差分も表示。スタッフが保存するとFILLED BY列がリアルタイムで更新されます。">Grouped by category. Previous qty shown for delta. FILLED BY updates as staff save.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Click 'Save Draft' regularly" data-ja="定期的に「Save Draft」をクリック">Click "Save Draft" regularly</strong><p data-en="Only saves the items you personally entered or changed since the last save. Other staff's entries are not overwritten. Session auto-refreshes every 30 seconds to show other staff's new entries." data-ja="最後の保存以降に自分が入力・変更したアイテムのみが保存されます。他スタッフのエントリは上書きされません。セッションは30秒ごとに自動更新され、他スタッフの新規エントリが反映されます。">Saves only your changes. Auto-refresh every 30s shows others' entries.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click 'Finalize &amp; Lock' when complete" data-ja="完了したら「Finalize &amp; Lock」をクリック">Click "Finalize &amp; Lock" when complete</strong><p data-en="Saves any remaining changes and locks the session. No edits possible after finalization. Anyone in the team can finalize." data-ja="残りの変更を保存してセッションをロックします。確定後は編集不可。チームメンバー全員がFinalizeできます。">Locks session. Anyone can finalize. No edits after.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Editing Another Staff's Entry" data-ja="他スタッフのエントリを編集する場合">Editing Another Staff's Entry</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="If you click the Qty field of an item already filled by another staff (shown in amber), a confirmation dialog appears: 'This item was filled by [Name]. Overwrite?' Click Yes, Overwrite to continue. After approving, you can edit freely without re-confirmation." data-ja="他スタッフが入力済みのアイテム（アンバー色で表示）のQty欄をクリックすると確認ダイアログが表示されます：「このアイテムは[名前]が入力しました。上書きしますか？」「Yes, Overwrite」をクリックして続行。承認後は再確認なしで編集できます。">Amber Qty field = another staff's entry. Confirmation dialog appears on first click. Approved once per session load.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Session List" data-ja="セッションリスト">Session List (Left Panel)</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The left panel lists sessions grouped by date. Each card shows: date, session type badge (Pre-Delivery / Post-Delivery / Daily), item count, Draft/Finalized status, and contributor names (staff who entered data)." data-ja="左パネルに日付別セッション一覧が表示されます。各カードに：日付・セッションタイプバッジ（Pre-Delivery・Post-Delivery・Daily）・アイテム数・Draft/Finalizedステータス・貢献スタッフ名が表示されます。">Date, type, item count, status, contributor names shown per card.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="KPI Bar (inside an open session)" data-ja="KPIバー（セッション内）">KPI Bar</div>
+    <div class="chip-row">
+      <span class="chip" data-en="Total Items — number of CK items to fill" data-ja="総アイテム数 — 入力すべきCKアイテム数">Total Items</span>
+      <span class="chip green" data-en="Filled In — items with a quantity entered (turns green when all done)" data-ja="入力済み — 数量入力済みのアイテム数（全完了で緑）">Filled In (green when all done)</span>
+      <span class="chip blue" data-en="Prev Session — number of items with previous data for delta comparison" data-ja="前回セッション — デルタ比較用の前回データがあるアイテム数">Prev Session (for delta)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Roles &amp; Permissions" data-ja="ロール・権限">Roles &amp; Permissions</div>
+    <div class="chip-row">
+      <span class="chip green" data-en="All authenticated staff — create, join, enter items, Save Draft, Finalize" data-ja="全認証スタッフ — 作成・参加・入力・Save Draft・Finalize">All Staff: create, join, enter, save, finalize</span>
+      <span class="chip amber" data-en="HQ / Management — also can Manage Items (add/remove CK items from the list)" data-ja="HQ・管理者 — Manage Itemsでアイテムの追加・削除も可能">HQ/Mgmt: also Manage Items</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
+    <div class="chip-row">
+      <span class="chip amber">CK Inventory (Admin — stock baseline)</span>
+      <span class="chip blue">Items Master (CK processed items list)</span>
+    </div>
   </div>
 </div>
 

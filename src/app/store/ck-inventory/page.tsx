@@ -133,6 +133,9 @@ export default function CKInventoryPage() {
   // Track which items the current user has edited locally (unsaved)
   const dirtyItemIdsRef = useRef<Set<number>>(new Set());
 
+  // Items the user has explicitly approved to overwrite (clears on session reload)
+  const approvedOverwritesRef = useRef<Set<number>>(new Set());
+
   // Overwrite confirmation when editing an item owned by someone else
   const [overwriteConfirm, setOverwriteConfirm] = useState<{ itemId: number; filledBy: string } | null>(null);
 
@@ -189,6 +192,8 @@ export default function CKInventoryPage() {
       if (!sess) throw new Error("Session not found");
       setActiveSession(sess);
       activeSessionIdRef.current = sess.id;
+      // Clear approval state when session reloads
+      approvedOverwritesRef.current = new Set();
 
       setDraftEntries(prev => {
         const draft: Record<number, { quantity: string; unit: string; notes: string; version: number }> = {};
@@ -374,8 +379,10 @@ export default function CKInventoryPage() {
     setError(null);
     setSuccessMsg(null);
     try {
+      // Only save items the current user has dirtied — preserves other staff's attribution
+      const dirtyIds = dirtyItemIdsRef.current;
       const entries = processedItems
-        .filter(item => draftEntries[item.id]?.quantity !== "")
+        .filter(item => dirtyIds.has(item.id) && draftEntries[item.id]?.quantity !== "")
         .map(item => ({
           item_id: item.id,
           item_name: item.name,
@@ -386,6 +393,11 @@ export default function CKInventoryPage() {
           filled_by: myName,
           version: draftEntries[item.id]?.version ?? 0,
         }));
+
+      if (entries.length === 0) {
+        setSuccessMsg("Nothing to save — no new entries since last save.");
+        return;
+      }
 
       const res = await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/entries`, {
         method: "POST",
@@ -399,7 +411,7 @@ export default function CKInventoryPage() {
       if (conflicts.length > 0) {
         setSuccessMsg(`Saved. ${conflicts.length} item(s) were updated by another staff — data refreshed.`);
       } else {
-        setSuccessMsg(`Saved ${entries.length} items.`);
+        setSuccessMsg(`Saved ${entries.length} item(s).`);
       }
       // Reload to pick up server versions + other staff changes
       await loadSession(activeSession.id, true);
@@ -413,8 +425,12 @@ export default function CKInventoryPage() {
     if (!activeSession) return;
     setFinalizing(true);
     setError(null);
+    setSuccessMsg(null);
     try {
-      await saveEntries();
+      // Save dirty items first (if any), then finalize
+      if (dirtyItemIdsRef.current.size > 0) {
+        await saveEntries();
+      }
       await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/finalize`, { method: "POST" });
       setShowFinalizeConfirm(false);
       setSuccessMsg("Session finalized and locked.");
@@ -726,10 +742,8 @@ export default function CKInventoryPage() {
                                               step="0.1"
                                               value={draft.quantity}
                                               onFocus={() => {
-                                                if (filledByOther) {
-                                                  // show confirmation before allowing edit
+                                                if (filledByOther && !approvedOverwritesRef.current.has(item.id)) {
                                                   setOverwriteConfirm({ itemId: item.id, filledBy });
-                                                  // blur will fire immediately — use a ref to track
                                                 }
                                               }}
                                               onChange={e => updateEntry(item.id, "quantity", e.target.value)}
@@ -849,8 +863,9 @@ export default function CKInventoryPage() {
               </button>
               <button
                 onClick={() => {
-                  // Allow the edit — just dismiss the dialog
-                  // The input is already focused; user can type
+                  if (overwriteConfirm) {
+                    approvedOverwritesRef.current.add(overwriteConfirm.itemId);
+                  }
                   setOverwriteConfirm(null);
                 }}
                 className="flex-1 rounded-xl border border-amber-500/40 bg-amber-500/20 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/30 transition"
