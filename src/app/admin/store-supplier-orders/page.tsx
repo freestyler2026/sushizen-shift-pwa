@@ -134,6 +134,8 @@ export default function StoreSupplierOrdersPage() {
 
   const [tab, setTab] = useState<Tab>("orders");
   const [store, setStore] = useState<Store>("PAR");
+  const storeRef = useRef<Store>("PAR");
+  storeRef.current = store;
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const d = new Date();
@@ -273,6 +275,8 @@ export default function StoreSupplierOrdersPage() {
     else if (tab === "catalog") loadCatalog();
     else loadPerf();
   }, [tab, loadOrders, loadPerf, loadSuppliers, loadCatalog]);
+
+  useEffect(() => { setInlineEdit(null); }, [store]);
 
   async function toggleExpand(orderId: number) {
     if (expanded === orderId) {
@@ -483,6 +487,7 @@ export default function StoreSupplierOrdersPage() {
 
   async function saveInlineEdit(editState: NonNullable<InlineEditState>) {
     if (inlineSaving || skipInlineSaveRef.current) { skipInlineSaveRef.current = false; return; }
+    const savedStore = storeRef.current;
     const item = catalogItems.find(i => i.id === editState.id);
     if (!item) return;
     setInlineSaving(true);
@@ -517,8 +522,12 @@ export default function StoreSupplierOrdersPage() {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail ?? `Save failed (${res.status})`);
       }
-      setInlineEdit(null);
-      await loadCatalog();
+      if (storeRef.current === savedStore) {
+        setInlineEdit(current =>
+          current?.id === editState.id && current?.field === editState.field ? null : current
+        );
+        await loadCatalog();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save.");
     } finally {
