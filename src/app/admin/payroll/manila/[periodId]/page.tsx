@@ -1733,17 +1733,17 @@ export default function ManilaPayrollPeriodPage() {
                 <div className="mt-4 flex items-stretch gap-1 rounded-xl border border-white/5 overflow-hidden text-center">
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Gross Pay</p>
-                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{fmtPHP(totals.gross)}</p>
+                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{canSeeSalary ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600">****</span>}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">−</div>
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Deductions</p>
-                    <p className="text-sm font-bold text-red-300 mt-1 tabular-nums">{fmtPHPAbs(totals.ded)}</p>
+                    <p className="text-sm font-bold text-red-300 mt-1 tabular-nums">{canSeeSalary ? fmtPHPAbs(totals.ded) : <span className="font-mono text-slate-600">****</span>}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">=</div>
                   <div className="flex-1 bg-violet-900/30 border-l border-violet-500/20 px-3 py-3">
                     <p className="text-[10px] text-violet-400/70 uppercase tracking-wider">Total Net Pay</p>
-                    <p className="text-sm font-bold text-emerald-300 mt-1 tabular-nums">{fmtPHP(totals.net)}</p>
+                    <p className="text-sm font-bold text-emerald-300 mt-1 tabular-nums">{canSeeSalary ? fmtPHP(totals.net) : <span className="font-mono text-slate-600">****</span>}</p>
                   </div>
                 </div>
               )}
