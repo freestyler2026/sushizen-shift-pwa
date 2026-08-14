@@ -1,6 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (Store Supplier Orders — unit_price + PO email pricing columns implemented and tested)
+Last updated: 2026-08-14 (Payroll salary masking — payroll.view_salary permission, HQ sees full amounts, ADMIN sees ****)
+
+---
+
+## ✅ Completed: Payroll salary masking — payroll.view_salary permission (2026-08-14, Heroku v1931 + Vercel bd24484)
+
+**Request**: Only HQ should see actual salary amounts (Gross, Net Pay, Rate, Deductions). ADMIN retains all processing capabilities (Compute All, DTR edit, Sync) but sees `****` masked values.
+
+**Implementation**:
+- `access_control.py`: Added `payroll.view_salary` permission. NOT in ADMIN's default set (intentional). HQ gets it via `*` wildcard.
+- `src/lib/auth.ts`: Added `hasPayrollViewSalary(auth)` helper using `hasPermission("payroll.view_salary", auth)`.
+- `[periodId]/page.tsx`: Fixed auth guard from hard-coded `role !== "ADMIN" && role !== "HQ"` to `canAccessPayrollAdmin()` (permission-based). Added `canSeeSalary = hasPayrollViewSalary(getAuth())` and masked all salary fields: Monthly Rate, Basic Pay formula, Gross/Deductions/Net Pay banner, Earnings unit_rate + amount, Deductions amounts, Employer costs, Runs table totals, Footer totals.
+- `dubai/page.tsx`: Fixed same auth guard inconsistency (no masking needed — page shows no amounts).
+
+**Masking pattern**: `canSeeSalary ? fmtPHP(value) : <span className="font-mono text-slate-500">₱ ****</span>`
+
+**Role Management**: Resync System Channels run after Heroku v1931 deploy — `payroll.view_salary` now in DB.
+
+**Verified**: HQ (Yukihiro) sees full amounts (₱430,149.44 total gross, individual breakdowns). ADMIN would see `****`.
 
 ---
 
