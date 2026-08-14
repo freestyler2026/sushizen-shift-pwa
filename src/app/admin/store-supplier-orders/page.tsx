@@ -71,13 +71,36 @@ interface PerformanceRow {
   on_time_rate: number | null;
 }
 
-type Tab = "orders" | "suppliers" | "performance";
+type Tab = "orders" | "catalog" | "suppliers" | "performance";
 
 interface SupplierEmailRow {
   supplier_name: string;
   email: string;
   cc_emails: string;
   updated_at: string | null;
+}
+
+interface CatalogItem {
+  id: number;
+  store: string;
+  item_code: string;
+  item_name: string;
+  category: string;
+  unit: string;
+  par_level: number;
+  par_level_weekday: number | null;
+  par_level_weekend: number | null;
+  supplier_name: string;
+  is_active: boolean;
+  notes: string | null;
+  daily_inv_item_code: string | null;
+}
+
+interface DailyInvItem {
+  item_code: string;
+  item_name: string;
+  unit: string;
+  supplier_name: string;
 }
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
@@ -143,6 +166,13 @@ export default function StoreSupplierOrdersPage() {
   const [emailDraft, setEmailDraft] = useState<{ email: string; cc_emails: string }>({ email: "", cc_emails: "" });
   const [emailSaving, setEmailSaving] = useState(false);
 
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [dailyInvItems, setDailyInvItems] = useState<DailyInvItem[]>([]);
+  const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null);
+  const [catalogLinkCode, setCatalogLinkCode] = useState<string>("");
+  const [catalogSaving, setCatalogSaving] = useState(false);
+
   const [sendEmailResult, setSendEmailResult] = useState<{ orderId: number; sent: boolean; error: string | null } | null>(null);
 
   const loadOrders = useCallback(async () => {
@@ -196,11 +226,30 @@ export default function StoreSupplierOrdersPage() {
     }
   }, [store]);
 
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      const [catRes, invRes] = await Promise.all([
+        fetch(`/api/admin/store-supplier/catalog/${store}`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/store-supplier/daily-inv-items`, { headers: getAuthHeaders() }),
+      ]);
+      const catData = await catRes.json();
+      const invData = await invRes.json();
+      setCatalogItems(catData.items ?? []);
+      setDailyInvItems(invData.items ?? []);
+    } catch {
+      setCatalogItems([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [store]);
+
   useEffect(() => {
     if (tab === "orders") loadOrders();
     else if (tab === "suppliers") loadSuppliers();
+    else if (tab === "catalog") loadCatalog();
     else loadPerf();
-  }, [tab, loadOrders, loadPerf, loadSuppliers]);
+  }, [tab, loadOrders, loadPerf, loadSuppliers, loadCatalog]);
 
   async function toggleExpand(orderId: number) {
     if (expanded === orderId) {
@@ -311,6 +360,35 @@ export default function StoreSupplierOrdersPage() {
   const onTimeRate = (row: PerformanceRow) =>
     row.on_time_rate != null ? `${row.on_time_rate}%` : "—";
 
+  async function saveCatalogLink(item: CatalogItem) {
+    setCatalogSaving(true);
+    try {
+      await fetch(`/api/admin/store-supplier/catalog/${store}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          item_code: item.item_code,
+          item_name: item.item_name,
+          category: item.category,
+          unit: item.unit,
+          par_level: item.par_level,
+          par_level_weekday: item.par_level_weekday,
+          par_level_weekend: item.par_level_weekend,
+          supplier_name: item.supplier_name,
+          is_active: item.is_active,
+          notes: item.notes,
+          daily_inv_item_code: catalogLinkCode || null,
+        }),
+      });
+      setEditingCatalogId(null);
+      await loadCatalog();
+    } catch {
+      setError("Failed to save catalog item link.");
+    } finally {
+      setCatalogSaving(false);
+    }
+  }
+
   async function saveSupplierEmail(supplierName: string) {
     setEmailSaving(true);
     try {
@@ -346,9 +424,14 @@ export default function StoreSupplierOrdersPage() {
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setTab("orders")} className={tab === "orders" ? TAB_ACTIVE : TAB_INACTIVE}>Orders</button>
           {isManager && (
-            <button onClick={() => setTab("suppliers")} className={tab === "suppliers" ? TAB_ACTIVE : TAB_INACTIVE}>
-              <Users className="inline h-4 w-4 mr-1.5" />Supplier Emails
-            </button>
+            <>
+              <button onClick={() => setTab("catalog")} className={tab === "catalog" ? TAB_ACTIVE : TAB_INACTIVE}>
+                <Pencil className="inline h-4 w-4 mr-1.5" />Catalog
+              </button>
+              <button onClick={() => setTab("suppliers")} className={tab === "suppliers" ? TAB_ACTIVE : TAB_INACTIVE}>
+                <Users className="inline h-4 w-4 mr-1.5" />Supplier Emails
+              </button>
+            </>
           )}
           <button onClick={() => setTab("performance")} className={tab === "performance" ? TAB_ACTIVE : TAB_INACTIVE}>
             <BarChart2 className="inline h-4 w-4 mr-1.5" />Supplier Performance
@@ -620,6 +703,97 @@ export default function StoreSupplierOrdersPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── CATALOG TAB ────────────────────────────────────────────── */}
+        {tab === "catalog" && (
+          <>
+            <p className="text-sm text-zinc-400">
+              Link each catalog item to its corresponding <strong className="text-white">Daily Inventory item code</strong> so Generate Orders can subtract current stock from the par level.
+            </p>
+            {catalogLoading ? (
+              <div className="py-12 text-center text-zinc-500">Loading…</div>
+            ) : catalogItems.length === 0 ? (
+              <div className="py-12 text-center text-zinc-500">No catalog items for {STORE_LABELS[store]}.</div>
+            ) : (
+              <div className={GLASS_CARD + " overflow-x-auto"}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Item</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Supplier</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Par (wkday / wkend / default)</th>
+                      <th className="px-4 py-3 text-left text-xs text-zinc-500">Daily Inv Link</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catalogItems.map((item) => (
+                      <tr key={item.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
+                        <td className="px-4 py-3">
+                          <div className="text-white font-medium">{item.item_name}</div>
+                          <div className="text-xs text-zinc-500">{item.item_code} · {item.unit}</div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-400 text-xs">{item.supplier_name}</td>
+                        <td className="px-4 py-3 text-xs tabular-nums text-zinc-300">
+                          {item.par_level_weekday != null ? item.par_level_weekday : "—"} / {item.par_level_weekend != null ? item.par_level_weekend : "—"} / {item.par_level}
+                        </td>
+                        <td className="px-4 py-3">
+                          {editingCatalogId === item.id ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <select
+                                className={SELECT_CLASS + " min-w-[200px] text-xs"}
+                                value={catalogLinkCode}
+                                onChange={(e) => setCatalogLinkCode(e.target.value)}
+                                autoFocus
+                              >
+                                <option value="">(none — use par only)</option>
+                                {dailyInvItems.map((d) => (
+                                  <option key={d.item_code} value={d.item_code}>
+                                    {d.item_code} — {d.item_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => saveCatalogLink(item)}
+                                disabled={catalogSaving}
+                                className={PRIMARY_BUTTON + " text-xs px-3 py-1"}
+                              >
+                                {catalogSaving ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                onClick={() => setEditingCatalogId(null)}
+                                className={SECONDARY_BUTTON + " text-xs px-3 py-1"}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={item.daily_inv_item_code ? "text-emerald-400 text-xs font-mono" : "text-zinc-600 text-xs italic"}>
+                              {item.daily_inv_item_code ?? "not linked"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {editingCatalogId !== item.id && (
+                            <button
+                              onClick={() => {
+                                setEditingCatalogId(item.id);
+                                setCatalogLinkCode(item.daily_inv_item_code ?? "");
+                              }}
+                              className={SECONDARY_BUTTON + " flex items-center gap-1.5 text-xs px-3 py-1"}
+                            >
+                              <Pencil className="h-3 w-3" /> Link
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
