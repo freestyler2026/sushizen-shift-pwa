@@ -185,6 +185,7 @@ export default function CKInventoryPage() {
   }, [city]);
 
   const loadSession = useCallback(async (sessionId: number, silent = false) => {
+    const isNewSession = activeSessionIdRef.current !== sessionId;
     if (!silent) { setLoading(true); setError(null); }
     try {
       const data = await apiFetch(`/api/store/ck-inventory/sessions/${sessionId}`);
@@ -192,8 +193,8 @@ export default function CKInventoryPage() {
       if (!sess) throw new Error("Session not found");
       setActiveSession(sess);
       activeSessionIdRef.current = sess.id;
-      // Clear approval state when session reloads
-      approvedOverwritesRef.current = new Set();
+      // Only clear approval state when switching to a different session
+      if (isNewSession) approvedOverwritesRef.current = new Set();
 
       setDraftEntries(prev => {
         const draft: Record<number, { quantity: string; unit: string; notes: string; version: number }> = {};
