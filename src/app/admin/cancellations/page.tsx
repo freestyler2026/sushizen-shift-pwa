@@ -127,6 +127,7 @@ type CancelRow = {
   pic_notes: string | null;
   workflow_status: string | null;
   no_refund_reason: string | null;
+  photo_upload_urls: string[] | null;
 };
 
 // Shape returned by Manila API (different field names)
@@ -151,6 +152,7 @@ type ManilaApiRow = {
   pic_notes?: string | null;
   workflow_status?: string | null;
   no_refund_reason?: string | null;
+  photo_upload_urls?: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -185,6 +187,14 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     pic_notes: r.pic_notes ?? null,
     workflow_status: r.workflow_status ?? null,
     no_refund_reason: r.no_refund_reason ?? null,
+    photo_upload_urls: (() => {
+      try {
+        const raw = r.photo_upload_urls;
+        if (!raw) return null;
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+      } catch { return null; }
+    })(),
   };
 }
 
@@ -448,6 +458,33 @@ function DetailModal({
               <p className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2.5 text-sm text-white/80 whitespace-pre-wrap">
                 {row.pic_notes}
               </p>
+            </div>
+          )}
+
+          {/* Staff-uploaded Photos (Manila) */}
+          {city === "manila" && row.photo_upload_urls && row.photo_upload_urls.length > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-white/30">Supporting Photos</p>
+              <div className="flex flex-col gap-2">
+                {row.photo_upload_urls.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-blue-400 hover:text-blue-300 hover:border-blue-500/40 hover:bg-blue-500/10 transition-colors"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    Photo {i + 1}
+                    <svg className="w-3 h-3 ml-auto shrink-0 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>
