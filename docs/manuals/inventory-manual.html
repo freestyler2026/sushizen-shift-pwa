@@ -587,16 +587,47 @@
   <div class="section-hero"><div class="hero-icon">📅</div><div>
     <div class="section-title" data-en="Daily Inventory" data-ja="日次在庫確認">Daily Inventory</div>
     <div class="section-path">Admin → Daily Inventory</div>
-    <div class="section-desc" data-en="Daily stock level check page. Available to all authenticated staff. Content is managed by the AdminDailyInventoryTab component." data-ja="日次の在庫水準確認ページ。認証済みスタッフ全員が利用可能。コンテンツはAdminDailyInventoryTabコンポーネントが管理します。">Daily stock level check. Available to all authenticated staff.</div>
+    <div class="section-desc" data-en="Daily stock check for Supplier, CK, and Warehouse items. Staff enter quantities; the system highlights items below par and can automatically create Direct Purchase Orders per supplier." data-ja="Supplier・CK・Warehouseアイテムの日次在庫確認。スタッフが数量を入力し、システムがPar以下のアイテムをハイライト。サプライヤーごとに自動でDirect Purchase Orderを作成できます。">Daily stock check for Supplier, CK, and Warehouse items. Highlights below-par items and can auto-create Direct Purchase Orders.</div>
   </div></div>
+
   <div class="card">
-    <div class="card-title" data-en="How to Access" data-ja="アクセス方法">How to Access</div>
+    <div class="card-title" data-en="Submitting a Daily Inventory Report" data-ja="日次在庫レポートの提出">Submitting a Daily Inventory Report</div>
     <ol class="steps">
-      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Navigate to Admin → Daily Inventory" data-ja="Admin → Daily Inventoryへ移動">Navigate to Admin → Daily Inventory</strong><p data-en="Login required. If not logged in, you are redirected to the login page." data-ja="ログインが必要です。未ログインの場合はログインページにリダイレクトされます。">Login required. Unauthenticated users are redirected to login.</p></div></li>
-      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Use the daily check form" data-ja="日次確認フォームを使用">Use the daily check form</strong><p data-en="Record daily stock levels for key items at your branch." data-ja="店舗の主要アイテムの日次在庫水準を記録します。">Record daily stock levels for key items.</p></div></li>
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Navigate to Admin → Daily Inventory" data-ja="Admin → Daily Inventoryへ移動">Navigate to Admin → Daily Inventory</strong><p data-en="Select City, Branch, Date, Shift, and Staff name." data-ja="都市・店舗・日付・シフト・スタッフ名を選択します。">Select City, Branch, Date, Shift, and Staff name.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose a source tab: Supplier / Central Kitchen / Warehouse" data-ja="ソースタブを選択：Supplier / Central Kitchen / Warehouse">Choose a source tab: Supplier / Central Kitchen / Warehouse</strong><p data-en="Each tab shows items for that supply source. Fill quantities for the items at your branch." data-ja="各タブにそのソースのアイテムが表示されます。店舗のアイテムの数量を入力してください。">Each tab lists items for that source. Enter quantities.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Enter stock quantities" data-ja="在庫数量を入力">Enter stock quantities</strong><p data-en="Items below their par level are highlighted: red = below min level, amber = below par. The 'Below Par' panel at the top lists all flagged items." data-ja="Par以下のアイテムはハイライト表示されます：赤＝最低水準以下、アンバー＝Par以下。上部の「Below Par」パネルに全フラグアイテムが一覧表示されます。">Below-min items turn red; below-par turn amber. A summary panel lists all flagged items.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Click Submit Report" data-ja="「Submit Report」をクリック">Click Submit Report</strong><p data-en="Report is saved and visible in History. Submitted reports are read-only." data-ja="レポートが保存されHistoryに表示されます。提出済みレポートは読み取り専用になります。">Report is saved and visible in History. Submitted = read-only.</p></div></li>
     </ol>
   </div>
-  <div class="tip"><span class="tip-icon">💡</span><span data-en="This is an independent daily check page, separate from Full Count and Spot Check. Use it for quick daily stock confirmations without starting a formal count session." data-ja="このページはFull CountやSpot Checkとは独立した日次確認ページです。正式な棚卸しセッションを開始せずに、素早く日次の在庫確認を行う際に使用してください。">Independent from Full Count/Spot Check. Use for quick daily confirmations without a formal count session.</span></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Create Direct Purchase Orders (Supplier items below par)" data-ja="Direct Purchase Orderの自動作成（Par以下のSupplierアイテム）">Create Direct Purchase Orders</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px" data-en="When Supplier-source items are below par, a 'Create Direct Purchase' button appears above the Below Par list. This opens a confirmation dialog where you can review and adjust each item before creating orders." data-ja="SupplierソースのアイテムがPar以下の場合、「Below Par」リストの上に「Create Direct Purchase」ボタンが表示されます。クリックすると確認ダイアログが開き、各アイテムを確認・調整してからオーダーを作成できます。">When Supplier items are below par, a "Create Direct Purchase" button appears. It opens a dialog to review and adjust before creating orders.</p>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click 'Create Direct Purchase (N suppliers)'" data-ja="「Create Direct Purchase (N suppliers)」をクリック">Click "Create Direct Purchase (N suppliers)"</strong><p data-en="Opens the order confirmation dialog. Items are pre-grouped by supplier with suggested order quantities (Par − Stock)." data-ja="注文確認ダイアログが開きます。アイテムはサプライヤーごとにグループ化され、発注推奨数量（Par − Stock）が初期値として設定されています。">Dialog opens. Items pre-grouped by supplier; suggested qty = Par − Stock.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Review each item: Stock, Par, and suggested order qty are shown" data-ja="各アイテムを確認：Stock・Par・推奨発注数量が表示される">Review each item</strong><p data-en="Each row shows: checkbox (include/exclude), item name, Stock: X / Par: Y (from today's inventory entry), and an editable quantity field with unit." data-ja="各行には：チェックボックス（含める/外す）・アイテム名・Stock: X / Par: Y（本日の在庫入力値）・単位付きの編集可能な数量フィールドが表示されます。">Each row: checkbox, item name, Stock / Par, editable qty + unit.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Adjust quantities or uncheck items you don't want to order" data-ja="数量を調整、または発注しないアイテムのチェックを外す">Adjust quantities or uncheck items</strong><p data-en="Edit the qty field to override the suggested amount. Uncheck an item to exclude it — that item will not be ordered. The 'Create N Orders' button shows how many suppliers will receive an order (only suppliers with at least one checked item with qty &gt; 0)." data-ja="数量フィールドを編集して推奨値を変更できます。アイテムのチェックを外すと発注から除外されます。「Create N Orders」ボタンには、実際に発注が作成されるサプライヤー数（チェック済みで数量>0のアイテムが1件以上あるサプライヤー）が表示されます。">Edit qty to override. Uncheck to exclude. Button shows only vendors with ≥1 checked item (qty &gt; 0).</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Enter your PIN and click 'Create N Orders'" data-ja="PINを入力して「Create N Orders」をクリック">Enter your PIN and click "Create N Orders"</strong><p data-en="One Direct Purchase Order is created per supplier. Unit prices are set to 0 — update them in Procurement → Hub before approving." data-ja="サプライヤーごとに1件のDirect Purchase Orderが作成されます。単価は0に設定されます — 承認前にProcurement → Hubで更新してください。">One order per supplier. Unit prices = 0; update in Procurement → Hub before approving.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click 'Review →' next to each result to open it in Procurement" data-ja="各結果の「Review →」をクリックしてProcurementで開く">Click "Review →" to open in Procurement</strong><p data-en="Success results show the order number. Click 'Review →' to go directly to Procurement → Hub and update prices." data-ja="成功した結果にはオーダー番号が表示されます。「Review →」をクリックするとProcurement → Hubに直接移動し、価格を更新できます。">Success shows order no. Click "Review →" to go to Procurement Hub.</p></div></li>
+    </ol>
+    <div class="tip" style="margin-top:12px"><span class="tip-icon">⚠️</span><span data-en="Unit prices are always set to 0 when orders are auto-created. Always update prices in Procurement → Hub before the order is approved." data-ja="自動作成されたオーダーの単価は常に0に設定されます。承認前に必ずProcurement → Hubで価格を更新してください。">Auto-created orders have unit price = 0. Always update prices in Procurement → Hub before approving.</span></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Below Par Indicators" data-ja="Par以下の表示">Below Par Indicators</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div><span class="chip red" style="background:rgba(248,113,113,.12);color:#f87171;border-color:rgba(248,113,113,.3)">Red</span> <span style="font-size:12px;color:var(--muted)" data-en="— below minimum level (critical)" data-ja="— 最低水準以下（重要）"> — below minimum level (critical)</span></div>
+        <div><span class="chip amber">Amber</span> <span style="font-size:12px;color:var(--muted)" data-en="— below par level (needs restocking)" data-ja="— Par以下（補充が必要）"> — below par level (needs restocking)</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Par Pattern Override" data-ja="Parパターンの上書き">Par Pattern Override</div>
+      <p style="color:var(--muted);font-size:12px" data-en="A day-of-week par pattern (e.g. PARANAQUE_Sunday) is auto-selected when available. You can change it from the dropdown above the Below Par panel to use a different pattern's par levels." data-ja="曜日別Parパターン（例：PARANAQUE_Sunday）が利用可能な場合に自動選択されます。「Below Par」パネル上のドロップダウンから別のパターンのPar値に変更できます。">Day-of-week pattern auto-selected. Change from the dropdown to use different par levels.</p>
+    </div>
+  </div>
+
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="The 'Create Direct Purchase' button only appears for Supplier-source items. Warehouse and CK items use the 'Generate Purchase Request' workflow instead." data-ja="「Create Direct Purchase」ボタンはSupplierソースのアイテムにのみ表示されます。WarehouseおよびCKアイテムには「Generate Purchase Request」ワークフローを使用します。">The "Create Direct Purchase" button appears for Supplier items only. Warehouse/CK items use "Generate Purchase Request" instead.</span></div>
 </div>
 
 <!-- ═══ DISPOSAL REPORT ═══ -->

@@ -718,21 +718,23 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     />
                   </div>
                 </div>
-                <div className="flex justify-end gap-3 border-t border-white/8 px-6 py-4">
-                  <button onClick={() => setDpModalOpen(false)} className={SECONDARY_BUTTON} disabled={dpCreating}>Cancel</button>
-                  <button
-                    onClick={() => void handleDpCreateOrders()}
-                    className="rounded-xl border border-sky-500/40 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:opacity-50"
-                    disabled={dpCreating || !dpCreatePin}
-                  >
-                    {dpCreating ? "Creating…" : (() => {
-                      const activeVendors = Object.entries(dpOrderGroups).filter(([, group]) =>
-                        group.some(({ item }) => dpOrderSelected[item.item_code] && parseFloat(dpOrderQtys[item.item_code] || "0") > 0)
-                      ).length;
-                      return `Create ${activeVendors} Order${activeVendors !== 1 ? "s" : ""}`;
-                    })()}
-                  </button>
-                </div>
+                {(() => {
+                  const activeVendors = Object.entries(dpOrderGroups).filter(([, group]) =>
+                    group.some(({ item }) => dpOrderSelected[item.item_code] && parseFloat(dpOrderQtys[item.item_code] || "0") > 0)
+                  ).length;
+                  return (
+                    <div className="flex justify-end gap-3 border-t border-white/8 px-6 py-4">
+                      <button onClick={() => setDpModalOpen(false)} className={SECONDARY_BUTTON} disabled={dpCreating}>Cancel</button>
+                      <button
+                        onClick={() => void handleDpCreateOrders()}
+                        className="rounded-xl border border-sky-500/40 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:opacity-50"
+                        disabled={dpCreating || !dpCreatePin || activeVendors === 0}
+                      >
+                        {dpCreating ? "Creating…" : `Create ${activeVendors} Order${activeVendors !== 1 ? "s" : ""}`}
+                      </button>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
