@@ -267,11 +267,13 @@ export default function DubaiDtrUploadPage() {
   const [dtrRecords, setDtrRecords]         = useState<AttendanceRow[]>([]);
   const [dtrLoading, setDtrLoading]         = useState(false);
 
-  // DTR filter + pagination state
+  // DTR filter + pagination state — default dtrDateTo to today (UAE time) so future "No Clock-in" rows are hidden
   const [dtrStaffFilter, setDtrStaffFilter] = useState("");
   const [dtrDateFrom, setDtrDateFrom]       = useState("");
   const [dtrPage, setDtrPage]               = useState(0);
-  const [dtrDateTo, setDtrDateTo]           = useState("");
+  const [dtrDateTo, setDtrDateTo]           = useState(() =>
+    new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" })
+  );
   const [dtrStoreFilter, setDtrStoreFilter] = useState("");
   const [dtrStatusFilter, setDtrStatusFilter] = useState("");
 
