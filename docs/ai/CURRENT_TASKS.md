@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (CK Daily Inventory — Shared Daily Session fully implemented: backend Heroku v1934 + frontend Vercel e8a59ec)
+Last updated: 2026-08-14 (CK Daily Inventory — bug fix: approvedOverwritesRef reset on silent refresh, commit 304a977; Inventory Manual artifact republished)
 
 ---
 
@@ -33,6 +33,33 @@ Last updated: 2026-08-14 (CK Daily Inventory — Shared Daily Session fully impl
 - 30s auto-refresh in Draft state (preserves locally dirty items)
 - `dirtyItemIdsRef` prevents auto-refresh from overwriting in-progress edits
 - Auto-triggers `merge-migrate` once per browser session (managers only, silent)
+
+---
+
+## ✅ Completed: CK Daily Inventory — Bug fix: overwrite approval reset on auto-refresh (2026-08-14, Vercel 304a977)
+
+**Bug**: After approving an overwrite dialog ("Yes, Overwrite"), the approval was lost after the 30-second silent auto-refresh, causing the dialog to reappear on the same item.
+
+**Root cause**: `loadSession()` always did `approvedOverwritesRef.current = new Set()`, even on silent same-session refreshes.
+
+**Fix** (`src/app/store/ck-inventory/page.tsx`):
+```typescript
+const isNewSession = activeSessionIdRef.current !== sessionId;
+// ...inside loadSession after fetch...
+if (isNewSession) approvedOverwritesRef.current = new Set();
+```
+Approval state now only resets when switching to a different session.
+
+**Testing results** (full E2E browser test, 2026-08-14):
+- ✅ FILLED BY column: amber "Gerald" / "Louiela" for other staff, green "You" for own entries
+- ✅ Overwrite dialog appears on focus of another's entry, shows full name in bold
+- ✅ "Yes, Overwrite" dismisses dialog and prevents it from reappearing (same session)
+- ✅ "Cancel" leaves entry unchanged, dialog won't show again until next session load
+- ✅ Save Draft sends only dirty items (1/219 in test) — not all 219
+- ✅ filled_by attribution correctly set to current user on save
+- ✅ Auto-migration (`merge-migrate`) ran once on page load, sessionStorage key prevents re-run
+
+**Inventory Manual**: CK Daily Session section (`sec-ck-daily-session`) was added in the previous session and confirmed present in local file. Artifact republished to https://claude.ai/code/artifact/f4964149-6a34-432c-b86e-46f55b14ce31.
 
 ---
 
