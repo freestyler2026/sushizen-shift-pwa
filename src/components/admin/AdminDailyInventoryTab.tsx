@@ -221,6 +221,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [dpCreatePin, setDpCreatePin] = useState("");
   const [dpCreating, setDpCreating] = useState(false);
   const [dpCreateResult, setDpCreateResult] = useState<{ vendor: string; ok: boolean; msg: string }[]>([]);
+  const [dpOrderQtys, setDpOrderQtys] = useState<Record<string, string>>({});
+  const [dpOrderSelected, setDpOrderSelected] = useState<Record<string, boolean>>({});
 
   // Par patterns
   const [patterns, setPatterns] = useState<string[]>([]);
@@ -359,7 +361,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   }
 
   const dpOrderGroups = (() => {
-    const groups: Record<string, { item: InvItem; qty: number }[]> = {};
+    const groups: Record<string, { item: InvItem; entry: ReportEntry; qty: number }[]> = {};
     [...lowItems, ...warnItems].forEach(({ item, entry }) => {
       if (item.source_type !== "supplier") return;
       const sup = (item.supplier_name || "").trim();
@@ -370,10 +372,24 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       const toOrder = Math.max(0, Math.round((par - Number(entry.qty)) * 1000) / 1000);
       if (toOrder <= 0) return;
       if (!groups[sup]) groups[sup] = [];
-      groups[sup].push({ item, qty: toOrder });
+      groups[sup].push({ item, entry, qty: toOrder });
     });
     return groups;
   })();
+
+  function openDpModal() {
+    const qtys: Record<string, string> = {};
+    const sel: Record<string, boolean> = {};
+    Object.values(dpOrderGroups).flat().forEach(({ item, qty }) => {
+      qtys[item.item_code] = String(qty);
+      sel[item.item_code] = true;
+    });
+    setDpOrderQtys(qtys);
+    setDpOrderSelected(sel);
+    setDpCreatePin("");
+    setDpCreateResult([]);
+    setDpModalOpen(true);
+  }
 
   async function handleDpCreateOrders() {
     if (!dpCreatePin) return;
@@ -382,6 +398,17 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     setDpCreating(true);
     const results: { vendor: string; ok: boolean; msg: string }[] = [];
     for (const [vendorName, group] of Object.entries(dpOrderGroups)) {
+      const selectedItems = group
+        .filter(({ item }) => dpOrderSelected[item.item_code])
+        .map(({ item }) => ({
+          item_name: item.item_name,
+          category: item.section,
+          qty: parseFloat(dpOrderQtys[item.item_code] || "0"),
+          unit: item.default_unit,
+          unit_price: 0,
+        }))
+        .filter((x) => x.qty > 0);
+      if (!selectedItems.length) continue;
       const fd = new FormData();
       fd.append("approver_name", auth?.staffName || "");
       fd.append("pin", dpCreatePin);
@@ -390,15 +417,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       fd.append("vendor_name", vendorName);
       fd.append("request_date", today);
       fd.append("notes", `Auto-created from Daily Inventory ${detail.branch} (${today})`);
-      fd.append("items_json", JSON.stringify(
-        group.map(({ item, qty }) => ({
-          item_name: item.item_name,
-          category: item.section,
-          qty,
-          unit: item.default_unit,
-          unit_price: 0,
-        }))
-      ));
+      fd.append("items_json", JSON.stringify(selectedItems));
       try {
         const res = await fetch(`${API_BASE}/api/admin/procurement/direct-purchase`, {
           method: "POST",
@@ -487,7 +506,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                   Generate Purchase Request
                 </button>
                 {Object.keys(dpOrderGroups).length > 0 && (
-                  <button onClick={() => { setDpCreatePin(""); setDpCreateResult([]); setDpModalOpen(true); }}
+                  <button onClick={openDpModal}
                     className="rounded-lg border border-sky-400/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25">
                     Create Direct Purchase ({Object.keys(dpOrderGroups).length} supplier{Object.keys(dpOrderGroups).length > 1 ? "s" : ""})
                   </button>
@@ -639,31 +658,65 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </div>
             ) : (
               <>
-                <div className="px-6 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+                <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                  <p className="text-xs text-zinc-500">Orders will be created per supplier for checked items. Unit prices will be set to 0 — update before approving in Procurement.</p>
                   {Object.entries(dpOrderGroups).map(([vendor, group]) => (
-                    <div key={vendor} className="rounded-xl border border-white/8 bg-white/5 px-4 py-3">
-                      <p className="text-sm font-semibold text-sky-300 mb-2">{vendor}</p>
-                      {group.map(({ item, qty }) => (
-                        <div key={item.item_code} className="flex items-center justify-between text-xs text-zinc-300 py-0.5">
-                          <span className="truncate flex-1">{item.item_name}</span>
-                          <span className="ml-3 font-mono text-zinc-400">{qty} {item.default_unit}</span>
-                        </div>
-                      ))}
+                    <div key={vendor} className="rounded-xl border border-white/8 bg-white/5">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">
+                        <p className="text-xs font-semibold text-sky-300">{vendor}</p>
+                        <span className="text-[10px] text-zinc-500">
+                          {group.filter(({ item }) => dpOrderSelected[item.item_code]).length}/{group.length} items
+                        </span>
+                      </div>
+                      <div className="divide-y divide-white/5">
+                        {group.map(({ item, entry }) => {
+                          const par = getEffectivePar(item);
+                          const unit = entry.unit ?? item.default_unit;
+                          const checked = dpOrderSelected[item.item_code] ?? true;
+                          return (
+                            <div key={item.item_code} className={`flex items-center gap-3 px-4 py-2.5 ${!checked ? "opacity-40" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => setDpOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
+                                className="h-4 w-4 flex-shrink-0 rounded accent-sky-400 cursor-pointer"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-zinc-200 truncate">{item.item_name}</p>
+                                <p className="text-[10px] text-zinc-500">
+                                  Stock: {Number(entry.qty).toLocaleString()} {unit}
+                                  {par !== null && <> / Par: {par} {unit}</>}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.001"
+                                  value={dpOrderQtys[item.item_code] ?? ""}
+                                  onChange={(e) => setDpOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
+                                  disabled={!checked}
+                                  className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-40"
+                                />
+                                <span className="text-[10px] text-zinc-500 w-8">{unit}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
-                  <div className="space-y-1 pt-2">
-                    <p className="text-xs text-zinc-400">PIN (required)</p>
+                  <div className="space-y-1 pt-1">
+                    <p className="text-xs text-zinc-400">Your PIN (required to create orders)</p>
                     <input
                       type="password"
                       value={dpCreatePin}
                       onChange={(e) => setDpCreatePin(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && dpCreatePin) void handleDpCreateOrders(); }}
-                      placeholder="Enter your PIN"
+                      placeholder="Enter PIN"
                       className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      autoFocus
                     />
                   </div>
-                  <p className="text-xs text-zinc-500">Unit prices will be set to 0 — update before approving in Procurement.</p>
                 </div>
                 <div className="flex justify-end gap-3 border-t border-white/8 px-6 py-4">
                   <button onClick={() => setDpModalOpen(false)} className={SECONDARY_BUTTON} disabled={dpCreating}>Cancel</button>
@@ -672,7 +725,12 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     className="rounded-xl border border-sky-500/40 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:opacity-50"
                     disabled={dpCreating || !dpCreatePin}
                   >
-                    {dpCreating ? "Creating…" : `Create ${Object.keys(dpOrderGroups).length} Order${Object.keys(dpOrderGroups).length > 1 ? "s" : ""}`}
+                    {dpCreating ? "Creating…" : (() => {
+                      const activeVendors = Object.entries(dpOrderGroups).filter(([, group]) =>
+                        group.some(({ item }) => dpOrderSelected[item.item_code] && parseFloat(dpOrderQtys[item.item_code] || "0") > 0)
+                      ).length;
+                      return `Create ${activeVendors} Order${activeVendors !== 1 ? "s" : ""}`;
+                    })()}
                   </button>
                 </div>
               </>
