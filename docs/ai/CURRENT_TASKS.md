@@ -1,6 +1,21 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-13 (OS Sync deep audit + 7-bug fix: Heroku v1923 + Vercel 3131639)
+Last updated: 2026-08-14 (Store Supplier Orders Bug ② item-code mismatch fix: Heroku v1927/v1928)
+
+---
+
+## ✅ Completed: Store Supplier Orders — Bug ② item-code mismatch root cause fix (2026-08-14, Heroku v1927/v1928)
+
+**Root cause (true bug)**: `store_supplier_catalog` uses VEG-xxx / SEAFOOD-xxx item codes, while `daily_inv_entries` uses SUP-xxx codes. The `generate_store_supplier_orders()` stock lookup `stock_map.get(item_code, 0.0)` always returned 0 because the codes never matched → par level was never reduced by actual stock → full par level always ordered.
+
+**Fix (3-part)**:
+1. **Schema**: Added `daily_inv_item_code TEXT` column to `store_supplier_catalog`. `generate_store_supplier_orders` now uses `inv_lookup_code = cat.get("daily_inv_item_code") or item_code` for the stock lookup.
+2. **Direct DB fix**: Updated all 65 catalog rows via `heroku pg:psql` SQL `UPDATE store_supplier_catalog ssc SET daily_inv_item_code = diri.item_code ... FROM daily_inv_report_items diri WHERE diri.item_name = ssc.item_name AND diri.source_type = 'supplier'` → `UPDATE 65` (all mapped).
+3. **Auto-link startup**: `ensure_store_supplier_tables()` now runs a best-effort name-matching UPDATE in a separate connection at startup — fills NULL rows only, so future new items auto-link.
+
+**Frontend (v1927)**: Added Catalog tab to Store Supplier Orders page showing each item's daily_inv_item_code link status (SUP-xxx code or "Not linked" badge). `GET /api/admin/store-supplier/daily-inv-items` endpoint added.
+
+**Note on session 401 issue**: During this session, POST to catalog endpoint kept returning 401 due to Heroku dyno restarts invalidating sessions (main.py session middleware + `sz_access` cookie invalidation cycle). Issue bypassed via direct DB update. The actual catalog save UI still works when session is stable.
 
 ---
 
