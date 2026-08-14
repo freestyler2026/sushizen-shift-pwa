@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (Payroll salary masking — payroll.view_salary permission, HQ sees full amounts, ADMIN sees ****)
+Last updated: 2026-08-14 (Store Supplier Orders Catalog — inline editing for Unit Price and Par levels)
+
+---
+
+## ✅ Completed: Store Supplier Orders — Catalog inline editing for Unit Price and Par levels (2026-08-14, Vercel bccc611)
+
+**Request**: Registering a unit price required re-adding the item via Add Item form (upsert), which was cumbersome. Direct cell editing was requested for Unit Price and Par levels.
+
+**Implementation**:
+- `store-supplier-orders/page.tsx`: Added `InlineEditState` union type, `inlineEdit` state, `inlineSaving` state, `skipInlineSaveRef` ref.
+- `saveInlineEdit()`: Reuses existing `POST /api/admin/store-supplier/catalog/${store}` upsert endpoint. Empty unit_price saves as null.
+- **Unit Price cell**: Click → input renders with autoFocus. Enter → blur → save. Click elsewhere → blur → save. Escape → skip flag + cancel (no save).
+- **Par levels cell**: Click → 3-input form (weekday/weekend/default). ✓ Save button + ✕ Cancel button (explicit because moving between 3 inputs would trigger blur-based save prematurely).
+- Pencil icon appears on hover for both cells to hint editability.
+
+**UX pattern**: `skipInlineSaveRef` (useRef, not useState) used for Escape-cancel to prevent the blur-triggered save from firing when cancelling.
+
+**Verified**: Unit Price edit (₱900→950→900, null clear), Par edit (save with ✓), Escape cancel — all working locally.
 
 ---
 
