@@ -600,6 +600,7 @@ export default function StoreSupplierOrdersPage() {
       const detailData = await detailRes.json();
       setDetail(detailData.order);
       await loadOrders();
+      await loadAlerts();
     } catch {
       setError("Failed to set delivery date.");
     } finally {
