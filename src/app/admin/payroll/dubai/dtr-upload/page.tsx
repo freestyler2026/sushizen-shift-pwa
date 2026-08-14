@@ -158,20 +158,14 @@ function parseDtrCsv(text: string): DtrRow[] {
 
 function fmtTime(iso: string | null) {
   if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
-  } catch { return iso.slice(11, 16) || "—"; }
+  // Dubai timestamps are stored as local UAE time with +00:00 label (same as Manila PHT pattern).
+  // Do NOT apply timezone conversion — slice HH:MM directly.
+  return iso.slice(11, 16) || "—";
 }
 
 function fmtTimeCsv(iso: string | null): string {
   if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
-  } catch { return ""; }
+  return iso.slice(11, 16) || "";
 }
 
 function fmtHours(h: number) {
