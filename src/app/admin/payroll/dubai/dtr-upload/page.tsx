@@ -158,14 +158,20 @@ function parseDtrCsv(text: string): DtrRow[] {
 
 function fmtTime(iso: string | null) {
   if (!iso) return "—";
-  // Dubai timestamps are stored as local UAE time with +00:00 label (same as Manila PHT pattern).
-  // Do NOT apply timezone conversion — slice HH:MM directly.
-  return iso.slice(11, 16) || "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
+  } catch { return iso.slice(11, 16) || "—"; }
 }
 
 function fmtTimeCsv(iso: string | null): string {
   if (!iso) return "";
-  return iso.slice(11, 16) || "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("en-AE", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Dubai" });
+  } catch { return ""; }
 }
 
 function fmtHours(h: number) {
@@ -628,8 +634,8 @@ export default function DubaiDtrUploadPage() {
                               <tr key={i} className={`border-b border-white/5 hover:bg-white/5 ${!row.is_worked ? "opacity-50" : ""}`}>
                                 <td className="px-3 py-1.5 font-mono text-slate-300">{row.work_date}</td>
                                 <td className="px-3 py-1.5 font-medium text-white">{row.staff_name}</td>
-                                <td className="px-3 py-1.5 font-mono text-emerald-300">{row.actual_time_in ? row.actual_time_in.slice(11, 16) : "—"}</td>
-                                <td className="px-3 py-1.5 font-mono text-emerald-300">{row.actual_time_out ? row.actual_time_out.slice(11, 16) : "—"}</td>
+                                <td className="px-3 py-1.5 font-mono text-emerald-300">{fmtTime(row.actual_time_in)}</td>
+                                <td className="px-3 py-1.5 font-mono text-emerald-300">{fmtTime(row.actual_time_out)}</td>
                                 <td className="px-3 py-1.5 text-right text-slate-300">{row.regular_hours}h</td>
                                 <td className="px-3 py-1.5 text-right text-amber-300">{row.overtime_hours > 0 ? `${row.overtime_hours}h` : "—"}</td>
                                 <td className="px-3 py-1.5">
