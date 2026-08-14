@@ -472,12 +472,45 @@ td.muted { color:var(--muted); font-size:12px; }
   </div>
 
   <div class="card">
-    <div class="card-title" data-en="Receiving — After Mark as Sent" data-ja="受取 — Mark as Sent後">Receiving — After Mark as Sent</div>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Once approved, a manager clicks Mark as Sent (the system auto-emails the supplier if configured). Store staff then receive the delivery at:" data-ja="承認後、マネージャーがMark as Sentをクリック（設定済みの場合、システムがサプライヤーに自動メール送信）。次に店舗スタッフが以下で受取を行います：">After approval, manager clicks Mark as Sent (auto-email sent if configured). Staff receive at:</p>
-    <div class="chip-row">
-      <span style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:3px 8px;border-radius:4px;color:var(--blue)">/store/supplier-receiving</span>
+    <div class="card-title" data-en="Post-Order Flow — After Mark as Sent" data-ja="送信後フロー — Mark as Sent後">Post-Order Flow — After Mark as Sent</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px">All receiving and invoice matching is done directly within the <strong>Store Supplier Orders</strong> page — no separate receiving page needed.</p>
+
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body">
+        <strong>Set Delivery Date</strong>
+        <p style="color:var(--muted);font-size:12px">On a <span class="chip blue" style="font-size:10px;padding:1px 6px">sent</span> order, managers can click the pencil icon next to "Delivery Date" to enter the expected delivery date. An alert banner appears on this page if the date passes midnight with no receipt confirmation.</p>
+      </div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body">
+        <strong>Confirm Receipt</strong>
+        <p style="color:var(--muted);font-size:12px">Click <strong>Confirm Receipt</strong> on any <span class="chip blue" style="font-size:10px;padding:1px 6px">sent</span> order to open the receipt modal. Enter:</p>
+        <ul style="color:var(--muted);font-size:12px;margin-top:4px;padding-left:16px">
+          <li>Invoice number (optional)</li>
+          <li>Qty received per item</li>
+          <li>Receipt status: <span class="chip green" style="font-size:10px;padding:1px 6px">Received</span>, <span class="chip amber" style="font-size:10px;padding:1px 6px">Partial</span>, or <span class="chip red" style="font-size:10px;padding:1px 6px">Issue</span></li>
+        </ul>
+        <p style="color:var(--muted);font-size:12px;margin-top:4px">Partial → status becomes <span class="chip amber" style="font-size:10px;padding:1px 6px">partial</span> with remaining qty open. All items received → <span class="chip green" style="font-size:10px;padding:1px 6px">received</span>.</p>
+      </div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body">
+        <strong>Invoice Matching (Back Office)</strong>
+        <p style="color:var(--muted);font-size:12px">On received/partial orders, an <strong>Invoice Matching</strong> section appears in the order detail. Managers enter the actual invoice price per item. The system auto-computes variance:</p>
+        <div class="table-wrap"><table style="font-size:12px;margin-top:6px">
+          <tr><th>Variance</th><th>Display</th><th>Action</th></tr>
+          <tr><td>&lt; ±5%</td><td style="color:var(--muted)">No flag</td><td style="color:var(--muted)">Normal</td></tr>
+          <tr><td>≥ ±5%</td><td><span class="chip red" style="font-size:10px;padding:1px 6px">Price Flagged</span></td><td style="color:var(--muted)">HQ alert banner appears</td></tr>
+        </table></div>
+        <p style="color:var(--muted);font-size:12px;margin-top:6px">Once prices are reviewed, click <strong>Mark Invoice Checked</strong> to clear the alert and record who verified the invoice.</p>
+      </div></li>
+    </ol>
+
+    <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--amber)">
+      <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Alert Banners</div>
+      <div class="table-wrap"><table style="font-size:12px">
+        <tr><th>Banner</th><th>Trigger</th></tr>
+        <tr><td><span class="chip red" style="font-size:10px;padding:1px 6px">Overdue Delivery</span></td><td style="color:var(--muted)">Sent order with delivery date in the past and no receipt</td></tr>
+        <tr><td><span class="chip" style="font-size:10px;padding:1px 6px;background:var(--orange,#f97316);color:#fff">Price Variance Flagged</span></td><td style="color:var(--muted)">Received order with ≥5% actual vs PO price, invoice not yet checked</td></tr>
+        <tr><td><span class="chip amber" style="font-size:10px;padding:1px 6px">Invoice Check Pending</span></td><td style="color:var(--muted)">Received/partial order with no invoice check for 3+ days</td></tr>
+      </table></div>
     </div>
-    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Enter actual received quantities per item. Partial receipts are supported — status becomes 'partial' and the remaining quantity stays open. Once all items are received, status becomes 'received'." data-ja="品目ごとの実際の受取数量を入力。一部受取に対応 — ステータスが'partial'になり残数量がオープンのまま。全アイテム受取完了でステータスが'received'に。">Enter qty received per item. Partial receipt → status 'partial'. All items received → status 'received'.</p>
   </div>
 </div>
 

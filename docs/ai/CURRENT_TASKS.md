@@ -1,6 +1,110 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (DTR Edit Audit Log — field-level change tracking with editor name)
+Last updated: 2026-08-14 (CK Daily Inventory — Shared Daily Session fully implemented: backend Heroku v1934 + frontend Vercel e8a59ec)
+
+---
+
+## ✅ Completed: CK Daily Inventory — Shared Daily Session Backend (2026-08-14, Heroku v1934)
+
+**Goal**: Multiple staff now share a single CK inventory session per (city, session_type, date) instead of creating separate sessions.
+
+**db.py changes**:
+- `ensure_ck_inventory_tables()`: 5 new migration connections add columns IF NOT EXISTS:
+  - `ck_inventory_entries`: `filled_by TEXT DEFAULT ''`, `filled_at TIMESTAMPTZ`, `version INT DEFAULT 0`
+  - `ck_inventory_sessions`: `contributors TEXT DEFAULT ''` (comma-separated names), `is_archived BOOLEAN DEFAULT FALSE`
+- `get_or_create_ck_inventory_session()`: SELECT FOR UPDATE find-or-create; returns `(session, was_created)` tuple
+- `merge_ck_inventory_sessions()`: One-time migration that collapses existing multi-sessions per (city/type/date) into oldest, archives secondaries (`is_archived=TRUE`, notes `[merged into N]`), merges entries, builds `contributors`
+- `list_ck_inventory_sessions()`: added `s.contributors`, added `WHERE (is_archived = FALSE OR is_archived IS NULL)`
+- `get_ck_inventory_session()`: added `contributors` to session SELECT; `filled_by, filled_at::text, version` to entries SELECT
+- `save_ck_inventory_entries()`: now accepts `filled_by`/`version` per entry, updated upsert SQL (fills `filled_by`, `filled_at=NOW()`, increments `version`), maintains `contributors` on session; returns `{"saved": N, "conflicts": []}` dict instead of int
+
+**main.py changes**:
+- `CKInventoryEntryIn`: added `filled_by: str = ""` and `version: int = 0` fields
+- `POST /api/store/ck-inventory/sessions`: uses `get_or_create_ck_inventory_session()`; returns `{ok, session, joined: bool}`
+- `POST /api/store/ck-inventory/sessions/{session_id}/entries`: handles new dict return `{saved, conflicts}`
+- `POST /api/store/ck-inventory/sessions/merge-migrate`: new endpoint (requires auth); triggers `merge_ck_inventory_sessions()`; returns `{ok, merged_groups, entries_moved}`
+- Imports: added `get_or_create_ck_inventory_session`, `merge_ck_inventory_sessions`
+
+**Frontend** (Vercel commit e8a59ec): ✅ COMPLETE — full shared session UI:
+- `joined: true` response → "Joined existing session" toast; `false` → "New session created"
+- Session list grouped by date, shows contributor names per card
+- FILLED BY column per item row (green = you, amber = another staff)
+- Overwrite confirmation dialog if another staff's entry is clicked
+- 30s auto-refresh in Draft state (preserves locally dirty items)
+- `dirtyItemIdsRef` prevents auto-refresh from overwriting in-progress edits
+- Auto-triggers `merge-migrate` once per browser session (managers only, silent)
+
+---
+
+## ⏳ Pending: Store Supplier Orders — Store Procurement Integration (future feature request)
+
+**Request (2026-08-14)**: After "Mark as Sent", data should flow to Store Procurement Approved section so store staff can manage receipt/invoice from there. Specific requests:
+1. Sent order → reflected in Store Procurement's Approved section
+2. Store staff confirm receipt + invoice update via Store Procurement
+3. Delivery date + 24hr-overdue alert (currently in Store Supplier Orders page only)
+4. Back office PO matching in Store Procurement (actual price vs PO price)
+5. ±5% variance → HQ member email/notification alert (currently page-level flag only)
+6. 3+ day uninvoiced → badge reminder in Store Procurement
+
+**Current state**: Store Supplier Orders and Store Procurement are completely separate systems. No PO is created in Procurement when a Store Supplier Order is sent. Post-order flow (delivery date → receipt → invoice check) lives entirely within Store Supplier Orders page.
+
+**Complexity**: This is a significant cross-system integration requiring new backend linkage between `store_supplier_orders` and the existing `proc_purchase_orders` / `proc_invoices` schema. Recommend planning in a new session.
+
+---
+
+## 📄 Artifact: Store Supplier Orders Staff Manual (2026-08-14)
+
+**URL**: https://claude.ai/code/artifact/d70983f2-e08b-4002-9cfe-50fb7c2b461a  
+**File**: scratchpad (session-local — use URL for future updates)  
+**Content**: Bilingual EN/JP manual covering the 4-step post-order flow: Set Delivery Date → Confirm Receipt → Invoice Price Matching → Mark Invoice Checked. Includes UI mockups, alert banner reference table, role permissions, and tips.  
+**To update**: Pass the URL above as `url` parameter in future Artifact publish calls.
+
+---
+
+## ✅ Completed: Store Supplier Orders — Post-Order Flow (2026-08-14, Heroku a181d8e + Vercel)
+
+**Request**: After "Mark as Sent", staff should be able to confirm receipt with invoice info and qty per item. Back office enters actual invoice prices for PO matching. Items with ±5%+ variance flagged for HQ. Alert badges for overdue and uninvoiced reminders.
+
+**Backend DB** (`db_store_supplier.py`):
+- `store_supplier_orders`: Added `delivery_date DATE`, `invoice_number TEXT`, `invoice_date DATE`, `received_by TEXT`, `invoice_checked_at TIMESTAMPTZ`, `invoice_checked_by TEXT`
+- `store_supplier_order_items`: Added `unit_price_actual NUMERIC(10,2)`, `price_variance_pct NUMERIC(8,4)`, `price_flagged BOOLEAN DEFAULT FALSE`
+- New DB functions: `update_order_delivery_date()`, `update_item_actual_price()` (computes `((actual-po)/po)*100`, flags if abs>=5%), `mark_invoice_checked()`, `get_post_order_alerts()` (overdue/uninvoiced/flagged queries)
+- Enhanced `receive_store_supplier_order()` to accept `invoice_number` and `received_by`
+
+**Backend API** (`store_supplier_api.py`):
+- New Pydantic models: `DeliveryDateIn`, `ReceiveOrderExtIn`, `ActualPriceIn`
+- `PATCH /orders/{id}/delivery-date` (manager+) — set/update expected delivery date
+- `PATCH /orders/{id}/items/{item_id}/actual-price` (manager+) — enter actual price, compute variance
+- `POST /orders/{id}/invoice-check` (manager+) — mark invoice verified
+- `GET /alerts` (view+) — returns overdue/uninvoiced/flagged_items lists
+
+**Frontend** (`store-supplier-orders/page.tsx`):
+- `OrderItem` type: added `unit_price_actual`, `price_variance_pct`, `price_flagged`
+- `OrderDetail` type: added all 6 new order-level fields + `AlertData` interface
+- Alert banners: red (overdue delivery), orange (price variance flagged), amber (invoice >3 days)
+- Delivery date row in order detail: "Set date" link for managers, shows red "overdue" if past today and still "sent"
+- "Confirm Receipt" button for "sent" orders → modal with invoice number + status (received/partial/issue) + per-item qty received/note
+- Invoice matching section for received/partial orders (managers): actual price inputs per item, variance % with TrendingUp/Down icon + red flag for ≥±5%, "Mark Invoice Checked" button (violet)
+- Invoice status row shows checker name + date when verified
+
+**Alert logic**:
+- Overdue: `status='sent' AND delivery_date < CURRENT_DATE`
+- Uninvoiced: `status IN ('received','partial') AND invoice_checked_at IS NULL AND updated_at < NOW()-3days`
+- Flagged: any received order with `price_flagged=TRUE` items not yet invoice-checked
+
+**Verified (2026-08-14 — full E2E test via API + Browser)**:
+- GET /alerts: Returns correct overdue/uninvoiced/flagged data ✓
+- PATCH delivery-date: Sets date, "overdue" label appears when past today ✓
+- POST receive (Confirm Receipt modal): sent→received transition, invoice number saved, received_by recorded ✓
+- PATCH actual-price: Price saved (placeholder updates), variance NULL when no PO price (expected) ✓
+- POST invoice-check: "Invoice verified by X on date" appears, alert clears ✓
+- loadAlerts() bug fixed: was not called after handleSetDeliveryDate — now added (Vercel ea36cb5) ✓
+
+**Known backend gaps** (UI guards prevent misuse in practice):
+- /receive has no status guard — can re-receive an already-received order
+- /invoice-check has no status guard — can check invoice of a "sent" order
+
+**Design limitation**: PO unit_price is always null in current catalog data, so price variance % and flag cannot be computed until catalog unit prices are populated.
 
 ---
 
@@ -19,6 +123,19 @@ Last updated: 2026-08-14 (DTR Edit Audit Log — field-level change tracking wit
 - Editor name: extracted from authenticated actor's `staff_name` (JWT claims).
 
 **Scope explicitly excluded**: approval_status changes (pending→approved etc.) are NOT logged.
+
+**Verified (2026-08-14 — full E2E test)**:
+- `dtr_edit_log` table created on first Heroku request (migration ran cleanly).
+- Empty history shows "No edit history for this record." ✓
+- PUT save records field-level diffs: late_minutes 15→10 → single log entry ✓
+- Multiple edits accumulate newest-first in History modal ✓
+- `formatDtrValue()` correctly extracts HH:MM from both `T15:45` and space-separated `2026-08-01 15:45` timestamp formats ✓
+- Editor name "Yukihiro Nishimura" extracted from JWT actor ✓
+- GET endpoint returns `null` (not stringified "None") for null old_value ✓
+- PHT timezone conversion on `edited_at_phst` correct ✓
+- z-index: History modal (z-60) overlays DTR modal (z-50) correctly ✓
+- Action column (Save + History icon) visible at 1440px viewport ✓
+- Heroku logs: only pre-existing `42P07 NOTICE` warnings, no new errors ✓
 
 ---
 
