@@ -953,16 +953,27 @@ export default function CkParLevelsPage() {
                   <thead>
                     <tr className="bg-white/5 text-zinc-500 uppercase tracking-wide">
                       <th className="px-3 py-2 text-left">Supplier</th>
-                      <th className="px-3 py-2 text-center">Items</th>
+                      <th className="px-3 py-2 text-left">Item</th>
+                      <th className="px-3 py-2 text-center">Qty</th>
+                      <th className="px-3 py-2 text-center">Unit</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(orderGroups).map(([sup, group], i) => (
-                      <tr key={sup} className={`border-t border-white/5 ${i % 2 === 0 ? "bg-white/[0.01]" : ""}`}>
-                        <td className="px-3 py-2 text-teal-300 font-medium">{sup}</td>
-                        <td className="px-3 py-2 text-center text-white">{group.totalItems}</td>
-                      </tr>
-                    ))}
+                    {Object.entries(orderGroups).flatMap(([sup, group]) =>
+                      group.items.map((item, j) => {
+                        const qty = Math.max(0, (item.par_level ?? 0) - (item.current_stock ?? 0));
+                        return (
+                          <tr key={`${sup}-${item.id}`} className="border-t border-white/5">
+                            <td className="px-3 py-2 text-teal-300 font-medium whitespace-nowrap">
+                              {j === 0 ? sup : ""}
+                            </td>
+                            <td className="px-3 py-2 text-white">{item.item_name}</td>
+                            <td className="px-3 py-2 text-center text-orange-300 font-semibold">{fmtNum(qty)}</td>
+                            <td className="px-3 py-2 text-center text-zinc-400">{item.unit || "—"}</td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
