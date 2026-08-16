@@ -445,6 +445,8 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [deletingLineId, setDeletingLineId] = useState<number | null>(null);
+  const [syncingReportId, setSyncingReportId] = useState<number | null>(null);
+  const [syncResults, setSyncResults] = useState<Record<number, string>>({});
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
   });
@@ -481,6 +483,25 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
       await apiFetch(`/api/admin/disposal/report/${id}?city=${city}`, { method: "DELETE" });
       setReports((prev) => prev.filter((r) => r.id !== id));
     } catch (e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
+  };
+
+  const handleSyncToLedger = async (reportId: number, reportCity: string) => {
+    setSyncingReportId(reportId);
+    setSyncResults((prev) => ({ ...prev, [reportId]: "" }));
+    try {
+      const res = await apiFetch<{ ok: boolean; ledger_posted?: number; skipped?: number; errors?: string[] }>(
+        `/api/admin/disposal/report/${reportId}/sync-to-ledger?city=${reportCity}`,
+        { method: "POST" }
+      );
+      const msg = res.ok
+        ? `Synced: ${res.ledger_posted ?? 0} ledger entries posted${res.skipped ? `, ${res.skipped} skipped` : ""}.`
+        : `Sync failed: ${res.errors?.[0] ?? "unknown error"}`;
+      setSyncResults((prev) => ({ ...prev, [reportId]: msg }));
+    } catch (e: unknown) {
+      setSyncResults((prev) => ({ ...prev, [reportId]: `Error: ${e instanceof Error ? e.message : String(e)}` }));
+    } finally {
+      setSyncingReportId(null);
+    }
   };
 
   const handleDeleteLine = async (reportId: number, lineId: number) => {
@@ -537,12 +558,25 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
               <span className="text-xs text-zinc-400">by {r.reported_by}</span>
               <span className="text-xs text-zinc-500 ml-auto">{r.lines?.length ?? 0} items</span>
               {isAdmin && (
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteReport(r.id); }}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0">
-                  Delete All
-                </button>
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); void handleSyncToLedger(r.id, r.city); }}
+                    disabled={syncingReportId === r.id}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-2 py-1 shrink-0 disabled:opacity-40">
+                    {syncingReportId === r.id ? "Syncing…" : "Sync to Ledger"}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteReport(r.id); }}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0">
+                    Delete All
+                  </button>
+                </>
               )}
             </div>
+            {syncResults[r.id] && (
+              <div className="px-4 py-1.5 bg-emerald-900/20 border-t border-emerald-500/20">
+                <p className="text-xs text-emerald-300">{syncResults[r.id]}</p>
+              </div>
+            )}
 
             {expanded === r.id && (
               <div className="border-t border-white/8 px-4 py-3">
@@ -733,7 +767,11 @@ export default function DisposalPage() {
 
     setSubmitting(true); setSubmitError(""); setSubmitSuccess("");
     try {
-      const result = await apiFetch<{ report_id: number; status: string }>(
+      const result = await apiFetch<{
+        report_id: number;
+        status: string;
+        ledger?: { ok?: boolean; ledger_posted?: number; errors?: string[] };
+      }>(
         "/api/admin/disposal/report",
         {
           method: "POST",
@@ -776,7 +814,12 @@ export default function DisposalPage() {
       const photoNote = photoFiles.length > 0
         ? ` (${uploadedCount}/${photoFiles.length} photo${photoFiles.length !== 1 ? "s" : ""} uploaded)`
         : "";
-      setSubmitSuccess(`Report #${result.report_id} submitted.${photoNote}`);
+      const ledgerNote = result.ledger?.ok && (result.ledger.ledger_posted ?? 0) > 0
+        ? ` — ${result.ledger.ledger_posted} ingredient entries posted to inventory ledger.`
+        : result.ledger?.ok === false
+          ? " — Ledger sync failed (report saved)."
+          : "";
+      setSubmitSuccess(`Report #${result.report_id} submitted.${photoNote}${ledgerNote}`);
       setLines([]); setHeaderNotes("");
       setDraftRestored(false);
       clearDraft();
