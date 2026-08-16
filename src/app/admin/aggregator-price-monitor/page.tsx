@@ -45,9 +45,11 @@ type PriceAlert = {
   category: string;
   old_price: number | null;
   new_price: number | null;
+  old_discount_rate: number | null;
+  new_discount_rate: number | null;
   old_available: boolean | null;
   new_available: boolean | null;
-  change_type: "price_up" | "price_down" | "became_unavailable" | "became_available" | string;
+  change_type: "price_up" | "price_down" | "discount_up" | "discount_down" | "became_unavailable" | "became_available" | string;
   notified: boolean;
   created_at: string;
 };
@@ -61,6 +63,7 @@ type Snapshot = {
   category: string;
   base_price: number;
   platform_price: number;
+  discount_rate: number;
   is_available: boolean;
 };
 
@@ -93,6 +96,18 @@ function ChangeTypeBadge({ type }: { type: string }) {
         <TrendingDown className="w-3 h-3" /> Price Down
       </span>
     );
+  if (type === "discount_up")
+    return (
+      <span className={`${BADGE_SUCCESS} inline-flex items-center gap-1`}>
+        <TrendingUp className="w-3 h-3" /> Discount Up
+      </span>
+    );
+  if (type === "discount_down")
+    return (
+      <span className={`${BADGE_WARNING} inline-flex items-center gap-1`}>
+        <TrendingDown className="w-3 h-3" /> Discount Down
+      </span>
+    );
   if (type === "became_unavailable")
     return (
       <span className={`${BADGE_ERROR} inline-flex items-center gap-1`}>
@@ -106,6 +121,11 @@ function ChangeTypeBadge({ type }: { type: string }) {
       </span>
     );
   return <span className={BADGE_WARNING}>{type}</span>;
+}
+
+function fmtRate(r: number | null): string {
+  if (r == null) return "—";
+  return `${(Number(r) * 100).toFixed(1)}%`;
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -371,6 +391,7 @@ export default function AggregatorPriceMonitorPage() {
                     <th className={TABLE_HEADER}>Change</th>
                     <th className={TABLE_HEADER}>Old Price</th>
                     <th className={TABLE_HEADER}>New Price</th>
+                    <th className={TABLE_HEADER}>Discount Rate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -405,6 +426,23 @@ export default function AggregatorPriceMonitorPage() {
                             }
                           >
                             AED {Number(a.new_price).toFixed(2)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className={TABLE_CELL}>
+                        {a.old_discount_rate != null || a.new_discount_rate != null ? (
+                          <span
+                            className={
+                              a.change_type === "discount_down"
+                                ? "text-amber-400 font-semibold"
+                                : a.change_type === "discount_up"
+                                ? "text-green-400 font-semibold"
+                                : ""
+                            }
+                          >
+                            {fmtRate(a.old_discount_rate)} → {fmtRate(a.new_discount_rate)}
                           </span>
                         ) : (
                           "—"
@@ -462,40 +500,52 @@ export default function AggregatorPriceMonitorPage() {
                       <th className={TABLE_HEADER}>Item</th>
                       <th className={TABLE_HEADER}>Base Price</th>
                       <th className={TABLE_HEADER}>Platform Price</th>
+                      <th className={TABLE_HEADER}>Discount</th>
                       <th className={TABLE_HEADER}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSnapshots.map((s, i) => (
-                      <tr key={i} className={TABLE_ROW}>
-                        <td className={TABLE_CELL}>{s.brand_name}</td>
-                        <td className={TABLE_CELL}>{s.location_name}</td>
-                        <td className={TABLE_CELL}>
-                          <span className="font-medium">{s.platform_name}</span>
-                        </td>
-                        <td className={TABLE_CELL}>{s.category}</td>
-                        <td className={TABLE_CELL}>{s.item_name}</td>
-                        <td className={TABLE_CELL}>
-                          AED {Number(s.base_price).toFixed(2)}
-                        </td>
-                        <td className={TABLE_CELL}>
-                          {Number(s.platform_price) !== Number(s.base_price) ? (
-                            <span className="text-amber-400 font-semibold">
-                              AED {Number(s.platform_price).toFixed(2)}
+                    {filteredSnapshots.map((s, i) => {
+                      const rate = Number(s.discount_rate ?? 1);
+                      // Highlight when discount deviates from expected 50% by >2%
+                      const ratePct = `${(rate * 100).toFixed(1)}%`;
+                      const rateOdd = Math.abs(rate - 0.5) > 0.02 && rate !== 1.0;
+                      return (
+                        <tr key={i} className={TABLE_ROW}>
+                          <td className={TABLE_CELL}>{s.brand_name}</td>
+                          <td className={TABLE_CELL}>{s.location_name}</td>
+                          <td className={TABLE_CELL}>
+                            <span className="font-medium">{s.platform_name}</span>
+                          </td>
+                          <td className={TABLE_CELL}>{s.category}</td>
+                          <td className={TABLE_CELL}>{s.item_name}</td>
+                          <td className={TABLE_CELL}>
+                            AED {Number(s.base_price).toFixed(2)}
+                          </td>
+                          <td className={TABLE_CELL}>
+                            {Number(s.platform_price) !== Number(s.base_price) ? (
+                              <span className="text-amber-400 font-semibold">
+                                AED {Number(s.platform_price).toFixed(2)}
+                              </span>
+                            ) : (
+                              `AED ${Number(s.platform_price).toFixed(2)}`
+                            )}
+                          </td>
+                          <td className={TABLE_CELL}>
+                            <span className={rateOdd ? "text-amber-400 font-semibold" : ""}>
+                              {ratePct}
                             </span>
-                          ) : (
-                            `AED ${Number(s.platform_price).toFixed(2)}`
-                          )}
-                        </td>
-                        <td className={TABLE_CELL}>
-                          {s.is_available ? (
-                            <span className={BADGE_SUCCESS}>Active</span>
-                          ) : (
-                            <span className={BADGE_ERROR}>Hidden</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className={TABLE_CELL}>
+                            {s.is_available ? (
+                              <span className={BADGE_SUCCESS}>Active</span>
+                            ) : (
+                              <span className={BADGE_ERROR}>Hidden</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
