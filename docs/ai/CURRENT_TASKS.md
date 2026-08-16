@@ -1,6 +1,100 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-14 (Manila Cancellation: Bug ① fixed Heroku v1935; Feature ③ kitchen staff form + Drive photo upload Heroku v1936 / Vercel 31bde3f)
+Last updated: 2026-08-17 (Aggregator Price Monitor built; Disposal→Ledger verified+fixed)
+
+---
+
+## 🔧 In Progress: Aggregator Price Monitor (2026-08-17)
+
+**Goal**: Daily automated check of Sushi ZEN / Ramen ZEN prices on delivery aggregators to detect unauthorized campaign price changes.
+
+**Dubai** (Urban Piper ATLAS GraphQL API):
+- Talabat, Careem, Noon Food, Keeta
+
+**Manila** (pending token setup):
+- FoodPanda PH, GrabFood PH
+
+**Backend** (`app/services/aggregator_price_monitor.py`, `app/main.py` — Heroku v1944):
+- `fetch_urbanpiper_prices(token)` — queries `getLocationCatalogue` GraphQL at `atlas-backend.svc.urbanpiper.com/graphql`
+- Tables: `aggregator_price_snapshots`, `aggregator_price_alerts`
+- Daily APScheduler job at 22:00 UTC (06:00 GST)
+- Discord notification on changes to `DISCORD_OPS_CHANNEL_ID`
+- API: `POST /api/admin/aggregator-price/run-check`, `GET /api/admin/aggregator-price/snapshots`, `GET /api/admin/aggregator-price/alerts`
+
+**Frontend** (`src/app/admin/aggregator-price-monitor/page.tsx` — Vercel f6e0fa7):
+- Page at `/admin/aggregator-price-monitor`
+- Dubai / Manila city tabs
+- Alerts tab (price changes last 30 days) + Snapshot tab (today's prices by platform)
+- Token setup instructions shown in UI
+
+**⚠️ ACTION REQUIRED — Token setup (one-time):**
+1. Log into **atlas.urbanpiper.com** in Chrome (account: yuejima0831@gmail.com)
+2. DevTools → Network → any request → copy the `Authorization: Bearer eyJ…` header
+3. `heroku config:set URBANPIPER_TOKEN="eyJ..." -a sushizen-shift-app`
+4. Test: `POST /api/admin/aggregator-price/run-check?city=dubai` (via page button)
+5. Token lasts ~7–30 days; refresh when checks start failing
+
+**Why Urban Piper ATLAS was chosen over direct scraping:**
+- Talabat: geo-blocks non-UAE IPs (307 redirect)
+- FoodPanda PH: PerimeterX bot protection
+- GrabFood PH: merchant portal blocked in-app browser
+- UP ATLAS aggregates ALL Dubai aggregator prices in one place (it IS the aggregator hub)
+- Auth requires reCAPTCHA on OTP flow → can't automate login → manual token extraction needed
+
+---
+
+## ✅ Completed: Disposal → Inventory Ledger Sync (2026-08-16, Heroku + Vercel)
+
+**Goal**: Connect disposal reports and staff meals to the inventory ledger so the theoretical inventory formula works:
+`Opening stock + deliveries − POS consumption − disposals/staff meals = theoretical stock`
+
+**Backend (`inventory_db.py`)**:
+- Added `sync_disposal_report_to_ledger(*, city, report_id)` at end of file
+- Reads `disposal_reports` + `disposal_report_lines`
+- For `ingredient` type: `_inv_resolve_cost_ingredient_to_inv_item()` → inv_items UUID → posts DECREASE
+- For `menu_item` type: `_expand_cost_calc_bom()` to get leaf ingredients → each resolved → posts DECREASE
+- `event_type='DISPOSAL'`, `event_ref_type='DISPOSAL_REPORT'`
+- Idempotent: `_inv_uuid5(f"disposal-ledger|{report_id}|{line_id}|{inv_id}")` + ON CONFLICT DO NOTHING
+- Independent connections per operation (CLAUDE.md Rule #7)
+
+**Backend (`main.py`)**:
+- Fixed pre-existing bug: `create_disposal_report()` returns `{report_id, lines_inserted}` dict not int
+- Modified `POST /api/admin/disposal/report` — calls sync after DB insert (non-fatal)
+- Added `POST /api/admin/disposal/report/{report_id}/sync-to-ledger` — retroactive idempotent re-sync
+
+**Frontend (`src/app/admin/disposal/page.tsx`)**:
+- `handleSubmit`: success message shows ledger entry count on new submissions
+- Added `handleSyncToLedger()` + "Sync to Ledger" emerald button per past report (HQ/Admin only)
+- Inline result text: "Synced: N ledger entries posted." shown below report header
+
+**Verified** (2026-08-16 browser test):
+- ✅ Button appears in Past Reports for HQ role
+- ✅ API POST → 200 `{ok: true, ledger_posted: 2, skipped: 0, errors: []}`
+- ✅ UI shows "Synced: 2 ledger entries posted." inline
+
+**⚠️ Pending action (retroactive sync)**:
+For all disposal reports before 2026-08-16, click "Sync to Ledger" on the Disposal Report page (Past Reports section, adjust date filter to find older reports). This is idempotent.
+
+**Inventory Gap Manual**:
+Created bilingual (EN/JP) manual at `docs/manuals/inventory-gap-manual.html`
+Artifact: https://claude.ai/code/artifact/599790cf-4083-418c-b7d4-1badd7943693
+
+---
+
+## ✅ Completed: Manila Payroll Undertime Bug Fix (2026-08-15, Heroku f4690b6)
+
+**Root cause**: `manila_payroll_engine.py` auto-compute at lines 530-553 had a wrong boundary for overnight shifts.
+- When `scheduled_shift_end.hour < 12` (e.g. 01:00 or 07:00 for overnight workers), the code fell to the `else` branch and used **00:30 next day** as a hardcoded boundary instead of the actual scheduled shift end.
+- Workers who left after 00:30 but before their real shift end (e.g. left at 06:00 vs 07:00 end) triggered line 553 which **zeroed out** the correct undertime the sync had already written to the DB.
+- This caused 9 employees in the Aug 2026 period to have their undertime deductions incorrectly removed.
+
+**Fix** (`app/manila_payroll_engine.py`):
+- When `scheduled_shift_end is not None and hour < 12`: use `next_day + scheduled_shift_end` as boundary (not 00:30)
+- When `scheduled_shift_end is None`: still use 00:30 fallback (original behavior, no data available)
+- Zero-out (clear stale DB value) now only fires when using the fallback boundary — when schedule is known, the sync-computed value is trusted
+
+**Pending action**: Re-run payroll for the 9 affected employees to correct their deductions.
+⚠️ Heroku Scheduler still needs manual update: CK dispatch job time from 08:00 UTC → 07:00 UTC
 
 ---
 
