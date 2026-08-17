@@ -1,31 +1,14 @@
 /**
  * Noon Food RMS price checker — runs in GitHub Actions via Playwright
- * Loads saved session state, calls Noon's internal REST API to extract prices,
- * and posts snapshots to the Heroku webhook.
+ * Loads saved session state, navigates to the portal (to pass Akamai bot check),
+ * then calls Noon's internal REST API via page.evaluate() to extract prices.
  */
 const { chromium } = require('playwright');
 
 const SESSION_PATH = process.env.NOON_SESSION_PATH;
 const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 
-const BASE_URL = 'https://restaurant.noon.partners';
-
-async function getNoonMenuList(context) {
-  const resp = await context.request.get(`${BASE_URL}/_food-restaurant/menu/list`);
-  if (!resp.ok()) throw new Error(`menu/list returned ${resp.status()}`);
-  const data = await resp.json();
-  return data.data; // array of { menuCode, menuName, isActive, itemCount, qcInfo, ... }
-}
-
-async function getNoonMenuDetails(context, menuCode) {
-  const resp = await context.request.post(`${BASE_URL}/_food-restaurant/menu/details`, {
-    data: { menuCode },
-    headers: { 'content-type': 'application/json' },
-  });
-  if (!resp.ok()) throw new Error(`menu/details returned ${resp.status()} for ${menuCode}`);
-  const data = await resp.json();
-  return data.data; // { menuCode, menuName, items: [...] }
-}
+const PORTAL_URL = 'https://restaurant.noon.partners';
 
 async function postWebhook(payload) {
   const res = await fetch(WEBHOOK_URL, {
@@ -36,6 +19,19 @@ async function postWebhook(payload) {
   return res.json();
 }
 
+async function callNoonApi(page, method, path, body) {
+  return page.evaluate(async ({ method, path, body }) => {
+    const opts = {
+      method,
+      headers: { 'content-type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(path, opts);
+    if (!resp.ok) throw new Error(`${path} returned ${resp.status}`);
+    return resp.json();
+  }, { method, path, body });
+}
+
 async function main() {
   if (!SESSION_PATH) throw new Error('NOON_SESSION_PATH not set');
   if (!WEBHOOK_URL)  throw new Error('WEBHOOK_URL not set');
@@ -44,15 +40,27 @@ async function main() {
   let sessionExpired = false;
 
   try {
-    const context = await browser.newContext({ storageState: SESSION_PATH });
+    const context = await browser.newContext({
+      storageState: SESSION_PATH,
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    });
 
-    // Verify session is still valid
-    const testResp = await context.request.get(`${BASE_URL}/_food-restaurant/menu/list`);
-    if (testResp.status() === 401 || testResp.url().includes('/login') || testResp.url().includes('/auth')) {
-      console.log('Session expired — 401 or login redirect detected');
+    const page = await context.newPage();
+
+    // Navigate to the portal to establish session and pass bot checks
+    console.log('Navigating to Noon Food RMS portal...');
+    await page.goto(PORTAL_URL, { waitUntil: 'networkidle', timeout: 60_000 });
+
+    // Check if redirected to login (session expired)
+    const currentUrl = page.url();
+    console.log('Current URL:', currentUrl);
+    if (currentUrl.includes('/login') || currentUrl.includes('/auth') || currentUrl.includes('login.noon')) {
+      console.log('Session expired — redirected to login page');
       sessionExpired = true;
     } else {
-      const menuListData = await testResp.json();
+      // Call menu/list via in-page fetch (cookies sent automatically, passes bot detection)
+      console.log('Fetching menu list...');
+      const menuListData = await callNoonApi(page, 'GET', '/_food-restaurant/menu/list', null);
       const allMenus = menuListData.data || [];
 
       // Monitor all active published menus that have items
@@ -63,23 +71,24 @@ async function main() {
       );
 
       console.log(`Found ${publishedMenus.length} published menus to check`);
-
       const checkedAt = new Date().toISOString();
 
       for (const menu of publishedMenus) {
-        console.log(`Checking menu: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
+        console.log(`Checking: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
 
         try {
-          const details = await getNoonMenuDetails(context, menu.menuCode);
-          const items = (details.items || []).map(item => ({
-            name: item.nameEn || item.nameAr || item.itemCode,
-            price_aed: item.price,
-            discount_price: item.discountPrice,
-            is_oos: item.isOos,
-          })).filter(item => item.price_aed != null);
+          const detailsData = await callNoonApi(page, 'POST', '/_food-restaurant/menu/details', { menuCode: menu.menuCode });
+          const items = (detailsData.data?.items || [])
+            .map(item => ({
+              name:           item.nameEn || item.nameAr || item.itemCode,
+              price_aed:      item.price,
+              discount_price: item.discountPrice,
+              is_oos:         item.isOos,
+            }))
+            .filter(item => item.price_aed != null);
 
           if (items.length === 0) {
-            console.log(`  No priced items found — skipping`);
+            console.log('  No priced items — skipping');
             continue;
           }
 
@@ -92,7 +101,7 @@ async function main() {
 
           console.log(`  ${items.length} items → webhook ${JSON.stringify(result)}`);
         } catch (err) {
-          console.error(`  Error checking ${menu.menuCode}:`, err.message);
+          console.error(`  Error for ${menu.menuCode}:`, err.message);
         }
       }
     }
