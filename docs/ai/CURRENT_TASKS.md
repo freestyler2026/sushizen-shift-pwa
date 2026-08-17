@@ -25,15 +25,17 @@ Last updated: 2026-08-17 (OS Attendance Schedule column — Single Day + Date Ra
   - ステップ1〜5はすべて成功、「Run price check」でSession expiredを検出
   - セッションは約4日で期限切れ（8/13取得 → 8/17期限切れ）
 
-#### ❌ 要対応: セッション更新が必要
-**セッションが期限切れのため現在は動いていない。再開時にやること:**
+#### ✅ セッション更新済み (2026-08-17)
+- セッション再取得 → GitHub Secret 更新 → Actions手動実行 → **Success** (2m 15s)
+- 次回期限切れ時: 同手順を繰り返す（Discord DM で通知が来る）
 
+**セッション更新手順:**
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
 node scripts/careem/setup-session.js
 ```
 1. ブラウザが開く → Careemにログイン → Enterキー
-2. `scripts/careem/careem-session.b64.txt` の内容をコピー
+2. `cat scripts/careem/careem-session.b64.txt | pbcopy`
 3. GitHub → Settings → Secrets → `CAREEM_SESSION_STATE` → Update secret → 貼り付け
 4. GitHub Actions → Careem Price Check → Run workflow で動作確認
 
