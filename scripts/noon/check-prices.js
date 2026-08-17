@@ -25,36 +25,47 @@ function buildCookieHeader(sessionPath) {
     .join('; ');
 }
 
+const BROWSER_HEADERS = (cookieHeader) => ({
+  'cookie':           cookieHeader,
+  'accept':           'application/json, text/plain, */*',
+  'accept-language':  'en-US,en;q=0.9',
+  'content-type':     'application/json',
+  'origin':           BASE_URL,
+  'referer':          BASE_URL + '/',
+  'user-agent':       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'sec-ch-ua':        '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"macOS"',
+  'sec-fetch-dest':   'empty',
+  'sec-fetch-mode':   'cors',
+  'sec-fetch-site':   'same-origin',
+  'x-requested-with': 'XMLHttpRequest',
+});
+
 async function noonGet(path, cookieHeader) {
   const resp = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
-    headers: {
-      'cookie':       cookieHeader,
-      'content-type': 'application/json',
-      'referer':      BASE_URL + '/',
-      'origin':       BASE_URL,
-      'user-agent':   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS(cookieHeader),
   });
   if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
-  if (!resp.ok) throw new Error(`GET ${path} → ${resp.status}`);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`GET ${path} → ${resp.status} ${text.slice(0, 200)}`);
+  }
   return resp.json();
 }
 
 async function noonPost(path, body, cookieHeader) {
   const resp = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: {
-      'cookie':       cookieHeader,
-      'content-type': 'application/json',
-      'referer':      BASE_URL + '/',
-      'origin':       BASE_URL,
-      'user-agent':   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-    },
+    headers: BROWSER_HEADERS(cookieHeader),
     body: JSON.stringify(body),
   });
   if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
-  if (!resp.ok) throw new Error(`POST ${path} → ${resp.status}`);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`POST ${path} → ${resp.status} ${text.slice(0, 200)}`);
+  }
   return resp.json();
 }
 
