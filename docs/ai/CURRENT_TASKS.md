@@ -1,6 +1,149 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (Aggregator Price Monitor — all bugs fixed, end-to-end verified, 5796 items fetched)
+Last updated: 2026-08-17 (OS Attendance Schedule column — Single Day + Date Range + CSV)
+
+---
+
+## 🔄 IN PROGRESS: Careem Price Monitor — GitHub Actions 全自動化 (2026-08-17)
+
+**Goal**: Detect when Careem changes discount rate from 50%→30%, making customer prices jump AED 84→117.60.
+
+### 現在の状態（2026-08-17時点）
+
+#### ✅ 完成済みのもの
+- **Heroku endpoint**: `POST /api/careem/portal-price-snapshot` (deployed, v1961)
+  - 価格変化時にDiscord DMを送信
+  - `SESSION_EXPIRED` outlet_id でDiscord警告も送信
+- **Tampermonkey script** (v2.0.0): `docs/careem-price-monitor.user.js`
+  - 手動（Careemページ訪問時のみ動く。半自動）
+- **GitHub Actions ワークフロー**: `.github/workflows/careem-price-check.yml`
+  - 4時間ごとに自動実行（1,5,9,13,17,21 UTC）
+  - `scripts/careem/check-prices.js` でPlaywright + Chromiumを使いDOMスクレイピング
+  - `scripts/careem/setup-session.js` でセッション取得
+  - GitHub Secret `CAREEM_SESSION_STATE` にbase64エンコードされたセッションを保存
+- **テスト結果**: 初回手動実行でセッション期限切れを確認（正常動作）
+  - ステップ1〜5はすべて成功、「Run price check」でSession expiredを検出
+  - セッションは約4日で期限切れ（8/13取得 → 8/17期限切れ）
+
+#### ❌ 要対応: セッション更新が必要
+**セッションが期限切れのため現在は動いていない。再開時にやること:**
+
+```bash
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+node scripts/careem/setup-session.js
+```
+1. ブラウザが開く → Careemにログイン → Enterキー
+2. `scripts/careem/careem-session.b64.txt` の内容をコピー
+3. GitHub → Settings → Secrets → `CAREEM_SESSION_STATE` → Update secret → 貼り付け
+4. GitHub Actions → Careem Price Check → Run workflow で動作確認
+
+#### 仕組み（Architecture）
+```
+GitHub Actions (6回/日)
+  └─ Playwright headless Chromium
+       └─ partners.careem.com/saturn-ext/merchant/catalog/{outletId}/{categoryId}
+            └─ DOM読み取り (AED XXX テキストノード)
+                 └─ POST /api/careem/portal-price-snapshot (Heroku)
+                      └─ 価格変化 → Discord DM (Yukihiro)
+                      └─ Session expired → Discord DM "セッション更新してください"
+```
+
+- Outlet: 1054426 (Jumeirah) + 1074763 (second location)
+- Category: 1076323393 (NEW Ramen)
+
+#### セッション運用ルール
+- セッション寿命: **約1〜2週間**（Careem JWT期限）
+- 期限切れ → GitHub ActionsがDiscord DMで通知 → setup-session.js再実行
+- セッション更新は3〜5分で完了
+
+---
+
+## ✅ Completed: OS Attendance — Schedule Column (2026-08-17, Heroku v1899 + Vercel)
+
+**Goal**: Staff requests — (①) Schedule Start/End columns in CSV export, (②) Schedule column in the daily report table.
+
+### What was implemented
+
+**Backend** (Heroku):
+- `get_shift_schedule_for_date()` in `db.py`: Changed return type from `Dict[str, float]` to `Dict[str, Dict]` → now returns `{staff_name: {"start_hour": float, "end_hour": float}}`
+- `_late_minutes()` in `main.py`: Updated with backward-compatible `isinstance(entry, dict)` guard
+- `_fmt_with_visits()` in `main.py`: Now includes `scheduled_start_hour` AND `scheduled_end_hour` in API response
+- `list_no_shows()` in `db.py`: Added `r.end_hour::float AS scheduled_end_hour` to SQL (bug fix — was missing)
+
+**Frontend** (Vercel):
+- `AttendanceSession` type: Added `scheduled_end_hour?: number | null`
+- Table: Added "Schedule" column between Status and Clock In, showing `HH:MM–HH:MM` (overnight = `+H:MM`)
+- CSV: Added "Schedule Start" / "Schedule End" columns after Status
+- No-show rows: Now correctly propagate `scheduled_end_hour` from API response
+
+### Key notes
+- Overnight shifts display as e.g. `15:30–+0:30` (consistent with shift schedule editor)
+- `+0:00` = midnight (24:00) → appears for staff on 15:00–24:00 shifts
+- All 52 Manila staff (Aug 17) have correct schedule data in both table and CSV
+- Date Range mode: Schedule column appears with correct per-day schedule values
+
+### Commits
+- Backend: `a8fc9da` (initial), `b2cf2c1` (list_no_shows fix)
+- Frontend: `b9ea433` (feature), `5a9a69a` (list_no_shows fix)
+
+---
+
+## ⚠️ ARCHIVED: Careem API Auth Investigation
+
+**Goal**: (archived — see completed section above)
+
+### Business context
+- All Dubai aggregators: items listed at 50% off (e.g., AED 168 crossed out → AED 84 actual)
+- Careem occasionally runs their own campaign: changes to 30% off (AED 168 → AED 117.6) — customer pays MORE
+- We need to detect this immediately so we can exit the campaign
+
+### Architecture confirmed (2026-08-17)
+```
+Foodics (POS) ──push──→ Urban Piper ATLAS ──distribute──→ Talabat / Careem / Deliveroo / etc.
+```
+- Foodics price = UP ATLAS `itemPrice` = **actual selling price customers pay** (e.g., AED 84 for Ramen)
+- The "50% off with strikethrough" (AED 168 crossed out) is configured DIRECTLY in each aggregator portal — NOT in Foodics/UP
+- When Careem runs 30% campaign: they change ONLY their portal side. Foodics and UP ATLAS prices don't change.
+
+### Why current system CANNOT detect campaigns
+- UP ATLAS `markupPrice` = 0.0 for ALL items (UP doesn't store aggregator-facing prices)
+- UP Account Manager confirmed: no API for "actual price on platform" → denied access
+- Foodics prices don't change when Careem runs a campaign
+
+### Next step (READY TO IMPLEMENT)
+**Intercept Careem restaurant portal API:**
+1. User logs into `https://app.careemnow.com` (credentials: ramenzenrestaurantllcsoa@careemnow.com / cn.ramenzenrestaurantllcsoa)
+2. Navigate to menu/pricing page
+3. I use Chrome MCP (`mcp__claude-in-chrome__*`) to read network requests
+4. Find Careem's internal API endpoint for current menu prices / discount rates
+5. Extract auth token → store in Heroku env var
+6. Build automated monitor using that API
+
+### Careem credentials
+- URL: https://app.careemnow.com/auth/login
+- Email: ramenzenrestaurantllcsoa@careemnow.com
+- Password: cn.ramenzenrestaurantllcsoa (user must log in; I cannot enter passwords)
+
+---
+
+## ✅ Completed: Manila Cost Calculation — POS Name Mismatch Analysis (2026-08-17)
+
+**Goal**: Compare all Manila `menu_item_master` product names against actual POS sales names (`inv_pos_menu_sales_daily`, Jul–Aug 2026) and list mismatches.
+
+**Result**: 17 unmatched POS items found (out of 144 distinct POS names). Artifact report: https://claude.ai/code/artifact/6f1407e5-a62a-41f4-9d4c-d8249c36e755
+
+### Mismatch categories
+
+| Category | Items | Action needed |
+|---|---|---|
+| **A: X/Y pcs format** (auto-excluded by system) | Pork Dumpling (4pcs/8pcs) ×111, Pork Dumplings (4pcs/8pcs) ×31, Shrimp Dumpling (4pcs/8pcs) ×22, Shrimp Dumplings (4pcs/8pcs) ×6 | POS側でサイズ別メニュー（4pcs/8pcs）に分割 |
+| **B: Name mismatch** | Chicken Karaage 3pcs, [Lunch] Best Value Box 12pcs, Gyudon Beef Bowl, [Lunch] Yakisoba - Japanese Fried Noodle, Beef Garlic Butter Rice, Spicy Pork Miso Onigiri, Spicy Mayo, Creamy Avocado Hosomak | マスタに追加 or POS名称統一 |
+| **C: Lunch combos (unregistered)** | [Lunch] Ramen & Half Gyudon Combo, [Lunch] Ramen & Half Beef Garlic Rice Combo, [Lunch] Ramen & Fried Rice Combo, [Lunch] Ramen & Half Karaage Bowl | Cost Calculationマスタに POSと同名で登録 |
+
+### Technical findings
+- System's `_name_candidates()` in `inventory_db.py` intentionally excludes `\d+pcs?/\d+pcs?` format — 170 total sales skipping BOM deduction
+- Normalization resolves ~10 other near-mismatches automatically (bracket removal, suffix stripping)
+- Urgent: Categories B + C need master entries added or POS names aligned
 
 ---
 
