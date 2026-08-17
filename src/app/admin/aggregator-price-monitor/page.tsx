@@ -227,17 +227,25 @@ export default function AggregatorPriceMonitorPage() {
     setError("");
     setRunResult(null);
     try {
-      const res = await apiFetch<Record<string, unknown>>(
+      const res = await apiFetch<{ status?: string; message?: string } & Record<string, unknown>>(
         `/api/admin/aggregator-price/run-check?city=${city}`,
         { method: "POST" }
       );
       setRunResult(res);
-      // Reload data
-      if (tab === "alerts") loadAlerts();
-      else loadComparison();
+      if (res.status === "started") {
+        // Background job — poll for results after 35s
+        setTimeout(async () => {
+          if (tab === "alerts") await loadAlerts();
+          else await loadComparison();
+          setRunning(false);
+        }, 35000);
+      } else {
+        if (tab === "alerts") loadAlerts();
+        else loadComparison();
+        setRunning(false);
+      }
     } catch (e) {
       setError(String(e));
-    } finally {
       setRunning(false);
     }
   };
