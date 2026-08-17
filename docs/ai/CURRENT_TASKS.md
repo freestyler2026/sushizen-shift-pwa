@@ -1,6 +1,61 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Grab Food PH Price Monitor — fully operational, 3 stores)
+Last updated: 2026-08-18 (Manila Aggregator Price Monitor — daily 7am PHT auto-check configured)
+
+---
+
+## ⏸ BLOCKED: Food Panda PH Price Monitor — 2FAアクセス問題 (2026-08-18)
+
+**Goal**: Manila 3店舗（Paranaque / Taft / QC）のFood Panda価格を自動監視
+
+### ブロッカー
+Food Pandaは**毎ログイン時にメールOTPが必要**。3アカウントすべてのメールにアクセスできない。
+- Paranaque: `contact@ramensushizen.com`（スタッフ管理）
+- Taft: `taft2025zen@gmail.com`（アクセス不可）
+- QC: `qc2025zen@gmail.com`（アクセス不可）
+
+### 解決策（どれか一つ）
+1. **推奨**: 各Food Pandaアカウントの2FA通知先メールを自分管理のアドレスに変更 → セッション更新も自分でできる
+2. スタッフに毎回OTPを確認してもらう（月1回程度）
+3. スタッフの立会いのもとで初回セットアップを実施
+
+### 準備済み
+- `scripts/foodpanda/setup-session.js` — 完成済み（メールアクセスがあれば即実行可能）
+- OTP入力後の手順: Menu Managementへ移動 → 60秒APIキャプチャ → `check-prices.js`作成
+
+---
+
+## ✅ Completed: Manila Aggregator Price Monitor — Daily Auto-Check (2026-08-18)
+
+**Goal**: Aggregator Price Monitor ページ（Manila）を毎日7am PHT自動実行
+
+### 実装済み
+- **Heroku endpoint**: `POST /api/admin/aggregator-price/run-check-scheduled?city=manila` (v1968)
+  - `X-Cron-Secret` ヘッダー認証（GitHub Actions 用、Bearer token不要）
+  - `run_manila_price_check()`: `grab_portal_price_snapshots`（PHT当日分）→ `aggregator_price_snapshots`（city='manila'）に集約
+  - 前日比較で価格変化を検出 → `aggregator_price_alerts` + Discord DM（₱表示）
+- **GitHub Actions**: `.github/workflows/manila-daily-aggregate.yml`
+  - cron: `5 23 * * *` = 毎日23:05 UTC = 7:05am PHT
+  - Heroku run-check-scheduled を呼び出して集約処理
+- **フロントエンド**: Manilaタブで₱表示（Alerts・Menu Comparison両タブ）
+- **CRON_SECRET**: Herokuに設定済み。GitHubシークレットにも追加が必要（下記コマンド参照）
+
+### GitHub Secret 設定（要実行）
+```bash
+heroku config:get CRON_SECRET -a sushizen-shift-app | gh secret set CRON_SECRET
+```
+
+### データフロー
+```
+GitHub Actions (毎4時間)
+  → scripts/grab/check-prices.js
+  → grab_portal_price_snapshots (Heroku DB)
+
+GitHub Actions (毎日23:05 UTC = 7:05am PHT)
+  → /api/admin/aggregator-price/run-check-scheduled?city=manila
+  → aggregator_price_snapshots + aggregator_price_alerts
+  → Discord DM (価格変化時)
+```
 
 ---
 
