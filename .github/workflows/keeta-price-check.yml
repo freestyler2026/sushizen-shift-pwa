@@ -1,0 +1,28 @@
+name: Keeta Price Check
+
+on:
+  schedule:
+    - cron: '0 2,6,10,14,18,22 * * *'  # Every 4 hours (UTC): offset from Careem/Noon
+  workflow_dispatch:  # Manual run button on GitHub
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Pure HTTP — fast
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Node 20 has built-in fetch
+
+      - name: Restore Keeta session state
+        run: |
+          echo "${{ secrets.KEETA_SESSION_STATE }}" | base64 -d > /tmp/keeta-state.json
+
+      - name: Run price check
+        run: node scripts/keeta/check-prices.js
+        env:
+          KEETA_SESSION_PATH: /tmp/keeta-state.json
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/keeta/portal-price-snapshot

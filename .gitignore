@@ -59,3 +59,8 @@ sushizen-shift-pwa/
 
 # Claude Code local settings (may contain secrets/tokens)
 .claude/settings.local.json
+
+# Price monitor session files (contain auth tokens — upload to GitHub Secrets instead)
+scripts/*/keeta-session.*
+scripts/*/careem-session.*
+scripts/*/noon-session.*
