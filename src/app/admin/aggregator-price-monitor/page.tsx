@@ -548,14 +548,14 @@ export default function AggregatorPriceMonitorPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className={TABLE_HEADER}>
-                    <th className={`${TABLE_CELL} text-left`}></th>
-                    <th className={`${TABLE_CELL} text-left`}>Item</th>
-                    <th className={`${TABLE_CELL} text-left`}>Location / Platform</th>
-                    <th className={`${TABLE_CELL} text-right`}>Today Price</th>
-                    <th className={`${TABLE_CELL} text-right`}>Prev Price</th>
-                    <th className={`${TABLE_CELL} text-right`}>Today Rate</th>
-                    <th className={`${TABLE_CELL} text-right`}>Prev Rate</th>
+                  <tr>
+                    <th className={TABLE_HEADER}></th>
+                    <th className={`${TABLE_HEADER} text-left`}>Item</th>
+                    <th className={`${TABLE_HEADER} text-left`}>Location / Platform</th>
+                    <th className={`${TABLE_HEADER} text-right`}>Today Price</th>
+                    <th className={`${TABLE_HEADER} text-right`}>Prev Price</th>
+                    <th className={`${TABLE_HEADER} text-right`}>Today Rate</th>
+                    <th className={`${TABLE_HEADER} text-right`}>Prev Rate</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -61,6 +61,7 @@ import {
   Globe,
   MapPin,
   TrendingUp,
+  Activity,
   X,
   BookOpen,
   BookCheck,
@@ -245,6 +246,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" },
   { href: "/admin/payments", label: "Payment Schedule", icon: Coins, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" },
+  { href: "/admin/aggregator-price-monitor", label: "Aggregator Price Monitor", icon: Activity, adminOnly: true, match: "prefix" },
   { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
 
