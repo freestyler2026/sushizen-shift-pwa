@@ -1,45 +1,60 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (Aggregator Price Monitor built; Disposal→Ledger verified+fixed)
+Last updated: 2026-08-17 (Aggregator Price Monitor v3 — Ramen ZEN + Discord DM to Yukihiro)
 
 ---
 
-## 🔧 In Progress: Aggregator Price Monitor (2026-08-17)
+## ✅ Completed: Aggregator Price Monitor (2026-08-17, Heroku v1952 + Vercel)
 
-**Goal**: Daily automated check of Sushi ZEN / Ramen ZEN prices on delivery aggregators to detect unauthorized campaign price changes.
+**Goal**: Daily automated check of Sushi ZEN / Ramen ZEN prices on Dubai aggregators to detect unauthorized campaign price changes.
 
-**Dubai** (Urban Piper ATLAS GraphQL API):
-- Talabat, Careem, Noon Food, Keeta
+### Brands monitored
+| Brand | ATLAS biz_id | Heroku env var | Token expires |
+|---|---|---|---|
+| Sushi ZEN (biz: RAMENZEN RESTAURANT LLC UAE) | 55892580 | `URBANPIPER_TOKEN` | 2026-08-24 |
+| Ramen ZEN (biz: Ramenzen - MultiBrand) | 98750751 | `URBANPIPER_RAMEN_TOKEN` | 2026-08-24 |
 
-**Manila** (pending token setup):
-- FoodPanda PH, GrabFood PH
+### How it works
+- Daily APScheduler job at **02:00 UTC (= 06:00 GST)** runs both Sushi ZEN + Ramen ZEN checks
+- Detects: price change > AED 0.50 OR discount rate change > 2% OR availability change
+- Expected Dubai discount rate: 0.50 (50% off = aggregator campaign)
+- All alerts → **Discord DM to Yukihiro (844419400240070656)** via `_send_discord_dm()`
+- Token expiry warning DM sent 72h before expiry
 
-**Backend** (`app/services/aggregator_price_monitor.py`, `app/main.py` — Heroku v1944):
-- `fetch_urbanpiper_prices(token)` — queries `getLocationCatalogue` GraphQL at `atlas-backend.svc.urbanpiper.com/graphql`
-- Tables: `aggregator_price_snapshots`, `aggregator_price_alerts`
-- Daily APScheduler job at 22:00 UTC (06:00 GST)
-- Discord notification on changes to `DISCORD_OPS_CHANNEL_ID`
-- API: `POST /api/admin/aggregator-price/run-check`, `GET /api/admin/aggregator-price/snapshots`, `GET /api/admin/aggregator-price/alerts`
+### Token renewal procedure (when Discord DM arrives)
+When you receive a DM saying the token is expiring, do this:
 
-**Frontend** (`src/app/admin/aggregator-price-monitor/page.tsx` — Vercel f6e0fa7):
-- Page at `/admin/aggregator-price-monitor`
-- Dubai / Manila city tabs
-- Alerts tab (price changes last 30 days) + Snapshot tab (today's prices by platform)
-- Token setup instructions shown in UI
+**For Sushi ZEN (`URBANPIPER_TOKEN`):**
+1. Open https://atlas.urbanpiper.com in Chrome
+2. Log in → make sure you're on the **Sushi ZEN** brand (top-left brand switcher)
+3. Open DevTools (F12) → **Network** tab
+4. Reload the page → click any **`graphql`** request in the list
+5. Go to **Headers** → find `authorization` → copy the value (starts with `eyJ`)
+6. In terminal: `heroku config:set URBANPIPER_TOKEN="eyJ..." -a sushizen-shift-app`
 
-**⚠️ ACTION REQUIRED — Token setup (one-time):**
-1. Log into **atlas.urbanpiper.com** in Chrome (account: yuejima0831@gmail.com)
-2. DevTools → Network → any request → copy the `Authorization: Bearer eyJ…` header
-3. `heroku config:set URBANPIPER_TOKEN="eyJ..." -a sushizen-shift-app`
-4. Test: `POST /api/admin/aggregator-price/run-check?city=dubai` (via page button)
-5. Token lasts ~7–30 days; refresh when checks start failing
+**For Ramen ZEN (`URBANPIPER_RAMEN_TOKEN`):**
+1. Same steps 1–4 above
+2. Use the **brand switcher** (top-left in Atlas) to switch to **Ramen ZEN / MultiBrand**
+3. Copy the new `authorization` header value from any graphql request
+4. In terminal: `heroku config:set URBANPIPER_RAMEN_TOKEN="eyJ..." -a sushizen-shift-app`
 
-**Why Urban Piper ATLAS was chosen over direct scraping:**
-- Talabat: geo-blocks non-UAE IPs (307 redirect)
-- FoodPanda PH: PerimeterX bot protection
-- GrabFood PH: merchant portal blocked in-app browser
-- UP ATLAS aggregates ALL Dubai aggregator prices in one place (it IS the aggregator hub)
-- Auth requires reCAPTCHA on OTP flow → can't automate login → manual token extraction needed
+> Note: Each brand has its own JWT (different `biz_id`). Always switch brands before copying.
+
+### Dashboard
+- `/admin/aggregator-price-monitor` — shows both token status cards (Sushi ZEN / Ramen ZEN) with expiry hours in GST
+- Green = healthy, amber = < 72h, red = expired
+- Alerts tab, Latest Snapshot tab, platform filter
+
+### Key files
+- `app/services/aggregator_price_monitor.py` — all logic
+- `app/main.py` — `_job_aggregator_price_check()`, endpoints
+- `src/app/admin/aggregator-price-monitor/page.tsx`
+
+### Why ATLAS (not direct scraping)
+- Talabat geo-blocks non-UAE IPs; FoodPanda uses PerimeterX; GrabFood blocks in-app browser
+- ATLAS is UP's management API — aggregates all Dubai platform prices in one place
+- JWT expires every 7 days; reCAPTCHA prevents automation → manual refresh needed
+- Auto-refresh via OAuth refresh_token not possible (we only captured access_token, not refresh_token)
 
 ---
 
