@@ -1,0 +1,25 @@
+name: Manila Aggregator Price Check (7 am PHT)
+
+on:
+  schedule:
+    - cron: '5 23 * * *'  # 23:05 UTC = 7:05 am PHT (5 min after Grab 4-hour check)
+  workflow_dispatch:  # Manual run button on GitHub
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Trigger Manila aggregation on Heroku
+        run: |
+          STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/admin/aggregator-price/run-check-scheduled?city=manila")
+          cat /tmp/resp.json
+          if [ "$STATUS" != "200" ]; then
+            echo "Error: HTTP $STATUS"
+            exit 1
+          fi

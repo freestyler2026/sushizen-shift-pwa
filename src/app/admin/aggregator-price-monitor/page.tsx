@@ -294,23 +294,17 @@ export default function AggregatorPriceMonitorPage() {
         ))}
       </div>
 
-      {/* Setup notice for Manila */}
+      {/* Manila status notice */}
       {city === "manila" && (
         <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
           <Info className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
           <div>
-            <p className={T_LABEL}>Manila monitoring not yet configured</p>
+            <p className={T_LABEL}>Manila — Grab Food active · FoodPanda pending</p>
             <p className={T_CAPTION}>
-              FoodPanda and GrabFood partner portal tokens are required. Ask the
-              engineering team to set{" "}
-              <code className="font-mono text-xs bg-black/20 px-1 rounded">
-                FOODPANDA_TOKEN
-              </code>{" "}
-              or{" "}
-              <code className="font-mono text-xs bg-black/20 px-1 rounded">
-                GRABFOOD_TOKEN
-              </code>{" "}
-              in Heroku config vars.
+              Grab Food PH prices are checked automatically daily at{" "}
+              <strong>7:05 am PHT</strong> via GitHub Actions.
+              The &quot;Run Check Now&quot; button aggregates the latest Grab snapshot on demand.
+              FoodPanda is blocked pending 2FA email access.
             </p>
           </div>
         </div>
@@ -483,7 +477,7 @@ export default function AggregatorPriceMonitorPage() {
                       </td>
                       <td className={TABLE_CELL}>
                         {a.old_price != null
-                          ? `AED ${Number(a.old_price).toFixed(2)}`
+                          ? `${a.location_name === "Manila" || city === "manila" ? "₱" : "AED"} ${Number(a.old_price).toFixed(2)}`
                           : "—"}
                       </td>
                       <td className={TABLE_CELL}>
@@ -497,7 +491,7 @@ export default function AggregatorPriceMonitorPage() {
                                 : ""
                             }
                           >
-                            AED {Number(a.new_price).toFixed(2)}
+                            {city === "manila" ? "₱" : "AED"} {Number(a.new_price).toFixed(2)}
                           </span>
                         ) : (
                           "—"
@@ -585,10 +579,10 @@ export default function AggregatorPriceMonitorPage() {
                           <div className="text-xs opacity-50">{item.platform_name}</div>
                         </td>
                         <td className={`${TABLE_CELL} text-right font-mono`}>
-                          AED {Number(item.today_price).toFixed(2)}
+                          {city === "manila" ? "₱" : "AED"} {Number(item.today_price).toFixed(2)}
                         </td>
                         <td className={`${TABLE_CELL} text-right font-mono opacity-60`}>
-                          {item.yesterday_price != null ? `AED ${Number(item.yesterday_price).toFixed(2)}` : "—"}
+                          {item.yesterday_price != null ? `${city === "manila" ? "₱" : "AED"} ${Number(item.yesterday_price).toFixed(2)}` : "—"}
                         </td>
                         <td className={`${TABLE_CELL} text-right font-mono ${isChanged ? "text-red-400" : ""}`}>
                           {fmtRate(item.today_rate)}
