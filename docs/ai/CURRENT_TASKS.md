@@ -1,10 +1,53 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (OS Attendance Schedule column — Single Day + Date Range + CSV)
+Last updated: 2026-08-17 (Noon Food Price Monitor — setup complete, needs session secret)
 
 ---
 
-## 🔄 IN PROGRESS: Careem Price Monitor — GitHub Actions 全自動化 (2026-08-17)
+## 🔄 IN PROGRESS: Noon Food Price Monitor — セッション登録待ち (2026-08-17)
+
+**Goal**: Noonフードのメニュー価格を自動監視し、変化時にDiscord DMで通知する（Careemと同様の仕組み）
+
+### 実装済み
+- **Heroku endpoint**: `POST /api/noon/portal-price-snapshot` (deployed, v1965)
+  - `noon_portal_price_snapshots` テーブルに価格履歴を保存（初回自動作成）
+  - 価格変化 or 割引変化時にDiscord DM送信
+  - `SESSION_EXPIRED` signal → Discord DM で更新通知
+- **scripts/noon/setup-session.js**: Playwright でセッション取得スクリプト
+- **scripts/noon/check-prices.js**: Noon REST API (`/_food-restaurant/menu/details`) を呼び出し
+  - 全published menuを自動検出して監視
+  - Item価格（price_aed, discount_price）を記録
+- **.github/workflows/noon-price-check.yml**: 4時間ごとに実行（Careemと30分オフセット: UTC :30分）
+
+### ✅ 残り手順（ユーザーが実施）
+```bash
+node scripts/noon/setup-session.js
+```
+1. ブラウザが開く → `restaurant.noon.partners` にログイン（username: sushi@p108431）
+2. Dashboard表示確認後 → Enterキー
+3. `cat scripts/noon/noon-session.b64.txt | pbcopy`
+4. GitHub → Settings → Secrets → Actions → **New secret**
+   - Name: `NOON_SESSION_STATE`
+   - Value: クリップボードの内容
+5. GitHub Actions → "Noon Food Price Check" → **Run workflow** で動作確認
+
+### Architecture
+```
+GitHub Actions (6回/日, UTC :30)
+  └─ Playwright headless Chromium (セッション復元)
+       └─ restaurant.noon.partners/_food-restaurant/menu/list  (GET)
+            └─ 各published menuに対して: /menu/details  (POST)
+                 └─ POST /api/noon/portal-price-snapshot (Heroku)
+                      └─ 価格変化 → Discord DM (Yukihiro)
+                      └─ Session expired → Discord DM
+```
+
+- セッション寿命は不明（おそらくCareem同様1〜2週間）
+- 期限切れ時はDiscord DM通知 → setup-session.js 再実行
+
+---
+
+## ✅ Completed: Careem Price Monitor (2026-08-17)
 
 **Goal**: Detect when Careem changes discount rate from 50%→30%, making customer prices jump AED 84→117.60.
 
