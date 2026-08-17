@@ -64,3 +64,6 @@ sushizen-shift-pwa/
 scripts/*/keeta-session.*
 scripts/*/careem-session.*
 scripts/*/noon-session.*
+scripts/grab/*-session.*
+scripts/grab/*-session.*
+scripts/grab/*-api-discovery.json

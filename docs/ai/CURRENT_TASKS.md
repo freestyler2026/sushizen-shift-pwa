@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (Noon Food Price Monitor — setup complete, needs session secret)
+Last updated: 2026-08-18 (Grab Food PH Price Monitor — fully operational, 3 stores)
+
+---
+
+## ✅ Completed: Grab Food PH Price Monitor (2026-08-18)
+
+**Goal**: Manila 3店舗（Paranaque / Taft / QC）のGrabフード価格を自動監視
+
+### 実装済み（完全稼働中）
+- **Heroku endpoint**: `POST /api/grab/portal-price-snapshot` (deployed, v1967)
+  - `grab_portal_price_snapshots` テーブルに価格履歴を保存（初回自動作成）
+  - 価格変化時にDiscord DM送信（₱表示）
+  - `SESSION_EXPIRED` signal → Discord DM で更新通知
+- **scripts/grab/setup-session.js**: Playwright セッション取得（Paranaque manager account）
+- **scripts/grab/check-prices.js**: 
+  - `GET portal.grab.com/foodtroy/v1/PH/merchant-groups/catalog-stores` で店舗一覧を動的取得
+  - `GET api.grab.com/food/merchant/v2/menu?merchantID={id}` で各店舗のメニュー取得
+  - Auth: `mexusers_authn_token` cookie on `.grab.com`
+- **.github/workflows/grab-price-check.yml**: 4時間ごと（UTC 3,7,11,15,19,23 — 他監視からオフセット）
+- **GitHub Secret**: `GRAB_SESSION_STATE` 設定済み
+- **初回テスト成功**: 3店舗 × 89アイテムを確認
+
+### 店舗情報
+| MerchantID | 店名 |
+|---|---|
+| `2-C7LFJ3NGHFAYE2` | Sushi Zen - Paranaque |
+| `2-C7VCJXCDDA5FRX` | Sushi Zen - Taft |
+| `2-C7VCJXCEGJ6JRJ` | Sushizen Japanese Restaurant - Quezon City |
+
+### セッション更新手順（期限切れ時）
+```bash
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+node scripts/grab/setup-session.js paranaque
+cat scripts/grab/paranaque-session.b64.txt | gh secret set GRAB_SESSION_STATE --repo freestyler2026/sushizen-shift-pwa
+```
 
 ---
 
