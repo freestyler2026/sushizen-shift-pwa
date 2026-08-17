@@ -130,12 +130,17 @@ function fmtRate(r: number | null): string {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type BrandToken = {
+  set: boolean;
+  expires?: string;
+  hours_left?: number | null;
+  error?: string;
+};
+
 type TokenStatus = {
   ok: boolean;
-  set?: boolean;
-  token_expires?: string;
-  token_hours_left?: number | null;
-  error?: string;
+  sushi?: BrandToken;
+  ramen?: BrandToken;
 };
 
 export default function AggregatorPriceMonitorPage() {
@@ -289,70 +294,67 @@ export default function AggregatorPriceMonitorPage() {
         </div>
       )}
 
-      {/* Token status for Dubai */}
-      {city === "dubai" && (() => {
-        const h = tokenStatus?.token_hours_left ?? null;
-        const isExpired  = h !== null && h <= 0;
-        const isWarning  = h !== null && h > 0 && h < 72;
-        const isOk       = h !== null && h >= 72;
-        const expiresStr = tokenStatus?.token_expires
-          ? new Date(tokenStatus.token_expires).toLocaleString("en-AE", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" })
-          : null;
+      {/* Token status for Dubai — one card per brand */}
+      {city === "dubai" && (
+        <div className="space-y-2">
+          {(
+            [
+              { key: "sushi" as const, label: "Sushi ZEN", envVar: "URBANPIPER_TOKEN" },
+              { key: "ramen" as const, label: "Ramen ZEN", envVar: "URBANPIPER_RAMEN_TOKEN" },
+            ] as const
+          ).map(({ key, label, envVar }) => {
+            const t = tokenStatus?.ok ? tokenStatus[key] : undefined;
+            const h = t?.hours_left ?? null;
+            const isExpired = h !== null && h <= 0;
+            const isWarning = h !== null && h > 0 && h < 72;
+            const isOk      = h !== null && h >= 72;
+            const expiresStr = t?.expires
+              ? new Date(t.expires).toLocaleString("en-AE", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" })
+              : null;
 
-        if (isOk) return (
-          <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
-            <CheckCircle2 className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
-            <div>
-              <p className={T_LABEL}>
-                Urban Piper Token · Valid for {Math.floor(h!)} h
-                {expiresStr && <span className="font-normal text-xs ml-2 opacity-60">(expires {expiresStr} GST)</span>}
-              </p>
-              <p className={T_CAPTION}>Discord will alert 72 h before expiry.</p>
-            </div>
-          </div>
-        );
+            if (isOk) return (
+              <div key={key} className={`${GLASS_CARD} flex items-center gap-3 px-4 py-3`}>
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <p className={T_BODY}>
+                  <strong>{label}</strong> · Valid for {Math.floor(h!)} h
+                  {expiresStr && <span className="opacity-50 text-xs ml-2">(expires {expiresStr} GST)</span>}
+                </p>
+              </div>
+            );
 
-        if (isWarning || isExpired) return (
-          <div className={`rounded-lg border p-4 flex items-start gap-3 ${
-            isExpired
-              ? "bg-red-500/10 border-red-500/40"
-              : "bg-amber-500/10 border-amber-500/40"
-          }`}>
-            <AlertTriangle className={`w-5 h-5 mt-0.5 shrink-0 ${isExpired ? "text-red-400" : "text-amber-400"}`} />
-            <div className="space-y-2">
-              <p className={`${T_LABEL} ${isExpired ? "text-red-400" : "text-amber-400"}`}>
-                {isExpired
-                  ? "URBANPIPER TOKEN EXPIRED — Price monitor is down"
-                  : `Token expires in ${Math.floor(h!)} h — refresh soon`}
-                {expiresStr && <span className="font-normal text-xs ml-2 opacity-70">({expiresStr} GST)</span>}
-              </p>
-              <p className={T_CAPTION}>
-                <strong>To renew:</strong> Log into atlas.urbanpiper.com → DevTools → Network →
-                click any <code className="font-mono text-xs bg-black/20 px-1 rounded">graphql</code> request →
-                Headers → copy <code className="font-mono text-xs bg-black/20 px-1 rounded">authorization</code> value, then run:
-              </p>
-              <pre className="text-xs font-mono bg-black/30 rounded px-3 py-2 whitespace-pre-wrap break-all">
-                {`heroku config:set URBANPIPER_TOKEN="eyJ..." -a sushizen-shift-app`}
-              </pre>
-            </div>
-          </div>
-        );
+            if (isWarning || isExpired) return (
+              <div key={key} className={`rounded-lg border p-4 space-y-2 ${
+                isExpired ? "bg-red-500/10 border-red-500/40" : "bg-amber-500/10 border-amber-500/40"
+              }`}>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className={`w-4 h-4 shrink-0 ${isExpired ? "text-red-400" : "text-amber-400"}`} />
+                  <p className={`${T_LABEL} ${isExpired ? "text-red-400" : "text-amber-400"}`}>
+                    <strong>{label}</strong> — {isExpired ? "TOKEN EXPIRED" : `expires in ${Math.floor(h!)} h`}
+                    {expiresStr && <span className="font-normal text-xs ml-2 opacity-70">({expiresStr} GST)</span>}
+                  </p>
+                </div>
+                <p className={T_CAPTION}>
+                  atlas.urbanpiper.com でログイン → ブランド切り替え → Network → graphql → authorization をコピーして:
+                </p>
+                <pre className="text-xs font-mono bg-black/30 rounded px-3 py-2 whitespace-pre-wrap break-all">
+                  {`heroku config:set ${envVar}="eyJ..." -a sushizen-shift-app`}
+                </pre>
+              </div>
+            );
 
-        // tokenStatus not loaded yet or not set
-        return (
-          <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
-            <Info className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-            <div>
-              <p className={T_LABEL}>Urban Piper ATLAS Token</p>
-              <p className={T_CAPTION}>
-                {!tokenStatus?.set
-                  ? "URBANPIPER_TOKEN not set in Heroku. Set it to enable Dubai price monitoring."
-                  : "Checking token status…"}
-              </p>
-            </div>
-          </div>
-        );
-      })()}
+            // not loaded or not set
+            return (
+              <div key={key} className={`${GLASS_CARD} flex items-center gap-3 px-4 py-3`}>
+                <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className={`${T_BODY} opacity-70`}>
+                  <strong>{label}</strong> — {t?.set === false ? `${envVar} not set` : "checking…"}
+                </p>
+              </div>
+            );
+          })}
+          <p className={`${T_CAPTION} pl-1`}>Discord DM to Yukihiro 72 h before expiry.</p>
+        </div>
+      )}
 
       {/* Run result */}
       {runResult && (
