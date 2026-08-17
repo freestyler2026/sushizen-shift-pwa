@@ -18,11 +18,12 @@ import { apiGet } from "@/lib/api";
 const API_BASE = "";
 
 const STORES = [
-  { code: "PAR",  label: "Paranaque" },
-  { code: "TAFT", label: "Taft" },
-  { code: "CUB",  label: "Cubao" },
-  { code: "CK",   label: "CK" },
-  { code: "DXB",  label: "Dubai (Aggregator)" },
+  { code: "PAR",     label: "Paranaque" },
+  { code: "TAFT",    label: "Taft" },
+  { code: "CUB",     label: "Cubao" },
+  { code: "CK",      label: "CK" },
+  { code: "DXB",     label: "Dubai (Aggregator)" },
+  { code: "MNL_AGG", label: "Manila (Aggregator)" },
 ];
 
 type DmStatus = "unregistered" | "ok" | "blocked";
