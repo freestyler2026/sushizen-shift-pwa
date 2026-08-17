@@ -130,6 +130,14 @@ function fmtRate(r: number | null): string {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type TokenStatus = {
+  ok: boolean;
+  set?: boolean;
+  token_expires?: string;
+  token_hours_left?: number | null;
+  error?: string;
+};
+
 export default function AggregatorPriceMonitorPage() {
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [tab, setTab] = useState<"alerts" | "snapshots">("alerts");
@@ -139,6 +147,7 @@ export default function AggregatorPriceMonitorPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [runResult, setRunResult] = useState<Record<string, unknown> | null>(null);
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null);
 
   // ── Platform filter ───────────────────────────────────────────────────────
   const [platformFilter, setPlatformFilter] = useState("");
@@ -177,6 +186,12 @@ export default function AggregatorPriceMonitorPage() {
     if (tab === "alerts") loadAlerts();
     else loadSnapshots();
   }, [tab, city, loadAlerts, loadSnapshots]);
+
+  useEffect(() => {
+    apiFetch<TokenStatus>("/api/admin/aggregator-price/token-status")
+      .then(setTokenStatus)
+      .catch(() => {});
+  }, []);
 
   const handleRunCheck = async () => {
     setRunning(true);
@@ -274,36 +289,70 @@ export default function AggregatorPriceMonitorPage() {
         </div>
       )}
 
-      {/* Token notice for Dubai */}
-      {city === "dubai" && (
-        <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
-          <Info className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-          <div>
-            <p className={T_LABEL}>Token setup required</p>
-            <p className={T_CAPTION}>
-              To fetch live prices from Urban Piper ATLAS:
-              <br />
-              1. Log into{" "}
-              <strong>atlas.urbanpiper.com</strong> in Chrome
-              <br />
-              2. Open DevTools → Network → click any page load → find any
-              request → copy the{" "}
-              <code className="font-mono text-xs bg-black/20 px-1 rounded">
-                Authorization: Bearer eyJ…
-              </code>{" "}
-              header value
-              <br />
-              3. Run:{" "}
-              <code className="font-mono text-xs bg-black/20 px-1 rounded">
-                heroku config:set URBANPIPER_TOKEN=&quot;eyJ…&quot; -a
-                sushizen-shift-app
-              </code>
-              <br />
-              Token lasts ~7–30 days. Refresh when checks start failing.
-            </p>
+      {/* Token status for Dubai */}
+      {city === "dubai" && (() => {
+        const h = tokenStatus?.token_hours_left ?? null;
+        const isExpired  = h !== null && h <= 0;
+        const isWarning  = h !== null && h > 0 && h < 72;
+        const isOk       = h !== null && h >= 72;
+        const expiresStr = tokenStatus?.token_expires
+          ? new Date(tokenStatus.token_expires).toLocaleString("en-AE", { timeZone: "Asia/Dubai", dateStyle: "medium", timeStyle: "short" })
+          : null;
+
+        if (isOk) return (
+          <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
+            <CheckCircle2 className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
+            <div>
+              <p className={T_LABEL}>
+                Urban Piper Token · Valid for {Math.floor(h!)} h
+                {expiresStr && <span className="font-normal text-xs ml-2 opacity-60">(expires {expiresStr} GST)</span>}
+              </p>
+              <p className={T_CAPTION}>Discord will alert 72 h before expiry.</p>
+            </div>
           </div>
-        </div>
-      )}
+        );
+
+        if (isWarning || isExpired) return (
+          <div className={`rounded-lg border p-4 flex items-start gap-3 ${
+            isExpired
+              ? "bg-red-500/10 border-red-500/40"
+              : "bg-amber-500/10 border-amber-500/40"
+          }`}>
+            <AlertTriangle className={`w-5 h-5 mt-0.5 shrink-0 ${isExpired ? "text-red-400" : "text-amber-400"}`} />
+            <div className="space-y-2">
+              <p className={`${T_LABEL} ${isExpired ? "text-red-400" : "text-amber-400"}`}>
+                {isExpired
+                  ? "URBANPIPER TOKEN EXPIRED — Price monitor is down"
+                  : `Token expires in ${Math.floor(h!)} h — refresh soon`}
+                {expiresStr && <span className="font-normal text-xs ml-2 opacity-70">({expiresStr} GST)</span>}
+              </p>
+              <p className={T_CAPTION}>
+                <strong>To renew:</strong> Log into atlas.urbanpiper.com → DevTools → Network →
+                click any <code className="font-mono text-xs bg-black/20 px-1 rounded">graphql</code> request →
+                Headers → copy <code className="font-mono text-xs bg-black/20 px-1 rounded">authorization</code> value, then run:
+              </p>
+              <pre className="text-xs font-mono bg-black/30 rounded px-3 py-2 whitespace-pre-wrap break-all">
+                {`heroku config:set URBANPIPER_TOKEN="eyJ..." -a sushizen-shift-app`}
+              </pre>
+            </div>
+          </div>
+        );
+
+        // tokenStatus not loaded yet or not set
+        return (
+          <div className={`${GLASS_CARD} flex items-start gap-3 p-4`}>
+            <Info className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+            <div>
+              <p className={T_LABEL}>Urban Piper ATLAS Token</p>
+              <p className={T_CAPTION}>
+                {!tokenStatus?.set
+                  ? "URBANPIPER_TOKEN not set in Heroku. Set it to enable Dubai price monitoring."
+                  : "Checking token status…"}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Run result */}
       {runResult && (
