@@ -78,8 +78,9 @@ type AttendanceSession = {
   check_out_distance_m: number | null;
   note: string;
   visits: Visit[];
-  // Feature 3: late arrival (populated by backend when schedule data is available)
+  // Feature 3: late arrival + schedule (populated by backend when schedule data is available)
   scheduled_start_hour?: number | null;
+  scheduled_end_hour?: number | null;
   late_minutes?: number | null;
   // Feature 4: synthetic no-show rows (client-side only, no real session)
   is_no_show?: boolean;
@@ -1035,7 +1036,7 @@ function DailyReportTab({ city }: { city: string }) {
 
   // CSV export
   function downloadCsv() {
-    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "Break In", "Break Out", "Break (min)", "GPS In", "GPS Out", "Branch Visits", "Note"];
+    const cols = ["Staff Name", "Branch", "Date", "Status", "Schedule Start", "Schedule End", "Clock In", "Clock Out", "Hours Worked", "Break In", "Break Out", "Break (min)", "GPS In", "GPS Out", "Branch Visits", "Note"];
     const rows = filtered.map(s => {
       const firstBreak = s.breaks?.[0] ?? null;
       const breakMin = s.break_min != null && s.break_min > 0 ? String(s.break_min) : "";
@@ -1044,6 +1045,8 @@ function DailyReportTab({ city }: { city: string }) {
         s.branch_code || "",
         s.work_date,
         sessionStatus(s).replaceAll("_", " "),
+        s.scheduled_start_hour != null ? fmtShiftHour(s.scheduled_start_hour) : "",
+        s.scheduled_end_hour != null ? fmtShiftHour(s.scheduled_end_hour) : "",
         fmtTime(s.check_in_at, cityTz(city)),
         fmtTime(s.check_out_at, cityTz(city)),
         fmtDuration(s.check_in_at, s.check_out_at),
@@ -1240,6 +1243,7 @@ function DailyReportTab({ city }: { city: string }) {
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Branch</th>
                 {rangeMode && <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Date</th>}
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Status</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Schedule</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock In</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">GPS</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock Out</th>
@@ -1276,6 +1280,11 @@ function DailyReportTab({ city }: { city: string }) {
                       <td className={`${cellCls} text-white/50`}>{s.branch_code || "—"}</td>
                       {rangeMode && <td className={`${cellCls} text-white/40 text-xs`}>{s.work_date}</td>}
                       <td className={`${cellCls}`}><StatusBadge s={s} /></td>
+                      <td className={`${cellCls} tabular-nums text-white/50 text-xs`}>
+                        {s.scheduled_start_hour != null && s.scheduled_end_hour != null
+                          ? `${fmtShiftHour(s.scheduled_start_hour)}–${fmtShiftHour(s.scheduled_end_hour)}`
+                          : "—"}
+                      </td>
                       <td className={`${cellCls} text-white/80`}>
                         {fmtTime(s.check_in_at, cityTz(city))}
                         <LateBadge mins={s.late_minutes} />
