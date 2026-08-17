@@ -1,14 +1,62 @@
 /**
- * Noon Food RMS price checker — runs in GitHub Actions via Playwright
- * Loads saved session state, navigates to the portal (to pass Akamai bot check),
- * then calls Noon's internal REST API via page.evaluate() to extract prices.
+ * Noon Food RMS price checker — runs in GitHub Actions
+ * Reads cookies from Playwright storageState JSON (no browser needed),
+ * calls Noon's internal REST API directly with those cookies.
+ * Much faster and avoids Akamai headless-browser detection.
  */
-const { chromium } = require('playwright');
+const fs = require('fs');
 
 const SESSION_PATH = process.env.NOON_SESSION_PATH;
 const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 
-const PORTAL_URL = 'https://restaurant.noon.partners';
+const BASE_URL = 'https://restaurant.noon.partners';
+
+function buildCookieHeader(sessionPath) {
+  const state = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+  const now = Date.now() / 1000;
+  return (state.cookies || [])
+    .filter(c => {
+      // Skip expired cookies
+      if (c.expires && c.expires > 0 && c.expires < now) return false;
+      // Only include cookies for the Noon domain
+      return c.domain && (c.domain.includes('noon.partners') || c.domain.includes('noon.com'));
+    })
+    .map(c => `${c.name}=${c.value}`)
+    .join('; ');
+}
+
+async function noonGet(path, cookieHeader) {
+  const resp = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers: {
+      'cookie':       cookieHeader,
+      'content-type': 'application/json',
+      'referer':      BASE_URL + '/',
+      'origin':       BASE_URL,
+      'user-agent':   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    },
+  });
+  if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
+  if (!resp.ok) throw new Error(`GET ${path} → ${resp.status}`);
+  return resp.json();
+}
+
+async function noonPost(path, body, cookieHeader) {
+  const resp = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'cookie':       cookieHeader,
+      'content-type': 'application/json',
+      'referer':      BASE_URL + '/',
+      'origin':       BASE_URL,
+      'user-agent':   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    },
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
+  if (!resp.ok) throw new Error(`POST ${path} → ${resp.status}`);
+  return resp.json();
+}
 
 async function postWebhook(payload) {
   const res = await fetch(WEBHOOK_URL, {
@@ -19,97 +67,82 @@ async function postWebhook(payload) {
   return res.json();
 }
 
-async function callNoonApi(page, method, path, body) {
-  return page.evaluate(async ({ method, path, body }) => {
-    const opts = {
-      method,
-      headers: { 'content-type': 'application/json' },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    const resp = await fetch(path, opts);
-    if (!resp.ok) throw new Error(`${path} returned ${resp.status}`);
-    return resp.json();
-  }, { method, path, body });
-}
-
 async function main() {
   if (!SESSION_PATH) throw new Error('NOON_SESSION_PATH not set');
   if (!WEBHOOK_URL)  throw new Error('WEBHOOK_URL not set');
 
-  const browser = await chromium.launch({ headless: true });
+  const cookieHeader = buildCookieHeader(SESSION_PATH);
+  if (!cookieHeader) throw new Error('No valid cookies found in session file');
+
+  console.log(`Loaded ${cookieHeader.split(';').length} cookies from session`);
+
   let sessionExpired = false;
 
   try {
-    const context = await browser.newContext({
-      storageState: SESSION_PATH,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-    });
+    // Get menu list
+    const menuListData = await noonGet('/_food-restaurant/menu/list', cookieHeader);
+    const allMenus = menuListData.data || [];
 
-    const page = await context.newPage();
+    // Monitor all active published menus that have items
+    const publishedMenus = allMenus.filter(m =>
+      m.isActive &&
+      m.itemCount > 0 &&
+      m.qcInfo?.status === 'published'
+    );
 
-    // Navigate to the portal to establish session and pass bot checks
-    console.log('Navigating to Noon Food RMS portal...');
-    await page.goto(PORTAL_URL, { waitUntil: 'networkidle', timeout: 60_000 });
+    console.log(`Found ${publishedMenus.length} published menus`);
+    const checkedAt = new Date().toISOString();
 
-    // Check if redirected to login (session expired)
-    const currentUrl = page.url();
-    console.log('Current URL:', currentUrl);
-    if (currentUrl.includes('/login') || currentUrl.includes('/auth') || currentUrl.includes('login.noon')) {
-      console.log('Session expired — redirected to login page');
-      sessionExpired = true;
-    } else {
-      // Call menu/list via in-page fetch (cookies sent automatically, passes bot detection)
-      console.log('Fetching menu list...');
-      const menuListData = await callNoonApi(page, 'GET', '/_food-restaurant/menu/list', null);
-      const allMenus = menuListData.data || [];
+    for (const menu of publishedMenus) {
+      console.log(`Checking: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
 
-      // Monitor all active published menus that have items
-      const publishedMenus = allMenus.filter(m =>
-        m.isActive &&
-        m.itemCount > 0 &&
-        m.qcInfo?.status === 'published'
-      );
+      try {
+        const detailsData = await noonPost(
+          '/_food-restaurant/menu/details',
+          { menuCode: menu.menuCode },
+          cookieHeader
+        );
 
-      console.log(`Found ${publishedMenus.length} published menus to check`);
-      const checkedAt = new Date().toISOString();
+        const items = (detailsData.data?.items || [])
+          .map(item => ({
+            name:           item.nameEn || item.nameAr || item.itemCode,
+            price_aed:      item.price,
+            discount_price: item.discountPrice,
+            is_oos:         item.isOos,
+          }))
+          .filter(item => item.price_aed != null);
 
-      for (const menu of publishedMenus) {
-        console.log(`Checking: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
-
-        try {
-          const detailsData = await callNoonApi(page, 'POST', '/_food-restaurant/menu/details', { menuCode: menu.menuCode });
-          const items = (detailsData.data?.items || [])
-            .map(item => ({
-              name:           item.nameEn || item.nameAr || item.itemCode,
-              price_aed:      item.price,
-              discount_price: item.discountPrice,
-              is_oos:         item.isOos,
-            }))
-            .filter(item => item.price_aed != null);
-
-          if (items.length === 0) {
-            console.log('  No priced items — skipping');
-            continue;
-          }
-
-          const result = await postWebhook({
-            menu_code:  menu.menuCode,
-            menu_name:  menu.menuName,
-            items,
-            checked_at: checkedAt,
-          });
-
-          console.log(`  ${items.length} items → webhook ${JSON.stringify(result)}`);
-        } catch (err) {
-          console.error(`  Error for ${menu.menuCode}:`, err.message);
+        if (items.length === 0) {
+          console.log('  No priced items — skipping');
+          continue;
         }
+
+        const result = await postWebhook({
+          menu_code:  menu.menuCode,
+          menu_name:  menu.menuName,
+          items,
+          checked_at: checkedAt,
+        });
+
+        console.log(`  ${items.length} items → ${JSON.stringify(result)}`);
+      } catch (err) {
+        if (err.message.startsWith('SESSION_EXPIRED')) {
+          sessionExpired = true;
+          break;
+        }
+        console.error(`  Error for ${menu.menuCode}:`, err.message);
       }
     }
-  } finally {
-    await browser.close();
+  } catch (err) {
+    if (err.message.startsWith('SESSION_EXPIRED')) {
+      sessionExpired = true;
+    } else {
+      throw err;
+    }
   }
 
   if (sessionExpired) {
+    console.log('Session expired — sending alert');
     await postWebhook({
       menu_code:  'SESSION_EXPIRED',
       menu_name:  'SYSTEM',
