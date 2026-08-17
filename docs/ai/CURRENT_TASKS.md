@@ -1,10 +1,10 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (Aggregator Price Monitor v3 — Ramen ZEN + Discord DM to Yukihiro)
+Last updated: 2026-08-17 (Aggregator Price Monitor v4 — DXB recipients + Menu Comparison + 05:00 Dubai schedule)
 
 ---
 
-## ✅ Completed: Aggregator Price Monitor (2026-08-17, Heroku v1952 + Vercel)
+## ✅ Completed: Aggregator Price Monitor v4 (2026-08-17, Heroku v1953 + Vercel)
 
 **Goal**: Daily automated check of Sushi ZEN / Ramen ZEN prices on Dubai aggregators to detect unauthorized campaign price changes.
 
@@ -15,11 +15,13 @@ Last updated: 2026-08-17 (Aggregator Price Monitor v3 — Ramen ZEN + Discord DM
 | Ramen ZEN (biz: Ramenzen - MultiBrand) | 98750751 | `URBANPIPER_RAMEN_TOKEN` | 2026-08-24 |
 
 ### How it works
-- Daily APScheduler job at **02:00 UTC (= 06:00 GST)** runs both Sushi ZEN + Ramen ZEN checks
-- Detects: price change > AED 0.50 OR discount rate change > 2% OR availability change
-- Expected Dubai discount rate: 0.50 (50% off = aggregator campaign)
-- All alerts → **Discord DM to Yukihiro (844419400240070656)** via `_send_discord_dm()`
-- Token expiry warning DM sent 72h before expiry
+- Daily APScheduler job at **01:00 UTC (= 05:00 GST/Dubai time)** runs both Sushi ZEN + Ramen ZEN checks
+- Detects: price change > AED 0.50 OR discount rate change > 2% day-over-day (NOT against fixed expected rate)
+- Availability changes also flagged
+- Dubai alerts → **Discord DM to active recipients in `discord_alert_recipients` WHERE store_code='DXB'**
+  - Fallback to Yukihiro (844419400240070656) if no DXB recipients in DB
+  - Add/manage recipients at `/admin/discord-alerts` → Dubai (Aggregator) tab
+- Token expiry warning DM sent 72h before expiry → goes to DXB recipients
 
 ### Token renewal procedure (when Discord DM arrives)
 When you receive a DM saying the token is expiring, do this:
@@ -43,7 +45,14 @@ When you receive a DM saying the token is expiring, do this:
 ### Dashboard
 - `/admin/aggregator-price-monitor` — shows both token status cards (Sushi ZEN / Ramen ZEN) with expiry hours in GST
 - Green = healthy, amber = < 72h, red = expired
-- Alerts tab, Latest Snapshot tab, platform filter
+- **Alerts tab**: price change alerts (last 30 days)
+- **Menu Comparison tab**: ALL menu items with ✅ OK / ❌ Changed / 🆕 New / 🔕 Unavailable status vs previous day
+  - Summary bar shows ok_count / changed_count / new_count / unavail_count
+  - GET `/api/admin/aggregator-price/comparison?city=dubai` — powered by `get_price_comparison()`
+
+### Discord Alert Recipients (Dubai)
+- `/admin/discord-alerts` → **Dubai (Aggregator)** tab — add recipients who receive price alert DMs
+- Uses `discord_alert_recipients` table with store_code='DXB'
 
 ### Key files
 - `app/services/aggregator_price_monitor.py` — all logic
