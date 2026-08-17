@@ -1,0 +1,28 @@
+name: Grab PH Price Check
+
+on:
+  schedule:
+    - cron: '0 3,7,11,15,19,23 * * *'  # Every 4 hours (UTC), offset from Keeta/Careem/Noon
+  workflow_dispatch:  # Manual run button on GitHub
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Pure HTTP — fast
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Node 20 has built-in fetch
+
+      - name: Restore Grab session state
+        run: |
+          echo "${{ secrets.GRAB_SESSION_STATE }}" | base64 -d > /tmp/grab-state.json
+
+      - name: Run price check
+        run: node scripts/grab/check-prices.js
+        env:
+          GRAB_SESSION_PATH: /tmp/grab-state.json
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/grab/portal-price-snapshot
