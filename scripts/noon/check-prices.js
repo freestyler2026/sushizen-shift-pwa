@@ -1,73 +1,19 @@
 /**
- * Noon Food RMS price checker — runs in GitHub Actions
- * Reads cookies from Playwright storageState JSON (no browser needed),
- * calls Noon's internal REST API directly with those cookies.
- * Much faster and avoids Akamai headless-browser detection.
+ * Noon Food RMS price checker — runs in GitHub Actions via Playwright
+ * Loads saved session state, navigates to the portal to execute JS (needed for
+ * CSRF validation key), then calls Noon's internal REST API via page.evaluate().
+ *
+ * Key: Noon requires a dynamic "validation key" generated at page load.
+ * Direct HTTP fetch fails with {"error":"validation key not found"}.
+ * page.evaluate() runs inside the browser context where the key is already set.
  */
-const fs = require('fs');
+const { chromium } = require('playwright');
 
 const SESSION_PATH = process.env.NOON_SESSION_PATH;
 const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 
-const BASE_URL = 'https://restaurant.noon.partners';
-
-function buildCookieHeader(sessionPath) {
-  const state = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-  const now = Date.now() / 1000;
-  return (state.cookies || [])
-    .filter(c => {
-      // Skip expired cookies
-      if (c.expires && c.expires > 0 && c.expires < now) return false;
-      // Only include cookies for the Noon domain
-      return c.domain && (c.domain.includes('noon.partners') || c.domain.includes('noon.com'));
-    })
-    .map(c => `${c.name}=${c.value}`)
-    .join('; ');
-}
-
-const BROWSER_HEADERS = (cookieHeader) => ({
-  'cookie':           cookieHeader,
-  'accept':           'application/json, text/plain, */*',
-  'accept-language':  'en-US,en;q=0.9',
-  'content-type':     'application/json',
-  'origin':           BASE_URL,
-  'referer':          BASE_URL + '/',
-  'user-agent':       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  'sec-ch-ua':        '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-  'sec-ch-ua-mobile': '?0',
-  'sec-ch-ua-platform': '"macOS"',
-  'sec-fetch-dest':   'empty',
-  'sec-fetch-mode':   'cors',
-  'sec-fetch-site':   'same-origin',
-  'x-requested-with': 'XMLHttpRequest',
-});
-
-async function noonGet(path, cookieHeader) {
-  const resp = await fetch(`${BASE_URL}${path}`, {
-    method: 'GET',
-    headers: BROWSER_HEADERS(cookieHeader),
-  });
-  if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`GET ${path} → ${resp.status} ${text.slice(0, 200)}`);
-  }
-  return resp.json();
-}
-
-async function noonPost(path, body, cookieHeader) {
-  const resp = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: BROWSER_HEADERS(cookieHeader),
-    body: JSON.stringify(body),
-  });
-  if (resp.status === 401 || resp.status === 403) throw new Error(`SESSION_EXPIRED:${resp.status}`);
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`POST ${path} → ${resp.status} ${text.slice(0, 200)}`);
-  }
-  return resp.json();
-}
+const PORTAL_URL = 'https://restaurant.noon.partners';
+const RESTAURANT_URL = `${PORTAL_URL}/restaurant/R5346332756132073257580964A/menu-maker/?project=PRJ108431`;
 
 async function postWebhook(payload) {
   const res = await fetch(WEBHOOK_URL, {
@@ -78,82 +24,114 @@ async function postWebhook(payload) {
   return res.json();
 }
 
+async function callNoonApi(page, method, path, body) {
+  return page.evaluate(async ({ method, path, body }) => {
+    const opts = {
+      method,
+      headers: { 'content-type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(path, opts);
+    const text = await resp.text();
+    if (!resp.ok) throw new Error(`${resp.status}:${text.slice(0, 300)}`);
+    return JSON.parse(text);
+  }, { method, path, body });
+}
+
 async function main() {
   if (!SESSION_PATH) throw new Error('NOON_SESSION_PATH not set');
   if (!WEBHOOK_URL)  throw new Error('WEBHOOK_URL not set');
 
-  const cookieHeader = buildCookieHeader(SESSION_PATH);
-  if (!cookieHeader) throw new Error('No valid cookies found in session file');
-
-  console.log(`Loaded ${cookieHeader.split(';').length} cookies from session`);
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-http2',                           // avoids ERR_HTTP2_PROTOCOL_ERROR
+      '--disable-blink-features=AutomationControlled',
+    ],
+  });
 
   let sessionExpired = false;
 
   try {
-    // Get menu list
-    const menuListData = await noonGet('/_food-restaurant/menu/list', cookieHeader);
-    const allMenus = menuListData.data || [];
+    const context = await browser.newContext({
+      storageState: SESSION_PATH,
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    });
 
-    // Monitor all active published menus that have items
-    const publishedMenus = allMenus.filter(m =>
-      m.isActive &&
-      m.itemCount > 0 &&
-      m.qcInfo?.status === 'published'
-    );
+    const page = await context.newPage();
 
-    console.log(`Found ${publishedMenus.length} published menus`);
-    const checkedAt = new Date().toISOString();
+    // Navigate to menu-maker page (loads JS, sets validation key, passes Akamai)
+    console.log('Navigating to Noon Food RMS menu-maker...');
+    await page.goto(RESTAURANT_URL, {
+      waitUntil: 'domcontentloaded',   // don't wait for networkidle — avoids timeout
+      timeout: 60_000,
+    });
 
-    for (const menu of publishedMenus) {
-      console.log(`Checking: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
+    // Brief wait for app JS to initialize (sets the validation key)
+    await page.waitForTimeout(4000);
 
-      try {
-        const detailsData = await noonPost(
-          '/_food-restaurant/menu/details',
-          { menuCode: menu.menuCode },
-          cookieHeader
-        );
-
-        const items = (detailsData.data?.items || [])
-          .map(item => ({
-            name:           item.nameEn || item.nameAr || item.itemCode,
-            price_aed:      item.price,
-            discount_price: item.discountPrice,
-            is_oos:         item.isOos,
-          }))
-          .filter(item => item.price_aed != null);
-
-        if (items.length === 0) {
-          console.log('  No priced items — skipping');
-          continue;
-        }
-
-        const result = await postWebhook({
-          menu_code:  menu.menuCode,
-          menu_name:  menu.menuName,
-          items,
-          checked_at: checkedAt,
-        });
-
-        console.log(`  ${items.length} items → ${JSON.stringify(result)}`);
-      } catch (err) {
-        if (err.message.startsWith('SESSION_EXPIRED')) {
-          sessionExpired = true;
-          break;
-        }
-        console.error(`  Error for ${menu.menuCode}:`, err.message);
-      }
-    }
-  } catch (err) {
-    if (err.message.startsWith('SESSION_EXPIRED')) {
+    // Check for login redirect (session expired)
+    const currentUrl = page.url();
+    console.log('Current URL:', currentUrl);
+    if (
+      currentUrl.includes('/login') ||
+      currentUrl.includes('/auth') ||
+      currentUrl.includes('login.noon')
+    ) {
+      console.log('Session expired — redirected to login');
       sessionExpired = true;
     } else {
-      throw err;
+      // Use page.evaluate() so the validation key is automatically included
+      console.log('Fetching menu list...');
+      const menuListData = await callNoonApi(page, 'GET', '/_food-restaurant/menu/list', null);
+      const allMenus = menuListData.data || [];
+
+      const publishedMenus = allMenus.filter(m =>
+        m.isActive &&
+        m.itemCount > 0 &&
+        m.qcInfo?.status === 'published'
+      );
+
+      console.log(`Found ${publishedMenus.length} published menus`);
+      const checkedAt = new Date().toISOString();
+
+      for (const menu of publishedMenus) {
+        console.log(`Checking: ${menu.menuName} (${menu.menuCode}, ${menu.itemCount} items)`);
+        try {
+          const detailsData = await callNoonApi(
+            page, 'POST', '/_food-restaurant/menu/details', { menuCode: menu.menuCode }
+          );
+          const items = (detailsData.data?.items || [])
+            .map(item => ({
+              name:           item.nameEn || item.nameAr || item.itemCode,
+              price_aed:      item.price,
+              discount_price: item.discountPrice,
+              is_oos:         item.isOos,
+            }))
+            .filter(item => item.price_aed != null);
+
+          if (!items.length) { console.log('  No priced items — skipping'); continue; }
+
+          const result = await postWebhook({
+            menu_code:  menu.menuCode,
+            menu_name:  menu.menuName,
+            items,
+            checked_at: checkedAt,
+          });
+          console.log(`  ${items.length} items → ${JSON.stringify(result)}`);
+        } catch (err) {
+          console.error(`  Error for ${menu.menuCode}:`, err.message);
+        }
+      }
     }
+  } finally {
+    await browser.close();
   }
 
   if (sessionExpired) {
-    console.log('Session expired — sending alert');
     await postWebhook({
       menu_code:  'SESSION_EXPIRED',
       menu_name:  'SYSTEM',

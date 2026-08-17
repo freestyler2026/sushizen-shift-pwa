@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright
+          npx playwright install chromium --with-deps
+
       - name: Restore Noon session state
         run: |
           echo "${{ secrets.NOON_SESSION_STATE }}" | base64 -d > /tmp/noon-state.json
