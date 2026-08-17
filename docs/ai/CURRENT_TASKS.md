@@ -1,10 +1,10 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-17 (Aggregator Price Monitor v4 — DXB recipients + Menu Comparison + 05:00 Dubai schedule)
+Last updated: 2026-08-17 (Aggregator Price Monitor — all bugs fixed, end-to-end verified, 5796 items fetched)
 
 ---
 
-## ✅ Completed: Aggregator Price Monitor v4 (2026-08-17, Heroku v1953 + Vercel)
+## ✅ Completed: Aggregator Price Monitor v5 — full bug-fix pass (2026-08-17, Heroku v1960 + Vercel)
 
 **Goal**: Daily automated check of Sushi ZEN / Ramen ZEN prices on Dubai aggregators to detect unauthorized campaign price changes.
 
@@ -58,6 +58,21 @@ When you receive a DM saying the token is expiring, do this:
 - `app/services/aggregator_price_monitor.py` — all logic
 - `app/main.py` — `_job_aggregator_price_check()`, endpoints
 - `src/app/admin/aggregator-price-monitor/page.tsx`
+
+### Bugs fixed in v5 (2026-08-17)
+1. **ATLAS API location query** — `bizLocations`/`brandLocations` don't exist; replaced with `locationGroups { objects { id locations { objects { id name city address } } } }` → returns 7 Sushi ZEN Dubai locations
+2. **`locationCatalogue` brandId** — passing `brandId: 55892580` causes empty categories; removed from query + call entirely
+3. **H12 request timeout** — `run-check` endpoint now spawns background thread + returns `{"status":"started"}` immediately; frontend polls after 35s
+4. **`markupPrice=0.0` fallback** — UP returns `markupPrice: 0.0` when no aggregator price configured; now falls back to `itemPrice` (real prices like AED 64.00, AED 84.00 etc.)
+5. **`_logger` name** — background thread used `logger` (NameError); fixed to `_logger`
+6. **NavBar missing entry** — "Aggregator Price Monitor" was not in nav; added with `Activity` icon
+7. **TABLE_HEADER on wrong element** — was on `<tr>`, moved to `<th>` in comparison table
+8. **Duplicate alert bug** — both Sushi ZEN + Ramen ZEN checks called `detect_changes(city="dubai")` causing double alerts; fixed with UNIQUE INDEX + ON CONFLICT DO NOTHING
+
+### End-to-end verified (2026-08-17)
+- Heroku v1960 successfully fetches **5796 item×platform records** for Dubai Sushi ZEN
+- Menu Comparison tab shows real prices (AED 64.00, 84.00 etc.) for 5796 new items
+- Background check completes in ~30s, frontend auto-reloads after 35s
 
 ### Why ATLAS (not direct scraping)
 - Talabat geo-blocks non-UAE IPs; FoodPanda uses PerimeterX; GrabFood blocks in-app browser
