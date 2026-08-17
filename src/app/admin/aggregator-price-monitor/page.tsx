@@ -67,6 +67,33 @@ type Snapshot = {
   is_available: boolean;
 };
 
+type ComparisonItem = {
+  brand_name: string;
+  location_name: string;
+  platform_name: string;
+  item_name: string;
+  category: string;
+  base_price: number;
+  today_price: number;
+  today_rate: number;
+  today_available: boolean;
+  yesterday_price: number | null;
+  yesterday_rate: number | null;
+  yesterday_available: boolean | null;
+  status: "ok" | "changed" | "new" | "unavailable";
+};
+
+type ComparisonResult = {
+  ok: boolean;
+  snapshot_date: string;
+  city: string;
+  items: ComparisonItem[];
+  ok_count: number;
+  changed_count: number;
+  new_count: number;
+  unavail_count: number;
+};
+
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -145,17 +172,14 @@ type TokenStatus = {
 
 export default function AggregatorPriceMonitorPage() {
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
-  const [tab, setTab] = useState<"alerts" | "snapshots">("alerts");
+  const [tab, setTab] = useState<"alerts" | "comparison">("alerts");
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [runResult, setRunResult] = useState<Record<string, unknown> | null>(null);
   const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null);
-
-  // ── Platform filter ───────────────────────────────────────────────────────
-  const [platformFilter, setPlatformFilter] = useState("");
 
   const loadAlerts = useCallback(async () => {
     setLoading(true);
@@ -172,25 +196,25 @@ export default function AggregatorPriceMonitorPage() {
     }
   }, [city]);
 
-  const loadSnapshots = useCallback(async () => {
+  const loadComparison = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch<{ ok: boolean; snapshots: Snapshot[] }>(
-        `/api/admin/aggregator-price/snapshots?city=${city}&days=1&platform=${encodeURIComponent(platformFilter)}`
+      const res = await apiFetch<ComparisonResult>(
+        `/api/admin/aggregator-price/comparison?city=${city}`
       );
-      setSnapshots(res.snapshots || []);
+      setComparison(res);
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
-  }, [city, platformFilter]);
+  }, [city]);
 
   useEffect(() => {
     if (tab === "alerts") loadAlerts();
-    else loadSnapshots();
-  }, [tab, city, loadAlerts, loadSnapshots]);
+    else loadComparison();
+  }, [tab, city, loadAlerts, loadComparison]);
 
   useEffect(() => {
     apiFetch<TokenStatus>("/api/admin/aggregator-price/token-status")
@@ -210,7 +234,7 @@ export default function AggregatorPriceMonitorPage() {
       setRunResult(res);
       // Reload data
       if (tab === "alerts") loadAlerts();
-      else loadSnapshots();
+      else loadComparison();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -219,16 +243,6 @@ export default function AggregatorPriceMonitorPage() {
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-
-  const platforms = Array.from(
-    new Set(snapshots.map((s) => s.platform_name).filter(Boolean))
-  ).sort();
-
-  const filteredSnapshots = platformFilter
-    ? snapshots.filter((s) =>
-        s.platform_name.toLowerCase().includes(platformFilter.toLowerCase())
-      )
-    : snapshots;
 
   const todayAlerts = alerts.filter(
     (a) => a.alert_date === new Date().toISOString().slice(0, 10)
@@ -390,23 +404,22 @@ export default function AggregatorPriceMonitorPage() {
 
       {/* Tabs */}
       <div className={TAB_CONTAINER}>
-        <button
-          onClick={() => setTab("alerts")}
-          className={tab === "alerts" ? TAB_ACTIVE : TAB_INACTIVE}
-        >
-          Alerts{" "}
-          {todayAlerts.length > 0 && (
-            <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-              {todayAlerts.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("snapshots")}
-          className={tab === "snapshots" ? TAB_ACTIVE : TAB_INACTIVE}
-        >
-          Latest Snapshot
-        </button>
+        {(["alerts", "comparison"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? TAB_ACTIVE : TAB_INACTIVE}>
+            {t === "alerts" ? (
+              <>
+                Alerts{" "}
+                {todayAlerts.length > 0 && (
+                  <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {todayAlerts.length}
+                  </span>
+                )}
+              </>
+            ) : (
+              "Menu Comparison"
+            )}
+          </button>
+        ))}
       </div>
 
       {loading && (
@@ -508,101 +521,87 @@ export default function AggregatorPriceMonitorPage() {
         </div>
       )}
 
-      {/* ── SNAPSHOTS TAB ── */}
-      {tab === "snapshots" && !loading && (
-        <>
-          {/* Platform filter */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setPlatformFilter("")}
-              className={!platformFilter ? TAB_ACTIVE : TAB_INACTIVE}
-            >
-              All Platforms
-            </button>
-            {platforms.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPlatformFilter(p)}
-                className={platformFilter === p ? TAB_ACTIVE : TAB_INACTIVE}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+      {/* ── COMPARISON TAB ── */}
+      {tab === "comparison" && (
+        <div className="space-y-4">
+          {/* Summary bar */}
+          {comparison && (
+            <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-4 items-center`}>
+              <span className={T_LABEL}>
+                {comparison.snapshot_date} — {comparison.items.length} items
+              </span>
+              <span className="text-green-400 text-sm font-medium">✅ {comparison.ok_count} OK</span>
+              {comparison.changed_count > 0 && (
+                <span className="text-red-400 text-sm font-medium">❌ {comparison.changed_count} Changed</span>
+              )}
+              {comparison.new_count > 0 && (
+                <span className="text-blue-400 text-sm font-medium">🆕 {comparison.new_count} New</span>
+              )}
+              {comparison.unavail_count > 0 && (
+                <span className="text-zinc-400 text-sm font-medium">🔕 {comparison.unavail_count} Unavailable</span>
+              )}
+            </div>
+          )}
 
-          <div className={GLASS_CARD}>
-            {filteredSnapshots.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-12 text-center">
-                <Info className="w-8 h-8 text-blue-400" />
-                <p className={T_BODY}>No snapshot data yet.</p>
-                <p className={T_CAPTION}>
-                  Click &ldquo;Run Check Now&rdquo; to fetch the latest prices.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className={TABLE_HEADER}>Brand</th>
-                      <th className={TABLE_HEADER}>Location</th>
-                      <th className={TABLE_HEADER}>Platform</th>
-                      <th className={TABLE_HEADER}>Category</th>
-                      <th className={TABLE_HEADER}>Item</th>
-                      <th className={TABLE_HEADER}>Base Price</th>
-                      <th className={TABLE_HEADER}>Platform Price</th>
-                      <th className={TABLE_HEADER}>Discount</th>
-                      <th className={TABLE_HEADER}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSnapshots.map((s, i) => {
-                      const rate = Number(s.discount_rate ?? 1);
-                      // Highlight when discount deviates from expected 50% by >2%
-                      const ratePct = `${(rate * 100).toFixed(1)}%`;
-                      const rateOdd = Math.abs(rate - 0.5) > 0.02 && rate !== 1.0;
-                      return (
-                        <tr key={i} className={TABLE_ROW}>
-                          <td className={TABLE_CELL}>{s.brand_name}</td>
-                          <td className={TABLE_CELL}>{s.location_name}</td>
-                          <td className={TABLE_CELL}>
-                            <span className="font-medium">{s.platform_name}</span>
-                          </td>
-                          <td className={TABLE_CELL}>{s.category}</td>
-                          <td className={TABLE_CELL}>{s.item_name}</td>
-                          <td className={TABLE_CELL}>
-                            AED {Number(s.base_price).toFixed(2)}
-                          </td>
-                          <td className={TABLE_CELL}>
-                            {Number(s.platform_price) !== Number(s.base_price) ? (
-                              <span className="text-amber-400 font-semibold">
-                                AED {Number(s.platform_price).toFixed(2)}
-                              </span>
-                            ) : (
-                              `AED ${Number(s.platform_price).toFixed(2)}`
-                            )}
-                          </td>
-                          <td className={TABLE_CELL}>
-                            <span className={rateOdd ? "text-amber-400 font-semibold" : ""}>
-                              {ratePct}
-                            </span>
-                          </td>
-                          <td className={TABLE_CELL}>
-                            {s.is_available ? (
-                              <span className={BADGE_SUCCESS}>Active</span>
-                            ) : (
-                              <span className={BADGE_ERROR}>Hidden</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
+          {/* Table */}
+          {comparison && comparison.items.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className={TABLE_HEADER}>
+                    <th className={`${TABLE_CELL} text-left`}></th>
+                    <th className={`${TABLE_CELL} text-left`}>Item</th>
+                    <th className={`${TABLE_CELL} text-left`}>Location / Platform</th>
+                    <th className={`${TABLE_CELL} text-right`}>Today Price</th>
+                    <th className={`${TABLE_CELL} text-right`}>Prev Price</th>
+                    <th className={`${TABLE_CELL} text-right`}>Today Rate</th>
+                    <th className={`${TABLE_CELL} text-right`}>Prev Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparison.items.map((item, idx) => {
+                    const isChanged = item.status === "changed";
+                    const isNew = item.status === "new";
+                    const isUnavail = item.status === "unavailable";
+                    return (
+                      <tr key={idx} className={`${TABLE_ROW} ${isChanged ? "bg-red-500/5" : ""}`}>
+                        <td className={`${TABLE_CELL} text-center text-base`}>
+                          {isChanged ? "❌" : isNew ? "🆕" : isUnavail ? "🔕" : "✅"}
+                        </td>
+                        <td className={TABLE_CELL}>
+                          <div className="font-medium">{item.item_name}</div>
+                          <div className="text-xs opacity-50">{item.category}</div>
+                        </td>
+                        <td className={TABLE_CELL}>
+                          <div>{item.location_name}</div>
+                          <div className="text-xs opacity-50">{item.platform_name}</div>
+                        </td>
+                        <td className={`${TABLE_CELL} text-right font-mono`}>
+                          AED {Number(item.today_price).toFixed(2)}
+                        </td>
+                        <td className={`${TABLE_CELL} text-right font-mono opacity-60`}>
+                          {item.yesterday_price != null ? `AED ${Number(item.yesterday_price).toFixed(2)}` : "—"}
+                        </td>
+                        <td className={`${TABLE_CELL} text-right font-mono ${isChanged ? "text-red-400" : ""}`}>
+                          {fmtRate(item.today_rate)}
+                        </td>
+                        <td className={`${TABLE_CELL} text-right font-mono opacity-60`}>
+                          {fmtRate(item.yesterday_rate)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : !loading ? (
+            <div className={`${GLASS_CARD} p-12 text-center`}>
+              <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-3" />
+              <p className={T_LABEL}>No snapshot data for today.</p>
+              <p className={T_CAPTION}>Run a check first to populate data.</p>
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   );

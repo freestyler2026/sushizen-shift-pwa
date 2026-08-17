@@ -22,6 +22,7 @@ const STORES = [
   { code: "TAFT", label: "Taft" },
   { code: "CUB",  label: "Cubao" },
   { code: "CK",   label: "CK" },
+  { code: "DXB",  label: "Dubai (Aggregator)" },
 ];
 
 type DmStatus = "unregistered" | "ok" | "blocked";
