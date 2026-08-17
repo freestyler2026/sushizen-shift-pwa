@@ -947,7 +947,7 @@ function DailyReportTab({ city }: { city: string }) {
       let noShowRows: AttendanceSession[] = [];
       if (nsR?.ok) {
         try {
-          const nsD = await nsR.json() as { no_shows?: { staff_name: string; branch_code: string; scheduled_start_hour: number; absence_type?: string | null; is_day_off?: boolean }[] };
+          const nsD = await nsR.json() as { no_shows?: { staff_name: string; branch_code: string; scheduled_start_hour: number; scheduled_end_hour?: number | null; absence_type?: string | null; is_day_off?: boolean }[] };
           const existingNames = new Set(realSessions.map(s => s.staff_name.toLowerCase()));
           noShowRows = (nsD.no_shows ?? [])
             .filter(ns => !existingNames.has(ns.staff_name.toLowerCase()))
@@ -970,6 +970,7 @@ function DailyReportTab({ city }: { city: string }) {
               note: "",
               visits: [],
               scheduled_start_hour: ns.scheduled_start_hour,
+              scheduled_end_hour: ns.scheduled_end_hour ?? null,
               late_minutes: null,
               is_no_show: true,
               is_day_off: ns.is_day_off ?? false,
