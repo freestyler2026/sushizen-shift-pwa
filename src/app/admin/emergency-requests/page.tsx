@@ -406,7 +406,7 @@ function RequestCard({
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("approve")}>
               {loading ? "…" : "Confirm Approve"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
@@ -419,7 +419,7 @@ function RequestCard({
             <button className={`flex-1 ${DANGER_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("reject")}>
               {loading ? "…" : "Confirm Reject"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
@@ -431,7 +431,7 @@ function RequestCard({
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("arrange")}>
               {loading ? "…" : "Confirm — Start Arranging"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
@@ -457,7 +457,7 @@ function RequestCard({
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("dispatch")}>
               {loading ? "…" : "Confirm Dispatch"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
@@ -469,7 +469,7 @@ function RequestCard({
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("receive")}>
               {loading ? "…" : "Confirm Receipt"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
