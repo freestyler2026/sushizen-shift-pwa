@@ -557,7 +557,7 @@ export default function SupplierReceivingPage() {
                           <span className="font-medium">EDD: {activeEdd.expected_delivery_date}</span>
                         </div>
                         {activeEdd.edd_note && (
-                          <span className="text-xs text-zinc-400 italic">"{activeEdd.edd_note}"</span>
+                          <span className="text-xs text-zinc-400 italic">&ldquo;{activeEdd.edd_note}&rdquo;</span>
                         )}
                       </div>
                     </div>
