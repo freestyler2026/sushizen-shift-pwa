@@ -59,6 +59,8 @@ async function main() {
       !url.includes('/login') &&
       !url.includes('/signin') &&
       !url.includes('/auth') &&
+      !url.includes('/2fa') &&
+      !url.includes('/verify') &&
       url !== 'https://partner-app.talabat.com/' &&
       url !== 'https://partner-app.talabat.com';
 
