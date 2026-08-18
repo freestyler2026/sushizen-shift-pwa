@@ -145,20 +145,18 @@ async function postWebhook(payload) {
 // ── vendor processing ─────────────────────────────────────────────────────────
 
 async function processVendor(session, vendorId, checkedAt) {
-  // 1. Fetch vendor name
+  // 1. Fetch vendor name via v5 vendor API
   let vendorName = `Vendor-${vendorId}`;
   try {
     const info = await talabatGet(
       session,
-      `${API_BASE}/api/1/dine-in/TB_AE/vendor/${vendorId}`
+      `${API_BASE}/api/5/platforms/TB_AE/vendors/${vendorId}`
     );
-    // DEBUG: log vendor info keys once
-    if (vendorId === 723150) console.log(`  VendorInfo keys: ${Object.keys(info).join(', ')}`);
-    vendorName = info.name || info.vendor?.name || info.restaurantName ||
-                 info.displayName || info.title || vendorName;
+    vendorName = info.name || info.displayName || info.restaurantName ||
+                 info.title || info.vendor?.name || vendorName;
   } catch (e) {
     if (e.message.startsWith('AUTH_EXPIRED')) throw e;
-    console.log(`  ⚠ Could not fetch vendor info: ${e.message}`);
+    // Fall back silently — vendor name is cosmetic; price data is what matters
   }
   console.log(`  Name: ${vendorName}`);
 
