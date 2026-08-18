@@ -1,6 +1,44 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Manual Shift Publish 401 — end-to-end verified working)
+Last updated: 2026-08-18 (Draft Exclusion system + September Manila draft generated)
+
+---
+
+## ✅ Completed: Draft Exclusion System + September Manila Draft (2026-08-18)
+
+**Goal**: 9月分マニラドラフトを特定スタッフ除外で生成 + 今後の自動シフトからも除外する永続機能追加
+
+### 実装内容
+
+**Backend (Heroku v2002):**
+- `app/db.py`: `draft_exclusions` テーブル + 5つのCRUD関数
+  - `ensure_draft_exclusions_table()`, `list_draft_exclusions()`, `add_draft_exclusion()`
+  - `remove_draft_exclusion()`, `get_excluded_staff_names()`
+- `app/main.py`: 3つの新APIエンドポイント
+  - `GET /api/draft/exclusions?city=&branch_code=`
+  - `POST /api/draft/exclusions`
+  - `DELETE /api/draft/exclusions/{id}`
+  - `api_generate_month_draft` を修正 — exclusions をロードして planner に渡す
+- `app/services/draft_demand_planner.py`: `excluded_names` パラメータ追加、roster からフィルタ適用
+
+**Frontend (Vercel b00e25d):**
+- `src/app/admin/draft/page.tsx`: `ExclusionManagerPanel` コンポーネント追加
+  - Draft Management タブ内に 🚫 Draft Exclusions パネル（折りたたみ式）
+  - ブランチ別 Add/Remove フォーム、理由選択（fired/resigned/duplicate/maternity/medical/transferred/other）
+  - Active Until 日付指定対応
+
+**除外登録済み (Manila, 14件):**
+- TAFT: Tricia Andrea Estrada (fired)
+- PAR: Aldrin Jay Alowa, Gessa O. Gregorio (dup), Nomer Justine Senense, Mayorico C. Furio Jr. II (dup), John Jeffrey Hernandez, Lynde B. Ore (maternity)
+- CK: Louiela Chica (medical), Francis Ibara (name typo), Jade Raven De Guzman
+- CUB: Jade De Guzman, Richard S. Gante, Cathrina Calimlim (fired), Daisy Rose P. Javier (transferred)
+
+**9月ドラフト生成済み (2026-09):**
+- PAR: 423 rows | CUB: 309 rows | TAFT: 450 rows | CK: 198 rows (all 200 OK)
+
+**注意事項:**
+- Daisy Rose P. Javier: CUBドラフトから除外済み。CKコミサリースタッフリストへの追加は手動操作が必要（スタッフプロファイルのブランチ変更）
+- Francis Ibara: 名前のtypoのため除外済み。正しい名前が判明したら正しい名前でスタッフを追加すること
 
 ---
 
