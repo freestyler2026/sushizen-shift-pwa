@@ -1,6 +1,60 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (CK Supplier Order Overdue Escalation System)
+Last updated: 2026-08-18 (Drive Invoice Inbox — Phase 0+1 deployed)
+
+---
+
+## ✅ Completed: Drive Invoice Inbox — Phase 0+1 (2026-08-18, Heroku 207eda5 + Vercel f7f711d)
+
+**Goal**: Discordにアップされた仕入れ先インボイスをOCRで読み取り、スタッフが内容確認・修正・承認できるページを実装
+
+### 実装済み (Phase 0 + Phase 1)
+
+**Backend (Heroku):**
+- `app/db.py`: `drive_invoices` テーブル (24列) + 5つのCRUD関数
+  - `ensure_drive_invoices_tables()`, `create_drive_invoice()`, `list_drive_invoices()`
+  - `get_drive_invoice()`, `list_pending_ocr_drive_invoices()`, `update_drive_invoice()`
+- `app/services/invoice_ocr_service.py`: 新規OCRサービス
+  - PDF: pdfplumber テキスト抽出 → GPT-4o 構造化
+  - 画像: base64 → GPT-4o Vision
+  - `OPENAI_API_KEY` 未設定時: `ocr_status='skipped'` でスタッフ手動入力モード（Phase 0）
+- `app/services/discord_invoice_uploader.py`: Drive アップロード後に DB 登録
+  - `_upload_bytes_to_drive()` が `(file_id, webViewLink)` を返すよう変更
+  - アップロード成功後に `create_drive_invoice()` を呼び出す
+- `app/main.py`: 4つの新APIエンドポイント:
+  - `GET /api/admin/drive-invoices` — 一覧 (city/review_status/limit/offset フィルタ)
+  - `GET /api/admin/drive-invoices/{id}` — 詳細取得
+  - `PUT /api/admin/drive-invoices/{id}` — 更新 (approve/reject/save draft)
+  - `POST /api/admin/drive-invoices/{id}/retry-ocr` — OCR 再実行キュー
+- `worker.py`: OCRポーリングジョブを追加（30秒ごとに pending 1件ずつ処理）
+- `requirements.txt`: `openai>=1.0.0` 追加
+
+**Frontend (Vercel):**
+- `src/components/DriveInvoiceInbox.tsx`:
+  - Dubai only (city==="dubai") で Invoices ページ上部に amber バナー表示
+  - カードグリッド: ファイル名・ストア名・ベンダー名・合計金額・OCRステータスバッジ
+  - 60秒ごと自動リフレッシュ、Approve/Reject 後にリストから自動消去
+- `src/components/DriveInvoiceModal.tsx`:
+  - 左パネル: Google Drive iframe プレビュー（失敗時はフォールバックリンク）
+  - 右パネル: 編集可能フォーム（vendor/invoice/日付/金額/ライン明細テーブル）
+  - OCR 信頼度警告 (⚠️ badges)
+  - Approve / Reject / Save Draft / Retry OCR ボタン
+- `src/app/admin/procurement/invoices/page.tsx`:
+  - DriveInvoiceInbox を Supplier Invoice Hub の上に挿入
+
+### Phase 0 動作（現状）
+- `OPENAI_API_KEY` が Heroku に未設定 → OCR は skip → スタッフが手動で全フィールドを入力
+- Discord でインボイスがアップされると ✅ リアクション + DB に `pending_review` レコード作成
+- Invoices ページ (Dubai) に amber "Invoice Inbox" が表示される
+
+### Phase 1 有効化（次のアクション）
+1. `heroku config:set OPENAI_API_KEY=sk-... -a sushizen-shift-app`
+2. Worker が pending インボイスを 30 秒以内に処理開始
+3. OCR 完了後: 各フィールドが自動入力 + 信頼度警告表示
+
+### Next: Phase 2 (GPT-4o Arabic/mixed) + Phase 3 (PO matching engine)
+- Phase 2: アラビア語・混在言語インボイス対応（現状は英語のみ確実）
+- Phase 3: OCR結果をPO（発注書）と突合して差異を自動検出
 
 ---
 
@@ -32,6 +86,16 @@ Last updated: 2026-08-18 (CK Supplier Order Overdue Escalation System)
   - CKスタッフ: 品目ごとに現在庫数を入力 → 送信
   - CKマネージャー: 在庫入力確認後に「Approve EDD」か「Request Immediate Delivery」を選択
   - 決定後: 状態表示（承認済み/緊急要請） + Discord通知メモ
+
+### ✅ End-to-end test verified (2026-08-18, order #43 Three-S PAR)
+1. Alert banner showed "⚠ Overdue — EDD Required (1)" ✅
+2. EDD form rendered in overdue order detail ✅
+3. Set EDD 2026-08-21 + note → saved to DB, banner changed to "EDD Submitted — Awaiting CK Review (1)" ✅
+4. EDD Review tab in /store/supplier-receiving showed order with badge count ✅
+5. CK stock entry (7 items) → "Submit Stock Entry" → State B → CK Manager Decision section rendered ✅
+6. "Approve EDD" → order cleared from list, tab badge cleared ✅
+7. DB confirmed: ck_decision="approved", ck_decision_by="Yukihiro Nishimura" ✅
+- **Discord**: `DISCORD_CK_ORDERS_ALERT_WEBHOOK_URL` not yet set on Heroku → notifications silently skipped (by design)
 
 ### Discord通知設定（ユーザー作業必要）
 - Discord `#ck-orders-alert` チャンネルにWebhookを作成する
