@@ -167,6 +167,7 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="nav-item" onclick="show('approval-inbox')"><span class="nav-icon">✅</span><span data-en="Approval Inbox" data-ja="承認受信箱">Approval Inbox</span></div>
   <div class="nav-item" onclick="show('ck-orders')"><span class="nav-icon">🏭</span><span data-en="CK Orders" data-ja="CKオーダー">CK Orders</span></div>
   <div class="nav-item" onclick="show('pos-invoices')"><span class="nav-icon">📄</span><span data-en="POs & Invoices" data-ja="PO・インボイス">POs &amp; Invoices</span></div>
+  <div class="nav-item" onclick="show('invoice-inbox')"><span class="nav-icon">📥</span><span data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</span></div>
   <div class="nav-item" onclick="show('payments')"><span class="nav-icon">💳</span><span data-en="Payments" data-ja="支払い管理">Payments</span></div>
   <div class="nav-item" onclick="show('vendors')"><span class="nav-icon">🏪</span><span data-en="Vendors & Scorecards" data-ja="仕入先・スコアカード">Vendors &amp; Scorecards</span></div>
   <div class="nav-item" onclick="show('risk-kpi')"><span class="nav-icon">📊</span><span data-en="Risk & KPI" data-ja="リスク・KPI">Risk &amp; KPI</span></div>
@@ -338,6 +339,11 @@ td.muted { color:var(--muted); font-size:12px; }
         <div class="cc-icon">⭐</div>
         <div class="cc-name" data-en="Store Evaluation" data-ja="店舗評価">Store Evaluation</div>
         <div class="cc-desc" data-en="Score production quality per delivery run" data-ja="デリバリーごとに製造品質をスコアリング">Score production quality per delivery</div>
+      </div>
+      <div class="channel-card" onclick="show('invoice-inbox')">
+        <div class="cc-icon">📥</div>
+        <div class="cc-name" data-en="Invoice Inbox" data-ja="インボイス受信箱">Invoice Inbox</div>
+        <div class="cc-desc" data-en="Discord → Drive → OCR → PO match → Approve" data-ja="Discord → Drive → OCR → POマッチ → 承認">Discord → Drive → OCR → PO match → Approve</div>
       </div>
       <div class="channel-card" onclick="show('pos-invoices')">
         <div class="cc-icon">🔍</div>
@@ -944,6 +950,14 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <div class="card blue-border">
+    <div class="card-title" data-en="Invoice Inbox (Drive) — Dubai" data-ja="インボイス受信箱（Drive）— ドバイ">Invoice Inbox (Drive) — Dubai</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Vendor invoices uploaded to Discord are automatically synced to Google Drive, OCR'd by GPT-4o Vision, and appear in the amber Invoice Inbox banner at the top of this page (Dubai only). See the Invoice Inbox (Drive) section for the full review workflow." data-ja="Discordにアップロードされた仕入先インボイスはGoogle Driveに自動同期され、GPT-4o VisionでOCR処理後、このページ上部のamber色Invoice Inboxバナーに表示されます（Dubai専用）。詳細なレビューフローはInvoice Inbox（Drive）セクションを参照。">Vendor invoices uploaded to Discord are automatically synced to Google Drive, OCR'd by GPT-4o Vision, and appear in the amber <strong>Invoice Inbox</strong> banner at the top of this page (Dubai only).</p>
+    <div class="chip-row">
+      <span class="chip blue" onclick="show('invoice-inbox')" style="cursor:pointer" data-en="→ Invoice Inbox section" data-ja="→ Invoice Inbox セクション">→ Invoice Inbox section</span>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title" data-en="Invoice Intelligence" data-ja="インボイス分析">Invoice Intelligence</div>
     <div class="section-path" style="margin-bottom:8px">/admin/procurement/invoices/intelligence</div>
@@ -954,6 +968,116 @@ td.muted { color:var(--muted); font-size:12px; }
       <tr><td><span class="chip orange" data-en="Integrity Alerts" data-ja="整合性アラート">Integrity Alerts</span></td><td class="muted" data-en="Detects duplicate invoices, format errors, and data inconsistencies" data-ja="重複インボイス・フォーマットエラー・データ不整合を検出">Detects duplicates, format errors, data inconsistencies</td></tr>
       <tr><td><span class="chip violet" data-en="Spend Summary" data-ja="支出サマリー">Spend Summary</span></td><td class="muted" data-en="Breaks down spend by supplier and category with cross-market benchmarks" data-ja="仕入先・カテゴリ別の支出内訳と市場間ベンチマーク">Spend by supplier/category with cross-market benchmarks</td></tr>
     </table></div>
+  </div>
+</div>
+
+<!-- ═══════════ INVOICE INBOX (DRIVE) ═══════════ -->
+<div class="section" id="sec-invoice-inbox">
+  <div class="section-hero">
+    <div class="hero-icon">📥</div>
+    <div>
+      <div class="section-title" data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</div>
+      <div class="section-path">/admin/procurement/invoices  (Dubai only — amber banner at top)</div>
+      <div class="section-desc" data-en="Vendor invoices uploaded to the Dubai Discord invoice channel are automatically downloaded, stored in Google Drive, OCR'd by GPT-4o Vision, and queued here for staff review, PO matching, and approval." data-ja="Dubai Discordインボイスチャンネルにアップロードされた仕入先インボイスを自動ダウンロードし、Google Driveに保存、GPT-4o VisionでOCR処理後、スタッフのレビュー・POマッチング・承認のためにキューイングします。">Vendor invoices from Discord are auto-OCR'd and queued for review, PO matching, and approval. Dubai only.</div>
+    </div>
+  </div>
+
+  <!-- HOW INVOICES ARRIVE -->
+  <div class="card">
+    <div class="card-title" data-en="How Invoices Arrive" data-ja="インボイスの受信フロー">How Invoices Arrive</div>
+    <div class="lifecycle">
+      <div class="lc-step">
+        <div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Vendor uploads to Discord" data-ja="仕入先がDiscordにアップロード">Vendor uploads to Discord</span><span class="lc-who vendor" data-en="Vendor" data-ja="仕入先">Vendor</span></div>
+        <div class="lc-detail" data-en="Vendor sends the invoice image or PDF to the designated Dubai invoice Discord channel." data-ja="仕入先が指定のDubai Discordインボイスチャンネルにインボイス画像またはPDFを送付。">Vendor sends image (JPG/PNG) or PDF to the Dubai Discord invoice channel.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Auto-saved to Google Drive" data-ja="Google Driveに自動保存">Auto-saved to Google Drive</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="The Discord bot downloads the file and uploads it to the shared Google Drive folder. A ✅ reaction is added to the Discord message confirming upload." data-ja="Discordボットがファイルをダウンロードし、共有Google Driveフォルダにアップロード。Discordメッセージに✅リアクションが追加されてアップロード確認。">Discord bot saves to Google Drive and adds ✅ reaction to the Discord message.</div>
+        <span class="lc-path">/admin/procurement/invoices → Invoice Drive link</span>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status" data-en="OCR processing (GPT-4o Vision)" data-ja="OCR処理（GPT-4o Vision）">OCR processing (GPT-4o Vision)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="GPT-4o Vision extracts vendor name, invoice number, date, due date, total amount, currency, and all line items. Works with Arabic, English, and mixed-language invoices." data-ja="GPT-4o Visionがベンダー名・インボイス番号・日付・支払期日・合計金額・通貨・全明細行を抽出。アラビア語・英語・混在インボイスに対応。">GPT-4o Vision extracts all fields automatically — including Arabic text. Takes ~30 seconds.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="PO Auto-Match" data-ja="PO自動マッチング">PO Auto-Match</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="After OCR, the system attempts to match the invoice to an existing ISSUED PO using vendor name similarity (pg_trgm, 60% weight) and amount proximity (±30%, 40% weight). If a match is found with confidence ≥ 40%, the PO is linked automatically." data-ja="OCR後、システムがベンダー名類似度（pg_trgm、60%重み）と金額近接度（±30%、40%重み）でISSUED POへの自動マッチを試みます。信頼度≥40%のマッチが見つかった場合、POが自動リンクされます。">After OCR, auto-matches to an ISSUED PO using vendor similarity + amount proximity. Confidence ≥ 40% links automatically.</div>
+      </div>
+      <div class="lc-step">
+        <div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status" data-en="Appears in Invoice Inbox" data-ja="Invoice Inboxに表示">Appears in Invoice Inbox</span><span class="lc-who admin" data-en="Admin/HQ" data-ja="Admin/HQ">Admin/HQ</span></div>
+        <div class="lc-detail" data-en="The invoice card appears in the amber Invoice Inbox banner at the top of the Invoices page. Status badges show OCR status and linked PO number." data-ja="Invoicesページ上部のamber Invoice Inboxバナーにインボイスカードが表示。OCRステータスとリンク済みPO番号がバッジとして表示。">The invoice card appears in the amber Invoice Inbox banner. Cards show OCR status and any linked PO.</div>
+        <span class="lc-path">/admin/procurement/invoices</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW MODAL -->
+  <div class="card">
+    <div class="card-title" data-en="Reviewing an Invoice in the Modal" data-ja="モーダルでのインボイスレビュー">Reviewing an Invoice in the Modal</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click the invoice card in the Inbox" data-ja="受信箱のインボイスカードをクリック">Click the invoice card in the Inbox</strong><p data-en="The review modal opens. The left side links to the original file in Google Drive. The right side shows all OCR-extracted fields." data-ja="レビューモーダルが開きます。左側にGoogle Driveの元ファイルリンク、右側にOCR抽出フィールドが表示。">Modal opens. Use the Open in Drive ↗ button to view the original file.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Verify and correct OCR fields" data-ja="OCRフィールドを確認・修正">Verify and correct OCR fields</strong><p data-en="Check Vendor Name, Invoice Number, Invoice Date, Due Date, Total Amount, Currency, and line items. A yellow warning banner appears when line items are missing quantities or amounts." data-ja="ベンダー名・インボイス番号・日付・支払期日・合計金額・通貨・明細行を確認。明細行に数量や金額が欠落している場合、黄色の警告バナーが表示されます。">Correct any errors. Yellow banner warns when line items have missing quantities or amounts.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Check the Purchase Order Match section" data-ja="Purchase Order Matchセクションを確認">Check the Purchase Order Match section</strong><p data-en="If the system found a matching PO automatically, the PO number, vendor, amount, and confidence % are shown with an 'auto' label. If no auto-match, link manually (see below)." data-ja="システムが自動的にマッチするPOを見つけた場合、PO番号・ベンダー・金額・信頼度%が'auto'ラベルと共に表示されます。自動マッチがない場合は手動でリンク（下記参照）。">Auto-matched POs show the PO number, vendor, amount, and confidence % with an <strong>auto</strong> label.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Save Draft, Reject, or Approve" data-ja="Save Draft・Reject・Approve">Save Draft, Reject, or Approve</strong><p data-en="Save Draft preserves edits without finalizing. Reject closes the invoice without approving. Approve finalizes and removes the card from the inbox." data-ja="Save Draftは確定せずに編集を保存。Rejectは承認せずにインボイスを閉じます。Approveで確定し、カードがインボックスから消えます。">Save Draft preserves edits. Reject closes without approving. Approve finalizes and removes the card from the inbox.</p></div></li>
+    </ol>
+  </div>
+
+  <!-- PO MATCHING -->
+  <div class="card green-border">
+    <div class="card-title" data-en="Purchase Order Matching" data-ja="POマッチング">Purchase Order Matching</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px" data-en="The system scores each candidate PO using vendor name similarity (60% weight) and amount proximity (40% weight). A score ≥ 40% triggers an automatic link. You can override or clear the match at any time." data-ja="システムはベンダー名類似度（60%重み）と金額近接度（40%重み）で各候補POをスコアリング。スコア≥40%で自動リンク。マッチはいつでも上書き・解除できます。">Scored by vendor name similarity (60%) + amount proximity (40%). Score ≥ 40% = auto-link. Always overrideable.</p>
+
+    <div class="card-title" style="margin-top:4px" data-en="Linking a PO Manually" data-ja="手動でPOをリンク">Linking a PO Manually</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click 'Link PO' in the Purchase Order Match section" data-ja="'Link PO'をクリック">Click <strong>Link PO</strong> in the Purchase Order Match section</strong><p data-en="An inline search panel opens. The vendor name is pre-filled from the invoice." data-ja="インラインの検索パネルが開きます。インボイスのベンダー名が自動入力されます。">Inline search panel opens with the invoice vendor name pre-filled.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Type a vendor name or PO number to search" data-ja="ベンダー名またはPO番号を入力して検索">Type a vendor name or PO number</strong><p data-en="Results appear after 300 ms. Each result shows PO number, vendor name, amount, and delivery date. Only ISSUED POs are shown." data-ja="300ms後に結果が表示されます。各結果にはPO番号・ベンダー名・金額・配送日が表示。ISSUEDステータスのPOのみ表示されます。">Results appear after 300 ms. Shows PO no., vendor, amount, delivery date. ISSUED POs only.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click a result to link it" data-ja="結果をクリックしてリンク">Click a result to link it</strong><p data-en="The PO is saved immediately. The match shows 'manual' label. The card in the inbox shows the 🔗 PO number badge." data-ja="POが即座に保存されます。マッチに'manual'ラベルが表示。受信箱のカードに🔗PO番号バッジが表示。">Saved immediately. Shows <strong>manual</strong> label. The inbox card displays a 🔗 PO number badge.</p></div></li>
+    </ol>
+
+    <div class="two-col" style="margin-top:12px">
+      <div>
+        <div class="card-title" data-en="Change PO" data-ja="POを変更">Change PO</div>
+        <p style="color:var(--muted);font-size:12px" data-en="When a PO is already linked, click 'Change PO' to re-open the search panel and select a different PO. The old link is replaced." data-ja="POがすでにリンクされている場合、'Change PO'をクリックして検索パネルを再度開き、別のPOを選択。古いリンクは置き換えられます。">Click <strong>Change PO</strong> to reopen search and replace the existing link.</p>
+      </div>
+      <div>
+        <div class="card-title" data-en="Clear Match" data-ja="マッチを解除">Clear Match</div>
+        <p style="color:var(--muted);font-size:12px" data-en="Click 'Clear' to remove the PO link entirely. The invoice returns to an unmatched state and auto-match labels are also cleared." data-ja="'Clear'をクリックしてPOリンクを完全に削除。インボイスはアンマッチ状態に戻り、自動マッチラベルも消去されます。">Click <strong>Clear</strong> to remove the link. Invoice returns to unmatched state.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px"><table>
+      <tr><th data-en="Label" data-ja="ラベル">Label</th><th data-en="Meaning" data-ja="意味">Meaning</th></tr>
+      <tr><td><span class="chip orange" data-en="auto" data-ja="自動">auto</span></td><td class="muted" data-en="Matched automatically by the system after OCR using pg_trgm similarity + amount ratio" data-ja="OCR後にpg_trgm類似度＋金額比率でシステムが自動マッチ">Matched automatically after OCR (pg_trgm similarity + amount ratio)</td></tr>
+      <tr><td><span class="chip blue" data-en="manual" data-ja="手動">manual</span></td><td class="muted" data-en="Linked manually by a staff member using the Link PO or Change PO button" data-ja="スタッフが'Link PO'または'Change PO'ボタンで手動リンク">Linked manually via Link PO or Change PO</td></tr>
+    </table></div>
+  </div>
+
+  <!-- OCR STATUS BADGES -->
+  <div class="card">
+    <div class="card-title" data-en="OCR Status Badges" data-ja="OCRステータスバッジ">OCR Status Badges</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Badge" data-ja="バッジ">Badge</th><th data-en="Meaning" data-ja="意味">Meaning</th><th data-en="Action" data-ja="アクション">Action</th></tr>
+      <tr><td><span class="chip amber" data-en="OCR pending" data-ja="OCR待機中">OCR pending</span></td><td class="muted" data-en="Queued, processing hasn't started yet" data-ja="キュー済み、処理未開始">Queued; processing hasn't started</td><td class="muted" data-en="Wait ~30 seconds, then refresh" data-ja="約30秒待ちRefreshをクリック">Wait ~30 s, then Refresh</td></tr>
+      <tr><td><span class="chip blue" data-en="Processing…" data-ja="処理中…">Processing…</span></td><td class="muted" data-en="GPT-4o Vision is actively reading the file" data-ja="GPT-4o Visionがファイルを読み取り中">GPT-4o Vision is reading the file</td><td class="muted" data-en="Wait for completion" data-ja="完了まで待機">Wait for completion</td></tr>
+      <tr><td><span class="chip green" data-en="OCR done" data-ja="OCR完了">OCR done</span></td><td class="muted" data-en="All fields extracted. Review and correct if needed." data-ja="全フィールド抽出済み。内容を確認・修正してください。">All fields extracted. Review and correct if needed.</td><td class="muted" data-en="Open modal, verify fields, approve" data-ja="モーダルを開き、フィールドを確認して承認">Open modal → verify → approve</td></tr>
+      <tr><td><span class="chip" data-en="Manual entry" data-ja="手動入力">Manual entry</span></td><td class="muted" data-en="OCR was skipped (unsupported file type or no API key). Enter all fields manually." data-ja="OCRがスキップされました（未対応ファイル形式またはAPIキーなし）。全フィールドを手動入力。">OCR skipped. Enter all fields manually.</td><td class="muted" data-en="Open modal, fill all fields" data-ja="モーダルを開き全フィールドを入力">Open modal → fill all fields</td></tr>
+      <tr><td><span class="chip red" data-en="OCR error" data-ja="OCRエラー">OCR error</span></td><td class="muted" data-en="OCR failed. Use Retry OCR in the modal to reprocess, or enter manually." data-ja="OCRが失敗しました。モーダル内のRetry OCRで再処理するか、手動入力してください。">OCR failed. Use Retry OCR or enter manually.</td><td class="muted" data-en="Click Retry OCR in modal, or fill manually" data-ja="モーダルのRetry OCRをクリック、または手動入力">Click Retry OCR in modal</td></tr>
+    </table></div>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">💡</span>
+    <span data-en="If no PO is auto-matched, it may be because the invoice is from an internal warehouse transfer (e.g. Sushi ZEN Warehouse) or the vendor name in the system differs from the invoice. Use 'Link PO' to search by PO number directly." data-ja="POが自動マッチされない場合、内部倉庫振替（例：Sushi ZEN Warehouse）やシステム内のベンダー名とインボイスが異なる可能性があります。'Link PO'でPO番号を直接検索してください。">No auto-match? The vendor may be an internal warehouse transfer, or the vendor name in the system differs. Use Link PO and search by PO number directly.</span>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Always verify that the Total Amount on the invoice matches the PO amount (or falls within an acceptable variance) before approving. Unusual discrepancies should be escalated to the Finance team." data-ja="承認前に必ずインボイスの合計金額がPO金額と一致する（または許容範囲内に収まる）ことを確認してください。通常でない差異はFinanceチームにエスカレーションしてください。">Always verify Total Amount matches the PO before approving. Escalate unusual discrepancies to Finance.</span>
   </div>
 </div>
 

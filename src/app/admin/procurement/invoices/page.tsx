@@ -1139,6 +1139,7 @@ export default function ProcurementInvoicesPage() {
         <DriveInvoiceInbox
           city="dubai"
           authHeaders={{ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }}
+          driveFolderUrl={driveFolderUrl || undefined}
         />
       )}
 

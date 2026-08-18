@@ -47,6 +47,7 @@ export interface LineItem {
 interface Props {
   city?: string;
   authHeaders: Record<string, string>;
+  driveFolderUrl?: string;
 }
 
 function OcrStatusBadge({ status }: { status: string }) {
@@ -76,7 +77,7 @@ function FileIcon({ name }: { name: string }) {
   );
 }
 
-export default function DriveInvoiceInbox({ city = "dubai", authHeaders }: Props) {
+export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFolderUrl }: Props) {
   const [invoices, setInvoices] = useState<DriveInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DriveInvoice | null>(null);
@@ -136,6 +137,17 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders }: Props
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {driveFolderUrl && (
+              <a
+                href={driveFolderUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-emerald-400/70 hover:text-emerald-300 transition-colors text-xs px-2 py-1 rounded hover:bg-white/5 flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Invoice Drive
+              </a>
+            )}
             <button
               onClick={fetchInvoices}
               className="text-white/40 hover:text-white/70 transition-colors text-xs px-2 py-1 rounded hover:bg-white/5"

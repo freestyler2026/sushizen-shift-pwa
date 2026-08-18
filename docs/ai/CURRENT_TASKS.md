@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Phase 3 PO matching deployed — Heroku 4d2e65c / Vercel c58e8fb)
+Last updated: 2026-08-18 (Invoice Inbox Drive link + Staff guide artifact + Procurement manual updated)
 
 ---
 
@@ -73,6 +73,23 @@ Last updated: 2026-08-18 (Phase 3 PO matching deployed — Heroku 4d2e65c / Verc
   - 現在のマッチ表示 (PO番号・ベンダー・金額・信頼度・手動/自動)
   - "Link PO" / "Change PO" → インライン検索 (debounce 300ms)
   - "Clear" でマッチ解除
+
+**Browser-tested (2026-08-18):**
+- "Link PO" ボタン → インライン検索パネル表示 ✅
+- "Taste Masters" 検索 → PO候補表示 ✅
+- 候補クリックでPOリンク → モーダルに PO番号/ベンダー/金額/"manual" 表示 ✅
+- "Change PO" → 別ベンダー(SAFCO)に切り替え ✅
+- "Clear" → マッチ解除、"No PO linked" 表示に戻る ✅
+- モーダルを閉じると Inbox カードに `🔗 PO-CASE-2026-003231-01` バッジ表示 ✅
+
+### ✅ Follow-up additions (2026-08-18)
+- **Invoice Drive link** added to `DriveInvoiceInbox` header (emerald "Invoice Drive ↗" button)
+  - `src/components/DriveInvoiceInbox.tsx`: `driveFolderUrl?: string` prop → rendered in header next to Refresh
+  - `src/app/admin/procurement/invoices/page.tsx`: passes `driveFolderUrl` to `DriveInvoiceInbox`
+- **Procurement Manual** updated — added "📥 Invoice Inbox (Drive)" section with full docs
+  - Artifact: https://claude.ai/code/artifact/16adcf00-0548-4a96-9be1-3e6a228f0ec3
+- **Staff Guide artifact** created (EN/JA toggle, phase timeline, step-by-step operations)
+  - Artifact: https://claude.ai/code/artifact/d60eb26d-8b6e-43be-9524-0daa0e282291
 
 ### Next: Phase 4 (差異検出・アラート)
 - マッチしたPOと金額・ベンダーが一致しない場合に警告表示
