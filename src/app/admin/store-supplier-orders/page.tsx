@@ -69,11 +69,22 @@ interface OrderDetail extends OrderListItem {
   received_by: string | null;
   invoice_checked_at: string | null;
   invoice_checked_by: string | null;
+  // EDD escalation fields
+  expected_delivery_date: string | null;
+  edd_note: string | null;
+  edd_submitted_at: string | null;
+  edd_submitted_by: string | null;
+  ck_stock_submitted_at: string | null;
+  ck_decision: string | null;
+  ck_decision_by: string | null;
+  ck_decision_at: string | null;
   items: OrderItem[];
 }
 
 interface AlertData {
   overdue: { id: number; store: string; supplier_name: string; order_date: string; delivery_date: string; status: string }[];
+  edd_submitted: { id: number; store: string; supplier_name: string; expected_delivery_date: string; ck_stock_submitted_at: string | null }[];
+  urgent_requested: { id: number; store: string; supplier_name: string; expected_delivery_date: string; ck_decision_by: string }[];
   uninvoiced: { id: number; store: string; supplier_name: string; order_date: string; status: string; updated_at: string }[];
   flagged_items: { id: number; store: string; supplier_name: string; order_date: string; status: string }[];
 }
@@ -213,6 +224,10 @@ export default function StoreSupplierOrdersPage() {
   const [deliveryDateEdit, setDeliveryDateEdit] = useState<{ orderId: number; value: string } | null>(null);
   const [deliveryDateSaving, setDeliveryDateSaving] = useState(false);
 
+  // EDD escalation state
+  const [eddEdit, setEddEdit] = useState<{ orderId: number; date: string; note: string } | null>(null);
+  const [eddSaving, setEddSaving] = useState(false);
+
   // Receive modal
   const [receiveModal, setReceiveModal] = useState<{
     orderId: number;
@@ -232,7 +247,13 @@ export default function StoreSupplierOrdersPage() {
       const res = await fetch("/api/admin/store-supplier/alerts", { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setAlerts({ overdue: data.overdue ?? [], uninvoiced: data.uninvoiced ?? [], flagged_items: data.flagged_items ?? [] });
+        setAlerts({
+          overdue: data.overdue ?? [],
+          edd_submitted: data.edd_submitted ?? [],
+          urgent_requested: data.urgent_requested ?? [],
+          uninvoiced: data.uninvoiced ?? [],
+          flagged_items: data.flagged_items ?? [],
+        });
       }
     } catch { /* non-critical */ }
   }, []);
@@ -608,6 +629,31 @@ export default function StoreSupplierOrdersPage() {
     }
   }
 
+  async function handleSubmitEDD(orderId: number, dateStr: string, note: string) {
+    setEddSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/edd`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ expected_delivery_date: dateStr, edd_note: note || null }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.detail ?? "Failed to submit EDD.");
+        return;
+      }
+      setEddEdit(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadAlerts();
+    } catch {
+      setError("Failed to submit EDD.");
+    } finally {
+      setEddSaving(false);
+    }
+  }
+
   function openReceiveModal(order: OrderDetail) {
     setReceiveModal({
       orderId: order.id,
@@ -788,16 +834,55 @@ export default function StoreSupplierOrdersPage() {
         )}
 
         {/* ── Alert banner ──────────────────────────────────────────── */}
-        {alerts && (alerts.overdue.length > 0 || alerts.uninvoiced.length > 0 || alerts.flagged_items.length > 0) && (
+        {alerts && (
+          alerts.overdue.length > 0 ||
+          alerts.edd_submitted.length > 0 ||
+          alerts.urgent_requested.length > 0 ||
+          alerts.uninvoiced.length > 0 ||
+          alerts.flagged_items.length > 0
+        ) && (
           <div className="space-y-2">
+            {/* Overdue with no EDD — Mariano must act */}
             {alerts.overdue.length > 0 && (
               <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                 <div>
-                  <span className="font-semibold text-red-300">Overdue Deliveries ({alerts.overdue.length})</span>
+                  <span className="font-semibold text-red-300">⚠ Overdue — EDD Required ({alerts.overdue.length})</span>
                   <div className="mt-1 text-xs text-red-400/80">
                     {alerts.overdue.map((o) => (
                       <span key={o.id} className="mr-3">{o.store} · {o.supplier_name} (due {o.delivery_date})</span>
+                    ))}
+                    <span className="ml-1 text-red-500">— Open order and set Expected Delivery Date</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* EDD submitted — waiting for CK review */}
+            {alerts.edd_submitted.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
+                <CalendarClock className="h-4 w-4 shrink-0 mt-0.5 text-blue-400" />
+                <div>
+                  <span className="font-semibold text-blue-300">EDD Submitted — Awaiting CK Review ({alerts.edd_submitted.length})</span>
+                  <div className="mt-1 text-xs text-blue-400/80">
+                    {alerts.edd_submitted.map((o) => (
+                      <span key={o.id} className="mr-3">
+                        {o.store} · {o.supplier_name} → EDD {o.expected_delivery_date}
+                        {o.ck_stock_submitted_at ? " ✓ Stock entered" : " · Awaiting CK stock entry"}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Urgent requested — Aliana must follow up */}
+            {alerts.urgent_requested.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/15 px-4 py-3 text-sm text-red-200">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-red-300" />
+                <div>
+                  <span className="font-semibold text-red-200">🚨 Urgent Delivery Requested ({alerts.urgent_requested.length}) — Follow up with supplier</span>
+                  <div className="mt-1 text-xs text-red-300/80">
+                    {alerts.urgent_requested.map((o) => (
+                      <span key={o.id} className="mr-3">{o.store} · {o.supplier_name} (requested by {o.ck_decision_by})</span>
                     ))}
                   </div>
                 </div>
@@ -1079,6 +1164,112 @@ export default function StoreSupplierOrdersPage() {
                                   </button>
                                 ) : (
                                   <span className="text-xs text-zinc-600">Not set</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* ── EDD Escalation Section (sent + overdue orders) ── */}
+                            {detail.status === "sent" && detail.delivery_date && detail.delivery_date < new Date().toISOString().slice(0, 10) && (
+                              <div className="border-t border-white/5 pt-3 space-y-3">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+                                  <span className="font-semibold text-red-300">Order Overdue — Expected Delivery Date</span>
+                                </div>
+
+                                {/* If no EDD yet — show input */}
+                                {!detail.expected_delivery_date || eddEdit?.orderId === order.id ? (
+                                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+                                    <p className="text-xs text-zinc-400">
+                                      {detail.expected_delivery_date
+                                        ? "Update the expected delivery date:"
+                                        : "When will this order be delivered? Set an EDD so CK can plan inventory."}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 items-end">
+                                      <div>
+                                        <label className="block text-xs text-zinc-500 mb-1">Expected Date</label>
+                                        <input
+                                          type="date"
+                                          className={INPUT_CLASS + " max-w-[160px] text-xs py-1"}
+                                          value={eddEdit?.orderId === order.id ? eddEdit.date : (detail.expected_delivery_date ?? new Date().toISOString().slice(0, 10))}
+                                          onChange={(e) => setEddEdit((prev) => prev?.orderId === order.id
+                                            ? { ...prev, date: e.target.value }
+                                            : { orderId: order.id, date: e.target.value, note: detail.edd_note ?? "" }
+                                          )}
+                                          autoFocus={!detail.expected_delivery_date}
+                                        />
+                                      </div>
+                                      <div className="flex-1 min-w-[180px]">
+                                        <label className="block text-xs text-zinc-500 mb-1">Note (optional)</label>
+                                        <input
+                                          className={INPUT_CLASS + " text-xs py-1"}
+                                          placeholder="e.g. Supplier confirmed Wednesday"
+                                          value={eddEdit?.orderId === order.id ? eddEdit.note : (detail.edd_note ?? "")}
+                                          onChange={(e) => setEddEdit((prev) => prev?.orderId === order.id
+                                            ? { ...prev, note: e.target.value }
+                                            : { orderId: order.id, date: detail.expected_delivery_date ?? new Date().toISOString().slice(0, 10), note: e.target.value }
+                                          )}
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const ed = eddEdit?.orderId === order.id ? eddEdit : null;
+                                          const dateVal = ed?.date || detail.expected_delivery_date || new Date().toISOString().slice(0, 10);
+                                          const noteVal = ed?.note ?? detail.edd_note ?? "";
+                                          handleSubmitEDD(order.id, dateVal, noteVal);
+                                        }}
+                                        disabled={eddSaving}
+                                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-1.5 px-3 transition-colors disabled:opacity-50"
+                                      >
+                                        <CalendarClock className="h-3.5 w-3.5" />
+                                        {eddSaving ? "Saving…" : detail.expected_delivery_date ? "Update EDD" : "Set EDD"}
+                                      </button>
+                                      {detail.expected_delivery_date && (
+                                        <button onClick={() => setEddEdit(null)} className="text-xs text-zinc-500 hover:text-zinc-300 px-1">Cancel</button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* EDD is set — show status */
+                                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+                                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                                      <span className="text-blue-300 font-medium">📅 EDD: {detail.expected_delivery_date}</span>
+                                      {detail.edd_note && <span className="text-xs text-zinc-400 italic">&ldquo;{detail.edd_note}&rdquo;</span>}
+                                      <span className="text-xs text-zinc-500">by {detail.edd_submitted_by}</span>
+                                      {isManager && (
+                                        <button
+                                          onClick={() => setEddEdit({ orderId: order.id, date: detail.expected_delivery_date!, note: detail.edd_note ?? "" })}
+                                          className="text-zinc-600 hover:text-zinc-400"
+                                          title="Update EDD"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    {/* CK review status */}
+                                    {detail.ck_decision ? (
+                                      <div className={`flex items-center gap-2 text-xs font-medium rounded-lg px-2.5 py-1.5 w-fit ${
+                                        detail.ck_decision === "approved"
+                                          ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                                          : "bg-red-500/10 text-red-300 border border-red-500/20"
+                                      }`}>
+                                        {detail.ck_decision === "approved"
+                                          ? <><CheckCircle className="h-3.5 w-3.5" /> CK Approved — delivery scheduled</>
+                                          : <><AlertTriangle className="h-3.5 w-3.5" /> CK Requested Immediate Delivery — contact supplier</>
+                                        }
+                                        <span className="text-zinc-500 ml-1">({detail.ck_decision_by})</span>
+                                      </div>
+                                    ) : detail.ck_stock_submitted_at ? (
+                                      <div className="flex items-center gap-2 text-xs text-amber-300">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        CK stock entered — awaiting CK Manager decision
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-xs text-zinc-500">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        Waiting for CK to enter stock quantities at /store/supplier-receiving
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
