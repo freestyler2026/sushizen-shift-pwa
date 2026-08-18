@@ -42,6 +42,9 @@ interface EPRItem {
   estimated_total: number;
   notes: string;
   current_stock?: number;
+  cancelled?: boolean;
+  cancel_reason?: string;
+  cancelled_by?: string;
 }
 
 interface EPRRequest {
@@ -73,6 +76,12 @@ interface EPRRequest {
   delivery_cost: number | null;
   received_by: string;
   received_at: string | null;
+  cancel_reason: string;
+  cancelled_by: string;
+  cancelled_at: string | null;
+  void_reason: string;
+  voided_by: string;
+  voided_at: string | null;
   created_at: string;
 }
 
@@ -88,12 +97,12 @@ const ROOT_CAUSE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-type TabKey = "pending" | "approved" | "dispatched" | "received" | "completed" | "all" | "analytics";
+type TabKey = "pending" | "approved" | "dispatched" | "received" | "completed" | "cancelled" | "all" | "analytics";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function isOverdue(req: EPRRequest): boolean {
-  if (["received", "completed", "rejected"].includes(req.status)) return false;
+  if (["received", "completed", "rejected", "cancelled", "voided"].includes(req.status)) return false;
   const created = new Date(req.created_at).getTime();
   return Date.now() - created > 24 * 60 * 60 * 1000;
 }
@@ -110,6 +119,8 @@ function statusBadge(s: string) {
   if (s === "dispatched") return <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-300"><Truck className="h-3 w-3" />Dispatched</span>;
   if (s === "received")   return <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-0.5 text-xs font-medium text-emerald-300"><PackageCheck className="h-3 w-3" />Received</span>;
   if (s === "completed")  return <span className={BADGE_INFO}><Banknote className="h-3 w-3" />Completed</span>;
+  if (s === "cancelled")  return <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/15 border border-orange-500/25 px-2.5 py-0.5 text-xs font-medium text-orange-300"><XCircle className="h-3 w-3" />Cancelled</span>;
+  if (s === "voided")     return <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 border border-rose-500/25 px-2.5 py-0.5 text-xs font-medium text-rose-300"><XCircle className="h-3 w-3" />Voided</span>;
   return <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/15 border border-zinc-500/25 px-2.5 py-0.5 text-xs font-medium text-zinc-400"><Clock className="h-3 w-3" />Pending</span>;
 }
 
@@ -131,19 +142,23 @@ function RequestCard({
   const [completeNotes, setCompleteNotes] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("in_house");
   const [deliveryCost, setDeliveryCost] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [voidReason, setVoidReason] = useState("");
+  const [selectedItemIndices, setSelectedItemIndices] = useState<number[]>([]);
+  const [itemCancelReason, setItemCancelReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<
-    "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | null
+    "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | null
   >(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete") {
+  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items") {
     setLoading(true);
     setError("");
     try {
       const endpoint = action === "receive"
         ? `/api/store/emergency-request/${req.id}/receive`
-        : `/api/admin/emergency-requests/${req.id}/${action}`;
+        : `/api/admin/emergency-requests/${req.id}/${action === "cancel_items" ? "cancel-items" : action}`;
       let body: Record<string, unknown> = {};
 
       if (action === "approve") {
@@ -162,6 +177,12 @@ function RequestCard({
         body = { received_by: actorName };
       } else if (action === "complete") {
         body = { completed_by: actorName, final_amount: parseFloat(completeAmount) || null, completion_notes: completeNotes };
+      } else if (action === "cancel") {
+        body = { cancelled_by: actorName, cancel_reason: cancelReason };
+      } else if (action === "void") {
+        body = { voided_by: actorName, void_reason: voidReason };
+      } else if (action === "cancel_items") {
+        body = { cancelled_by: actorName, cancel_reason: itemCancelReason, item_indices: selectedItemIndices };
       }
 
       const res = await fetch(endpoint, {
@@ -170,14 +191,23 @@ function RequestCard({
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (data.ok) { onAction(); }
-      else setError(data.detail || "Action failed");
+      if (data.ok) {
+        setSelectedItemIndices([]);
+        setItemCancelReason("");
+        onAction();
+      } else setError(data.detail || "Action failed");
     } catch {
       setError("Network error");
     } finally {
       setLoading(false);
       setConfirmAction(null);
     }
+  }
+
+  function toggleItemIndex(i: number) {
+    setSelectedItemIndices((prev) =>
+      prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
+    );
   }
 
   const overdue = isOverdue(req);
@@ -227,10 +257,11 @@ function RequestCard({
       {/* Items summary */}
       <div className="flex flex-wrap gap-1">
         {req.items.map((it, i) => (
-          <span key={i} className="rounded-lg bg-white/6 border border-white/8 px-2 py-0.5 text-xs text-zinc-200">
+          <span key={i} className={`rounded-lg border px-2 py-0.5 text-xs ${it.cancelled ? "bg-red-500/10 border-red-500/20 text-zinc-500 line-through" : "bg-white/6 border-white/8 text-zinc-200"}`}>
             {it.item_name} ×{it.qty}{it.unit}
             {it.current_stock != null && it.current_stock > 0 && <span className="text-zinc-500 ml-1">(Stock:{it.current_stock})</span>}
             {it.estimated_total > 0 && <span className="text-zinc-400"> ₱{Number(it.estimated_total).toFixed(0)}</span>}
+            {it.cancelled && <span className="text-orange-400 ml-1 no-underline" style={{textDecoration:"none"}}>✕</span>}
           </span>
         ))}
       </div>
@@ -248,20 +279,62 @@ function RequestCard({
 
       {/* Expanded details */}
       {expanded && (
-        <div className="rounded-xl border border-white/6 bg-white/3 p-3 space-y-1 text-xs text-zinc-300">
-          {req.root_cause_notes && <p><span className="text-zinc-500">Notes:</span> {req.root_cause_notes}</p>}
-          {req.approved_by && <p><span className="text-zinc-500">Approved by:</span> {req.approved_by} {req.approved_at ? `at ${req.approved_at}` : ""}</p>}
-          {req.arranging_by && <p><span className="text-zinc-500">Arranging by:</span> {req.arranging_by} {req.arranging_at ? `at ${req.arranging_at}` : ""}</p>}
-          {req.dispatched_by && (
-            <p>
-              <span className="text-zinc-500">Dispatched by:</span> {req.dispatched_by} {req.dispatched_at ? `at ${req.dispatched_at}` : ""}
-              {req.delivery_method && <span className="ml-1 text-violet-400">({req.delivery_method === "lalamove" ? "Lalamove" : "In-house"})</span>}
-            </p>
+        <div className="space-y-2">
+          <div className="rounded-xl border border-white/6 bg-white/3 p-3 space-y-1 text-xs text-zinc-300">
+            {req.root_cause_notes && <p><span className="text-zinc-500">Notes:</span> {req.root_cause_notes}</p>}
+            {req.approved_by && <p><span className="text-zinc-500">Approved by:</span> {req.approved_by} {req.approved_at ? `at ${req.approved_at}` : ""}</p>}
+            {req.arranging_by && <p><span className="text-zinc-500">Arranging by:</span> {req.arranging_by} {req.arranging_at ? `at ${req.arranging_at}` : ""}</p>}
+            {req.dispatched_by && (
+              <p>
+                <span className="text-zinc-500">Dispatched by:</span> {req.dispatched_by} {req.dispatched_at ? `at ${req.dispatched_at}` : ""}
+                {req.delivery_method && <span className="ml-1 text-violet-400">({req.delivery_method === "lalamove" ? "Lalamove" : "In-house"})</span>}
+              </p>
+            )}
+            {req.received_by && <p><span className="text-zinc-500">Received by:</span> {req.received_by} {req.received_at ? `at ${req.received_at}` : ""}</p>}
+            {req.rejection_reason && <p className="text-red-400"><span className="text-zinc-500">Rejected:</span> {req.rejection_reason}</p>}
+            {req.completion_notes && <p><span className="text-zinc-500">Completion:</span> {req.completion_notes}</p>}
+            {req.cancelled_by && <p className="text-orange-300"><span className="text-zinc-500">Cancelled by:</span> {req.cancelled_by} {req.cancelled_at ? `at ${req.cancelled_at}` : ""}{req.cancel_reason ? ` — ${req.cancel_reason}` : ""}</p>}
+            {req.voided_by && <p className="text-rose-300"><span className="text-zinc-500">Voided by:</span> {req.voided_by} {req.voided_at ? `at ${req.voided_at}` : ""}{req.void_reason ? ` — ${req.void_reason}` : ""}</p>}
+            {req.items.some((it) => it.cancelled) && (
+              <div className="pt-1 border-t border-white/6">
+                <p className="text-zinc-500 mb-1">Cancelled items:</p>
+                {req.items.map((it, i) => it.cancelled ? (
+                  <p key={i} className="text-orange-400">• {it.item_name} ×{it.qty}{it.unit}{it.cancel_reason ? ` — ${it.cancel_reason}` : ""}</p>
+                ) : null)}
+              </div>
+            )}
+            <p className="text-zinc-500">Submitted {req.created_at}</p>
+          </div>
+
+          {/* Item-level cancel (available for active orders) */}
+          {["approved", "arranging", "dispatched", "received"].includes(req.status) && !confirmAction && (
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 space-y-2">
+              <p className="text-xs font-medium text-orange-300">Cancel Individual Items</p>
+              <div className="space-y-1">
+                {req.items.map((it, i) => (
+                  <label key={i} className={`flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1 hover:bg-white/5 ${it.cancelled ? "opacity-40 pointer-events-none" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIndices.includes(i)}
+                      onChange={() => toggleItemIndex(i)}
+                      className="rounded border-zinc-600 bg-zinc-800 text-orange-400 focus:ring-orange-500/30"
+                      disabled={it.cancelled}
+                    />
+                    <span className="text-xs text-zinc-200">{it.item_name} ×{it.qty}{it.unit}</span>
+                    {it.cancelled && <span className="text-xs text-orange-400 ml-auto">Already cancelled</span>}
+                  </label>
+                ))}
+              </div>
+              {selectedItemIndices.length > 0 && (
+                <button
+                  className="w-full rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-300 hover:bg-orange-500/20"
+                  onClick={() => setConfirmAction("cancel_items")}
+                >
+                  Cancel {selectedItemIndices.length} selected item{selectedItemIndices.length > 1 ? "s" : ""}
+                </button>
+              )}
+            </div>
           )}
-          {req.received_by && <p><span className="text-zinc-500">Received by:</span> {req.received_by} {req.received_at ? `at ${req.received_at}` : ""}</p>}
-          {req.rejection_reason && <p className="text-red-400"><span className="text-zinc-500">Rejected:</span> {req.rejection_reason}</p>}
-          {req.completion_notes && <p><span className="text-zinc-500">Completion:</span> {req.completion_notes}</p>}
-          <p className="text-zinc-500">Submitted {req.created_at}</p>
         </div>
       )}
 
@@ -281,27 +354,47 @@ function RequestCard({
       )}
 
       {req.status === "approved" && !confirmAction && (
-        <button className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("arrange")}>
-          <Package className="h-4 w-4 inline mr-1" />Start Arranging
-        </button>
+        <div className="flex gap-2">
+          <button className={`flex-1 ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("arrange")}>
+            <Package className="h-4 w-4 inline mr-1" />Start Arranging
+          </button>
+          <button className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/20 flex items-center gap-1" onClick={() => setConfirmAction("cancel")}>
+            <XCircle className="h-4 w-4" />Cancel
+          </button>
+        </div>
       )}
 
       {req.status === "arranging" && !confirmAction && (
-        <button className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("dispatch")}>
-          <Truck className="h-4 w-4 inline mr-1" />Mark Dispatched
-        </button>
+        <div className="flex gap-2">
+          <button className={`flex-1 ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("dispatch")}>
+            <Truck className="h-4 w-4 inline mr-1" />Mark Dispatched
+          </button>
+          <button className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/20 flex items-center gap-1" onClick={() => setConfirmAction("cancel")}>
+            <XCircle className="h-4 w-4" />Cancel
+          </button>
+        </div>
       )}
 
       {req.status === "dispatched" && !confirmAction && (
-        <button className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("receive")}>
-          <PackageCheck className="h-4 w-4 inline mr-1" />Mark as Received
-        </button>
+        <div className="flex gap-2">
+          <button className={`flex-1 ${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("receive")}>
+            <PackageCheck className="h-4 w-4 inline mr-1" />Mark as Received
+          </button>
+          <button className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20 flex items-center gap-1" onClick={() => setConfirmAction("void")}>
+            <XCircle className="h-4 w-4" />Void
+          </button>
+        </div>
       )}
 
       {req.status === "received" && !confirmAction && (
-        <button className={`w-full ${PRIMARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("complete")}>
-          <Banknote className="h-4 w-4 inline mr-1" />Mark Completed
-        </button>
+        <div className="flex gap-2">
+          <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction("complete")}>
+            <Banknote className="h-4 w-4 inline mr-1" />Mark Completed
+          </button>
+          <button className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20 flex items-center gap-1" onClick={() => setConfirmAction("void")}>
+            <XCircle className="h-4 w-4" />Void
+          </button>
+        </div>
       )}
 
       {/* Confirm panels */}
@@ -391,7 +484,56 @@ function RequestCard({
             <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("complete")}>
               {loading ? "…" : "Mark Completed"}
             </button>
-            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Cancel</button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {confirmAction === "cancel" && (
+        <div className="space-y-2 rounded-xl border border-orange-500/25 bg-orange-500/5 p-3">
+          <p className="text-xs font-semibold text-orange-300">Cancel this order?</p>
+          <p className="text-xs text-zinc-400">Delivery was not attempted. This order will be marked Cancelled.</p>
+          <label className={T_LABEL}>Reason (optional)</label>
+          <textarea className={TEXTAREA_CLASS} rows={2} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g. Supplier cancelled, item found in stock…" />
+          <div className="flex gap-2">
+            <button className="flex-1 rounded-xl border border-orange-500/30 bg-orange-500/15 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/25 disabled:opacity-50" disabled={loading} onClick={() => doAction("cancel")}>
+              {loading ? "…" : "Confirm Cancel"}
+            </button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {confirmAction === "void" && (
+        <div className="space-y-2 rounded-xl border border-rose-500/25 bg-rose-500/5 p-3">
+          <p className="text-xs font-semibold text-rose-300">Void this order?</p>
+          <p className="text-xs text-zinc-400">Delivery was attempted but not completed/received. This order will be marked Voided.</p>
+          <label className={T_LABEL}>Reason (optional)</label>
+          <textarea className={TEXTAREA_CLASS} rows={2} value={voidReason} onChange={(e) => setVoidReason(e.target.value)} placeholder="e.g. Driver returned, item rejected by store…" />
+          <div className="flex gap-2">
+            <button className="flex-1 rounded-xl border border-rose-500/30 bg-rose-500/15 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/25 disabled:opacity-50" disabled={loading} onClick={() => doAction("void")}>
+              {loading ? "…" : "Confirm Void"}
+            </button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {confirmAction === "cancel_items" && (
+        <div className="space-y-2 rounded-xl border border-orange-500/25 bg-orange-500/5 p-3">
+          <p className="text-xs font-semibold text-orange-300">Cancel {selectedItemIndices.length} item{selectedItemIndices.length > 1 ? "s" : ""}?</p>
+          <div className="space-y-0.5">
+            {selectedItemIndices.map((i) => (
+              <p key={i} className="text-xs text-zinc-300">• {req.items[i]?.item_name} ×{req.items[i]?.qty}{req.items[i]?.unit}</p>
+            ))}
+          </div>
+          <label className={T_LABEL}>Reason (optional)</label>
+          <textarea className={TEXTAREA_CLASS} rows={2} value={itemCancelReason} onChange={(e) => setItemCancelReason(e.target.value)} placeholder="e.g. Item not available, wrong item…" />
+          <div className="flex gap-2">
+            <button className="flex-1 rounded-xl border border-orange-500/30 bg-orange-500/15 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/25 disabled:opacity-50" disabled={loading} onClick={() => doAction("cancel_items")}>
+              {loading ? "…" : "Confirm Cancel Items"}
+            </button>
+            <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
           </div>
         </div>
       )}
@@ -426,7 +568,7 @@ function AnalyticsView({ requests }: { requests: EPRRequest[] }) {
     .reduce((s, r) => s + Number(r.delivery_cost), 0);
   const overdueCount = requests.filter(isOverdue).length;
 
-  const statusOrder = ["pending", "approved", "arranging", "dispatched", "received", "completed", "rejected"];
+  const statusOrder = ["pending", "approved", "arranging", "dispatched", "received", "completed", "rejected", "cancelled", "voided"];
 
   return (
     <div className="space-y-4">
@@ -530,6 +672,7 @@ export default function AdminEmergencyRequestsPage() {
   const dispatched = requests.filter((r) => r.status === "dispatched");
   const received   = requests.filter((r) => r.status === "received");
   const completed  = requests.filter((r) => r.status === "completed");
+  const cancelled  = requests.filter((r) => ["cancelled", "voided"].includes(r.status));
   const overdue    = requests.filter(isOverdue);
 
   const filtered =
@@ -538,6 +681,7 @@ export default function AdminEmergencyRequestsPage() {
     tab === "dispatched" ? dispatched :
     tab === "received"   ? received   :
     tab === "completed"  ? completed  :
+    tab === "cancelled"  ? cancelled  :
     tab === "all"        ? requests   : requests;
 
   const tabs: { key: TabKey; label: string; count?: number; alertColor?: string }[] = [
@@ -546,6 +690,7 @@ export default function AdminEmergencyRequestsPage() {
     { key: "dispatched", label: "Dispatched", count: dispatched.length, alertColor: dispatched.length > 0 ? "bg-violet-500" : undefined },
     { key: "received",   label: "Received",   count: received.length,   alertColor: received.length > 0 ? "bg-emerald-500" : undefined },
     { key: "completed",  label: "Completed" },
+    { key: "cancelled",  label: "Cancelled/Void", count: cancelled.length > 0 ? cancelled.length : undefined },
     { key: "all",        label: "All" },
     { key: "analytics",  label: "Analytics" },
   ];

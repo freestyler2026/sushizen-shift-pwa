@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Manila Aggregator Price Monitor — daily 7am PHT auto-check configured)
+Last updated: 2026-08-18 (Unit Field Fix — CK Inventory & Daily Inventory unit read-only + Manage Items click-to-edit)
 
 ---
 
@@ -90,6 +90,40 @@ cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
 node scripts/grab/setup-session.js paranaque
 cat scripts/grab/paranaque-session.b64.txt | gh secret set GRAB_SESSION_STATE --repo freestyler2026/sushizen-shift-pwa
 ```
+
+---
+
+## ✅ Completed: Unit Field Fix — CK Inventory & Daily Inventory (2026-08-18, Heroku b04477f + Vercel 99d4f72)
+
+**Request**: Staff reported 2 bugs affecting unit fields across 2 pages:
+1. UNIT field is editable (select dropdown) during data entry — should be read-only
+2. UNIT field in Manage Items modals is static text — should be click-to-edit
+
+**Fixed 4 issues across 2 pages:**
+
+**Fix 1 — CK Inventory entry table (read-only unit)** (`src/app/store/ck-inventory/page.tsx`):
+- Removed `<SelectDark>` dropdown from entry table UNIT column
+- Now renders `<span className="text-zinc-400">{draft.unit || item.output_unit}</span>`
+
+**Fix 2 — CK Manage Items modal (click-to-edit unit)** (`src/app/store/ck-inventory/page.tsx`):
+- Added `editUnitId / editUnitVal / editUnitBusy` state
+- Added `saveItemUnit()` → `PATCH /api/store/ck-inventory/items/{item_id}` with `{ city, unit }`
+- Unit displayed as clickable button; click opens inline input with ✓/✕
+
+**Fix 3 — Daily Inventory entry table (read-only unit)** (`src/components/admin/AdminDailyInventoryTab.tsx`):
+- Replaced `<select>` dropdown with `<span className="text-sm text-zinc-400">{entry.unit || item.default_unit}</span>`
+
+**Fix 4 — Daily Inventory Manage Items modal (click-to-edit unit)** (`src/components/admin/AdminDailyInventoryTab.tsx`):
+- Added `editUnitCode / editUnitVal / editUnitBusy` state + `handleSaveUnit()`
+- `handleSaveUnit()` → `PATCH /api/daily-inventory/items/{item_code}` with `{ default_unit: unit }` (existing endpoint)
+- Same inline edit pattern as Par Level (already proven)
+
+**Backend** (`sushizen_shift_app_clean`):
+- Added `update_ck_inventory_item_unit()` in `db.py` (updates `daily_inv_report_items WHERE is_commissary=TRUE`)
+- Added `PATCH /api/store/ck-inventory/items/{item_id}` in `main.py` with `CKInventoryItemPatchIn` model
+- Daily Inventory PATCH already supported `default_unit` — no backend change needed
+
+**Verified**: Fixes 1 & 2 visually confirmed on local dev server. Fixes 3 & 4 confirmed by code review (identical pattern).
 
 ---
 
