@@ -7,6 +7,7 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
+import DriveInvoiceInbox from "@/components/DriveInvoiceInbox";
 
 type InvoiceRow = {
   id: string;
@@ -1133,6 +1134,13 @@ export default function ProcurementInvoicesPage() {
           )}
         </div>
       ) : null}
+
+      {city === "dubai" && (
+        <DriveInvoiceInbox
+          city="dubai"
+          authHeaders={{ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }}
+        />
+      )}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="space-y-4">
