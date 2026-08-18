@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Drive Invoice Inbox — Phase 0+1 deployed)
+Last updated: 2026-08-18 (Universal proxy 401 auto-refresh deployed)
 
 ---
 
@@ -55,6 +55,44 @@ Last updated: 2026-08-18 (Drive Invoice Inbox — Phase 0+1 deployed)
 ### Next: Phase 2 (GPT-4o Arabic/mixed) + Phase 3 (PO matching engine)
 - Phase 2: アラビア語・混在言語インボイス対応（現状は英語のみ確実）
 - Phase 3: OCR結果をPO（発注書）と突合して差異を自動検出
+
+---
+
+## ✅ Completed: Universal proxy 401 auto-refresh (2026-08-18, Vercel 1f9f096)
+
+**Goal**: トークン(JWT)が16時間で失効すると全ページで "Authentication is required." エラーが出る問題を根本解決。
+
+**Root cause**: `sz_access` cookie 内のJWTは16時間TTL。サーバーサイドセッション `sz_session` (7日) は有効のままなのに、Next.jsプロキシが 401 をそのまま返していた。
+
+**Fix**: 全10プロキシRoute Handlerに `tryRefreshUpstream()` 呼び出しを追加。Herokuから401が返ったとき、プロキシが自動的に `sz_session` でトークンを再取得し、元のリクエストをリトライする。新しい `sz_access` cookieをレスポンスにセットして返すため、クライアント側は一切変更不要。
+
+**Shared utility**: `src/lib/proxy-auth.ts` — `tryRefreshUpstream()`, `setRefreshedCookie()`
+
+**Changed proxies** (Vercel 1f9f096):
+- `src/app/api/admin/[...slug]/route.ts`
+- `src/app/api/store/[...slug]/route.ts`
+- `src/app/api/attendance/[...slug]/route.ts`
+- `src/app/api/daily-inventory/[...slug]/route.ts`
+- `src/app/api/incidents/[...slug]/route.ts`
+- `src/app/api/private_reports/[...slug]/route.ts`
+- `src/app/api/request/[...slug]/route.ts`
+- `src/app/api/shift_change/[...slug]/route.ts`
+- `src/app/api/staff/[...slug]/route.ts`
+- `src/app/api/travel-path/[...slug]/route.ts`
+
+**Result**: 16時間後のトークン失効は完全に透過的に処理される。ユーザーはエラーを見ることなく操作を継続できる。
+
+---
+
+## ✅ Completed: Dubai Manual Shift Entry — 401 auto-refresh fix (2026-08-18, Vercel af451c6)
+
+**Root cause**: The 16-hour JWT in `sz_access` cookie expires while the 7-day server-side session (`sz_session`) remains valid. The local `apiFetch` in `manual-shift/page.tsx` was throwing "Authentication is required." on any 401 without attempting token refresh.
+
+**Fix**: Added `tryRefreshAccessToken()` retry pattern (same as `apiGet`/`apiPost` in `src/lib/api.ts`) to the local `apiFetch`. On 401, it calls `POST /api/auth/refresh` → backend uses `sz_session` to issue a new JWT → `sz_access` cookie updated → request retried transparently.
+
+**Changed**: `src/app/admin/manual-shift/page.tsx` — import `tryRefreshAccessToken`, refactored `apiFetch` to add 401 retry (Vercel af451c6)
+
+**Note for user**: If the page still shows the error after this deploy (Vercel takes ~2 min), do a full logout and log back in once to get a fresh session. Future token expirations will be handled automatically.
 
 ---
 
