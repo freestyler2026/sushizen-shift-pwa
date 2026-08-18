@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Emergency Request Cancel/Void — order-level cancel/void + item-level cancel; dismiss button label fix)
+Last updated: 2026-08-18 (Manual Shift — double shift display bug fix + × button safety fix)
 
 ---
 
@@ -22,6 +22,33 @@ Food Pandaは**毎ログイン時にメールOTPが必要**。3アカウント�
 ### 準備済み
 - `scripts/foodpanda/setup-session.js` — 完成済み（メールアクセスがあれば即実行可能）
 - OTP入力後の手順: Menu Managementへ移動 → 60秒APIキャプチャ → `check-prices.js`作成
+
+---
+
+## ✅ Completed: Manual Shift — Double Shift Display & Delete Safety Fix (2026-08-18)
+
+**Root cause**: Two bugs working in combination caused the "6-Publish" incident:
+
+### Bug #1 — Published View (BranchSection) showed only first shift per staff+date
+- `lookup` used `Array.find()` → returned only the first matching row
+- Admin saw only AM shift in Published View, thought PM was missing → manually fixed → triggered Bug #2
+- **Fix**: Changed to `Array.filter()`, cell rendering now stacks all shifts as separate colored divs
+- File: `src/app/admin/manual-shift/page.tsx` (BranchSection, ~line 258)
+
+### Bug #2 — × button deleted ALL shifts for a staff+date (including double shifts)
+- Backend `delete_published_row` deletes by `staff_name + work_date` (no `start_hour` filter)
+- The × button on multi-shift cells would delete both AM and PM in one click
+- **Fix**: `{shifts.length === 1 && (...)}` — × button hidden when 2+ shifts exist
+- For multi-shift cells, use the edit popup's per-segment ✕ buttons instead
+- File: `src/app/admin/manual-shift/page.tsx` (~line 1600)
+
+### What was NOT changed
+- `handleBackToEdit` and "Edit Grid" tab click: reverted to original (no DB reload on tab switch)
+  - Reason: reload-on-tab-switch could discard unsaved local edits (regression)
+  - After Bug #1 fix, Published View correctly shows all shifts → no longer confusing
+- Backend `delete_published_row`: still deletes all shifts for staff+date (intentional for the 🗑 Delete button)
+
+### Vercel deploy: (pending commit)
 
 ---
 

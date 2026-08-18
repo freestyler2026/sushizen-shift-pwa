@@ -1141,9 +1141,16 @@ export default function ManualShiftPage() {
 
   const handleBackToEdit = useCallback(() => {
     setView("edit");
-    // Reload published data from DB so the grid reflects the current server state
-    if (staffList.length > 0) void loadExistingShifts(true);
-  }, [staffList.length, loadExistingShifts]);
+    setGridData((prev) => {
+      const saved = loadDraft(city, branchCode, weekStart);
+      if (!saved || Object.keys(saved).length === 0) return prev;
+      const next = { ...prev };
+      for (const [name, days] of Object.entries(saved)) {
+        next[name] = { ...(next[name] ?? {}), ...days };
+      }
+      return next;
+    });
+  }, [city, branchCode, weekStart]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1351,12 +1358,7 @@ export default function ManualShiftPage() {
         <div className="flex items-center gap-0.5 border-b border-gray-200 pb-0 overflow-x-auto">
           <button
             type="button"
-            onClick={() => {
-              setView("edit");
-              // Reload published data from DB so the grid reflects any changes made
-              // since the page was last loaded (e.g. after another admin published)
-              if (staffList.length > 0) void loadExistingShifts(true);
-            }}
+            onClick={() => setView("edit")}
             className={[
               "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
               view === "edit"
