@@ -98,6 +98,7 @@ async function talabatGet(session, url) {
 function parseAed(product) {
   // Try common field paths in order of preference (selling price first)
   const candidates = [
+    product.unitPrice,                   // Talabat Partner API direct AED value
     product.discountedPrice?.amount,
     product.price?.amount,
     product.originalPrice?.amount,
@@ -119,6 +120,8 @@ function parseAed(product) {
 }
 
 function parseAvailable(product) {
+  // Talabat Partner API: { availability: { available: true, status: "COMMITTED" } }
+  if (product.availability?.available === false) return false;
   if (product.isAvailable === false) return false;
   if (product.status === 'unavailable' || product.status === 'out_of_stock') return false;
   return true;
@@ -167,23 +170,7 @@ async function processVendor(session, vendorId, checkedAt) {
   const catalogs = catalogData.catalogs || catalogData.data || [];
   if (!catalogs.length) {
     console.log('  No catalogs found');
-    console.log('  Response keys:', Object.keys(catalogData).join(', '));
     return { vendorName, items: [] };
-  }
-  // DEBUG: inspect first catalog structure
-  const firstCat = catalogs[0];
-  console.log(`  Catalog[0] keys: ${Object.keys(firstCat).join(', ')}`);
-  const cats = firstCat.categories || firstCat.sections || firstCat.groups || [];
-  console.log(`  categories/sections count: ${cats.length}`);
-  if (cats.length > 0) {
-    const firstSection = cats[0];
-    console.log(`  Section[0] keys: ${Object.keys(firstSection).join(', ')}`);
-    const prods = firstSection.products || firstSection.items || firstSection.menuItems || [];
-    console.log(`  Section[0] product count: ${prods.length}`);
-    if (prods.length > 0) {
-      console.log(`  Product[0] keys: ${Object.keys(prods[0]).join(', ')}`);
-      console.log(`  Product[0] sample: ${JSON.stringify(prods[0]).slice(0, 300)}`);
-    }
   }
 
   const items = [];
@@ -208,12 +195,9 @@ async function processVendor(session, vendorId, checkedAt) {
             `/catalogs/${catalogId}/categories/${categoryId}/products` +
             `?locale=en-AE&sizeSupport=true`
           );
-          // DEBUG: log first category product fetch (only for first vendor first category)
-          if (items.length === 0 && categories.indexOf(cat) === 0) {
-            console.log(`    ProdFetch keys: ${Object.keys(prodData).join(', ')}`);
-            console.log(`    ProdFetch sample: ${JSON.stringify(prodData).slice(0, 400)}`);
-          }
-          products = prodData.products || prodData.items || prodData.data || [];
+          // API returns a bare array (not {products:[...]})
+          products = Array.isArray(prodData) ? prodData
+                   : (prodData.products || prodData.items || prodData.data || []);
         } catch (e) {
           if (e.message.startsWith('AUTH_EXPIRED')) throw e;
           console.log(`    Category ${categoryId} error: ${e.message}`);
