@@ -25,6 +25,15 @@ export interface DriveInvoice {
   reviewed_by: string;
   reviewed_at: string | null;
   notes: string;
+  // PO match fields
+  matched_po_id: string | null;
+  match_confidence: number | null;
+  match_method: string;
+  matched_by: string;
+  matched_at: string | null;
+  matched_po_no: string | null;
+  matched_po_vendor: string | null;
+  matched_po_amount: number | null;
 }
 
 export interface LineItem {
@@ -154,6 +163,16 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders }: Props
                 {inv.total_amount != null && (
                   <p className="text-amber-300 text-[11px] font-mono">
                     {inv.currency} {inv.total_amount.toLocaleString()}
+                  </p>
+                )}
+                {inv.matched_po_no && (
+                  <p className="text-blue-300 text-[10px] font-mono truncate mt-0.5">
+                    🔗 {inv.matched_po_no}
+                    {inv.match_confidence != null && (
+                      <span className="ml-1 text-blue-400/60">
+                        ({Math.round(inv.match_confidence * 100)}%)
+                      </span>
+                    )}
                   </p>
                 )}
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
