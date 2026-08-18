@@ -165,6 +165,11 @@ export default function CKInventoryPage() {
   const [itemBusy, setItemBusy] = useState(false);
   const canManageItems = canManage && city === "manila";
 
+  // Inline unit editing in Manage CK Items modal
+  const [editUnitId, setEditUnitId] = useState<number | null>(null);
+  const [editUnitVal, setEditUnitVal] = useState("");
+  const [editUnitBusy, setEditUnitBusy] = useState(false);
+
   // ── Load data ─────────────────────────────────────────────────────────────
   const loadItems = useCallback(async () => {
     try {
@@ -279,6 +284,23 @@ export default function CKInventoryPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally { setItemBusy(false); }
+  };
+
+  const saveItemUnit = async (id: number) => {
+    const unit = editUnitVal.trim();
+    if (!unit) { setEditUnitId(null); return; }
+    setEditUnitBusy(true);
+    try {
+      await apiFetch(`/api/store/ck-inventory/items/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ city, unit }),
+      });
+      setProcessedItems(prev => prev.map(it => it.id === id ? { ...it, output_unit: unit } : it));
+      setEditUnitId(null);
+      setSuccessMsg("Unit updated.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setEditUnitBusy(false); }
   };
 
   useEffect(() => {
@@ -760,16 +782,7 @@ export default function CKInventoryPage() {
                                           )}
                                         </td>
                                         <td className={`${TABLE_CELL} px-3`}>
-                                          {isFinalized ? (
-                                            <span className="text-zinc-400">{draft.unit}</span>
-                                          ) : (
-                                            <SelectDark
-                                              value={draft.unit}
-                                              onChange={v => updateEntry(item.id, "unit", v)}
-                                              options={[...new Set([draft.unit, ...AVAILABLE_UNITS])].map(u => ({ value: u, label: u }))}
-                                              className="w-full rounded-lg border border-white/10 px-2 py-1 text-sm"
-                                            />
-                                          )}
+                                          <span className="text-zinc-400 text-sm">{draft.unit || item.output_unit}</span>
                                         </td>
                                         <td className={`${TABLE_CELL} px-3 text-right tabular-nums text-zinc-500`}>
                                           {prevQty !== null ? `${prevQty} ${prev?.unit || ""}` : "—"}
@@ -934,12 +947,37 @@ export default function CKInventoryPage() {
                   <div key={category} className="mb-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 px-1 py-1">{category}</p>
                     {items.map(item => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 mb-1">
-                        <span className="text-sm text-white">{item.name} <span className="text-zinc-500">({item.output_unit})</span></span>
+                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 mb-1 gap-2">
+                        <span className="text-sm text-white flex-1 min-w-0 truncate">{item.name}</span>
+                        {editUnitId === item.id ? (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="text"
+                              value={editUnitVal}
+                              onChange={e => setEditUnitVal(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") void saveItemUnit(item.id); if (e.key === "Escape") setEditUnitId(null); }}
+                              className="w-16 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-center text-xs text-white focus:outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => void saveItemUnit(item.id)} disabled={editUnitBusy}
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50">
+                              {editUnitBusy ? "…" : "✓"}
+                            </button>
+                            <button onClick={() => setEditUnitId(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1">✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setEditUnitId(item.id); setEditUnitVal(item.output_unit); }}
+                            className="shrink-0 rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-white/5 hover:text-white"
+                            title="Click to edit unit"
+                          >
+                            ({item.output_unit})
+                          </button>
+                        )}
                         <button
                           onClick={() => void removeItem(item.id, item.name)}
                           disabled={itemBusy}
-                          className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                          className="shrink-0 rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                           title="Remove item"
                         >
                           <Trash2 className="h-4 w-4" />

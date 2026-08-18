@@ -877,6 +877,9 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [editParCode, setEditParCode] = useState<string | null>(null);
   const [editParVal, setEditParVal] = useState("");
   const [editParBusy, setEditParBusy] = useState(false);
+  const [editUnitCode, setEditUnitCode] = useState<string | null>(null);
+  const [editUnitVal, setEditUnitVal] = useState("");
+  const [editUnitBusy, setEditUnitBusy] = useState(false);
 
   // Inline edit unit cost
   const [editCostCode, setEditCostCode] = useState<string | null>(null);
@@ -1120,6 +1123,24 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update failed");
     } finally { setEditCostBusy(false); }
+  }
+
+  async function handleSaveUnit(itemCode: string) {
+    const unit = editUnitVal.trim();
+    if (!unit) { setEditUnitCode(null); return; }
+    setEditUnitBusy(true);
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ default_unit: unit }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Update failed");
+      setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, default_unit: unit } : it));
+      setEditUnitCode(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Update failed");
+    } finally { setEditUnitBusy(false); }
   }
 
   async function handleSaveSupplierName(itemCode: string, value: string) {
@@ -1525,7 +1546,32 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                         <div className="font-medium text-zinc-200">{item.item_name}</div>
                         <div className="text-xs text-zinc-600">{item.item_code}</div>
                       </td>
-                      <td className={`${TABLE_CELL} px-3 text-center text-zinc-400`}>{item.default_unit}</td>
+                      <td className={`${TABLE_CELL} px-3 text-center`}>
+                        {editUnitCode === item.item_code ? (
+                          <div className="flex items-center gap-1 justify-center">
+                            <input
+                              type="text"
+                              value={editUnitVal}
+                              onChange={(e) => setEditUnitVal(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") void handleSaveUnit(item.item_code); if (e.key === "Escape") setEditUnitCode(null); }}
+                              className="w-16 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-center text-xs text-white focus:outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => void handleSaveUnit(item.item_code)} disabled={editUnitBusy}
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20">
+                              {editUnitBusy ? "…" : "✓"}
+                            </button>
+                            <button onClick={() => setEditUnitCode(null)} className="text-zinc-500 hover:text-zinc-300 text-xs px-1">✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setEditUnitCode(item.item_code); setEditUnitVal(item.default_unit); }}
+                            className="rounded-lg px-2 py-1 text-zinc-300 hover:bg-white/5 hover:text-white text-sm"
+                          >
+                            {item.default_unit || "—"}
+                          </button>
+                        )}
+                      </td>
                       <td className={`${TABLE_CELL} px-3 text-center text-zinc-400`}>{item.min_level ?? "—"}</td>
                       <td className={`${TABLE_CELL} px-3 text-center`}>
                         {editParCode === item.item_code ? (
@@ -2467,10 +2513,7 @@ export default function AdminDailyInventoryTab() {
                               />
                             </td>
                             <td className="px-2 py-3">
-                              <select value={entry.unit} onChange={(e) => handleEntryChange(item.item_code, "unit", e.target.value)}
-                                className="w-full max-w-[5rem] appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50">
-                                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                              </select>
+                              <span className="text-sm text-zinc-400">{entry.unit || item.default_unit}</span>
                             </td>
                             <td className="px-2 py-3 text-center">
                               <StatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={effectivePar} />
