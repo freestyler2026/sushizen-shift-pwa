@@ -1,6 +1,38 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Manual Shift — double shift display bug fix + × button safety fix)
+Last updated: 2026-08-18 (Talabat AE Direct Price Monitor — full implementation)
+
+---
+
+## ✅ Completed: Talabat AE Direct Price Monitor (2026-08-18)
+
+**Goal**: UrbanPiper（間接）に加えて、Talabat Partner Portalから直接Dubai全14店舗の価格を自動監視
+
+### 実装済み (Heroku v1899 + Vercel b2a43d0)
+
+**Frontend (Vercel):**
+- `scripts/talabat/setup-session.js` — Playwrightでpartner-app.talabat.comのセッション取得（cookies + OIDC Bearer from localStorage）
+- `scripts/talabat/check-prices.js` — 14ベンダーの catalog → categories → products API呼び出し、価格スナップショットをwebhookへPOST
+- `.github/workflows/talabat-price-check.yml` — 4時間ごと自動実行（UTC 1:30, 5:30, 9:30, 13:30, 17:30, 21:30）
+
+**Backend (Heroku):**
+- `POST /api/talabat/portal-price-snapshot` — `talabat_portal_price_snapshots`テーブル（price_aed）、ベンダー単位の価格変動検知、Discord DM通知
+- `run_talabat_price_check(conn)` — 今日のTalabat直接データをaggregator_price_snapshotsに集計（platform_name='Talabat'）
+- `city=dubai_talabat` — run-check / run-check-scheduledエンドポイントに追加
+
+### セットアップ必要（ユーザー作業）
+1. **セッション取得**: `node scripts/talabat/setup-session.js` → ブラウザでログイン → 60秒でMenu Managementを開く
+2. **GitHubシークレット追加**: `TALABAT_SESSION_STATE` = `talabat-session.b64.txt`の内容
+3. 既存の`CRON_SECRET`シークレットをそのまま使用（aggregation step用）
+
+### APIエンドポイント（確認済み）
+- Base: `https://vendor-api-ae-lb.me.restaurant-partners.com`
+- Catalog: `GET /api/5/platforms/TB_AE/vendors/{vendorId}/catalogs?locale=en-AE&includeEmptyResources=true&sizeSupport=true`
+- Products: `GET /api/5/platforms/TB_AE/vendors/{vendorId}/catalogs/{catalogId}/categories/{categoryId}/products?locale=en-AE&sizeSupport=true`
+- Vendor info: `GET /api/1/dine-in/TB_AE/vendor/{vendorId}`
+
+### 全14ベンダーID
+`723150, 765535, 763564, 761205, 759210, 761204, 762721, 723685, 723684, 723686, 729481, 744680, 719717, 719720`
 
 ---
 
