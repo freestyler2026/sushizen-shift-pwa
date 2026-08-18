@@ -208,6 +208,11 @@ async function processVendor(session, vendorId, checkedAt) {
             `/catalogs/${catalogId}/categories/${categoryId}/products` +
             `?locale=en-AE&sizeSupport=true`
           );
+          // DEBUG: log first category product fetch (only for first vendor first category)
+          if (items.length === 0 && categories.indexOf(cat) === 0) {
+            console.log(`    ProdFetch keys: ${Object.keys(prodData).join(', ')}`);
+            console.log(`    ProdFetch sample: ${JSON.stringify(prodData).slice(0, 400)}`);
+          }
           products = prodData.products || prodData.items || prodData.data || [];
         } catch (e) {
           if (e.message.startsWith('AUTH_EXPIRED')) throw e;
