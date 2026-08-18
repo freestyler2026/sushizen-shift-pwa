@@ -152,8 +152,10 @@ async function processVendor(session, vendorId, checkedAt) {
       session,
       `${API_BASE}/api/1/dine-in/TB_AE/vendor/${vendorId}`
     );
+    // DEBUG: log vendor info keys once
+    if (vendorId === 723150) console.log(`  VendorInfo keys: ${Object.keys(info).join(', ')}`);
     vendorName = info.name || info.vendor?.name || info.restaurantName ||
-                 info.displayName || vendorName;
+                 info.displayName || info.title || vendorName;
   } catch (e) {
     if (e.message.startsWith('AUTH_EXPIRED')) throw e;
     console.log(`  ⚠ Could not fetch vendor info: ${e.message}`);
