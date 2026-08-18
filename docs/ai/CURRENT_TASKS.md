@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Unit Field Fix — CK Inventory & Daily Inventory unit read-only + Manage Items click-to-edit)
+Last updated: 2026-08-18 (Emergency Request Cancel/Void — order-level cancel/void + item-level cancel; dismiss button label fix)
 
 ---
 
@@ -22,6 +22,26 @@ Food Pandaは**毎ログイン時にメールOTPが必要**。3アカウント�
 ### 準備済み
 - `scripts/foodpanda/setup-session.js` — 完成済み（メールアクセスがあれば即実行可能）
 - OTP入力後の手順: Menu Managementへ移動 → 60秒APIキャプチャ → `check-prices.js`作成
+
+---
+
+## ✅ Completed: Emergency Request Cancel/Void (2026-08-18)
+
+**Goal**: Approved Emergency Requestsがデリバリーされなかった場合にキャンセル・VOIDできる機能を追加
+
+### 実装済み
+- **Backend (Heroku)**: `cancel_reason/cancelled_by/cancelled_at/void_reason/voided_by/voided_at` 列をALTER TABLE追加
+- **Backend**: `update_emergency_request_status()` に `cancelled`/`voided` ステータス対応を追加
+- **Backend**: `cancel_emergency_request_items()` 関数 — 個別アイテムをJSONBで`cancelled:true`にマーク
+- **Backend**: 3エンドポイント追加 — `/cancel`, `/void`, `/cancel-items`
+- **Frontend**: Cancel（オレンジ）ボタン — `approved`/`arranging`時に表示
+- **Frontend**: Void（ローズ）ボタン — `dispatched`/`received`時に表示
+- **Frontend**: アイテム個別キャンセル — チェックボックスで複数選択、まとめてキャンセル
+- **Frontend**: キャンセル済みアイテムに取り消し線 + ✕マーク表示
+- **Frontend**: 「Cancelled/Void」タブ追加
+- **UX修正**: 既存confirm パネル（approve/reject/arrange/dispatch/receive）のdismissボタンを「Cancel」→「Back」に変更（新しい「Cancel Order」アクションと混同を防ぐ）
+
+### Herokuデプロイ: `6c69b95`, Vercelデプロイ: `1f08e79`, `2c81721`
 
 ---
 
