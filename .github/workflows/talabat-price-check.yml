@@ -8,18 +8,27 @@ on:
 jobs:
   check-prices:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # 14 vendors × multi-category fetches
+    timeout-minutes: 15  # includes Playwright install + token refresh
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'  # Node 20 has built-in fetch
+          node-version: '20'
+
+      - name: Install Playwright (chromium only)
+        run: npx playwright install chromium --with-deps
+        timeout-minutes: 5
 
       - name: Decode Talabat session state
         run: |
           echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json
+
+      - name: Refresh Bearer token (headless)
+        run: node scripts/talabat/refresh-token.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
 
       - name: Run Talabat price check
         run: node scripts/talabat/check-prices.js

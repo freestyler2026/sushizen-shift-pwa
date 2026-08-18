@@ -28,7 +28,7 @@ const PORTAL_URL = 'https://partner-app.talabat.com';
 function loadTalabatSession(sessionPath) {
   const state = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
 
-  // Cookies for both the UI domain and the vendor API domain
+  // Cookies for the UI and vendor API domains
   const cookies = state.cookies
     .filter(c => c.domain && (
       c.domain.includes('restaurant-partners.com') ||
@@ -37,25 +37,27 @@ function loadTalabatSession(sessionPath) {
     .map(c => `${c.name}=${c.value}`)
     .join('; ');
 
-  // Extract OIDC Bearer token from localStorage (stored by the SPA)
-  let bearerToken = null;
-  for (const origin of (state.origins || [])) {
-    if (!origin.origin.includes('talabat.com')) continue;
-    for (const entry of (origin.localStorage || [])) {
-      // OIDC storage key: "oidc.user:https://<authority>:<clientId>"
-      if (entry.name.startsWith('oidc.user:') || entry.name.match(/access_token|auth_token/i)) {
-        try {
-          const val = JSON.parse(entry.value);
-          if (val.access_token) { bearerToken = val.access_token; break; }
-        } catch (_) {
-          // Raw token string
-          if (entry.value && entry.value.length > 100 && !entry.value.includes(' ')) {
-            bearerToken = entry.value;
+  // Bearer token: stored explicitly by trim-session.js (captured from real browser headers)
+  let bearerToken = state.bearerToken || null;
+
+  // Fallback: try OIDC localStorage entries (for sessions captured before trim-session update)
+  if (!bearerToken) {
+    for (const origin of (state.origins || [])) {
+      if (!origin.origin.includes('talabat.com')) continue;
+      for (const entry of (origin.localStorage || [])) {
+        if (entry.name.startsWith('oidc.user:') || entry.name.match(/access_token|auth_token/i)) {
+          try {
+            const val = JSON.parse(entry.value);
+            if (val.access_token) { bearerToken = val.access_token; break; }
+          } catch (_) {
+            if (entry.value && entry.value.length > 100 && !entry.value.includes(' ')) {
+              bearerToken = entry.value;
+            }
           }
         }
       }
+      if (bearerToken) break;
     }
-    if (bearerToken) break;
   }
 
   return { cookies, bearerToken };
@@ -65,11 +67,16 @@ function loadTalabatSession(sessionPath) {
 
 async function talabatGet(session, url) {
   const headers = {
-    'Accept':          'application/json, text/plain, */*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    'Origin':          PORTAL_URL,
-    'Referer':         `${PORTAL_URL}/`,
+    'Accept':              'application/json, text/plain, */*',
+    'Accept-Language':     'en-US,en;q=0.9',
+    'User-Agent':          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Origin':              PORTAL_URL,
+    'Referer':             `${PORTAL_URL}/`,
+    // Required by the vendor API to identify the client
+    'client-name':         'OneWeb',
+    'client-wrapper-type': 'Web',
+    'client-version':      'menuManagementV2_1.14.25',
+    'x-rps-client-app-name': 'OneWeb',
   };
   if (session.cookies)     headers['Cookie']        = session.cookies;
   if (session.bearerToken) headers['Authorization'] = `Bearer ${session.bearerToken}`;

@@ -36,7 +36,11 @@ async function main() {
     if (url.includes('google-analytics') || url.includes('doubleclick') ||
         url.includes('hotjar') || url.includes('segment.io') ||
         url.includes('amplitude') || url.includes('sentry')) return;
-    captured.push({ method: req.method(), url, postData: req.postData()?.slice(0, 300) });
+
+    // For vendor API calls, capture the full request headers (auth discovery)
+    const isVendorApi = url.includes('restaurant-partners.com') || url.includes('vendor-api');
+    const headers = isVendorApi ? req.headers() : undefined;
+    captured.push({ method: req.method(), url, headers, postData: req.postData()?.slice(0, 300) });
   });
 
   console.log('Opening Talabat Partner Portal...');
