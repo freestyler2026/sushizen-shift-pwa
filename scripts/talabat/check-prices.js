@@ -164,6 +164,12 @@ async function processVendor(session, vendorId, checkedAt) {
     `?locale=en-AE&includeEmptyResources=true&sizeSupport=true`
   );
 
+  // DEBUG: log raw catalog response shape
+  const catalogKeys = Object.keys(catalogData);
+  console.log(`  Catalog response keys: ${catalogKeys.join(', ')}`);
+  if (catalogData.catalogs) console.log(`  catalogs[]: ${catalogData.catalogs.length} entries`);
+  if (catalogData.data)     console.log(`  data[]: ${JSON.stringify(catalogData.data).slice(0, 200)}`);
+
   const catalogs = catalogData.catalogs || catalogData.data || [];
   if (!catalogs.length) {
     console.log('  No catalogs found');
