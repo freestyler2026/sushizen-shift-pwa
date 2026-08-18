@@ -17,8 +17,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Playwright (chromium only)
-        run: npx playwright install chromium --with-deps
+      - name: Install Playwright npm package + chromium
+        run: |
+          npm install playwright --no-save
+          npx playwright install chromium --with-deps
         timeout-minutes: 5
 
       - name: Decode Talabat session state
