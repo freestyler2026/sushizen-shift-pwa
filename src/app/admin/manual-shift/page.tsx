@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   PRIMARY_BUTTON,
@@ -145,15 +145,23 @@ function getModalStyle(rect: DOMRect, modalW = 340): React.CSSProperties {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const auth = getAuth();
-  const res = await fetch(path, {
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(getAuthHeaders(auth) ?? {}),
-      ...(options.headers ?? {}),
-    },
-  });
+  const doFetch = () => {
+    const auth = getAuth();
+    return fetch(path, {
+      ...options,
+      credentials: "same-origin",
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(getAuthHeaders(auth) ?? {}),
+        ...(options.headers ?? {}),
+      },
+    });
+  };
+  let res = await doFetch();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
   const text = await res.text();
   if (!res.ok) {
     let j: Record<string, unknown> = {};
