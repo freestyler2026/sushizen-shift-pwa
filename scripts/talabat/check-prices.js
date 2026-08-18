@@ -164,16 +164,26 @@ async function processVendor(session, vendorId, checkedAt) {
     `?locale=en-AE&includeEmptyResources=true&sizeSupport=true`
   );
 
-  // DEBUG: log raw catalog response shape
-  const catalogKeys = Object.keys(catalogData);
-  console.log(`  Catalog response keys: ${catalogKeys.join(', ')}`);
-  if (catalogData.catalogs) console.log(`  catalogs[]: ${catalogData.catalogs.length} entries`);
-  if (catalogData.data)     console.log(`  data[]: ${JSON.stringify(catalogData.data).slice(0, 200)}`);
-
   const catalogs = catalogData.catalogs || catalogData.data || [];
   if (!catalogs.length) {
     console.log('  No catalogs found');
+    console.log('  Response keys:', Object.keys(catalogData).join(', '));
     return { vendorName, items: [] };
+  }
+  // DEBUG: inspect first catalog structure
+  const firstCat = catalogs[0];
+  console.log(`  Catalog[0] keys: ${Object.keys(firstCat).join(', ')}`);
+  const cats = firstCat.categories || firstCat.sections || firstCat.groups || [];
+  console.log(`  categories/sections count: ${cats.length}`);
+  if (cats.length > 0) {
+    const firstSection = cats[0];
+    console.log(`  Section[0] keys: ${Object.keys(firstSection).join(', ')}`);
+    const prods = firstSection.products || firstSection.items || firstSection.menuItems || [];
+    console.log(`  Section[0] product count: ${prods.length}`);
+    if (prods.length > 0) {
+      console.log(`  Product[0] keys: ${Object.keys(prods[0]).join(', ')}`);
+      console.log(`  Product[0] sample: ${JSON.stringify(prods[0]).slice(0, 300)}`);
+    }
   }
 
   const items = [];
