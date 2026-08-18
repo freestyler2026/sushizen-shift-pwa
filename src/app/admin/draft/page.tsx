@@ -997,6 +997,194 @@ function StaffingRulesPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Exclusion Manager Panel component
+// ---------------------------------------------------------------------------
+type DraftExclusion = {
+  id: number;
+  city: string;
+  branch_code: string;
+  staff_name: string;
+  reason: string;
+  excluded_by: string;
+  excluded_at: string;
+  active_until: string | null;
+};
+
+const REASON_OPTIONS = [
+  { value: "fired", label: "🔴 Fired / Terminated" },
+  { value: "resigned", label: "🟠 Resigned" },
+  { value: "duplicate", label: "🟡 Duplicate entry" },
+  { value: "maternity", label: "🩷 Maternity / Paternity leave (no pay)" },
+  { value: "medical", label: "🩺 Medical leave (no pay)" },
+  { value: "transferred", label: "↪️ Transferred to another branch" },
+  { value: "other", label: "⚪ Other" },
+];
+
+function ExclusionManagerPanel({
+  city,
+  approverName,
+  pin,
+}: {
+  city: string;
+  approverName: string;
+  pin: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [exclusions, setExclusions] = useState<DraftExclusion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [branch, setBranch] = useState("");
+  const [staffName, setStaffName] = useState("");
+  const [reason, setReason] = useState("fired");
+  const [activeUntil, setActiveUntil] = useState("");
+  const [addError, setAddError] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+
+  const branches = BRANCHES[city as City] ?? [];
+
+  async function load() {
+    if (!city) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/draft/exclusions?city=${encodeURIComponent(city)}`);
+      const j = await res.json();
+      setExclusions(Array.isArray(j.exclusions) ? j.exclusions : []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function addExclusion() {
+    setAddError("");
+    if (!branch) { setAddError("Branch is required."); return; }
+    if (!staffName.trim()) { setAddError("Staff name is required."); return; }
+    setAddLoading(true);
+    try {
+      const res = await fetch("/api/draft/exclusions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          branch_code: branch,
+          staff_name: staffName.trim(),
+          reason,
+          excluded_by: approverName || "admin",
+          active_until: activeUntil || null,
+        }),
+      });
+      if (!res.ok) { const j = await res.json(); setAddError(j.detail || "Failed to add"); setAddLoading(false); return; }
+      setStaffName("");
+      setActiveUntil("");
+      setReason("fired");
+      await load();
+    } catch (e: any) { setAddError(e.message); }
+    setAddLoading(false);
+  }
+
+  async function removeExclusion(id: number) {
+    await fetch(`/api/draft/exclusions/${id}`, { method: "DELETE" });
+    setExclusions((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  useEffect(() => { if (open) load(); }, [open, city]);
+
+  const grouped = exclusions.reduce<Record<string, DraftExclusion[]>>((acc, e) => {
+    (acc[e.branch_code] = acc[e.branch_code] || []).push(e);
+    return acc;
+  }, {});
+
+  const reasonLabel = (r: string) => REASON_OPTIONS.find((o) => o.value === r)?.label ?? r;
+
+  return (
+    <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5">
+      <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
+        <span className="flex items-center gap-2 font-semibold text-rose-300">
+          <span className="text-lg">🚫</span> Draft Exclusions
+          {exclusions.length > 0 && <span className="ml-2 rounded-full bg-rose-500/20 px-2 py-0.5 text-xs text-rose-200">{exclusions.length} excluded</span>}
+        </span>
+        <span className="text-neutral-400 text-sm">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4">
+          <p className="text-xs text-neutral-400">Staff listed here are automatically skipped when generating monthly drafts. Use for fired staff, duplicates, no-pay leave, or branch transfers.</p>
+
+          {/* Add form */}
+          <div className="rounded-xl border border-rose-500/10 bg-black/20 p-4 space-y-3">
+            <p className="text-xs font-medium text-rose-200">Add exclusion</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">Branch</label>
+                <SelectDark value={branch} onChange={setBranch} className={SELECT_CLASS + " text-sm"}
+                  options={[{ value: "", label: "Select…" }, ...branches.map((b) => ({ value: b.code, label: b.name }))]} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-neutral-400 mb-1">Staff Name (exact)</label>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  placeholder="e.g. Tricia Andrea Estrada"
+                  value={staffName} onChange={(e) => setStaffName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">Reason</label>
+                <SelectDark value={reason} onChange={setReason} className={SELECT_CLASS + " text-sm"}
+                  options={REASON_OPTIONS} />
+              </div>
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">Active until (leave blank = permanent)</label>
+                <input type="date"
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  value={activeUntil} onChange={(e) => setActiveUntil(e.target.value)}
+                />
+              </div>
+            </div>
+            {addError && <p className="text-xs text-rose-400">{addError}</p>}
+            <button type="button" disabled={addLoading}
+              onClick={addExclusion}
+              className={`${PRIMARY_BUTTON} text-sm`}
+            >
+              {addLoading ? "Adding…" : "➕ Add Exclusion"}
+            </button>
+          </div>
+
+          {/* List */}
+          {loading ? (
+            <p className="text-xs text-neutral-400">Loading…</p>
+          ) : exclusions.length === 0 ? (
+            <p className="text-xs text-neutral-500">No exclusions set. All previous-month staff will be included in the next draft.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([bc, items]) => (
+                <div key={bc}>
+                  <p className="text-xs font-semibold text-neutral-300 mb-1">{labelOf(city as City, bc)} ({bc})</p>
+                  <div className="space-y-1">
+                    {items.map((ex) => (
+                      <div key={ex.id} className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-white font-medium truncate block">{ex.staff_name}</span>
+                          <span className="text-xs text-neutral-400">
+                            {reasonLabel(ex.reason)}
+                            {ex.active_until && <> · until {ex.active_until}</>}
+                          </span>
+                        </div>
+                        <button type="button" onClick={() => removeExclusion(ex.id)}
+                          className="flex-shrink-0 text-xs text-rose-400 hover:text-rose-300 rounded px-2 py-0.5 hover:bg-rose-500/10">
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Demand Events Panel component
 // ---------------------------------------------------------------------------
 type DemandEvent = {
@@ -2974,6 +3162,7 @@ export default function AdminDraftPage() {
         <OperatingHoursPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
         <StaffingRulesPanel city={city} approverName={approverName} pin={pin} />
         <DemandEventsPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
+        <ExclusionManagerPanel city={city} approverName={approverName} pin={pin} />
       </div>
 
       {generateResult ? (

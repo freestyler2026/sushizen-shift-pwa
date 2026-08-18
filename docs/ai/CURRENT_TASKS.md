@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Invoice Inbox Drive link + Staff guide artifact + Procurement manual updated)
+Last updated: 2026-08-18 (Manual Shift Publish 401 — end-to-end verified working)
+
+---
+
+## ✅ Verified: Manual Shift Publish 401 — fully resolved (2026-08-18)
+
+**Symptom reported**: Pressing Publish on `/admin/manual-shift` showed "Authentication is required." and shifts appeared to revert.
+
+**Root causes (both fixed):**
+1. **Missing proxy Route Handlers** for `/api/draft/*` and `/api/published/*` — Load Staff & Shifts calls went via Vercel CDN fallback directly to Heroku without `Authorization: Bearer` → 401 on load. Added `src/app/api/draft/[...slug]/route.ts` and `src/app/api/published/[...slug]/route.ts` (commit `1f7b909`).
+2. **No 401 retry in `apiFetch`** in manual-shift page — when `sz_access` JWT expires (16h TTL), local fetch was not retrying with refreshed token. Added `tryRefreshAccessToken()` retry pattern (Vercel af451c6).
+
+**End-to-end test (2026-08-18, this session):**
+- Direct API test: `POST /api/admin/shifts/manual_publish` → **422** (not 401) — auth passes, Heroku reachable
+- Full UI test: Load Staff (Business Bay, 2026-08-17) → click Publish → **200 OK**, 71 rows published, Google Sheets export succeeded, page transitioned to Published View ✅
+- No `manual_publish` 401 errors found in Heroku logs
+
+**Why shifts appeared to revert**: The page does NOT register with `useUnsavedGuard`, so AutoReload (fires on Vercel deploy) can wipe in-progress edits. After seeing a 401 during load (root cause #1), the user's edit was lost on the next auto-reload. Post-fix, both load and publish now work correctly via the proxy.
 
 ---
 
