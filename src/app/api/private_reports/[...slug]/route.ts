@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { tryRefreshUpstream, setRefreshedCookie } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -36,31 +37,47 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
   const slug = (params.slug || []).map((part) => encodeURIComponent(part)).join("/");
   const search = req.nextUrl.search || "";
   const body = method === "GET" ? undefined : await req.arrayBuffer();
-  const upstream = await fetch(`${apiBase}/api/private_reports/${slug}${search}`, {
-    method,
-    headers: {
-      Accept: req.headers.get("accept") || "*/*",
-      ...resolveAuthHeaders(req),
-      ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
-      ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
-      ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
-      ...(body && body.byteLength > 0
-        ? {
-            "Content-Type":
-              req.headers.get("content-type") || "application/json",
-          }
-        : {}),
-    },
-    body,
-    cache: "no-store",
-  });
+
+  const upstreamUrl = `${apiBase}/api/private_reports/${slug}${search}`;
+  const upstreamHeaders: Record<string, string> = {
+    Accept: req.headers.get("accept") || "*/*",
+    ...resolveAuthHeaders(req),
+    ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
+    ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
+    ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
+    ...(body && body.byteLength > 0 ? { "Content-Type": req.headers.get("content-type") || "application/json" } : {}),
+  };
+
+  let upstream = await fetch(upstreamUrl, { method, headers: upstreamHeaders, body, cache: "no-store" });
+
+  if (upstream.status === 401) {
+    const sid = req.cookies.get("sz_session")?.value || "";
+    const newToken = await tryRefreshUpstream(apiBase, sid);
+    if (newToken) {
+      upstream = await fetch(upstreamUrl, {
+        method,
+        headers: { ...upstreamHeaders, Authorization: `Bearer ${newToken}` },
+        body,
+        cache: "no-store",
+      });
+      const bytes = await upstream.arrayBuffer();
+      const res = new NextResponse(bytes, {
+        status: upstream.status,
+        headers: {
+          "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+      setRefreshedCookie(res, newToken);
+      return res;
+    }
+  }
 
   const bytes = await upstream.arrayBuffer();
   return new NextResponse(bytes, {
     status: upstream.status,
     headers: {
-      "content-type":
-        upstream.headers.get("content-type") || "application/json; charset=utf-8",
+      "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
       "cache-control": "no-store",
     },
   });
