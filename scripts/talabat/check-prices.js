@@ -145,12 +145,12 @@ async function postWebhook(payload) {
 // ── vendor processing ─────────────────────────────────────────────────────────
 
 async function processVendor(session, vendorId, checkedAt) {
-  // 1. Fetch vendor name via v5 vendor API
+  // 1. Fetch vendor name via v2 vendor API
   let vendorName = `Vendor-${vendorId}`;
   try {
     const info = await talabatGet(
       session,
-      `${API_BASE}/api/5/platforms/TB_AE/vendors/${vendorId}`
+      `${API_BASE}/api/2/platforms/TB_AE/vendors/${vendorId}`
     );
     vendorName = info.name || info.displayName || info.restaurantName ||
                  info.title || info.vendor?.name || vendorName;
