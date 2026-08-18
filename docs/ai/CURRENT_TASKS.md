@@ -27,12 +27,38 @@ Last updated: 2026-08-18 (Talabat AE Direct Price Monitor — full implementatio
 
 ### APIエンドポイント（確認済み）
 - Base: `https://vendor-api-ae-lb.me.restaurant-partners.com`
+- Vendor info: `GET /api/2/platforms/TB_AE/vendors/{vendorId}` ← v2が正しい（v1/v5は名前なし）
 - Catalog: `GET /api/5/platforms/TB_AE/vendors/{vendorId}/catalogs?locale=en-AE&includeEmptyResources=true&sizeSupport=true`
 - Products: `GET /api/5/platforms/TB_AE/vendors/{vendorId}/catalogs/{catalogId}/categories/{categoryId}/products?locale=en-AE&sizeSupport=true`
-- Vendor info: `GET /api/1/dine-in/TB_AE/vendor/{vendorId}`
+  - **注意**: レスポンスはオブジェクトではなく**配列直接返し**。`Array.isArray(prodData)` でチェック必須
+  - 価格フィールドは `unitPrice` (AED直接、フィルスではない)
 
-### 全14ベンダーID
-`723150, 765535, 763564, 761205, 759210, 761204, 762721, 723685, 723684, 723686, 729481, 744680, 719717, 719720`
+### 全14ベンダーID → 名前マッピング（2026-08-18確認済み）
+| ID | 名前 |
+|---|---|
+| 723150 | Sushi ZEN, Al Barsha South |
+| 765535 | All Veggie Sushi, Al Barsha, Al Barsha 3 |
+| 763564 | J - Japanese Authentic Deli, Al Hudaiba |
+| 761205 | J - Japanese Authentic Deli, Arjan |
+| 759210 | J - Japanese Authentic Deli, Business Bay |
+| 761204 | J - Japanese Authentic Deli, JLT |
+| 762721 | Ramen Zen, Al Hudaiba |
+| 723685 | Ramen Zen, Arjan |
+| 723684 | Ramen Zen, Business Bay |
+| 723686 | Ramen Zen, Jumeirah Lakes Towers - JLT |
+| 729481 | Sushi ZEN, Al Hudaiba |
+| 744680 | Sushi ZEN, Al Barsha 3 |
+| 719717 | Sushi ZEN, Business Bay |
+| 719720 | Sushi ZEN, Jumeirah Lakes Towers - JLT |
+
+### JWT自動リフレッシュ（2026-08-18追加）
+- セッションクッキー（長寿命）→ `refresh-token.js` がヘッドレスPlaywrightでポータルをロード → SPAが自動で新JWTを取得
+- JWTは4時間で失効するが、スケジュール実行ごとに自動更新される
+- セッションクッキーが切れると Discord DM "Session Expired" → `setup-session.js` 再実行が必要
+
+### 本番稼働確認（2026-08-18）
+- 全14ベンダー price fetch 成功（first_snapshot: true）
+- 次回実行から価格差分検知 + Discord DM通知
 
 ---
 
