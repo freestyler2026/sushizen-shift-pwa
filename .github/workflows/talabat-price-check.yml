@@ -1,0 +1,41 @@
+name: Talabat AE Price Check (Dubai)
+
+on:
+  schedule:
+    - cron: '30 1,5,9,13,17,21 * * *'  # Every 4 hours (UTC), staggered from other checks
+  workflow_dispatch:  # Manual run button on GitHub
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # 14 vendors × multi-category fetches
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Node 20 has built-in fetch
+
+      - name: Decode Talabat session state
+        run: |
+          echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json
+
+      - name: Run Talabat price check
+        run: node scripts/talabat/check-prices.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-price-snapshot
+
+      - name: Trigger Dubai Talabat aggregation
+        run: |
+          STATUS=$(curl -s -o /tmp/agg-resp.json -w "%{http_code}" \
+            -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/admin/aggregator-price/run-check-scheduled?city=dubai_talabat")
+          cat /tmp/agg-resp.json
+          if [ "$STATUS" != "200" ]; then
+            echo "Aggregation error: HTTP $STATUS"
+            exit 1
+          fi
