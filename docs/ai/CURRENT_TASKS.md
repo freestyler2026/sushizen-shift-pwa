@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Universal proxy 401 auto-refresh deployed)
+Last updated: 2026-08-18 (Phase 3 PO matching deployed — Heroku 4d2e65c / Vercel c58e8fb)
 
 ---
 
@@ -52,9 +52,31 @@ Last updated: 2026-08-18 (Universal proxy 401 auto-refresh deployed)
 2. Worker が pending インボイスを 30 秒以内に処理開始
 3. OCR 完了後: 各フィールドが自動入力 + 信頼度警告表示
 
-### Next: Phase 2 (GPT-4o Arabic/mixed) + Phase 3 (PO matching engine)
-- Phase 2: アラビア語・混在言語インボイス対応（現状は英語のみ確実）
-- Phase 3: OCR結果をPO（発注書）と突合して差異を自動検出
+### ✅ Phase 2 (GPT-4o Vision) — DONE (e70bab6)
+- GPT-4o Vision でアラビア語・画像インボイスも対応
+- 本番テスト済み: Business Bay の IMG_3784.jpg → vendor/amount/date 正常抽出
+
+### ✅ Phase 3 (PO matching) — DONE (Heroku 4d2e65c / Vercel c58e8fb)
+**Backend:**
+- `drive_invoices` に 5列追加: `matched_po_id`, `match_confidence`, `match_method`, `matched_by`, `matched_at`
+- `run_po_matching_for_drive_invoice()`: pg_trgm similarity(60%) + amount ratio(40%) で自動マッチ
+- `search_po_candidates()`: ベンダー名ファジー検索
+- `set_drive_invoice_po_match()`: PO リンクの設定/クリア
+- `GET /api/admin/drive-invoices/{id}/po-candidates?q=`
+- `POST /api/admin/drive-invoices/{id}/set-po-match`
+- OCR 完了後に自動マッチ実行 (`invoice_ocr_service.py`)
+- `list_drive_invoices` / `get_drive_invoice` が LEFT JOIN で PO 情報を返す
+
+**Frontend:**
+- Inbox カードに PO番号 + 信頼度% バッジ表示
+- Modal に "Purchase Order Match" セクション追加:
+  - 現在のマッチ表示 (PO番号・ベンダー・金額・信頼度・手動/自動)
+  - "Link PO" / "Change PO" → インライン検索 (debounce 300ms)
+  - "Clear" でマッチ解除
+
+### Next: Phase 4 (差異検出・アラート)
+- マッチしたPOと金額・ベンダーが一致しない場合に警告表示
+- 未マッチインボイスのエスカレーション通知
 
 ---
 
