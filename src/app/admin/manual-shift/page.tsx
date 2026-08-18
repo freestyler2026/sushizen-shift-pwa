@@ -254,7 +254,8 @@ function BranchSection({
 
   const staff = [...new Set(bRows.map((r) => r.staff_name))].sort((a, b) => a.localeCompare(b));
   const bDates = weekDates.filter((d) => bRows.some((r) => r.work_date === d));
-  const lookup = (name: string, d: string) => bRows.find((r) => r.staff_name === name && r.work_date === d) ?? null;
+  // Use filter (not find) so all shifts for a staff+date are returned (supports double shifts)
+  const lookup = (name: string, d: string) => bRows.filter((r) => r.staff_name === name && r.work_date === d);
 
   return (
     <div className={`${W_CARD} overflow-hidden p-0`}>
@@ -279,27 +280,33 @@ function BranchSection({
           </thead>
           <tbody>
             {staff.map((name, i) => {
-              const dayCount = bDates.filter((d) => lookup(name, d)).length;
+              const dayCount = bDates.filter((d) => lookup(name, d).length > 0).length;
               const isDeleting = deletingStaff === name;
               return (
                 <tr key={name} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
                   <td className="sticky left-0 bg-white px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{stripRoleSuffix(name)}</td>
                   {bDates.map((d) => {
-                    const row = lookup(name, d);
-                    if (!row) return <td key={d} className="px-2 py-2 text-center text-gray-300">—</td>;
-                    if (isSpecialRole(row.role)) {
+                    const rows = lookup(name, d);
+                    if (rows.length === 0) return <td key={d} className="px-2 py-2 text-center text-gray-300">—</td>;
+                    if (rows.length === 1 && isSpecialRole(rows[0].role)) {
                       return (
                         <td key={d} className="px-2 py-2 text-center">
-                          <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${specialStyle(row.role)}`}>{specialLabel(row.role)}</span>
+                          <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${specialStyle(rows[0].role)}`}>{specialLabel(rows[0].role)}</span>
                         </td>
                       );
                     }
-                    const tc = timeColor(row.start_hour);
                     return (
                       <td key={d} className="px-2 py-1.5 text-center">
-                        <div className={`rounded-lg border px-2 py-1.5 ${tc.cell.split(" ").filter(c => !c.startsWith("hover:")).join(" ")}`}>
-                          <div className={`font-mono text-[11px] leading-tight ${tc.time}`}>{fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}</div>
-                          <div className={`text-[10px] ${tc.role}`}>{row.role}</div>
+                        <div className="flex flex-col gap-0.5">
+                          {rows.map((row, ri) => {
+                            const tc = timeColor(row.start_hour);
+                            return (
+                              <div key={ri} className={`rounded-lg border px-2 py-1.5 ${tc.cell.split(" ").filter(c => !c.startsWith("hover:")).join(" ")}`}>
+                                <div className={`font-mono text-[11px] leading-tight ${tc.time}`}>{fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}</div>
+                                <div className={`text-[10px] ${tc.role}`}>{row.role}</div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                     );
@@ -1134,16 +1141,9 @@ export default function ManualShiftPage() {
 
   const handleBackToEdit = useCallback(() => {
     setView("edit");
-    setGridData((prev) => {
-      const saved = loadDraft(city, branchCode, weekStart);
-      if (!saved || Object.keys(saved).length === 0) return prev;
-      const next = { ...prev };
-      for (const [name, days] of Object.entries(saved)) {
-        next[name] = { ...(next[name] ?? {}), ...days };
-      }
-      return next;
-    });
-  }, [city, branchCode, weekStart]);
+    // Reload published data from DB so the grid reflects the current server state
+    if (staffList.length > 0) void loadExistingShifts(true);
+  }, [staffList.length, loadExistingShifts]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1351,7 +1351,12 @@ export default function ManualShiftPage() {
         <div className="flex items-center gap-0.5 border-b border-gray-200 pb-0 overflow-x-auto">
           <button
             type="button"
-            onClick={() => setView("edit")}
+            onClick={() => {
+              setView("edit");
+              // Reload published data from DB so the grid reflects any changes made
+              // since the page was last loaded (e.g. after another admin published)
+              if (staffList.length > 0) void loadExistingShifts(true);
+            }}
             className={[
               "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
               view === "edit"
@@ -1589,19 +1594,22 @@ export default function ManualShiftPage() {
                                         +
                                       </button>
                                     )}
-                                    <button
-                                      type="button"
-                                      title="Delete shift"
-                                      disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                        void deletePublishedShift(name, d);
-                                      }}
-                                      className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
-                                    >
-                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
-                                    </button>
+                                    {/* For multi-shift cells, hide the × button — use the edit popup's per-segment ✕ buttons to avoid accidentally deleting all shifts */}
+                                    {shifts.length === 1 && (
+                                      <button
+                                        type="button"
+                                        title="Delete shift"
+                                        disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                          void deletePublishedShift(name, d);
+                                        }}
+                                        className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
+                                      >
+                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                      </button>
+                                    )}
                                   </div>
                                 )
                               ) : (
