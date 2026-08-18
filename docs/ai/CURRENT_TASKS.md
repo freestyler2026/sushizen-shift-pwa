@@ -1,6 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Talabat AE Direct Price Monitor — full implementation)
+Last updated: 2026-08-18 (CK Supplier Order Overdue Escalation System)
+
+---
+
+## ✅ Completed: CK Supplier Order Overdue Escalation System (2026-08-18)
+
+**Goal**: 発注後に未納が続くCK仕入れ先注文の形骸化を解消。EDD（納期再設定）→ CK在庫入力 → マネージャー承認/緊急要請 → Discord通知
+
+### 実装済み (Heroku v1900 + Vercel 6dcef59)
+
+**Backend (Heroku):**
+- `db_store_supplier.py`: `store_supplier_orders` テーブルに10列追加:
+  `expected_delivery_date`, `edd_note`, `edd_submitted_at/by`,
+  `ck_stock_data` (JSONB), `ck_stock_submitted_at/by`,
+  `ck_decision`, `ck_decision_at/by`
+- 4つの新DB関数: `submit_order_edd`, `submit_ck_stock`, `submit_ck_decision`, `get_ck_pending_review_orders`
+- `get_post_order_alerts()` 更新: `overdue`（EDDなし未対応）、`edd_submitted`（CKレビュー待ち）、`urgent_requested`（緊急要請済み）
+- 4つの新APIエンドポイント:
+  - `PATCH /api/admin/store-supplier/orders/{id}/edd` — Marianoが納期再設定
+  - `GET /api/admin/store-supplier/ck-pending` — CKスタッフ/マネージャー用ペンディングリスト
+  - `PATCH /api/admin/store-supplier/orders/{id}/ck-stock` — CKスタッフが現在庫入力
+  - `PATCH /api/admin/store-supplier/orders/{id}/ck-decision` — CKマネージャーが承認/緊急要請
+
+**Frontend (Vercel):**
+- `admin/store-supplier-orders`: 期限切れ済み`sent`注文の詳細にEDD入力セクション追加
+  - 日付 + ノート入力 → POST /edd → Discord通知
+  - EDD設定後: CK在庫入力状況・CK決定バッジを表示
+  - アラートバナー: overdue（赤/要EDD設定）、edd_submitted（青/CK待ち）、urgent_requested（赤/Aliana要フォロー）
+- `store/supplier-receiving`: 「EDD Review」タブ追加
+  - CKスタッフ: 品目ごとに現在庫数を入力 → 送信
+  - CKマネージャー: 在庫入力確認後に「Approve EDD」か「Request Immediate Delivery」を選択
+  - 決定後: 状態表示（承認済み/緊急要請） + Discord通知メモ
+
+### Discord通知設定（ユーザー作業必要）
+- Discord `#ck-orders-alert` チャンネルにWebhookを作成する
+- Herokuに環境変数を設定: `heroku config:set DISCORD_CK_ORDERS_ALERT_WEBHOOK_URL=<webhook-url> -a sushizen-shift-app`
+
+### ワークフロー概要
+1. 注文が`sent`ステータスで納期超過 → アラートに「要EDD」表示
+2. Mariano（購買）が注文詳細を開いて「Set EDD」→ 新しい納期 + ノートを入力 → Discord通知
+3. CKスタッフが `/store/supplier-receiving` の「EDD Review」タブで現在庫を入力 → Discord通知
+4. CKマネージャーが在庫を確認して決定:
+   - **Approve EDD**: 納期まで在庫OK → Discord「no follow-up needed until {date}」
+   - **Request Immediate Delivery**: 在庫不足 → Discord「⚠️ Aliana: follow up immediately」
+5. Aliana: `urgent_requested`アラートが出た注文のみフォローアップが必要（承認済みEDDはフィルタ済み）
 
 ---
 

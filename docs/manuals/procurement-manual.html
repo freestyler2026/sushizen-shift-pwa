@@ -155,6 +155,7 @@ td.muted { color:var(--muted); font-size:12px; }
 
   <div class="sidebar-label" data-en="Store Operations" data-ja="店舗オペレーション">Store Operations</div>
   <div class="nav-item" onclick="show('supplier-orders')"><span class="nav-icon">📋</span><span data-en="Store Supplier Orders" data-ja="店舗サプライヤー発注">Store Supplier Orders</span></div>
+  <div class="nav-item" onclick="show('edd-review')" style="padding-left:28px;font-size:11px"><span class="nav-icon">📅</span><span data-en="↳ EDD Review (Overdue)" data-ja="↳ EDD確認（延滞）">↳ EDD Review (Overdue)</span></div>
   <div class="nav-item" onclick="show('place-order')"><span class="nav-icon">🛒</span><span data-en="Place an Order" data-ja="発注する">Place an Order</span></div>
   <div class="nav-item" onclick="show('ck-receive')"><span class="nav-icon">📦</span><span data-en="CK Receiving" data-ja="CK商品の受取">CK Receiving</span></div>
   <div class="nav-item" onclick="show('vendor-receive')"><span class="nav-icon">🚚</span><span data-en="Vendor Receiving" data-ja="仕入先納品の受取">Vendor Receiving</span></div>
@@ -505,12 +506,75 @@ td.muted { color:var(--muted); font-size:12px; }
     <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--amber)">
       <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Alert Banners</div>
       <div class="table-wrap"><table style="font-size:12px">
-        <tr><th>Banner</th><th>Trigger</th></tr>
-        <tr><td><span class="chip red" style="font-size:10px;padding:1px 6px">Overdue Delivery</span></td><td style="color:var(--muted)">Sent order with delivery date in the past and no receipt</td></tr>
-        <tr><td><span class="chip" style="font-size:10px;padding:1px 6px;background:var(--orange,#f97316);color:#fff">Price Variance Flagged</span></td><td style="color:var(--muted)">Received order with ≥5% actual vs PO price, invoice not yet checked</td></tr>
-        <tr><td><span class="chip amber" style="font-size:10px;padding:1px 6px">Invoice Check Pending</span></td><td style="color:var(--muted)">Received/partial order with no invoice check for 3+ days</td></tr>
+        <tr><th>Banner</th><th>Who must act</th><th>Trigger</th></tr>
+        <tr><td><span class="chip red" style="font-size:10px;padding:1px 6px">⚠ Overdue — EDD Required</span></td><td style="color:var(--muted)">Mariano (Purchasing)</td><td style="color:var(--muted)">Sent order with delivery date in the past and no EDD set yet. Open the order and click <strong>Set EDD</strong>.</td></tr>
+        <tr><td><span class="chip blue" style="font-size:10px;padding:1px 6px;background:#3b82f6;color:#fff">EDD Submitted — Awaiting CK</span></td><td style="color:var(--muted)">CK Manager</td><td style="color:var(--muted)">EDD submitted by purchasing. CK must enter stock quantities and decide at <strong>/store/supplier-receiving → EDD Review tab</strong>.</td></tr>
+        <tr><td><span class="chip red" style="font-size:10px;padding:1px 6px">🚨 Urgent Delivery Requested</span></td><td style="color:var(--muted)">Aliana (Back Office)</td><td style="color:var(--muted)">CK Manager requested immediate delivery. Contact supplier immediately to expedite.</td></tr>
+        <tr><td><span class="chip" style="font-size:10px;padding:1px 6px;background:var(--orange,#f97316);color:#fff">Price Variance Flagged</span></td><td style="color:var(--muted)">Back Office</td><td style="color:var(--muted)">Received order with ≥5% actual vs PO price, invoice not yet checked.</td></tr>
+        <tr><td><span class="chip amber" style="font-size:10px;padding:1px 6px">Invoice Check Pending</span></td><td style="color:var(--muted)">Back Office</td><td style="color:var(--muted)">Received/partial order with no invoice check for 3+ days.</td></tr>
       </table></div>
     </div>
+  </div>
+</div>
+
+<!-- ── EDD Review (Overdue Escalation) ─────────────────────────────── -->
+<div class="section" id="sec-edd-review">
+  <div class="section-hero">
+    <div class="hero-icon">📅</div>
+    <div>
+      <div class="section-title">EDD Review — Overdue Order Escalation</div>
+      <div class="section-path">/store/supplier-receiving → EDD Review tab</div>
+      <div class="section-desc">When a CK supplier order is overdue, purchasing sets a new Expected Delivery Date (EDD). CK staff then enter current stock levels, and the CK Manager approves or requests immediate delivery. All status changes trigger Discord notifications to #ck-orders-alert.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Escalation Workflow — 4-Step Loop</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span>
+        <div class="step-body">
+          <strong>Purchasing (Mariano) — Set EDD</strong>
+          <p>When the <span class="chip red" style="font-size:10px;padding:1px 5px">⚠ Overdue — EDD Required</span> alert appears on <strong>/admin/store-supplier-orders</strong>, open the order and scroll to the "Order Overdue — Expected Delivery Date" section. Enter the new delivery date and an optional note (e.g. "Supplier confirmed Wednesday delivery"). Click <strong>Set EDD</strong>.</p>
+          <p style="color:var(--muted);font-size:12px">→ Discord notification fires to #ck-orders-alert. Alert changes from "Overdue" to "EDD Submitted — Awaiting CK".</p>
+        </div>
+      </li>
+      <li class="step"><span class="step-num">2</span>
+        <div class="step-body">
+          <strong>CK Staff — Enter Current Stock</strong>
+          <p>Go to <strong>/store/supplier-receiving</strong> and click the <strong>EDD Review</strong> tab. Select the order. For each item, enter the current stock quantity in the kitchen. Click <strong>Submit Stock Entry</strong>.</p>
+          <p style="color:var(--muted);font-size:12px">→ Discord notification fires to #ck-orders-alert. CK Manager can now review the stock levels.</p>
+        </div>
+      </li>
+      <li class="step"><span class="step-num">3</span>
+        <div class="step-body">
+          <strong>CK Manager — Approve EDD or Request Immediate Delivery</strong>
+          <p>On the same EDD Review tab, review the stock quantities entered by staff. Choose one of two actions:</p>
+          <ul style="font-size:13px;color:var(--muted);margin:6px 0 0 0;padding-left:18px">
+            <li style="margin-bottom:4px"><span style="color:#34d399;font-weight:600">✅ Approve EDD</span> — Stock is sufficient to last until the EDD. No action needed by back office until that date.</li>
+            <li><span style="color:#f87171;font-weight:600">🚨 Request Immediate Delivery</span> — Stock is too low. Aliana must contact the supplier immediately for an expedited delivery.</li>
+          </ul>
+          <p style="color:var(--muted);font-size:12px;margin-top:6px">→ Discord notification fires with the decision and instructions for Aliana.</p>
+        </div>
+      </li>
+      <li class="step"><span class="step-num">4</span>
+        <div class="step-body">
+          <strong>Aliana (Back Office) — Follow Up (Urgent only)</strong>
+          <p>If <span class="chip red" style="font-size:10px;padding:1px 5px">🚨 Urgent Delivery Requested</span> appears in the alert banner on <strong>/admin/store-supplier-orders</strong>, contact the supplier immediately to expedite delivery. Orders where EDD was approved and the date is still in the future are filtered out — no action needed.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Discord Notifications — #ck-orders-alert</div>
+    <div class="table-wrap"><table style="font-size:12px">
+      <tr><th>Event</th><th>Message</th></tr>
+      <tr><td style="color:var(--muted)">EDD submitted by purchasing</td><td style="color:var(--muted)">📦 <strong>EDD Submitted</strong> · {Store} · {Supplier}<br>Expected Delivery: {date} — Next: CK Manager to review</td></tr>
+      <tr><td style="color:var(--muted)">CK stock entered by staff</td><td style="color:var(--muted)">📋 <strong>CK Stock Entered</strong> · {Store} · {Supplier}<br>Stock submitted — awaiting CK Manager decision</td></tr>
+      <tr><td style="color:var(--muted)">CK approved EDD</td><td style="color:var(--muted)">✅ <strong>Delivery Scheduled</strong> — no follow-up needed until {date}</td></tr>
+      <tr><td style="color:var(--muted)">CK requested urgent delivery</td><td style="color:var(--muted)">🚨 <strong>URGENT: Immediate Delivery Requested</strong> — Aliana: follow up immediately</td></tr>
+    </table></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px">Requires <code>DISCORD_CK_ORDERS_ALERT_WEBHOOK_URL</code> to be set in Heroku config vars.</p>
   </div>
 </div>
 
