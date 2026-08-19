@@ -37,3 +37,11 @@ jobs:
           FP_PASSWORD_QC:        ${{ secrets.FP_PASSWORD_QC }}
           WEBHOOK_URL:           https://sushizen-shift-app-038d846023bc.herokuapp.com/api/foodpanda/portal-price-snapshot
         run: node scripts/foodpanda/check-prices.js
+
+      - name: Upload debug screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fp-debug-screenshots
+          path: /tmp/fp-debug-*.png
+          if-no-files-found: ignore
