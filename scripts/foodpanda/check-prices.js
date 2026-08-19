@@ -27,20 +27,20 @@ const PLATFORM  = 'FP_PH';
 
 const ACCOUNTS = [
   {
-    email:     process.env.FP_EMAIL_PARANAQUE    || 'contact@ramensushizen.com',
-    password:  process.env.FP_PASSWORD_PARANAQUE || 'Sushizen@2025',
+    email:     process.env.FP_EMAIL_PARANAQUE,
+    password:  process.env.FP_PASSWORD_PARANAQUE,
     storeName: 'Sushi Zen - Paranaque',
     vendorId:  't0z4',
   },
   {
-    email:     process.env.FP_EMAIL_TAFT    || 'taft2025zen@gmail.com',
-    password:  process.env.FP_PASSWORD_TAFT || 'Sushizentaft@2025',
+    email:     process.env.FP_EMAIL_TAFT,
+    password:  process.env.FP_PASSWORD_TAFT,
     storeName: 'Sushi Zen - Taft',
     vendorId:  'ryqc',
   },
   {
-    email:     process.env.FP_EMAIL_QC    || 'qc2025zen@gmail.com',
-    password:  process.env.FP_PASSWORD_QC || 'Sushizenqc@2025',
+    email:     process.env.FP_EMAIL_QC,
+    password:  process.env.FP_PASSWORD_QC,
     storeName: 'Sushi Zen - Cubao',
     vendorId:  'a97i',
   },
@@ -133,9 +133,16 @@ async function fetchAllProducts(vendorId, token) {
           token
         );
         const products = prodData?.data ?? prodData?.products ?? prodData ?? [];
+
         if (!Array.isArray(products)) {
-          console.log(`      Products response (${categoryName}): ${JSON.stringify(prodData).slice(0, 150)}`);
+          console.log(`      [${categoryName}] Non-array products: ${JSON.stringify(prodData).slice(0, 200)}`);
           continue;
+        }
+        if (products.length === 0) continue;
+
+        // Log first product of first non-empty category for debugging
+        if (allItems.length === 0) {
+          console.log(`      [${categoryName}] ${products.length} products. First: ${JSON.stringify(products[0]).slice(0, 250)}`);
         }
 
         for (const p of products) {
