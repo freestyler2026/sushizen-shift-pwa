@@ -230,6 +230,13 @@ async function main() {
   if (!SESSION_PATH) throw new Error('TALABAT_SESSION_PATH not set');
   if (!WEBHOOK_URL)  throw new Error('WEBHOOK_URL not set');
 
+  // Check if refresh-token.js flagged a session expiry
+  const rawState = JSON.parse(require('fs').readFileSync(SESSION_PATH, 'utf8'));
+  if (rawState.sessionExpired) {
+    console.log('Session already flagged as expired by refresh-token.js — skipping price check');
+    process.exit(0);
+  }
+
   const session = loadTalabatSession(SESSION_PATH);
   const cookieCount = session.cookies ? session.cookies.split(';').length : 0;
   console.log(`Loaded session: ${cookieCount} cookies, bearer=${!!session.bearerToken}`);
@@ -269,7 +276,7 @@ async function main() {
             checked_at:  checkedAt,
           });
         } catch (_) {}
-        process.exit(1);
+        process.exit(0);  // exit 0: session expiry is expected, not a workflow error
       }
       console.error(`  Error for vendor ${vendorId}:`, err.message);
     }

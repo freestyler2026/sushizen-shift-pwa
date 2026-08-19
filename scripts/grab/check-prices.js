@@ -99,7 +99,7 @@ async function main() {
     if (err.message.startsWith('AUTH_EXPIRED')) {
       console.log('Session expired — notifying and exiting');
       await postWebhook({ store_id: 'SESSION_EXPIRED', store_name: 'SYSTEM', items: [], checked_at: checkedAt });
-      process.exit(1);
+      process.exit(0);  // exit 0: session expiry is expected, not a workflow error
     }
     throw err;
   }
@@ -107,7 +107,7 @@ async function main() {
   if (!stores.length) {
     console.log('No stores returned — possible auth issue');
     await postWebhook({ store_id: 'SESSION_EXPIRED', store_name: 'SYSTEM', items: [], checked_at: checkedAt });
-    process.exit(1);
+    process.exit(0);  // exit 0: session expiry is expected, not a workflow error
   }
 
   // 2. Check each store's menu
@@ -156,7 +156,7 @@ async function main() {
       if (err.message.startsWith('AUTH_EXPIRED')) {
         console.log('Session expired — notifying and exiting');
         await postWebhook({ store_id: 'SESSION_EXPIRED', store_name: 'SYSTEM', items: [], checked_at: checkedAt });
-        process.exit(1);
+        process.exit(0);  // exit 0: session expiry is expected, not a workflow error
       }
       console.error(`  Error for ${storeName}:`, err.message);
     }

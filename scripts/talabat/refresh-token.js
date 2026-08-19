@@ -15,6 +15,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 
 const SESSION_PATH = process.env.TALABAT_SESSION_PATH;
+const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 if (!SESSION_PATH) throw new Error('TALABAT_SESSION_PATH not set');
 
 const PORTAL = 'https://partner-app.talabat.com';
@@ -74,7 +75,19 @@ async function main() {
   if (!newToken) {
     console.error('❌ Could not capture a new Bearer token.');
     console.error('Session cookies may have expired — re-run setup-session.js.');
-    process.exit(1);
+    // Write flag so check-prices.js knows to skip gracefully
+    fs.writeFileSync(SESSION_PATH, JSON.stringify({ ...state, bearerToken: null, sessionExpired: true }));
+    // Notify via webhook if available
+    if (WEBHOOK_URL) {
+      try {
+        await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vendor_id: 'SESSION_EXPIRED', vendor_name: 'SYSTEM', items: [], checked_at: new Date().toISOString() }),
+        });
+      } catch (_) {}
+    }
+    process.exit(0);  // exit 0: session expiry is expected, not a workflow error
   }
 
   // Decode new token for logging
