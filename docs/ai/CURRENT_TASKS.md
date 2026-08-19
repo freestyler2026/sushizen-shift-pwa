@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 DB + API scaffold)
+Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 complete + Manual published)
 
 ---
 
@@ -22,6 +22,7 @@ Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 DB + API 
 - ✅ API (admin): `GET/POST /api/admin/management/templates`, `GET /api/admin/management/templates/{type}`
 - ✅ API (admin): `GET/POST /api/admin/management/bo-assignments`
 - ✅ API (store): `GET /api/store/management/tasks`, `POST /api/store/management/tasks/{id}/respond`
+- ✅ Manual published: `docs/manuals/management-channel-manual.html` → https://claude.ai/code/artifact/5dbc366b-bd8e-4aca-80bd-763f8ddbe9e3
 
 ### Day 2 (next)
 - BO Dashboard: `src/app/admin/management/back-office/page.tsx`

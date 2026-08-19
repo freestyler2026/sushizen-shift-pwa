@@ -1,0 +1,1092 @@
+<title>Sushi ZEN — Store Operation Management Channel</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0D1220; --surface: #162035; --surface2: #1E2D47; --border: #273A57;
+  --accent: #818CF8; --accent-dim: rgba(129,140,248,0.12); --accent-glow: rgba(129,140,248,0.25);
+  --text: #E2E8F0; --muted: #7A90AA;
+  --red: #F87171; --red-dim: rgba(248,113,113,0.12); --red-border: rgba(248,113,113,0.35);
+  --orange: #FB923C; --orange-dim: rgba(251,146,60,0.12); --orange-border: rgba(251,146,60,0.35);
+  --green: #34D399; --green-dim: rgba(52,211,153,0.12); --green-border: rgba(52,211,153,0.35);
+  --blue: #60A5FA; --violet: #A78BFA; --amber: #F59E0B;
+  --sidebar-w: 248px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #EEF2FA; --surface: #FFFFFF; --surface2: #F0F4FF; --border: #C8D4E8;
+    --text: #1A2540; --muted: #536380; --accent-dim: rgba(99,102,241,0.09); --accent-glow: rgba(99,102,241,0.2);
+    --accent: #6366F1;
+    --red-dim: rgba(220,38,38,0.08); --red-border: rgba(220,38,38,0.3); --red: #DC2626;
+    --orange-dim: rgba(234,88,12,0.08); --orange-border: rgba(234,88,12,0.3); --orange: #EA580C;
+    --green-dim: rgba(5,150,105,0.08); --green-border: rgba(5,150,105,0.3); --green: #059669;
+  }
+}
+:root[data-theme="dark"]  { --bg:#0D1220; --surface:#162035; --surface2:#1E2D47; --border:#273A57; --text:#E2E8F0; --muted:#7A90AA; --accent:#818CF8; --accent-dim:rgba(129,140,248,0.12); --accent-glow:rgba(129,140,248,0.25); --red:#F87171; --red-dim:rgba(248,113,113,0.12); --red-border:rgba(248,113,113,0.35); --orange:#FB923C; --orange-dim:rgba(251,146,60,0.12); --orange-border:rgba(251,146,60,0.35); --green:#34D399; --green-dim:rgba(52,211,153,0.12); --green-border:rgba(52,211,153,0.35); }
+:root[data-theme="light"] { --bg:#EEF2FA; --surface:#FFFFFF; --surface2:#F0F4FF; --border:#C8D4E8; --text:#1A2540; --muted:#536380; --accent:#6366F1; --accent-dim:rgba(99,102,241,0.09); --accent-glow:rgba(99,102,241,0.2); --red:#DC2626; --red-dim:rgba(220,38,38,0.08); --red-border:rgba(220,38,38,0.3); --orange:#EA580C; --orange-dim:rgba(234,88,12,0.08); --orange-border:rgba(234,88,12,0.3); --green:#059669; --green-dim:rgba(5,150,105,0.08); --green-border:rgba(5,150,105,0.3); }
+
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; font-size: 14px; }
+
+/* TOP BAR */
+.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 calc(var(--sidebar-w) + 20px); }
+.topbar-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.lang-toggle { display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--surface2); }
+.lang-btn { padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: background .15s, color .15s; }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+/* SIDEBAR */
+.sidebar { position: fixed; top: 52px; left: 0; bottom: 0; width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 0 40px; }
+.sidebar-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .10em; text-transform: uppercase; padding: 12px 16px 4px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 16px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 500; border-left: 3px solid transparent; transition: color .15s, background .15s, border-color .15s; }
+.nav-item:hover { color: var(--text); background: var(--accent-dim); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+.nav-icon { font-size: 13px; flex-shrink: 0; }
+.nav-badge { margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-glow); }
+.nav-badge.live { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+.nav-badge.soon { background: var(--orange-dim); color: var(--orange); border-color: var(--orange-border); }
+
+/* MAIN */
+.main { margin-left: var(--sidebar-w); margin-top: 52px; padding: 36px 40px 100px; max-width: 920px; }
+.section { display: none; }
+.section.active { display: block; }
+
+/* HERO */
+.hero-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
+.hero-icon { width: 52px; height: 52px; border-radius: 12px; background: var(--accent-dim); border: 1px solid var(--accent-glow); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.section-title { font-size: 22px; font-weight: 700; color: var(--text); }
+.section-path { font-size: 11px; color: var(--accent); font-family: 'SF Mono', 'Fira Code', monospace; margin-top: 2px; letter-spacing: .04em; }
+.section-desc { font-size: 13px; color: var(--muted); margin-top: 5px; line-height: 1.7; }
+
+/* PHILOSOPHY BOX */
+.philosophy { background: linear-gradient(135deg, rgba(129,140,248,0.10) 0%, rgba(167,139,250,0.07) 100%); border: 1px solid var(--accent-glow); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+.philosophy-quote { font-size: 16px; font-weight: 600; color: var(--accent); font-style: italic; line-height: 1.6; }
+.philosophy-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); margin-bottom: 10px; }
+.card.red-border    { border-color: var(--red-border); }
+.card.orange-border { border-color: var(--orange-border); }
+.card.green-border  { border-color: var(--green-border); }
+.card.accent-border { border-color: var(--accent-glow); }
+
+/* LAYER DIAGRAM */
+.layer-flow { display: flex; flex-direction: column; gap: 4px; margin: 16px 0; }
+.layer-row { display: flex; align-items: stretch; gap: 0; }
+.layer-num { width: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--accent); }
+.layer-box { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--surface2); }
+.layer-box.highlight { border-color: var(--accent-glow); background: var(--accent-dim); }
+.layer-name { font-size: 12px; font-weight: 700; color: var(--text); }
+.layer-role { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 1px; }
+.layer-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.layer-arrow { display: flex; justify-content: center; align-items: center; height: 20px; color: var(--muted); font-size: 14px; }
+
+/* EXCEPTION CARDS */
+.exc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 640px) { .exc-grid { grid-template-columns: 1fr; } }
+.exc-card { border-radius: 10px; border: 1px solid var(--border); padding: 14px 16px; }
+.exc-card.sev-red    { background: var(--red-dim); border-color: var(--red-border); }
+.exc-card.sev-orange { background: var(--orange-dim); border-color: var(--orange-border); }
+.exc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.exc-sev { font-size: 16px; }
+.exc-title { font-weight: 700; font-size: 13px; }
+.exc-card.sev-red .exc-title    { color: var(--red); }
+.exc-card.sev-orange .exc-title { color: var(--orange); }
+.exc-owner { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.exc-owner strong { color: var(--text); }
+.exc-body { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.exc-trigger { font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace; background: var(--surface2); padding: 5px 8px; border-radius: 5px; margin-top: 6px; color: var(--blue); }
+
+/* TEMPLATE BLOCK */
+.template-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
+.template-msg { font-size: 13px; color: var(--text); font-style: italic; line-height: 1.7; border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 10px; }
+.template-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-opt { display: flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 11px; font-weight: 600; color: var(--text); }
+.t-opt.done    { border-color: var(--green-border); color: var(--green); background: var(--green-dim); }
+.t-opt.cannot  { border-color: var(--orange-border); color: var(--orange); background: var(--orange-dim); }
+.t-opt.neutral { border-color: var(--border); }
+
+/* STEPS */
+.steps { list-style: none; }
+.step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.step:last-child { border-bottom: none; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.step-body { flex: 1; }
+.step-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.step-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* STATUS TABLE */
+.status-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+.status-table th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--muted); font-weight: 700; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.status-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+.status-table tr:last-child td { border-bottom: none; }
+.status-table tr:hover td { background: var(--accent-dim); }
+
+/* CHIPS */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--text); }
+.chip.red    { background: var(--red-dim);    color: var(--red);    border-color: var(--red-border); }
+.chip.orange { background: var(--orange-dim); color: var(--orange); border-color: var(--orange-border); }
+.chip.green  { background: var(--green-dim);  color: var(--green);  border-color: var(--green-border); }
+.chip.accent { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-glow); }
+.chip.blue   { background: rgba(96,165,250,0.12); color: var(--blue); border-color: rgba(96,165,250,0.3); }
+
+/* TIPS */
+.tip { display: flex; gap: 9px; border-radius: 8px; padding: 11px 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.tip.info    { background: rgba(96,165,250,0.07);   border: 1px solid rgba(96,165,250,0.3);  }
+.tip.warn    { background: rgba(251,146,60,0.07);   border: 1px solid rgba(251,146,60,0.3);  }
+.tip.success { background: rgba(52,211,153,0.07);   border: 1px solid rgba(52,211,153,0.3);  }
+.tip.accent  { background: var(--accent-dim);       border: 1px solid var(--accent-glow);    }
+.tip-icon { flex-shrink: 0; font-size: 15px; }
+
+/* ROLLOUT TABLE */
+.rollout { display: flex; flex-direction: column; gap: 10px; }
+.rollout-item { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); }
+.rollout-status { font-size: 18px; flex-shrink: 0; }
+.rollout-phase { font-size: 12px; font-weight: 700; color: var(--accent); min-width: 80px; }
+.rollout-body { flex: 1; }
+.rollout-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.rollout-items { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* BO DASHBOARD MOCK */
+.mock-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 12px 0; }
+.mock-header { background: var(--surface2); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.mock-header-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.mock-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.mock-row:last-child { border-bottom: none; }
+.mock-sev { font-size: 14px; flex-shrink: 0; }
+.mock-row-body { flex: 1; min-width: 0; }
+.mock-row-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.mock-row-sub { font-size: 11px; color: var(--muted); }
+.mock-btn { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; }
+.mock-btn.send { background: var(--accent); color: #fff; }
+.mock-btn.view { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.mock-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 700; }
+.mock-tag.open { background: var(--accent-dim); color: var(--accent); }
+.mock-tag.sent { background: var(--orange-dim); color: var(--orange); }
+.mock-tag.done { background: var(--green-dim); color: var(--green); }
+
+/* API TABLE */
+.api-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; overflow-x: auto; }
+.api-table th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.api-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.api-table tr:last-child td { border-bottom: none; }
+.method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: monospace; }
+.method.get    { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green-border); }
+.method.post   { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-glow); }
+.method.patch  { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange-border); }
+.api-path { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: var(--blue); }
+
+/* LANG */
+body.en .ja { display: none; }
+body.en .en { display: block; }
+body:not(.en) .en { display: none; }
+body:not(.en) .ja { display: block; }
+.en, .ja { display: block; }
+span.en, span.ja { display: inline; }
+body.en span.ja { display: none; }
+body:not(.en) span.en { display: none; }
+
+h2 { font-size: 14px; font-weight: 700; color: var(--text); margin: 22px 0 10px; }
+h3 { font-size: 12px; font-weight: 700; color: var(--muted); margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .07em; }
+p { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+ul.body-list { padding-left: 18px; color: var(--muted); font-size: 12px; }
+ul.body-list li { margin-bottom: 4px; }
+ul.body-list strong { color: var(--text); }
+</style>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">
+    <span class="ja">店舗運営 管理チャンネル</span>
+    <span class="en">Store Operation Management Channel</span>
+  </span>
+  <div class="topbar-right">
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">JP</button>
+      <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-label"><span class="ja">概要</span><span class="en">Overview</span></div>
+  <div class="nav-item active" onclick="show('overview')">
+    <span class="nav-icon">🧠</span>
+    <span class="ja">システム概要</span><span class="en">System Overview</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
+  <div class="nav-item" onclick="show('architecture')">
+    <span class="nav-icon">🏗️</span>
+    <span class="ja">4層アーキテクチャ</span><span class="en">4-Layer Architecture</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">例外タイプ</span><span class="en">Exception Types</span></div>
+  <div class="nav-item" onclick="show('exceptions')">
+    <span class="nav-icon">🔴</span>
+    <span class="ja">例外タイプ一覧</span><span class="en">All Exception Types</span>
+  </div>
+  <div class="nav-item" onclick="show('templates')">
+    <span class="nav-icon">📝</span>
+    <span class="ja">アクションテンプレート</span><span class="en">Action Templates</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">スタッフ別使い方</span><span class="en">By Role</span></div>
+  <div class="nav-item" onclick="show('bo-dashboard')">
+    <span class="nav-icon">💼</span>
+    <span class="ja">BO ダッシュボード</span><span class="en">BO Dashboard</span>
+    <span class="nav-badge soon">Day 2</span>
+  </div>
+  <div class="nav-item" onclick="show('manager-inbox')">
+    <span class="nav-icon">📥</span>
+    <span class="ja">マネージャー受信箱</span><span class="en">Manager Inbox</span>
+    <span class="nav-badge soon">Day 2</span>
+  </div>
+  <div class="nav-item" onclick="show('area-manager')">
+    <span class="nav-icon">📊</span>
+    <span class="ja">エリアマネージャー</span><span class="en">Area Manager</span>
+    <span class="nav-badge soon">Week 7</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">インテリジェンス</span><span class="en">Intelligence</span></div>
+  <div class="nav-item" onclick="show('pattern-detection')">
+    <span class="nav-icon">🔍</span>
+    <span class="ja">パターン検出</span><span class="en">Pattern Detection</span>
+    <span class="nav-badge soon">Week 7</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">導入計画</span><span class="en">Rollout</span></div>
+  <div class="nav-item" onclick="show('rollout')">
+    <span class="nav-icon">🚀</span>
+    <span class="ja">実装ロードマップ</span><span class="en">Implementation Roadmap</span>
+  </div>
+  <div class="nav-item" onclick="show('api-reference')">
+    <span class="nav-icon">⚙️</span>
+    <span class="ja">API リファレンス</span><span class="en">API Reference</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ===== OVERVIEW ===== -->
+  <div class="section active" id="section-overview">
+    <div class="hero-header">
+      <div class="hero-icon">🧠</div>
+      <div>
+        <div class="section-title ja">Store Operation Management Channel</div>
+        <div class="section-title en">Store Operation Management Channel</div>
+        <div class="section-path">System Design — Day 1 Live / Day 2–4 In Progress</div>
+        <div class="section-desc ja">店舗で発生した例外を自動検知し、Back Officeスタッフを経由してストアマネージャーへ1クリックで指示を送るシステム。</div>
+        <div class="section-desc en">Automatically detects store exceptions, routes them through Back Office staff, and delivers pre-written instructions to the store manager with one click.</div>
+      </div>
+    </div>
+
+    <div class="philosophy">
+      <div class="philosophy-quote ja">「システムが賢ければ、人が賢くある必要はない」</div>
+      <div class="philosophy-quote en">"If the system is smart, people don't need to be."</div>
+      <div class="philosophy-sub ja">システムが例外を検知し、Back Officeが指示を選択し、マネージャーは実行するだけ。判断もリサーチも不要。</div>
+      <div class="philosophy-sub en">The system detects. Back Office selects. The manager executes. No judgment required at any step.</div>
+    </div>
+
+    <h2><span class="ja">なぜこのシステムが必要か</span><span class="en">Why This System Exists</span></h2>
+    <div class="card">
+      <div class="card-title"><span class="ja">背景</span><span class="en">Background</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>問題1 — 例外の見落とし</strong>：PMバックアップレポートが未提出でも、BOスタッフが手動でチェックしなければ気づかない。</li>
+        <li class="ja"><strong>問題2 — 指示の曖昧さ</strong>：「対応して」と言われても、マネージャーが何をすべきか分からない。</li>
+        <li class="ja"><strong>問題3 — フォローアップなし</strong>：指示を出しても返答確認が徹底されない。</li>
+        <li class="en"><strong>Problem 1 — Missed exceptions</strong>: If the PM Backup Report is not submitted, nobody notices unless BO staff manually checks.</li>
+        <li class="en"><strong>Problem 2 — Vague instructions</strong>: Telling a manager to "handle it" doesn't tell them what to do.</li>
+        <li class="en"><strong>Problem 3 — No follow-up</strong>: Instructions get sent but responses are never confirmed.</li>
+      </ul>
+    </div>
+    <div class="card accent-border">
+      <div class="card-title"><span class="ja">このシステムの解決策</span><span class="en">How This System Solves It</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>自動検知</strong>：OSが例外を自動的に見つけ、重要度を判定（🔴 緊急 / 🟠 注意）。</li>
+        <li class="ja"><strong>事前作成テンプレート</strong>：Back Officeスタッフは指示文を作成せず、ボタン1つで送るだけ。判断は不要。</li>
+        <li class="ja"><strong>選択式返答</strong>：マネージャーは[完了] / [できない — 理由] から選ぶだけ。文章を書く必要なし。</li>
+        <li class="ja"><strong>完全ログ</strong>：誰が何を、いつ送り、いつ返答したか全て記録。</li>
+        <li class="en"><strong>Auto-detection</strong>: OS finds exceptions automatically and classifies severity (🔴 Critical / 🟠 Caution).</li>
+        <li class="en"><strong>Pre-written templates</strong>: Back Office staff don't write instructions — they just choose and click. No judgment needed.</li>
+        <li class="en"><strong>Selection-only response</strong>: Managers select [Done] / [Cannot — Reason]. No writing needed.</li>
+        <li class="en"><strong>Full audit log</strong>: Who sent what, when, and when it was responded to — all recorded.</li>
+      </ul>
+    </div>
+
+    <div class="tip accent">
+      <span class="tip-icon">💡</span>
+      <span class="ja">このシステムの対象はフィリピン・マニラ店舗です。マネージャーの判断能力に依存せず、システムが正しい行動を定義します。</span>
+      <span class="en">This system targets Manila, Philippines stores. Rather than depending on a manager's judgment, the system defines the correct action.</span>
+    </div>
+  </div>
+
+  <!-- ===== ARCHITECTURE ===== -->
+  <div class="section" id="section-architecture">
+    <div class="hero-header">
+      <div class="hero-icon">🏗️</div>
+      <div>
+        <div class="section-title ja">4層アーキテクチャ</div>
+        <div class="section-title en">4-Layer Architecture</div>
+        <div class="section-desc ja">4つの役割が明確に分離されており、各層が次の層に渡す情報を定義します。</div>
+        <div class="section-desc en">Four clearly separated roles. Each layer passes well-defined information to the next.</div>
+      </div>
+    </div>
+
+    <div class="layer-flow">
+      <div class="layer-row">
+        <div class="layer-num">L1</div>
+        <div class="layer-box highlight">
+          <div class="layer-name"><span class="ja">🤖 OS（Operating System）— 自動検知</span><span class="en">🤖 OS (Operating System) — Auto-detection</span></div>
+          <div class="layer-role"><span class="ja">役割：例外を見つけ、色分けし、正しいBOスタッフに振り分ける</span><span class="en">Role: Find exceptions, color-code them, route to the correct BO staff</span></div>
+          <div class="layer-desc ja">✅ システムが自動で行う。人間のアクション不要。</div>
+          <div class="layer-desc en">✅ System does this automatically. No human action required.</div>
+        </div>
+      </div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-row">
+        <div class="layer-num">L2</div>
+        <div class="layer-box">
+          <div class="layer-name"><span class="ja">💼 Back Office スタッフ — テンプレート送信</span><span class="en">💼 Back Office Staff — Template Dispatch</span></div>
+          <div class="layer-role"><span class="ja">役割：担当ページの例外を確認し、事前作成テンプレートを1クリックで送信</span><span class="en">Role: Review exceptions for their assigned pages, send pre-written template with 1 click</span></div>
+          <div class="layer-desc ja">📋 判断不要。テンプレートを選んで送るだけ。Back Officeダッシュボードを使用（Day 2実装）。</div>
+          <div class="layer-desc en">📋 No judgment needed. Just select the template and send. Uses the BO Dashboard (Day 2).</div>
+          <div class="chip-row" style="margin-top:8px;">
+            <span class="chip">BO Staff A — Backup / Disposal / Daily Inv</span>
+            <span class="chip">BO Staff B — Attendance</span>
+            <span class="chip">BO Staff C — Product Scoring / Ratings</span>
+            <span class="chip">BO Staff D — Travel Path / Temperature</span>
+          </div>
+        </div>
+      </div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-row">
+        <div class="layer-num">L3</div>
+        <div class="layer-box">
+          <div class="layer-name"><span class="ja">📥 ストアマネージャー — 実行 & 返答</span><span class="en">📥 Store Manager — Execute & Respond</span></div>
+          <div class="layer-role"><span class="ja">役割：具体的な指示を受け取り、実行し、結果を選択式で返答</span><span class="en">Role: Receive specific instruction, execute it, respond with a selection</span></div>
+          <div class="layer-desc ja">📱 マネージャーは文章を書かない。[完了] / [できない — 理由] から選ぶだけ。Manager Inboxを使用（Day 2実装）。</div>
+          <div class="layer-desc en">📱 Managers don't write text. They select [Done] / [Cannot — Reason]. Uses Manager Inbox (Day 2).</div>
+        </div>
+      </div>
+      <div class="layer-arrow">↓</div>
+      <div class="layer-row">
+        <div class="layer-num">L4</div>
+        <div class="layer-box">
+          <div class="layer-name"><span class="ja">📊 エリアマネージャー — 週次評価</span><span class="en">📊 Area Manager — Weekly Evaluation</span></div>
+          <div class="layer-role"><span class="ja">役割：週ごとの店舗別コンプライアンススコアを確認。個別インシデントではなく集計データを見る</span><span class="en">Role: View weekly per-store compliance scores. Sees aggregated data, not individual incidents.</span></div>
+          <div class="layer-desc ja">📊 Week 7–8 に実装予定。</div>
+          <div class="layer-desc en">📊 Planned for Week 7–8.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2><span class="ja">情報の流れ</span><span class="en">Information Flow</span></h2>
+    <div class="card">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">🤖 システム検知</div>
+            <div class="step-title en">🤖 System Detection</div>
+            <div class="step-desc ja">OSが定期的にデータをチェック。17:15にPMバックアップが未提出 → <code>management_tasks</code>テーブルに記録。severity=red、bo_assignee=bo_a。</div>
+            <div class="step-desc en">OS checks data periodically. PM Backup not submitted by 17:15 → recorded in <code>management_tasks</code>. severity=red, bo_assignee=bo_a.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">💼 BO確認 & 送信（Day 2）</div>
+            <div class="step-title en">💼 BO Review & Send (Day 2)</div>
+            <div class="step-desc ja">BO Staff AがBOダッシュボードで🔴アラートを確認。「Send Instruction」ボタンをクリック → テンプレートメッセージがマネージャーのInboxに届く。</div>
+            <div class="step-desc en">BO Staff A sees 🔴 alert on BO Dashboard. Clicks "Send Instruction" → template message appears in manager's Inbox.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">📥 マネージャー返答（Day 2）</div>
+            <div class="step-title en">📥 Manager Response (Day 2)</div>
+            <div class="step-desc ja">マネージャーがManager Inboxを開く。[提出しました] / [スタッフ不足] / [システム障害] / [その他] から選択してタップ。</div>
+            <div class="step-desc en">Manager opens Manager Inbox. Taps [Submitted Now] / [Staff Shortage] / [System Issue] / [Other].</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title ja">✅ クローズ & ログ</div>
+            <div class="step-title en">✅ Close & Log</div>
+            <div class="step-desc ja">返答が記録される。タスクstatus=responded。90分以内に返答がなければエスカレーション（Week 7）。</div>
+            <div class="step-desc en">Response is recorded. Task status=responded. If no response within 90 min, escalation fires (Week 7).</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ===== EXCEPTIONS ===== -->
+  <div class="section" id="section-exceptions">
+    <div class="hero-header">
+      <div class="hero-icon">🔴</div>
+      <div>
+        <div class="section-title ja">例外タイプ一覧</div>
+        <div class="section-title en">All Exception Types</div>
+        <div class="section-desc ja">システムが検知する全ての例外タイプ。🔴=緊急（90分SLA）、🟠=注意（4時間SLA）。</div>
+        <div class="section-desc en">All exception types the system detects. 🔴 = Critical (90-min SLA), 🟠 = Caution (4-hour SLA).</div>
+      </div>
+    </div>
+
+    <div class="exc-grid">
+      <div class="exc-card sev-red">
+        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">PMバックアップレポート未提出</span><span class="exc-title en">PM Backup Report Missing</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">17:15以降、PMバックアップレポートが提出されていない場合に発火。BO Aが即座にマネージャーへ指示を送る。</div>
+        <div class="exc-body en">Fires when PM Backup Report is not submitted after 17:15. BO A immediately sends instruction to manager.</div>
+        <div class="exc-trigger">exception_type: pm_backup_missing</div>
+      </div>
+
+      <div class="exc-card sev-red">
+        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">バックアップ在庫 50%以下</span><span class="exc-title en">Backup Stock Below 50%</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">バックアップアイテムがパーレベルの50%を下回った場合に発火。アイテム名と現在の在庫率が自動的にメッセージに挿入される。</div>
+        <div class="exc-body en">Fires when a backup item drops below 50% of par level. Item name and current percentage are auto-inserted into the message.</div>
+        <div class="exc-trigger">exception_type: backup_below_50</div>
+      </div>
+
+      <div class="exc-card sev-red">
+        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">クレーム — 承認写真なし</span><span class="exc-title en">Complaint — No Approval Photo</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff C</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff C</strong></div>
+        <div class="exc-body ja">間違い・欠品クレームで承認写真が記録されていない場合。オーダー番号と対応担当者の特定を指示する。</div>
+        <div class="exc-body en">Wrong/missing item complaint with no approval photo on record. Instructs manager to identify the responsible staff and confirm Discord message.</div>
+        <div class="exc-trigger">exception_type: complaint_no_photo</div>
+      </div>
+
+      <div class="exc-card sev-red">
+        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">廃棄レポート未提出（NILでない）</span><span class="exc-title en">Disposal Report Missing (Not NIL)</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">22:00以降、廃棄レポートが未提出の場合。「ゼロ廃棄ならNIL確認を」「廃棄があったなら今すぐ提出を」の2択をマネージャーに送る。</div>
+        <div class="exc-body en">Disposal Report not submitted after 22:00. Manager must either confirm NIL (zero disposal) or submit the report now.</div>
+        <div class="exc-trigger">exception_type: disposal_missing</div>
+      </div>
+
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">🟠</span><span class="exc-title ja">スタッフ打刻未確認</span><span class="exc-title en">Attendance Unverified</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff B</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff B</strong></div>
+        <div class="exc-body ja">OS打刻・StoreHub記録・Discordスクリーンショットのいずれもない場合。スタッフ名が自動挿入される。</div>
+        <div class="exc-body en">No OS time-in, no StoreHub record, no Discord screenshot. Staff name is auto-inserted into the message.</div>
+        <div class="exc-trigger">exception_type: attendance_unverified</div>
+      </div>
+
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">🟠</span><span class="exc-title ja">製品スコア C以下</span><span class="exc-title en">Product Score C or Below</span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff C</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff C</strong></div>
+        <div class="exc-body ja">製品スコアリングでCグレード以下が記録された場合。写真確認と担当スタッフへの口頭フィードバックを指示する。</div>
+        <div class="exc-body en">A C-grade or below product is recorded. Instructs manager to review the photo and provide verbal feedback to responsible staff today.</div>
+        <div class="exc-trigger">exception_type: product_score_c</div>
+      </div>
+    </div>
+
+    <div class="tip info" style="margin-top:16px;">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">廃棄レポートで「NIL（ゼロ廃棄）」と「未提出」は別物。NILは積極的な記録行為であり、単なる未提出とは設計上区別されます。</span>
+      <span class="en">For disposal: "NIL (zero disposal confirmed)" and "not submitted" are treated differently by design. NIL is an active confirmation — not just absence of a report.</span>
+    </div>
+  </div>
+
+  <!-- ===== TEMPLATES ===== -->
+  <div class="section" id="section-templates">
+    <div class="hero-header">
+      <div class="hero-icon">📝</div>
+      <div>
+        <div class="section-title ja">アクションテンプレート</div>
+        <div class="section-title en">Action Templates</div>
+        <div class="section-desc ja">全てのテンプレートは植嶋さんの承認後、DBに登録されます。BO スタッフは文章を書かず、このテンプレートを1クリックで送るだけです。</div>
+        <div class="section-desc en">All templates are approved by Ueshima-san and stored in the DB. BO staff send these with one click — no writing involved.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">⏳</span>
+      <span class="ja">テンプレート文言は植嶋さんが準備中です。承認後にDBへ登録し、Day 3でシステムが稼働します。</span>
+      <span class="en">Template wording is being prepared by Ueshima-san. Once approved, it will be registered in the DB, and the system goes live on Day 3.</span>
+    </div>
+
+    <h2><span class="ja">🔴 PMバックアップレポート未提出</span><span class="en">🔴 PM Backup Report Missing</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「PM Backup Report が 17:15 時点で未提出です。すぐに提出するか、理由を選択してください。担当スタッフがいる場合は今すぐ連絡してください。」</div>
+      <div class="template-msg en">"PM Backup Report has not been submitted as of 17:15. Please submit immediately or select a reason below. If a staff member was supposed to submit it, contact them now."</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="ja">今すぐ提出</span><span class="en">Submitted Now</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">スタッフ不足</span><span class="en">Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">システム障害</span><span class="en">System Issue</span></div>
+        <div class="t-opt neutral">📝 <span class="ja">その他（説明）</span><span class="en">Other (explain)</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🔴 バックアップ在庫 50%以下</span><span class="en">🔴 Backup Below 50%</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「[アイテム名] のバックアップ在庫が [X]% で、50%の危険閾値を下回っています。理由と即座の対策を選択して記録してください。」</div>
+      <div class="template-msg en">"[Item name] backup is at [X]%, below the 50% critical threshold. Select the reason and record the immediate action taken."</div>
+      <div class="template-options">
+        <div class="t-opt cannot">⚠️ <span class="ja">仕込み不足</span><span class="en">Insufficient Prep</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">売上予測超え</span><span class="en">Higher Sales</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">スタッフ不足</span><span class="en">Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">CK配送遅延</span><span class="en">CK Delivery</span></div>
+        <div class="t-opt neutral">📝 <span class="ja">パーレベル誤り</span><span class="en">Wrong Par Level</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🔴 廃棄レポート未提出</span><span class="en">🔴 Disposal Report Missing</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「廃棄レポートが提出されていません。本日の廃棄がゼロであれば「NIL確認」を選択して積極的に記録してください。廃棄があった場合は今すぐ提出してください。」</div>
+      <div class="template-msg en">"Disposal Report has not been submitted. If there was truly zero disposal today, select 'NIL — Confirmed' to actively record that. If there was disposal, submit the report now."</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="ja">NIL確認（廃棄ゼロ）</span><span class="en">NIL — Confirmed (zero disposal)</span></div>
+        <div class="t-opt done">✅ <span class="ja">今すぐ提出</span><span class="en">Submitting Now</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🔴 クレーム — 承認写真なし</span><span class="en">🔴 Complaint — No Approval Photo</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「オーダー [#] に欠品/誤品クレームがありますが、承認写真の記録がありません。担当スタッフを特定し、Discordでキッチンへ連絡済みか確認してください。写真または担当者名が記録されるまでクローズしないでください。」</div>
+      <div class="template-msg en">"Order [#] has a missing/wrong item complaint with no approval photo on record. Identify the staff responsible for that order, confirm whether a Discord message was sent to the kitchen. Do not close until photo or name is recorded."</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="ja">担当特定 + Discord送信済</span><span class="en">Staff identified + Discord sent</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">担当特定 — Discord未送信</span><span class="en">Staff identified — no Discord</span></div>
+        <div class="t-opt neutral">📝 <span class="ja">特定できない</span><span class="en">Cannot identify</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 スタッフ打刻未確認</span><span class="en">🟠 Attendance Unverified</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「[スタッフ名] の本日の打刻が確認できません。OS打刻・StoreHub記録・Discordスクリーンショットのいずれもありません。本人に連絡し、出勤していたか確認してください。」</div>
+      <div class="template-msg en">"[Staff name]'s attendance cannot be verified for today — no OS time-in, no StoreHub record, no Discord screenshot. Contact the staff member and confirm whether they were present."</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="ja">出勤確認 — OSの問題</span><span class="en">Was present — OS issue</span></div>
+        <div class="t-opt done">✅ <span class="ja">出勤確認 — 打刻忘れ</span><span class="en">Was present — forgot</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">欠勤</span><span class="en">Was absent</span></div>
+        <div class="t-opt neutral">📝 <span class="ja">確認できない</span><span class="en">Cannot confirm</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 製品スコア C以下</span><span class="en">🟠 Product Score C or Below</span></h2>
+    <div class="template-block">
+      <div class="template-msg ja">「[時刻] にCグレードの製品が記録されました。写真を確認し、問題点を選択してください。担当スタッフへ本日中に口頭フィードバックを行ってください。」</div>
+      <div class="template-msg en">"A C-grade product was recorded at [time]. Review the photo and select what was wrong. Provide verbal feedback to the responsible staff today."</div>
+      <div class="template-options">
+        <div class="t-opt cannot">⚠️ <span class="ja">盛り付け</span><span class="en">Presentation</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">分量</span><span class="en">Portion</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">巻き/カット</span><span class="en">Rolling/Cutting</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">ソース/トッピング</span><span class="en">Sauce/Topping</span></div>
+        <div class="t-opt done">✅ <span class="ja">スタッフへフィードバック完了</span><span class="en">Staff feedback done</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BO DASHBOARD ===== -->
+  <div class="section" id="section-bo-dashboard">
+    <div class="hero-header">
+      <div class="hero-icon">💼</div>
+      <div>
+        <div class="section-title ja">Back Office ダッシュボード</div>
+        <div class="section-title en">Back Office Dashboard</div>
+        <div class="section-path">/admin/management/back-office — Day 2 実装予定</div>
+        <div class="section-desc ja">BOスタッフが担当例外を確認し、1クリックでマネージャーへ指示を送るページ。</div>
+        <div class="section-desc en">The page where BO staff review their assigned exceptions and send instructions to managers with one click.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🔧</span>
+      <span class="ja">このページはDay 2で実装されます。以下はプレビューです。</span>
+      <span class="en">This page will be implemented in Day 2. The following is a preview.</span>
+    </div>
+
+    <h2><span class="ja">BO Dashboard — 画面プレビュー</span><span class="en">BO Dashboard — Screen Preview</span></h2>
+    <div class="mock-card">
+      <div class="mock-header">
+        <span class="mock-header-title">BO Staff A — My Tasks</span>
+        <span style="font-size:12px;color:var(--muted);">Manila · 2 open</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-sev">🔴</span>
+        <div class="mock-row-body">
+          <div class="mock-row-title">PM Backup Report Missing — TAFT</div>
+          <div class="mock-row-sub">Detected 17:18 · Manager: Juan dela Cruz</div>
+        </div>
+        <span class="mock-tag open">Open</span>
+        <button class="mock-btn send">Send Instruction</button>
+      </div>
+      <div class="mock-row">
+        <span class="mock-sev">🔴</span>
+        <div class="mock-row-body">
+          <div class="mock-row-title">Backup Below 50% — QC (Cream Cheese 42%)</div>
+          <div class="mock-row-sub">Detected 18:05 · Manager: Ana Reyes</div>
+        </div>
+        <span class="mock-tag open">Open</span>
+        <button class="mock-btn send">Send Instruction</button>
+      </div>
+      <div class="mock-row">
+        <span class="mock-sev">🟠</span>
+        <div class="mock-row-body">
+          <div class="mock-row-title">Disposal Report Missing — Paranaque</div>
+          <div class="mock-row-sub">Detected 22:04 · Sent 22:06 · Manager responded</div>
+        </div>
+        <span class="mock-tag done">Done</span>
+        <button class="mock-btn view">View</button>
+      </div>
+    </div>
+
+    <h2><span class="ja">使い方</span><span class="en">How to Use</span></h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title ja">ダッシュボードを開く</div>
+          <div class="step-title en">Open the Dashboard</div>
+          <div class="step-desc ja">自分に割り当てられた例外のみが表示される。🔴を優先して確認する。</div>
+          <div class="step-desc en">Only exceptions assigned to you are shown. Prioritize 🔴 items first.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title ja">内容を確認する</div>
+          <div class="step-title en">Review the Exception</div>
+          <div class="step-desc ja">例外タイプ・店舗名・検知時刻・担当マネージャーを確認する。詳細が必要な場合はViewボタンで元データを参照。</div>
+          <div class="step-desc en">Check exception type, store, detection time, and manager name. Click View to reference the source data if needed.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title ja">「Send Instruction」をクリック</div>
+          <div class="step-title en">Click "Send Instruction"</div>
+          <div class="step-desc ja">事前作成テンプレートが自動的に選択される。文章を書く必要はない。クリック1回で送信完了。タスクstatus=sentに更新される。</div>
+          <div class="step-desc en">The pre-written template is automatically selected. No writing needed. One click sends it. Task status updates to "sent".</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title ja">返答を確認する</div>
+          <div class="step-title en">Monitor for Response</div>
+          <div class="step-desc ja">マネージャーが返答するとタスクがDoneに変わる。90分経過しても返答がなければシステムが自動エスカレーション（Week 7）。</div>
+          <div class="step-desc en">When the manager responds, the task turns Done. If no response in 90 min, the system auto-escalates (Week 7).</div>
+        </div>
+      </li>
+    </ol>
+
+    <h2><span class="ja">BOスタッフ別担当範囲</span><span class="en">BO Staff Assignment</span></h2>
+    <div class="card">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">BOスタッフ</span><span class="en">BO Staff</span></th>
+          <th><span class="ja">担当ページ / 例外タイプ</span><span class="en">Assigned Pages / Exception Types</span></th>
+        </tr>
+        <tr>
+          <td><strong>BO Staff A</strong></td>
+          <td><span class="ja">AM/PMバックアップレポート、バックアップパーレベルアラート、廃棄レポート/NIL、デイリーインベントリ</span><span class="en">AM/PM Backup Report, Backup par level alerts, Disposal Report/NIL, Daily Inventory</span></td>
+        </tr>
+        <tr>
+          <td><strong>BO Staff B</strong></td>
+          <td><span class="ja">打刻未確認、タイムアウトなし記録、繰り返し違反 → NTE候補</span><span class="en">Unverified Attendance, No time-out records, Repeat violation → NTE candidate</span></td>
+        </tr>
+        <tr>
+          <td><strong>BO Staff C</strong></td>
+          <td><span class="ja">製品スコアC/D/F、低評価（1〜3星）、誤品/欠品クレーム、写真証跡なし</span><span class="en">Product Scoring C/D/F, Low Ratings (1–3 stars), Wrong/Missing item complaints, Photo evidence gaps</span></td>
+        </tr>
+        <tr>
+          <td><strong>BO Staff D</strong></td>
+          <td><span class="ja">トラベルパス（1日3回）、温度記録、30分ラッシュアワーチェック、CK配送評価、オープニングレポート</span><span class="en">Travel Path (3×/day), Temperature Records, 30-min Rush Hour Check, CK Delivery evaluation, Opening Report</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== MANAGER INBOX ===== -->
+  <div class="section" id="section-manager-inbox">
+    <div class="hero-header">
+      <div class="hero-icon">📥</div>
+      <div>
+        <div class="section-title ja">マネージャー受信箱（Manager Inbox）</div>
+        <div class="section-title en">Manager Inbox</div>
+        <div class="section-path">/store/management/inbox — Day 2 実装予定</div>
+        <div class="section-desc ja">ストアマネージャーがBOからの指示を受け取り、タップ3回以内で返答できるモバイルファーストのページ。</div>
+        <div class="section-desc en">The mobile-first page where store managers receive BO instructions and respond in ≤3 taps.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🔧</span>
+      <span class="ja">このページはDay 2で実装されます。</span>
+      <span class="en">This page will be implemented in Day 2.</span>
+    </div>
+
+    <div class="philosophy" style="margin-top:0;">
+      <div class="philosophy-quote ja">「マネージャーは文章を書かない」</div>
+      <div class="philosophy-quote en">"Managers never write text."</div>
+      <div class="philosophy-sub ja">全ての返答は選択式。タップ3回以内でクローズできる設計。</div>
+      <div class="philosophy-sub en">All responses are selection-based. Designed to close in 3 taps or fewer.</div>
+    </div>
+
+    <h2><span class="ja">使い方</span><span class="en">How to Use</span></h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title ja">Manager Inboxを開く</div>
+          <div class="step-title en">Open Manager Inbox</div>
+          <div class="step-desc ja">🔴の指示が最上部に表示される。未読の指示は目立つように表示される。</div>
+          <div class="step-desc en">🔴 instructions appear at the top. Unread instructions are prominently highlighted.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title ja">指示内容を読む</div>
+          <div class="step-title en">Read the Instruction</div>
+          <div class="step-desc ja">BOから送られた具体的な指示が表示される。何をすべきかが明確に書かれている。</div>
+          <div class="step-desc en">The specific instruction from BO is shown. It tells the manager exactly what to do.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title ja">返答を選択してタップ</div>
+          <div class="step-title en">Select and Tap a Response</div>
+          <div class="step-desc ja">例：[提出しました] / [スタッフ不足] / [システム障害] / [その他（1行説明）] — これで完了。</div>
+          <div class="step-desc en">E.g. [Submitted Now] / [Staff Shortage] / [System Issue] / [Other (1-line reason)] — that's it.</div>
+        </div>
+      </li>
+    </ol>
+
+    <div class="tip success">
+      <span class="tip-icon">✅</span>
+      <span class="ja">「その他」を選択した場合のみ、1行のフリーテキスト入力が現れます。それ以外はタップだけで完了します。</span>
+      <span class="en">Only if "Other" is selected does a 1-line free-text box appear. All other responses need just a tap.</span>
+    </div>
+  </div>
+
+  <!-- ===== AREA MANAGER ===== -->
+  <div class="section" id="section-area-manager">
+    <div class="hero-header">
+      <div class="hero-icon">📊</div>
+      <div>
+        <div class="section-title ja">エリアマネージャー 週次レビュー</div>
+        <div class="section-title en">Area Manager Weekly Review</div>
+        <div class="section-path">/admin/management/area-review — Week 7–8 実装予定</div>
+        <div class="section-desc ja">エリアマネージャーは個別インシデントではなく、週ごとの店舗別コンプライアンススコアを確認します。</div>
+        <div class="section-desc en">Area managers don't review individual incidents — they see weekly per-store compliance scores.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🔧</span>
+      <span class="ja">Week 7–8 に実装予定です。</span>
+      <span class="en">Planned for Week 7–8.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="ja">週次スコアの見方</span><span class="en">Weekly Score Overview</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>スコア集計対象</strong>：各店舗で何件の🔴/🟠が発生したか、マネージャーが何件返答したか、「できない」返答が何件あったか。</li>
+        <li class="ja"><strong>マネージャー見逃し</strong>：BOが送ったのにマネージャーが返答しなかったケースは <code>missed_by_manager=true</code> で記録される。</li>
+        <li class="ja"><strong>評価の分離</strong>：「店舗の問題」と「マネージャーの問題」は区別される。例外が多い店舗でも、マネージャーが全て返答していれば高スコア。</li>
+        <li class="en"><strong>Score factors</strong>: How many 🔴/🟠 occurred per store, how many the manager responded to, how many "Cannot" responses were given.</li>
+        <li class="en"><strong>Manager misses</strong>: Cases where BO sent an instruction but the manager never responded are recorded as <code>missed_by_manager=true</code>.</li>
+        <li class="en"><strong>Separated evaluation</strong>: "Store issues" and "Manager issues" are distinguished. A store with many exceptions but full manager responses still scores well.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===== PATTERN DETECTION ===== -->
+  <div class="section" id="section-pattern-detection">
+    <div class="hero-header">
+      <div class="hero-icon">🔍</div>
+      <div>
+        <div class="section-title ja">パターン自動検出</div>
+        <div class="section-title en">Automatic Pattern Detection</div>
+        <div class="section-path">detect_repeat_patterns() — Week 7 実装予定</div>
+        <div class="section-desc ja">単発の例外ではなく、繰り返しパターンを検出してエスカレーションします。</div>
+        <div class="section-desc en">Detects repeating patterns rather than one-off exceptions, and escalates accordingly.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🔧</span>
+      <span class="ja">Week 7 に実装予定です。</span>
+      <span class="en">Planned for Week 7.</span>
+    </div>
+
+    <div class="card">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">パターン</span><span class="en">Pattern</span></th>
+          <th><span class="ja">閾値</span><span class="en">Threshold</span></th>
+          <th><span class="ja">アクション</span><span class="en">Action</span></th>
+        </tr>
+        <tr>
+          <td><span class="ja">同一スタッフ + OS打刻なし</span><span class="en">Same staff + No OS time-in</span></td>
+          <td><span class="ja">2週間で3回</span><span class="en">3× in 2 weeks</span></td>
+          <td><span class="ja">NTE候補 → BO Staff B</span><span class="en">NTE candidate → BO Staff B</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">同一スタッフ + C/D製品スコア</span><span class="en">Same staff + C/D product score</span></td>
+          <td><span class="ja">1週間で3回</span><span class="en">3× in 1 week</span></td>
+          <td><span class="ja">NTE候補 → BO Staff C</span><span class="en">NTE candidate → BO Staff C</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">同一メニュー + 低評価（1〜3星）</span><span class="en">Same menu item + Low rating (1–3 stars)</span></td>
+          <td><span class="ja">7日間で2回</span><span class="en">2× in 7 days</span></td>
+          <td><span class="ja">繰り返しフラグ → BO Staff C + HQアラート</span><span class="en">Recurring flag → BO Staff C + HQ alert</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">同一店舗 + バックアップ50%以下</span><span class="en">Same store + Backup ≤50%</span></td>
+          <td><span class="ja">5日間で2回</span><span class="en">2× in 5 days</span></td>
+          <td><span class="ja">パーレベル見直しフラグ → BO Staff A</span><span class="en">Par level review flag → BO Staff A</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">マネージャー返答「できない」</span><span class="en">Manager response = "Cannot" (any reason)</span></td>
+          <td><span class="ja">1週間で3回</span><span class="en">3× in 1 week</span></td>
+          <td><span class="ja">マネージャーパフォーマンスフラグ → エリアマネージャー</span><span class="en">Manager performance flag → Area Manager</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== ROLLOUT ===== -->
+  <div class="section" id="section-rollout">
+    <div class="hero-header">
+      <div class="hero-icon">🚀</div>
+      <div>
+        <div class="section-title ja">実装ロードマップ</div>
+        <div class="section-title en">Implementation Roadmap</div>
+        <div class="section-desc ja">Store Operation Management Channelの段階的な実装計画。</div>
+        <div class="section-desc en">Phased implementation plan for the Store Operation Management Channel.</div>
+      </div>
+    </div>
+
+    <div class="rollout">
+      <div class="rollout-item">
+        <span class="rollout-status">✅</span>
+        <span class="rollout-phase">Sprint 0</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">既存機能の修正</div>
+          <div class="rollout-title en">Existing Feature Fixes</div>
+          <div class="rollout-items ja">Base Roll係数 0.9→0.75 · バックアップモバイルCSS修正</div>
+          <div class="rollout-items en">Base Roll coefficient 0.9→0.75 · Backup mobile CSS fix</div>
+        </div>
+        <div><span class="chip green">LIVE</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">✅</span>
+        <span class="rollout-phase">Day 1</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">DB + API 基盤</div>
+          <div class="rollout-title en">DB + API Foundation</div>
+          <div class="rollout-items ja">management_tasks · action_templates · bo_assignments テーブル + 全APIエンドポイント</div>
+          <div class="rollout-items en">management_tasks · action_templates · bo_assignments tables + all API endpoints</div>
+        </div>
+        <div><span class="chip green">LIVE</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">🔧</span>
+        <span class="rollout-phase">Day 2</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">BO ダッシュボード + マネージャー受信箱</div>
+          <div class="rollout-title en">BO Dashboard + Manager Inbox</div>
+          <div class="rollout-items ja">/admin/management/back-office · /store/management/inbox （モバイルファースト）</div>
+          <div class="rollout-items en">/admin/management/back-office · /store/management/inbox (mobile-first)</div>
+        </div>
+        <div><span class="chip orange">NEXT</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">⏳</span>
+        <span class="rollout-phase">Day 3</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">自動検知トリガー稼働</div>
+          <div class="rollout-title en">Auto-Detection Triggers Go Live</div>
+          <div class="rollout-items ja">PMバックアップ検知 · 廃棄NIL区別 · バックアップ70%/50%アラート<br><em>植嶋さんのテンプレート文言承認後に稼働</em></div>
+          <div class="rollout-items en">PM Backup detection · Disposal NIL distinction · Backup 70%/50% alerts<br><em>Goes live after Ueshima-san approves template wording</em></div>
+        </div>
+        <div><span class="chip">PENDING</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">⏳</span>
+        <span class="rollout-phase">Day 4</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">製品スコア + 勤怠 + パーレベル編集</div>
+          <div class="rollout-title en">Product Score + Attendance + Par Level Editing</div>
+          <div class="rollout-items ja">製品スコアCアラート → BO Staff C · 打刻未確認自動フラグ → BO Staff B · パーレベル編集UI（管理者）</div>
+          <div class="rollout-items en">Product score C alert → BO Staff C · Unverified attendance auto-flag → BO Staff B · Par Level editing UI (admin)</div>
+        </div>
+        <div><span class="chip">PENDING</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">📅</span>
+        <span class="rollout-phase">Week 5–6</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">追加フォーム + 既存機能統合</div>
+          <div class="rollout-title en">Additional Forms + Integrations</div>
+          <div class="rollout-items ja">30分ラッシュアワーチェックフォーム · トラベルパス衛生チェック追加 · 店舗評価/CK配送/低評価との統合</div>
+          <div class="rollout-items en">30-min Rush Hour Check form · Travel Path hygiene random check · Store Evaluation / CK Delivery / Low Rating integrations</div>
+        </div>
+        <div><span class="chip">PLANNED</span></div>
+      </div>
+
+      <div class="rollout-item">
+        <span class="rollout-status">📅</span>
+        <span class="rollout-phase">Week 7–8</span>
+        <div class="rollout-body">
+          <div class="rollout-title ja">インテリジェンス層</div>
+          <div class="rollout-title en">Intelligence Layer</div>
+          <div class="rollout-items ja">繰り返しパターン検出 · マネージャー見逃しログ · エリアマネージャー週次スコア</div>
+          <div class="rollout-items en">Repeat pattern detection · Manager missed exception logging · Area Manager weekly scores</div>
+        </div>
+        <div><span class="chip">PLANNED</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== API REFERENCE ===== -->
+  <div class="section" id="section-api-reference">
+    <div class="hero-header">
+      <div class="hero-icon">⚙️</div>
+      <div>
+        <div class="section-title">API Reference</div>
+        <div class="section-path">Heroku — sushizen-shift-app · v2008</div>
+        <div class="section-desc ja">技術スタッフ向け。全APIエンドポイントは稼働中（Heroku v2008+）。</div>
+        <div class="section-desc en">For technical staff. All API endpoints are live (Heroku v2008+).</div>
+      </div>
+    </div>
+
+    <h2><span class="ja">管理タスク</span><span class="en">Management Tasks</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="api-table">
+        <tr><th>Method</th><th>Path</th><th><span class="ja">説明</span><span class="en">Description</span></th></tr>
+        <tr>
+          <td><span class="method get">GET</span></td>
+          <td><span class="api-path">/api/admin/management/tasks</span></td>
+          <td><span class="ja">タスク一覧。?city=manila&status=open&bo_assignee=bo_a</span><span class="en">List tasks. ?city=manila&status=open&bo_assignee=bo_a</span></td>
+        </tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/admin/management/tasks</span></td>
+          <td><span class="ja">タスク作成。{city, branch, type, severity, bo_assignee, template_key}</span><span class="en">Create task. {city, branch, type, severity, bo_assignee, template_key}</span></td>
+        </tr>
+        <tr>
+          <td><span class="method patch">PATCH</span></td>
+          <td><span class="api-path">/api/admin/management/tasks/{id}</span></td>
+          <td><span class="ja">タスク更新。{status, sent_message, response, ...}</span><span class="en">Update task. {status, sent_message, response, ...}</span></td>
+        </tr>
+        <tr>
+          <td><span class="method get">GET</span></td>
+          <td><span class="api-path">/api/store/management/tasks</span></td>
+          <td><span class="ja">店舗側タスク一覧。?city=manila&branch=TAFT&status=sent</span><span class="en">Store-side task list. ?city=manila&branch=TAFT&status=sent</span></td>
+        </tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/store/management/tasks/{id}/respond</span></td>
+          <td><span class="ja">マネージャー返答。{response: "submitted_now", response_note?: "..."}</span><span class="en">Manager response. {response: "submitted_now", response_note?: "..."}</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2><span class="ja">アクションテンプレート</span><span class="en">Action Templates</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="api-table">
+        <tr><th>Method</th><th>Path</th><th><span class="ja">説明</span><span class="en">Description</span></th></tr>
+        <tr>
+          <td><span class="method get">GET</span></td>
+          <td><span class="api-path">/api/admin/management/templates</span></td>
+          <td><span class="ja">全テンプレート一覧。?active_only=true</span><span class="en">List all templates. ?active_only=true</span></td>
+        </tr>
+        <tr>
+          <td><span class="method get">GET</span></td>
+          <td><span class="api-path">/api/admin/management/templates/{type}</span></td>
+          <td><span class="ja">例：/api/admin/management/templates/pm_backup_missing</span><span class="en">E.g. /api/admin/management/templates/pm_backup_missing</span></td>
+        </tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/admin/management/templates</span></td>
+          <td><span class="ja">テンプレートの登録・更新（upsert）</span><span class="en">Register or update a template (upsert)</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2><span class="ja">BO担当設定</span><span class="en">BO Assignments</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="api-table">
+        <tr><th>Method</th><th>Path</th><th><span class="ja">説明</span><span class="en">Description</span></th></tr>
+        <tr>
+          <td><span class="method get">GET</span></td>
+          <td><span class="api-path">/api/admin/management/bo-assignments</span></td>
+          <td><span class="ja">BO担当設定一覧。?city=manila</span><span class="en">List BO assignments. ?city=manila</span></td>
+        </tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/admin/management/bo-assignments</span></td>
+          <td><span class="ja">BO担当設定の登録・更新。{city, bo_staff_id, staff_name, assigned_types}</span><span class="en">Register/update BO assignment. {city, bo_staff_id, staff_name, assigned_types}</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2><span class="ja">タスクのステータス値</span><span class="en">Task Status Values</span></h2>
+    <div class="chip-row">
+      <span class="chip accent">open</span>
+      <span class="chip orange">sent</span>
+      <span class="chip green">responded</span>
+      <span class="chip">closed</span>
+      <span class="chip red">escalated</span>
+    </div>
+    <p style="margin-top:8px;font-size:12px;">open → sent → responded → closed</p>
+
+    <h2><span class="ja">重要度（severity）値</span><span class="en">Severity Values</span></h2>
+    <div class="chip-row">
+      <span class="chip red">red — 緊急 / Critical (SLA: 90min)</span>
+      <span class="chip orange">yellow — 注意 / Caution (SLA: 4hr)</span>
+      <span class="chip green">green — 情報 / Info</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === `show('${id}')`) n.classList.add('active');
+  });
+}
+function setLang(lang) {
+  if (lang === 'en') {
+    document.body.classList.add('en');
+    document.getElementById('btn-en').classList.add('active');
+    document.getElementById('btn-ja').classList.remove('active');
+  } else {
+    document.body.classList.remove('en');
+    document.getElementById('btn-ja').classList.add('active');
+    document.getElementById('btn-en').classList.remove('active');
+  }
+}
+
+// Theme toggle support
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+</script>
