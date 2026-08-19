@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -9,9 +9,9 @@ import {
   RefreshCw,
   Send,
   X,
-  Eye,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
 import {
@@ -213,6 +213,139 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
   );
 }
 
+// ─── Task Thread ──────────────────────────────────────────────────────────────
+
+interface TaskMessage {
+  id: number;
+  task_id: number;
+  author_name: string;
+  author_role: string;
+  body: string;
+  created_at: string;
+}
+
+interface TaskThreadProps {
+  taskId: number;
+}
+
+function TaskThread({ taskId }: TaskThreadProps) {
+  const [messages, setMessages] = useState<TaskMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const headers = getAuthHeaders(getAuth());
+      const res = await fetch(`/api/admin/management/tasks/${taskId}/messages`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleSend() {
+    if (!body.trim() || sending) return;
+    setSending(true);
+    try {
+      const auth = getAuth();
+      const headers = getAuthHeaders(auth);
+      const res = await fetch(`/api/admin/management/tasks/${taskId}/messages`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: body.trim(),
+          author_name: auth?.staffName || "BO Staff",
+          author_role: "bo",
+        }),
+      });
+      if (!res.ok) return;
+      const msg = await res.json();
+      setMessages(prev => [...prev, msg]);
+      setBody("");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const rolePill = (role: string) => {
+    if (role === "manager") return "bg-amber-500/15 text-amber-300 border border-amber-500/30";
+    if (role === "bo")      return "bg-violet-500/15 text-violet-300 border border-violet-500/30";
+    return "bg-blue-500/15 text-blue-300 border border-blue-500/30";
+  };
+  const roleLabel = (role: string) => {
+    if (role === "manager")      return "Manager";
+    if (role === "bo")           return "BO";
+    if (role === "area_manager") return "Area Mgr";
+    return "HQ";
+  };
+
+  return (
+    <div className="mt-3 border-t border-white/8 pt-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <MessageSquare className="h-3.5 w-3.5 text-zinc-500" />
+        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Thread</span>
+        {messages.length > 0 && (
+          <span className="text-xs text-zinc-600">({messages.length})</span>
+        )}
+      </div>
+
+      {/* Message list */}
+      <div className="max-h-48 overflow-y-auto space-y-2 mb-2 pr-1">
+        {loading ? (
+          <div className="text-xs text-zinc-600 py-2">Loading…</div>
+        ) : messages.length === 0 ? (
+          <div className="text-xs text-zinc-600 py-1 italic">No messages yet. Start the thread to follow up.</div>
+        ) : (
+          messages.map(msg => (
+            <div key={msg.id} className="flex gap-2 items-start">
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${rolePill(msg.author_role)}`}>
+                {roleLabel(msg.author_role)}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs font-medium text-zinc-200 truncate">{msg.author_name}</span>
+                  <span className="text-[10px] text-zinc-600 flex-shrink-0">{fmtTime(msg.created_at)}</span>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed mt-0.5 break-words">{msg.body}</p>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          placeholder="Add a follow-up note…"
+          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+        />
+        <button
+          onClick={handleSend}
+          disabled={sending || !body.trim()}
+          className="rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 text-white transition-colors"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 interface TaskRowProps {
@@ -294,6 +427,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
               Awaiting manager response…
             </div>
           )}
+          <TaskThread taskId={task.id} />
         </div>
       )}
     </div>
