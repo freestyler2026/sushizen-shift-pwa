@@ -1,12 +1,24 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-19 (Store Operation Management Channel — Day 2 complete, Heroku v2010)
+Last updated: 2026-08-19 (Day 4 完了 — task_messages 双方向スレッド実装; Manager Inbox StoreTaskThread E2E検証済み; Manual republished)
 
 ---
 
-## 🚧 In Progress: Store Operation Management Channel (Day 2 complete, Day 3 next)
+## ✅ Completed: /api/published/week 500エラー修正 (2026-08-19, Heroku v2011)
 
-**Phase**: Day 2 — BO Dashboard + Manager Inbox live
+**症状**: `city=manila, week_start=2026-08-17, branch_code=WH` で18.5%の500エラー（62ms — 非常に早い失敗）
+
+**根本原因**: `ensure_published_tables()` が毎リクエスト実行時にDDL（`ALTER TABLE`）を実行していた。並行リクエストが重なると `ALTER TABLE` の `AccessExclusiveLock` 待ちで全接続がブロックされ、接続プール(max=12)が枯渇 → 500エラー。
+
+**修正**: `app/db.py` に `_published_tables_initialized = False` フラグを追加。他の `ensure_*` 関数（`_private_report_tables_initialized` 等）と同じパターン。プロセス起動後の1回目のみDDL実行、以降はno-op。
+
+**デプロイ**: Heroku v2011 (commit `ee88a60`)
+
+---
+
+## ✅ Completed: Store Operation Management Channel (Day 1-3 + E2E + Detection)
+
+**Phase**: 全完了 — E2E テスト・Detection テスト済み (2026-08-19)
 
 ### Sprint 0 (done)
 - ✅ Base Roll prep coefficient: 0.9 → 0.75 (`main.py` ×2 + docstring)
@@ -38,14 +50,98 @@ Last updated: 2026-08-19 (Store Operation Management Channel — Day 2 complete,
   - Permissions granted to DUBAI_MANAGEMENT, MANILA_MANAGEMENT, ADMIN
 - ✅ Manual republished with Day 2 "Live" status
 
-**⚠️ Pending action after Heroku v2010 deploys:**
-- Role Management → "Resync System Channels" ボタンを押してDBを同期する (CLAUDE.md rule #11)
-- Templates seeding: DB currently has no action_templates — BO Dashboard shows warning, Manager Inbox uses hardcoded fallbacks
+**Day 2 Testing (2026-08-19) — complete:**
+- ✅ Resync System Channels 実施済み: `admin.management_back_office` + `store.management_inbox` → 各3 roles → DB同期済み
+- ✅ **Critical bug found & fixed**: useCallback の deps に `auth = getAuth()` を含めていたため、JSON.parse が毎レンダーで新オブジェクトを返し無限APIループ発生 → `[auth]` を全て除去、`getAuth()` はコールバック内で呼ぶよう修正 (commit `93f3a3a`)
+- ✅ BO Dashboard: レンダー正常、City/Statusフィルター動作、KPI cards、空状態、Refresh、テンプレート警告バナー
+- ✅ Manager Inbox: レンダー正常、都市別Branch selector（Dubai: BB/JLT/ARJ/AM/AB）、Branch切替でAPI再呼び出し、空状態"All clear!"
+- ✅ NavBar: 両エントリ確認済み（admin側: BO Dashboard、store側: Management Inbox）
+- ⚠️ action_templates 未シード: BO Dashboard はテンプレート警告を表示、Manager Inbox は FALLBACK_OPTIONS を使用中
+- ⚠️ テストタスクなし: Send Instruction → Manager Response のエンドツーエンドフローは未テスト
+- ℹ️ KPI counts は現在のフィルターに依存（status=Open時、Sent/Responded/Closedは常に0）— ユーザー確認後に全件表示に変更可
 
-### Day 3 (pending Ueshima-san template wording)
-- PM Backup missing detection trigger
-- Disposal NIL vs Missing distinction
-- Backup 70%/50% threshold alerts
+### Day 3 (done — Heroku v2012, Vercel aaf80e5, 2026-08-19)
+- ✅ 6テンプレートシード: PM Backup missing / Disposal missing / Product Score C / Attendance Unverified / Backup ≤70% / Backup ≤50%
+  - Ueshima-san の文言を `seed_management_templates()` で upsert
+  - `POST /api/admin/management/seed-templates` API追加
+- ✅ 自動検知: `detect_management_exceptions(city, date)` in db.py
+  - Section 1: PM Backup missing (今日の closing backup report 未提出)
+  - Section 2: Disposal missing (昨日の disposal report 未提出)
+  - Section 3: Product score C/D/F (product_score_results テーブル)
+  - Section 4: Attendance unverified (detect_attendance_anomalies() 流用)
+  - 各セクション独立接続（CLAUDE.md Lesson #7 psycopg2 abort連鎖対策）
+  - 重複防止: source_id + open status チェック
+  - `POST /api/admin/management/detect` API追加
+- ✅ BO Dashboard更新:
+  - "Run Detection" ボタン追加（city選択必須）
+  - "Seed Default Templates" バナー＋ボタン（テンプレート0件時に表示）
+- ✅ api_get_action_templates バグ修正: 裸のリスト → `{"templates": [...]}` (frontend の `data.templates` が常に [] だった)
+- ✅ 本番確認: Seed API → 6テンプレート確認 / Run Detection Manila → 0件 (異常なし)
+
+**既知の制限**: Backup 70%/50% 自動検知は不可 — `backup_report_lines` に par level 参照なし。手動タスク作成のみ対応。
+
+### Day 4 — 双方向メッセージスレッド (done — Heroku c387b05, Vercel b03bccb, 2026-08-19)
+- ✅ `task_messages` テーブル + index: `ensure_management_tables()` 内に追加
+  - カラム: id / task_id (FK→management_tasks) / author_id / author_name / author_role / body / created_at
+- ✅ DB関数: `get_task_messages(task_id)` / `create_task_message(task_id, author_id, author_name, author_role, body)`
+- ✅ Pydantic: `TaskMessageCreate { body, author_name, author_role }`
+- ✅ Admin API: `GET/POST /api/admin/management/tasks/{id}/messages`
+- ✅ Store API: `GET/POST /api/store/management/tasks/{id}/messages`
+  - 既存の catch-all proxy (`src/app/api/admin/[...slug]/route.ts` + store) で自動対応
+- ✅ `TaskThread` コンポーネント (BO Dashboard): ロール紫バッジ、自動スクロール、Enter送信、件数バッジ "THREAD (N)"
+  - author: `auth?.staffName || "BO Staff"`, role: `"bo"`
+- ✅ `StoreTaskThread` コンポーネント (Manager Inbox): 折りたたみ、"● New from BO" インジケーター、"You" ラベル
+  - author: `managerName` prop (`auth?.staffName || "Manager"`), role: `"manager"`
+- ✅ E2E検証: BO Dashboard (TaskThread) → GET 200 / POST 200 / 件数バッジ / 紫バッジ確認済み
+- ✅ Manager Inbox (StoreTaskThread) → DOM検証: 展開状態・"No messages yet"・"Reply to Back Office…"入力・Sendボタン確認済み
+- ✅ Manual更新: Manager Guide ⑤スレッド節 + BO Guide ⑥スレッド節を追加; republished
+
+**修正したバグ**: `auth?.name` → `auth?.staffName` (Auth型のフィールド名不一致 — TypeScriptエラー)
+
+### Manual 役割別ガイド追加 (2026-08-19)
+- ✅ マネージャーガイド（植嶋さん向け）: 担当・SLA・操作手順・FAQ 7問 — `section-manager-guide`
+- ✅ BOスタッフガイド（BO A/B/C/D 担当分類・Run Detection・Send Instruction・返答後アクション・FAQ） — `section-bo-guide`
+- ✅ HQガイド（日次/週次確認項目・エスカレーション基準・テンプレート変更判断・FAQ） — `section-hq-guide`
+- ✅ エリアマネージャーガイド（現状できること + Week 7-8 予定機能）— `section-area-manager-guide`
+- ✅ Artifact republished: https://claude.ai/code/artifact/5dbc366b-bd8e-4aca-80bd-763f8ddbe9e3
+
+### E2E + Detection テスト結果 (2026-08-19)
+
+**修正した bugs (このセッション):**
+
+1. **`api_get_management_tasks` / `api_store_get_tasks` が常に空リストを返す** (Heroku)
+   - 原因: FastAPI が bare list を返す → frontend の `data.tasks` が `undefined` → 常に `[]`
+   - 修正: `return {"tasks": [...]}` にラップ
+
+2. **`template_key` が保存されない** (Heroku)
+   - 原因: `MgmtTaskUpdate` Pydantic モデルに `template_key` フィールドなし
+   - 修正: モデルとDB関数の `allowed` セットに追加
+
+3. **Branch 命名不一致 (CUBAO vs CUB)** (Heroku)
+   - 原因: `product_score_results` は "CUBAO" 表記; backup/disposal は "CUB"
+   - 修正: `_BRANCH_NORMALIZE` dict + `_normalize_branch()` を `detect_management_exceptions()` の全4セクションに適用
+
+4. **KPI カード (Sent/Responded/Closed) が Status=Open 時に常に 0** (Vercel)
+   - 原因: `loadTasks()` が status フィルタ付きで API 呼び出し → 他ステータスのタスクが取得されない
+   - 修正: API 呼び出しから status フィルタ除去、全件 fetch → クライアントサイドフィルタリング
+
+**E2E テスト結果 (Dubai / Business Bay):**
+- ✅ BO Dashboard Dubai: タスク id=23 (PM Backup Missing / BB) 作成・表示
+- ✅ Send Instruction: モーダル → テンプレート文表示 → 回答オプション表示 → 送信 → Open:1→0, Sent:0→1
+- ✅ Manager Inbox (Business Bay): Refresh → Pending Action:1, "Action Required" バッジ, 指示文表示
+- ✅ Manager Response: "Report Submitted" 選択 → Confirm → Pending:0, Completed Today:1
+- ✅ BO Dashboard 反映: Sent:1→0, Responded:0→1, タスク展開で SENT INSTRUCTION + MANAGER RESPONSE("submitted") 表示
+
+**Detection テスト結果:**
+- ✅ 実際の例外タスクが自動作成済みを確認:
+  - id=2: `pm_backup_missing` / PAR / 2026-08-19 (今日の PM Backup 未提出を自動検知)
+  - id=3,4: `disposal_missing` / CUB,PAR / 2026-08-18 (昨日の disposal 未提出)
+  - id=5-21: `product_score_c` × 17件 / TAFT,PAR,CUBAO (実 Product Score データから自動作成)
+- ✅ 再実行で重複なし (source_id デデュップ動作確認)
+
+**残存問題 (既知):**
+- ⚠️ 旧 CUBAO タスク (id=5-8): 正規化前に作成。Manager Inbox の "CUB" フィルタに引っかからない。今後の Detection は "CUB" で作成 → 自然消滅
+- ⚠️ Manager name = "Unknown" (20件): product_score_c / disposal_missing タスクのマネージャー名が取得できていない。DBに当該ブランチのマネージャー設定が必要
 
 ---
 

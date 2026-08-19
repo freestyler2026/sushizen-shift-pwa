@@ -193,6 +193,46 @@ p { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 ul.body-list { padding-left: 18px; color: var(--muted); font-size: 12px; }
 ul.body-list li { margin-bottom: 4px; }
 ul.body-list strong { color: var(--text); }
+
+/* MANAGER GUIDE SPECIFIC */
+.mgr-hero { background: linear-gradient(135deg, rgba(52,211,153,0.12) 0%, rgba(96,165,250,0.08) 100%); border: 1px solid var(--green-border); border-radius: 14px; padding: 24px 28px; margin-bottom: 28px; }
+.mgr-hero-title { font-size: 20px; font-weight: 800; color: var(--green); margin-bottom: 6px; }
+.mgr-hero-sub { font-size: 13px; color: var(--muted); line-height: 1.8; }
+.action-box { border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+.action-box.critical { background: var(--red-dim); border: 1px solid var(--red-border); }
+.action-box.caution  { background: var(--orange-dim); border: 1px solid var(--orange-border); }
+.action-box.info     { background: var(--accent-dim); border: 1px solid var(--accent-glow); }
+.action-box-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.action-box-icon { font-size: 20px; }
+.action-box-title { font-size: 14px; font-weight: 700; }
+.action-box.critical .action-box-title { color: var(--red); }
+.action-box.caution  .action-box-title { color: var(--orange); }
+.action-box.info     .action-box-title { color: var(--accent); }
+.action-steps { list-style: none; padding-left: 0; }
+.action-steps li { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; color: var(--text); }
+.action-steps li:last-child { border-bottom: none; }
+.action-step-n { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; margin-top: 1px; }
+.action-box.critical .action-step-n { background: var(--red); }
+.action-box.caution  .action-step-n { background: var(--orange); }
+.action-box.info     .action-step-n { background: var(--accent); }
+.resp-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); background: var(--surface); }
+.resp-option.done    { border-color: var(--green-border); background: var(--green-dim); }
+.resp-option.cannot  { border-color: var(--orange-border); background: var(--orange-dim); }
+.resp-option.neutral { border-color: var(--border); background: var(--surface2); }
+.resp-btn { flex-shrink: 0; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; border: none; }
+.resp-option.done    .resp-btn { background: var(--green); color: #000; }
+.resp-option.cannot  .resp-btn { background: var(--orange); color: #fff; }
+.resp-option.neutral .resp-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.resp-body { flex: 1; }
+.resp-label { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.resp-desc { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.faq-item { margin-bottom: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.faq-q { font-size: 13px; font-weight: 700; color: var(--text); padding: 13px 18px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; gap: 8px; }
+.faq-a { font-size: 13px; color: var(--muted); padding: 13px 18px; line-height: 1.7; }
+.faq-a strong { color: var(--text); }
+.sla-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.sla-badge.red    { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.sla-badge.orange { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange-border); }
 </style>
 
 <!-- TOP BAR -->
@@ -211,55 +251,81 @@ ul.body-list strong { color: var(--text); }
 
 <!-- SIDEBAR -->
 <div class="sidebar">
-  <div class="sidebar-label"><span class="ja">概要</span><span class="en">Overview</span></div>
-  <div class="nav-item active" onclick="show('overview')">
-    <span class="nav-icon">🧠</span>
-    <span class="ja">システム概要</span><span class="en">System Overview</span>
-    <span class="nav-badge live">LIVE</span>
+  <div class="sidebar-label" style="color:var(--green);padding-top:10px;"><span class="ja">👤 役割別ガイド</span><span class="en">👤 Role Guides</span></div>
+  <div class="nav-item active" onclick="show('manager-guide')" style="font-weight:700;">
+    <span class="nav-icon">🏪</span>
+    <span class="ja">マネージャー</span><span class="en">Store Manager</span>
+    <span class="nav-badge live">必読</span>
   </div>
-  <div class="nav-item" onclick="show('architecture')">
-    <span class="nav-icon">🏗️</span>
-    <span class="ja">4層アーキテクチャ</span><span class="en">4-Layer Architecture</span>
-  </div>
-
-  <div class="sidebar-label"><span class="ja">例外タイプ</span><span class="en">Exception Types</span></div>
-  <div class="nav-item" onclick="show('exceptions')">
-    <span class="nav-icon">🔴</span>
-    <span class="ja">例外タイプ一覧</span><span class="en">All Exception Types</span>
-  </div>
-  <div class="nav-item" onclick="show('templates')">
-    <span class="nav-icon">📝</span>
-    <span class="ja">アクションテンプレート</span><span class="en">Action Templates</span>
-  </div>
-
-  <div class="sidebar-label"><span class="ja">スタッフ別使い方</span><span class="en">By Role</span></div>
-  <div class="nav-item" onclick="show('bo-dashboard')">
+  <div class="nav-item" onclick="show('bo-guide')" style="font-weight:700;">
     <span class="nav-icon">💼</span>
-    <span class="ja">BO ダッシュボード</span><span class="en">BO Dashboard</span>
-    <span class="nav-badge live">Live</span>
+    <span class="ja">BOスタッフ</span><span class="en">BO Staff</span>
+    <span class="nav-badge live">必読</span>
   </div>
-  <div class="nav-item" onclick="show('manager-inbox')">
-    <span class="nav-icon">📥</span>
-    <span class="ja">マネージャー受信箱</span><span class="en">Manager Inbox</span>
-    <span class="nav-badge live">Live</span>
+  <div class="nav-item" onclick="show('hq-guide')" style="font-weight:700;">
+    <span class="nav-icon">🏢</span>
+    <span class="ja">HQ / 管理者</span><span class="en">HQ / Ops Manager</span>
+    <span class="nav-badge live">必読</span>
   </div>
-  <div class="nav-item" onclick="show('area-manager')">
+  <div class="nav-item" onclick="show('area-manager-guide')" style="font-weight:700;">
     <span class="nav-icon">📊</span>
     <span class="ja">エリアマネージャー</span><span class="en">Area Manager</span>
     <span class="nav-badge soon">Week 7</span>
   </div>
 
-  <div class="sidebar-label"><span class="ja">インテリジェンス</span><span class="en">Intelligence</span></div>
+  <div class="sidebar-label"><span class="ja">システム参照</span><span class="en">System Reference</span></div>
+  <div class="nav-item" onclick="show('overview')">
+    <span class="nav-icon">🧠</span>
+    <span class="ja">システム概要</span><span class="en">System Overview</span>
+  </div>
+  <div class="nav-item" onclick="show('architecture')">
+    <span class="nav-icon">🏗️</span>
+    <span class="ja">4層アーキテクチャ</span><span class="en">4-Layer Architecture</span>
+  </div>
+  <div class="nav-item" onclick="show('data-map')">
+    <span class="nav-icon">🗺️</span>
+    <span class="ja">ページ連携マップ</span><span class="en">Page Connection Map</span>
+  </div>
+  <div class="nav-item" onclick="show('exceptions')">
+    <span class="nav-icon">🔴</span>
+    <span class="ja">例外タイプ一覧</span><span class="en">Exception Types</span>
+  </div>
+  <div class="nav-item" onclick="show('templates')">
+    <span class="nav-icon">📝</span>
+    <span class="ja">テンプレート全文</span><span class="en">Templates (full text)</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">ページ詳細</span><span class="en">Page Details</span></div>
+  <div class="nav-item" onclick="show('bo-dashboard')">
+    <span class="nav-icon">🖥️</span>
+    <span class="ja">BO Dashboard 詳細</span><span class="en">BO Dashboard (detail)</span>
+    <span class="nav-badge live">Live</span>
+  </div>
+  <div class="nav-item" onclick="show('manager-inbox')">
+    <span class="nav-icon">📥</span>
+    <span class="ja">Manager Inbox 詳細</span><span class="en">Manager Inbox (detail)</span>
+    <span class="nav-badge live">Live</span>
+  </div>
+  <div class="nav-item" onclick="show('detection')">
+    <span class="nav-icon">🎯</span>
+    <span class="ja">自動検知システム</span><span class="en">Auto-Detection System</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
+  <div class="nav-item" onclick="show('area-manager')">
+    <span class="nav-icon">📈</span>
+    <span class="ja">エリアMgr 画面詳細</span><span class="en">Area Mgr Page (detail)</span>
+    <span class="nav-badge soon">Week 7</span>
+  </div>
+
+  <div class="sidebar-label"><span class="ja">開発者参照</span><span class="en">Developer Reference</span></div>
   <div class="nav-item" onclick="show('pattern-detection')">
     <span class="nav-icon">🔍</span>
     <span class="ja">パターン検出</span><span class="en">Pattern Detection</span>
     <span class="nav-badge soon">Week 7</span>
   </div>
-
-  <div class="sidebar-label"><span class="ja">導入計画</span><span class="en">Rollout</span></div>
   <div class="nav-item" onclick="show('rollout')">
     <span class="nav-icon">🚀</span>
-    <span class="ja">実装ロードマップ</span><span class="en">Implementation Roadmap</span>
+    <span class="ja">実装ロードマップ</span><span class="en">Roadmap</span>
   </div>
   <div class="nav-item" onclick="show('api-reference')">
     <span class="nav-icon">⚙️</span>
@@ -271,14 +337,999 @@ ul.body-list strong { color: var(--text); }
 <!-- MAIN -->
 <div class="main">
 
+  <!-- ===== MANAGER GUIDE ===== -->
+  <div class="section active" id="section-manager-guide">
+    <div class="mgr-hero">
+      <div class="mgr-hero-title"><span class="ja">🏪 ストアマネージャーの方へ</span><span class="en">🏪 For Store Managers</span></div>
+      <div class="mgr-hero-sub ja">
+        このシステムでマネージャーがすることは<strong>1つだけ</strong>です。<br>
+        Back Office（BO）から届いた指示を <strong>Manager Inbox</strong> で確認し、<strong>ボタンを選んでタップする</strong>。それだけです。<br>
+        文章を書く必要はありません。電話もメッセージも不要です。
+      </div>
+      <div class="mgr-hero-sub en">
+        There is <strong>one thing</strong> this system asks of you as a manager.<br>
+        Open <strong>Manager Inbox</strong>, read the instruction from Back Office, and <strong>tap one button</strong> to respond. That's it.<br>
+        No writing. No calls. No messages to anyone.
+      </div>
+    </div>
+
+    <!-- STEP 1: HOW TO OPEN -->
+    <h2><span class="ja">① Manager Inboxを開く</span><span class="en">① Opening Manager Inbox</span></h2>
+    <div class="card accent-border" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">アクセス方法</span><span class="en">How to access</span></div>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">上部NavBar → 「Management Inbox」をタップ</div>
+            <div class="step-title en">Tap "Management Inbox" in the top NavBar</div>
+            <div class="step-desc ja">見当たらない場合はログインしているアカウントのロールを確認してください（MANILA_MANAGEMENT / DUBAI_MANAGEMENT / HQ が必要）。</div>
+            <div class="step-desc en">If you don't see it, check your login role (MANILA_MANAGEMENT / DUBAI_MANAGEMENT / HQ required).</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">自分の支店タブを選択</div>
+            <div class="step-title en">Select your branch tab</div>
+            <div class="step-desc ja">画面上部に支店ボタン（PAR / CUB / TAFT など）が並んでいます。担当支店を選ぶとその支店のタスクのみ表示されます。</div>
+            <div class="step-desc en">Branch buttons (PAR / CUB / TAFT etc.) appear at the top. Select your branch to see only that branch's tasks.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">「Pending」件数を確認</div>
+            <div class="step-title en">Check the "Pending" count</div>
+            <div class="step-desc ja">赤い数字が「今すぐ対応が必要なタスク数」です。<strong>0なら今日はすることがありません</strong>。</div>
+            <div class="step-desc en">The red number = tasks requiring your action now. <strong>0 means nothing to do today.</strong></div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">⏰</span>
+      <span class="ja"><strong>いつ確認すればいい？</strong> Back OfficeからInboxに指示が届いたときです。🔴タスクは届いてから<strong>90分以内</strong>、🟠タスクは<strong>4時間以内</strong>に返答してください。連絡を受けたらすぐに開いて確認するのが理想です。</span>
+      <span class="en"><strong>When should I check?</strong> When Back Office sends an instruction to your inbox. Respond to 🔴 tasks within <strong>90 minutes</strong>, 🟠 tasks within <strong>4 hours</strong>. Ideally, open it as soon as you're notified.</span>
+    </div>
+
+    <!-- STEP 2: RESPONDING -->
+    <h2><span class="ja">② 指示が届いたら：返答の手順</span><span class="en">② When an instruction arrives: How to respond</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">🔴 または 🟠 のカードを見つける</div>
+            <div class="step-title en">Find the 🔴 or 🟠 card</div>
+            <div class="step-desc ja">「Action Required」バッジが付いたカードが未対応タスクです。🔴が上に表示されます（より緊急）。</div>
+            <div class="step-desc en">Cards with "Action Required" badge are pending tasks. 🔴 appears above 🟠 (higher urgency).</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">指示文を読む（イタリック体の文章）</div>
+            <div class="step-title en">Read the instruction text (shown in italics)</div>
+            <div class="step-desc ja">何をすべきかが具体的に書かれています。「今すぐ〇〇してください」「確認してください」など。</div>
+            <div class="step-desc en">Tells you exactly what to do — "submit now", "confirm with staff", etc.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">実際に対応する</div>
+            <div class="step-title en">Take the action</div>
+            <div class="step-desc ja">まずシステム上または現場で指示の内容を実行してください。<strong>返答ボタンを押すのは実行した後</strong>です。</div>
+            <div class="step-desc en">First actually do what the instruction says — in the system or on the floor. <strong>Tap the response button after you act.</strong></div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title ja">ボタンを1つ選んでタップ → 完了</div>
+            <div class="step-title en">Tap one button → Done</div>
+            <div class="step-desc ja">タップした瞬間に送信されます。確認ポップアップが出たら「Confirm」を押すとカードが消えて返答完了です。</div>
+            <div class="step-desc en">Sends immediately on tap. If a confirmation popup appears, press "Confirm" — the card disappears and you're done.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- STEP 3: RESPONSE OPTIONS EXPLAINED -->
+    <h2><span class="ja">③ 返答ボタンの意味と使い方</span><span class="en">③ What each response button means</span></h2>
+    <p class="ja" style="font-size:12px;">✅ 緑ボタン = 「対応完了」の報告　　⚠️ オレンジボタン = 「できない理由」の報告　　📝 グレーボタン = 「特別な事情」をテキストで説明</p>
+    <p class="en" style="font-size:12px;">✅ Green = "I handled it" 　　⚠️ Orange = "I couldn't — here's why" 　　📝 Grey = "Special circumstance" (type one line)</p>
+
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Report Submitted</div>
+      <div class="resp-body">
+        <div class="resp-label ja">提出完了</div>
+        <div class="resp-label en">Report Submitted</div>
+        <div class="resp-desc ja">バックアップレポートや廃棄レポートを実際に提出したとき。「提出した」という確認の報告です。押す前に本当に提出してください。</div>
+        <div class="resp-desc en">Use after you've actually submitted the backup or disposal report. This confirms "I submitted it." Only press after you've actually done it.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ NIL — Confirmed</div>
+      <div class="resp-body">
+        <div class="resp-label ja">NIL確認（廃棄ゼロ確認）</div>
+        <div class="resp-label en">NIL — Confirmed (zero disposal)</div>
+        <div class="resp-desc ja"><strong>廃棄が本当にゼロの日のみ</strong>使います。「廃棄レポートを提出し忘れた」のではなく、「今日は廃棄が一切なかった」という積極的な確認です。廃棄があったのにこのボタンを押すと記録上の問題になります。</div>
+        <div class="resp-desc en"><strong>Only use when there was genuinely zero disposal.</strong> This is an active confirmation that "there was nothing to dispose of today" — not "I forgot to submit." Pressing this when you had disposal creates a record problem.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Submitting Now</div>
+      <div class="resp-body">
+        <div class="resp-label ja">今すぐ提出します</div>
+        <div class="resp-label en">Submitting Now</div>
+        <div class="resp-desc ja">廃棄レポートを「これから提出する」という宣言。押した後すぐに提出してください。</div>
+        <div class="resp-desc en">A declaration that you are submitting right now. Press this, then submit immediately.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Staff feedback done</div>
+      <div class="resp-body">
+        <div class="resp-label ja">スタッフへフィードバック完了</div>
+        <div class="resp-label en">Staff feedback done</div>
+        <div class="resp-desc ja">製品スコアCの指示への返答。担当スタッフに口頭でフィードバックを伝えた後に押します。</div>
+        <div class="resp-desc en">Response to a product score C instruction. Press after you've given verbal feedback to the responsible staff member.</div>
+      </div>
+    </div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ Staff Shortage</div>
+      <div class="resp-body">
+        <div class="resp-label ja">スタッフ不足</div>
+        <div class="resp-label en">Staff Shortage</div>
+        <div class="resp-desc ja">今この対応ができない理由が「人手不足」の場合。ただし、これは「免除」ではありません。BOに状況が伝わり、フォローが入ります。</div>
+        <div class="resp-desc en">When the reason you can't handle this right now is lack of staff. Note: this is not an exemption — BO is informed and follow-up will occur.</div>
+      </div>
+    </div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ Store Too Busy</div>
+      <div class="resp-body">
+        <div class="resp-label ja">店舗多忙</div>
+        <div class="resp-label en">Store Too Busy</div>
+        <div class="resp-desc ja">ラッシュ中など、今すぐ対応できない場合。混雑が収まったら速やかに対応してください。</div>
+        <div class="resp-desc en">During a rush or extremely busy period. Once things calm down, handle it promptly.</div>
+      </div>
+    </div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ System Issue</div>
+      <div class="resp-body">
+        <div class="resp-label ja">システム障害</div>
+        <div class="resp-label en">System Issue</div>
+        <div class="resp-desc ja">提出しようとしたがシステムが動かない、または記録できない技術的な問題が発生している場合。</div>
+        <div class="resp-desc en">When you tried to submit but the system won't work, or there's a technical issue preventing entry.</div>
+      </div>
+    </div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ Assigned Staff Unavailable</div>
+      <div class="resp-body">
+        <div class="resp-label ja">担当スタッフ不在</div>
+        <div class="resp-label en">Assigned Staff Unavailable</div>
+        <div class="resp-desc ja">担当しているスタッフが今シフトにいないため、バックアップレポートなどを提出できない場合。</div>
+        <div class="resp-desc en">The staff member responsible for this task is not on shift and therefore cannot complete it right now.</div>
+      </div>
+    </div>
+    <div class="resp-option neutral">
+      <div class="resp-btn">📝 Other…</div>
+      <div class="resp-body">
+        <div class="resp-label ja">その他（1行テキスト入力）</div>
+        <div class="resp-label en">Other (type one line)</div>
+        <div class="resp-desc ja">上記のどれにも当てはまらない場合のみ使います。1文で状況を説明してください。例：「Power outage in the area」「Supplier delayed delivery」。<strong>長い説明は不要です。</strong></div>
+        <div class="resp-desc en">Use only when none of the above fits. Write one sentence explaining the situation. E.g. "Power outage in the area" / "Supplier delayed delivery." <strong>No need to write a long explanation.</strong></div>
+      </div>
+    </div>
+
+    <!-- STEP 4: BY EXCEPTION TYPE -->
+    <h2><span class="ja">④ 例外タイプ別：具体的な対応手順</span><span class="en">④ What to do — by exception type</span></h2>
+
+    <div class="action-box critical">
+      <div class="action-box-header">
+        <span class="action-box-icon">🔴</span>
+        <span class="action-box-title"><span class="ja">PMバックアップレポート未提出</span><span class="en">PM Backup Report Missing</span></span>
+        <span class="sla-badge red"><span class="ja">⏱ 90分以内に返答</span><span class="en">⏱ Respond within 90 min</span></span>
+      </div>
+      <ul class="action-steps">
+        <li><span class="action-step-n" style="background:var(--red);">1</span><span class="ja"><strong>/admin/backup</strong> を開いてPMバックアップレポートを確認</span><span class="en">Open <strong>/admin/backup</strong> and check PM Backup Report</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2</span><span class="ja">まだ提出されていなければ、担当スタッフに連絡して今すぐ提出させる</span><span class="en">If not submitted, contact the responsible staff and have them submit it now</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">3</span><span class="ja">提出が完了したら Manager Inbox で<strong>「Report Submitted」</strong>をタップ</span><span class="en">Once submitted, tap <strong>"Report Submitted"</strong> in Manager Inbox</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">4</span><span class="ja">もし提出できない理由がある場合は該当する⚠️ボタンを選ぶ</span><span class="en">If you can't get it submitted, select the appropriate ⚠️ reason button</span></li>
+      </ul>
+    </div>
+
+    <div class="action-box critical" style="margin-top:10px;">
+      <div class="action-box-header">
+        <span class="action-box-icon">🔴</span>
+        <span class="action-box-title"><span class="ja">廃棄レポート未提出</span><span class="en">Disposal Report Missing</span></span>
+        <span class="sla-badge red"><span class="ja">⏱ 90分以内に返答</span><span class="en">⏱ Respond within 90 min</span></span>
+      </div>
+      <ul class="action-steps">
+        <li><span class="action-step-n" style="background:var(--red);">1</span><span class="ja">今日廃棄したものがあったか確認する</span><span class="en">Check whether any disposal happened today</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2A</span><span class="ja"><strong>廃棄がゼロだった場合</strong> → <strong>「NIL — Confirmed」</strong>をタップ（廃棄ゼロを積極的に確認する行為です）</span><span class="en"><strong>If zero disposal today</strong> → tap <strong>"NIL — Confirmed"</strong> (actively confirming there was nothing to dispose of)</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2B</span><span class="ja"><strong>廃棄があった場合</strong> → <strong>/admin/disposal</strong> で今すぐ提出 → 完了したら<strong>「Submitting Now」</strong>をタップ</span><span class="en"><strong>If there was disposal</strong> → submit it now at <strong>/admin/disposal</strong> → then tap <strong>"Submitting Now"</strong></span></li>
+      </ul>
+      <div class="tip warn" style="margin-top:10px;">
+        <span class="tip-icon">⚠️</span>
+        <span class="ja">廃棄があったのに「NIL」を選ぶと記録の不正確さが残ります。必ず実態に合うボタンを選んでください。</span>
+        <span class="en">Selecting "NIL" when disposal occurred creates an inaccurate record. Always select what actually happened.</span>
+      </div>
+    </div>
+
+    <div class="action-box caution" style="margin-top:10px;">
+      <div class="action-box-header">
+        <span class="action-box-icon">🟠</span>
+        <span class="action-box-title"><span class="ja">製品スコア C以下</span><span class="en">Product Score C or Below</span></span>
+        <span class="sla-badge orange"><span class="ja">⏱ 4時間以内に返答</span><span class="en">⏱ Respond within 4 hours</span></span>
+      </div>
+      <ul class="action-steps">
+        <li><span class="action-step-n" style="background:var(--orange);">1</span><span class="ja">指示文に含まれる製品情報（アイテム・時刻）を確認する</span><span class="en">Note the product info (item name, time) in the instruction</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">2</span><span class="ja">その時間帯に担当していたスタッフを特定する</span><span class="en">Identify which staff member was responsible at that time</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">3</span><span class="ja">口頭で問題点（盛り付け・分量・カットなど）を具体的にフィードバックする</span><span class="en">Give specific verbal feedback about the issue (presentation, portion, cutting, etc.)</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">4</span><span class="ja">フィードバックが完了したら<strong>「Staff feedback done」</strong>をタップ</span><span class="en">Once feedback is given, tap <strong>"Staff feedback done"</strong></span></li>
+      </ul>
+    </div>
+
+    <div class="action-box caution" style="margin-top:10px;">
+      <div class="action-box-header">
+        <span class="action-box-icon">🟠</span>
+        <span class="action-box-title"><span class="ja">スタッフ打刻未確認</span><span class="en">Attendance Unverified</span></span>
+        <span class="sla-badge orange"><span class="ja">⏱ 4時間以内に返答</span><span class="en">⏱ Respond within 4 hours</span></span>
+      </div>
+      <ul class="action-steps">
+        <li><span class="action-step-n" style="background:var(--orange);">1</span><span class="ja">指示文に書かれているスタッフ名を確認する</span><span class="en">Check the staff member's name in the instruction</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">2</span><span class="ja">そのスタッフに連絡して今日出勤していたか確認する</span><span class="en">Contact that staff member and confirm whether they were at work today</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">3A</span><span class="ja">出勤していた場合 → OS/StoreHubの問題か打刻忘れかを判断して該当✅ボタンをタップ</span><span class="en">If they were present → decide if it's an OS/StoreHub issue or they forgot to clock in → tap the appropriate ✅ button</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">3B</span><span class="ja">欠勤だった場合 → <strong>「Was absent」</strong>をタップ</span><span class="en">If they were absent → tap <strong>"Was absent"</strong></span></li>
+      </ul>
+    </div>
+
+    <!-- MESSAGES THREAD -->
+    <h2><span class="ja">⑤ BOへのメッセージスレッド</span><span class="en">⑤ Messages thread with Back Office</span></h2>
+    <div class="card accent-border" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">スレッドとは？</span><span class="en">What is the thread?</span></div>
+      <p class="ja" style="font-size:12px;margin-bottom:10px;">各タスクに紐づいた<strong>1対1のメッセージ欄</strong>です。ボタン返答だけでは伝えきれない内容（質問・補足・進捗報告）をBOスタッフに直接届けられます。Discord/LINEなど社外ツールに漏れる必要がなくなります。</p>
+      <p class="en" style="font-size:12px;margin-bottom:10px;">A <strong>per-task message thread</strong> attached to each instruction. Use it to ask questions, add context, or share updates that the response buttons can't capture — without going to Discord, LINE, or any external tool.</p>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">タスクカードの下部にある「Messages」ボタンをタップ</div>
+            <div class="step-title en">Tap the "Messages" button at the bottom of any task card</div>
+            <div class="step-desc ja">返答済みタスク（Completedセクション）にも表示されます。</div>
+            <div class="step-desc en">Visible on completed tasks too — thread stays accessible after you respond.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">「Reply to Back Office…」欄にメッセージを入力</div>
+            <div class="step-title en">Type in the "Reply to Back Office…" field</div>
+            <div class="step-desc ja">Enterキー、またはSendボタン（→アイコン）で送信。</div>
+            <div class="step-desc en">Press Enter or click the Send button (→ icon) to send.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">BOから返信が来ると「● New from BO」インジケーターが表示される</div>
+            <div class="step-title en">When BO replies, a "● New from BO" indicator appears on the collapsed button</div>
+            <div class="step-desc ja">Messages ボタンを開くと返信内容が確認できます。</div>
+            <div class="step-desc en">Open Messages to read the reply.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">💡</span>
+      <span class="ja"><strong>スレッドを使うタイミング</strong>：返答ボタンを押した後に「補足があれば伝えたい」場合 / BOから質問が来た場合 / 状況の進捗を追加で共有したい場合。<strong>使わない場合は無視してOK</strong>です。スレッドは任意です。</span>
+      <span class="en"><strong>When to use the thread</strong>: after pressing a response button and you have more context to add / when BO asks a follow-up question / to share progress. <strong>It's optional</strong> — if nothing extra needs to be said, ignore it.</span>
+    </div>
+
+    <!-- FAQ -->
+    <h2><span class="ja">⑥ よくある質問・困ったとき</span><span class="en">⑥ FAQ & Troubleshooting</span></h2>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">タスクが表示されない / Pending: 0 になっている</span><span class="en">No tasks showing / Pending: 0</span></div>
+      <div class="faq-a">
+        <span class="ja">
+          <strong>正常です。</strong> Pending 0 は「今日はBOからの指示がない、または全て対応済み」ということです。<br><br>
+          それでも「来たはずなのに見当たらない」場合：<br>
+          1. 支店タブが正しいか確認してください（PAR / CUB / TAFT）<br>
+          2. ページを手動でリロードしてください（ページを閉じて再度開く）<br>
+          3. 「Show Done」トグルをONにすると返答済みタスクも表示されます
+        </span>
+        <span class="en">
+          <strong>This is normal.</strong> Pending 0 means "no BO instructions today, or all tasks already handled."<br><br>
+          If you expected a task but don't see it:<br>
+          1. Check you've selected the correct branch tab (PAR / CUB / TAFT)<br>
+          2. Manually reload the page (close and reopen)<br>
+          3. Turn on "Show Done" toggle to see already-responded tasks
+        </span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">間違ったボタンを押してしまった</span><span class="en">I tapped the wrong response button</span></div>
+      <div class="faq-a">
+        <span class="ja">返答は送信後に自分で取り消すことはできません。<strong>BOスタッフに直接連絡</strong>して、状況を説明してください。BOスタッフ側でタスクの状態を確認・調整できます。</span>
+        <span class="en">Responses cannot be undone by yourself after submission. <strong>Contact your BO staff directly</strong> and explain what happened. The BO staff can check and adjust the task status on their end.</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">「その他」を選んだとき、何を書けばいいか</span><span class="en">When I select "Other", what should I write?</span></div>
+      <div class="faq-a">
+        <span class="ja">
+          <strong>1文で状況を説明するだけで十分です。</strong><br>
+          例：「Power outage — POS down」「No staff with training for this」「Supplier not yet arrived」<br><br>
+          詳しく書く必要はありません。BOスタッフが内容を確認した上でフォローします。
+        </span>
+        <span class="en">
+          <strong>One sentence is enough.</strong><br>
+          Examples: "Power outage — POS down" / "No staff with training for this" / "Supplier not yet arrived"<br><br>
+          No need for a detailed explanation. BO staff will review and follow up.
+        </span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">返答したことをBOに知らせる必要があるか</span><span class="en">Do I need to notify BO after responding?</span></div>
+      <div class="faq-a">
+        <span class="ja"><strong>不要です。</strong> 返答ボタンを押した瞬間にBOダッシュボードのステータスが「Responded」に変わります。BOスタッフはリアルタイムで確認できます。電話・メッセージは不要です。</span>
+        <span class="en"><strong>No need.</strong> The moment you tap a response button, the task status on the BO Dashboard updates to "Responded." BO staff can see it immediately. No calls or messages needed.</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">返答しないとどうなるか</span><span class="en">What happens if I don't respond?</span></div>
+      <div class="faq-a">
+        <span class="ja">
+          🔴タスク（緊急）は<strong>90分</strong>、🟠タスク（注意）は<strong>4時間</strong>以内に返答してください。<br><br>
+          返答がないままの場合、将来のシステムアップデート（Week 7）でエスカレーションが自動的に発生し、エリアマネージャーに通知される予定です。また、返答しなかったケースは週次スコアに反映されます。
+        </span>
+        <span class="en">
+          Please respond within <strong>90 minutes</strong> for 🔴 (Critical) tasks and <strong>4 hours</strong> for 🟠 (Caution) tasks.<br><br>
+          In a future update (Week 7), unanswered tasks will auto-escalate and notify the Area Manager. Missed responses will also be reflected in the weekly compliance score.
+        </span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">過去の返答履歴を確認したい</span><span class="en">I want to review my past responses</span></div>
+      <div class="faq-a">
+        <span class="ja">Manager Inbox の上部にある <strong>「Show Done」トグルをON</strong> にすると、今日返答済みのタスクが一覧表示されます。選んだ返答内容とBOが送った指示文を確認できます。</span>
+        <span class="en">Turn on the <strong>"Show Done" toggle</strong> at the top of Manager Inbox. This shows all tasks you've responded to today, including what you selected and the original instruction from BO.</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">複数の支店を担当している場合</span><span class="en">If I manage multiple branches</span></div>
+      <div class="faq-a">
+        <span class="ja">支店タブを切り替えて、それぞれの支店のタスクを確認・返答してください。タブを切り替えるだけでその支店のタスクが即座に読み込まれます。</span>
+        <span class="en">Switch between branch tabs to check and respond to each branch's tasks. Switching tabs immediately loads that branch's tasks.</span>
+      </div>
+    </div>
+
+    <div class="tip success" style="margin-top:20px;">
+      <span class="tip-icon">✅</span>
+      <span class="ja"><strong>まとめ：マネージャーがすること</strong><br>
+        1. Manager Inboxを開く<br>
+        2. 自分の支店を選択<br>
+        3. 🔴/🟠カードの指示を読む<br>
+        4. 指示の内容を実行する<br>
+        5. 結果に合ったボタンを1つタップ<br>
+        以上です。文章は書かなくていい。電話も不要。ボタン1つ。
+      </span>
+      <span class="en"><strong>Summary: What managers do</strong><br>
+        1. Open Manager Inbox<br>
+        2. Select your branch<br>
+        3. Read the 🔴/🟠 card instruction<br>
+        4. Take the action the instruction describes<br>
+        5. Tap the one button that matches your result<br>
+        6. If BO sends a follow-up via Messages, reply in the thread<br>
+        That's it. No Discord. No calls needed.
+      </span>
+    </div>
+  </div>
+
+  <!-- ===== BO STAFF GUIDE ===== -->
+  <div class="section" id="section-bo-guide">
+    <div class="mgr-hero" style="background:linear-gradient(135deg,rgba(129,140,248,0.12) 0%,rgba(96,165,250,0.08) 100%);border-color:var(--accent-glow);">
+      <div class="mgr-hero-title" style="color:var(--accent);"><span class="ja">💼 BOスタッフの方へ</span><span class="en">💼 For Back Office Staff</span></div>
+      <div class="mgr-hero-sub ja">
+        BOスタッフの役割は<strong>「異常を検知して、マネージャーに具体的な指示を届けること」</strong>です。<br>
+        指示文を自分で考える必要はありません。<strong>テンプレートを選んでSendボタンを押すだけ</strong>です。<br>
+        担当する例外タイプはスタッフごとに決まっています（BO A / B / C / D）。
+      </div>
+      <div class="mgr-hero-sub en">
+        Your role as BO staff is <strong>"detect exceptions and deliver specific instructions to store managers."</strong><br>
+        You do not need to write the instructions yourself. <strong>Just select a template and press Send.</strong><br>
+        Each BO staff member has assigned exception types (BO A / B / C / D).
+      </div>
+    </div>
+
+    <!-- BO ASSIGNMENT TABLE -->
+    <h2><span class="ja">① 自分の担当を確認する</span><span class="en">① Know your assignments</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">担当</span><span class="en">Role</span></th>
+          <th><span class="ja">担当する例外タイプ</span><span class="en">Assigned exception types</span></th>
+          <th><span class="ja">主な確認時間</span><span class="en">Key check times</span></th>
+        </tr>
+        <tr>
+          <td><strong>BO A</strong></td>
+          <td><span class="ja">PMバックアップレポート未提出 · 廃棄レポート未提出 · バックアップ在庫アラート（Day 4）</span><span class="en">PM Backup Missing · Disposal Missing · Backup stock alerts (Day 4)</span></td>
+          <td><span class="chip red" style="font-size:10px;">17:15〜17:30</span> <span class="chip" style="font-size:10px;">22:00〜22:30</span></td>
+        </tr>
+        <tr>
+          <td><strong>BO B</strong></td>
+          <td><span class="ja">打刻未確認（OS Attendance Sync後）</span><span class="en">Attendance Unverified (after OS Attendance Sync)</span></td>
+          <td><span class="chip" style="font-size:10px;"><span class="ja">日次勤怠同期後</span><span class="en">After daily ATT sync</span></span></td>
+        </tr>
+        <tr>
+          <td><strong>BO C</strong></td>
+          <td><span class="ja">製品スコア C以下 · 低評価クレーム（将来）</span><span class="en">Product Score C or Below · Low-rating complaints (future)</span></td>
+          <td><span class="chip" style="font-size:10px;"><span class="ja">随時 / スコア入力後</span><span class="en">As needed / after score entry</span></span></td>
+        </tr>
+        <tr>
+          <td><strong>BO D</strong></td>
+          <td><span class="ja">トラベルパス · 温度記録（将来実装）</span><span class="en">Travel Path · Temperature records (future)</span></td>
+          <td><span class="chip" style="font-size:10px;">Day 4+</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- DAILY WORKFLOW -->
+    <h2><span class="ja">② 毎日の業務フロー</span><span class="en">② Daily workflow</span></h2>
+    <div class="card accent-border" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">BO A — 1日のタイムライン</span><span class="en">BO A — Daily Timeline</span></div>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num" style="background:var(--red);">1</div>
+          <div class="step-body">
+            <div class="step-title"><span class="chip red" style="font-size:10px;">17:15〜17:30</span> <span class="ja">PMバックアップ確認</span><span class="en">PM Backup check</span></div>
+            <div class="step-desc ja">BO Dashboard を開く → City: Manila（またはDubai）→ <strong>Run Detection</strong> をクリック → Open件数を確認 → 「pm_backup_missing」タスクに Send Instruction</div>
+            <div class="step-desc en">Open BO Dashboard → City: Manila (or Dubai) → click <strong>Run Detection</strong> → check Open count → Send Instruction on "pm_backup_missing" tasks</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:var(--red);">2</div>
+          <div class="step-body">
+            <div class="step-title"><span class="chip" style="font-size:10px;">22:00〜22:30</span> <span class="ja">廃棄レポート確認</span><span class="en">Disposal Report check</span></div>
+            <div class="step-desc ja">同様に Run Detection → 「disposal_missing」タスクに Send Instruction</div>
+            <div class="step-desc en">Same flow — Run Detection → Send Instruction on "disposal_missing" tasks</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title"><span class="ja">マネージャー返答の確認</span><span class="en">Check manager responses</span></div>
+            <div class="step-desc ja">Refresh ボタンで最新状態を取得。Status: Responded に変わっていたら内容を確認。⚠️ 返答（できない理由）が続く場合はエスカレーションを検討。</div>
+            <div class="step-desc en">Click Refresh to get latest state. When status changes to Responded, review the response. If ⚠️ responses (cannot-do) persist, consider escalation.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">BO B / C は同じフローです。担当例外タイプのタスクが出たら Run Detection → 該当タスクに Send Instruction → 返答を確認。</span>
+      <span class="en">BO B / C follow the same flow. When your exception type appears after Run Detection → Send Instruction → check the response.</span>
+    </div>
+
+    <!-- RUN DETECTION -->
+    <h2><span class="ja">③ Run Detection の使い方</span><span class="en">③ How to use Run Detection</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">BO Dashboard を開く（NavBar → BO Dashboard）</div>
+            <div class="step-title en">Open BO Dashboard (NavBar → BO Dashboard)</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">City フィルターで Manila または Dubai を選択</div>
+            <div class="step-title en">Select Manila or Dubai in the City filter</div>
+            <div class="step-desc ja">両都市を担当する場合は1回ずつ、計2回実行してください。</div>
+            <div class="step-desc en">If you cover both cities, run it twice — once per city.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">「Run Detection」ボタンをクリック</div>
+            <div class="step-title en">Click the "Run Detection" button</div>
+            <div class="step-desc ja">バックエンドが4種類の例外をスキャン。数秒で完了。</div>
+            <div class="step-desc en">Backend scans 4 exception types. Completes in a few seconds.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title ja">トーストの件数を確認 → Refresh でリストを更新</div>
+            <div class="step-title en">Check the toast count → click Refresh to update the list</div>
+            <div class="step-desc ja">「<strong>0件の新規例外</strong>」は正常です。以前の検知で既にOpenタスクが作られている場合は重複作成しません。</div>
+            <div class="step-desc en">"<strong>0 new exceptions</strong>" is normal — it means all current exceptions already have Open tasks from a previous run. No duplicates are created.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- SEND INSTRUCTION -->
+    <h2><span class="ja">④ Send Instruction の手順</span><span class="en">④ How to send an instruction</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">タスクリストで 🔴 Open タスクを見つける</div>
+            <div class="step-title en">Find a 🔴 Open task in the task list</div>
+            <div class="step-desc ja">🔴 が 🟠 より上、同重要度は古い順で表示されます。</div>
+            <div class="step-desc en">🔴 appears above 🟠; within same severity, oldest first.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">「Send Instruction」ボタンをクリック</div>
+            <div class="step-title en">Click "Send Instruction"</div>
+            <div class="step-desc ja">Open ステータスのタスクにのみ表示されます。Sent / Responded / Closed は「View」のみ（再送不可）。</div>
+            <div class="step-desc en">Visible only on Open tasks. Sent / Responded / Closed show "View" only — resending is not allowed.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">モーダルでテンプレートメッセージと返答オプションを確認</div>
+            <div class="step-title en">Review template message and response options in the modal</div>
+            <div class="step-desc ja">表示されている文章がマネージャーのInboxに届く内容そのものです。編集は不要（できません）。</div>
+            <div class="step-desc en">The text shown is exactly what the manager will receive. No editing needed (not allowed by design).</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title ja">「Send」をクリック → 完了</div>
+            <div class="step-title en">Click "Send" → Done</div>
+            <div class="step-desc ja">タスクのステータスが Open → Sent に変わります。KPI: Open -1、Sent +1。マネージャーのInboxに即時表示されます。</div>
+            <div class="step-desc en">Task status changes from Open → Sent. KPI: Open -1, Sent +1. Appears in manager's Inbox immediately.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">1つのタスクに対して Send Instruction は1回のみです。送信後に内容を変更したい場合は、HQまたはシステム管理者に連絡してください。</span>
+      <span class="en">Send Instruction can only be sent once per task. If you need to change the content after sending, contact HQ or the system admin.</span>
+    </div>
+
+    <!-- AFTER MANAGER RESPONDS -->
+    <h2><span class="ja">⑤ マネージャー返答後のアクション</span><span class="en">⑤ After the manager responds</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">マネージャーの返答</span><span class="en">Manager's response</span></th>
+          <th><span class="ja">BOスタッフのアクション</span><span class="en">BO staff action</span></th>
+        </tr>
+        <tr>
+          <td><span class="chip green">✅ Report Submitted / NIL / feedback done</span></td>
+          <td><span class="ja">問題解決を確認。特にフォロー不要。タスクはClosed扱い。</span><span class="en">Issue resolved. No follow-up needed. Task effectively closed.</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip orange">⚠️ Staff Shortage / Store Too Busy</span></td>
+          <td><span class="ja">状況を把握。繰り返す場合はHQに報告してパターンとして記録。タスクはClosed扱い（問題の根本解決は別途）。</span><span class="en">Note the situation. If recurring, report to HQ to log as a pattern. Task is closed, root-cause fix handled separately.</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip orange">⚠️ System Issue</span></td>
+          <td><span class="ja">本当にシステム障害かを確認。他の支店でも同じ問題が出ていないか確認し、必要であれば開発チームへ連絡。</span><span class="en">Verify whether it's a real system issue. Check if other branches report the same. Contact dev team if needed.</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip">📝 Other (with note)</span></td>
+          <td><span class="ja">テキスト内容を読んで状況を判断。対処が必要な場合はHQに共有。</span><span class="en">Read the note and assess the situation. Share with HQ if action is needed.</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip red">返答なし（Sent のまま 90分超）</span><span class="chip red en" style="display:none;">No response (Sent for 90+ min)</span></td>
+          <td><span class="ja">現在：マネージャーに直接連絡してフォロー。Week 7以降：自動エスカレーションが発火し、エリアマネージャーへ通知される予定。</span><span class="en">Currently: Contact the manager directly to follow up. Week 7+: Auto-escalation will fire and notify the Area Manager.</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- BO THREAD SECTION -->
+    <h2><span class="ja">⑥ メッセージスレッドでフォローアップ</span><span class="en">⑥ Follow up via the Messages thread</span></h2>
+    <div class="card accent-border" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">なぜスレッドが必要か</span><span class="en">Why the thread matters</span></div>
+      <p class="ja" style="font-size:12px;margin-bottom:10px;">マネージャーがボタンを押したことは記録されますが、「本当にやったかどうか」はボタンだけでは確認できません。スレッドはその<strong>確認の手段</strong>です。BOスタッフはスレッドを使ってマネージャーに補足情報を求めたり、実際の対応状況を確認したりできます。やり取りはすべてシステム内に残るため、Discord/LINEへの流出を防ぎます。</p>
+      <p class="en" style="font-size:12px;margin-bottom:10px;">A button response records that the manager acknowledged — but not whether they actually did it. The thread is your <strong>verification layer</strong>. Use it to ask for confirmation, request proof, or share additional context. All exchanges are stored inside the system — no leakage to Discord, LINE, or WhatsApp.</p>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">BO Dashboard でタスク行を展開 → 「THREAD」ボタンをクリック</div>
+            <div class="step-title en">Expand a task row in BO Dashboard → click the "THREAD" button</div>
+            <div class="step-desc ja">「THREAD (N)」と件数が表示されます。Nはメッセージ件数。</div>
+            <div class="step-desc en">"THREAD (N)" shows the current message count.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">「Add a follow-up note…」欄にメッセージを入力 → Enterまたはボタンで送信</div>
+            <div class="step-title en">Type in "Add a follow-up note…" → Enter or Send button</div>
+            <div class="step-desc ja">自分の名前と「BO」ロールが紫バッジで表示されます。</div>
+            <div class="step-desc en">Your name and "BO" role appear with a violet badge.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">マネージャーの返信を確認する</div>
+            <div class="step-title en">Check the manager's reply</div>
+            <div class="step-desc ja">返信はスレッド内に琥珀色（Manager）バッジで表示されます。Refreshボタンで最新状態を取得してください。</div>
+            <div class="step-desc en">Replies appear with an amber (Manager) badge inside the thread. Click Refresh to get the latest state.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip warn">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><strong>スレッドを使うべきケース：</strong> ① 返答ボタンが押されたがレポートが実際には提出されていない可能性がある場合 ② マネージャーが「Staff Shortage」や「Other」を選んだ場合に実態確認が必要な場合 ③ 同じ例外が繰り返されており詳細な説明を求める場合。<br><strong>使わなくてよいケース：</strong> マネージャーの✅返答がクリアで問題が解決した場合。スレッドは任意です。</span>
+      <span class="en"><strong>When to use the thread:</strong> ① Manager pressed a button but the report may not actually be submitted yet ② Manager chose "Staff Shortage" or "Other" and you need to verify the actual situation ③ The same exception keeps recurring and you need a more detailed explanation.<br><strong>When you can skip it:</strong> Manager's ✅ response is clear and the issue is resolved. The thread is optional.</span>
+    </div>
+
+    <!-- BO FAQ -->
+    <h2><span class="ja">⑦ よくある質問・困ったとき</span><span class="en">⑦ FAQ & Troubleshooting</span></h2>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">Run Detection を押したら「0件」と出た</span><span class="en">Run Detection returned "0 new exceptions"</span></div>
+      <div class="faq-a">
+        <span class="ja"><strong>正常です。</strong> 今日すでに同じ例外のOpenタスクが存在するため、重複を防いでいます。以前の検知で作られたタスクがまだOpenのままなら、そちらに Send Instruction してください。</span>
+        <span class="en"><strong>This is normal.</strong> Open tasks for the same exceptions already exist from a previous run, so no duplicates are created. Send instructions on those existing Open tasks.</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">「No action templates loaded」のバナーが出た</span><span class="en">"No action templates loaded" banner appears</span></div>
+      <div class="faq-a">
+        <span class="ja">DBにテンプレートが存在しない状態です。バナー横の <strong>「Seed Default Templates」</strong> ボタンをクリックすると6種類のデフォルトテンプレートが一括登録されます。通常はDay 3以降は不要ですが、DBリセット後などに発生することがあります。</span>
+        <span class="en">No templates in the DB. Click the <strong>"Seed Default Templates"</strong> button next to the banner to register all 6 default templates at once. Under normal Day 3+ conditions this shouldn't happen, but it can occur after a DB reset.</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">Send Instruction を押したのにマネージャーのInboxに届いていないと言われた</span><span class="en">I sent an instruction but the manager says it's not in their Inbox</span></div>
+      <div class="faq-a">
+        <span class="ja">
+          以下を確認してください：<br>
+          1. タスクのステータスが「Sent」になっているか（BO Dashboard で確認）<br>
+          2. マネージャーが正しい支店タブを選択しているか（PAR / CUB / TAFT など）<br>
+          3. マネージャーがページをリロードしているか（自動更新なし）
+        </span>
+        <span class="en">
+          Check the following:<br>
+          1. Confirm the task status shows "Sent" on BO Dashboard<br>
+          2. Confirm the manager has selected the correct branch tab (PAR / CUB / TAFT etc.)<br>
+          3. Confirm the manager has reloaded the page (no auto-refresh)
+        </span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">間違った支店にSend Instructionを送ってしまった</span><span class="en">I sent the instruction to the wrong branch</span></div>
+      <div class="faq-a">
+        <span class="ja">送信後の取り消しはできません。HQまたはシステム管理者に連絡して対応してもらってください。正しい支店に新しいタスクを手動作成することは技術的には可能です（管理者権限が必要）。</span>
+        <span class="en">Sent instructions cannot be undone. Contact HQ or the system admin. It is technically possible to create a new task for the correct branch manually (admin access required).</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">テンプレートの文言を変更したい</span><span class="en">I want to change the template wording</span></div>
+      <div class="faq-a">
+        <span class="ja">テンプレートの変更はHQまたはシステム管理者のみが行えます。変更が必要な場合は植嶋さんに連絡して、承認後に反映してもらってください。</span>
+        <span class="en">Only HQ or the system admin can modify templates. If a change is needed, contact Ueshima-san for approval, then have it updated by the admin.</span>
+      </div>
+    </div>
+
+    <div class="tip success" style="margin-top:20px;">
+      <span class="tip-icon">✅</span>
+      <span class="ja"><strong>BOスタッフの1日の流れまとめ</strong><br>
+        担当時間になったら → BO Dashboard を開く → Run Detection → Open タスクを確認 → Send Instruction → Refresh で返答を確認<br>
+        文章は書かない。テンプレートがある。判断はシステムがしている。
+      </span>
+      <span class="en"><strong>BO Staff daily flow summary</strong><br>
+        At your check time → open BO Dashboard → Run Detection → review Open tasks → Send Instruction → Refresh to check responses<br>
+        If the button response isn't enough → open Messages thread → ask for confirmation → verify actual completion<br>
+        No writing for instructions. Templates exist. Thread is available for verification when needed.
+      </span>
+    </div>
+  </div>
+
+  <!-- ===== HQ GUIDE ===== -->
+  <div class="section" id="section-hq-guide">
+    <div class="mgr-hero" style="background:linear-gradient(135deg,rgba(251,146,60,0.10) 0%,rgba(245,158,11,0.07) 100%);border-color:var(--orange-border);">
+      <div class="mgr-hero-title" style="color:var(--orange);"><span class="ja">🏢 HQ / オペレーションマネージャーの方へ</span><span class="en">🏢 For HQ / Operations Managers</span></div>
+      <div class="mgr-hero-sub ja">
+        HQは<strong>全都市・全支店の状況を俯瞰</strong>します。個別タスクへの介入は基本不要ですが、例外パターンの把握・テンプレート管理・システム全体の健全性確認がHQの役割です。<br>
+        また、BOスタッフが困った場合やマネージャーが返答しない場合のエスカレーション受け口にもなります。
+      </div>
+      <div class="mgr-hero-sub en">
+        HQ has <strong>visibility across all cities and branches.</strong> You typically don't need to intervene in individual tasks, but your role is to monitor exception patterns, manage templates, and confirm the overall system health.<br>
+        You are also the escalation point when BO staff need help or managers are unresponsive.
+      </div>
+    </div>
+
+    <!-- HQ DAILY CHECK -->
+    <h2><span class="ja">① 日次・週次の確認項目</span><span class="en">① Daily & weekly checks</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">毎日確認（5〜10分）</span><span class="en">Daily check (5–10 min)</span></div>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">BO Dashboard → City: Manila → Status: All で全タスクを確認</div>
+            <div class="step-title en">BO Dashboard → City: Manila → Status: All to see all tasks</div>
+            <div class="step-desc ja">KPI Cards（Open / Sent / Responded / Closed）の数を見て、Sentのまま滞留しているタスクがないか確認。</div>
+            <div class="step-desc en">Check KPI Cards (Open / Sent / Responded / Closed). Look for tasks stuck in "Sent" status without a response.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">Dubai も同様に確認</div>
+            <div class="step-title en">Do the same for Dubai</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">⚠️ 返答のパターンを確認</div>
+            <div class="step-title en">⚠️ Check response patterns</div>
+            <div class="step-desc ja">「Staff Shortage」や「Store Too Busy」が同じ支店で繰り返されている場合、その支店に根本的な問題がある可能性があります。</div>
+            <div class="step-desc en">If "Staff Shortage" or "Store Too Busy" keeps appearing from the same branch, there may be a systemic issue at that store.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">週次確認（15〜20分）</span><span class="en">Weekly check (15–20 min)</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>例外発生頻度</strong>：特定の支店で同じ例外タイプが繰り返されていないか</li>
+        <li class="ja"><strong>返答率</strong>：Sent に対して Responded の割合（高いほど良い）</li>
+        <li class="ja"><strong>「できない」返答の内訳</strong>：Staff Shortage / Store Too Busy が多い支店は要注意</li>
+        <li class="ja"><strong>「その他」返答の内容</strong>：テンプレートの返答オプションに追加すべき理由が書かれていないか確認</li>
+        <li class="en"><strong>Exception frequency</strong>: Are the same exception types repeating at the same branch?</li>
+        <li class="en"><strong>Response rate</strong>: Responded vs Sent ratio (higher is better)</li>
+        <li class="en"><strong>"Cannot" response breakdown</strong>: Branches with many Staff Shortage / Too Busy responses need attention</li>
+        <li class="en"><strong>"Other" response content</strong>: Check if recurring "Other" notes reveal a reason that should be added to the template options</li>
+      </ul>
+    </div>
+
+    <!-- HQ ACTIONS -->
+    <h2><span class="ja">② HQができること（システム操作）</span><span class="en">② What HQ can do (system operations)</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">操作</span><span class="en">Action</span></th>
+          <th><span class="ja">方法</span><span class="en">How</span></th>
+          <th><span class="ja">目的・タイミング</span><span class="en">Purpose / When</span></th>
+        </tr>
+        <tr>
+          <td><span class="ja">全タスクの確認</span><span class="en">View all tasks</span></td>
+          <td><span class="ja">BO Dashboard → Status: All / City切り替え</span><span class="en">BO Dashboard → Status: All / switch City</span></td>
+          <td><span class="ja">日次確認・パターン把握</span><span class="en">Daily review, pattern analysis</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">Run Detection（手動）</span><span class="en">Run Detection (manual)</span></td>
+          <td><span class="ja">BO Dashboard → Run Detection ボタン</span><span class="en">BO Dashboard → Run Detection button</span></td>
+          <td><span class="ja">BOスタッフが実行し忘れたとき・テスト時</span><span class="en">When BO staff forgot to run it, or for testing</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">テンプレートシード</span><span class="en">Seed templates</span></td>
+          <td><span class="ja">BO Dashboard → Seed Default Templates バナー</span><span class="en">BO Dashboard → Seed Default Templates banner</span></td>
+          <td><span class="ja">テンプレートが消えたとき（通常不要）</span><span class="en">If templates disappear (normally not needed)</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">テンプレート文言の変更</span><span class="en">Modify template wording</span></td>
+          <td><span class="ja">開発チームに依頼（API upsert）</span><span class="en">Request from dev team (API upsert)</span></td>
+          <td><span class="ja">返答オプション追加・メッセージ修正</span><span class="en">Add response options, adjust message text</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">支店別タスク詳細確認</span><span class="en">View task details by branch</span></td>
+          <td><span class="ja">BO Dashboard → タスク行の「View」ボタン</span><span class="en">BO Dashboard → "View" button on task row</span></td>
+          <td><span class="ja">マネージャーの返答内容・送信メッセージを確認</span><span class="en">Review manager's exact response and the instruction sent</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ESCALATION -->
+    <h2><span class="ja">③ エスカレーション基準（現在・Week 7以降）</span><span class="en">③ Escalation criteria (current / Week 7+)</span></h2>
+    <div class="card orange-border" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">現在（手動エスカレーション）</span><span class="en">Currently (manual escalation)</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>🔴タスクに90分以上返答がない</strong> → BOスタッフ経由でマネージャーに連絡</li>
+        <li class="ja"><strong>同じ支店で同じ例外が3日連続</strong> → 支店の根本問題を確認（人員・システム・プロセス）</li>
+        <li class="ja"><strong>マネージャーが⚠️返答を繰り返す</strong> → 「できない理由」が構造的か一時的かを判断</li>
+        <li class="ja"><strong>「System Issue」が複数支店で出る</strong> → 開発チームに即連絡</li>
+        <li class="en"><strong>🔴 task with no response for 90+ min</strong> → Contact manager via BO staff</li>
+        <li class="en"><strong>Same exception at same branch for 3+ consecutive days</strong> → Investigate root cause (staffing / system / process)</li>
+        <li class="en"><strong>Manager repeatedly gives ⚠️ responses</strong> → Assess whether the "cannot" reason is structural or temporary</li>
+        <li class="en"><strong>"System Issue" from multiple branches</strong> → Contact dev team immediately</li>
+      </ul>
+    </div>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">Week 7以降（自動エスカレーション予定）</span><span class="en">Week 7+ (auto-escalation planned)</span></div>
+      <ul class="body-list">
+        <li class="ja">90分返答なし → エリアマネージャーへ自動通知</li>
+        <li class="ja">週次コンプライアンススコアがHQ・エリアマネージャーへ自動レポート</li>
+        <li class="en">No response in 90 min → auto-notify Area Manager</li>
+        <li class="en">Weekly compliance scores auto-reported to HQ and Area Manager</li>
+      </ul>
+    </div>
+
+    <!-- TEMPLATE MANAGEMENT -->
+    <h2><span class="ja">④ テンプレート管理の判断基準</span><span class="en">④ When to update templates</span></h2>
+    <div class="card accent-border">
+      <ul class="body-list">
+        <li class="ja"><strong>「その他」が多い例外タイプがある</strong> → その「その他」の内容を読んで返答オプションに追加を検討</li>
+        <li class="ja"><strong>マネージャーから「このボタンの意味が分からない」</strong> → テンプレートのメッセージ文またはオプション名を修正</li>
+        <li class="ja"><strong>業務プロセスが変わった</strong> → 指示内容（メッセージテンプレート）を更新する必要がある</li>
+        <li class="ja"><strong>新しい例外タイプを追加したい</strong> → 開発チームと相談してDBに新テンプレートを追加</li>
+        <li class="en"><strong>High "Other" rate for a specific exception type</strong> → Read those notes; consider adding the reason as a new option</li>
+        <li class="en"><strong>Manager says "I don't understand this button"</strong> → Revise the template message or option name</li>
+        <li class="en"><strong>Operational process changed</strong> → Update the instruction content (message template)</li>
+        <li class="en"><strong>Want to add a new exception type</strong> → Discuss with dev team to add a new template to DB</li>
+      </ul>
+    </div>
+
+    <!-- HQ FAQ -->
+    <h2><span class="ja">⑤ よくある質問</span><span class="en">⑤ FAQ</span></h2>
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">特定の支店のタスクだけをまとめて見たい</span><span class="en">I want to see only a specific branch's tasks</span></div>
+      <div class="faq-a">
+        <span class="ja">BO Dashboard には現在、支店フィルターはありません（City単位）。特定支店のみを確認する場合は、タスクリストで該当支店名（例：TAFT、PAR）を目視で確認してください。将来的にフィルター機能を追加する場合は開発チームに相談を。</span>
+        <span class="en">BO Dashboard currently has no branch-level filter (only City). To focus on a specific branch, scan the task list for the branch name (e.g. TAFT, PAR). Contact the dev team if you'd like a branch filter added.</span>
+      </div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">テンプレートを変更したいが、変更が反映されたか確認したい</span><span class="en">I updated a template — how do I confirm it's live?</span></div>
+      <div class="faq-a">
+        <span class="ja">BO Dashboard → 任意のタスクの「Send Instruction」を開くと、モーダルにテンプレートのプレビューが表示されます。そこで最新のメッセージを確認できます。（実際に送信しなくてもプレビューで確認可能。）</span>
+        <span class="en">Open BO Dashboard → click "Send Instruction" on any task. The modal shows the current template preview. You can confirm the updated message without actually sending.</span>
+      </div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">❓ <span class="ja">誰がいつ Send Instruction したか記録は残るか</span><span class="en">Is there a record of who sent instructions and when?</span></div>
+      <div class="faq-a">
+        <span class="ja">はい。management_tasks テーブルに sent_at（送信時刻）・response（マネージャーの返答）・response_at（返答時刻）が記録されます。BO Dashboard の「View」ボタンで各タスクの詳細を確認できます。</span>
+        <span class="en">Yes. The management_tasks table records sent_at (send time), response (manager's response), and response_at (response time). Click "View" on any task in BO Dashboard to see the full detail.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AREA MANAGER GUIDE ===== -->
+  <div class="section" id="section-area-manager-guide">
+    <div class="mgr-hero" style="background:linear-gradient(135deg,rgba(167,139,250,0.10) 0%,rgba(129,140,248,0.07) 100%);border-color:rgba(167,139,250,0.3);">
+      <div class="mgr-hero-title" style="color:var(--violet);"><span class="ja">📊 エリアマネージャーの方へ</span><span class="en">📊 For Area Managers</span></div>
+      <div class="mgr-hero-sub ja">
+        エリアマネージャーは<strong>個別インシデントではなく、週単位の店舗パフォーマンストレンドを確認</strong>します。<br>
+        「どの店舗で何が繰り返されているか」「マネージャーの対応率はどうか」を集計データで把握します。<br><br>
+        <strong>⚠️ エリアマネージャー専用ダッシュボード（/admin/management/area-review）はWeek 7–8に実装予定です。</strong><br>
+        現在は BO Dashboard を City フィルターで切り替えながら全体を確認できます。
+      </div>
+      <div class="mgr-hero-sub en">
+        Area Managers focus on <strong>weekly store performance trends, not individual incidents.</strong><br>
+        Your view is: "Which stores have recurring exceptions?" and "How well are managers responding?"<br><br>
+        <strong>⚠️ The Area Manager dashboard (/admin/management/area-review) is planned for Week 7–8.</strong><br>
+        Currently, you can monitor the overall picture via BO Dashboard using the City filter.
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🔧</span>
+      <span class="ja">このガイドはWeek 7–8の実装に向けた準備情報です。現在利用できる機能と今後追加される機能を区別して記載しています。</span>
+      <span class="en">This guide covers both what's available now and what's planned for Week 7–8. Features are clearly marked as current or upcoming.</span>
+    </div>
+
+    <!-- CURRENT ACCESS -->
+    <h2><span class="ja">① 現在できること（BO Dashboard 経由）</span><span class="en">① What you can do now (via BO Dashboard)</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title ja">BO Dashboard を開く（NavBar → BO Dashboard）</div>
+            <div class="step-title en">Open BO Dashboard (NavBar → BO Dashboard)</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title ja">City: Manila / Dubai を切り替えながら KPI を確認</div>
+            <div class="step-title en">Switch between City: Manila / Dubai and check KPIs</div>
+            <div class="step-desc ja">Open（未指示）/ Sent（指示済み・未返答）/ Responded（返答済み）/ Closed の件数を見ます。</div>
+            <div class="step-desc en">View counts for Open / Sent (awaiting response) / Responded / Closed.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title ja">Status: All でタスク一覧を確認</div>
+            <div class="step-title en">Set Status: All to view all tasks</div>
+            <div class="step-desc ja">タスク行を見て、特定の支店・例外タイプが繰り返されていないか確認します。</div>
+            <div class="step-desc en">Scan the task list for recurring branches or exception types.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- WHAT TO LOOK FOR -->
+    <h2><span class="ja">② 確認すべきパターン</span><span class="en">② Patterns to look for</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">気になるサイン</span><span class="en">Warning sign</span></th>
+          <th><span class="ja">意味</span><span class="en">What it means</span></th>
+          <th><span class="ja">エリアマネージャーのアクション</span><span class="en">Area Manager action</span></th>
+        </tr>
+        <tr>
+          <td><span class="ja">同じ支店に pm_backup_missing が毎日</span><span class="en">pm_backup_missing daily at same branch</span></td>
+          <td><span class="ja">PMバックアップの担当が機能していない</span><span class="en">PM backup responsibility not functioning</span></td>
+          <td><span class="ja">その支店のマネージャーと面談・プロセス確認</span><span class="en">Meet with that branch's manager, review process</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">Sent のまま返答が来ない（90分超）</span><span class="en">Task stuck in Sent with no response (90+ min)</span></td>
+          <td><span class="ja">マネージャーがInboxを確認していない</span><span class="en">Manager is not checking Inbox</span></td>
+          <td><span class="ja">マネージャーのシステム利用習慣を確認</span><span class="en">Check manager's system usage habits</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">⚠️「Staff Shortage」が連続する</span><span class="en">Repeated ⚠️ "Staff Shortage" responses</span></td>
+          <td><span class="ja">人員配置に構造的な問題がある可能性</span><span class="en">Possible structural staffing issue</span></td>
+          <td><span class="ja">シフト計画・採用状況を確認</span><span class="en">Review shift planning and staffing levels</span></td>
+        </tr>
+        <tr>
+          <td><span class="ja">product_score_c が特定スタッフに集中</span><span class="en">product_score_c concentrated on specific staff</span></td>
+          <td><span class="ja">技術トレーニングが必要</span><span class="en">Technical training needed</span></td>
+          <td><span class="ja">トレーニングセッションを設定</span><span class="en">Schedule a training session</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- FUTURE: WEEK 7-8 -->
+    <h2><span class="ja">③ Week 7–8 以降：エリアマネージャー専用機能</span><span class="en">③ Week 7–8: Area Manager dedicated features</span></h2>
+    <div class="card accent-border">
+      <div class="card-title"><span class="ja">実装予定の機能（/admin/management/area-review）</span><span class="en">Planned features (/admin/management/area-review)</span></div>
+      <ul class="body-list">
+        <li class="ja"><strong>週次コンプライアンススコア</strong>：店舗ごとの例外発生数・マネージャー返答率をスコア化</li>
+        <li class="ja"><strong>スコアの分離</strong>：「店舗の問題スコア」と「マネージャーの対応スコア」を別々に表示（例外が多くても返答率100%なら高評価）</li>
+        <li class="ja"><strong>マネージャー見逃しログ</strong>：Sentのまま返答がなかったケースを一覧表示（<code>missed_by_manager=true</code> フラグ）</li>
+        <li class="ja"><strong>自動エスカレーション通知</strong>：90分返答なしタスクが発生した場合にエリアマネージャーへ通知</li>
+        <li class="en"><strong>Weekly compliance scores</strong>: Exception count and manager response rate per store, scored automatically</li>
+        <li class="en"><strong>Separated scores</strong>: "Store issue score" vs "Manager performance score" are kept distinct (a store with many exceptions but 100% response rate scores well on manager side)</li>
+        <li class="en"><strong>Manager missed log</strong>: List of cases where Sent tasks went unanswered (<code>missed_by_manager=true</code> flag)</li>
+        <li class="en"><strong>Auto-escalation notifications</strong>: Area Manager is notified when a task goes 90+ min without a response</li>
+      </ul>
+    </div>
+
+    <div class="tip info" style="margin-top:16px;">
+      <span class="tip-icon">📅</span>
+      <span class="ja">Week 7–8 の実装が完了したら、このガイドを更新します。実装ステータスは「実装ロードマップ」ページで確認できます。</span>
+      <span class="en">This guide will be updated when Week 7–8 features are implemented. Check the Implementation Roadmap page for current status.</span>
+    </div>
+  </div>
+
   <!-- ===== OVERVIEW ===== -->
-  <div class="section active" id="section-overview">
+  <div class="section" id="section-overview">
     <div class="hero-header">
       <div class="hero-icon">🧠</div>
       <div>
         <div class="section-title ja">Store Operation Management Channel</div>
         <div class="section-title en">Store Operation Management Channel</div>
-        <div class="section-path">System Design — Day 1 & 2 Live (v2010) / Day 3–4 In Progress</div>
+        <div class="section-path">System Design — Day 1–3 Live (v2010) · Day 4 In Progress</div>
         <div class="section-desc ja">店舗で発生した例外を自動検知し、Back Officeスタッフを経由してストアマネージャーへ1クリックで指示を送るシステム。</div>
         <div class="section-desc en">Automatically detects store exceptions, routes them through Back Office staff, and delivers pre-written instructions to the store manager with one click.</div>
       </div>
@@ -427,6 +1478,151 @@ ul.body-list strong { color: var(--text); }
     </div>
   </div>
 
+  <!-- ===== DATA MAP ===== -->
+  <div class="section" id="section-data-map">
+    <div class="hero-header">
+      <div class="hero-icon">🗺️</div>
+      <div>
+        <div class="section-title ja">ページ連携マップ</div>
+        <div class="section-title en">Page Connection Map</div>
+        <div class="section-desc ja">Management Channelが既存のどのページのデータを監視し、どう例外へ変換して、誰に届けるかを示す全体構造図。</div>
+        <div class="section-desc en">Full structure map showing which existing pages this system monitors, how it converts data to exceptions, and who receives them.</div>
+      </div>
+    </div>
+
+    <h2><span class="ja">データの流れ（全体）</span><span class="en">End-to-End Data Flow</span></h2>
+    <div class="card accent-border" style="overflow-x:auto;">
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:500px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text);">🏪 既存ページ<br><span style="font-weight:400;color:var(--muted);font-size:11px;">Backup / Disposal<br>Attendance / Scoring</span></div>
+          <div style="color:var(--muted);font-size:18px;">→</div>
+          <div style="background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--accent);">🤖 自動検知トリガー<br><span style="font-weight:400;font-size:11px;">Day 3〜実装</span></div>
+          <div style="color:var(--muted);font-size:18px;">→</div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text);">📋 management_tasks<br><span style="font-weight:400;color:var(--muted);font-size:11px;">中核テーブル</span></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;padding-left:20px;">
+          <div style="color:var(--muted);">↓</div>
+          <div style="font-size:11px;color:var(--muted);">status: open で記録</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text);">💼 BO Dashboard<br><span style="font-weight:400;color:var(--muted);font-size:11px;">/admin/management/back-office</span></div>
+          <div style="color:var(--muted);font-size:18px;">→</div>
+          <div style="font-size:11px;color:var(--muted);">Send Instruction →</div>
+          <div style="color:var(--muted);font-size:18px;">→</div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text);">📥 Manager Inbox<br><span style="font-weight:400;color:var(--muted);font-size:11px;">/store/management/inbox</span></div>
+          <div style="color:var(--muted);font-size:18px;">→</div>
+          <div style="background:var(--green-dim);border:1px solid var(--green-border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--green);">✅ responded / closed</div>
+        </div>
+      </div>
+    </div>
+
+    <h2><span class="ja">例外タイプ別：ソースページ → 担当BOスタッフ</span><span class="en">Exception → Source Page → BO Staff</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th></th>
+          <th><span class="ja">例外タイプ</span><span class="en">Exception Type</span></th>
+          <th><span class="ja">監視対象ページ</span><span class="en">Source Page</span></th>
+          <th><span class="ja">検知タイミング</span><span class="en">When Triggered</span></th>
+          <th><span class="ja">担当</span><span class="en">BO Staff</span></th>
+          <th><span class="ja">状態</span><span class="en">Status</span></th>
+        </tr>
+        <tr>
+          <td><span class="chip red">🔴</span></td>
+          <td><span class="ja">PMバックアップ未提出</span><span class="en">PM Backup Missing</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/backup</td>
+          <td><span class="ja">毎日 17:15以降</span><span class="en">Daily after 17:15</span></td>
+          <td><strong>BO A</strong></td>
+          <td><span class="chip green">LIVE</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip red">🔴</span></td>
+          <td><span class="ja">廃棄レポート未提出</span><span class="en">Disposal Missing</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/disposal</td>
+          <td><span class="ja">毎日 22:00以降</span><span class="en">Daily after 22:00</span></td>
+          <td><strong>BO A</strong></td>
+          <td><span class="chip green">LIVE</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip orange">🟠</span></td>
+          <td><span class="ja">製品スコア C以下</span><span class="en">Product Score C or Below</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/analytics<br>?tab=product_scoring</td>
+          <td><span class="ja">スコア記録時</span><span class="en">On score entry</span></td>
+          <td><strong>BO C</strong></td>
+          <td><span class="chip green">LIVE</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip orange">🟠</span></td>
+          <td><span class="ja">打刻未確認</span><span class="en">Attendance Unverified</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">OS Attendance Sync</td>
+          <td><span class="ja">日次勤怠同期後</span><span class="en">After daily ATT sync</span></td>
+          <td><strong>BO B</strong></td>
+          <td><span class="chip green">LIVE</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip red">🔴</span></td>
+          <td><span class="ja">バックアップ在庫 70%/50%以下</span><span class="en">Backup Below 70% / 50%</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/backup</td>
+          <td><span class="ja">在庫更新時</span><span class="en">On stock update</span></td>
+          <td><strong>BO A</strong></td>
+          <td><span class="chip">Day 4</span></td>
+        </tr>
+        <tr>
+          <td><span class="chip red">🔴</span></td>
+          <td><span class="ja">クレーム — 承認写真なし</span><span class="en">Complaint No Photo</span></td>
+          <td style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/store-evaluations</td>
+          <td><span class="ja">クレーム記録時</span><span class="en">On complaint entry</span></td>
+          <td><strong>BO C</strong></td>
+          <td><span class="chip">Day 4+</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="tip success" style="margin-top:12px;">
+      <span class="tip-icon">✅</span>
+      <span class="ja">Day 3実装済み：PMバックアップ / 廃棄 / 製品スコアC / 打刻未確認 の4種類の自動検知が稼働中。Run Detectionボタンで手動トリガーも可能。</span>
+      <span class="en">Day 3 live: 4 auto-detection types are active — PM Backup / Disposal / Product Score C / Attendance Unverified. Manual trigger also available via "Run Detection" button.</span>
+    </div>
+
+    <h2><span class="ja">DBテーブル構成</span><span class="en">DB Table Structure</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">テーブル</span><span class="en">Table</span></th>
+          <th><span class="ja">用途</span><span class="en">Purpose</span></th>
+          <th><span class="ja">主なカラム</span><span class="en">Key Columns</span></th>
+        </tr>
+        <tr>
+          <td><code style="font-family:monospace;font-size:11px;color:var(--blue);">management_tasks</code></td>
+          <td><span class="ja">中核テーブル。OSが作成、BOが更新、マネージャーが返答する</span><span class="en">Central table. Created by OS, updated by BO, responded to by manager</span></td>
+          <td style="font-size:11px;color:var(--muted);">city, branch, exception_type, severity, status, bo_assignee, sent_message, response, response_note, manager_id</td>
+        </tr>
+        <tr>
+          <td><code style="font-family:monospace;font-size:11px;color:var(--blue);">action_templates</code></td>
+          <td><span class="ja">例外タイプごとの事前作成テンプレートと返答オプション</span><span class="en">Pre-written templates and response options per exception type</span></td>
+          <td style="font-size:11px;color:var(--muted);">exception_type, title, message_template, response_options (JSON), severity</td>
+        </tr>
+        <tr>
+          <td><code style="font-family:monospace;font-size:11px;color:var(--blue);">bo_assignments</code></td>
+          <td><span class="ja">BOスタッフと担当例外タイプのマッピング</span><span class="en">Mapping of BO staff to assigned exception types</span></td>
+          <td style="font-size:11px;color:var(--muted);">city, bo_staff_id, staff_name, assigned_types (JSON array)</td>
+        </tr>
+      </table>
+    </div>
+
+    <h2><span class="ja">既存機能との棲み分け</span><span class="en">Relationship to Existing Pages</span></h2>
+    <div class="card">
+      <ul class="body-list">
+        <li class="ja"><strong>既存ページは置き換えない</strong>: Backup / Disposal / Attendanceの各ページは引き続き独立して使用される。Management Channelは「例外発生時だけ動く」監視レイヤー。</li>
+        <li class="ja"><strong>データ二重管理なし</strong>: management_tasksは元データへの参照（branch・日時・タイプ）を持つだけ。元ページに戻って詳細確認が必要な場合はViewボタンから遷移可能。</li>
+        <li class="ja"><strong>責任の分離</strong>: BO Dashboard = 「指示を送る」ページ / Manager Inbox = 「指示を受け取り返答する」ページ。データ入力と指示管理は完全に分離。</li>
+        <li class="en"><strong>No replacement</strong>: Backup, Disposal, Attendance pages remain fully in use. Management Channel is a monitoring layer that activates only on exceptions.</li>
+        <li class="en"><strong>No data duplication</strong>: management_tasks only holds a reference (branch, timestamp, type). Click View to navigate to the source page for details.</li>
+        <li class="en"><strong>Separation of concerns</strong>: BO Dashboard = "send instructions" / Manager Inbox = "receive and respond". Data entry and instruction management are fully separated.</li>
+      </ul>
+    </div>
+  </div>
+
   <!-- ===== EXCEPTIONS ===== -->
   <div class="section" id="section-exceptions">
     <div class="hero-header">
@@ -514,21 +1710,23 @@ ul.body-list strong { color: var(--text); }
       </div>
     </div>
 
-    <div class="tip warn">
-      <span class="tip-icon">⏳</span>
-      <span class="ja">テンプレート文言は植嶋さんが準備中です。承認後にDBへ登録し、Day 3でシステムが稼働します。</span>
-      <span class="en">Template wording is being prepared by Ueshima-san. Once approved, it will be registered in the DB, and the system goes live on Day 3.</span>
+    <div class="tip success">
+      <span class="tip-icon">✅</span>
+      <span class="ja">Day 3実装済み。6テンプレートがDBにシード済み（pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_le70 · backup_le50）。BO Dashboardの「Seed Default Templates」ボタンで再投入可能。</span>
+      <span class="en">Live as of Day 3. 6 templates are seeded in the DB (pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_le70 · backup_le50). Can be re-seeded from the "Seed Default Templates" button in BO Dashboard.</span>
     </div>
 
     <h2><span class="ja">🔴 PMバックアップレポート未提出</span><span class="en">🔴 PM Backup Report Missing</span></h2>
     <div class="template-block">
-      <div class="template-msg ja">「PM Backup Report が 17:15 時点で未提出です。すぐに提出するか、理由を選択してください。担当スタッフがいる場合は今すぐ連絡してください。」</div>
-      <div class="template-msg en">"PM Backup Report has not been submitted as of 17:15. Please submit immediately or select a reason below. If a staff member was supposed to submit it, contact them now."</div>
+      <div class="template-msg ja">「Backup Report が規定時刻までに提出されていません。現在のバックアップ状況を確認し、15分以内にBackup Reportを完了してください。」</div>
+      <div class="template-msg en">"Backup Report has not been submitted by the required time. Please check the current backup status and complete the Backup Report within 15 minutes."</div>
       <div class="template-options">
-        <div class="t-opt done">✅ <span class="ja">今すぐ提出</span><span class="en">Submitted Now</span></div>
+        <div class="t-opt done">✅ <span class="ja">提出完了</span><span class="en">Report Submitted</span></div>
         <div class="t-opt cannot">⚠️ <span class="ja">スタッフ不足</span><span class="en">Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">店舗多忙</span><span class="en">Store Too Busy</span></div>
         <div class="t-opt cannot">⚠️ <span class="ja">システム障害</span><span class="en">System Issue</span></div>
-        <div class="t-opt neutral">📝 <span class="ja">その他（説明）</span><span class="en">Other (explain)</span></div>
+        <div class="t-opt cannot">⚠️ <span class="ja">担当スタッフ不在</span><span class="en">Assigned Staff Unavailable</span></div>
+        <div class="t-opt neutral">📝 <span class="ja">その他…</span><span class="en">Other…</span></div>
       </div>
     </div>
 
@@ -600,91 +1798,204 @@ ul.body-list strong { color: var(--text); }
         <div class="section-title ja">Back Office ダッシュボード</div>
         <div class="section-title en">Back Office Dashboard</div>
         <div class="section-path">/admin/management/back-office — Live (Heroku v2010)</div>
-        <div class="section-desc ja">BOスタッフが担当例外を確認し、1クリックでマネージャーへ指示を送るページ。</div>
-        <div class="section-desc en">The page where BO staff review their assigned exceptions and send instructions to managers with one click.</div>
+        <div class="section-desc ja">BOスタッフが担当例外を確認し、事前作成テンプレートを1クリックでマネージャーへ送るページ。</div>
+        <div class="section-desc en">BO staff review assigned exceptions and dispatch pre-written instructions to store managers with one click.</div>
       </div>
     </div>
 
-    <div class="tip">
+    <div class="tip success">
       <span class="tip-icon">✅</span>
-      <span class="ja">このページはDay 2で実装済みです（Heroku v2010）。NavBar「BO Dashboard」からアクセスできます。</span>
-      <span class="en">This page is live as of Day 2 (Heroku v2010). Access it via NavBar → "BO Dashboard".</span>
+      <span class="ja">Day 2実装済み（Heroku v2010 / Vercel）。NavBar → 「BO Dashboard」からアクセス。ロール: ADMIN / HQ / DUBAI_MANAGEMENT / MANILA_MANAGEMENT</span>
+      <span class="en">Live as of Day 2 (Heroku v2010 / Vercel). NavBar → "BO Dashboard". Roles: ADMIN / HQ / DUBAI_MANAGEMENT / MANILA_MANAGEMENT</span>
     </div>
 
-    <h2><span class="ja">BO Dashboard — 画面構成</span><span class="en">BO Dashboard — Screen Layout</span></h2>
-    <div class="mock-card">
-      <div class="mock-header">
-        <span class="mock-header-title">BO Staff A — My Tasks</span>
-        <span style="font-size:12px;color:var(--muted);">Manila · 2 open</span>
+    <h2><span class="ja">画面構成（上から順）</span><span class="en">Screen Layout (top to bottom)</span></h2>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">① フィルターバー</span><span class="en">① Filter Bar</span></div>
+      <div class="chip-row" style="margin-top:6px;">
+        <span class="chip accent">City: Manila / Dubai</span>
+        <span class="chip">Status: All / Open / Sent / Responded / Closed</span>
+        <span class="chip">🔄 Refresh</span>
       </div>
-      <div class="mock-row">
-        <span class="mock-sev">🔴</span>
-        <div class="mock-row-body">
-          <div class="mock-row-title">PM Backup Report Missing — TAFT</div>
-          <div class="mock-row-sub">Detected 17:18 · Manager: Juan dela Cruz</div>
-        </div>
-        <span class="mock-tag open">Open</span>
-        <button class="mock-btn send">Send Instruction</button>
-      </div>
-      <div class="mock-row">
-        <span class="mock-sev">🔴</span>
-        <div class="mock-row-body">
-          <div class="mock-row-title">Backup Below 50% — QC (Cream Cheese 42%)</div>
-          <div class="mock-row-sub">Detected 18:05 · Manager: Ana Reyes</div>
-        </div>
-        <span class="mock-tag open">Open</span>
-        <button class="mock-btn send">Send Instruction</button>
-      </div>
-      <div class="mock-row">
-        <span class="mock-sev">🟠</span>
-        <div class="mock-row-body">
-          <div class="mock-row-title">Disposal Report Missing — Paranaque</div>
-          <div class="mock-row-sub">Detected 22:04 · Sent 22:06 · Manager responded</div>
-        </div>
-        <span class="mock-tag done">Done</span>
-        <button class="mock-btn view">View</button>
-      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">Cityはログインアカウントの都市に初期設定。Statusで進行中タスクに絞り込み可能。Refreshは差分のみ静かに更新（ページ全体リロードなし）。</span>
+        <span class="en">City defaults to the logged-in staff's city. Status narrows by progress. Refresh silently reloads without resetting filters.</span>
+      </p>
     </div>
 
-    <h2><span class="ja">使い方</span><span class="en">How to Use</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">② KPI カード（4ステータス件数）</span><span class="en">② KPI Cards (4 status counts)</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;">
+        <div style="text-align:center;background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:8px;padding:10px 4px;">
+          <div style="font-size:22px;font-weight:800;color:var(--accent);">3</div>
+          <div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:.05em;">OPEN</div>
+        </div>
+        <div style="text-align:center;background:var(--orange-dim);border:1px solid var(--orange-border);border-radius:8px;padding:10px 4px;">
+          <div style="font-size:22px;font-weight:800;color:var(--orange);">1</div>
+          <div style="font-size:10px;color:var(--orange);font-weight:700;letter-spacing:.05em;">SENT</div>
+        </div>
+        <div style="text-align:center;background:var(--green-dim);border:1px solid var(--green-border);border-radius:8px;padding:10px 4px;">
+          <div style="font-size:22px;font-weight:800;color:var(--green);">2</div>
+          <div style="font-size:10px;color:var(--green);font-weight:700;letter-spacing:.05em;">RESPONDED</div>
+        </div>
+        <div style="text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 4px;">
+          <div style="font-size:22px;font-weight:800;color:var(--muted);">5</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.05em;">CLOSED</div>
+        </div>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">件数は現在のStatusフィルターに連動。「All」にするとSent/Responded/Closedも含む全体件数が表示される。</span>
+        <span class="en">Counts reflect the current Status filter. Set to "All" to see totals across all statuses.</span>
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">③ タスクリスト</span><span class="en">③ Task List</span></div>
+      <div class="mock-card" style="margin:8px 0 0;">
+        <div class="mock-header">
+          <span class="mock-header-title">Manila — 4 tasks</span>
+          <span style="font-size:11px;color:var(--muted);">🔴 first → 🟠 → oldest first</span>
+        </div>
+        <div class="mock-row">
+          <span class="mock-sev">🔴</span>
+          <div class="mock-row-body">
+            <div class="mock-row-title">PM Backup Report Missing — TAFT</div>
+            <div class="mock-row-sub">Detected 17:18 · pm_backup_missing · Manager: Juan dela Cruz</div>
+          </div>
+          <span class="mock-tag open">Open</span>
+          <button class="mock-btn send">Send Instruction</button>
+        </div>
+        <div class="mock-row">
+          <span class="mock-sev">🔴</span>
+          <div class="mock-row-body">
+            <div class="mock-row-title">Backup Below 50% — QC (Cream Cheese 42%)</div>
+            <div class="mock-row-sub">Detected 18:05 · backup_below_50 · Manager: Ana Reyes</div>
+          </div>
+          <span class="mock-tag sent">Sent</span>
+          <button class="mock-btn view">View</button>
+        </div>
+        <div class="mock-row">
+          <span class="mock-sev">🟠</span>
+          <div class="mock-row-body">
+            <div class="mock-row-title">Disposal Report Missing — Paranaque</div>
+            <div class="mock-row-sub">Sent 22:06 · Manager responded: "NIL — Confirmed"</div>
+          </div>
+          <span class="mock-tag done">Done</span>
+          <button class="mock-btn view">View</button>
+        </div>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">🔴が🟠より上、同重要度は検知時刻が古い順。各行に：例外タイプ・支店・検知時刻・manager名・ステータスチップ・アクションボタン。</span>
+        <span class="en">🔴 above 🟠; within same severity, oldest first. Each row: exception type, branch, detection time, manager, status chip, action button.</span>
+      </p>
+    </div>
+
+    <h2><span class="ja">「Send Instruction」モーダルの操作</span><span class="en">Using the "Send Instruction" Modal</span></h2>
     <ol class="steps">
       <li class="step">
         <div class="step-num">1</div>
         <div class="step-body">
-          <div class="step-title ja">ダッシュボードを開く</div>
-          <div class="step-title en">Open the Dashboard</div>
-          <div class="step-desc ja">自分に割り当てられた例外のみが表示される。🔴を優先して確認する。</div>
-          <div class="step-desc en">Only exceptions assigned to you are shown. Prioritize 🔴 items first.</div>
+          <div class="step-title ja">「Send Instruction」をクリック</div>
+          <div class="step-title en">Click "Send Instruction"</div>
+          <div class="step-desc ja">Open状態のタスクにのみ表示。Sent/Responded/Closedは「View」ボタンのみ（再送不可）。</div>
+          <div class="step-desc en">Only visible on Open tasks. Sent/Responded/Closed show "View" only — no resend.</div>
         </div>
       </li>
       <li class="step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <div class="step-title ja">内容を確認する</div>
-          <div class="step-title en">Review the Exception</div>
-          <div class="step-desc ja">例外タイプ・店舗名・検知時刻・担当マネージャーを確認する。詳細が必要な場合はViewボタンで元データを参照。</div>
-          <div class="step-desc en">Check exception type, store, detection time, and manager name. Click View to reference the source data if needed.</div>
+          <div class="step-title ja">テンプレートプレビューを確認</div>
+          <div class="step-title en">Review template preview</div>
+          <div class="step-desc ja">モーダルにこの例外タイプ用のテンプレートメッセージが表示される。これがマネージャーのInboxに届く文章そのもの。文章の編集は不要（できない設計）。</div>
+          <div class="step-desc en">Modal shows the template message for this exception type — the exact text the manager receives. Editing is not required (intentionally disabled).</div>
         </div>
       </li>
       <li class="step">
         <div class="step-num">3</div>
         <div class="step-body">
-          <div class="step-title ja">「Send Instruction」をクリック</div>
-          <div class="step-title en">Click "Send Instruction"</div>
-          <div class="step-desc ja">事前作成テンプレートが自動的に選択される。文章を書く必要はない。クリック1回で送信完了。タスクstatus=sentに更新される。</div>
-          <div class="step-desc en">The pre-written template is automatically selected. No writing needed. One click sends it. Task status updates to "sent".</div>
+          <div class="step-title ja">返答オプション（チップ）を確認</div>
+          <div class="step-title en">Review response option chips</div>
+          <div class="step-desc ja">テンプレート下部に、マネージャーが選択できる返答ボタン群が表示される。これはプレビュー用（Manager Inboxで実際にタップされる）。</div>
+          <div class="step-desc en">Below the template, response chips show exactly what buttons the manager will see in their Inbox. This is preview only.</div>
         </div>
       </li>
       <li class="step">
         <div class="step-num">4</div>
         <div class="step-body">
-          <div class="step-title ja">返答を確認する</div>
-          <div class="step-title en">Monitor for Response</div>
-          <div class="step-desc ja">マネージャーが返答するとタスクがDoneに変わる。90分経過しても返答がなければシステムが自動エスカレーション（Week 7）。</div>
-          <div class="step-desc en">When the manager responds, the task turns Done. If no response in 90 min, the system auto-escalates (Week 7).</div>
+          <div class="step-title ja">「Send」をクリックして完了</div>
+          <div class="step-title en">Click "Send" to dispatch</div>
+          <div class="step-desc ja">タスク status: open → sent。Manager Inboxに即座に表示。KPIのOpen -1、Sent +1。</div>
+          <div class="step-desc en">Task status: open → sent. Appears in Manager Inbox immediately. KPI: Open -1, Sent +1.</div>
         </div>
       </li>
     </ol>
+
+    <h2><span class="ja">「Run Detection」ボタンの使い方</span><span class="en">Using the "Run Detection" Button</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">④ Run Detectionボタン（Day 3追加）</span><span class="en">④ Run Detection Button (added Day 3)</span></div>
+      <div class="chip-row" style="margin-top:6px;">
+        <span class="chip accent">🎯 Run Detection</span>
+        <span class="chip">City: Manila / Dubai を選択してから実行</span>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--muted);">
+        <span class="ja">フィルターバーの右端にあるボタン。押すと選択中のCityで4種類の例外を自動スキャンし、未処理のものだけタスクを生成します。すでにOpenタスクが存在する例外は重複作成しません（source_id による重複排除）。</span>
+        <span class="en">Button at the right of the filter bar. Scans 4 exception types for the selected City and creates tasks only for new, unhandled exceptions. Duplicate prevention: if an Open task already exists for the same source_id, no new task is created.</span>
+      </p>
+    </div>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title ja">Cityフィルターで Manila / Dubai を選択</div>
+          <div class="step-title en">Select Manila or Dubai in the City filter</div>
+          <div class="step-desc ja">検知は都市単位で実行される。両都市を検知するには2回押す。</div>
+          <div class="step-desc en">Detection runs per city. Press twice (once each) to cover both cities.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title ja">「Run Detection」をクリック</div>
+          <div class="step-title en">Click "Run Detection"</div>
+          <div class="step-desc ja">バックエンドが4セクション（PMバックアップ / 廃棄 / 製品スコア / 勤怠）を並列スキャン。数秒で結果が返る。</div>
+          <div class="step-desc en">Backend scans 4 sections (PM Backup / Disposal / Product Score / Attendance) in parallel. Results return in a few seconds.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title ja">「X件の新規例外を検知」トースト → Refreshで確認</div>
+          <div class="step-title en">"X new exceptions detected" toast → Refresh to confirm</div>
+          <div class="step-desc ja">新規タスクがOpen状態でリストに追加される。KPIのOpen件数が増える。</div>
+          <div class="step-desc en">New tasks appear in the list with Open status. KPI Open count increases.</div>
+        </div>
+      </li>
+    </ol>
+
+    <div class="tip info" style="margin-bottom:18px;">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">「0件の新規例外」は正常。同じ例外が再検知されても重複タスクは作成されません。一度Open/Sent状態のタスクがあれば、次回の検知でスキップされます。</span>
+      <span class="en">"0 new exceptions" is normal — it means all current exceptions already have Open tasks. Deduplication prevents duplicate tasks for the same source exception.</span>
+    </div>
+
+    <h2><span class="ja">「Seed Default Templates」バナー</span><span class="en">"Seed Default Templates" Banner</span></h2>
+    <div class="card orange-border" style="margin-bottom:18px;">
+      <div class="card-title"><span class="ja">テンプレート未登録時に表示</span><span class="en">Shown when no templates are registered</span></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:0;">
+        <span class="ja">DBにアクションテンプレートが1件もない場合、BO Dashboardの上部にオレンジのバナーと「Seed Default Templates」ボタンが表示されます。クリックすると6種類のデフォルトテンプレートが一括登録されます（Day 3以降は通常不要）。</span>
+        <span class="en">If no action templates exist in the DB, an orange banner with a "Seed Default Templates" button appears at the top of the BO Dashboard. Clicking it registers all 6 default templates at once. Under normal Day 3+ conditions this should not be needed — templates are pre-seeded.</span>
+      </p>
+      <div class="chip-row">
+        <span class="chip">pm_backup_missing</span>
+        <span class="chip">disposal_missing</span>
+        <span class="chip">product_score_c</span>
+        <span class="chip">attendance_unverified</span>
+        <span class="chip">backup_le70</span>
+        <span class="chip">backup_le50</span>
+      </div>
+    </div>
 
     <h2><span class="ja">BOスタッフ別担当範囲</span><span class="en">BO Staff Assignment</span></h2>
     <div class="card">
@@ -695,19 +2006,19 @@ ul.body-list strong { color: var(--text); }
         </tr>
         <tr>
           <td><strong>BO Staff A</strong></td>
-          <td><span class="ja">AM/PMバックアップレポート、バックアップパーレベルアラート、廃棄レポート/NIL、デイリーインベントリ</span><span class="en">AM/PM Backup Report, Backup par level alerts, Disposal Report/NIL, Daily Inventory</span></td>
+          <td><span class="ja">AM/PMバックアップレポート（/admin/backup）、バックアップパーレベルアラート、廃棄レポート/NIL（/admin/disposal）、デイリーインベントリ</span><span class="en">AM/PM Backup Report (/admin/backup), Backup par level alerts, Disposal Report/NIL (/admin/disposal), Daily Inventory</span></td>
         </tr>
         <tr>
           <td><strong>BO Staff B</strong></td>
-          <td><span class="ja">打刻未確認、タイムアウトなし記録、繰り返し違反 → NTE候補</span><span class="en">Unverified Attendance, No time-out records, Repeat violation → NTE candidate</span></td>
+          <td><span class="ja">打刻未確認（OS Attendance Sync）、タイムアウトなし記録、繰り返し違反 → NTE候補</span><span class="en">Unverified Attendance (OS Attendance Sync), No time-out records, Repeat violation → NTE candidate</span></td>
         </tr>
         <tr>
           <td><strong>BO Staff C</strong></td>
-          <td><span class="ja">製品スコアC/D/F、低評価（1〜3星）、誤品/欠品クレーム、写真証跡なし</span><span class="en">Product Scoring C/D/F, Low Ratings (1–3 stars), Wrong/Missing item complaints, Photo evidence gaps</span></td>
+          <td><span class="ja">製品スコアC/D/F（/admin/analytics?tab=product_scoring）、低評価（1〜3星）、誤品/欠品クレーム（/admin/store-evaluations）、写真証跡なし</span><span class="en">Product Scoring C/D/F (/admin/analytics?tab=product_scoring), Low Ratings (1–3 stars), Wrong/Missing item complaints (/admin/store-evaluations), Photo evidence gaps</span></td>
         </tr>
         <tr>
           <td><strong>BO Staff D</strong></td>
-          <td><span class="ja">トラベルパス（1日3回）、温度記録、30分ラッシュアワーチェック、CK配送評価、オープニングレポート</span><span class="en">Travel Path (3×/day), Temperature Records, 30-min Rush Hour Check, CK Delivery evaluation, Opening Report</span></td>
+          <td><span class="ja">トラベルパス（1日3回）、温度記録、30分ラッシュアワーチェック、CK配送評価（/store/evaluation）、オープニングレポート</span><span class="en">Travel Path (3×/day), Temperature Records, 30-min Rush Hour Check, CK Delivery evaluation (/store/evaluation), Opening Report</span></td>
         </tr>
       </table>
     </div>
@@ -721,15 +2032,15 @@ ul.body-list strong { color: var(--text); }
         <div class="section-title ja">マネージャー受信箱（Manager Inbox）</div>
         <div class="section-title en">Manager Inbox</div>
         <div class="section-path">/store/management/inbox — Live (Heroku v2010)</div>
-        <div class="section-desc ja">ストアマネージャーがBOからの指示を受け取り、タップ3回以内で返答できるモバイルファーストのページ。</div>
-        <div class="section-desc en">The mobile-first page where store managers receive BO instructions and respond in ≤3 taps.</div>
+        <div class="section-desc ja">ストアマネージャーがBOからの指示を受け取り、タップ3回以内で返答するモバイルファーストページ。</div>
+        <div class="section-desc en">Mobile-first page where store managers receive BO instructions and respond in ≤ 3 taps.</div>
       </div>
     </div>
 
-    <div class="tip">
+    <div class="tip success">
       <span class="tip-icon">✅</span>
-      <span class="ja">このページはDay 2で実装済みです（Heroku v2010）。NavBar「Management Inbox」からアクセスできます。</span>
-      <span class="en">This page is live as of Day 2 (Heroku v2010). Access it via NavBar → "Management Inbox".</span>
+      <span class="ja">Day 2実装済み（Heroku v2010 / Vercel）。NavBar → 「Management Inbox」からアクセス。ロール: ADMIN / HQ / DUBAI_MANAGEMENT / MANILA_MANAGEMENT</span>
+      <span class="en">Live as of Day 2 (Heroku v2010 / Vercel). NavBar → "Management Inbox". Roles: ADMIN / HQ / DUBAI_MANAGEMENT / MANILA_MANAGEMENT</span>
     </div>
 
     <div class="philosophy" style="margin-top:0;">
@@ -739,41 +2050,132 @@ ul.body-list strong { color: var(--text); }
       <div class="philosophy-sub en">All responses are selection-based. Designed to close in 3 taps or fewer.</div>
     </div>
 
-    <h2><span class="ja">使い方</span><span class="en">How to Use</span></h2>
+    <h2><span class="ja">画面構成（上から順）</span><span class="en">Screen Layout (top to bottom)</span></h2>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">① ブランチセレクター</span><span class="en">① Branch Selector</span></div>
+      <div class="chip-row" style="margin-top:6px;">
+        <span class="chip accent">Manila: PAR / CUB / TAFT</span>
+        <span class="chip">Dubai: BB / JLT / ARJ / AM / AB</span>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">ログインアカウントの都市（city）に応じて支店リストが切り替わる。別の支店を選択すると、その支店のタスクを即座に取得。複数店舗管理者はここで支店を切り替えながら確認。</span>
+        <span class="en">Branch list switches based on the logged-in staff's city. Selecting a branch immediately fetches that branch's tasks. Multi-store managers use this to switch between branches.</span>
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">② KPI サマリー</span><span class="en">② KPI Summary</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div style="text-align:center;background:var(--red-dim);border:1px solid var(--red-border);border-radius:8px;padding:12px 8px;">
+          <div style="font-size:24px;font-weight:800;color:var(--red);">2</div>
+          <div style="font-size:11px;color:var(--red);font-weight:700;"><span class="ja">未対応</span><span class="en">Pending</span></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;"><span class="ja">要アクション</span><span class="en">Action required</span></div>
+        </div>
+        <div style="text-align:center;background:var(--green-dim);border:1px solid var(--green-border);border-radius:8px;padding:12px 8px;">
+          <div style="font-size:24px;font-weight:800;color:var(--green);">5</div>
+          <div style="font-size:11px;color:var(--green);font-weight:700;"><span class="ja">返答済み</span><span class="en">Responded</span></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;"><span class="ja">本日</span><span class="en">Today</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">③ タスクカード（未対応）— 実際の表示イメージ</span><span class="en">③ Task Card (Pending) — actual display</span></div>
+      <div class="mock-card" style="margin:8px 0 0;">
+        <div class="mock-header">
+          <span class="mock-header-title">🔴 PM Backup Report Missing — TAFT</span>
+          <span class="mock-tag open" style="font-size:10px;">Sent 17:21</span>
+        </div>
+        <div style="padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.7;border-bottom:1px solid var(--border);font-style:italic;">
+          "PM Backup Report has not been submitted as of 17:15. Please submit immediately or select a reason below. If a staff member was supposed to submit it, contact them now."
+        </div>
+        <div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="mock-btn send" style="font-size:11px;">✅ Submitted Now</button>
+          <button class="mock-btn view" style="font-size:11px;">⚠️ Staff Shortage</button>
+          <button class="mock-btn view" style="font-size:11px;">⚠️ System Issue</button>
+          <button class="mock-btn view" style="font-size:11px;">📝 Other</button>
+        </div>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">指示メッセージ（BOが送ったテンプレート）が上部に表示され、すぐ下に返答ボタンが並ぶ。ボタンをタップするだけで返答完了。</span>
+        <span class="en">The instruction text (template sent by BO) is shown at top, with response buttons directly below. One tap to respond.</span>
+      </p>
+    </div>
+
+    <h2><span class="ja">返答フロー（3ステップ）</span><span class="en">Response Flow (3 steps)</span></h2>
     <ol class="steps">
       <li class="step">
         <div class="step-num">1</div>
         <div class="step-body">
-          <div class="step-title ja">Manager Inboxを開く</div>
-          <div class="step-title en">Open Manager Inbox</div>
-          <div class="step-desc ja">🔴の指示が最上部に表示される。未読の指示は目立つように表示される。</div>
-          <div class="step-desc en">🔴 instructions appear at the top. Unread instructions are prominently highlighted.</div>
+          <div class="step-title ja">支店を選択してInboxを開く</div>
+          <div class="step-title en">Select branch and open Inbox</div>
+          <div class="step-desc ja">🔴カードが上に表示される。各カードには「何をすべきか」が明確に書かれている。</div>
+          <div class="step-desc en">🔴 cards appear at top. Each card clearly states what action is needed.</div>
         </div>
       </li>
       <li class="step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <div class="step-title ja">指示内容を読む</div>
-          <div class="step-title en">Read the Instruction</div>
-          <div class="step-desc ja">BOから送られた具体的な指示が表示される。何をすべきかが明確に書かれている。</div>
-          <div class="step-desc en">The specific instruction from BO is shown. It tells the manager exactly what to do.</div>
+          <div class="step-title ja">返答ボタンをタップ</div>
+          <div class="step-title en">Tap a response button</div>
+          <div class="step-desc ja">✅ [完了系] か ⚠️ [できない理由] を1タップ。ボタンをタップした瞬間に送信される。</div>
+          <div class="step-desc en">Tap ✅ [done] or ⚠️ [cannot — reason]. Sends immediately on tap.</div>
         </div>
       </li>
       <li class="step">
         <div class="step-num">3</div>
         <div class="step-body">
-          <div class="step-title ja">返答を選択してタップ</div>
-          <div class="step-title en">Select and Tap a Response</div>
-          <div class="step-desc ja">例：[提出しました] / [スタッフ不足] / [システム障害] / [その他（1行説明）] — これで完了。</div>
-          <div class="step-desc en">E.g. [Submitted Now] / [Staff Shortage] / [System Issue] / [Other (1-line reason)] — that's it.</div>
+          <div class="step-title ja">（「その他」の場合のみ）1行テキストを入力して送信</div>
+          <div class="step-title en">(Only for "Other") Type 1 line and submit</div>
+          <div class="step-desc ja">「その他」選択時のみテキスト入力欄が展開される。それ以外の選択肢ではテキスト入力は一切不要。</div>
+          <div class="step-desc en">Selecting "Other" expands a 1-line text field. All other options require zero typing.</div>
         </div>
       </li>
     </ol>
 
-    <div class="tip success">
-      <span class="tip-icon">✅</span>
-      <span class="ja">「その他」を選択した場合のみ、1行のフリーテキスト入力が現れます。それ以外はタップだけで完了します。</span>
-      <span class="en">Only if "Other" is selected does a 1-line free-text box appear. All other responses need just a tap.</span>
+    <h2><span class="ja">「完了タスクを見る」トグル</span><span class="en">"Show Done" Toggle</span></h2>
+    <div class="card">
+      <ul class="body-list">
+        <li class="ja"><strong>デフォルト OFF</strong>：未対応のタスク（status=sent）のみ表示。返答済みは非表示で画面がすっきり。</li>
+        <li class="ja"><strong>ON にすると</strong>：本日返答済みのタスクも一覧に表示される。返答内容の確認に使用。</li>
+        <li class="en"><strong>Default OFF</strong>: Only shows pending tasks (status=sent). Responded tasks are hidden — cleaner view.</li>
+        <li class="en"><strong>Toggle ON</strong>: Shows today's responded tasks as well. Use to review what was already handled.</li>
+      </ul>
+    </div>
+
+    <h2><span class="ja">BO Dashboard との同期</span><span class="en">Sync with BO Dashboard</span></h2>
+    <div class="card accent-border">
+      <div style="overflow-x:auto;">
+        <table class="status-table">
+          <tr>
+            <th><span class="ja">アクション</span><span class="en">Action</span></th>
+            <th><span class="ja">BO Dashboard</span><span class="en">BO Dashboard</span></th>
+            <th><span class="ja">Manager Inbox</span><span class="en">Manager Inbox</span></th>
+          </tr>
+          <tr>
+            <td><span class="ja">BOが「Send Instruction」</span><span class="en">BO sends instruction</span></td>
+            <td><span class="chip orange">open → sent</span></td>
+            <td><span class="ja">新しいカードが出現</span><span class="en">New card appears</span></td>
+          </tr>
+          <tr>
+            <td><span class="ja">マネージャーが返答ボタンタップ</span><span class="en">Manager taps response</span></td>
+            <td><span class="chip green">sent → responded</span></td>
+            <td><span class="ja">カードがDone状態に</span><span class="en">Card moves to Done</span></td>
+          </tr>
+          <tr>
+            <td><span class="ja">90分経過 — 返答なし</span><span class="en">90 min — no response</span></td>
+            <td><span class="chip red">escalated（Week 7）</span></td>
+            <td>—</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">リアルタイム自動更新はありません。BO Dashboard の「Refresh」ボタン、またはManager Inboxのページリロードで最新状態を取得してください。</span>
+      <span class="en">There is no real-time auto-refresh. Use the "Refresh" button on BO Dashboard, or reload the Manager Inbox page to get the latest state.</span>
     </div>
   </div>
 
@@ -806,6 +2208,183 @@ ul.body-list strong { color: var(--text); }
         <li class="en"><strong>Manager misses</strong>: Cases where BO sent an instruction but the manager never responded are recorded as <code>missed_by_manager=true</code>.</li>
         <li class="en"><strong>Separated evaluation</strong>: "Store issues" and "Manager issues" are distinguished. A store with many exceptions but full manager responses still scores well.</li>
       </ul>
+    </div>
+  </div>
+
+  <!-- ===== AUTO-DETECTION SYSTEM ===== -->
+  <div class="section" id="section-detection">
+    <div class="hero-header">
+      <div class="hero-icon">🎯</div>
+      <div>
+        <div class="section-title ja">自動検知システム</div>
+        <div class="section-title en">Auto-Detection System</div>
+        <div class="section-path">/api/admin/management/detect — Live (Heroku v2010)</div>
+        <div class="section-desc ja">BOスタッフが「Run Detection」を押すと、既存データページを横断して4種類の例外を自動スキャンし、未処理の例外のみタスクを生成します。</div>
+        <div class="section-desc en">When BO staff clicks "Run Detection", the system scans across existing data pages for 4 exception types and creates tasks only for unhandled exceptions.</div>
+      </div>
+    </div>
+
+    <div class="tip success">
+      <span class="tip-icon">✅</span>
+      <span class="ja">Day 3実装済み（Heroku v2010）。4セクションが独立したDBコネクションで動作し、1セクションの失敗が他に影響しません（CLAUDE.md Lesson #7 準拠）。</span>
+      <span class="en">Live as of Day 3 (Heroku v2010). Each of the 4 sections uses an independent DB connection, so a failure in one section does not cascade to others (per CLAUDE.md Lesson #7).</span>
+    </div>
+
+    <h2><span class="ja">4種類の自動検知 — データソースと検知ロジック</span><span class="en">4 Exception Types — Data Sources & Detection Logic</span></h2>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">🔴 PMバックアップレポート未提出</span><span class="en">🔴 PM Backup Report Missing</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">データソース</span><span class="en">Data Source</span></div>
+          <div class="exc-trigger">/admin/backup → backup_reports テーブル</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px;"><span class="ja">PMバックアップレポートの提出記録を参照。</span><span class="en">References PM backup report submission records.</span></p>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">検知条件</span><span class="en">Trigger Condition</span></div>
+          <p style="font-size:12px;color:var(--muted);">
+            <span class="ja">当日17:15以降にPMバックアップレポートが提出されていない支店を検知。</span>
+            <span class="en">Detects branches where no PM backup report was submitted by 17:15 on the detection date.</span>
+          </p>
+        </div>
+      </div>
+      <div class="chip-row" style="margin-top:8px;">
+        <span class="chip">exception_type: pm_backup_missing</span>
+        <span class="chip red">severity: red</span>
+        <span class="chip">bo_assignee: bo_a</span>
+        <span class="chip">template: pm_backup_missing</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">🔴 廃棄レポート未提出</span><span class="en">🔴 Disposal Report Missing</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">データソース</span><span class="en">Data Source</span></div>
+          <div class="exc-trigger">/admin/disposal → disposal_records テーブル</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px;"><span class="ja">廃棄レポートとNIL確認記録を参照。</span><span class="en">References disposal report and NIL confirmation records.</span></p>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">検知条件</span><span class="en">Trigger Condition</span></div>
+          <p style="font-size:12px;color:var(--muted);">
+            <span class="ja">22:00以降、廃棄レポートもNIL確認も提出されていない支店を検知。NIL（廃棄ゼロ確認）は積極的な記録行為として未提出と区別されます。</span>
+            <span class="en">Detects branches where neither a disposal report nor a NIL confirmation was submitted after 22:00. NIL (zero disposal confirmed) is treated as an active record, distinct from non-submission.</span>
+          </p>
+        </div>
+      </div>
+      <div class="chip-row" style="margin-top:8px;">
+        <span class="chip">exception_type: disposal_missing</span>
+        <span class="chip red">severity: red</span>
+        <span class="chip">bo_assignee: bo_a</span>
+        <span class="chip">template: disposal_missing</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">🟠 製品スコア C以下</span><span class="en">🟠 Product Score C or Below</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">データソース</span><span class="en">Data Source</span></div>
+          <div class="exc-trigger">/admin/analytics?tab=product_scoring → product_scoring テーブル</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px;"><span class="ja">製品スコアリングの各行（row ID = source_id）を参照。</span><span class="en">References individual product scoring rows (row ID = source_id for deduplication).</span></p>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">検知条件</span><span class="en">Trigger Condition</span></div>
+          <p style="font-size:12px;color:var(--muted);">
+            <span class="ja">当日記録されたCグレード以下の製品スコアを1行ずつ検知。同じスコアリング行（source_id）に対してOpen/Sentタスクが存在する場合はスキップ（重複排除）。</span>
+            <span class="en">Detects each C-grade or below product scoring record from the current day. Skips if an Open/Sent task already exists for the same scoring row (source_id deduplication).</span>
+          </p>
+        </div>
+      </div>
+      <div class="chip-row" style="margin-top:8px;">
+        <span class="chip">exception_type: product_score_c</span>
+        <span class="chip orange">severity: orange</span>
+        <span class="chip">bo_assignee: bo_c</span>
+        <span class="chip">template: product_score_c</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">🟠 スタッフ打刻未確認</span><span class="en">🟠 Attendance Unverified</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">データソース</span><span class="en">Data Source</span></div>
+          <div class="exc-trigger">OS Attendance Sync → attendance / staff_attendance テーブル</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px;"><span class="ja">OS打刻記録・StoreHub記録・Discord証跡の有無を参照。</span><span class="en">References OS time-in records, StoreHub records, and Discord screenshots.</span></p>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;"><span class="ja">検知条件</span><span class="en">Trigger Condition</span></div>
+          <p style="font-size:12px;color:var(--muted);">
+            <span class="ja">当日シフト入りのスタッフのうち、OS打刻・StoreHub・Discord証跡のいずれもないスタッフを検知。スタッフ名がsource_idとなり重複排除に使用される。</span>
+            <span class="en">Detects scheduled staff with no OS time-in, no StoreHub record, and no Discord screenshot for the current day. Staff name is used as source_id for deduplication.</span>
+          </p>
+        </div>
+      </div>
+      <div class="chip-row" style="margin-top:8px;">
+        <span class="chip">exception_type: attendance_unverified</span>
+        <span class="chip orange">severity: orange</span>
+        <span class="chip">bo_assignee: bo_b</span>
+        <span class="chip">template: attendance_unverified</span>
+      </div>
+    </div>
+
+    <h2><span class="ja">重複排除ロジック</span><span class="en">Deduplication Logic</span></h2>
+    <div class="card accent-border">
+      <ul class="body-list">
+        <li class="ja"><strong>source_id</strong>：各タスクに例外の発生源IDを記録（製品スコア行のDB ID、スタッフ名、支店コード等）。</li>
+        <li class="ja"><strong>重複チェック</strong>：同じ source_id で status=open または status=sent のタスクが存在する場合、新規タスクを作成しない。</li>
+        <li class="ja"><strong>結果</strong>：同じ日に複数回 Run Detection を実行しても、新規例外のみ追加される。「0件」は全例外が処理済みの正常状態。</li>
+        <li class="en"><strong>source_id</strong>: Each task records the origin ID of the exception (product scoring row DB ID, staff name, branch code, etc.).</li>
+        <li class="en"><strong>Dedup check</strong>: If a task with the same source_id and status=open or status=sent already exists, no new task is created.</li>
+        <li class="en"><strong>Result</strong>: Running detection multiple times on the same day only adds genuinely new exceptions. "0 created" means all current exceptions already have open tasks — this is normal.</li>
+      </ul>
+    </div>
+
+    <h2><span class="ja">データ連携マップ（ページ → 検知 → タスク）</span><span class="en">Data Connection Map (Page → Detection → Task)</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="status-table">
+        <tr>
+          <th><span class="ja">データ入力ページ</span><span class="en">Data Input Page</span></th>
+          <th><span class="ja">DBテーブル</span><span class="en">DB Table</span></th>
+          <th><span class="ja">検知タイプ</span><span class="en">Detection Type</span></th>
+          <th><span class="ja">BOタスク担当</span><span class="en">BO Assignee</span></th>
+          <th><span class="ja">Manager Inboxへ</span><span class="en">→ Manager Inbox</span></th>
+        </tr>
+        <tr>
+          <td><span style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/backup</span></td>
+          <td><span style="font-family:monospace;font-size:11px;">backup_reports</span></td>
+          <td><span class="chip red" style="font-size:10px;">pm_backup_missing</span></td>
+          <td>BO Staff A</td>
+          <td><span class="ja">Send Instruction → 提出/理由選択</span><span class="en">Send Instruction → submit / reason</span></td>
+        </tr>
+        <tr>
+          <td><span style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/disposal</span></td>
+          <td><span style="font-family:monospace;font-size:11px;">disposal_records</span></td>
+          <td><span class="chip red" style="font-size:10px;">disposal_missing</span></td>
+          <td>BO Staff A</td>
+          <td><span class="ja">Send Instruction → NIL確認/今すぐ提出</span><span class="en">Send Instruction → NIL confirm / submit now</span></td>
+        </tr>
+        <tr>
+          <td><span style="font-family:monospace;font-size:11px;color:var(--blue);">/admin/analytics</span><br><span style="font-size:10px;color:var(--muted);">?tab=product_scoring</span></td>
+          <td><span style="font-family:monospace;font-size:11px;">product_scoring</span></td>
+          <td><span class="chip orange" style="font-size:10px;">product_score_c</span></td>
+          <td>BO Staff C</td>
+          <td><span class="ja">Send Instruction → 問題選択/フィードバック完了</span><span class="en">Send Instruction → select issue / feedback done</span></td>
+        </tr>
+        <tr>
+          <td><span style="font-family:monospace;font-size:11px;color:var(--blue);">OS Attendance Sync</span></td>
+          <td><span style="font-family:monospace;font-size:11px;">staff_attendance</span></td>
+          <td><span class="chip orange" style="font-size:10px;">attendance_unverified</span></td>
+          <td>BO Staff B</td>
+          <td><span class="ja">Send Instruction → 出勤確認/欠勤</span><span class="en">Send Instruction → present confirm / absent</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="tip info" style="margin-top:16px;">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">backup_le70 / backup_le50 の2テンプレートはDBに登録済みですが、パーレベルデータとの連携（自動検知）はWeek 5–6に実装予定です。現在はManual（手動タスク作成）で対応。</span>
+      <span class="en">The backup_le70 and backup_le50 templates are seeded in the DB, but their auto-detection (integration with par level data) is planned for Week 5–6. Currently handled via manual task creation.</span>
     </div>
   </div>
 
@@ -914,27 +2493,27 @@ ul.body-list strong { color: var(--text); }
       </div>
 
       <div class="rollout-item">
-        <span class="rollout-status">⏳</span>
+        <span class="rollout-status">✅</span>
         <span class="rollout-phase">Day 3</span>
         <div class="rollout-body">
-          <div class="rollout-title ja">自動検知トリガー稼働</div>
-          <div class="rollout-title en">Auto-Detection Triggers Go Live</div>
-          <div class="rollout-items ja">PMバックアップ検知 · 廃棄NIL区別 · バックアップ70%/50%アラート<br><em>植嶋さんのテンプレート文言承認後に稼働</em></div>
-          <div class="rollout-items en">PM Backup detection · Disposal NIL distinction · Backup 70%/50% alerts<br><em>Goes live after Ueshima-san approves template wording</em></div>
+          <div class="rollout-title ja">自動検知エンジン稼働 + テンプレートシード</div>
+          <div class="rollout-title en">Auto-Detection Engine + Template Seeding</div>
+          <div class="rollout-items ja">PMバックアップ / 廃棄NIL区別 / 製品スコアC / 打刻未確認 — 4種類の検知稼働<br>6テンプレートDB登録済み · Run Detectionボタン · Seed Default Templatesボタン</div>
+          <div class="rollout-items en">PM Backup / Disposal NIL / Product Score C / Attendance Unverified — 4 detection types live<br>6 templates seeded · Run Detection button · Seed Default Templates button</div>
         </div>
-        <div><span class="chip">PENDING</span></div>
+        <div><span class="chip green">LIVE</span></div>
       </div>
 
       <div class="rollout-item">
         <span class="rollout-status">⏳</span>
         <span class="rollout-phase">Day 4</span>
         <div class="rollout-body">
-          <div class="rollout-title ja">製品スコア + 勤怠 + パーレベル編集</div>
-          <div class="rollout-title en">Product Score + Attendance + Par Level Editing</div>
-          <div class="rollout-items ja">製品スコアCアラート → BO Staff C · 打刻未確認自動フラグ → BO Staff B · パーレベル編集UI（管理者）</div>
-          <div class="rollout-items en">Product score C alert → BO Staff C · Unverified attendance auto-flag → BO Staff B · Par Level editing UI (admin)</div>
+          <div class="rollout-title ja">パーレベル編集 + バックアップ在庫アラート自動化</div>
+          <div class="rollout-title en">Par Level Editing + Backup Stock Alert Automation</div>
+          <div class="rollout-items ja">backup_le70 / backup_le50 — パーレベルデータとの自動連携 · パーレベル編集UI（管理者）</div>
+          <div class="rollout-items en">backup_le70 / backup_le50 auto-detection from par level data · Par Level editing UI (admin)</div>
         </div>
-        <div><span class="chip">PENDING</span></div>
+        <div><span class="chip">PLANNED</span></div>
       </div>
 
       <div class="rollout-item">
@@ -969,7 +2548,7 @@ ul.body-list strong { color: var(--text); }
       <div class="hero-icon">⚙️</div>
       <div>
         <div class="section-title">API Reference</div>
-        <div class="section-path">Heroku — sushizen-shift-app · v2008</div>
+        <div class="section-path">Heroku — sushizen-shift-app · v2010+</div>
         <div class="section-desc ja">技術スタッフ向け。全APIエンドポイントは稼働中（Heroku v2008+）。</div>
         <div class="section-desc en">For technical staff. All API endpoints are live (Heroku v2008+).</div>
       </div>
@@ -1003,6 +2582,23 @@ ul.body-list strong { color: var(--text); }
           <td><span class="method post">POST</span></td>
           <td><span class="api-path">/api/store/management/tasks/{id}/respond</span></td>
           <td><span class="ja">マネージャー返答。{response: "submitted_now", response_note?: "..."}</span><span class="en">Manager response. {response: "submitted_now", response_note?: "..."}</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2><span class="ja">自動検知 (Day 3)</span><span class="en">Auto-Detection (Day 3)</span></h2>
+    <div style="overflow-x:auto;">
+      <table class="api-table">
+        <tr><th>Method</th><th>Path</th><th><span class="ja">説明</span><span class="en">Description</span></th></tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/admin/management/detect</span></td>
+          <td><span class="ja">例外スキャン実行。Body: {city: "manila"|"dubai", date?: "YYYY-MM-DD"} → {created: N, skipped: M, sections: {...}}</span><span class="en">Run exception scan. Body: {city: "manila"|"dubai", date?: "YYYY-MM-DD"} → {created: N, skipped: M, sections: {...}}</span></td>
+        </tr>
+        <tr>
+          <td><span class="method post">POST</span></td>
+          <td><span class="api-path">/api/admin/management/seed-templates</span></td>
+          <td><span class="ja">6種のデフォルトテンプレートをDBに一括登録（upsert）。Body不要。</span><span class="en">Seed all 6 default templates into DB (upsert). No body required.</span></td>
         </tr>
       </table>
     </div>
