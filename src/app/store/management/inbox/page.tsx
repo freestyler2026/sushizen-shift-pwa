@@ -248,10 +248,8 @@ function StoreTaskThread({ taskId, managerName }: StoreTaskThreadProps) {
         <span className="font-medium">
           {hasMessages ? `Messages (${messages.length})` : "Messages"}
         </span>
-        {hasMessages && !open && (
-          <span className="ml-1 text-xs text-violet-400 font-semibold">
-            ● {messages[messages.length - 1].author_role === "bo" ? "New from BO" : ""}
-          </span>
+        {hasMessages && !open && messages[messages.length - 1].author_role === "bo" && (
+          <span className="ml-1 text-xs text-violet-400 font-semibold">● New from BO</span>
         )}
         {open ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
       </button>
@@ -264,7 +262,7 @@ function StoreTaskThread({ taskId, managerName }: StoreTaskThreadProps) {
               <div className="text-xs text-zinc-600 py-2">Loading…</div>
             ) : messages.length === 0 ? (
               <div className="text-xs text-zinc-500 italic py-1">
-                No messages yet. Use this to ask questions or share updates with Back Office.
+                No messages yet. Back Office may send questions or follow-ups here.
               </div>
             ) : (
               messages.map(msg => (
