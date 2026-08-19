@@ -1133,7 +1133,7 @@ function ExclusionManagerPanel({
                   }, {})
                 ).sort(([a], [b]) => a.localeCompare(b)).map(([bc, items]) => (
                   <div key={bc}>
-                    <p className="text-xs font-medium text-neutral-400 mb-1">{labelOf(city as City, bc)} ({bc})</p>
+                    <p className="text-xs font-medium text-neutral-400 mb-1">{bc ? `${labelOf(city as City, bc)} (${bc})` : "No Branch Assigned"}</p>
                     <div className="space-y-1">
                       {items.map((s) => (
                         <div key={s.staff_name} className="flex items-center gap-2 rounded-lg bg-neutral-900/40 px-3 py-1.5">
