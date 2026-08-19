@@ -311,6 +311,8 @@ export default function BODashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [seeding, setSeeding] = useState(false);
+  const [detecting, setDetecting] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("open");
@@ -383,6 +385,50 @@ export default function BODashboardPage() {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
+  async function handleSeedTemplates() {
+    setSeeding(true);
+    try {
+      const headers = getAuthHeaders(getAuth());
+      const res = await fetch("/api/admin/management/seed-templates", {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadTemplates();
+    } catch {
+      alert("Failed to seed templates. Please try again.");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  async function handleDetect() {
+    if (cityFilter === "all") {
+      alert("Please select a specific city (Manila or Dubai) to run detection.");
+      return;
+    }
+    setDetecting(true);
+    try {
+      const headers = getAuthHeaders(getAuth());
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await fetch("/api/admin/management/detect", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ city: cityFilter, date: today }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.created > 0) {
+        await loadTasks(true);
+      }
+      alert(`Detection complete. ${data.created} new task${data.created !== 1 ? "s" : ""} created.`);
+    } catch {
+      alert("Detection failed. Please try again.");
+    } finally {
+      setDetecting(false);
+    }
+  }
+
   function openSendModal(task: ManagementTask) {
     setSendingTask(task);
     setCustomMessage(templates[task.type]?.message_en || "");
@@ -435,14 +481,25 @@ export default function BODashboardPage() {
               Review store exceptions and send pre-written instructions to managers.
             </p>
           </div>
-          <button
-            onClick={() => loadTasks(true)}
-            disabled={refreshing}
-            className={SMALL_BUTTON + " flex items-center gap-2"}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDetect}
+              disabled={detecting || cityFilter === "all"}
+              className={SMALL_BUTTON + " flex items-center gap-2"}
+              title={cityFilter === "all" ? "Select a city first" : "Scan for new exceptions"}
+            >
+              <AlertTriangle className={`h-3.5 w-3.5 ${detecting ? "animate-pulse" : ""}`} />
+              {detecting ? "Detecting…" : "Run Detection"}
+            </button>
+            <button
+              onClick={() => loadTasks(true)}
+              disabled={refreshing}
+              className={SMALL_BUTTON + " flex items-center gap-2"}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* KPI Row */}
@@ -538,9 +595,20 @@ export default function BODashboardPage() {
         {/* No templates warning */}
         {Object.keys(templates).length === 0 && !loading && (
           <div className="mt-4 rounded-xl border border-amber-800/40 bg-amber-950/20 p-4 text-sm">
-            <div className="font-semibold text-amber-300">⚠️ No action templates loaded</div>
-            <div className="text-amber-400/80 mt-1 text-xs">
-              Templates must be seeded before instructions can be sent. Contact HQ to seed templates.
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold text-amber-300">⚠️ No action templates loaded</div>
+                <div className="text-amber-400/80 mt-1 text-xs">
+                  Seed the default templates to enable pre-written instructions for all exception types.
+                </div>
+              </div>
+              <button
+                onClick={handleSeedTemplates}
+                disabled={seeding}
+                className="shrink-0 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+              >
+                {seeding ? "Seeding…" : "Seed Default Templates"}
+              </button>
             </div>
           </div>
         )}
