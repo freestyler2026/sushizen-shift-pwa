@@ -101,14 +101,14 @@ async function apiFetch(url, token) {
 async function fetchAllProducts(vendorId, token) {
   const base = `${VENDOR_API}/api/5/platforms/${PLATFORM}/vendors/${vendorId}`;
 
-  // Step 1: Get catalogs (menus)
+  // Step 1: Get catalogs — response shape: { catalogs: [{id, name, categories: [{id, name}]}] }
   const catalogsData = await apiFetch(`${base}/catalogs?locale=en`, token);
-  const catalogs = catalogsData?.data ?? catalogsData ?? [];
-  console.log(`    Catalogs: ${Array.isArray(catalogs) ? catalogs.length : '?'} found`);
+  const catalogs = catalogsData?.catalogs ?? catalogsData?.data ?? catalogsData ?? [];
   if (!Array.isArray(catalogs) || catalogs.length === 0) {
-    console.log(`    Raw catalogs response: ${JSON.stringify(catalogsData).slice(0, 200)}`);
+    console.log(`    Raw catalogs response: ${JSON.stringify(catalogsData).slice(0, 300)}`);
     return [];
   }
+  console.log(`    Catalogs: ${catalogs.length} found`);
 
   const allItems = [];
 
@@ -117,20 +117,11 @@ async function fetchAllProducts(vendorId, token) {
     const catalogName = catalog.name || catalog.title || catalogId;
     if (!catalogId) continue;
 
-    // Step 2: Get categories for this catalog
-    let categories = [];
-    try {
-      const catData  = await apiFetch(`${base}/catalogs/${catalogId}/categories?locale=en`, token);
-      categories     = catData?.data ?? catData ?? [];
-      console.log(`    Catalog "${catalogName}" → ${Array.isArray(categories) ? categories.length : '?'} categories`);
-    } catch (err) {
-      console.log(`    Categories error for catalog ${catalogId}: ${err.message}`);
-      continue;
-    }
+    // Categories are embedded in the catalog object — no extra API call needed
+    const categories = catalog.categories ?? [];
+    console.log(`    Catalog "${catalogName}" (${catalogId}) → ${categories.length} categories`);
 
-    if (!Array.isArray(categories)) continue;
-
-    // Step 3: Get products per category
+    // Step 2: Get products per category
     for (const cat of categories) {
       const categoryId   = cat.id || cat.category_id;
       const categoryName = cat.name || cat.title || categoryId;
@@ -141,8 +132,11 @@ async function fetchAllProducts(vendorId, token) {
           `${base}/catalogs/${catalogId}/categories/${categoryId}/products?locale=en&sizeSupport=true`,
           token
         );
-        const products = prodData?.data ?? prodData ?? [];
-        if (!Array.isArray(products)) continue;
+        const products = prodData?.data ?? prodData?.products ?? prodData ?? [];
+        if (!Array.isArray(products)) {
+          console.log(`      Products response (${categoryName}): ${JSON.stringify(prodData).slice(0, 150)}`);
+          continue;
+        }
 
         for (const p of products) {
           const price = extractPrice(p);
@@ -156,7 +150,7 @@ async function fetchAllProducts(vendorId, token) {
           });
         }
       } catch (err) {
-        console.log(`      Products error for category ${categoryId}: ${err.message}`);
+        console.log(`      Products error for ${categoryName}: ${err.message}`);
       }
     }
   }
