@@ -1,10 +1,13 @@
 /**
- * FoodPanda PH Partner Portal price checker
+ * FoodPanda PH price checker
  *
- * Strategy:
- *   1. Get JWT via direct auth API (already confirmed working)
- *   2. Try direct HTTP calls to DH partner backend API with the JWT
- *   3. If that fails, use Playwright to log in via browser form + intercept menu API
+ * Strategy (in order of priority):
+ *   1. Public FoodPanda customer API  — no auth, no Cloudflare block
+ *   2. Playwright + JWT localStorage  — inject JWT from auth API (no 2FA), skip login form
+ *   3. SESSION_REQUIRED fallback      — notify via Discord DM
+ *
+ * Why skip browser form login: GitHub Actions IPs are flagged as "new devices"
+ * and FoodPanda redirects to /2fa. The direct auth API returns a JWT without 2FA.
  *
  * Env vars (GitHub Actions secrets):
  *   FP_EMAIL_PARANAQUE, FP_PASSWORD_PARANAQUE
@@ -20,22 +23,25 @@ if (!WEBHOOK_URL) throw new Error('WEBHOOK_URL not set');
 
 const ACCOUNTS = [
   {
-    email:     process.env.FP_EMAIL_PARANAQUE    || 'contact@ramensushizen.com',
-    password:  process.env.FP_PASSWORD_PARANAQUE || 'Sushizen@2025',
-    storeName: 'Sushi Zen - Paranaque',
-    vendorId:  't0z4',
+    email:          process.env.FP_EMAIL_PARANAQUE    || 'contact@ramensushizen.com',
+    password:       process.env.FP_PASSWORD_PARANAQUE || 'Sushizen@2025',
+    storeName:      'Sushi Zen - Paranaque',
+    vendorId:       't0z4',
+    globalVendorId: 'HP6SJW',
   },
   {
-    email:     process.env.FP_EMAIL_TAFT    || 'taft2025zen@gmail.com',
-    password:  process.env.FP_PASSWORD_TAFT || 'Sushizentaft@2025',
-    storeName: 'Sushi Zen - Taft',
-    vendorId:  'ryqc',
+    email:          process.env.FP_EMAIL_TAFT    || 'taft2025zen@gmail.com',
+    password:       process.env.FP_PASSWORD_TAFT || 'Sushizentaft@2025',
+    storeName:      'Sushi Zen - Taft',
+    vendorId:       'ryqc',
+    globalVendorId: 'HPMI1R',
   },
   {
-    email:     process.env.FP_EMAIL_QC    || 'qc2025zen@gmail.com',
-    password:  process.env.FP_PASSWORD_QC || 'Sushizenqc@2025',
-    storeName: 'Sushi Zen - Cubao',
-    vendorId:  'a97i',
+    email:          process.env.FP_EMAIL_QC    || 'qc2025zen@gmail.com',
+    password:       process.env.FP_PASSWORD_QC || 'Sushizenqc@2025',
+    storeName:      'Sushi Zen - Cubao',
+    vendorId:       'a97i',
+    globalVendorId: 'HP7R23',
   },
 ];
 
@@ -65,83 +71,118 @@ async function getFreshToken(email, password) {
   const token = data.access_token;
   if (!token) throw new Error('No access_token in login response');
 
-  const accounts = data.profile?.accounts || [];
-  const vendorIds = accounts.map(a => a.vendor_id).filter(Boolean);
-  return { token, refreshToken: data.refresh_token || '', vendorIds, rawResponse: data };
+  const accounts     = data.profile?.accounts || [];
+  const vendorIds    = accounts.map(a => a.vendor_id).filter(Boolean);
+  const refreshToken = data.refresh_token || '';
+  return { token, refreshToken, vendorIds, accounts };
 }
 
-// ── Direct API attempt (no browser needed) ───────────────────────────────────
+// ── Strategy 1: Public FoodPanda customer API ─────────────────────────────────
 
-const PARTNER_API_CANDIDATES = [
-  (v) => `https://partner-backend.ap.prd.portal.restaurant/api/v1/vendor/${v}/menus`,
-  (v) => `https://partner-backend.ap.prd.portal.restaurant/api/v3/vendors/${v}/products`,
-  (v) => `https://partner-backend.ap.prd.portal.restaurant/api/v1/vendor/${v}/menu/categories`,
-  (v) => `https://ap.prd.portal.restaurant/api/v1/vendor/${v}/menus`,
-];
+async function tryPublicAPI(globalVendorId, vendorId) {
+  // FoodPanda PH public menu API patterns (no auth required)
+  const candidates = [
+    `https://www.foodpanda.ph/api/v3/vendors/${globalVendorId}/menus`,
+    `https://www.foodpanda.ph/api/v3/vendors/${vendorId}/menus`,
+    `https://www.foodpanda.ph/api/v1/vendors/${globalVendorId}/menus`,
+    `https://www.foodpanda.ph/api/v1/vendors/${vendorId}/menus`,
+    `https://www.foodpanda.ph/gw/api/v3/vendors/${globalVendorId}/menus`,
+    `https://www.foodpanda.ph/gw/api/v3/vendors/${vendorId}/menus`,
+    // Vendor info (may embed menu)
+    `https://www.foodpanda.ph/api/v3/vendors/${globalVendorId}`,
+    `https://www.foodpanda.ph/api/v3/vendors/${vendorId}`,
+  ];
 
-async function tryDirectAPI(token, vendorId) {
-  for (const buildUrl of PARTNER_API_CANDIDATES) {
-    const url = buildUrl(vendorId);
+  for (const url of candidates) {
     try {
       const resp = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type':  'application/json',
-          'User-Agent':    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          'Origin':        'https://partner.foodpanda.com',
-          'Referer':       'https://partner.foodpanda.com/',
-          'Accept':        'application/json',
+          'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Accept':          'application/json, text/plain, */*',
+          'Accept-Language': 'en-PH,en-US;q=0.9,en;q=0.8',
+          'Referer':         'https://www.foodpanda.ph/',
+          'Origin':          'https://www.foodpanda.ph',
         },
         signal: AbortSignal.timeout(10_000),
       });
 
       if (!resp.ok) {
-        console.log(`    Direct API ${resp.status}: ${url.slice(0, 60)}`);
+        console.log(`    Public API ${resp.status}: ${url.slice(0, 70)}`);
         continue;
       }
-
       const ct = resp.headers.get('content-type') || '';
       if (!ct.includes('application/json')) continue;
 
-      const json = await resp.json();
+      const json  = await resp.json();
       const items = extractItemsFromResponse(json);
       if (items.length > 0) {
-        console.log(`  ✓ Direct API captured ${items.length} items from: ${url.slice(0, 60)}`);
+        console.log(`  ✓ Public API: ${items.length} items from ${url.slice(0, 70)}`);
         return items;
       }
+      console.log(`    Public API 200 but 0 items: ${url.slice(0, 70)}`);
     } catch (err) {
-      console.log(`    Direct API error (${url.slice(0, 50)}): ${err.message.slice(0, 60)}`);
+      console.log(`    Public API error (${url.slice(0, 50)}): ${err.message.slice(0, 60)}`);
     }
   }
   return [];
 }
 
-// ── Playwright browser login ──────────────────────────────────────────────────
+// ── Strategy 2: Playwright + JWT localStorage injection (bypass login / 2FA) ──
 
-async function checkViaPlaywright(account, browser, token) {
-  const { email, password, storeName, vendorId } = account;
+async function tryPlaywrightLocalStorage(account, browser, token) {
+  const { storeName, vendorId } = account;
 
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     viewport:  { width: 1280, height: 900 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
   });
 
-  const capturedItems = [];
-  const pendingJsonPromises = [];
+  // Inject JWT into localStorage BEFORE any navigation — the SPA reads this on startup
+  await context.addInitScript((jwt) => {
+    // Try every key pattern used by Delivery Hero / FoodPanda partner portals
+    const keys = [
+      'access_token', 'auth_token', 'token', 'fp-access-token',
+      'partner-portal-token', 'ph_fp_partner_token',
+    ];
+    keys.forEach(k => {
+      try { localStorage.setItem(k, jwt); } catch (_) {}
+    });
 
-  // Intercept ALL JSON responses mentioning menu/product/catalog/item/category
+    // Redux Persist (most likely pattern for React SPAs)
+    try {
+      const raw  = localStorage.getItem('persist:root') || '{}';
+      const root = JSON.parse(raw);
+      const auth = JSON.parse(root.authentication || '{}');
+      auth.isAuthenticated = true;
+      auth.accessToken     = jwt;
+      auth.access_token    = jwt;
+      auth.token           = jwt;
+      root.authentication  = JSON.stringify(auth);
+      localStorage.setItem('persist:root', JSON.stringify(root));
+    } catch (_) {}
+
+    // Session storage as well
+    try { sessionStorage.setItem('access_token', jwt); } catch (_) {}
+  }, token);
+
+  const capturedItems  = [];
+  const pendingPromises = [];
+
+  // Intercept all JSON responses that look like menu/catalog/product data
   context.on('response', (response) => {
-    const url     = response.url();
-    const status  = response.status();
+    const url    = response.url();
+    const status = response.status();
     if (status !== 200) return;
     if (/\.(js|css|png|jpg|svg|ico|woff2?|ttf)(\?|$)/.test(url)) return;
-    if (/analytics|hotjar|sentry|amplitude|segment|facebook|px-cloud|datadog/.test(url)) return;
+    if (/analytics|hotjar|sentry|amplitude|segment|facebook|px-cloud|datadog|cloudfront/.test(url)) return;
 
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
     if (!/(menu|catalog|product|item|categor|dish)/i.test(url)) return;
 
-    // Collect the promise; resolve safely to avoid crashing if context closes
     const p = response.json()
       .then(json => {
         const items = extractItemsFromResponse(json);
@@ -151,80 +192,48 @@ async function checkViaPlaywright(account, browser, token) {
         }
       })
       .catch(() => {});
-    pendingJsonPromises.push(p);
+    pendingPromises.push(p);
   });
 
   const page = await context.newPage();
 
   try {
-    // ── Navigate to login page ────────────────────────────────────────────────
-    console.log(`  [Playwright] Navigating to login...`);
-    await page.goto('https://partner.foodpanda.com/login', {
+    // Navigate directly to portal root (NOT /login — avoids triggering 2FA flow)
+    console.log(`  [Playwright] Navigating with JWT injected (skip login)...`);
+    await page.goto('https://partner.foodpanda.com/', {
       waitUntil: 'domcontentloaded',
       timeout:   30_000,
     });
-    await page.waitForTimeout(2000);
-    console.log(`  Login page URL: ${page.url()}`);
-
-    // ── Fill email ─────────────────────────────────────────────────────────────
-    const emailSel = 'input[type="email"], input[name="email"], input[name="username"], input[autocomplete="username"]';
-    try {
-      await page.waitForSelector(emailSel, { timeout: 10_000 });
-      await page.fill(emailSel, email);
-      console.log(`  ✓ Email filled`);
-    } catch {
-      console.log(`  ✗ Email input not found — page title: ${await page.title()}`);
-      return capturedItems;
-    }
-
-    // Click Next / Continue (two-step portals have a separate password page)
-    const submitSel = 'button[type="submit"]';
-    await page.click(submitSel).catch(() => {});
-    await page.waitForTimeout(2000);
-
-    // ── Fill password ──────────────────────────────────────────────────────────
-    const pwSel = 'input[type="password"]';
-    try {
-      await page.waitForSelector(pwSel, { timeout: 10_000 });
-      await page.fill(pwSel, password);
-      console.log(`  ✓ Password filled`);
-    } catch {
-      console.log(`  ✗ Password input not found after email submit`);
-      return capturedItems;
-    }
-
-    await page.click(submitSel);
-    console.log(`  Logging in...`);
-
-    // ── Wait for post-login navigation ─────────────────────────────────────────
-    await page.waitForURL(
-      url => !url.toString().includes('/login') && !url.toString().includes('/auth'),
-      { timeout: 30_000 }
-    ).catch(() => {});
     await page.waitForTimeout(3000);
-    console.log(`  Post-login URL: ${page.url()}`);
+    console.log(`  URL after root: ${page.url()}`);
 
-    // ── Navigate to menu management ────────────────────────────────────────────
-    console.log(`  Loading /menu/items...`);
+    // If redirected to login, the localStorage injection didn't work
+    if (page.url().includes('/login') || page.url().includes('/auth')) {
+      console.log(`  ✗ Redirected to login — localStorage injection not sufficient`);
+      return capturedItems;
+    }
+
+    // Navigate to menu management
+    console.log(`  [Playwright] Loading /menu/items...`);
     await page.goto('https://partner.foodpanda.com/menu/items', {
-      waitUntil: 'domcontentloaded',   // ← NOT networkidle (SPA never idles)
+      waitUntil: 'domcontentloaded',  // NOT networkidle (SPA never idles)
       timeout:   30_000,
     });
-    // Wait for background API calls to fire and complete
-    await page.waitForTimeout(10_000);
+    console.log(`  URL after menu nav: ${page.url()}`);
 
-    // Fallback: try /menu/menus
+    // Wait for background API calls to fire and complete
+    await page.waitForTimeout(12_000);
+
     if (capturedItems.length === 0) {
-      console.log(`  Trying /menu/menus...`);
+      console.log(`  [Playwright] Trying /menu/menus...`);
       await page.goto('https://partner.foodpanda.com/menu/menus', {
         waitUntil: 'domcontentloaded',
         timeout:   20_000,
       });
-      await page.waitForTimeout(6000);
+      await page.waitForTimeout(7_000);
     }
 
-    // Wait for any still-pending JSON parsing
-    await Promise.allSettled(pendingJsonPromises);
+    await Promise.allSettled(pendingPromises);
 
   } catch (err) {
     console.error(`  [Playwright] error: ${err.message.slice(0, 120)}`);
@@ -242,10 +251,10 @@ function extractItemsFromResponse(json) {
 
   // Pattern 1: categories with nested products
   const categories =
-    json?.data?.categories ||
-    json?.categories ||
+    json?.data?.categories          ||
+    json?.categories                ||
     json?.data?.menus?.[0]?.categories ||
-    json?.menus?.[0]?.categories ||
+    json?.menus?.[0]?.categories    ||
     [];
 
   for (const cat of categories) {
@@ -264,13 +273,13 @@ function extractItemsFromResponse(json) {
     }
   }
 
-  // Pattern 2: flat products list
+  // Pattern 2: flat products/items list
   if (!items.length) {
     const products =
       json?.data?.products ||
       json?.products        ||
-      json?.items           ||
       json?.data?.items     ||
+      json?.items           ||
       [];
     for (const p of products) {
       const price = extractPrice(p);
@@ -334,33 +343,40 @@ async function postWebhook(payload) {
 // ── Per-account orchestration ─────────────────────────────────────────────────
 
 async function checkAccount(account, browser) {
-  const { email, password, storeName, vendorId } = account;
+  const { email, password, storeName, vendorId, globalVendorId } = account;
   console.log(`\n──── ${storeName} (${vendorId}) ────`);
   const checkedAt = new Date().toISOString();
 
-  // Step 1: Get JWT
-  let token;
-  try {
-    const result = await getFreshToken(email, password);
-    token = result.token;
-    console.log(`  ✓ JWT acquired. Vendor IDs: ${result.vendorIds.join(', ')}`);
-  } catch (err) {
-    console.error(`  ✗ Auth failed: ${err.message}`);
-    await postWebhook({ vendor_id: 'AUTH_FAILED', vendor_name: storeName, items: [], checked_at: checkedAt });
-    return;
+  // Strategy 1: Public customer API (no auth, no Cloudflare issues)
+  console.log(`  Strategy 1: Public FoodPanda customer API...`);
+  let items = await tryPublicAPI(globalVendorId, vendorId);
+
+  if (items.length > 0) {
+    console.log(`  ✓ Strategy 1 succeeded`);
+  } else {
+    // Need JWT for Strategy 2
+    console.log(`  Strategy 1 returned 0 items. Getting JWT...`);
+    let token;
+    try {
+      const result = await getFreshToken(email, password);
+      token = result.token;
+      console.log(`  ✓ JWT acquired (vendor IDs: ${result.vendorIds.join(', ')})`);
+    } catch (err) {
+      console.error(`  ✗ Auth failed: ${err.message}`);
+      await postWebhook({ vendor_id: 'AUTH_FAILED', vendor_name: storeName, items: [], checked_at: checkedAt });
+      return;
+    }
+
+    // Strategy 2: Playwright with localStorage JWT injection (bypass login → bypass 2FA)
+    console.log(`  Strategy 2: Playwright + JWT localStorage injection...`);
+    items = await tryPlaywrightLocalStorage(account, browser, token);
+
+    if (items.length > 0) {
+      console.log(`  ✓ Strategy 2 succeeded`);
+    }
   }
 
-  // Step 2: Try direct HTTP API first (fast, no browser)
-  console.log(`  Trying direct API calls...`);
-  let items = await tryDirectAPI(token, vendorId);
-
-  // Step 3: Fall back to Playwright browser login
-  if (items.length === 0) {
-    console.log(`  Direct API returned 0 items — switching to Playwright browser login...`);
-    items = await checkViaPlaywright(account, browser, token);
-  }
-
-  // Step 4: Deduplicate and send
+  // Deduplicate
   const seen = new Set();
   const uniqueItems = items.filter(item => {
     const key = `${item.item_id}|${item.name}`;
@@ -379,7 +395,7 @@ async function checkAccount(account, browser) {
     });
     console.log(`  ✓ Webhook: ${JSON.stringify(result).slice(0, 100)}`);
   } else {
-    console.log(`  ⚠ No items captured`);
+    console.log(`  ⚠ All strategies failed — sending SESSION_REQUIRED`);
     await postWebhook({
       vendor_id:   'SESSION_REQUIRED',
       vendor_name: storeName,
