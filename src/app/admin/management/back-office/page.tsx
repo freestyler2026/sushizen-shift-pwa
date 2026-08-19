@@ -349,8 +349,8 @@ export default function BODashboardPage() {
     setError("");
     try {
       const headers = getAuthHeaders(getAuth());
-      const params = new URLSearchParams({ city: cityFilter, limit: "100" });
-      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      // Always fetch all statuses so KPI cards show accurate totals across all statuses
+      const params = new URLSearchParams({ city: cityFilter, limit: "200" });
       const res = await fetch(`/api/admin/management/tasks?${params}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -361,7 +361,7 @@ export default function BODashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [cityFilter, statusFilter]);
+  }, [cityFilter]);
 
   useEffect(() => {
     loadTemplates();
@@ -377,8 +377,13 @@ export default function BODashboardPage() {
   const respondedCount = tasks.filter(t => t.status === "responded").length;
   const closedCount    = tasks.filter(t => t.status === "closed").length;
 
+  // Filter by status client-side (tasks are always fetched for all statuses for accurate KPI counts)
+  const filteredTasks = statusFilter && statusFilter !== "all"
+    ? tasks.filter(t => t.status === statusFilter)
+    : tasks;
+
   // Sorted: red first, then by created_at desc
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
     const sevOrd = { red: 0, yellow: 1, green: 2 };
     const so = (sevOrd[a.severity] ?? 9) - (sevOrd[b.severity] ?? 9);
     if (so !== 0) return so;
