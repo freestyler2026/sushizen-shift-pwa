@@ -51,9 +51,9 @@ async function main() {
   console.log('\nPlease log in to the Talabat Partner Portal.');
   console.log('After logging in, navigate to any store → Menu Management.\n');
 
-  // Poll for authenticated state (up to 5 min)
-  console.log('Waiting for login (up to 5 min)...');
-  const deadline = Date.now() + 5 * 60 * 1000;
+  // Poll for authenticated state (up to 10 min — allows for 2FA)
+  console.log('Waiting for login (up to 10 min — complete 2FA if prompted)...');
+  const deadline = Date.now() + 10 * 60 * 1000;
   let loggedIn   = false;
 
   while (Date.now() < deadline) {
@@ -92,7 +92,7 @@ async function main() {
       }
     } catch (_) {}
 
-    await page.waitForTimeout(2000);
+    try { await page.waitForTimeout(2000); } catch (_) { break; }
   }
 
   if (!loggedIn) console.log('⚠ Timed out — saving partial session');
@@ -101,12 +101,17 @@ async function main() {
   console.log('\nNavigate to Menu Management now to capture vendor API calls...');
   console.log('(60 seconds)\n');
   for (let i = 60; i > 0; i -= 5) {
-    await page.waitForTimeout(5000);
-    process.stdout.write(`  ${i}s remaining... ${page.url()}\n`);
+    try {
+      await page.waitForTimeout(5000);
+      process.stdout.write(`  ${i}s remaining... ${page.url()}\n`);
+    } catch (_) { break; }
   }
 
   // Save full session state (cookies + localStorage with OIDC token)
-  await context.storageState({ path: OUT_JSON });
+  try { await context.storageState({ path: OUT_JSON }); } catch (_) {
+    console.log('⚠ Could not save session — browser was closed early');
+    process.exit(1);
+  }
   const data = JSON.parse(fs.readFileSync(OUT_JSON, 'utf8'));
   const b64  = Buffer.from(JSON.stringify(data)).toString('base64');
   fs.writeFileSync(OUT_B64, b64);

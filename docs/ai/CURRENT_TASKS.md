@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-19 (FoodPanda PH daily price check system)
+Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 DB + API scaffold)
+
+---
+
+## 🚧 In Progress: Store Operation Management Channel (Day 1 complete, Day 2 next)
+
+**Phase**: Day 1 — Base scaffolding done
+
+### Sprint 0 (done)
+- ✅ Base Roll prep coefficient: 0.9 → 0.75 (`main.py` ×2 + docstring)
+- ✅ Backup mobile text cut-off: `truncate` → `break-words min-w-0` (`src/app/admin/backup/page.tsx:701`)
+- ❌ Photo save TTL 24h → 32h: location not found — **needs user clarification**
+
+### Day 1 (done)
+- ✅ `management_tasks` table — `db.py: ensure_management_tables()`
+- ✅ `action_templates` table — same function
+- ✅ `bo_assignments` table — same function
+- ✅ DB functions: `get/create/update_management_task`, `get/upsert_action_template`, `get/upsert_bo_assignment`
+- ✅ API (admin): `GET/POST /api/admin/management/tasks`, `PATCH /api/admin/management/tasks/{id}`
+- ✅ API (admin): `GET/POST /api/admin/management/templates`, `GET /api/admin/management/templates/{type}`
+- ✅ API (admin): `GET/POST /api/admin/management/bo-assignments`
+- ✅ API (store): `GET /api/store/management/tasks`, `POST /api/store/management/tasks/{id}/respond`
+
+### Day 2 (next)
+- BO Dashboard: `src/app/admin/management/back-office/page.tsx`
+- Manager Inbox: `src/app/store/management/inbox/page.tsx`
+
+### Day 3 (pending Ueshima-san template wording)
+- PM Backup missing detection trigger
+- Disposal NIL vs Missing distinction
+- Backup 70%/50% threshold alerts
+
+**Proxy routes needed (Day 2):**
+- `src/app/api/admin/management/[...slug]/route.ts` (admin routes — may already be covered by wildcard proxy)
+- `src/app/api/store/management/[...slug]/route.ts` (store routes)
 
 ---
 
@@ -28,8 +62,14 @@ Last updated: 2026-08-19 (FoodPanda PH daily price check system)
 - `FP_EMAIL_TAFT`, `FP_PASSWORD_TAFT`
 - `FP_EMAIL_QC`, `FP_PASSWORD_QC`
 
-**Note**: FoodPanda menu API is behind Cloudflare Access; uses Playwright browser to intercept
-menu API responses. Auth works directly via `partner-auth.ap.prd.portal.restaurant`.
+**API approach (fully working, no Playwright):**
+- Auth: `POST partner-auth.ap.prd.portal.restaurant/auth/v5/login-two-step` → JWT
+- Catalog: `GET vendor-api-gdp-ph.as.restaurant-partners.com/api/5/platforms/FP_PH/vendors/{id}/catalogs?locale=en`
+  - Response: `{ catalogs: [{id, name, categories: [{id, name}]}] }` — categories embedded
+- Products: `GET .../catalogs/{catalogId}/categories/{categoryId}/products?locale=en&sizeSupport=true`
+  - Price field: `unitPrice` (not `price`)
+- **Confirmed working 2026-08-19**: Paranaque 91 items, Taft 84 items, Cubao 84 items
+- Runs in ~15s total, no browser needed, no 2FA
 
 ---
 

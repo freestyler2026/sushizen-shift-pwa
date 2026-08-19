@@ -698,7 +698,7 @@ function TemplateSectionBlock({
               return (
                 <div key={item.key}>
                   <div className="flex items-center justify-between mb-1 gap-1">
-                    <label className="text-xs text-zinc-400 truncate flex-1" title={item.label}>
+                    <label className="text-xs text-zinc-400 flex-1 leading-tight break-words min-w-0">
                       {item.label}
                     </label>
                     {std && (
