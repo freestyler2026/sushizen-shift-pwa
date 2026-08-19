@@ -236,12 +236,12 @@ ul.body-list strong { color: var(--text); }
   <div class="nav-item" onclick="show('bo-dashboard')">
     <span class="nav-icon">💼</span>
     <span class="ja">BO ダッシュボード</span><span class="en">BO Dashboard</span>
-    <span class="nav-badge soon">Day 2</span>
+    <span class="nav-badge live">Live</span>
   </div>
   <div class="nav-item" onclick="show('manager-inbox')">
     <span class="nav-icon">📥</span>
     <span class="ja">マネージャー受信箱</span><span class="en">Manager Inbox</span>
-    <span class="nav-badge soon">Day 2</span>
+    <span class="nav-badge live">Live</span>
   </div>
   <div class="nav-item" onclick="show('area-manager')">
     <span class="nav-icon">📊</span>
@@ -278,7 +278,7 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">Store Operation Management Channel</div>
         <div class="section-title en">Store Operation Management Channel</div>
-        <div class="section-path">System Design — Day 1 Live / Day 2–4 In Progress</div>
+        <div class="section-path">System Design — Day 1 & 2 Live (v2010) / Day 3–4 In Progress</div>
         <div class="section-desc ja">店舗で発生した例外を自動検知し、Back Officeスタッフを経由してストアマネージャーへ1クリックで指示を送るシステム。</div>
         <div class="section-desc en">Automatically detects store exceptions, routes them through Back Office staff, and delivers pre-written instructions to the store manager with one click.</div>
       </div>
@@ -599,19 +599,19 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">Back Office ダッシュボード</div>
         <div class="section-title en">Back Office Dashboard</div>
-        <div class="section-path">/admin/management/back-office — Day 2 実装予定</div>
+        <div class="section-path">/admin/management/back-office — Live (Heroku v2010)</div>
         <div class="section-desc ja">BOスタッフが担当例外を確認し、1クリックでマネージャーへ指示を送るページ。</div>
         <div class="section-desc en">The page where BO staff review their assigned exceptions and send instructions to managers with one click.</div>
       </div>
     </div>
 
-    <div class="tip warn">
-      <span class="tip-icon">🔧</span>
-      <span class="ja">このページはDay 2で実装されます。以下はプレビューです。</span>
-      <span class="en">This page will be implemented in Day 2. The following is a preview.</span>
+    <div class="tip">
+      <span class="tip-icon">✅</span>
+      <span class="ja">このページはDay 2で実装済みです（Heroku v2010）。NavBar「BO Dashboard」からアクセスできます。</span>
+      <span class="en">This page is live as of Day 2 (Heroku v2010). Access it via NavBar → "BO Dashboard".</span>
     </div>
 
-    <h2><span class="ja">BO Dashboard — 画面プレビュー</span><span class="en">BO Dashboard — Screen Preview</span></h2>
+    <h2><span class="ja">BO Dashboard — 画面構成</span><span class="en">BO Dashboard — Screen Layout</span></h2>
     <div class="mock-card">
       <div class="mock-header">
         <span class="mock-header-title">BO Staff A — My Tasks</span>
@@ -720,16 +720,16 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">マネージャー受信箱（Manager Inbox）</div>
         <div class="section-title en">Manager Inbox</div>
-        <div class="section-path">/store/management/inbox — Day 2 実装予定</div>
+        <div class="section-path">/store/management/inbox — Live (Heroku v2010)</div>
         <div class="section-desc ja">ストアマネージャーがBOからの指示を受け取り、タップ3回以内で返答できるモバイルファーストのページ。</div>
         <div class="section-desc en">The mobile-first page where store managers receive BO instructions and respond in ≤3 taps.</div>
       </div>
     </div>
 
-    <div class="tip warn">
-      <span class="tip-icon">🔧</span>
-      <span class="ja">このページはDay 2で実装されます。</span>
-      <span class="en">This page will be implemented in Day 2.</span>
+    <div class="tip">
+      <span class="tip-icon">✅</span>
+      <span class="ja">このページはDay 2で実装済みです（Heroku v2010）。NavBar「Management Inbox」からアクセスできます。</span>
+      <span class="en">This page is live as of Day 2 (Heroku v2010). Access it via NavBar → "Management Inbox".</span>
     </div>
 
     <div class="philosophy" style="margin-top:0;">
@@ -902,7 +902,7 @@ ul.body-list strong { color: var(--text); }
       </div>
 
       <div class="rollout-item">
-        <span class="rollout-status">🔧</span>
+        <span class="rollout-status">✅</span>
         <span class="rollout-phase">Day 2</span>
         <div class="rollout-body">
           <div class="rollout-title ja">BO ダッシュボード + マネージャー受信箱</div>
@@ -910,7 +910,7 @@ ul.body-list strong { color: var(--text); }
           <div class="rollout-items ja">/admin/management/back-office · /store/management/inbox （モバイルファースト）</div>
           <div class="rollout-items en">/admin/management/back-office · /store/management/inbox (mobile-first)</div>
         </div>
-        <div><span class="chip orange">NEXT</span></div>
+        <div><span class="chip green">LIVE</span></div>
       </div>
 
       <div class="rollout-item">

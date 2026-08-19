@@ -1,17 +1,17 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 complete + Manual published)
+Last updated: 2026-08-19 (Store Operation Management Channel — Day 2 complete, Heroku v2010)
 
 ---
 
-## 🚧 In Progress: Store Operation Management Channel (Day 1 complete, Day 2 next)
+## 🚧 In Progress: Store Operation Management Channel (Day 2 complete, Day 3 next)
 
-**Phase**: Day 1 — Base scaffolding done
+**Phase**: Day 2 — BO Dashboard + Manager Inbox live
 
 ### Sprint 0 (done)
 - ✅ Base Roll prep coefficient: 0.9 → 0.75 (`main.py` ×2 + docstring)
 - ✅ Backup mobile text cut-off: `truncate` → `break-words min-w-0` (`src/app/admin/backup/page.tsx:701`)
-- ❌ Photo save TTL 24h → 32h: location not found — **needs user clarification**
+- ❌ Photo save TTL 24h → 32h: location not found — **needs user clarification** (photos stored as raw bytes permanently in DB, no TTL)
 
 ### Day 1 (done)
 - ✅ `management_tasks` table — `db.py: ensure_management_tables()`
@@ -24,18 +24,28 @@ Last updated: 2026-08-19 (Store Operation Management Channel — Day 1 complete 
 - ✅ API (store): `GET /api/store/management/tasks`, `POST /api/store/management/tasks/{id}/respond`
 - ✅ Manual published: `docs/manuals/management-channel-manual.html` → https://claude.ai/code/artifact/5dbc366b-bd8e-4aca-80bd-763f8ddbe9e3
 
-### Day 2 (next)
-- BO Dashboard: `src/app/admin/management/back-office/page.tsx`
-- Manager Inbox: `src/app/store/management/inbox/page.tsx`
+### Day 2 (done — Heroku v2010, Vercel ac1558e)
+- ✅ BO Dashboard: `src/app/admin/management/back-office/page.tsx`
+  - KPI cards (open/sent/responded/closed), city+status filters (SelectDark)
+  - Task list sorted severity→created_at, SendModal with template preview + response chips
+  - PATCH /api/admin/management/tasks/{id} on send
+- ✅ Manager Inbox: `src/app/store/management/inbox/page.tsx`
+  - Branch selector per city (Manila: PAR/CUB/TAFT, Dubai: BB/JLT/ARJ/AM/AB)
+  - Pending+completed KPI cards, TaskCard with tap-to-respond buttons
+  - POST /api/store/management/tasks/{id}/respond, showDone toggle
+- ✅ NavBar: BO Dashboard (admin) + Management Inbox (store) added
+- ✅ access_control.py: admin.management_back_office + store.management_inbox channels added
+  - Permissions granted to DUBAI_MANAGEMENT, MANILA_MANAGEMENT, ADMIN
+- ✅ Manual republished with Day 2 "Live" status
+
+**⚠️ Pending action after Heroku v2010 deploys:**
+- Role Management → "Resync System Channels" ボタンを押してDBを同期する (CLAUDE.md rule #11)
+- Templates seeding: DB currently has no action_templates — BO Dashboard shows warning, Manager Inbox uses hardcoded fallbacks
 
 ### Day 3 (pending Ueshima-san template wording)
 - PM Backup missing detection trigger
 - Disposal NIL vs Missing distinction
 - Backup 70%/50% threshold alerts
-
-**Proxy routes needed (Day 2):**
-- `src/app/api/admin/management/[...slug]/route.ts` (admin routes — may already be covered by wildcard proxy)
-- `src/app/api/store/management/[...slug]/route.ts` (store routes)
 
 ---
 
