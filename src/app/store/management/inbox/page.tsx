@@ -324,7 +324,7 @@ export default function ManagerInboxPage() {
 
   const loadTemplates = useCallback(async () => {
     try {
-      const headers = getAuthHeaders(auth);
+      const headers = getAuthHeaders(getAuth());
       const res = await fetch("/api/admin/management/templates", { headers });
       if (!res.ok) return;
       const data = await res.json();
@@ -332,14 +332,14 @@ export default function ManagerInboxPage() {
       for (const t of data.templates || []) map[t.exception_type] = t;
       setTemplates(map);
     } catch { /* silently ignore */ }
-  }, [auth]);
+  }, []);
 
   const loadTasks = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     else setRefreshing(true);
     setError("");
     try {
-      const headers = getAuthHeaders(auth);
+      const headers = getAuthHeaders(getAuth());
       const params = new URLSearchParams({ limit: "100" });
       if (city)   params.set("city", city);
       if (branch) params.set("branch", branch);
@@ -353,7 +353,7 @@ export default function ManagerInboxPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [auth, city, branch]);
+  }, [city, branch]);
 
   useEffect(() => {
     loadTemplates();
@@ -364,7 +364,7 @@ export default function ManagerInboxPage() {
   }, [loadTasks, branch]);
 
   async function handleRespond(task: ManagementTask, response: string, note: string) {
-    const headers = getAuthHeaders(auth);
+    const headers = getAuthHeaders(getAuth());
     const body: Record<string, string> = { response };
     if (note) body.response_note = note;
     const res = await fetch(`/api/store/management/tasks/${task.id}/respond`, {

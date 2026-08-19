@@ -330,7 +330,7 @@ export default function BODashboardPage() {
   }, []);
 
   const loadTemplates = useCallback(async () => {
-    const headers = getAuthHeaders(auth);
+    const headers = getAuthHeaders(getAuth());
     const res = await fetch("/api/admin/management/templates", { headers });
     if (!res.ok) return;
     const data = await res.json();
@@ -339,14 +339,14 @@ export default function BODashboardPage() {
       map[t.exception_type] = t;
     }
     setTemplates(map);
-  }, [auth]);
+  }, []);
 
   const loadTasks = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     else setRefreshing(true);
     setError("");
     try {
-      const headers = getAuthHeaders(auth);
+      const headers = getAuthHeaders(getAuth());
       const params = new URLSearchParams({ city: cityFilter, limit: "100" });
       if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
       const res = await fetch(`/api/admin/management/tasks?${params}`, { headers });
@@ -359,7 +359,7 @@ export default function BODashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [auth, cityFilter, statusFilter]);
+  }, [cityFilter, statusFilter]);
 
   useEffect(() => {
     loadTemplates();
@@ -394,7 +394,7 @@ export default function BODashboardPage() {
     try {
       const template = templates[sendingTask.type];
       const message = template ? template.message_en : customMessage.trim();
-      const headers = getAuthHeaders(auth);
+      const headers = getAuthHeaders(getAuth());
       const res = await fetch(`/api/admin/management/tasks/${sendingTask.id}`, {
         method: "PATCH",
         headers: { ...headers, "Content-Type": "application/json" },
