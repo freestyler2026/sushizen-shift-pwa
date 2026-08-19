@@ -1,6 +1,72 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-18 (Draft Exclusion system + September Manila draft generated)
+Last updated: 2026-08-19 (FoodPanda PH daily price check system)
+
+---
+
+## ✅ Completed: FoodPanda PH Daily Price Check (2026-08-19)
+
+**Goal**: FoodPanda PHも他のアグリゲーター（Grab、Talabat）同様に毎日価格チェックが行われるように設定
+
+**Stores**: Paranaque (t0z4) / Taft (ryqc) / QC/Cubao (a97i)
+
+**Frontend (Vercel):**
+- `scripts/foodpanda/check-prices.js` — Playwright-based scraper (fresh JWT auth per run)
+- `.github/workflows/foodpanda-price-check.yml` — Daily at 23:00 UTC (7:00 AM PHT)
+
+**Backend (Heroku):**
+- `POST /api/foodpanda/portal-price-snapshot` — Webhook endpoint in `main.py`
+  - Creates `foodpanda_portal_price_snapshots` table (vendor_id, item_id, price_php, etc.)
+  - Sends Discord DM on price changes
+  - Handles `SESSION_REQUIRED` / `AUTH_FAILED` as notification signals
+- `run_foodpanda_price_check()` in `aggregator_price_monitor.py`
+  - Reads from `foodpanda_portal_price_snapshots`, aggregates into `aggregator_price_snapshots`
+- `run_all_price_checks()` updated to include `manila_foodpanda`
+
+**GitHub Secrets needed** (set via repository Settings → Secrets):
+- `FP_EMAIL_PARANAQUE`, `FP_PASSWORD_PARANAQUE`
+- `FP_EMAIL_TAFT`, `FP_PASSWORD_TAFT`
+- `FP_EMAIL_QC`, `FP_PASSWORD_QC`
+
+**Note**: FoodPanda menu API is behind Cloudflare Access; uses Playwright browser to intercept
+menu API responses. Auth works directly via `partner-auth.ap.prd.portal.restaurant`.
+
+---
+
+## ✅ Completed: Inactive Staff Auto-exclude + OS Attendance Ghost Cleanup (2026-08-19)
+
+**Goal 1 — Inactive staff auto-excluded from draft**
+
+**Backend (Heroku):**
+- `get_excluded_staff_names()` 修正: `draft_exclusions` に加え、`staff_master.is_active=FALSE` のスタッフも自動除外対象に追加
+- `get_inactive_staff_by_city()` 追加: フロントエンドパネル表示用
+- `cleanup_ghost_os_attendance()` 追加: ゴースト名クリーンアップ用
+- `GET /api/draft/inactive-staff` 追加: Inactiveスタッフ一覧API
+- `DELETE /api/admin/cleanup-ghost-attendance` 追加: 一回限りのクリーンアップエンドポイント
+
+**Frontend (Vercel):**
+- `ExclusionManagerPanel` 更新: `InactiveStaff` 型追加
+- パネル開時に `/api/draft/inactive-staff` を並行fetch
+- "Auto-excluded — Inactive Staff" セクション（グレー・読み取り専用）を手動Addフォームの上に表示
+- バッジ件数 = 手動除外 + Inactive自動除外の合計
+
+**動作**: Staff RosterでInactiveに設定したスタッフは次回ドラフト生成から自動的に除外。スタッフの手動操作不要。
+
+---
+
+**Goal 2 — OS Attendance ゴースト名削除**
+
+**Manila (7名分 → 117セッション削除):**
+- Francis Ibara, Junowel Coronado Trespecios, Diaz John Rey, Cherish Galarosa
+- Gessa O. Gregorio, Jade Raven De Guzman, Mayorico C. Furio Jr. Ⅱ
+
+**Dubai (1セッション削除):**
+- Bikram Manger (R)
+
+実行: `DELETE /api/admin/cleanup-ghost-attendance` を本番ブラウザから呼び出し完了。
+全名義ともに `staff_master` には存在せず（`deactivated_staff: 0`）、`os_attendance_sessions` のみに残っていた記録を削除。
+
+**注意**: ドバイに他にも `(R)` 付き表示名がある場合は名前を教えてください。追加対応します。
 
 ---
 

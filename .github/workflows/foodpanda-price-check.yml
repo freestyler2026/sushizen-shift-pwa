@@ -1,0 +1,39 @@
+name: FoodPanda PH Price Check
+
+on:
+  schedule:
+    # 23:00 UTC = 7:00 AM PHT (UTC+8)
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: .
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run FoodPanda PH price check
+        env:
+          FP_EMAIL_PARANAQUE:    ${{ secrets.FP_EMAIL_PARANAQUE }}
+          FP_PASSWORD_PARANAQUE: ${{ secrets.FP_PASSWORD_PARANAQUE }}
+          FP_EMAIL_TAFT:         ${{ secrets.FP_EMAIL_TAFT }}
+          FP_PASSWORD_TAFT:      ${{ secrets.FP_PASSWORD_TAFT }}
+          FP_EMAIL_QC:           ${{ secrets.FP_EMAIL_QC }}
+          FP_PASSWORD_QC:        ${{ secrets.FP_PASSWORD_QC }}
+          WEBHOOK_URL:           https://sushizen-shift-app-038d846023bc.herokuapp.com/api/foodpanda/portal-price-snapshot
+        run: node scripts/foodpanda/check-prices.js

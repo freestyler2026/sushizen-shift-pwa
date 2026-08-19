@@ -73,3 +73,8 @@ scripts/talabat/talabat-session.json
 scripts/talabat/talabat-session-trimmed.json
 scripts/talabat/talabat-session.b64.txt
 scripts/talabat/talabat-api-discovery.json
+
+# FoodPanda session files (contain auth tokens — never commit)
+scripts/foodpanda/*-session.json
+scripts/foodpanda/*-session.b64.txt
+scripts/foodpanda/*-api-discovery.json
