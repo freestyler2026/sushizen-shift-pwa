@@ -25,7 +25,8 @@ jobs:
 
       - name: Decode Talabat session state
         run: |
-          echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json
+          echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json.gz
+          gunzip /tmp/talabat-state.json.gz
 
       - name: Refresh Bearer token (headless)
         run: node scripts/talabat/refresh-token.js
