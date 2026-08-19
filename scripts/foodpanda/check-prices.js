@@ -170,7 +170,7 @@ async function fetchAllProducts(vendorId, token) {
 function extractPrice(p) {
   // FoodPanda API typically uses 'price' field directly (in PHP)
   for (const field of [
-    'price', 'selling_price', 'list_price', 'discounted_price',
+    'price', 'unitPrice', 'unit_price', 'selling_price', 'list_price', 'discounted_price',
     'original_price', 'base_price', 'platform_price',
   ]) {
     const v = p[field];
