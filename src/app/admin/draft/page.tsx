@@ -1020,6 +1020,8 @@ const REASON_OPTIONS = [
   { value: "other", label: "⚪ Other" },
 ];
 
+type InactiveStaff = { staff_name: string; branch_code: string };
+
 function ExclusionManagerPanel({
   city,
   approverName,
@@ -1031,6 +1033,7 @@ function ExclusionManagerPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [exclusions, setExclusions] = useState<DraftExclusion[]>([]);
+  const [inactiveStaff, setInactiveStaff] = useState<InactiveStaff[]>([]);
   const [loading, setLoading] = useState(false);
   const [branch, setBranch] = useState("");
   const [staffName, setStaffName] = useState("");
@@ -1045,9 +1048,14 @@ function ExclusionManagerPanel({
     if (!city) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/draft/exclusions?city=${encodeURIComponent(city)}`);
-      const j = await res.json();
-      setExclusions(Array.isArray(j.exclusions) ? j.exclusions : []);
+      const [exRes, inRes] = await Promise.all([
+        fetch(`/api/draft/exclusions?city=${encodeURIComponent(city)}`),
+        fetch(`/api/draft/inactive-staff?city=${encodeURIComponent(city)}`),
+      ]);
+      const exJ = await exRes.json();
+      const inJ = await inRes.json();
+      setExclusions(Array.isArray(exJ.exclusions) ? exJ.exclusions : []);
+      setInactiveStaff(Array.isArray(inJ.inactive_staff) ? inJ.inactive_staff : []);
     } catch { /* ignore */ }
     setLoading(false);
   }
@@ -1098,7 +1106,11 @@ function ExclusionManagerPanel({
       <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
         <span className="flex items-center gap-2 font-semibold text-rose-300">
           <span className="text-lg">🚫</span> Draft Exclusions
-          {exclusions.length > 0 && <span className="ml-2 rounded-full bg-rose-500/20 px-2 py-0.5 text-xs text-rose-200">{exclusions.length} excluded</span>}
+          {(exclusions.length + inactiveStaff.length) > 0 && (
+            <span className="ml-2 rounded-full bg-rose-500/20 px-2 py-0.5 text-xs text-rose-200">
+              {exclusions.length + inactiveStaff.length} excluded
+            </span>
+          )}
         </span>
         <span className="text-neutral-400 text-sm">{open ? "▲" : "▼"}</span>
       </button>
@@ -1106,9 +1118,40 @@ function ExclusionManagerPanel({
         <div className="mt-4 space-y-4">
           <p className="text-xs text-neutral-400">Staff listed here are automatically skipped when generating monthly drafts. Use for fired staff, duplicates, no-pay leave, or branch transfers.</p>
 
+          {/* Auto-excluded: Inactive staff from Staff Roster */}
+          {inactiveStaff.length > 0 && (
+            <div className="rounded-xl border border-neutral-700/50 bg-neutral-800/30 p-4 space-y-2">
+              <p className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
+                <span>🔴</span> Auto-excluded — Inactive Staff (from Staff Roster)
+              </p>
+              <p className="text-xs text-neutral-500">These staff are set to Inactive in the Staff Roster and are automatically excluded from all draft generation. No manual action needed.</p>
+              <div className="space-y-2">
+                {Object.entries(
+                  inactiveStaff.reduce<Record<string, InactiveStaff[]>>((acc, s) => {
+                    (acc[s.branch_code] = acc[s.branch_code] || []).push(s);
+                    return acc;
+                  }, {})
+                ).sort(([a], [b]) => a.localeCompare(b)).map(([bc, items]) => (
+                  <div key={bc}>
+                    <p className="text-xs font-medium text-neutral-400 mb-1">{labelOf(city as City, bc)} ({bc})</p>
+                    <div className="space-y-1">
+                      {items.map((s) => (
+                        <div key={s.staff_name} className="flex items-center gap-2 rounded-lg bg-neutral-900/40 px-3 py-1.5">
+                          <span className="text-xs text-neutral-500">●</span>
+                          <span className="text-sm text-neutral-300">{s.staff_name}</span>
+                          <span className="ml-auto text-xs text-neutral-600 bg-neutral-800 rounded px-1.5 py-0.5">Inactive</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Add form */}
           <div className="rounded-xl border border-rose-500/10 bg-black/20 p-4 space-y-3">
-            <p className="text-xs font-medium text-rose-200">Add exclusion</p>
+            <p className="text-xs font-medium text-rose-200">Add exclusion (manual)</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div>
                 <label className="block text-xs text-neutral-400 mb-1">Branch</label>
