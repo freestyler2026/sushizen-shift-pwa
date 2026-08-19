@@ -131,6 +131,7 @@ interface LeaveSalaryReq {
 }
 
 interface Summary {
+  employee_id?: string | null;
   latest_payslip: {
     net_pay: number;
     currency: string;
@@ -1101,6 +1102,11 @@ export default function MyPayPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-violet-400 mb-1">Self-Service</p>
             <h1 className={T_PAGE_TITLE}>My Pay</h1>
+            {summary?.employee_id && (
+              <p className="text-xs text-zinc-500 mt-1">
+                Employee ID: <span className="font-mono text-zinc-300">{summary.employee_id}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
