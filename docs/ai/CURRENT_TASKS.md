@@ -1,6 +1,55 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-20 (NTE Management admin page — Vercel c5b2872 + NavBar)
+Last updated: 2026-08-20 (Attendance Summary tab — Vercel 7a07e8d / Heroku v2032)
+
+---
+
+## ✅ Completed: OS Attendance — Summary Tab (2026-08-20, Vercel 7a07e8d / Heroku v2032)
+
+**Requested by**: Peter (HR staff) — wants per-employee absent/late totals for NTE offense counting and evaluation.
+
+**Backend** (`app/db.py`, `app/main.py`):
+- New function `get_attendance_absent_late_summary(city, date_from, date_to, branch_code)` in db.py
+  - Queries `os_attendance_sessions` for worked days + late detection (via `get_shift_schedule_for_date`)
+  - Queries `absences` table for explicit absence records
+  - Returns per-staff: `worked_days`, `absent_count`, `late_count`, `total_late_min`, `no_clockout_count`
+  - Late threshold: ≥5 min after scheduled start
+- New endpoint `GET /api/admin/attendance/absent-late-summary?city=&date_from=&date_to=&branch_code=`
+
+**Frontend** (`src/app/admin/os-attendance/page.tsx`):
+- New `Summary` tab (between Staff Report and Corrections)
+- KPI cards: Staff count / Total Absences (red) / Total Late (amber) / Flagged Staff count
+- Sortable table: Staff, Branch, Worked, Absent, Late, Late Time, No C/O, Status
+- Color flags: Absent ≥3 = red badge, Late ≥5 = amber badge, both = "High Risk" badge
+- Date range + branch filter; Export CSV button
+- Auto-loads current month on tab open
+
+**Verified live**: 69 staff, 79 absences, 153 late arrivals, 22 flagged for Manila Aug 1–20, 2026.
+
+---
+
+## ✅ Completed: NTE Wizard Bug Fixes — Testing Session (2026-08-20, Vercel 3a4867f)
+
+End-to-end testing of the NTE wizard revealed and fixed 3 additional bugs:
+
+**Bug 4 — Self-approval prohibited** (Vercel d1cdf4c):
+- Root cause: wizard called `approve` as the same user who reviewed the IR — backend 4-eyes constraint blocks this
+- Fix: wizard now stops after `generate_nte_draft` (case enters APPROVAL_PENDING). A second admin must approve+serve from the case detail view.
+- Updated Step 3 button from "Issue NTE to {name}" → "Submit NTE for Approval"
+- Updated Step 3 description to explain the 2-admin flow
+
+**Bug 5 — `observed_acts` frontend min was 30, backend requires 120** (Vercel e90b62a):
+- Fix: updated `step2Valid` guard to 120 chars; updated hint text from "Minimum 30" → "Minimum 120"
+
+**Bug 6 — `operational_impact` not validated frontend-side, backend requires 60 chars** (Vercel 3a4867f):
+- Fix: added to `step2Valid` guard; added hint text "Minimum 60 characters" and char counter
+
+**Wizard now works end-to-end** ✅:
+- Test confirmed: NTE-PH-UNK-2026-0002 created for Test Staff / ATT-001 / Written Warning
+- ACTIVE CASES: 2, TOTAL CASES: 3 after test
+- Case appears in Active tab in APPROVAL_PENDING state
+
+**Known limitation**: Approval and Serve must be done by a different admin (4-eyes). In a single-admin test environment, these steps must be done manually via the case detail buttons.
 
 ---
 
@@ -16,8 +65,8 @@ Last updated: 2026-08-20 (NTE Management admin page — Vercel c5b2872 + NavBar)
 - **DecisionModal**: record DISMISSED / WRITTEN_WARNING / SUSPENSION / TERMINATION with notes
 - **Issue New NTE wizard** (3 steps):
   1. Staff & Violation (staff name, violation catalog, severity, store)
-  2. Incident Details (description, date, evidence items)
-  3. Review & Issue (fully automated: create IR → add evidence → submit → confirm_violation → generate_nte_draft → approve → serve)
+  2. Incident Details (body ≥120 chars, operational impact ≥60 chars, evidence items)
+  3. Review & Submit (create IR → add evidence → submit → confirm_violation → generate_nte_draft → APPROVAL_PENDING)
 - Roles: HQ, ADMIN, HR_MANAGER, MANILA_MANAGEMENT, MANILA_MANAGER
 
 **NavBar** (`src/components/NavBar.tsx`):
@@ -27,7 +76,7 @@ Last updated: 2026-08-20 (NTE Management admin page — Vercel c5b2872 + NavBar)
 **Notes**:
 - Backend (NTE v2) was already fully built (`nte_v2_api.py`, `db_nte_v2*.py`) — only frontend was missing
 - The old `/admin/employee-cases` page still exists in NavBar for backward compatibility
-- Existing test data: 1 TOTAL_CASES, 5 Incident Reports in the system
+- Orphaned test IRs exist (IR-PH-UNK-202608-0005 through 0009+) — test artifacts, can be cleaned up
 
 ---
 
