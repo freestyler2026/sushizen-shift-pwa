@@ -233,6 +233,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" },
+  { href: "/admin/nte", label: "NTE Management", icon: ShieldAlert, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },
@@ -394,6 +395,7 @@ export default function NavBar() {
     if (href === "/admin/meal-allowance") return canAccessMealAllowanceAdmin(auth);
     if (href === "/admin/probation") return canAccessProbationAdmin(auth);
     if (href === "/admin/employee-cases") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/nte") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/performance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);

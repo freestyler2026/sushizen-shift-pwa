@@ -1,10 +1,108 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-20 (Salmon Portioning / Yield Control 完全実装 — Heroku v2018, Vercel c682b41)
+Last updated: 2026-08-20 (NTE Management admin page — Vercel c5b2872 + NavBar)
 
 ---
 
-## ✅ Completed: Salmon Portioning / Yield Control (2026-08-20, Heroku v2018, Vercel c682b41)
+## ✅ Completed: NTE Management Admin Page (2026-08-20, Vercel c5b2872)
+
+**Goal**: `/admin/nte` was a `notFound()` stub — build the full HR NTE management UI so Peter (HR Manager) can adopt the OS workflow instead of personal Word files.
+
+**Frontend** (`src/app/admin/nte/page.tsx`):
+- Complete rewrite: 1004-line full NTE management page
+- KPI cards: Active Cases / Awaiting Response / Overdue / Total Cases
+- **NTE Cases tab**: expandable case cards with state-machine action buttons (Generate NTE Draft → Approve → Serve → Record Response → Decide)
+- **Incident Reports tab**: shows all IRs with IR_SUBMITTED / DRAFT / CLOSED badges
+- **DecisionModal**: record DISMISSED / WRITTEN_WARNING / SUSPENSION / TERMINATION with notes
+- **Issue New NTE wizard** (3 steps):
+  1. Staff & Violation (staff name, violation catalog, severity, store)
+  2. Incident Details (description, date, evidence items)
+  3. Review & Issue (fully automated: create IR → add evidence → submit → confirm_violation → generate_nte_draft → approve → serve)
+- Roles: HQ, ADMIN, HR_MANAGER, MANILA_MANAGEMENT, MANILA_MANAGER
+
+**NavBar** (`src/components/NavBar.tsx`):
+- Added `{ href: "/admin/nte", label: "NTE Management", icon: ShieldAlert }` after "Notice to Explain"
+- Permission rule: `["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"]`
+
+**Notes**:
+- Backend (NTE v2) was already fully built (`nte_v2_api.py`, `db_nte_v2*.py`) — only frontend was missing
+- The old `/admin/employee-cases` page still exists in NavBar for backward compatibility
+- Existing test data: 1 TOTAL_CASES, 5 Incident Reports in the system
+
+---
+
+## ✅ Completed: Company Assets — Issued To/Date + Edit/Delete (2026-08-20, Heroku v2031, Vercel c47ca58)
+
+**要求**: スタッフから以下3点の追加要望:
+1. 誰に渡したか（Issued To）フィールド追加
+2. いつ渡したか（Issued Date）フィールド追加
+3. 各行にEdit・Deleteボタン追加
+
+**フロントエンド** (`src/app/admin/assets/page.tsx`):
+- `Asset` インターフェースに `issued_to: string` / `issued_date: string | null` 追加
+- `AddAssetModal`: Issued To / Issued Date フィールド追加
+- `EditAssetModal` コンポーネント新規作成 (全フィールド編集可能)
+- `AssetRow`: Edit ボタン・Delete ボタン（確認付き）追加
+- テーブルに "Issued To" カラム追加（9列構成）
+- 展開行の Loan History タブに `issued_to` / `issued_date` 表示
+
+**バックエンド** (`app/db_assets.py`, `app/main.py`):
+- `company_assets` テーブルに `issued_to TEXT NOT NULL DEFAULT ''` / `issued_date DATE` カラム追加（`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`）
+- `_asset_row_to_dict` / SELECT クエリ / `create_asset` / `update_asset` 更新
+- `delete_asset()` 関数追加（関連レコードを CASCADE で削除）
+- `DELETE /api/admin/assets/{asset_id}` エンドポイント追加
+
+---
+
+---
+
+## ✅ Completed: ログイン Name List unavailable 修正 (2026-08-20, Heroku v2021)
+
+**症状**: ログインページで "Name list unavailable — type your name manually." が表示され、スタッフ名ドロップダウンが機能しない。リモートログアウト後に発生しやすい。
+
+**根本原因**: `session_guard` ミドルウェア（main.py）が `/api/admin/staff_master/names` を誤ってブロックしていた。
+1. リモートログアウト → DB でセッションを `is_valid=FALSE` に設定
+2. ブラウザには `sz_session` cookie が **残存**
+3. ログインページが名前リストを取得 → Next.js プロキシが残存 `sz_session` を `X-Session-Id` ヘッダーとして Heroku へ転送
+4. `session_guard` がそのセッションを検証 → `is_valid=FALSE` → 401 を返す
+5. `fetchStaffNames` が 401 → catch → "Name list unavailable"
+
+**修正**: `main.py:1136` の `is_excluded` リストに `/api/admin/staff_master/names` を追加。  
+このエンドポイントはログインページ用の認証不要な公開エンドポイントであり、stale session でブロックされるべきではない。
+
+**デプロイ**: Heroku v2021 (commit `259b242`)
+
+---
+
+## ✅ Completed: Anthony Andales 2026-08-1H 給与バグ修正 (2026-08-20)
+
+**問題**: 2026-08-1H (period_id=5, run_id=2072) で Jul 26・27・28 の欠勤控除が発生せず、月給半額 ₱10,032.50 がそのまま支払われる計算になっていた。
+
+**根本原因**: `manila_compute_period` の pre-compute ステップが Jul 26〜28 を `rest_day` に変換したため。
+- Jul 26〜28 は `is_worked=FALSE, awp=FALSE` かつ `shift_published_rows` にシフト未登録（7月シフトはDraftから編集不可だったため）
+- Pre-compute SQL: `absent_without_pay = FALSE AND NOT EXISTS (shift)` → `day_type='rest_day'` に変換
+- 結果: engine が deduction を計算せず gross ₱10,152.70 がそのまま net 計算に流れた
+
+**修正方法**:
+1. `PUT /api/admin/manila-payroll/attendance/Anthony%20Andales/{date}` で Jul 26・27・28 を修正:
+   - `day_type='ordinary_day', is_scheduled_rest_day=false, absent_without_pay=true`
+   - `absent_without_pay=TRUE` により次回 Compute でも pre-compute が再変換しない
+2. `POST /api/admin/manila-payroll/runs/2072/compute` で Anthony の run のみ個別再 Compute
+
+**修正結果**:
+| | 修正前 | 修正後 |
+|---|---|---|
+| ABSENT_DEDUCTION (×3) | なし | -₱769.27 × 3 |
+| Total Deductions | -₱850.82 | -₱3,158.63 |
+| Net Pay | ₱9,301.88 | **₱6,994.07** |
+
+**ヘッダーの「₱8,461.917」との差額について**: ヘッダーは直接方式（11日 × ₱769.27）、エンジンは差引方式（₱10,032.50 − 3日控除）を使用。この期間は実働14日でデルタ法方式が Direct 方式より ₱737 低くなる。計算方式の違いによる既知の差異でバグではない。
+
+**再発防止**: 7月シフトがシステムに存在しない期間（Jul 26〜28）は必ず Compute 前に DTR でAWP=TRUE を手動確認する必要がある。
+
+---
+
+## ✅ Completed: Salmon Portioning / Yield Control (2026-08-20, Heroku v2020, Vercel c682b41)
 
 **Goal**: Backup Report ページにサーモン仕込みのYield Control機能を統合
 
@@ -24,6 +122,21 @@ Last updated: 2026-08-20 (Salmon Portioning / Yield Control 完全実装 — Her
 **Heroku config vars** (設定済み):
 - `SALMON_PICTURE_FOLDER_ID=0ADqncGA1knZCUk9PVA`
 - `SALMON_PICTURE_SA_JSON_KEY=Backoffice_Daily_Evaluation_JSON` (v2017で設定済み)
+
+**Bug fix (Heroku v2020, commit a47142a)**:
+- `create_task_message()` に `author_id=0` が欠落 → `TypeError` が `except Exception: pass` で無音スルーされBO自動メッセージが未作成。`author_id=0` 追加で修正。
+
+**E2E テスト結果 (2026-08-20) — 全項目PASS**:
+- ✅ "Done today" チェックボックス: ON時にWhole/Main/Topping/Photo入力が展開
+- ✅ Waste計算: 6kg-4.5kg-0.8kg=700g → 11.7% リアルタイム表示
+- ✅ ≥5% 警告: "High waste — management will be notified" 表示
+- ✅ <5% 表示: 4.0%(200g) 警告なし
+- ✅ Past Reports バッジ: "Salmon 14.0%" / "Salmon 4.0%" 各レポート行に表示
+- ✅ Past Reports 展開: Whole:5000g / Main:3500g(or4000g) / Topping:800g / Waste:700g(or200g)
+- ✅ Yield Control KPI: 2 records / 9.0% overall / 1 high-waste event / 0.90 kg
+- ✅ Branch Summary: BB行 avg9.0% / min4.0% / max14.0% / 1アラート
+- ✅ Records list: 両レポート (14%/4%) が重量詳細込みで表示
+- ✅ BO auto-message: task 35 に "Salmon waste at BB was 14.0% today..." が正しく添付済み
 
 **Pending (次のセッション)**:
 - 見本画像フォルダに画像追加後、AI Scoringロジック実装（Claude Vision API使用）
