@@ -36,6 +36,8 @@ interface Asset {
   city: string;
   status: AssetStatus;
   notes: string;
+  issued_to: string;
+  issued_date: string | null;
   on_loan: boolean;
   current_assignee: string | null;
   current_assignee_type: AssigneeType | null;
@@ -122,7 +124,7 @@ function AddAssetModal({
 }) {
   const [form, setForm] = useState({
     asset_tag: "", asset_type: "laptop", brand: "", model: "",
-    serial_number: "", notes: "", city,
+    serial_number: "", notes: "", city, issued_to: "", issued_date: "",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -183,6 +185,16 @@ function AddAssetModal({
             <label className={`${T_LABEL} mb-1 block`}>City</label>
             <SelectDark value={form.city} onChange={v => set("city", v)} options={[{ value: "manila", label: "Manila" }, { value: "dubai", label: "Dubai" }]} />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Issued To</label>
+              <input className={INPUT_CLASS} value={form.issued_to} onChange={e => set("issued_to", e.target.value)} placeholder="Person name" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Issued Date</label>
+              <input type="date" className={INPUT_CLASS} value={form.issued_date} onChange={e => set("issued_date", e.target.value)} />
+            </div>
+          </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Notes</label>
             <textarea className={TEXTAREA_CLASS} rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Optional notes..." />
@@ -191,6 +203,105 @@ function AddAssetModal({
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} flex-1`}>Cancel</button>
             <button type="submit" disabled={saving} className={`${PRIMARY_BUTTON} flex-1`}>{saving ? "Saving..." : "Register"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Asset Modal ─────────────────────────────────────────────────────────
+
+function EditAssetModal({
+  asset, auth, onClose, onUpdated,
+}: {
+  asset: Asset;
+  auth: ReturnType<typeof getAuth>;
+  onClose: () => void;
+  onUpdated: (a: Asset) => void;
+}) {
+  const [form, setForm] = useState({
+    asset_type: asset.asset_type,
+    brand: asset.brand,
+    model: asset.model,
+    serial_number: asset.serial_number,
+    status: asset.status,
+    notes: asset.notes,
+    issued_to: asset.issued_to ?? "",
+    issued_date: asset.issued_date ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/assets/${asset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth?.accessToken}` },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed");
+      onUpdated(data.asset);
+      onClose();
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className={`${GLASS_CARD} relative w-full max-w-md`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className={T_SECTION}>Edit — {asset.asset_tag}</h2>
+          <button onClick={onClose} className="text-white/40 hover:text-white"><X size={18} /></button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Type</label>
+              <SelectDark value={form.asset_type} onChange={v => set("asset_type", v)} options={Object.entries(ASSET_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Status</label>
+              <SelectDark value={form.status} onChange={v => set("status", v)} options={[{ value: "active", label: "Active" }, { value: "retired", label: "Retired" }]} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Brand</label>
+              <input className={INPUT_CLASS} value={form.brand} onChange={e => set("brand", e.target.value)} placeholder="Dell" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Model</label>
+              <input className={INPUT_CLASS} value={form.model} onChange={e => set("model", e.target.value)} placeholder="XPS 13" />
+            </div>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Serial Number</label>
+            <input className={INPUT_CLASS} value={form.serial_number} onChange={e => set("serial_number", e.target.value)} placeholder="SN-XXXXXX" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Issued To</label>
+              <input className={INPUT_CLASS} value={form.issued_to} onChange={e => set("issued_to", e.target.value)} placeholder="Person name" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>Issued Date</label>
+              <input type="date" className={INPUT_CLASS} value={form.issued_date} onChange={e => set("issued_date", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Notes</label>
+            <textarea className={TEXTAREA_CLASS} rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Optional notes..." />
+          </div>
+          {err && <p className="text-sm text-red-400">{err}</p>}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} flex-1`}>Cancel</button>
+            <button type="submit" disabled={saving} className={`${PRIMARY_BUTTON} flex-1`}>{saving ? "Saving..." : "Save Changes"}</button>
           </div>
         </form>
       </div>
@@ -643,17 +754,34 @@ function LifecyclePanel({ asset, auth }: { asset: Asset; auth: ReturnType<typeof
 // ─── Asset Row ────────────────────────────────────────────────────────────────
 
 function AssetRow({
-  asset, auth, staffList, onUpdated,
+  asset, auth, staffList, onUpdated, onDeleted,
 }: {
   asset: Asset;
   auth: ReturnType<typeof getAuth>;
   staffList: string[];
   onUpdated: (a: Asset) => void;
+  onDeleted: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"history" | "lifecycle">("lifecycle");
   const [showLoan, setShowLoan] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/assets/${asset.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth?.accessToken}` },
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || "Failed"); }
+      onDeleted(asset.id);
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : "Delete failed"); }
+    finally { setDeleting(false); setConfirmDelete(false); }
+  }
 
   return (
     <>
@@ -673,6 +801,7 @@ function AssetRow({
         <td className="py-3 pr-3 text-sm text-white">{asset.brand} {asset.model}</td>
         <td className="py-3 pr-3 font-mono text-xs text-white/40">{asset.serial_number || "—"}</td>
         <td className="py-3 pr-3 text-xs capitalize text-white/60">{asset.city}</td>
+        <td className="py-3 pr-3 text-xs text-white/70 max-w-[120px] truncate" title={asset.issued_to || undefined}>{asset.issued_to || <span className="text-white/20">—</span>}</td>
         <td className="py-3 pr-3">
           {asset.on_loan
             ? <div>
@@ -683,7 +812,7 @@ function AssetRow({
           }
         </td>
         <td className="py-3 pr-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {asset.open_incident_count > 0 && (
               <span className={BADGE_ERROR}>{asset.open_incident_count} incident{asset.open_incident_count > 1 ? "s" : ""}</span>
             )}
@@ -692,12 +821,25 @@ function AssetRow({
                 ? <button onClick={() => setShowReturn(true)} className={`${SMALL_BUTTON} flex items-center gap-1`}><ArrowLeftRight size={12} />Return</button>
                 : <button onClick={() => setShowLoan(true)} className={`${SMALL_BUTTON} flex items-center gap-1`}><Plus size={12} />Loan</button>
             )}
+            <button onClick={() => setShowEdit(true)} className={`${SMALL_BUTTON} flex items-center gap-1`} title="Edit asset">
+              <FileText size={12} />Edit
+            </button>
+            {!confirmDelete
+              ? <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/20 transition" title="Delete asset">
+                  <X size={12} />Delete
+                </button>
+              : <span className="flex items-center gap-1 text-xs text-rose-300">
+                  Sure?
+                  <button onClick={handleDelete} disabled={deleting} className="rounded px-1.5 py-0.5 bg-rose-500 text-white hover:bg-rose-600 transition">{deleting ? "…" : "Yes"}</button>
+                  <button onClick={() => setConfirmDelete(false)} className="rounded px-1.5 py-0.5 bg-white/10 text-white/60 hover:bg-white/20 transition">No</button>
+                </span>
+            }
           </div>
         </td>
       </tr>
       {expanded && (
         <tr className="border-b border-white/5 bg-white/2">
-          <td colSpan={8} className="px-4 py-3">
+          <td colSpan={9} className="px-4 py-3">
             {/* Tabs */}
             <div className="flex gap-1 mb-3">
               <button
@@ -717,7 +859,8 @@ function AssetRow({
             {activeTab === "history" && (
               <>
                 <LoanHistoryPanel asset={asset} auth={auth} />
-                {asset.notes && <p className={`${T_CAPTION} mt-2`}>Notes: {asset.notes}</p>}
+                {asset.issued_to && <p className={`${T_CAPTION} mt-2`}>Issued to: <span className="text-white">{asset.issued_to}</span>{asset.issued_date ? ` on ${asset.issued_date}` : ""}</p>}
+                {asset.notes && <p className={`${T_CAPTION} mt-1`}>Notes: {asset.notes}</p>}
               </>
             )}
           </td>
@@ -725,6 +868,7 @@ function AssetRow({
       )}
       {showLoan && <LoanModal asset={asset} auth={auth} staffList={staffList} onClose={() => setShowLoan(false)} onLoaned={a => { onUpdated(a); setShowLoan(false); }} />}
       {showReturn && <ReturnModal asset={asset} auth={auth} onClose={() => setShowReturn(false)} onReturned={a => { onUpdated(a); setShowReturn(false); }} />}
+      {showEdit && <EditAssetModal asset={asset} auth={auth} onClose={() => setShowEdit(false)} onUpdated={a => { onUpdated(a); setShowEdit(false); }} />}
     </>
   );
 }
@@ -963,19 +1107,27 @@ export default function AssetsPage() {
                   <th className="py-3 pr-3">Brand / Model</th>
                   <th className="py-3 pr-3">Serial</th>
                   <th className="py-3 pr-3">City</th>
+                  <th className="py-3 pr-3">Issued To</th>
                   <th className="py-3 pr-3">Assignee</th>
                   <th className="py-3 pr-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={8} className="py-8 text-center text-white/30">Loading...</td></tr>
+                  <tr><td colSpan={9} className="py-8 text-center text-white/30">Loading...</td></tr>
                 )}
                 {!loading && assets.length === 0 && (
-                  <tr><td colSpan={8} className="py-8 text-center text-white/30">No assets found. Click &ldquo;Register Asset&rdquo; to add one.</td></tr>
+                  <tr><td colSpan={9} className="py-8 text-center text-white/30">No assets found. Click &ldquo;Register Asset&rdquo; to add one.</td></tr>
                 )}
                 {assets.map(asset => (
-                  <AssetRow key={asset.id} asset={asset} auth={auth} staffList={staffList} onUpdated={updated => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))} />
+                  <AssetRow
+                    key={asset.id}
+                    asset={asset}
+                    auth={auth}
+                    staffList={staffList}
+                    onUpdated={updated => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))}
+                    onDeleted={id => setAssets(prev => prev.filter(a => a.id !== id))}
+                  />
                 ))}
               </tbody>
             </table>
