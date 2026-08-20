@@ -394,7 +394,7 @@ function IssueNteModal({
     incident_date: new Date().toISOString().slice(0, 10),
     observed_acts: "",
     operational_impact: "",
-    response_days: "3",
+    response_days: "5",
     evidence: [],
   });
   const [staffSearch, setStaffSearch] = useState("");
@@ -493,6 +493,7 @@ function IssueNteModal({
           proposed_penalty: (preview as Record<string, string> | null)?.proposed_penalty || "",
           offense_count: parseInt((preview as Record<string, string | number> | null)?.current_offense_number as string || "1", 10),
           response_days: parseInt(form.response_days, 10),
+          reviewer_note: "Violation confirmed. NTE issued via OS wizard.",
         }),
       });
       const revData = await revRes.json();
@@ -629,9 +630,9 @@ function IssueNteModal({
               <label className={`${T_LABEL} mb-1 block`}>Response Days Allowed</label>
               <SelectDark value={form.response_days} onChange={v => set("response_days", v)}
                 options={[
-                  { value: "3", label: "3 days (standard)" },
-                  { value: "5", label: "5 days" },
+                  { value: "5", label: "5 days (PH minimum)" },
                   { value: "7", label: "7 days" },
+                  { value: "3", label: "3 days (AE only)" },
                 ]} />
             </div>
             <div className="flex justify-end pt-2">
@@ -758,7 +759,7 @@ function IssueNteModal({
             )}
 
             <div className="flex justify-between pt-1">
-              <button className={`${SECONDARY_BUTTON} text-sm`} onClick={() => setStep(2)} disabled={saving}>← Back</button>
+              <button className={`${SECONDARY_BUTTON} text-sm`} onClick={() => { setStep(2); setErr(""); }} disabled={saving}>← Back</button>
               <button
                 className={`${PRIMARY_BUTTON} flex items-center gap-2`}
                 onClick={() => void handleIssue()}
