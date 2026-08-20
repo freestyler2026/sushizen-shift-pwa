@@ -157,9 +157,17 @@ export default function ArPayoutsPage() {
   const [uploadResult, setUploadResult] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
 
   const auth = getAuth();
   const confirmerName = auth?.staffName || "Unknown";
+
+  useEffect(() => {
+    fetch("/api/admin/ar-payouts/drive-url")
+      .then((r) => r.json())
+      .then((d) => { if (d.url) setDriveUrl(d.url); })
+      .catch(() => {});
+  }, []);
 
   const fetchPayouts = useCallback(async () => {
     setLoading(true);
@@ -278,18 +286,40 @@ export default function ArPayoutsPage() {
               Grab &amp; Foodpanda settlement tracking &#8212; confirm receipt against bank statement
             </p>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-            >
-              {syncing ? (
-                <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Syncing…</>
-              ) : (
-                <>↻ Sync from Drive</>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {driveUrl && (
+                <a
+                  href={driveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white/80 transition-colors"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 87.3 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+                    <path d="M43.65 25L29.9 0c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5C.4 49.9 0 51.45 0 53h27.5z" fill="#00AC47"/>
+                    <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57.5c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#EA4335"/>
+                    <path d="M43.65 25L57.4 0H29.9z" fill="#00832D"/>
+                    <path d="M59.8 53H87.3L73.55 28.5 59.8 53z" fill="#2684FC"/>
+                    <path d="M43.65 25L57.4 0 73.55 28.5 59.8 53H27.5z" fill="#00AC47"/>
+                    <path d="M43.65 25L27.5 53h32.3z" fill="#00831E"/>
+                    <path d="M13.75 76.8l13.75-23.8H0l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3z" fill="#0066DA" opacity=".5"/>
+                  </svg>
+                  Drive Folder
+                </a>
               )}
-            </button>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+              >
+                {syncing ? (
+                  <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Syncing…</>
+                ) : (
+                  <>↻ Sync from Drive</>
+                )}
+              </button>
+            </div>
             {lastSync && (
               <span className="text-xs text-white/30">Last sync: {lastSync}</span>
             )}
