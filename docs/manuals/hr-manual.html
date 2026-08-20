@@ -251,8 +251,8 @@
     <span data-en="Probation" data-ja="試用期間">Probation</span>
   </div>
   <div class="nav-item" onclick="show('nte')">
-    <span class="nav-icon">📋</span>
-    <span data-en="Notice to Explain" data-ja="説明要求書 (NTE)">Notice to Explain</span>
+    <span class="nav-icon">🛡️</span>
+    <span data-en="NTE Management" data-ja="NTE管理">NTE Management</span>
   </div>
   <div class="nav-item" onclick="show('recruitment')">
     <span class="nav-icon">🧑‍💼</span>
@@ -329,39 +329,58 @@
   <!-- ═══════════ NTE ═══════════ -->
   <div class="section" id="sec-nte">
     <div class="section-hero">
-      <div class="hero-icon">📋</div>
+      <div class="hero-icon">🛡️</div>
       <div>
-        <div class="section-title" data-en="Notice to Explain (NTE)" data-ja="説明要求書・懲戒管理">Notice to Explain (NTE)</div>
-        <div class="section-path">Admin → Notice to Explain</div>
-        <div class="section-desc" data-en="Issue and track disciplinary notices — NTE, Warning Letters, and Final Warnings." data-ja="NTE・警告書・最終警告の発行と追跡を一元管理します。">Issue and track disciplinary notices — NTE, Warning Letters, and Final Warnings.</div>
+        <div class="section-title" data-en="NTE Management" data-ja="NTE管理">NTE Management</div>
+        <div class="section-path">Admin → NTE Management</div>
+        <div class="section-desc" data-en="Issue, track, and decide on Notice to Explain cases through a fully automated workflow. All NTE records are centralized in the company database." data-ja="NTE（説明要求書）の発行・追跡・判定を完全自動ワークフローで管理します。すべてのNTE記録は会社データベースに一元化されます。">Issue, track, and decide NTE cases through a fully automated workflow.</div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title" data-en="8 Tabs Overview" data-ja="8タブの概要">8 Tabs Overview</div>
+      <div class="card-title" data-en="Dashboard Overview" data-ja="ダッシュボード概要">Dashboard Overview</div>
       <div class="table-wrap">
         <table>
-          <tr><th data-en="Tab" data-ja="タブ">Tab</th><th data-en="Purpose" data-ja="用途">Purpose</th></tr>
-          <tr><td><strong>Board</strong></td><td class="muted" data-en="Staff ranking by active case count" data-ja="アクティブケース数によるスタッフランキング">Staff ranking by active case count</td></tr>
-          <tr><td><strong>Request</strong></td><td class="muted" data-en="File a new NTE request" data-ja="新規NTE申請を提出">File a new NTE request</td></tr>
-          <tr><td><strong>Pending</strong></td><td class="muted" data-en="Approval queue — approve or reject requests" data-ja="承認キュー：申請を承認または却下">Approval queue — approve or reject</td></tr>
-          <tr><td><strong>Issue</strong></td><td class="muted" data-en="Officially issue an approved NTE to the employee" data-ja="承認済みNTEを従業員に正式発行">Issue approved NTE to employee</td></tr>
-          <tr><td><strong>History</strong></td><td class="muted" data-en="All past NTEs and their outcomes" data-ja="過去のNTE一覧と結果">All past NTEs and outcomes</td></tr>
-          <tr><td><strong>Catalog</strong></td><td class="muted" data-en="Violation code library (14 categories, PH/AE legal grounds)" data-ja="違反コードライブラリ（14カテゴリ、PH/AE法的根拠）">Violation code library</td></tr>
-          <tr><td><strong>IR</strong></td><td class="muted" data-en="Incident Reports — upload evidence photos" data-ja="インシデントレポート：証拠写真をアップロード">Incident Reports with evidence</td></tr>
-          <tr><td><strong>Cases</strong></td><td class="muted" data-en="NTE v2 full workflow cases" data-ja="NTE v2 フルワークフローケース">NTE v2 full workflow</td></tr>
+          <tr><th data-en="KPI Card" data-ja="KPIカード">KPI Card</th><th data-en="Meaning" data-ja="意味">Meaning</th></tr>
+          <tr><td><strong>Active Cases</strong></td><td class="muted" data-en="Cases currently in progress (not yet closed)" data-ja="現在進行中のケース（未クローズ）">Cases currently in progress</td></tr>
+          <tr><td><strong>Awaiting Response</strong></td><td class="muted" data-en="Employee has received the NTE and has not yet submitted a written explanation" data-ja="従業員がNTEを受け取り、書面による説明を提出していない">Employee has not yet submitted explanation</td></tr>
+          <tr><td><strong>Overdue</strong></td><td class="muted" data-en="Response deadline has passed without a reply" data-ja="返答期限を過ぎたケース">Response deadline has passed</td></tr>
+          <tr><td><strong>Total Cases</strong></td><td class="muted" data-en="All NTE cases ever created (including closed)" data-ja="これまでに作成された全NTEケース（クローズ済み含む）">All NTE cases ever created</td></tr>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:10px" data-en="Two tabs: NTE Cases (full case tracker) and Incident Reports (raw IRs before they become cases)." data-ja="2タブ構成：NTE Cases（ケーストラッカー）とIncident Reports（ケース化前の生IR）。">Two tabs: NTE Cases (full tracker) and Incident Reports (raw IRs).</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Issue New NTE — 3-Step Wizard" data-ja="新規NTE発行 — 3ステップウィザード">Issue New NTE — 3-Step Wizard</div>
+      <p class="muted" style="margin-bottom:12px" data-en="Click '+ Issue New NTE' in the top right. The wizard guides you through 3 steps and submits the NTE for approval. A second administrator then approves and serves it (4-eyes principle)." data-ja="右上の「+ Issue New NTE」をクリック。3ステップのウィザードでNTEを申請します。承認は別の管理者が行います（4-eyes原則）。">Click "+ Issue New NTE" top right. Complete 3 steps, then a second admin approves and serves (4-eyes).</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Staff &amp; Violation" data-ja="スタッフ・違反内容">Staff &amp; Violation</strong><p data-en="Select the employee name, choose a violation from the catalog (categorized by Attendance, Performance, Conduct, etc.), and set the severity (Minor / Major / Serious / Gross). The system automatically looks up prior offenses and sets the minimum response days (5 days for PH, 3 for AE)." data-ja="従業員を選択し、カタログから違反を選びます。システムが過去の違反歴を自動取得し、最低回答日数も設定します（PH：5日、AE：3日）。">Select employee, pick a violation. System auto-sets response days (PH: 5 days minimum).</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Incident Details" data-ja="インシデント詳細">Incident Details</strong><p data-en="Describe what happened in detail (minimum 120 characters). Describe the business impact (minimum 60 characters). Add at least 2 evidence items when there are no witnesses — types: Photo, CCTV Reference, OS Log, Witness Statement, or Document." data-ja="発生内容を詳しく記入（最低120文字）。業務への影響も記入（最低60文字）。目撃者なしの場合は証拠を2点以上追加します。">Describe incident (min 120 chars), impact (min 60 chars). Add ≥2 evidence when no witnesses.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review &amp; Submit for Approval" data-ja="確認・承認申請">Review &amp; Submit for Approval</strong><p data-en="Review the NTE summary (violation, offense count, proposed penalty, evidence). Click 'Submit NTE for Approval'. The system creates the Incident Report, attaches evidence, confirms the violation, and generates the NTE draft in Approval Pending status. A second administrator must then click Approve → Serve on the case detail." data-ja="NTEの内容（違反・回数・処分案・証拠）を確認後、「Submit NTE for Approval」をクリック。システムがIRを作成・証拠添付・違反確認・NTE草稿生成（承認待ち状態）を行います。別の管理者がケース詳細でApprove→Serveを実行します。">Click "Submit NTE for Approval" — system creates IR, generates draft (Approval Pending). A second admin then Approves and Serves.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Case Lifecycle — State Machine" data-ja="ケースライフサイクル — ステートマシン">Case Lifecycle — State Machine</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="State" data-ja="状態">State</th><th data-en="Meaning" data-ja="意味">Meaning</th><th data-en="Next Action" data-ja="次のアクション">Next Action</th></tr>
+          <tr><td><strong>SERVED</strong></td><td class="muted" data-en="NTE delivered to employee — awaiting their written response" data-ja="NTE交付済み — 従業員の書面回答を待っている">NTE delivered, awaiting response</td><td class="muted" data-en="Employee submits response via My Notices page" data-ja="従業員がMy Noticesページで回答提出">Employee submits via My Notices</td></tr>
+          <tr><td><strong>RESPONSE_RECEIVED</strong></td><td class="muted" data-en="Employee submitted their explanation" data-ja="従業員が説明を提出済み">Employee's explanation received</td><td class="muted" data-en="HR records the decision" data-ja="HRが判定を記録">HR records decision</td></tr>
+          <tr><td><strong>DECIDED</strong></td><td class="muted" data-en="HR has issued a decision" data-ja="HRが判定を下した">Decision issued</td><td class="muted" data-en="Close the case" data-ja="ケースをクローズ">Close the case</td></tr>
+          <tr><td><strong>CLOSED</strong></td><td class="muted" data-en="Case fully resolved and archived" data-ja="ケースが完全に解決・アーカイブ済み">Case resolved and archived</td><td>—</td></tr>
         </table>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title" data-en="Filing a New NTE" data-ja="新規NTEの申請方法">Filing a New NTE</div>
+      <div class="card-title" data-en="Recording a Decision" data-ja="判定の記録方法">Recording a Decision</div>
       <ol class="steps">
-        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Go to Request tab" data-ja="Requestタブへ移動">Go to Request tab</strong><p data-en="Select the employee, violation category, and specific violation code from the catalog." data-ja="従業員・違反カテゴリ・違反コードをカタログから選択します。">Select employee, category, and violation code.</p></div></li>
-        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose case type" data-ja="ケースタイプを選択">Choose case type</strong><p data-en="NTE / Warning Letter / Final Warning." data-ja="NTE・警告書・最終警告のいずれかを選択します。">NTE / Warning Letter / Final Warning.</p></div></li>
-        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Describe the incident" data-ja="インシデントの詳細を記入">Describe the incident</strong><p data-en="Fill in date, location, and narrative. Upload supporting evidence if available." data-ja="日時・場所・状況を記入し、証拠写真があればアップロードします。">Fill in date, narrative, and upload evidence.</p></div></li>
-        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Submit for approval" data-ja="承認申請">Submit for approval</strong><p data-en="The request moves to the Pending tab for an approver to review." data-ja="申請がPendingタブに送られ、承認者がレビューします。">Moves to Pending for approver review.</p></div></li>
-        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Issue once approved" data-ja="承認後に発行">Issue once approved</strong><p data-en="Go to the Issue tab, find the approved request, and click Issue to formally serve it to the employee." data-ja="Issueタブで承認済み申請を選び、Issueボタンで従業員に正式に発行します。">Issue tab → click Issue to serve.</p></div></li>
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Find the case in NTE Cases tab" data-ja="NTE Casesタブでケースを検索">Find the case in NTE Cases tab</strong><p data-en="Use Active / Closed / All filter buttons to locate the case." data-ja="Active・Closed・Allフィルターボタンでケースを検索します。">Use Active / Closed / All filters.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click 'Record Decision'" data-ja="「Record Decision」をクリック">Click "Record Decision"</strong><p data-en="Available when the case is in RESPONSE_RECEIVED state." data-ja="RESPONSE_RECEIVED状態のケースで表示されます。">Available when case is in RESPONSE_RECEIVED state.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Choose the outcome" data-ja="結果を選択">Choose the outcome</strong><p data-en="DISMISSED (no further action) / WRITTEN_WARNING / SUSPENSION (specify days) / TERMINATION. Add HR notes." data-ja="DISMISSED（措置なし）/ WRITTEN_WARNING / SUSPENSION（日数指定）/ TERMINATION。HRノートを追加できます。">DISMISSED / WRITTEN_WARNING / SUSPENSION / TERMINATION + notes.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Close the case" data-ja="ケースをクローズ">Close the case</strong><p data-en="After recording the decision, click 'Close Case' to archive it. The case moves to the Closed tab and the employee's history is updated." data-ja="判定記録後、「Close Case」をクリックしてアーカイブします。ケースはClosedタブに移り、従業員の履歴が更新されます。">Click "Close Case" to archive. History is updated automatically.</p></div></li>
       </ol>
     </div>
 
@@ -379,6 +398,12 @@
         <span class="chip" data-en="Inventory/Cash" data-ja="在庫・現金">Inventory/Cash</span>
         <span class="chip" data-en="Policy" data-ja="規則">Policy</span>
       </div>
+      <p class="muted" style="margin-top:10px" data-en="The violation catalog is shared across PH and AE locations with appropriate legal grounds for each jurisdiction." data-ja="違反カタログはPH・AE全拠点で共有され、各法域に対応した法的根拠が設定されています。">Shared catalog across PH and AE locations with per-jurisdiction legal grounds.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Employee View (My Notices)" data-ja="従業員側の表示（My Notices）">Employee View — My Notices</div>
+      <p class="muted" data-en="Employees can see their NTE cases and submit written responses at: Staff → My Notices. They can view the NTE letter and type their explanation directly in the OS. No paper forms needed." data-ja="従業員はStaff → My NoticesでNTEケースを確認し、書面による説明をOS上で直接提出できます。紙の書類は不要です。">Employees view NTE cases and submit explanations at Staff → My Notices. No paper needed.</p>
     </div>
   </div>
 
