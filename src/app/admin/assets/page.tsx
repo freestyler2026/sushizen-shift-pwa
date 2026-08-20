@@ -254,7 +254,7 @@ function EditAssetModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className={`${GLASS_CARD} relative w-full max-w-md`} onClick={e => e.stopPropagation()}>
+      <div className={`${GLASS_CARD} relative w-full max-w-md max-h-[90vh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className={T_SECTION}>Edit — {asset.asset_tag}</h2>
           <button onClick={onClose} className="text-white/40 hover:text-white"><X size={18} /></button>
