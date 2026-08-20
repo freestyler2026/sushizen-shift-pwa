@@ -240,11 +240,20 @@ export default function ArPayoutsPage() {
       } else if (data.total_inserted === 0 && !data.errors?.length) {
         setUploadResult("All records already imported (duplicates skipped).");
       } else {
-        const parts = (data.files as { file: string; rows: number }[]).map((f) => `${f.file}: ${f.rows} records`).join(", ");
+        const parts = (data.files as { file: string; rows: number; drive_folder: string | null }[])
+          .map((f) => `${f.file}: ${f.rows} records${f.drive_folder ? ` → Drive/${f.drive_folder}` : ""}`)
+          .join(", ");
         setUploadResult(`Imported ${data.total_inserted} record(s). ${parts}`);
       }
-      if (data.errors?.length) {
-        setUploadError((prev) => `${prev ? prev + " " : ""}Errors: ${(data.errors as { file: string; error: string }[]).map((e) => `${e.file} — ${e.error}`).join("; ")}`);
+      const driveErrors = (data.errors as { file: string; error: string }[] | undefined)
+        ?.filter((e) => e.error.includes("Drive upload failed")) ?? [];
+      const otherErrors = (data.errors as { file: string; error: string }[] | undefined)
+        ?.filter((e) => !e.error.includes("Drive upload failed")) ?? [];
+      if (driveErrors.length) {
+        setUploadError(`Drive save failed for: ${driveErrors.map((e) => e.file).join(", ")} — check Drive permissions (service account needs Contributor role).`);
+      }
+      if (otherErrors.length) {
+        setUploadError((prev) => `${prev ? prev + " " : ""}Errors: ${otherErrors.map((e) => `${e.file} — ${e.error}`).join("; ")}`);
       }
       await fetchPayouts();
     } catch (err) {
