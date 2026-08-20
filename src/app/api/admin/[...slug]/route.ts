@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { tryRefreshUpstream, setRefreshedCookie } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
