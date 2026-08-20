@@ -60,6 +60,7 @@ interface OrderItem {
   unit_price_actual: number | null;
   price_variance_pct: number | null;
   price_flagged: boolean;
+  current_stock?: number | null;
 }
 
 interface OrderDetail extends OrderListItem {
@@ -179,7 +180,11 @@ export default function StoreSupplierOrdersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [generating, setGenerating] = useState(false);
-  const [generateDate, setGenerateDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [generateDate, setGenerateDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  });
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
   const [generateInvDate, setGenerateInvDate] = useState<string | null>(null);
 
@@ -223,6 +228,10 @@ export default function StoreSupplierOrdersPage() {
   const [alerts, setAlerts] = useState<AlertData | null>(null);
   const [deliveryDateEdit, setDeliveryDateEdit] = useState<{ orderId: number; value: string } | null>(null);
   const [deliveryDateSaving, setDeliveryDateSaving] = useState(false);
+
+  // PO date edit state
+  const [orderDateEdit, setOrderDateEdit] = useState<{ orderId: number; value: string } | null>(null);
+  const [orderDateSaving, setOrderDateSaving] = useState(false);
 
   // EDD escalation state
   const [eddEdit, setEddEdit] = useState<{ orderId: number; date: string; note: string } | null>(null);
@@ -408,6 +417,33 @@ export default function StoreSupplierOrdersPage() {
       await loadOrders();
     } catch {
       setError("Delete failed.");
+    }
+  }
+
+  async function handleUpdateOrderDate(orderId: number, dateStr: string) {
+    setOrderDateSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/order-date`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ order_date: dateStr }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.detail ?? `Failed to update PO date (${res.status})`);
+        return;
+      }
+      setOrderDateEdit(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await detailRes.json();
+      setDetail(data.order);
+      await loadOrders();
+    } catch {
+      setError("Failed to update PO date.");
+    } finally {
+      setOrderDateSaving(false);
     }
   }
 
@@ -1017,6 +1053,7 @@ export default function StoreSupplierOrdersPage() {
                                     <thead>
                                       <tr className="border-b border-white/5">
                                         <th className="px-3 py-2 text-left text-xs text-zinc-500">Item</th>
+                                        <th className="px-3 py-2 text-right text-xs text-zinc-500">Stock</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Ordered{canEditQty && <span className="ml-1 text-zinc-600">(editable)</span>}</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Unit Price</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Total</th>
@@ -1030,6 +1067,11 @@ export default function StoreSupplierOrdersPage() {
                                           <td className="px-3 py-2">
                                             <div className="text-white">{item.item_name}</div>
                                             <div className="text-xs text-zinc-500">{item.item_code}</div>
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-xs">
+                                            {item.current_stock != null
+                                              ? <span className="text-zinc-300">{Number(item.current_stock)} {item.unit}</span>
+                                              : <span className="text-zinc-600">—</span>}
                                           </td>
                                           <td className="px-3 py-2 text-right tabular-nums">
                                             {editingItemId === item.id ? (
@@ -1099,7 +1141,7 @@ export default function StoreSupplierOrdersPage() {
                                           it.unit_price != null ? sum + Number(it.unit_price) * Number(it.qty_ordered) : sum, 0);
                                         return grandTotal > 0 ? (
                                           <tr className="border-t border-white/10 bg-white/3">
-                                            <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-zinc-400">Grand Total</td>
+                                            <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-zinc-400">Grand Total</td>
                                             <td className="px-3 py-2 text-right tabular-nums font-bold text-amber-300">₱{grandTotal.toFixed(2)}</td>
                                             <td colSpan={2} />
                                           </tr>
@@ -1110,6 +1152,46 @@ export default function StoreSupplierOrdersPage() {
                                 </div>
                               );
                             })()}
+
+                            {/* PO Date row (editable before sent) */}
+                            {isManager && (
+                              <div className="flex flex-wrap items-center gap-3 py-1 border-t border-white/5 text-sm">
+                                <CalendarClock className="h-4 w-4 text-zinc-500 shrink-0" />
+                                <span className="text-zinc-400 text-xs font-medium">PO Date:</span>
+                                {orderDateEdit?.orderId === order.id ? (
+                                  <>
+                                    <input
+                                      type="date"
+                                      className={INPUT_CLASS + " py-0.5 max-w-[150px] text-xs"}
+                                      value={orderDateEdit.value}
+                                      onChange={(e) => setOrderDateEdit({ orderId: order.id, value: e.target.value })}
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => handleUpdateOrderDate(order.id, orderDateEdit.value)}
+                                      disabled={orderDateSaving || !orderDateEdit.value}
+                                      className="text-emerald-400 hover:text-emerald-300 text-xs font-bold px-1"
+                                    >
+                                      {orderDateSaving ? "…" : "✓"}
+                                    </button>
+                                    <button onClick={() => setOrderDateEdit(null)} className="text-zinc-500 hover:text-zinc-400 text-xs px-1">✕</button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-xs font-medium text-zinc-300">{detail.order_date}</span>
+                                    {["draft", "confirmed", "approved"].includes(detail.status) && (
+                                      <button
+                                        onClick={() => setOrderDateEdit({ orderId: order.id, value: detail.order_date })}
+                                        className="text-zinc-600 hover:text-zinc-400"
+                                        title="Edit PO date"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
 
                             {/* Delivery date row */}
                             {(isManager || detail.status === "sent") && (
