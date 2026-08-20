@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
-  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle, User,
+  AlertTriangle, BarChart2, CheckCircle, ChevronDown, ChevronRight,
+  Clock, Download, Fingerprint, Loader2, MapPin, Pencil, Plus,
+  RefreshCw, Trash2, Upload, XCircle, User,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -2633,9 +2634,239 @@ function ReportsTab({ city }: { city: string }) {
   );
 }
 
+// ── Attendance Summary Tab ────────────────────────────────────────────────────
+
+type SummaryRow = {
+  staff_name: string;
+  branch_code: string;
+  worked_days: number;
+  absent_count: number;
+  late_count: number;
+  total_late_min: number;
+  no_clockout_count: number;
+};
+
+type SortKey = "absent" | "late" | "late_min" | "name";
+
+function AttendanceSummaryTab({ city }: { city: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstOfMonth = today.slice(0, 8) + "01";
+
+  const [fromDate, setFromDate] = useState(firstOfMonth);
+  const [toDate, setToDate] = useState(today);
+  const [branchFilter, setBranchFilter] = useState("");
+  const [rows, setRows] = useState<SummaryRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("absent");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  async function fetchSummary() {
+    setLoading(true); setErr(""); setFetched(false);
+    try {
+      const p = new URLSearchParams({ city, date_from: fromDate, date_to: toDate });
+      if (branchFilter.trim()) p.set("branch_code", branchFilter.trim().toUpperCase());
+      const r = await apiFetch(`${API}/absent-late-summary?${p}`);
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to load summary")); return; }
+      const data = await r.json() as { summary: SummaryRow[] };
+      setRows(data.summary ?? []);
+      setFetched(true);
+    } catch (e) { setErr(String(e)); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { void fetchSummary(); }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sorted = useMemo(() => {
+    const fn: (a: SummaryRow, b: SummaryRow) => number =
+      sortKey === "absent"   ? (a, b) => b.absent_count - a.absent_count :
+      sortKey === "late"     ? (a, b) => b.late_count - a.late_count :
+      sortKey === "late_min" ? (a, b) => b.total_late_min - a.total_late_min :
+                               (a, b) => a.staff_name.localeCompare(b.staff_name);
+    return [...rows].sort(sortAsc ? (a, b) => -fn(a, b) : fn);
+  }, [rows, sortKey, sortAsc]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc(v => !v);
+    else { setSortKey(key); setSortAsc(false); }
+  }
+
+  function SortIcon({ k }: { k: SortKey }) {
+    if (sortKey !== k) return <span className="text-white/20 ml-0.5">↕</span>;
+    return <span className="text-violet-400 ml-0.5">{sortAsc ? "↑" : "↓"}</span>;
+  }
+
+  function downloadCsv() {
+    const header = "Staff,Branch,Worked Days,Absences,Late Count,Late Minutes,No Clockout";
+    const lines = sorted.map(r =>
+      [r.staff_name, r.branch_code, r.worked_days, r.absent_count,
+       r.late_count, r.total_late_min, r.no_clockout_count].join(",")
+    );
+    const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `attendance-summary-${fromDate}-${toDate}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  const totalAbsent = rows.reduce((s, r) => s + r.absent_count, 0);
+  const totalLate   = rows.reduce((s, r) => s + r.late_count, 0);
+  const flaggedStaff = rows.filter(r => r.absent_count >= 3 || r.late_count >= 5).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">From</p>
+          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+            className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white" />
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">To</p>
+          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+            className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white" />
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Branch</p>
+          <input type="text" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+            placeholder="All" maxLength={10}
+            className="w-24 rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white placeholder:text-zinc-600" />
+        </div>
+        <button onClick={fetchSummary} disabled={loading}
+          className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 px-4 py-1.5 text-sm font-semibold text-violet-300 hover:bg-violet-500/30 disabled:opacity-50 transition-colors">
+          {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          {loading ? "Loading…" : "Refresh"}
+        </button>
+        {fetched && rows.length > 0 && (
+          <button onClick={downloadCsv}
+            className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-zinc-300 hover:border-violet-400/20 hover:text-violet-200 transition-colors">
+            <Download size={13} /> Export CSV
+          </button>
+        )}
+      </div>
+
+      {err && <p className="text-sm text-red-400">{err}</p>}
+
+      {/* KPI cards */}
+      {fetched && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Staff", value: rows.length, icon: <User size={14} />, color: "text-white" },
+            { label: "Total Absences", value: totalAbsent, icon: <AlertTriangle size={14} />, color: totalAbsent > 0 ? "text-red-400" : "text-white" },
+            { label: "Total Late", value: totalLate, icon: <Clock size={14} />, color: totalLate > 0 ? "text-amber-400" : "text-white" },
+            { label: "Flagged Staff", value: flaggedStaff, icon: <BarChart2 size={14} />, color: flaggedStaff > 0 ? "text-orange-400" : "text-white" },
+          ].map(k => (
+            <div key={k.label} className="rounded-xl border border-white/8 bg-white/4 px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">{k.icon}{k.label}</div>
+              <p className={`text-2xl font-bold tabular-nums ${k.color}`}>{k.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
+      {fetched && rows.length === 0 && (
+        <p className="text-sm text-zinc-500 text-center py-8">No attendance data for the selected period.</p>
+      )}
+      {fetched && rows.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-white/8">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/8 bg-white/3">
+                <th className="px-4 py-2.5 text-left">
+                  <button onClick={() => toggleSort("name")} className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300">
+                    Staff <SortIcon k="name" />
+                  </button>
+                </th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Branch</th>
+                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Worked</th>
+                <th className="px-3 py-2.5 text-right">
+                  <button onClick={() => toggleSort("absent")} className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300">
+                    Absent <SortIcon k="absent" />
+                  </button>
+                </th>
+                <th className="px-3 py-2.5 text-right">
+                  <button onClick={() => toggleSort("late")} className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300">
+                    Late <SortIcon k="late" />
+                  </button>
+                </th>
+                <th className="px-3 py-2.5 text-right">
+                  <button onClick={() => toggleSort("late_min")} className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300">
+                    Late Time <SortIcon k="late_min" />
+                  </button>
+                </th>
+                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">No C/O</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((row, i) => {
+                const absentFlag = row.absent_count >= 3;
+                const lateFlag   = row.late_count >= 5;
+                const lateMinFmt = row.total_late_min === 0 ? "—"
+                  : row.total_late_min < 60 ? `${row.total_late_min}m`
+                  : `${Math.floor(row.total_late_min / 60)}h ${row.total_late_min % 60}m`;
+                return (
+                  <tr key={row.staff_name} className={`border-b border-white/5 transition-colors hover:bg-white/3 ${i % 2 === 0 ? "" : "bg-white/[0.015]"}`}>
+                    <td className="px-4 py-2.5 font-medium text-white">{row.staff_name}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-zinc-400">{row.branch_code || "—"}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-zinc-300">{row.worked_days}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {row.absent_count > 0 ? (
+                        <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${absentFlag ? "bg-red-500/20 text-red-300" : "bg-zinc-700/50 text-zinc-300"}`}>
+                          {row.absent_count}
+                        </span>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {row.late_count > 0 ? (
+                        <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${lateFlag ? "bg-amber-500/20 text-amber-300" : "bg-zinc-700/50 text-zinc-300"}`}>
+                          {row.late_count}
+                        </span>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${row.total_late_min >= 60 ? "text-amber-400" : "text-zinc-400"}`}>
+                      {lateMinFmt}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-xs text-zinc-500">
+                      {row.no_clockout_count > 0 ? row.no_clockout_count : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {absentFlag && lateFlag ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 border border-red-500/20 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                          <AlertTriangle size={9} /> High Risk
+                        </span>
+                      ) : absentFlag ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+                          Absent ▲
+                        </span>
+                      ) : lateFlag ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                          Late ▲
+                        </span>
+                      ) : (
+                        <span className="text-zinc-700 text-[10px]">OK</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="px-4 py-2 text-xs text-zinc-600">
+            {rows.length} staff · Flagged: Absent ≥ 3 days (red) or Late ≥ 5 times (amber)
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "staff_report" | "gps" | "corrections" | "compliance" | "late_alerts" | "reports";
+type Tab = "report" | "staff_report" | "summary" | "gps" | "corrections" | "compliance" | "late_alerts" | "reports";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -2709,6 +2940,10 @@ export default function OsAttendanceAdminPage() {
             <User size={13} />
             Staff Report
           </button>
+          <button onClick={() => setTab("summary")} className={`${tab === "summary" ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}>
+            <BarChart2 size={13} />
+            Summary
+          </button>
           <button onClick={() => setTab("corrections")} className={`${tab === "corrections" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
             Corrections
             {pendingCorrections > 0 && (
@@ -2735,6 +2970,7 @@ export default function OsAttendanceAdminPage() {
         <div className={GLASS_CARD + " p-6"}>
           {tab === "report" && <DailyReportTab city={city} />}
           {tab === "staff_report" && <StaffReportTab city={city} />}
+          {tab === "summary" && <AttendanceSummaryTab key={city} city={city} />}
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
           {tab === "compliance" && <ShiftComplianceTab key={city} city={city} />}
