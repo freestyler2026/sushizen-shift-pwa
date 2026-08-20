@@ -177,22 +177,30 @@ export default function ArPayoutsPage() {
   const handleSync = async () => {
     setSyncing(true);
     setSyncResult(null);
-    const res = await fetch("/api/admin/ar-payouts/sync", { method: "POST" });
-    const data = await res.json();
-    setLastSync(new Date().toLocaleTimeString("en-PH"));
-    if (data.new_files_found === 0) {
-      setSyncResult("No new files found in Drive.");
-    } else {
-      const parts = data.files.map((f: { file: string; rows: number; platform: string }) =>
-        `${f.file}: ${f.rows} records`
-      ).join(", ");
-      setSyncResult(`Imported ${data.total_inserted} records from ${data.new_files_found} file(s). ${parts}`);
+    try {
+      const res = await fetch("/api/admin/ar-payouts/sync", { method: "POST" });
+      const data = await res.json();
+      setLastSync(new Date().toLocaleTimeString("en-PH"));
+      if (!res.ok) {
+        setSyncResult(`Sync failed: ${data.detail || res.statusText}`);
+      } else if (data.new_files_found === 0) {
+        setSyncResult("No new files found in Drive.");
+      } else {
+        const parts = data.files.map((f: { file: string; rows: number; platform: string }) =>
+          `${f.file}: ${f.rows} records`
+        ).join(", ");
+        setSyncResult(`Imported ${data.total_inserted} records from ${data.new_files_found} file(s). ${parts}`);
+      }
+      if (data.errors?.length) {
+        setSyncResult((prev) => `${prev || ""} Errors: ${data.errors.map((e: { file: string; error: string }) => e.file).join(", ")}`);
+      }
+      await fetchPayouts();
+    } catch (err) {
+      setLastSync(new Date().toLocaleTimeString("en-PH"));
+      setSyncResult(`Sync error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSyncing(false);
     }
-    if (data.errors?.length) {
-      setSyncResult((prev) => `${prev || ""} Errors: ${data.errors.map((e: { file: string; error: string }) => e.file).join(", ")}`);
-    }
-    await fetchPayouts();
-    setSyncing(false);
   };
 
   const handleConfirm = async (bankAmount: number, note: string) => {
@@ -408,8 +416,8 @@ export default function ArPayoutsPage() {
         {/* Drive setup hint */}
         <div className="rounded-xl border border-white/5 bg-white/3 px-4 py-3 text-xs text-white/30">
           <strong className="text-white/50">Drive upload folder:</strong>{" "}
-          Staff uploads Grab CSV to <em>Finance / Payouts / Grab /</em> and Foodpanda CSV to{" "}
-          <em>Finance / Payouts / Foodpanda /</em>, then click &ldquo;Sync from Drive&rdquo;.
+          Upload Grab <em>Transfers_Store_*.csv</em> and Foodpanda <em>Payout*.csv</em> anywhere inside{" "}
+          <em>Finance / Payouts</em>, then click &ldquo;Sync from Drive&rdquo;. Platform is detected automatically from filename.
           Service account: <span className="font-mono">ar-finance-reader@ar-finance-reader.iam.gserviceaccount.com</span>
         </div>
       </div>
