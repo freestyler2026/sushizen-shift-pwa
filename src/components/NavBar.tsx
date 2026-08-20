@@ -150,6 +150,7 @@ const PRIMARY: NavItem[] = [
   { href: "/store/expense-request",  label: "Expense Reimbursement", icon: Receipt,       match: "prefix" },
   { href: "/store/overtime-request", label: "Overtime Request",     icon: Clock,         match: "prefix" },
   { href: "/store/my-nte",           label: "My Notices",           icon: FileText,      match: "prefix" },
+  { href: "/store/policy-docs",      label: "Company Policies",     icon: BookOpen,      match: "prefix" },
   { href: "/request",                label: "Request",               icon: ClipboardList, match: "exact" },
   { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" },
   { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" },
@@ -239,6 +240,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/separation", label: "HR Offboarding", icon: UserMinus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/clearance", label: "HR Clearance", icon: ScrollText, adminOnly: true, match: "prefix" },
+  { href: "/admin/hr/policy-docs", label: "HR Policy Documents", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/assets", label: "Company Assets", icon: Laptop, adminOnly: true, match: "prefix" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
@@ -401,6 +403,7 @@ export default function NavBar() {
     if (href === "/admin/hr/performance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/separation") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/clearance") return canAccessHrClearanceAdmin(auth);
+    if (href === "/admin/hr/policy-docs") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/assets") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role);
     if (href === "/admin/emergency-requests") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
