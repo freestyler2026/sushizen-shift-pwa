@@ -441,7 +441,7 @@ function IssueNteModal({
   }, [step]);
 
   const step1Valid = form.market && form.staff_name && form.violation_code && form.incident_date;
-  const step2Valid = form.observed_acts.trim().length >= 120;
+  const step2Valid = form.observed_acts.trim().length >= 120 && form.operational_impact.trim().length >= 60;
 
   async function handleIssue() {
     setSaving(true); setErr("");
@@ -634,9 +634,11 @@ function IssueNteModal({
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Operational Impact</label>
+              <p className={`${T_CAPTION} mb-1`}>Describe the business impact. Minimum 60 characters.</p>
               <textarea className={`${TEXTAREA_CLASS} text-sm`} rows={3} value={form.operational_impact}
                 onChange={e => set("operational_impact", e.target.value)}
                 placeholder="How did this affect store operations, team, or guests?" />
+              <p className="text-right text-[10px] text-zinc-500 mt-0.5">{form.operational_impact.trim().length} chars</p>
             </div>
 
             {/* Evidence */}
