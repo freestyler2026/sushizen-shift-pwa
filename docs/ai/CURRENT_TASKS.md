@@ -1,6 +1,28 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-20 (Attendance Summary tab — Vercel 7a07e8d / Heroku v2032)
+Last updated: 2026-08-20 (Attendance Summary bug fixes — Heroku v2033)
+
+---
+
+## ✅ Completed: Attendance Summary Bug Fixes (2026-08-20, Heroku v2033)
+
+Two bugs found during testing of the new Summary tab:
+
+**Bug 1 — Branch filter inflated absence count** (fixed Heroku v2033):
+- Root cause: Step 4 absences query had no branch filter; non-branch staff from `absences` table were added to `staff_data`, making PAR filter show MORE absences than all-branches (impossible).
+- Fix: when `branch_code` is set, skip creating new `staff_data` entries in Step 4 (only update existing branch staff absences).
+
+**Bug 2 — Schedule data mismatch caused massive late_min values** (fixed Heroku v2033):
+- Root cause: Staff like Nicko Villacorte (CK 15:30 shift) had wrong 9:00 AM entries in `shift_draft` for Aug 6-7, producing 385 min "late" calculations that were mathematically correct but meaningless.
+- Fix: cap `late_min` at 240 min per instance. Values ≥240 min indicate schedule data errors, not real tardiness.
+
+**Test results (all passing)**:
+- Branch filter (PAR): 27 staff, 32 absences ✅ (was incorrectly showing 85)
+- Nicko Villacorte: now 0 late (was 2 @ 771 min) ✅
+- Single-day API: 52 staff, 7 absences, 13 late ✅
+- Dubai switch: 60 staff, 68 absences, 39 late ✅
+- Future date (no-data): 0 staff, "No attendance data" message ✅
+- CSV export: correct headers and filename format ✅
 
 ---
 
