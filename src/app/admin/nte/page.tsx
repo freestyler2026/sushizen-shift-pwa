@@ -441,7 +441,7 @@ function IssueNteModal({
   }, [step]);
 
   const step1Valid = form.market && form.staff_name && form.violation_code && form.incident_date;
-  const step2Valid = form.observed_acts.trim().length >= 30;
+  const step2Valid = form.observed_acts.trim().length >= 120;
 
   async function handleIssue() {
     setSaving(true); setErr("");
@@ -626,7 +626,7 @@ function IssueNteModal({
           <div className="space-y-3">
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Body — Observed Acts</label>
-              <p className={`${T_CAPTION} mb-1`}>Describe clearly what the employee did. Minimum 30 characters.</p>
+              <p className={`${T_CAPTION} mb-1`}>Describe clearly what the employee did. Minimum 120 characters.</p>
               <textarea className={`${TEXTAREA_CLASS} text-sm`} rows={5} value={form.observed_acts}
                 onChange={e => set("observed_acts", e.target.value)}
                 placeholder="On [date], at [location], the employee was observed to have…" />
