@@ -1,6 +1,31 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-20 (Attendance Summary bug fixes — Heroku v2033)
+Last updated: 2026-08-20 (Policy Document Hub — Heroku v2035, Vercel f06459e)
+
+---
+
+## ✅ Completed: Policy Document Hub (2026-08-20, Heroku v2035 / Vercel f06459e)
+
+**Requested by**: Peter (HR staff) — HR needs a place to upload company policies/memos, staff acknowledge receipt with PIN confirmation, HR can track who has/hasn't acknowledged for follow-up.
+
+**Backend** (`app/db.py`, `app/main.py`, `app/access_control.py`):
+- DB tables: `policy_documents` (PDF as bytea, max 10MB), `policy_acknowledgements` (ON CONFLICT DO NOTHING)
+- `ensure_policy_tables()` creates both tables + index on first call
+- 9 new API endpoints: 4 admin (`/api/admin/hr/policy-docs` — CRUD + ack report), 3 staff (`/api/store/policy-docs` — list + file download + acknowledge with PIN verification)
+- `verify_staff_pin(staff_name, pin)` used for bcrypt PIN confirmation before recording ack
+- 2 new access_control channels: `admin.hr_policy_docs`, `store_policy_docs`
+- Bug fixed: `get_staff_policy_list` had swapped SQL params (city/staff_name) when city filter active — fixed params order (staff_name first for JOIN, city second for WHERE)
+
+**Frontend**:
+- Admin page: `/admin/hr/policy-docs` — upload modal (FormData multipart), KPI cards, expandable doc cards with Download/View Acks/Archive/Delete; `AckReportPanel` shows who acknowledged with timestamps
+- Staff page: `/store/policy-docs` — policy list with ack status badges, PDF preview in-browser, download, PIN-confirmed acknowledgement modal (2-step: consent → PIN entry)
+- NavBar: admin route visible to HQ/ADMIN/HR_MANAGER/MANILA_MANAGEMENT/MANILA_MANAGER; staff route visible to all roles
+
+**Post-deploy TODO**:
+- Admin: Role Management → "Resync System Channels" to register new channels in DB
+- Admin: Grant `channel.store_policy_docs.view` permission to custom roles as needed (HR Staff etc.)
+
+---
 
 ---
 

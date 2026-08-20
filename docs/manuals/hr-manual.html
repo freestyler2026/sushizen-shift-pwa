@@ -274,6 +274,10 @@
     <span class="nav-icon">💼</span>
     <span data-en="HR Clearance" data-ja="最終精算">HR Clearance</span>
   </div>
+  <div class="nav-item" onclick="show('policy-docs')">
+    <span class="nav-icon">📄</span>
+    <span data-en="Policy Documents" data-ja="会社規則・通達">Policy Documents</span>
+  </div>
 </nav>
 
 <!-- MAIN CONTENT -->
@@ -747,6 +751,104 @@
     <div class="tip">
       <span class="tip-icon">💡</span>
       <span data-en="The Loaned Company Assets section auto-loads from the Assets module. Any unreturned assets are shown with a warning — resolve these before finalizing." data-ja="「貸出会社資産」セクションはAssetsモジュールから自動取得されます。未返却の資産がある場合は警告が表示されます。確定前に解決してください。">Loaned assets auto-load from the Assets module. Resolve warnings before finalizing.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ POLICY DOCUMENTS ═══════════ -->
+  <div class="section" id="sec-policy-docs">
+    <div class="section-hero">
+      <div class="hero-icon">📄</div>
+      <div>
+        <div class="section-title" data-en="Policy Documents" data-ja="会社規則・通達">Policy Documents</div>
+        <div class="section-path" data-en="Admin → HR Policy Documents | Staff → Company Policies" data-ja="管理者: Admin → HR Policy Documents | スタッフ: Company Policies">Admin → HR Policy Documents &nbsp;|&nbsp; Staff → Company Policies</div>
+        <div class="section-desc" data-en="Upload company policies, memos, and guidelines as PDFs. Staff read and PIN-confirm receipt. HR tracks who has and hasn't acknowledged for follow-up." data-ja="会社規則・通達・ガイドラインをPDFでアップロード。スタッフが内容を確認しPINで受領確認。HRは未確認者を追跡してフォローアップできます。">Upload company policies as PDFs. Staff acknowledge receipt with PIN. HR tracks completion.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Admin: Uploading a Policy Document" data-ja="管理者：規則文書をアップロードする">Admin: Uploading a Policy Document</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px" data-en="Any HQ, Admin, HR Manager, or Manila Management user can upload documents. Max file size: 10 MB, PDF only." data-ja="HQ・Admin・HR Manager・Manila Managementのユーザーが文書をアップロードできます。最大サイズは10MB、PDFのみ対応しています。">HQ / Admin / HR Manager / Manila Management roles can upload. Max 10 MB, PDF only.</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body">
+          <strong data-en="Open HR Policy Documents" data-ja="HR Policy Documentsを開く">Open HR Policy Documents</strong>
+          <p data-en="Navigate to Admin → HR Policy Documents in the sidebar." data-ja="サイドバーから Admin → HR Policy Documents を開きます。">Navigate to Admin → HR Policy Documents in the sidebar.</p>
+        </div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body">
+          <strong data-en="Click Upload Document" data-ja="「Upload Document」をクリック">Click Upload Document</strong>
+          <p data-en="A modal opens. Fill in the required fields:" data-ja="モーダルが開きます。必須項目を入力してください：">A modal opens with the following fields:</p>
+          <ul style="margin-top:8px;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.7">
+            <li data-en="Title — shown to staff (required)" data-ja="タイトル — スタッフに表示される（必須）">Title — shown to staff (required)</li>
+            <li data-en="Category — Policy / Memo / Announcement / Guideline / SOP" data-ja="カテゴリ — Policy / Memo / Announcement / Guideline / SOP">Category — Policy / Memo / Announcement / Guideline / SOP</li>
+            <li data-en="City — All / Manila / Dubai (controls who can see the document)" data-ja="都市 — All / Manila / Dubai（閲覧できるスタッフを制限）">City — All / Manila / Dubai (controls visibility)</li>
+            <li data-en="Description — optional summary for staff" data-ja="説明 — スタッフ向けの任意の概要">Description — optional summary</li>
+            <li data-en="Effective Date — when the policy takes effect (optional)" data-ja="発効日 — 規則の発効日（任意）">Effective Date (optional)</li>
+            <li data-en="Requires Acknowledgement — toggle on if staff must confirm receipt" data-ja="受領確認必須 — スタッフの確認が必要な場合にオン">Requires Acknowledgement toggle</li>
+            <li data-en="Acknowledgement Deadline — last date by which staff must acknowledge (if required)" data-ja="確認期限 — スタッフが確認する締切日（確認必須の場合）">Acknowledgement Deadline (if required)</li>
+            <li data-en="PDF File — select the PDF to upload" data-ja="PDFファイル — アップロードするPDFを選択">PDF File (required)</li>
+          </ul>
+        </div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body">
+          <strong data-en="Click Upload — the document becomes immediately visible to staff" data-ja="「Upload」をクリック — 文書はすぐにスタッフに公開されます">Click Upload — the document is immediately visible to staff.</strong>
+        </div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Admin: Tracking Acknowledgements" data-ja="管理者：受領確認状況の確認">Admin: Tracking Acknowledgements</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body">
+          <strong data-en="Click View Acknowledgements on any document card" data-ja="文書カードの「View Acknowledgements」をクリック">Click View Acknowledgements on any document card.</strong>
+          <p data-en="An inline report opens showing all staff who have acknowledged, along with the date and time they confirmed." data-ja="インラインレポートが開き、確認済みの全スタッフの名前と確認日時が表示されます。">A panel shows every staff member who acknowledged, with date/time.</p>
+        </div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body">
+          <strong data-en="Compare against your full staff list to identify who hasn't acknowledged" data-ja="全スタッフリストと照合して未確認者を特定する">Compare the list against your full staff list to find who hasn't acknowledged yet.</strong>
+          <p data-en="Staff who haven't acknowledged do not appear in this list — they show a pending warning on their Company Policies page." data-ja="未確認のスタッフはこのリストに表示されません。そのスタッフのCompany Policiesページには警告が表示されます。">Non-acknowledgers are absent from the list; their portal shows an Amber warning.</p>
+        </div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body">
+          <strong data-en="Archive or Delete when no longer needed" data-ja="不要になったら Archive または Delete">Archive or Delete when no longer needed.</strong>
+          <p data-en="Archive hides the document from staff but keeps the record. Delete removes it permanently." data-ja="Archiveはスタッフから非表示にしますが記録は保持されます。Deleteは完全に削除します。">Archive hides from staff but keeps history. Delete is permanent.</p>
+        </div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Staff: Viewing and Acknowledging a Policy" data-ja="スタッフ：規則の閲覧と受領確認">Staff: Viewing and Acknowledging a Policy</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px" data-en="All staff see their Company Policies page in the sidebar. The page shows their personal acknowledgement status for each document." data-ja="全スタッフはサイドバーの「Company Policies」ページを閲覧できます。各文書の個人確認ステータスが表示されます。">All staff can access Company Policies from the sidebar.</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body">
+          <strong data-en="Open Company Policies from the sidebar" data-ja="サイドバーから「Company Policies」を開く">Open Company Policies from the sidebar.</strong>
+          <p data-en="Documents with a pending acknowledgement show an amber ⚠️ badge. Overdue documents show a red badge." data-ja="確認待ちの文書には黄⚠️バッジ、期限切れは赤バッジが表示されます。">Amber ⚠️ = pending acknowledgement. Red = overdue deadline.</p>
+        </div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body">
+          <strong data-en="Click View PDF or Download to read the document" data-ja="「View PDF」または「Download」をクリックして文書を読む">Click View PDF or Download to read the document.</strong>
+        </div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body">
+          <strong data-en="Click Acknowledge to confirm receipt" data-ja="「Acknowledge」をクリックして受領を確認する">Click Acknowledge to confirm receipt.</strong>
+          <p data-en="A 2-step modal appears:" data-ja="2段階のモーダルが表示されます：">A 2-step confirmation modal appears:</p>
+          <ul style="margin-top:8px;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.7">
+            <li data-en="Step 1 — Read the declaration: I confirm that I have received and understood this policy. Click I Understand — Continue." data-ja="Step 1 — 宣言内容を読む：この規則を受領し理解したことを確認します。「理解しました — 続ける」をクリック。">Step 1 — Read the declaration and click <em>I Understand — Continue</em>.</li>
+            <li data-en="Step 2 — Enter your PIN to digitally sign the acknowledgement." data-ja="Step 2 — PINを入力してデジタル署名として受領確認を完了します。">Step 2 — Enter your PIN to sign.</li>
+          </ul>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px" data-en="Once confirmed, the document card shows a green ✓ Acknowledged badge with the date and time." data-ja="確認が完了すると、文書カードに緑色の ✓ Acknowledged バッジと日時が表示されます。">After confirmation, a green ✓ Acknowledged badge appears with the date.</p>
+        </div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Status Badges" data-ja="ステータスバッジ">Status Badges</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Badge" data-ja="バッジ">Badge</th><th data-en="Meaning" data-ja="意味">Meaning</th></tr>
+          <tr><td><span class="chip" style="background:#22c55e22;color:#22c55e;border-color:#22c55e44;" data-en="✓ Acknowledged" data-ja="✓ 確認済み">✓ Acknowledged</span></td><td class="muted" data-en="Staff confirmed receipt via PIN" data-ja="スタッフがPINで受領確認済み">Staff confirmed via PIN</td></tr>
+          <tr><td><span class="chip amber" data-en="⏰ Acknowledgement required" data-ja="⏰ 確認が必要">⏰ Acknowledgement required</span></td><td class="muted" data-en="Pending — not yet confirmed, deadline not passed" data-ja="未確認、期限内">Pending — within deadline</td></tr>
+          <tr><td><span class="chip" style="background:#ef444422;color:#ef4444;border-color:#ef444444;" data-en="⚠️ Overdue" data-ja="⚠️ 期限切れ">⚠️ Overdue</span></td><td class="muted" data-en="Deadline passed and staff has not acknowledged" data-ja="期限が過ぎても未確認">Deadline passed, not acknowledged</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span data-en="Acknowledgement is permanent and cannot be undone. Once a staff member enters their PIN and confirms, the record is stored with a timestamp and cannot be removed." data-ja="受領確認は取り消しできません。スタッフがPINを入力して確認すると、タイムスタンプとともに記録され、削除できません。">Acknowledgement is permanent. Once confirmed with PIN, the record cannot be removed.</span>
     </div>
   </div>
 
