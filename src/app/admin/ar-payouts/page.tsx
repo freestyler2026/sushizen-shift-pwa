@@ -155,7 +155,7 @@ export default function ArPayoutsPage() {
   const [confirmTarget, setConfirmTarget] = useState<ArPayout | null>(null);
 
   const auth = getAuth();
-  const confirmerName = auth?.name || "Unknown";
+  const confirmerName = auth?.staffName || "Unknown";
 
   const fetchPayouts = useCallback(async () => {
     setLoading(true);
