@@ -200,6 +200,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
   { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
   { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
+  { href: "/admin/ar-payouts", label: "AR Payouts", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
@@ -413,6 +414,7 @@ export default function NavBar() {
     if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
     if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role);
     return false;
   }
 
