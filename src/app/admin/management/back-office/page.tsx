@@ -90,6 +90,7 @@ const EXCEPTION_LABELS: Record<string, string> = {
   attendance_unverified: "Attendance Unverified",
   product_score_c:      "Product Score C",
   product_score_d:      "Product Score D/F",
+  salmon_high_waste:    "Salmon High Waste",
 };
 
 function fmtLabel(type: string) {

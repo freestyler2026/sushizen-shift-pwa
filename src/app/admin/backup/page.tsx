@@ -264,6 +264,18 @@ interface SearchItem {
   default_unit: string;
 }
 
+interface SalmonYield {
+  id: number;
+  whole_weight_g: number;
+  main_portion_g: number;
+  topping_g: number;
+  waste_g: number;
+  waste_pct: number;
+  photo_url: string;
+  ai_score: number | null;
+  ai_score_note: string;
+}
+
 interface BackupReport {
   id: number;
   city: string;
@@ -275,6 +287,7 @@ interface BackupReport {
   status: string;
   created_at: string;
   lines: BackupReportLine[];
+  salmon_yield?: SalmonYield | null;
 }
 
 interface BackupReportLine {
@@ -449,6 +462,108 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   );
 }
 
+// ─── Salmon Portioning Section ────────────────────────────────────────────────
+
+function SalmonPortioningSection({
+  enabled, onToggle,
+  wholeKg, onWholeKg,
+  mainKg, onMainKg,
+  toppingKg, onToppingKg,
+  wasteG, wastePct,
+  photo, onPhoto,
+}: {
+  enabled: boolean; onToggle: () => void;
+  wholeKg: string; onWholeKg: (v: string) => void;
+  mainKg: string; onMainKg: (v: string) => void;
+  toppingKg: string; onToppingKg: (v: string) => void;
+  wasteG: number; wastePct: number;
+  photo: File | null; onPhoto: (f: File | null) => void;
+}) {
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const wasteColor = wastePct >= 5 ? "text-red-400" : wastePct >= 3 ? "text-yellow-400" : "text-emerald-400";
+  const wasteBg = wastePct >= 5
+    ? "bg-red-500/15 border-red-500/30"
+    : wastePct >= 3
+    ? "bg-yellow-500/12 border-yellow-500/25"
+    : "bg-emerald-500/12 border-emerald-500/25";
+
+  return (
+    <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className={T_CARD_TITLE}>Salmon Portioning</h2>
+          <span className="text-xs text-zinc-500">Yield Control</span>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" checked={enabled} onChange={onToggle}
+            className="w-4 h-4 accent-violet-500" />
+          <span className="text-sm text-zinc-300">Done today</span>
+        </label>
+      </div>
+
+      {enabled && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className={`${T_LABEL} block mb-1.5`}>Whole Salmon (kg)</label>
+              <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
+                value={wholeKg} onChange={(e) => onWholeKg(e.target.value)} placeholder="e.g. 5.20" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} block mb-1.5`}>Main Portion (kg)</label>
+              <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
+                value={mainKg} onChange={(e) => onMainKg(e.target.value)} placeholder="e.g. 3.50" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} block mb-1.5`}>Topping (kg)</label>
+              <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
+                value={toppingKg} onChange={(e) => onToppingKg(e.target.value)} placeholder="e.g. 1.00" />
+            </div>
+          </div>
+
+          {parseFloat(wholeKg) > 0 && (
+            <div className={`rounded-xl border p-3 ${wasteBg}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-zinc-300">Waste</span>
+                <span className={`text-lg font-bold font-mono tabular-nums ${wasteColor}`}>
+                  {wastePct.toFixed(1)}%
+                  <span className="text-sm font-normal text-zinc-400 ml-2">({wasteG}g)</span>
+                </span>
+              </div>
+              {wastePct >= 5 && (
+                <p className="text-xs text-red-300 mt-1">High waste — management will be notified</p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Photo</label>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => photoInputRef.current?.click()}
+                className={SMALL_BUTTON}>
+                {photo ? "Change Photo" : "Take / Upload Photo"}
+              </button>
+              {photo && (
+                <span className="text-xs text-emerald-400">
+                  Photo selected: {photo.name}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Past Reports Panel ───────────────────────────────────────────────────────
 
 function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: BranchCode; isAdmin: boolean }) {
@@ -522,6 +637,17 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                 <span className={BADGE_INFO}>{r.shift}</span>
                 <span className="text-xs text-zinc-400">by {r.reported_by}</span>
                 <span className="text-xs text-zinc-500 ml-auto">{nonZero} item{nonZero !== 1 ? "s" : ""}</span>
+                {r.salmon_yield && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                    r.salmon_yield.waste_pct >= 5
+                      ? "text-red-300 bg-red-500/15 border-red-500/30"
+                      : r.salmon_yield.waste_pct >= 3
+                      ? "text-yellow-300 bg-yellow-500/12 border-yellow-500/25"
+                      : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
+                  }`}>
+                    Salmon {r.salmon_yield.waste_pct.toFixed(1)}%
+                  </span>
+                )}
                 {isAdmin && (
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1">
@@ -533,6 +659,42 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
               {expanded === r.id && (
                 <div className="border-t border-white/8 px-4 py-3 space-y-3">
                   {r.notes && <p className="text-xs text-zinc-400 italic">{r.notes}</p>}
+                  {r.salmon_yield && (
+                    <div className="rounded-xl border border-white/10 bg-white/3 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Salmon Yield</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                          r.salmon_yield.waste_pct >= 5
+                            ? "text-red-300 bg-red-500/15 border-red-500/30"
+                            : r.salmon_yield.waste_pct >= 3
+                            ? "text-yellow-300 bg-yellow-500/12 border-yellow-500/25"
+                            : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
+                        }`}>
+                          {r.salmon_yield.waste_pct.toFixed(1)}% waste
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-zinc-300 mb-2">
+                        <div><span className="text-zinc-500">Whole: </span>{r.salmon_yield.whole_weight_g}g</div>
+                        <div><span className="text-zinc-500">Main: </span>{r.salmon_yield.main_portion_g}g</div>
+                        <div><span className="text-zinc-500">Topping: </span>{r.salmon_yield.topping_g}g</div>
+                        <div><span className="text-zinc-500">Waste: </span>{r.salmon_yield.waste_g}g</div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {r.salmon_yield.photo_url && (
+                          <a href={r.salmon_yield.photo_url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                            View Photo
+                          </a>
+                        )}
+                        {r.salmon_yield.ai_score !== null && (
+                          <span className="text-xs text-zinc-400">
+                            AI Score: <span className="text-white font-semibold">{r.salmon_yield.ai_score}</span>
+                            {r.salmon_yield.ai_score_note && ` — ${r.salmon_yield.ai_score_note}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {Object.entries(groups).map(([sec, lines]) => {
                     const hasQty = lines.filter(l => Number(l.quantity) > 0);
                     if (hasQty.length === 0 && sec !== "extra") return null;
@@ -821,6 +983,28 @@ export default function BackupReportPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
 
+  // Salmon portioning
+  const [salmonEnabled, setSalmonEnabled] = useState(false);
+  const [salmonWholeKg, setSalmonWholeKg] = useState("");
+  const [salmonMainKg, setSalmonMainKg] = useState("");
+  const [salmonToppingKg, setSalmonToppingKg] = useState("");
+  const [salmonPhoto, setSalmonPhoto] = useState<File | null>(null);
+
+  const salmonWasteG = useMemo(() => {
+    const w = parseFloat(salmonWholeKg) || 0;
+    const m = parseFloat(salmonMainKg) || 0;
+    const t = parseFloat(salmonToppingKg) || 0;
+    return Math.round((w - m - t) * 1000);
+  }, [salmonWholeKg, salmonMainKg, salmonToppingKg]);
+
+  const salmonWastePct = useMemo(() => {
+    const w = parseFloat(salmonWholeKg) || 0;
+    if (w <= 0) return 0;
+    const m = parseFloat(salmonMainKg) || 0;
+    const t = parseFloat(salmonToppingKg) || 0;
+    return Math.round(((w - m - t) / w) * 10000) / 100;
+  }, [salmonWholeKg, salmonMainKg, salmonToppingKg]);
+
   useEffect(() => {
     const branches = BRANCHES[city];
     if (branches.length > 0) setBranchCode(branches[0].code);
@@ -864,6 +1048,11 @@ export default function BackupReportPage() {
     setHeaderNotes("");
     setSubmitSuccess("");
     setSubmitError("");
+    setSalmonEnabled(false);
+    setSalmonWholeKg("");
+    setSalmonMainKg("");
+    setSalmonToppingKg("");
+    setSalmonPhoto(null);
   }, []);
 
   const handleSubmit = async () => {
@@ -908,22 +1097,55 @@ export default function BackupReportPage() {
 
     if (lines.length === 0) { setSubmitError("No items entered. Please fill in at least one quantity."); return; }
 
+    const salmonPayload =
+      salmonEnabled && parseFloat(salmonWholeKg) > 0
+        ? {
+            whole_weight_g: Math.round(parseFloat(salmonWholeKg) * 1000),
+            main_portion_g: Math.round(parseFloat(salmonMainKg) * 1000),
+            topping_g: Math.round(parseFloat(salmonToppingKg) * 1000),
+            waste_g: salmonWasteG,
+            waste_pct: salmonWastePct,
+          }
+        : null;
+
     setSubmitting(true); setSubmitError(""); setSubmitSuccess("");
     try {
-      const result = await apiFetch<{ report_id: number; status: string }>(
+      const result = await apiFetch<{ report_id: number; status: string; salmon_yield_id?: number }>(
         "/api/admin/backup/report",
         {
           method: "POST",
           body: JSON.stringify({
             city, branch_code: branchCode, report_date: reportDate,
             reported_by: reportedBy.trim(), shift, notes: headerNotes.trim(), lines,
+            ...(salmonPayload ? { salmon_yield: salmonPayload } : {}),
           }),
         }
       );
+
+      // Upload salmon photo if captured
+      if (result.salmon_yield_id && salmonPhoto) {
+        try {
+          const fd = new FormData();
+          fd.append("photo", salmonPhoto);
+          await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
+            method: "POST",
+            headers: { ...(getAuthHeaders(auth) ?? {}) },
+            body: fd,
+          });
+        } catch {
+          // Photo upload failure is non-critical — report was saved
+        }
+      }
+
       setSubmitSuccess(`Report #${result.report_id} submitted.`);
       setTemplateQty({});
       setFreeLines([]);
       setHeaderNotes("");
+      setSalmonEnabled(false);
+      setSalmonWholeKg("");
+      setSalmonMainKg("");
+      setSalmonToppingKg("");
+      setSalmonPhoto(null);
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1098,6 +1320,22 @@ export default function BackupReportPage() {
             <button type="button" onClick={() => setFreeLines((prev) => [...prev, emptyFreeLine()])}
               className={SMALL_BUTTON}>+ Add blank line</button>
           </div>
+
+          {/* Salmon Portioning / Yield Control */}
+          <SalmonPortioningSection
+            enabled={salmonEnabled}
+            onToggle={() => setSalmonEnabled((v) => !v)}
+            wholeKg={salmonWholeKg}
+            onWholeKg={setSalmonWholeKg}
+            mainKg={salmonMainKg}
+            onMainKg={setSalmonMainKg}
+            toppingKg={salmonToppingKg}
+            onToppingKg={setSalmonToppingKg}
+            wasteG={salmonWasteG}
+            wastePct={salmonWastePct}
+            photo={salmonPhoto}
+            onPhoto={setSalmonPhoto}
+          />
 
           {/* Past Reports */}
           <PastReports city={city} branchCode={branchCode} isAdmin={isAdmin} />
