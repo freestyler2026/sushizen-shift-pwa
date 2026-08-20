@@ -307,7 +307,7 @@ export default function ArPayoutsPage() {
                 {uploading ? "Uploading…" : "Drop CSV files here, or click to select"}
               </p>
               <p className="text-xs text-white/30">
-                <span className="font-mono">Transfers_Store_*.csv</span> (Grab) &nbsp;·&nbsp; <span className="font-mono">Payout*Panda*.csv</span> (Foodpanda)
+                Grab: <span className="font-mono">Taft_Transfers_Store_*.csv</span> &nbsp;·&nbsp; Foodpanda: <span className="font-mono">Taft_Payouts_*.csv</span>
               </p>
             </div>
             <label className={`cursor-pointer ${PRIMARY_BUTTON} text-sm px-4 py-1.5 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
@@ -491,8 +491,8 @@ export default function ArPayoutsPage() {
         {/* Drive setup hint */}
         <div className="rounded-xl border border-white/5 bg-white/3 px-4 py-3 text-xs text-white/30">
           <strong className="text-white/50">Drive upload folder:</strong>{" "}
-          Upload Grab <em>Transfers_Store_*.csv</em> and Foodpanda <em>Payout*.csv</em> anywhere inside{" "}
-          <em>Finance / Payouts</em>, then click &ldquo;Sync from Drive&rdquo;. Platform is detected automatically from filename.
+          Upload Grab <em>Taft_Transfers_Store_*.csv</em> (or Paranaque_, QC_) and Foodpanda <em>Taft_Payouts_*.csv</em> (or Paranaque_, Cubao_) anywhere inside{" "}
+          <em>Finance / Payouts</em>, then click &ldquo;Sync from Drive&rdquo;. Platform and store are detected automatically from filename.
           Service account: <span className="font-mono">ar-finance-reader@ar-finance-reader.iam.gserviceaccount.com</span>
         </div>
       </div>
