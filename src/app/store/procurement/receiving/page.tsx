@@ -166,7 +166,7 @@ export default function StoreProcurementReceivingPage() {
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
-      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true", exclude_not_received: "false" });
+      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED,CANCELLED", limit: "1000", open_first: "true", exclude_not_received: "false" });
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
@@ -853,6 +853,7 @@ export default function StoreProcurementReceivingPage() {
                         "rounded-full px-2 py-0.5 text-[11px] font-medium",
                         row.status === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" :
                         row.status === "SUBMITTED" ? "bg-amber-500/15 text-amber-300" :
+                        row.status === "CANCELLED" ? "bg-red-500/15 text-red-400" :
                         "bg-zinc-500/15 text-zinc-400"
                       ].join(" ")}>
                         {row.status}
@@ -1322,6 +1323,14 @@ export default function StoreProcurementReceivingPage() {
                         <><ChevronRight className="h-4 w-4" /> Submit Request First</>
                       )}
                     </button>
+                  </div>
+                ) : selectedRequest && selectedRequest.status === "CANCELLED" ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-3 py-2.5 text-xs text-red-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                    <div>
+                      <span className="font-semibold">Order CANCELLED</span>
+                      <span className="ml-1">— Use &quot;Close Order – Not Received&quot; below to formally close this order.</span>
+                    </div>
                   </div>
                 ) : selectedRequest && !["APPROVED", "SUBMITTED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(selectedRequest.status) ? (
                   <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-200">
