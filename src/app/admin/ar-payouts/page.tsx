@@ -153,6 +153,10 @@ export default function ArPayoutsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeFilter, setStoreFilter] = useState("all");
   const [confirmTarget, setConfirmTarget] = useState<ArPayout | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const auth = getAuth();
   const confirmerName = auth?.staffName || "Unknown";
@@ -220,6 +224,36 @@ export default function ArPayoutsPage() {
     await fetchPayouts();
   };
 
+  const handleUpload = async (files: FileList | File[]) => {
+    const arr = Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".csv"));
+    if (!arr.length) { setUploadError("Please select .csv files."); return; }
+    setUploading(true);
+    setUploadResult(null);
+    setUploadError(null);
+    try {
+      const body = new FormData();
+      arr.forEach((f) => body.append("files", f));
+      const res = await fetch("/api/admin/ar-payouts/upload", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(`Upload failed: ${data.detail || res.statusText}`);
+      } else if (data.total_inserted === 0 && !data.errors?.length) {
+        setUploadResult("All records already imported (duplicates skipped).");
+      } else {
+        const parts = (data.files as { file: string; rows: number }[]).map((f) => `${f.file}: ${f.rows} records`).join(", ");
+        setUploadResult(`Imported ${data.total_inserted} record(s). ${parts}`);
+      }
+      if (data.errors?.length) {
+        setUploadError((prev) => `${prev ? prev + " " : ""}Errors: ${(data.errors as { file: string; error: string }[]).map((e) => `${e.file} — ${e.error}`).join("; ")}`);
+      }
+      await fetchPayouts();
+    } catch (err) {
+      setUploadError(`Upload error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Derive unique store codes for filter
   const storeCodes = Array.from(new Set(payouts.map((p) => p.store_code))).sort();
 
@@ -256,6 +290,47 @@ export default function ArPayoutsPage() {
         {syncResult && (
           <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-300">
             {syncResult}
+          </div>
+        )}
+
+        {/* Upload Zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUpload(e.dataTransfer.files); }}
+          className={`relative rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${isDragging ? "border-violet-400/60 bg-violet-500/10" : "border-white/10 bg-white/2 hover:border-white/20"}`}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="text-3xl">📂</div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-white/70">
+                {uploading ? "Uploading…" : "Drop CSV files here, or click to select"}
+              </p>
+              <p className="text-xs text-white/30">
+                <span className="font-mono">Transfers_Store_*.csv</span> (Grab) &nbsp;·&nbsp; <span className="font-mono">Payout*Panda*.csv</span> (Foodpanda)
+              </p>
+            </div>
+            <label className={`cursor-pointer ${PRIMARY_BUTTON} text-sm px-4 py-1.5 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+              {uploading ? "Uploading…" : "Select Files"}
+              <input
+                type="file"
+                accept=".csv"
+                multiple
+                className="sr-only"
+                onChange={(e) => e.target.files && handleUpload(e.target.files)}
+              />
+            </label>
+          </div>
+        </div>
+
+        {uploadResult && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            ✓ {uploadResult}
+          </div>
+        )}
+        {uploadError && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            ✗ {uploadError}
           </div>
         )}
 

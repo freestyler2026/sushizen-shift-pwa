@@ -414,7 +414,7 @@ export default function NavBar() {
     if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
     if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
-    if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role);
+    if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role) || (auth?.permissions || []).includes("channel.admin.ar_payouts.view");
     return false;
   }
 
@@ -1242,7 +1242,8 @@ export default function NavBar() {
           </div>
 
           {/* Scrollable nav items */}
-          <div className="flex-1 overflow-y-auto py-2 [&::-webkit-scrollbar]:hidden">
+          <div className="relative flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto py-2 [&::-webkit-scrollbar]:hidden">
             {staffItems.length > 0 && (
               <div className="mb-1">
                 <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
@@ -1263,6 +1264,9 @@ export default function NavBar() {
                 ))}
               </div>
             )}
+          </div>
+          {/* Fade gradient — hints that more items are below */}
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0d1117] to-transparent" />
           </div>
 
           {/* Logout */}
