@@ -162,6 +162,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" },
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
   { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" },
+  { href: "/admin/yield-control", label: "Yield Control", icon: Activity, match: "prefix" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
