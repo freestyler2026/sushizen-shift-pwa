@@ -745,6 +745,9 @@ export default function EmployeeCasesPage() {
   const [reqImagePreview, setReqImagePreview] = useState<string>("");
   const [submittingReq, setSubmittingReq] = useState(false);
   const reqImageRef = useRef<HTMLInputElement>(null);
+  // Explanation full-text modal
+  const [explanationModal, setExplanationModal] = useState<{ staffName: string; text: string } | null>(null);
+
   // Reject modal state
   const [rejectTarget, setRejectTarget] = useState<NteRequest | null>(null);
   const [rejectNote, setRejectNote] = useState("");
@@ -1930,6 +1933,43 @@ export default function EmployeeCasesPage() {
         ))}
       </div>
 
+      {/* ── Explanation Full-Text Modal ── */}
+      {explanationModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setExplanationModal(null)}
+        >
+          <div
+            className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <p className={T_SECTION}>Staff Explanation</p>
+              <button
+                type="button"
+                onClick={() => setExplanationModal(null)}
+                className="text-zinc-400 hover:text-white text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">{explanationModal.staffName}</p>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed max-h-[60vh] overflow-y-auto">
+              {explanationModal.text}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setExplanationModal(null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Reject Modal ── */}
       {rejectTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -2434,8 +2474,8 @@ export default function EmployeeCasesPage() {
               value={issueReason}
               onChange={(e) => setIssueReason(e.target.value)}
               placeholder="Describe the violation in detail…"
-              rows={5}
-              className={`${TEXTAREA_CLASS} min-h-[100px]`}
+              rows={12}
+              className={`${TEXTAREA_CLASS} min-h-[240px] resize-y`}
             />
           </div>
 
@@ -2659,12 +2699,14 @@ export default function EmployeeCasesPage() {
                       </td>
                       <td className={`${TABLE_CELL} px-4`}>
                         {nte.explanation_text ? (
-                          <span
-                            className="block max-w-[180px] truncate text-xs text-emerald-400"
-                            title={nte.explanation_text}
+                          <button
+                            type="button"
+                            onClick={() => setExplanationModal({ staffName: nte.staff_name, text: nte.explanation_text! })}
+                            className="block max-w-[180px] truncate text-xs text-emerald-400 text-left hover:text-emerald-300 hover:underline cursor-pointer"
+                            title="Click to view full explanation"
                           >
                             ✓ {nte.explanation_text}
-                          </span>
+                          </button>
                         ) : (
                           <span className={T_CAPTION}>—</span>
                         )}
