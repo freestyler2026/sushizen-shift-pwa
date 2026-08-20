@@ -501,38 +501,16 @@ function IssueNteModal({
       const caseId = revData.case?.id as string;
       if (!caseId) throw new Error("No case ID returned from review");
 
-      // 5. Generate NTE draft
+      // 5. Generate NTE draft → stops here; a second admin must approve + serve
       const draftRes = await fetch(`/api/admin/nte-v2/case/${caseId}/transition`, {
         method: "POST",
         headers: { ...authH, "Content-Type": "application/json" },
         body: JSON.stringify({ action: "generate_nte_draft" }),
       });
-      if (!draftRes.ok) {
-        const d = await draftRes.json();
-        throw new Error(d.detail || "Failed to generate draft");
-      }
+      const draftData = await draftRes.json();
+      if (!draftRes.ok) throw new Error(draftData.detail || "Failed to generate draft");
 
-      // 6. Approve
-      const approveRes = await fetch(`/api/admin/nte-v2/case/${caseId}/transition`, {
-        method: "POST",
-        headers: { ...authH, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
-      });
-      if (!approveRes.ok) {
-        const d = await approveRes.json();
-        throw new Error(d.detail || "Failed to approve");
-      }
-
-      // 7. Serve
-      const serveRes = await fetch(`/api/admin/nte-v2/case/${caseId}/transition`, {
-        method: "POST",
-        headers: { ...authH, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "serve", served_method: "EMAIL" }),
-      });
-      const serveData = await serveRes.json();
-      if (!serveRes.ok) throw new Error(serveData.detail || "Failed to serve");
-
-      onIssued(serveData.case as NteCase);
+      onIssued(draftData.case as NteCase);
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -744,9 +722,9 @@ function IssueNteModal({
 
             <div className="rounded-xl border border-violet-500/20 bg-violet-500/8 p-3">
               <p className="text-xs text-violet-300">
-                <strong>What happens when you click Issue:</strong><br />
-                The NTE will be created, approved, and served to {form.staff_name}.
-                They will have {form.response_days} days to submit their written response through the OS.
+                <strong>What happens when you click Submit:</strong><br />
+                The NTE draft will be created and placed in <strong>Approval Pending</strong> status.
+                A second administrator must approve it before it is served to {form.staff_name}.
                 This NTE will be permanently recorded in the company database.
               </p>
             </div>
@@ -766,9 +744,9 @@ function IssueNteModal({
                 disabled={saving}
               >
                 {saving ? (
-                  <><RefreshCw size={14} className="animate-spin" /> Issuing…</>
+                  <><RefreshCw size={14} className="animate-spin" /> Submitting…</>
                 ) : (
-                  <><Send size={14} /> Issue NTE to {form.staff_name}</>
+                  <><Send size={14} /> Submit NTE for Approval</>
                 )}
               </button>
             </div>
