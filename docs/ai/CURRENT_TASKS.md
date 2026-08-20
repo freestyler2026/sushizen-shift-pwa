@@ -1,6 +1,41 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-19 (Day 4 完了 — task_messages 双方向スレッド実装; Manager Inbox StoreTaskThread E2E検証済み; Manual republished)
+Last updated: 2026-08-20 (Salmon Portioning / Yield Control 完全実装 — Heroku v2018, Vercel c682b41)
+
+---
+
+## ✅ Completed: Salmon Portioning / Yield Control (2026-08-20, Heroku v2018, Vercel c682b41)
+
+**Goal**: Backup Report ページにサーモン仕込みのYield Control機能を統合
+
+**Frontend** (`src/app/admin/backup/page.tsx`):
+- `SalmonYield` インターフェース追加 + `BackupReport.salmon_yield?` フィールド
+- `SalmonPortioningSection` コンポーネント: チェックボックストグル / 3重量入力(Whole/Main/Topping) / Waste%自動計算（カラー表示）/ 写真撮影ボタン
+- Main component: salmon状態変数 (`salmonEnabled`, `salmonWholeKg/MainKg/ToppingKg`, `salmonPhoto`) + `salmonWasteG`/`salmonWastePct` 計算値 (useMemo)
+- `handleSubmit`: salmon_yield ペイロードをPOSTボディに含める / 写真は別途 `/api/admin/backup/salmon-photo/{id}` にFormDataでPOST
+- Past Reports: サーモンバッジ（ヘッダー行）+ 展開時の詳細（whole/main/topping/waste g + 写真リンク + AI Score）
+- `management/back-office/page.tsx`: `salmon_high_waste: "Salmon High Waste"` を `EXCEPTION_LABELS` に追加
+
+**Backend** (`app/`):
+- `app/services/salmon_drive.py` (NEW): Salmon Picture Driveフォルダへ写真アップロード / 見本画像サブフォルダ一覧
+- `app/db.py`: `salmon_yield_records` テーブル / `create_salmon_yield()` / `update_salmon_yield_photo()` / `list_backup_reports()` LEFT JOIN
+- `app/main.py`: `SalmonYieldIn` Pydantic / `BackupReportIn.salmon_yield` 拡張 / Waste≥5% → `salmon_high_waste` management task 自動作成 / `POST /api/admin/backup/salmon-photo/{id}` エンドポイント
+
+**Heroku config vars** (設定済み):
+- `SALMON_PICTURE_FOLDER_ID=0ADqncGA1knZCUk9PVA`
+- `SALMON_PICTURE_SA_JSON_KEY=Backoffice_Daily_Evaluation_JSON` (v2017で設定済み)
+
+**Pending (次のセッション)**:
+- 見本画像フォルダに画像追加後、AI Scoringロジック実装（Claude Vision API使用）
+- `salmon_high_waste` テンプレートをBO Dashboard → Seed で作成（または手動upsert）
+
+---
+
+## ✅ Completed: Manila Payroll Engine 修正 (2026-08-20, Heroku v2016)
+
+**Fix 1**: `_get_prev_workday_status()` に `AND is_scheduled_rest_day = FALSE` 追加
+- Anthony Andales のケース: 水曜Day Off / 日曜出勤 → is_scheduled_rest_dayでのみ判定
+**Fix 2**: `_working_days_in_range()` (`.weekday() != 6` 日曜ハードコード) を完全削除
 
 ---
 
