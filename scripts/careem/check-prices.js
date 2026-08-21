@@ -164,15 +164,23 @@ async function getOutletPricesViaNetwork(page, outletId) {
 
     for (const cat of categories) {
       const catName = cat.name.trim();
-      // API requires status + page + pageSize (> 0)
-      // SPA uses INACTIVE (management view shows all catalog items incl. inactive)
-      const urls = [
-        `${BASE}/catalogs/${catalogId}/products?status=INACTIVE&categoryId=${cat.id}&page=1&pageSize=100`,
-        `${BASE}/catalogs/${catalogId}/products?status=ACTIVE&categoryId=${cat.id}&page=1&pageSize=100`,
+      // Try multiple pagination + path variants to find the right API format.
+      // Other Careem APIs use size= not pageSize=; try both plus 0-indexed page.
+      const pagVariants = [
+        'page=1&pageSize=100',
+        'page=1&size=100',
+        'page=0&pageSize=100',
+        'page=0&size=100',
+        'page=1&page_size=100',
       ];
 
       let catItems = [];
-      for (const apiUrl of urls) {
+      let foundWorkingVariant = false;
+
+      for (const pag of pagVariants) {
+        const apiUrl = `${BASE}/catalogs/${catalogId}/products?status=INACTIVE&categoryId=${cat.id}&${pag}`;
+        console.log(`  Trying: ...${apiUrl.slice(-90)}`);
+
         const result = await page.evaluate(async ({ url, hdrs }) => {
           try {
             const res = await fetch(url, { credentials: 'include', headers: hdrs });
@@ -185,18 +193,23 @@ async function getOutletPricesViaNetwork(page, outletId) {
           }
         }, { url: apiUrl, hdrs: spaHeaders });
 
-        if (result.json) {
-          catItems = extractItemsFromResponse(result.json);
-          const tag = apiUrl.includes('ACTIVE') ? 'ACTIVE' : 'ALL';
-          console.log(`  "${catName}" [${tag}]: ${catItems.length} items`);
-          if (catItems.length === 0) {
-            console.log(`    Snippet: ${result.snippet}`);
-          }
-          if (catItems.length > 0) break;
-        } else {
-          console.log(`  "${catName}": HTTP ${result.status || 'err'} — ${(result.snippet || result.error || '').slice(0, 120)}`);
-          break;  // don't retry if server returned an error
+        const snippet = result.snippet || result.error || '';
+        if (!result.json || snippet.includes('"error"')) {
+          console.log(`    → HTTP ${result.status || 'err'}: ${snippet.slice(0, 120)}`);
+          continue;  // try next variant
         }
+
+        catItems = extractItemsFromResponse(result.json);
+        console.log(`  "${catName}": ${catItems.length} items [${pag}]`);
+        if (catItems.length === 0) {
+          console.log(`    Snippet: ${result.snippet}`);
+        }
+        foundWorkingVariant = true;
+        break;
+      }
+
+      if (!foundWorkingVariant && catItems.length === 0) {
+        console.log(`  "${catName}": all pagination variants failed`);
       }
 
       catItems.forEach(i => allItems.push({ ...i, category: catName }));
