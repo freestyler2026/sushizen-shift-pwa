@@ -79,18 +79,20 @@ async function main() {
   const page = await context.newPage();
 
   console.log('\n=== Talabat Finance API Discovery ===');
-  console.log('Opening portal...\n');
+  console.log('Target: Past Payouts section (per-outlet net payout data)\n');
   await page.goto('https://partner-app.talabat.com/dashboard', {
     waitUntil: 'domcontentloaded', timeout: 30_000,
   });
 
   console.log('Portal is open.');
-  console.log('Please navigate to Finance → Payouts (or Earnings / Reports).');
-  console.log('Select a date range and an outlet, then wait for data to appear.');
-  console.log('The browser will close automatically after 120 seconds.\n');
+  console.log('Please navigate to:');
+  console.log('  Finance → Past Payouts  (or Payouts / Settlements)');
+  console.log('  ※ NOT the "Report Builder" — we want individual payout records');
+  console.log('  ※ Select any outlet and any date range → wait for payout list to load');
+  console.log('The browser will close automatically after 180 seconds.\n');
 
-  // Wait 120 s for manual navigation
-  for (let i = 120; i > 0; i -= 10) {
+  // Wait 180 s for manual navigation
+  for (let i = 180; i > 0; i -= 10) {
     await page.waitForTimeout(10_000).catch(() => {});
     console.log(`  ${i}s remaining — ${page.url()}`);
     if (browser.isConnected() === false) break;
@@ -98,11 +100,13 @@ async function main() {
 
   try { await browser.close(); } catch (_) {}
 
-  // Filter and save only finance-relevant entries
+  // Save ALL portal/API entries (no filter — we don't know the payout URL yet)
   const financeEntries = captured.filter(e => {
     const u = e.url.toLowerCase();
-    return u.includes('vagw-api') || u.includes('finance') || u.includes('payout') ||
-           u.includes('settlement') || u.includes('earning') || u.includes('revenue');
+    return u.includes('vagw-api') || u.includes('portal.restaurant') ||
+           u.includes('finance') || u.includes('payout') ||
+           u.includes('settlement') || u.includes('earning') || u.includes('revenue') ||
+           u.includes('deliveryhero') || u.includes('restaurant-partners');
   });
 
   fs.writeFileSync(OUT_JSON, JSON.stringify(financeEntries, null, 2));

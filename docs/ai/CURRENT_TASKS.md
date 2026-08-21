@@ -1,27 +1,55 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Talabat per-outlet payout extractor)
+Last updated: 2026-08-21 (Talabat net payout extractor — ListPayouts API discovered)
 
 ---
 
-## 🔄 Pending: Talabat Per-Outlet Payout Extraction (scripts ready, session expired)
+## ✅ Completed: Talabat Net Payout Extractor (2026-08-21)
 
-**目的**: Talabatのearnings-summaryはブランドレベル（SZ/RZ合計）のみ。店舗別データをコードから取得する仕組みを構築。
+**目的**: Talabat Past Payouts セクションの API を探索し、コミッション控除後の実際の振込金額（Net Payout）を自動取得するスクリプトを構築。
 
-**状況**: セッションが2026-08-19に期限切れ。`setup-session.js`で再取得が必要。
+**発見した GraphQL オペレーション**（vagw-api.eu.prd.portal.restaurant/query）:
+- `getPayoutEarningsSummary`: 期間合計（Gross / Commission / Net / Orders）
+- `ListPayouts`: 個別ペイアウト一覧（payout_id, netPayout, paymentDate, status, invoices）
 
-**実装済み**:
-- `scripts/talabat/get-payouts.js`: Playwright でFinanceセクションに移動し、GraphQL レスポンスを傍受して店舗別ペイアウトデータを抽出→webhook経由で送信
-- `scripts/talabat/discover-finance-api.js`: headfulブラウザで Finance APIを発見（初回1回のみ実行、フルリクエストボディを保存）
-- `app/main.py`: `POST /api/talabat/portal-payout-record` エンドポイント追加（v2048）。店舗別ペイアウトをar_payoutsに upsert。
+**ペイアウトの粒度（重要）**:
+Talabat は billing chain 単位で支払いを行う（店舗別ではない）。Dubai 全14ベンダーは4チェーンに分類:
+| chainId | ブランド | 店舗 |
+|---|---|---|
+| 671526 | Sushi ZEN | AM/AB/ARJ/BB/JLT (5店) |
+| 694540 | Ramen ZEN (新) | 新規4店 ※ペイアウトなし（未確認） |
+| 673913 | J-Japanese / Ramen ZEN | RZ_AM等4店 |
+| 698589 | All Veggie Sushi | VEGGIE_AB (1店) |
 
-**次のステップ（ユーザー実行）**:
-1. `node scripts/talabat/setup-session.js` でセッション再取得
-2. `node scripts/talabat/discover-finance-api.js` を実行 → Financeセクションに手動移動 → `talabat-finance-api.json`にGraphQLクエリが保存される
-3. get-payouts.jsが正しいoperationNameを検出できれば自動化可能
-4. 見つかったらGitHub ActionsワークフローにTalabat payout stepを追加
+**実装済みスクリプト**:
+- `scripts/talabat/get-net-payouts.js`: チェーン単位（4コール）でListPayoutsを呼び出し、net_payoutデータをwebhook送信
+  - 実行例: `DATE_FROM=2026-07-22 DATE_TO=2026-08-21 node scripts/talabat/get-net-payouts.js`
+  - 結果: Sushi ZEN 58,821 AED / J-JJAD 6,590 AED / Veggie 921 AED（8ペイアウトずつ）
+- `scripts/talabat/get-payouts.js`: 店舗別 Gross Sales (SalesOverviewByTime) — 既存
 
-**注意**: `vagw-api.eu.prd.portal.restaurant/query`の`SalesOverviewByTime`クエリは全14 vendorコードを含むことが確認済み。Financeセクション移動で同エンドポイントが使われれば店舗別内訳が取得できる可能性がある。
+**ベンダー → GRID マッピング（確認済み 2026-08-21）**:
+onboarding API: `so-backend.deliveryhero.io/api/v1/entity/TB_AE/onboarding/vendors`
+| vendor_id | grid | chainId | store_code |
+|---|---|---|---|
+| 723150 | 4CO4Y1 | 671526 | AM |
+| 744680 | 4C19Z9 | 671526 | AB |
+| 729481 | 4CM5GD | 671526 | JLT |
+| 719717 | HARLKZ | 671526 | BB |
+| 719720 | 4CYUPB | 671526 | ARJ |
+| 765535 | 4ML3TQ | 698589 | VEGGIE_AB |
+| 763564 | 4M8HWV | 694540 | Ramen ZEN新 |
+| 761205 | 4M3CV9 | 694540 | Ramen ZEN新 |
+| 759210 | 4M3CV1 | 694540 | Ramen ZEN新 |
+| 761204 | 4M3CXB | 694540 | Ramen ZEN新 |
+| 762721 | 4M869V | 673913 | JJAD_AM |
+| 723685 | 4CYUPL | 673913 | RZ_AM相当 |
+| 723684 | 4CYUPE | 673913 | RZ_JLT相当 |
+| 723686 | 4CYUP6 | 673913 | JJAD_JLT |
+
+**残タスク**:
+- GitHub Actions ワークフローに get-payouts.js + get-net-payouts.js を月次実行ステップとして追加
+- chainId 694540 (Ramen ZEN新) のペイアウトが 0 の理由を調査
+- Noon Dubai のサンプルファイル取得
 
 ---
 
