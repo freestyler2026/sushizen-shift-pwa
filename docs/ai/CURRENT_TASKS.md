@@ -1,10 +1,89 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (WH Inventory Auto Order)
+Last updated: 2026-08-21 (Talabat per-outlet payout extractor)
 
 ---
 
-## ✅ Completed: WH Inventory Auto Order (2026-08-21, Heroku v2044 / Vercel f052472)
+## 🔄 Pending: Talabat Per-Outlet Payout Extraction (scripts ready, session expired)
+
+**目的**: Talabatのearnings-summaryはブランドレベル（SZ/RZ合計）のみ。店舗別データをコードから取得する仕組みを構築。
+
+**状況**: セッションが2026-08-19に期限切れ。`setup-session.js`で再取得が必要。
+
+**実装済み**:
+- `scripts/talabat/get-payouts.js`: Playwright でFinanceセクションに移動し、GraphQL レスポンスを傍受して店舗別ペイアウトデータを抽出→webhook経由で送信
+- `scripts/talabat/discover-finance-api.js`: headfulブラウザで Finance APIを発見（初回1回のみ実行、フルリクエストボディを保存）
+- `app/main.py`: `POST /api/talabat/portal-payout-record` エンドポイント追加（v2048）。店舗別ペイアウトをar_payoutsに upsert。
+
+**次のステップ（ユーザー実行）**:
+1. `node scripts/talabat/setup-session.js` でセッション再取得
+2. `node scripts/talabat/discover-finance-api.js` を実行 → Financeセクションに手動移動 → `talabat-finance-api.json`にGraphQLクエリが保存される
+3. get-payouts.jsが正しいoperationNameを検出できれば自動化可能
+4. 見つかったらGitHub ActionsワークフローにTalabat payout stepを追加
+
+**注意**: `vagw-api.eu.prd.portal.restaurant/query`の`SalesOverviewByTime`クエリは全14 vendorコードを含むことが確認済み。Financeセクション移動で同エンドポイントが使われれば店舗別内訳が取得できる可能性がある。
+
+---
+
+## ✅ Completed: Talabat Dubai AR Parser (2026-08-21, Heroku v2047)
+
+**目的**: 管理会計システム Phase 2 Revenue Intelligence — Dubai Talabat の monthly earnings summary xlsx を AR Payouts DB に取り込む。
+
+**重要な発見**: Talabatのearnings-summaryは**ブランドレベル**（店舗別ではない）。
+- SZ = Sushi ZEN（Dubai 5店舗合計）
+- RZ = Ramen ZEN（Dubai 4店舗合計）
+
+**ファイル命名規則（必須）**: ダウンロード後に即リネームが必要。
+```
+talabat_SZ_2026-07-01_2026-07-31.xlsx   ← Sushi ZEN
+talabat_RZ_2026-07-01_2026-07-31.xlsx   ← Ramen ZEN
+```
+
+**技術的課題**: TalabatのxlsxはXML styleが非標準でopenpyxlが読めない。`python-calamine`ライブラリで解決。
+
+**実装**:
+- `requirements.txt`: `python-calamine` 追加
+- `ar_parser.py`: `TALABAT_BRAND_MAP` + `parse_talabat_earnings()` + `parse_xlsx()` ルーター更新
+- `ar_drive.py`: `_classify_xlsx()` にtalabat対応追加、`list_new_xlsx_files()` を `Dubai/Keeta/` + `Dubai/Talabat/` 両方スキャンに拡張
+- `db.py`: `insert_talabat_payout_records()` 追加（brand/city/currency対応）
+- `main.py`: sync・uploadエンドポイント両方をtalabat対応に更新
+
+**Talabat Store ID マッピング（ポータルから確認）**:
+| Talabat ID | 店舗名 | 用途 |
+|---|---|---|
+| TB_AE;671526 | Sushi Zen (Brand) | → store_code SZ |
+| TB_AE;673913 | Ramen Zen (Brand) | → store_code RZ |
+| TB_AE;719720 | Sushi ZEN, JLT | 個店別は不可 |
+| TB_AE;719717 | Sushi ZEN, Business Bay | 個店別は不可 |
+| TB_AE;723150 | Sushi ZEN, Al Barsha South (ARJ) | 個店別は不可 |
+| TB_AE;729481 | Sushi ZEN, Al Hudaiba (AM) | 個店別は不可 |
+| TB_AE;744680 | Sushi ZEN, Al Barsha 3 (AB) | 個店別は不可 |
+
+**残タスク (Dubai AR)**: Noon のサンプルファイル取得待ち。
+
+---
+
+## ✅ Completed: Keeta Dubai AR Parser (2026-08-21, Heroku v2046)
+
+**目的**: 管理会計システム Phase 2 Revenue Intelligence — Dubai Keeta の週次請求 xlsx を AR Payouts DB に取り込む。
+
+**ファイル形式**: `bill-[{restaurant_id}]_{date_range}_Order_{order_id}.xlsx`  
+4シート: Explanation / Invoice Details / Billing data summary / Order Summary  
+Keeta は週次精算（月1ファイルに4週分）のため、1ファイル→4レコード（billing cycle別）。
+
+**実装**:
+- `ar_parser.py`: `KEETA_RESTAURANT_MAP`（5店舗: AB/ARJ/AM/JLT/BB）+ `parse_keeta_billing(content, filename)` + `parse_xlsx()` ルーター追加
+- `ar_drive.py`: `_classify_xlsx()`, `_walk_xlsx_folder()`, `list_new_xlsx_files()`（Finance/Payouts/Dubai/Keeta/）, `upload_xlsx_to_drive()` 追加
+- `db.py`: `insert_keeta_payout_records()` 追加（city='dubai', currency='AED'）
+- `main.py`: `/sync` エンドポイントに Keeta XLSX セクション追加、`/upload` エンドポイントを xlsx 対応に拡張、`insert_keeta_payout_records` をimport
+
+**テスト結果**: 9ファイル（5店舗 × Jun+Jul 2026）→ 36レコード、合計276,619 AED を正常にパース。
+
+**残タスク (Dubai AR)**: Careem PDF parser は既存実装あり。Noon・Talabat のサンプルファイル取得待ち。
+
+---
+
+## ✅ Completed: WH Inventory Auto Order (2026-08-21, Heroku v2044→v2045 / Vercel f052472)
 
 **目的**: Warehouse在庫でpar levelを下回るアイテムを自動検出し、サプライヤー別にDirect Purchase発注を生成してProcurement Approval Inboxへ送信。
 
@@ -13,12 +92,17 @@ Last updated: 2026-08-21 (WH Inventory Auto Order)
 - `get_wh_stock_view()`: `need_qty = max(0, par_level - theoretical_qty)` を計算、全supplier情報をresultに追加
 
 **Backend — `inventory_api.py`**:
-- `POST /api/admin/inventory/wh-stock/generate-orders`: need_qty>0のアイテムをサプライヤー別にグループ化し、`create_proc_request(purchase_type='direct_purchase')` + `replace_proc_request_items()` + `recalc_proc_request_total()` で一括生成
+- `POST /api/admin/inventory/wh-stock/generate-orders`: need_qty>0のアイテムをサプライヤー別にグループ化し、`create_proc_request(purchase_type='direct_purchase', is_wh_order=True)` + `replace_proc_request_items()` + `recalc_proc_request_total()` で一括生成
+
+**Backend — `db.py`**:
+- `create_proc_request()`: `is_wh_order: bool = False` パラメータ追加、INSERT文に `is_wh_order` カラムを追加（v2045で修正）
 
 **Frontend — `wh-inventory/page.tsx`**:
 - `MasterItem` + `StockViewRow` 型に `par_level`, `need_qty`, `supplier_id`, `supplier_name`, `order_unit`, `purchase_cost` を追加
 - "Auto Order" タブ（ティール色）: par level以下のアイテムをサプライヤー別にグループ表示、"Generate Purchase Orders" ボタンで一括発注、成功後はApproval Inboxリンク付きで作成済みリクエスト番号を表示
 - サプライヤー未設定アイテムはアンバー警告セクションに表示（発注スキップ）
+
+**Inventory Manual**: WH Inventory セクションにTab 2 — Auto Order を追加（prerequisites・6ステップガイド・フロー図・スキップ説明）、既存タブをTab 3/4/5に繰り下げ
 
 ---
 
