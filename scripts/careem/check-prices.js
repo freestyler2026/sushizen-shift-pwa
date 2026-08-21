@@ -76,18 +76,19 @@ async function main() {
       }
 
       const items = await getPrices(page);
-      await page.close();
 
       if (items.length === 0) {
         const finalUrl = page.url();
         const title = await page.title();
         const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+        await page.close();
         console.log(`Outlet ${catalog.outletId}: no prices found`);
         console.log(`  URL: ${finalUrl}`);
         console.log(`  Title: ${title}`);
         console.log(`  Body: ${bodyText.replace(/\n/g, ' ')}`);
         continue;
       }
+      await page.close();
 
       const result = await postWebhook({
         outlet_id:   catalog.outletId,
