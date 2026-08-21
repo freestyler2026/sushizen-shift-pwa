@@ -1,9 +1,7 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { GLASS_CARD, T_PAGE_TITLE, T_SECTION, SMALL_BUTTON, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 import { getAuth } from "@/lib/auth";
 
@@ -67,8 +65,7 @@ function thisMonth() {
 
 export default function ExecutiveReportPage() {
   const router      = useRouter();
-  const searchParams = useSearchParams();
-  const [yearMonth, setYearMonth] = useState(searchParams.get("month") || thisMonth());
+  const [yearMonth, setYearMonth] = useState(thisMonth());
   const [report, setReport] = useState<ExecReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");

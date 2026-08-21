@@ -252,7 +252,7 @@ export default function GroupManagementPage() {
           <button onClick={() => router.push("/admin/mgmt-accounting/settings")} className={SMALL_BUTTON}>
             Settings
           </button>
-          <button onClick={() => router.push(`/admin/mgmt-accounting/report?month=${yearMonth}`)} className={SMALL_BUTTON}>
+          <button onClick={() => router.push("/admin/mgmt-accounting/report")} className={SMALL_BUTTON}>
             Monthly Report
           </button>
         </div>
