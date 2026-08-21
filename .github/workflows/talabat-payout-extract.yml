@@ -77,3 +77,22 @@ jobs:
           DATE_TO: ${{ env.DATE_TO }}
           WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-payout-record
         timeout-minutes: 10
+
+      - name: Run per-outlet net payout allocation
+        run: |
+          echo "Calling allocation endpoint for $DATE_FROM → $DATE_TO"
+          RESULT=$(curl -sf -X POST \
+            "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/run-payout-allocation?period_start=${DATE_FROM}&period_end=${DATE_TO}&secret=${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "$RESULT"
+          echo "$RESULT" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          if not d.get('ok'):
+            print('ERROR:', d.get('error', 'unknown'))
+            sys.exit(1)
+          print(f'Allocated {d[\"records_written\"]} records')
+          for store, amt in d['store_totals_aed'].items():
+              print(f'  {store}: {amt} AED')
+          "
+        timeout-minutes: 3
