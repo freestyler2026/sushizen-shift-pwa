@@ -106,8 +106,9 @@ function stockColor(theoretical: number): string {
   return "text-emerald-300";
 }
 
-function stockBadge(theoretical: number): { label: string; cls: string } {
+function stockBadge(theoretical: number, needQty = 0): { label: string; cls: string } {
   if (theoretical <= 0) return { label: "OUT", cls: "bg-rose-900/40 text-rose-300 border-rose-800/50" };
+  if (needQty > 0) return { label: "LOW", cls: "bg-amber-900/40 text-amber-300 border-amber-800/50" };
   if (theoretical < 1) return { label: "LOW", cls: "bg-amber-900/40 text-amber-300 border-amber-800/50" };
   return { label: "OK", cls: "bg-emerald-900/40 text-emerald-300 border-emerald-800/50" };
 }
@@ -328,6 +329,7 @@ export default function WhInventoryPage() {
   const [editCategory, setEditCategory] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
+  const [editParLevel, setEditParLevel] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -690,6 +692,7 @@ export default function WhInventoryPage() {
     setEditCategory(row.category || "");
     setEditUnit(row.unit || "");
     setEditCost(String(row.cost ?? ""));
+    setEditParLevel(row.par_level > 0 ? String(row.par_level) : "");
     setEditError("");
     setShowEditModal(true);
   }
@@ -704,6 +707,7 @@ export default function WhInventoryPage() {
         category_name: editCategory.trim(),
         storage_unit: editUnit.trim(),
         cost: parseFloat(editCost) || 0,
+        par_level: parseFloat(editParLevel) || 0,
         city,
       });
       setShowEditModal(false);
@@ -910,6 +914,7 @@ export default function WhInventoryPage() {
                   <th className="px-4 py-2.5 text-right">Last Count</th>
                   <th className="px-4 py-2.5 text-right">Adjustments</th>
                   <th className="px-4 py-2.5 text-right">Theoretical</th>
+                  <th className="px-4 py-2.5 text-right">Par Lv</th>
                   <th className="px-4 py-2.5">Last Count Date</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5"></th>
@@ -917,7 +922,7 @@ export default function WhInventoryPage() {
               </thead>
               <tbody>
                 {filteredStock.map((row) => {
-                  const badge = stockBadge(row.theoretical_qty);
+                  const badge = stockBadge(row.theoretical_qty, row.need_qty);
                   return (
                     <tr
                       key={row.id}
@@ -939,6 +944,9 @@ export default function WhInventoryPage() {
                       <td className={["px-4 py-2.5 text-right font-mono text-sm font-semibold", stockColor(row.theoretical_qty)].join(" ")}>
                         {fmt3(row.theoretical_qty)}
                         <span className="ml-1 text-xs font-normal text-neutral-500">{row.unit}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-neutral-400">
+                        {row.par_level > 0 ? fmt3(row.par_level) : <span className="text-neutral-700">—</span>}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-neutral-500">
                         {row.last_count_date ? String(row.last_count_date).slice(0, 10) : "Never"}
@@ -1580,6 +1588,21 @@ export default function WhInventoryPage() {
                     className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
                   />
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">
+                  Par Level
+                  <span className="ml-1.5 text-neutral-600">(auto-order triggered when stock falls below this)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={editParLevel}
+                  onChange={(e) => setEditParLevel(e.target.value)}
+                  placeholder="0 = no par level"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                />
               </div>
             </div>
             <div className="flex justify-end border-t border-neutral-800 px-6 py-4">
