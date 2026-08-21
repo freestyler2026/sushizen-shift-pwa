@@ -82,6 +82,14 @@ interface AlertData {
   alert_count: number;
 }
 
+interface GroupTarget {
+  year_month: string;
+  city: string;
+  food_cost_rate_target: number | null;
+  prime_cost_rate_target: number | null;
+  notes: string;
+}
+
 interface Prediction {
   city: string;
   next_month: string | null;
@@ -147,6 +155,16 @@ export default function GroupManagementPage() {
   const [alerts, setAlerts] = useState<AlertData | null>(null);
   const [dubaiPred, setDubaiPred] = useState<Prediction | null>(null);
   const [manilaPred, setManilaPred] = useState<Prediction | null>(null);
+  const [dubaiTarget, setDubaiTarget] = useState<GroupTarget | null>(null);
+  const [manilaTarget, setManilaTarget] = useState<GroupTarget | null>(null);
+  const [dubaiFoodTarget, setDubaiFoodTarget] = useState("");
+  const [dubaiPrimeTarget, setDubaiPrimeTarget] = useState("");
+  const [manilaFoodTarget, setManilaFoodTarget] = useState("");
+  const [manilaPrimeTarget, setManilaPrimeTarget] = useState("");
+  const [savingTargets, setSavingTargets] = useState(false);
+  const [targetMsg, setTargetMsg] = useState("");
+  const [pushingAlerts, setPushingAlerts] = useState(false);
+  const [pushMsg, setPushMsg] = useState("");
 
   const months = prevMonths(12);
 
@@ -162,12 +180,13 @@ export default function GroupManagementPage() {
     setError("");
     try {
       const h = authHeaders();
-      const [gRes, rRes, aRes, dpRes, mpRes] = await Promise.all([
+      const [gRes, rRes, aRes, dpRes, mpRes, tRes] = await Promise.all([
         fetch(`/api/admin/mgmt/group-summary?year_month=${yearMonth}`, { headers: h }),
         fetch(`/api/admin/mgmt/store-ranking?year_month=${yearMonth}`, { headers: h }),
         fetch(`/api/admin/mgmt/kpi-alerts?year_month=${yearMonth}`, { headers: h }),
         fetch(`/api/admin/mgmt/trend-prediction?city=dubai&months=6`, { headers: h }),
         fetch(`/api/admin/mgmt/trend-prediction?city=manila&months=6`, { headers: h }),
+        fetch(`/api/admin/mgmt/group-targets?year_month=${yearMonth}`, { headers: h }),
       ]);
       if (!gRes.ok) throw new Error(`Group summary: ${gRes.status}`);
       if (!rRes.ok) throw new Error(`Store ranking: ${rRes.status}`);
@@ -182,6 +201,19 @@ export default function GroupManagementPage() {
       if (aRes.ok)  setAlerts(await aRes.json());
       if (dpRes.ok) setDubaiPred(await dpRes.json());
       if (mpRes.ok) setManilaPred(await mpRes.json());
+      if (tRes.ok) {
+        const tData = await tRes.json();
+        const targets: GroupTarget[] = tData.targets || [];
+        const dt = targets.find(t => t.city === "dubai") || null;
+        const mt = targets.find(t => t.city === "manila") || null;
+        setDubaiTarget(dt);
+        setManilaTarget(mt);
+        setDubaiFoodTarget(dt?.food_cost_rate_target?.toString() ?? "");
+        setDubaiPrimeTarget(dt?.prime_cost_rate_target?.toString() ?? "");
+        setManilaFoodTarget(mt?.food_cost_rate_target?.toString() ?? "");
+        setManilaPrimeTarget(mt?.prime_cost_rate_target?.toString() ?? "");
+        setPushMsg("");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -217,6 +249,63 @@ export default function GroupManagementPage() {
       setFxMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setSavingFx(false);
+    }
+  }
+
+  async function saveTargets() {
+    setSavingTargets(true);
+    setTargetMsg("");
+    try {
+      const h = authHeaders();
+      await Promise.all([
+        fetch("/api/admin/mgmt/group-targets", {
+          method: "POST", headers: h,
+          body: JSON.stringify({
+            year_month: yearMonth, city: "dubai",
+            food_cost_rate_target: dubaiFoodTarget ? parseFloat(dubaiFoodTarget) : null,
+            prime_cost_rate_target: dubaiPrimeTarget ? parseFloat(dubaiPrimeTarget) : null,
+          }),
+        }),
+        fetch("/api/admin/mgmt/group-targets", {
+          method: "POST", headers: h,
+          body: JSON.stringify({
+            year_month: yearMonth, city: "manila",
+            food_cost_rate_target: manilaFoodTarget ? parseFloat(manilaFoodTarget) : null,
+            prime_cost_rate_target: manilaPrimeTarget ? parseFloat(manilaPrimeTarget) : null,
+          }),
+        }),
+      ]);
+      setTargetMsg("Saved");
+      await fetchData();
+    } catch (e) {
+      setTargetMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingTargets(false);
+    }
+  }
+
+  async function pushAlerts() {
+    if (!alerts || alerts.alert_count === 0) return;
+    setPushingAlerts(true);
+    setPushMsg("");
+    try {
+      const h = authHeaders();
+      const res = await fetch("/api/admin/mgmt/push-kpi-alerts", {
+        method: "POST", headers: h,
+        body: JSON.stringify({ year_month: yearMonth }),
+      });
+      const data = await res.json();
+      if (data.pushed > 0) {
+        setPushMsg(`${data.pushed} alert${data.pushed > 1 ? "s" : ""} pushed to Manager Inbox`);
+      } else if (data.skipped > 0) {
+        setPushMsg(`Already in Inbox (${data.skipped} existing)`);
+      } else {
+        setPushMsg("No alerts to push");
+      }
+    } catch (e) {
+      setPushMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPushingAlerts(false);
     }
   }
 
@@ -262,25 +351,41 @@ export default function GroupManagementPage() {
 
       {/* KPI Alerts */}
       {alerts && alerts.alert_count > 0 && (
-        <div className="mb-4 flex flex-col gap-2">
-          {alerts.alerts.map((a, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
-                a.severity === "critical"
-                  ? "border-rose-500/30 bg-rose-500/10"
-                  : "border-amber-500/30 bg-amber-500/10"
-              }`}
-            >
-              <span className="text-base mt-0.5">{a.severity === "critical" ? "🔴" : "🟠"}</span>
-              <div>
-                <div className={`font-semibold text-sm ${a.severity === "critical" ? "text-rose-300" : "text-amber-300"}`}>
-                  {a.title}
+        <div className="mb-4">
+          <div className="flex flex-col gap-2">
+            {alerts.alerts.map((a, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                  a.severity === "critical"
+                    ? "border-rose-500/30 bg-rose-500/10"
+                    : "border-amber-500/30 bg-amber-500/10"
+                }`}
+              >
+                <span className="text-base mt-0.5">{a.severity === "critical" ? "🔴" : "🟠"}</span>
+                <div className="flex-1">
+                  <div className={`font-semibold text-sm ${a.severity === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                    {a.title}
+                  </div>
+                  <div className="text-xs text-zinc-400 mt-0.5">{a.message}</div>
                 </div>
-                <div className="text-xs text-zinc-400 mt-0.5">{a.message}</div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div className="flex items-center gap-3 mt-2 px-1">
+            <button
+              onClick={pushAlerts}
+              disabled={pushingAlerts}
+              className="text-xs px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-colors disabled:opacity-50"
+            >
+              {pushingAlerts ? "Pushing…" : "Push to Manager Inbox"}
+            </button>
+            {pushMsg && (
+              <span className={`text-xs ${pushMsg.includes("pushed") ? "text-emerald-400" : "text-zinc-400"}`}>
+                {pushMsg}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -489,6 +594,92 @@ export default function GroupManagementPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Group Budget Targets */}
+      {summary && (
+        <div className={`${GLASS_CARD} mb-4`}>
+          <h2 className={`${T_SECTION} mb-1`}>Group Budget Targets</h2>
+          <p className="text-xs text-zinc-500 mb-4">
+            Set food cost rate targets per city for <span className="text-zinc-300">{yearMonth}</span>. Actual vs. target shown below.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {([
+              { label: "Dubai", flag: "🇦🇪", target: dubaiTarget, actual: summary.dubai.food_cost_rate, primeActual: summary.dubai.prime_cost_rate, foodVal: dubaiFoodTarget, primeVal: dubaiPrimeTarget, setFood: setDubaiFoodTarget, setPrime: setDubaiPrimeTarget },
+              { label: "Manila", flag: "🇵🇭", target: manilaTarget, actual: summary.manila.food_cost_rate, primeActual: summary.manila.prime_cost_rate, foodVal: manilaFoodTarget, primeVal: manilaPrimeTarget, setFood: setManilaFoodTarget, setPrime: setManilaPrimeTarget },
+            ]).map(({ label, flag, target, actual, primeActual, foodVal, primeVal, setFood, setPrime }) => {
+              const foodVariance = actual != null && target?.food_cost_rate_target != null ? actual - target.food_cost_rate_target : null;
+              const primeVariance = primeActual != null && target?.prime_cost_rate_target != null ? primeActual - target.prime_cost_rate_target : null;
+              const varianceCls = (v: number | null) => v == null ? "text-zinc-500" : v > 5 ? "text-rose-400" : v > 0 ? "text-amber-400" : "text-emerald-400";
+              return (
+                <div key={label} className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span>{flag}</span>
+                    <span className="text-sm font-semibold text-zinc-300">{label}</span>
+                  </div>
+                  <div className="space-y-2 mb-3 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Food Cost — Actual</span>
+                      <span className="font-mono text-zinc-300">{actual != null ? `${actual.toFixed(1)}%` : "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Food Cost — Target</span>
+                      <span className="font-mono text-zinc-400">{target?.food_cost_rate_target != null ? `${target.food_cost_rate_target.toFixed(1)}%` : "—"}</span>
+                    </div>
+                    {foodVariance != null && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Variance</span>
+                        <span className={`font-mono font-semibold ${varianceCls(foodVariance)}`}>
+                          {foodVariance > 0 ? "+" : ""}{foodVariance.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                    {primeVariance != null && (
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Prime Cost Variance</span>
+                        <span className={`font-mono font-semibold ${varianceCls(primeVariance)}`}>
+                          {primeVariance > 0 ? "+" : ""}{primeVariance.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <div>
+                      <label className="text-xs text-zinc-500 block mb-1">Food % Target</label>
+                      <input
+                        type="number" step="0.1" min="0" max="100"
+                        value={foodVal}
+                        onChange={e => setFood(e.target.value)}
+                        placeholder="e.g. 28"
+                        className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 w-20 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-500 block mb-1">Prime % Target</label>
+                      <input
+                        type="number" step="0.1" min="0" max="100"
+                        value={primeVal}
+                        onChange={e => setPrime(e.target.value)}
+                        placeholder="e.g. 60"
+                        className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 w-20 tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={saveTargets} disabled={savingTargets} className={PRIMARY_BUTTON}>
+              {savingTargets ? "Saving…" : "Save Targets"}
+            </button>
+            {targetMsg && (
+              <span className={targetMsg === "Saved" ? "text-xs text-emerald-400" : "text-xs text-rose-400"}>
+                {targetMsg}
+              </span>
+            )}
           </div>
         </div>
       )}

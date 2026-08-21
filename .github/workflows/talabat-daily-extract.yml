@@ -1,0 +1,62 @@
+name: Talabat Dubai — Daily Gross Sales Extraction
+
+on:
+  schedule:
+    # Every day at 02:00 UTC = 06:00 Dubai time (after previous day closes)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to extract (YYYY-MM-DD). Default: yesterday.'
+        required: false
+        default: ''
+
+jobs:
+  extract-daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright --no-save
+          npx playwright install chromium --with-deps
+        timeout-minutes: 8
+
+      - name: Decode Talabat session state
+        run: |
+          echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json.gz
+          gunzip /tmp/talabat-state.json.gz
+
+      - name: Refresh Bearer token (headless)
+        run: node scripts/talabat/refresh-token.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+        timeout-minutes: 5
+
+      - name: Calculate target date (yesterday)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            TARGET_DATE="${{ github.event.inputs.date }}"
+          else
+            TARGET_DATE=$(date -u -d "yesterday" +%Y-%m-%d)
+          fi
+          echo "DATE_FROM=$TARGET_DATE" >> $GITHUB_ENV
+          echo "DATE_TO=$TARGET_DATE" >> $GITHUB_ENV
+          echo "Extracting gross sales for: $TARGET_DATE"
+
+      - name: Run gross sales extractor (per-outlet, 14 vendors)
+        run: node scripts/talabat/get-payouts.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+          DATE_FROM: ${{ env.DATE_FROM }}
+          DATE_TO: ${{ env.DATE_TO }}
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-payout-record
+        timeout-minutes: 10
