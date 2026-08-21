@@ -144,44 +144,64 @@ async function getOutletPricesViaNetwork(page, outletId) {
 
     if (categories.length === 0) return [];
 
-    // Correct products endpoint discovered from SPA network traffic:
-    //   /catalogs/{catalogId}/products?status=INACTIVE&page=1&limit=20&snooze={ts}
-    // Pagination uses "limit" (not pageSize/size). No categoryId needed — fetch all.
-    const allItems = [];
+    // Try multiple status values — INACTIVE returns empty for some outlets
     const ts = Math.floor(Date.now() / 1000);
-    const productsUrl = `https://partners.careem.com/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products?status=INACTIVE&page=1&limit=200&snooze=${ts}`;
-    console.log(`  Fetching: ...${productsUrl.slice(-90)}`);
+    const BASE = `https://partners.careem.com/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products`;
+    const ATTEMPTS = [
+      `${BASE}?page=1&limit=200&snooze=${ts}`,            // no status filter
+      `${BASE}?status=ACTIVE&page=1&limit=200&snooze=${ts}`,
+      `${BASE}?status=INACTIVE&page=1&limit=200&snooze=${ts}`,
+    ];
 
-    const result = await page.evaluate(async ({ url, hdrs }) => {
-      try {
-        const res = await fetch(url, { credentials: 'include', headers: hdrs });
-        const text = await res.text();
-        let json = null;
-        try { json = JSON.parse(text); } catch {}
-        return { status: res.status, snippet: text.slice(0, 600), json };
-      } catch (e) {
-        return { error: e.message };
+    let productJson = null;
+    for (const url of ATTEMPTS) {
+      console.log(`  Fetching: ...${url.slice(-100)}`);
+      const result = await page.evaluate(async ({ url, hdrs }) => {
+        try {
+          const res = await fetch(url, { credentials: 'include', headers: hdrs });
+          const text = await res.text();
+          let json = null;
+          try { json = JSON.parse(text); } catch {}
+          return { status: res.status, snippet: text.slice(0, 2000), json };
+        } catch (e) {
+          return { error: e.message };
+        }
+      }, { url, hdrs: spaHeaders });
+
+      console.log(`  HTTP ${result.status || 'err'}`);
+      if (result.error || result.status >= 400) {
+        console.log(`  Error: ${result.snippet || result.error}`);
+        continue;
       }
-    }, { url: productsUrl, hdrs: spaHeaders });
 
-    console.log(`  HTTP ${result.status || 'err'}`);
-
-    if (!result.json || result.status >= 400) {
-      console.log(`  Products fetch failed: ${result.snippet || result.error}`);
-      return [];
+      const count = result.json?.products?.length ?? result.json?.items?.length ?? 0;
+      console.log(`  Products count: ${count}`);
+      if (count > 0) {
+        productJson = result.json;
+        // Log first product's keys and full snippet to find price field
+        const first = result.json.products?.[0] || result.json.items?.[0];
+        if (first) console.log(`  First product keys: ${Object.keys(first).join(', ')}`);
+        console.log(`  Snippet: ${result.snippet.slice(0, 2000)}`);
+        break;
+      } else {
+        console.log(`  Snippet: ${result.snippet.slice(0, 300)}`);
+      }
     }
 
-    // Show raw JSON structure to understand price field names
-    console.log(`  Raw snippet: ${result.snippet}`);
+    if (!productJson) return [];
 
-    const items = extractItemsFromResponse(result.json);
+    const items = extractItemsFromResponse(productJson);
     console.log(`  Extracted: ${items.length} priced items`);
 
     if (items.length > 0) {
       return [...new Map(items.map(i => [i.name, i])).values()];
     }
 
-    // 0 items — price field name is different; return empty for now
+    // Items found but price field unknown — log more to diagnose
+    const first = productJson.products?.[0] || productJson.items?.[0];
+    if (first) {
+      console.log(`  First product full: ${JSON.stringify(first).slice(0, 1500)}`);
+    }
     return [];
 
   } finally {
