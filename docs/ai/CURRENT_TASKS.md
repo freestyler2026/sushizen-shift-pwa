@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Dubai Careem AR Payout implementation)
+Last updated: 2026-08-21 (Draft Staff Roster Check panel)
+
+---
+
+## ✅ Completed: Draft Staff Roster Check (2026-08-21, Heroku v2042 / Vercel 9b71bd9)
+
+**Problem**: Staff spent hours deleting resigned/wrong-location staff row-by-row AFTER each monthly draft was generated.
+
+**Solution**: "Staff Roster Check" accordion appears immediately after clicking "Prepare Generate". Shows every staff member from the previous month per branch with their day count. Users uncheck whoever they want excluded from THIS generation run only (permanent exclusions still handled by Exclusion Manager).
+
+**Backend — `app/main.py`**:
+- `GET /api/draft/staff_preview?city=X&branch_code=Y&target_month=Z` — new endpoint; mirrors `_pick_previous_month_rows()` logic (Bayzat base → published fallback); returns staff list with `days` count and `is_excluded` flag
+- `DraftGenerateMonthIn`: added `extra_excluded_names: Optional[List[str]] = []`
+- `api_generate_month_draft`: merges `extra_excluded_names` (lowercased) into DB-loaded `excluded_names` before passing to planner
+
+**Frontend — `src/app/admin/draft/page.tsx`**:
+- New state: `rosterPreview`, `rosterLoading`, `rosterUnchecked` (per-branch Set), `rosterOpen`
+- `fetchRosterPreview()`: parallel fetch for all branch codes, called from `prepareDraft()`
+- Staff Roster Check panel: sky-blue accordion; shows per-branch staff with checkboxes; DB-excluded staff shown separately as greyed-out; unchecked count warning
+- `confirmGenerate()` + `handleForceReplace()`: each passes `extra_excluded_names` from unchecked set to API
+
+**Verified**: After clicking Prepare Generate on Dubai, panel immediately loads and shows e.g. BB staff: Alexandra Lim 2d, Amar BK 31d, Dinesh Dhimal 31d, etc.
 
 ---
 
