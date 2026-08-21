@@ -1,6 +1,94 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-20 (Policy Document Hub — Heroku v2035, Vercel f06459e)
+Last updated: 2026-08-21 (Dubai Careem AR Payout implementation)
+
+---
+
+## ✅ Completed: Dubai Careem AR Payout — PDF Parser + Dubai Tab (2026-08-21, Heroku v2041 / Vercel 0961896)
+
+**Summary**: Management accounting system — Dubai revenue layer. Careem Payment Summary PDFs are uploaded to Google Drive, parsed automatically, and reconciled in the AR Payouts page.
+
+**New files**:
+- `app/services/careem_parser.py` — pdfplumber PDF parser (outlet ID, period, orders, net payout, deductions, IBAN)
+
+**`app/db.py` changes**:
+- `ensure_ar_payouts_tables()`: ALTER TABLE to add `brand/currency/city/period_start/period_end` columns; CREATE `careem_outlet_mapping` table with 9 outlet rows (BB/JLT/ARJ/AB/AM for Sushi ZEN + Ramen Zen BB/ARJ)
+- New `get_careem_outlet_map()`, `insert_careem_payout_records()`, `mark_drive_file_imported()`
+- Extended `list_ar_payouts(city, brand)` and `get_ar_kpi_summary(city)` with city/brand filters
+
+**`app/services/ar_drive.py` changes**:
+- New `list_new_pdf_files()` — scans `Finance/Payouts/Dubai/Careem/` subfolder for new PDFs
+
+**`app/main.py` changes**:
+- `POST /api/admin/ar-payouts/sync`: added Careem PDF sync after Manila CSV sync; ARJ outlets 1058443+1061197 merged per period; payout_id = `careem_{brand}_{store}_{start}_{end}`
+- `GET /api/admin/ar-payouts`: added `city` and `brand` query params
+
+**`src/app/admin/ar-payouts/page.tsx` changes**:
+- Manila/Dubai city tabs (switch resets all filters)
+- AED currency formatting for Dubai; ₱ for Manila
+- Careem platform badge (teal); Careem-only platform filter on Dubai tab
+- Brand column + brand filter dropdown (Sushi ZEN / Ramen Zen) for Dubai
+- CSV upload zone hidden on Dubai tab
+- Period start–end shown in Period/Payout ID column
+- Header description + Drive hint text update per tab
+
+**Outlet mapping** (careem_outlet_mapping):
+- 1054427 → Sushi ZEN BB, 1054428 → Sushi ZEN JLT
+- 1058443+1061197 → Sushi ZEN ARJ (merged), 1067896 → Sushi ZEN AB
+- 1069991 → Sushi ZEN AM (closed, is_active=false)
+- 1073255 → Ninja Chicken JLT (store_code=NULL, skipped)
+- 1073590 → Ramen Zen BB, 1073594 → Ramen Zen ARJ
+
+**Workflow**: Careem Partner Portal → download PDF → upload to `Finance/Payouts/Dubai/Careem/` → click "Sync from Drive" on Dubai tab.
+
+---
+
+## ✅ Completed: Spot Purchase Badge Fix + Close-Not-Received for CANCELLED (2026-08-20, Heroku v2039/v2040 / Vercel 11eea0f)
+
+**Issue 1 — Spot Purchase badge count inflated (showed 10, actual incomplete = 3)**
+- Root cause: `count_spot_purchase_incomplete()` in `db_spot_purchase.py` used `status != 'PURCHASED'` which counted CANCELLED, CLOSED, REJECTED orders
+- Fix: changed to `status IN ('PENDING', 'APPROVED')` (Heroku v2039)
+- Verified: `/api/admin/spot-purchase/pending-count` now returns `{"ok":true,"count":3}` ✅
+
+**Issue 2 — "Close Order – Not Received" failed for CANCELLED orders**
+- Symptom: "Only APPROVED orders can be closed as not received (current: CANCELLED)" error
+- Root cause A — backend gate too strict: `main.py` only allowed APPROVED status
+  - Fix: changed to `status not in ("APPROVED", "CANCELLED")` (Heroku v2039)
+- Root cause B — receiving page didn't show CANCELLED orders at all:
+  - `list_proc_requests()` in `db.py` only supported single status value → couldn't pass `"APPROVED,CANCELLED"`
+  - Fix: `db.py` now supports comma-separated statuses, splits into `IN (...)` clause (Heroku v2040)
+  - `receiving/page.tsx` now fetches `status=APPROVED,CANCELLED` (Vercel 11eea0f)
+  - CANCELLED orders now appear in red badge in the left panel
+  - CANCELLED orders show guidance message: "Order CANCELLED — Use 'Close Order – Not Received' below"
+
+**Specific order resolved**:
+- MAN-PR-202608-0199 (id: `9a1ddcb6-4b9d-44f1-adb4-01e289409813`) closed as NOT_RECEIVED
+- `closed_by`: Yukihiro Nishimura, `close_reason`: "Supplier Did Not Deliver - Duplicate order (paired order was received)"
+- `receiving_status`: PENDING → NOT_RECEIVED ✅
+
+**Verified live**: order appears in Receiving page list with "Closed – Not" + "CANCELLED" (red) badges ✅
+
+---
+
+## ✅ Completed: Store Supplier Orders — Stock Column + Editable PO Date (2026-08-20, Heroku f1d8345+e4ceb48 / Vercel f067462)
+
+**Feature ①: Current Stock column in order detail**
+- `db_store_supplier.py`: `get_store_supplier_order()` の items クエリを拡張。`store_supplier_catalog` を LEFT JOIN し、`daily_inv_entries` から最新在庫（`report_date <= order_date`）を `current_stock` として返す
+- `OrderItem` interface に `current_stock?: number | null` を追加
+- Items テーブルに "Stock" 列を追加（Ordered の左隣）。`daily_inv_item_code` リンクがある場合のみ数値表示、なければ "—"（COALESCE(qty,0) で 0表示）
+- Grand Total 行の `colSpan` を 3→4 に修正（列追加に対応）
+- **Bug fix (Heroku e4ceb48)**: 誤テーブル名 `daily_inventory_reports` → `daily_inv_reports`、誤カラム名 `quantity` → `qty`、status フィルタ `IN ('SUBMITTED','DRAFT')` 追加
+
+**Feature ②: PO Date デフォルト翌日 + 編集可能**
+- `generateDate` 初期値を今日 → 翌日に変更
+- `db_store_supplier.py`: `update_store_supplier_order_date()` 追加（`draft/confirmed/approved` のみ更新可）
+- `store_supplier_api.py`: `PATCH /orders/{id}/order-date` エンドポイント追加、`OrderDateIn` モデル追加
+- 展開ビュー（accordion）の上部に "PO Date" 行を追加。Pencil アイコンで編集→保存
+
+**Verified live (2026-08-20)**:
+- ① Stock column: "0 kg" for all 18 items on Three-S PAR draft order (column renders; 0 because no daily_inv_item_code links in catalog) ✅
+- ②-A Generate date: shows 08/21/2026 (tomorrow) on fresh page load ✅
+- ②-B PO Date edit: pencil opens date input pre-filled with current order_date; PATCH 200; list refreshes with updated date ✅
 
 ---
 
@@ -24,6 +112,12 @@ Last updated: 2026-08-20 (Policy Document Hub — Heroku v2035, Vercel f06459e)
 **Post-deploy TODO**:
 - Admin: Role Management → "Resync System Channels" to register new channels in DB
 - Admin: Grant `channel.store_policy_docs.view` permission to custom roles as needed (HR Staff etc.)
+
+**Bilingual manual published**:
+- Artifact URL: https://claude.ai/code/artifact/a730608f-e1b0-4407-8549-fc9a19e933ae
+- Source: `docs/manuals/policy-docs-manual.html`
+- Sections: Overview / Finding the Page / Status Badges / Viewing PDF / Acknowledging (2-step) / After Acknowledging / FAQ / HR Upload / HR Tracking / HR Archive & Restore
+- EN/JP toggle with localStorage persistence; dark/light mode
 
 ---
 
