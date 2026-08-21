@@ -11,7 +11,7 @@ import { getAuth } from "@/lib/auth";
 
 interface ArPayout {
   id: number;
-  platform: "grab" | "foodpanda";
+  platform: "grab" | "foodpanda" | "careem" | string;
   store_code: string;
   payout_id: string;
   expected_amount: number;
@@ -25,6 +25,12 @@ interface ArPayout {
   confirmation_note: string | null;
   imported_at: string;
   ar_status: "reconciled" | "pending" | "overdue";
+  // Dubai / Careem extended fields
+  brand?: string | null;
+  currency?: string | null;
+  city?: string | null;
+  period_start?: string | null;
+  period_end?: string | null;
 }
 
 interface KpiSummary {
@@ -38,16 +44,21 @@ interface KpiSummary {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const fmt = (n: number | null | undefined) =>
-  n == null ? "—" : `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtAmount = (n: number | null | undefined, currency?: string | null) => {
+  if (n == null) return "—";
+  if (currency === "AED") return `AED ${n.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const fmt = (n: number | null | undefined) => fmtAmount(n, "PHP");
 
 const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "2-digit" }) : "—";
 
-const PLATFORM_LABEL: Record<string, string> = { grab: "Grab", foodpanda: "Foodpanda" };
+const PLATFORM_LABEL: Record<string, string> = { grab: "Grab", foodpanda: "Foodpanda", careem: "Careem" };
 const PLATFORM_COLOR: Record<string, string> = {
   grab: "text-green-400 bg-green-500/10 border-green-500/25",
   foodpanda: "text-pink-400 bg-pink-500/10 border-pink-500/25",
+  careem: "text-teal-300 bg-teal-500/10 border-teal-500/25",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -98,7 +109,7 @@ function ConfirmModal({
           </div>
           <div className="flex justify-between">
             <span>Expected</span>
-            <span className="text-white">{fmt(payout.expected_amount)}</span>
+            <span className="text-white">{fmtAmount(payout.expected_amount, payout.currency)}</span>
           </div>
           <div className="flex justify-between">
             <span>Payout Date</span>
@@ -149,9 +160,11 @@ export default function ArPayoutsPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [cityTab, setCityTab] = useState<"manila" | "dubai">("manila");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeFilter, setStoreFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("all");
   const [confirmTarget, setConfirmTarget] = useState<ArPayout | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
@@ -172,9 +185,11 @@ export default function ArPayoutsPage() {
   const fetchPayouts = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("city", cityTab);
     if (platformFilter !== "all") params.set("platform", platformFilter);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (storeFilter !== "all") params.set("store_code", storeFilter);
+    if (cityTab === "dubai" && brandFilter !== "all") params.set("brand", brandFilter);
     const res = await fetch(`/api/admin/ar-payouts?${params}`);
     if (res.ok) {
       const data = await res.json();
@@ -182,9 +197,17 @@ export default function ArPayoutsPage() {
       setKpi(data.kpi || null);
     }
     setLoading(false);
-  }, [platformFilter, statusFilter, storeFilter]);
+  }, [cityTab, platformFilter, statusFilter, storeFilter, brandFilter]);
 
   useEffect(() => { fetchPayouts(); }, [fetchPayouts]);
+
+  // Reset tab-specific filters when switching cities
+  const switchCity = (city: "manila" | "dubai") => {
+    setCityTab(city);
+    setPlatformFilter("all");
+    setStoreFilter("all");
+    setBrandFilter("all");
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -283,7 +306,9 @@ export default function ArPayoutsPage() {
           <div>
             <h1 className={T_PAGE_TITLE}>AR Payouts</h1>
             <p className="mt-1 text-sm text-white/40">
-              Grab &amp; Foodpanda settlement tracking &#8212; confirm receipt against bank statement
+              {cityTab === "dubai"
+                ? "Careem settlement tracking (AED) — confirm receipt against bank statement"
+                : "Grab & Foodpanda settlement tracking — confirm receipt against bank statement"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -332,7 +357,25 @@ export default function ArPayoutsPage() {
           </div>
         )}
 
-        {/* Upload Zone */}
+        {/* City Tabs */}
+        <div className="flex gap-1 rounded-xl border border-white/8 bg-white/3 p-1 w-fit">
+          {(["manila", "dubai"] as const).map((city) => (
+            <button
+              key={city}
+              onClick={() => switchCity(city)}
+              className={`rounded-lg px-5 py-2 text-sm font-medium transition-colors ${
+                cityTab === city
+                  ? "bg-violet-600/70 text-white shadow"
+                  : "text-white/50 hover:text-white/70"
+              }`}
+            >
+              {city === "manila" ? "🇵🇭 Manila" : "🇦🇪 Dubai"}
+            </button>
+          ))}
+        </div>
+
+        {/* Upload Zone — Manila only */}
+        {cityTab === "manila" && (<>
         <div
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
@@ -372,6 +415,7 @@ export default function ArPayoutsPage() {
             ✗ {uploadError}
           </div>
         )}
+        </>)}
 
         {/* KPI Cards */}
         {kpi && (
@@ -379,25 +423,25 @@ export default function ArPayoutsPage() {
             <div className={`${KPI_CARD} border-emerald-500/15`}>
               <div className="text-xs text-white/40 uppercase tracking-wide mb-1">Reconciled</div>
               <div className="text-2xl font-bold text-emerald-400">{kpi.reconciled_count}</div>
-              <div className="text-sm text-white/50">{fmt(kpi.reconciled_amount)}</div>
+              <div className="text-sm text-white/50">{fmtAmount(kpi.reconciled_amount, cityTab === "dubai" ? "AED" : "PHP")}</div>
             </div>
             <div className={`${KPI_CARD} border-amber-500/15`}>
               <div className="text-xs text-white/40 uppercase tracking-wide mb-1">Bank Pending</div>
               <div className="text-2xl font-bold text-amber-400">{kpi.pending_count}</div>
-              <div className="text-sm text-white/50">{fmt(kpi.pending_amount)}</div>
+              <div className="text-sm text-white/50">{fmtAmount(kpi.pending_amount, cityTab === "dubai" ? "AED" : "PHP")}</div>
             </div>
             <div className={`${KPI_CARD} border-red-500/15`}>
               <div className="text-xs text-white/40 uppercase tracking-wide mb-1">Overdue</div>
               <div className="text-2xl font-bold text-red-400">{kpi.overdue_count}</div>
-              <div className="text-sm text-white/50">{fmt(kpi.overdue_amount)}</div>
+              <div className="text-sm text-white/50">{fmtAmount(kpi.overdue_amount, cityTab === "dubai" ? "AED" : "PHP")}</div>
             </div>
           </div>
         )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
-          {/* Platform */}
-          {["all", "grab", "foodpanda"].map((p) => (
+          {/* Platform — options differ by city */}
+          {(cityTab === "dubai" ? ["all", "careem"] : ["all", "grab", "foodpanda"]).map((p) => (
             <button
               key={p}
               onClick={() => setPlatformFilter(p)}
@@ -425,6 +469,21 @@ export default function ArPayoutsPage() {
               {s === "all" ? "All Status" : STATUS_LABEL[s]}
             </button>
           ))}
+          {/* Brand filter — Dubai only */}
+          {cityTab === "dubai" && (
+            <>
+              <div className="w-px bg-white/10" />
+              <select
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none"
+              >
+                <option value="all">All Brands</option>
+                <option value="Sushi ZEN">Sushi ZEN</option>
+                <option value="Ramen Zen">Ramen Zen</option>
+              </select>
+            </>
+          )}
           {storeCodes.length > 1 && (
             <>
               <div className="w-px bg-white/10" />
@@ -458,8 +517,9 @@ export default function ArPayoutsPage() {
                 <thead>
                   <tr className="border-b border-white/8 text-left text-xs text-white/40 uppercase tracking-wide">
                     <th className="px-4 py-3">Platform</th>
+                    {cityTab === "dubai" && <th className="px-4 py-3">Brand</th>}
                     <th className="px-4 py-3">Store</th>
-                    <th className="px-4 py-3">Payout ID</th>
+                    <th className="px-4 py-3">Period / Payout ID</th>
                     <th className="px-4 py-3 text-right">Expected</th>
                     <th className="px-4 py-3">Payout Date</th>
                     <th className="px-4 py-3">Orders</th>
@@ -477,16 +537,28 @@ export default function ArPayoutsPage() {
                           {PLATFORM_LABEL[p.platform] || p.platform}
                         </span>
                       </td>
+                      {cityTab === "dubai" && (
+                        <td className="px-4 py-3 text-xs text-white/60">{p.brand || "—"}</td>
+                      )}
                       <td className="px-4 py-3 font-mono text-xs text-white/70">{p.store_code}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-white/60 max-w-[140px] truncate" title={p.payout_id}>
-                        {p.payout_id}
+                      <td className="px-4 py-3 max-w-[160px]">
+                        {p.period_start && p.period_end ? (
+                          <div>
+                            <div className="text-xs text-white/70 tabular-nums">
+                              {fmtDate(p.period_start)} – {fmtDate(p.period_end)}
+                            </div>
+                            <div className="font-mono text-xs text-white/30 truncate" title={p.payout_id}>{p.payout_id}</div>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-xs text-white/60 truncate" title={p.payout_id}>{p.payout_id}</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right text-white tabular-nums">{fmt(p.expected_amount)}</td>
+                      <td className="px-4 py-3 text-right text-white tabular-nums">{fmtAmount(p.expected_amount, p.currency)}</td>
                       <td className="px-4 py-3 text-white/70">{fmtDate(p.payout_date)}</td>
                       <td className="px-4 py-3 text-white/50 tabular-nums">{p.orders_count ?? "—"}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         {p.bank_confirmed ? (
-                          <span className="text-emerald-400">{fmt(p.bank_amount)}</span>
+                          <span className="text-emerald-400">{fmtAmount(p.bank_amount, p.currency)}</span>
                         ) : (
                           <span className="text-white/20">—</span>
                         )}
@@ -529,10 +601,21 @@ export default function ArPayoutsPage() {
 
         {/* Drive setup hint */}
         <div className="rounded-xl border border-white/5 bg-white/3 px-4 py-3 text-xs text-white/30">
-          <strong className="text-white/50">Drive upload folder:</strong>{" "}
-          Upload Grab <em>Taft_Transfers_Store_*.csv</em> (or Paranaque_, QC_) and Foodpanda <em>Taft_Payouts_*.csv</em> (or Paranaque_, Cubao_) anywhere inside{" "}
-          <em>Finance / Payouts</em>, then click &ldquo;Sync from Drive&rdquo;. Platform and store are detected automatically from filename.
-          Service account: <span className="font-mono">ar-finance-reader@ar-finance-reader.iam.gserviceaccount.com</span>
+          {cityTab === "dubai" ? (
+            <>
+              <strong className="text-white/50">Dubai / Careem:</strong>{" "}
+              Download Payment Summary PDFs from the Careem Partner Portal and upload to{" "}
+              <em>Finance / Payouts / Dubai / Careem /</em> in Google Drive. Outlet ID is read from the PDF content automatically.
+              Service account: <span className="font-mono">ar-finance-reader@ar-finance-reader.iam.gserviceaccount.com</span>
+            </>
+          ) : (
+            <>
+              <strong className="text-white/50">Drive upload folder:</strong>{" "}
+              Upload Grab <em>Taft_Transfers_Store_*.csv</em> (or Paranaque_, QC_) and Foodpanda <em>Taft_Payouts_*.csv</em> (or Paranaque_, Cubao_) anywhere inside{" "}
+              <em>Finance / Payouts</em>, then click &ldquo;Sync from Drive&rdquo;. Platform and store are detected automatically from filename.
+              Service account: <span className="font-mono">ar-finance-reader@ar-finance-reader.iam.gserviceaccount.com</span>
+            </>
+          )}
         </div>
       </div>
 
