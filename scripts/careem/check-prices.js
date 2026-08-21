@@ -54,13 +54,16 @@ async function postWebhook(payload) {
 
 // After loading the outlet catalog page, click each sidebar category and collect prices
 async function getPricesAllCategories(page, outletId) {
-  // Sidebar category links are /catalog/{outletId}/{categoryId}
+  // Use el.href (resolved URL) so relative paths like /saturn-ext/merchant/catalog/{oid}/XXX also match
   const categoryLinks = await page.evaluate((oid) => {
     const links = [];
-    document.querySelectorAll(`a[href*="/catalog/${oid}/"]`).forEach(a => {
-      const text = a.textContent.trim();
-      if (text && !text.toLowerCase().includes('unavailable')) {
-        links.push({ href: a.href, text });
+    document.querySelectorAll('a').forEach(a => {
+      const resolved = a.href; // always absolute URL
+      if (resolved.includes(`/catalog/${oid}/`)) {
+        const text = a.textContent.trim();
+        if (text && !text.toLowerCase().includes('unavailable')) {
+          links.push({ href: resolved, text });
+        }
       }
     });
     return [...new Map(links.map(l => [l.href, l])).values()];
@@ -162,11 +165,12 @@ async function main() {
           continue;
         }
 
-        // Wait for category sidebar links to appear
+        // Wait for category sidebar links to appear (use waitForFunction + resolved href)
         console.log(`  Waiting for sidebar...`);
-        const sidebarSelector = `a[href*="/catalog/${outletId}/"]`;
-        const sidebarAppeared = await page.waitForSelector(sidebarSelector, { timeout: 30_000 })
-          .then(() => true).catch(() => false);
+        const sidebarAppeared = await page.waitForFunction(
+          (oid) => [...document.querySelectorAll('a')].some(a => a.href.includes(`/catalog/${oid}/`)),
+          outletId, { timeout: 30_000 }
+        ).then(() => true).catch(() => false);
         console.log(`  Sidebar appeared: ${sidebarAppeared}`);
 
         if (!sidebarAppeared) {
