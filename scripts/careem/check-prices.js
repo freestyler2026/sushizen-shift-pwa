@@ -7,10 +7,11 @@ const { chromium } = require('playwright');
 const SESSION_PATH = process.env.CAREEM_SESSION_PATH;
 const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 
-// outletId → any known categoryId that loads the outlet context (value doesn't need to be current)
+// All outlets accessible from this account (no category ID needed)
 const OUTLETS = [
-  { outletId: '1054426', seedCategoryId: '1076323393' },
-  { outletId: '1074763', seedCategoryId: '1076323393' },
+  { outletId: '1054426', name: 'Ramen ZEN, Jumeirah' },
+  { outletId: '1067896', name: 'Sushi ZEN, Al Barsha 3' },
+  { outletId: '1074763', name: 'Ramen Zen, Al Jaffiliya' },
 ];
 
 const PRICE_REGEX = /^AED \d+(\.\d+)?$/;
@@ -118,10 +119,20 @@ async function main() {
     const context = await browser.newContext({ storageState: SESSION_PATH });
     const checkedAt = new Date().toISOString();
 
+    // Establish SPA context by loading the merchant home page first
+    {
+      const seedPage = await context.newPage();
+      await seedPage.goto('https://partners.careem.com/saturn-ext/merchant/home', {
+        waitUntil: 'domcontentloaded', timeout: 30_000,
+      }).catch(() => {});
+      await seedPage.waitForTimeout(2000);
+      await seedPage.close();
+    }
+
     for (const outlet of OUTLETS) {
-      const { outletId, seedCategoryId } = outlet;
-      const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}/${seedCategoryId}`;
-      console.log(`Checking outlet ${outletId}: ${url}`);
+      const { outletId, name } = outlet;
+      const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
+      console.log(`Checking outlet ${outletId} (${name}): ${url}`);
 
       const page = await context.newPage();
       await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
@@ -136,7 +147,7 @@ async function main() {
       const title = await page.title();
       console.log(`  Title: ${title}`);
 
-      if (title.includes('Something went wrong') || title.includes('Not Found') || title === 'Partners Portal') {
+      if (title.includes('Something went wrong') || title.includes('Not Found') || title === 'Partners Portal' || title === 'Overview - Careem') {
         // Log body for diagnosis
         const body = await page.evaluate(() => document.body?.innerText?.slice(0, 500) || '');
         console.log(`  Body snippet: ${body.replace(/\n/g, ' | ')}`);
@@ -163,11 +174,12 @@ async function main() {
 
       const result = await postWebhook({
         outlet_id:  outletId,
+        outlet_name: name,
         category:   'All',
         items,
         checked_at: checkedAt,
       });
-      console.log(`Outlet ${outletId}: ${items.length} prices → ${JSON.stringify(result)}`);
+      console.log(`Outlet ${outletId} (${name}): ${items.length} prices → ${JSON.stringify(result)}`);
     }
   } finally {
     await browser.close();
