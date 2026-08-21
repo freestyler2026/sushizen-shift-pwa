@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Phase 2 AR Revenue Auto-Link 実装完了 / Bug 3 修正)
+Last updated: 2026-08-21 (Phase 2 テスト完了・Bug 2 修正: Manila GrabFood platform name)
 
 ---
 
@@ -35,9 +35,15 @@ Last updated: 2026-08-21 (Phase 2 AR Revenue Auto-Link 実装完了 / Bug 3 修�
 - City 切替時も storeCode を "" にリセット
 - Store dropdown: "" を "City-wide" と表示
 
-**現状**:
+**Bug 2 修正 (Heroku v2059)**:
+- `get_ar_revenue_by_month()` Manila フィルタ: `'grabfood'` → `'grab', 'grabfood'`
+- GrabFood records は platform='grab' で保存されていた（'grabfood' は未使用）
+- 修正後: Manila 2026-08 AR = PHP 69,556 (3件: grab×2 + foodpanda×1) ✅
+
+**テスト結果 (2026-08-21)**:
+- Manila Dashboard: Revenue PHP 69,556 with "AR Payouts" バッジ ✅
+- Settings AR Payouts パネル: GrabFood PHP 60,976 / Foodpanda PHP 8,579 表示 ✅
 - Dubai AR payout データは本番DBに未投入（Keeta/Careem/TalabatファイルはDrive未アップ）
-- Manila: 3件のmanila payout records あり（grabfood/foodpanda 2026-08-19）
 - インフラ・コード完了。データ投入次第、Dashboard に自動反映される
 
 **次のPhase**:

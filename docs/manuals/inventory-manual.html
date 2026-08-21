@@ -549,13 +549,23 @@
 
   <div class="card">
     <div class="card-title" data-en="Tab 1 — WH Stock" data-ja="タブ1 — WH Stock">Tab 1 — WH Stock</div>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Columns: Item Name, Category, Unit, Last Count, Adjustments, Theoretical, Par Level, Need Qty, Supplier, Status (OK/LOW/OUT). Use search or category chips to filter." data-ja="列：アイテム名・カテゴリ・単位・前回棚卸し・調整・理論在庫・Par Level・必要数量・サプライヤー・ステータス（OK/LOW/OUT）。検索またはカテゴリチップでフィルタ。">Columns: Item, Category, Unit, Theoretical, Par Level, Need Qty, Supplier, Status. Search or filter by category.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Columns: Item Name, Category, Unit, Last Count, Adjustments, Theoretical, Par Lv, Last Count Date, Status (OK / LOW / OUT). Use search or category chips to filter." data-ja="列：アイテム名・カテゴリ・単位・前回棚卸し・調整・理論在庫・Par Lv・最終棚卸し日・ステータス（OK/LOW/OUT）。検索またはカテゴリチップでフィルタ。">Columns: Item, Category, Unit, Last Count, Adjustments, Theoretical, Par Lv, Last Count Date, Status (OK/LOW/OUT). Search or filter by category.</p>
     <div class="chip-row">
       <span class="chip green">Add Item (+ button)</span>
-      <span class="chip blue">Edit Item (pencil icon)</span>
-      <span class="chip red">Delete (soft)</span>
+      <span class="chip blue">Edit Item — Name / Category / Unit / Cost / Par Level</span>
+      <span class="chip red">Delete (soft-delete, reversible)</span>
     </div>
-    <div class="tip" style="margin-top:10px"><span class="tip-icon">💡</span><span data-en="Par Level and Supplier shown here are set in Items Master → each item's edit page. These two fields are required for Auto Order to work." data-ja="ここに表示されるPar LevelとサプライヤーはItems Masterの各アイテム編集ページで設定します。Auto Orderを機能させるには両フィールドの設定が必要です。">Par Level and Supplier shown here are configured in Items Master (per-item edit). Both are required for Auto Order.</span></div>
+
+    <div style="margin-top:12px">
+      <div class="card-title" data-en="Edit Item — Par Level field" data-ja="アイテム編集 — Par Levelフィールド">Edit Item — Par Level field</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click Edit on any WH item" data-ja="WHアイテムの「Edit」をクリック">Click Edit on any WH item</strong><p data-en="The Edit Item modal opens showing: Item Name, Category, Unit, Cost, and Par Level." data-ja="Edit Itemモーダルが開き、アイテム名・カテゴリ・単位・コスト・Par Levelが表示されます。">Opens modal with Item Name, Category, Unit, Cost, and Par Level fields.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Enter a Par Level value" data-ja="Par Levelの値を入力">Enter a Par Level value</strong><p data-en="Enter the minimum target stock quantity for this item (e.g. 50). Leave blank or 0 to disable. The Par Lv column on WH Stock will show '—' for items with no par level." data-ja="このアイテムの最低目標在庫数量を入力します（例：50）。無効にする場合は空欄または0を入力。Par Levelが未設定のアイテムはWH Stock列に「—」と表示されます。">Enter minimum target stock (e.g. 50). Leave blank / 0 to disable. WH Stock shows '—' for unpopulated items.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Save Changes" data-ja="「Save Changes」をクリック">Click Save Changes</strong><p data-en="The Par Lv column on the WH Stock table updates immediately. If current stock is below par level, the Status badge changes to LOW and the item appears on the Auto Order tab." data-ja="WH Stockテーブルの「Par Lv」列がすぐに更新されます。現在庫がPar Level未満の場合、ステータスバッジがLOWに変わり、Auto Orderタブにそのアイテムが表示されます。">Par Lv column updates immediately. Stock below par → Status = LOW → item appears on Auto Order tab.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="tip" style="margin-top:10px"><span class="tip-icon">💡</span><span data-en="Status badge logic: OUT = theoretical stock ≤ 0 · LOW = stock is below par level (need_qty &gt; 0) · OK = stock is at or above par level. Primary Supplier must be set in Items Master for Auto Order to generate purchase orders." data-ja="ステータスバッジの判定：OUT＝理論在庫≤0 · LOW＝在庫がPar Level未満（need_qty&gt;0） · OK＝在庫がPar Level以上。Auto Orderで発注書を生成するには、Items MasterでPrimary Supplierを設定する必要があります。">Status: OUT = stock ≤ 0 · LOW = below par level · OK = at or above par. Primary Supplier (set in Items Master) is required for Auto Order to generate orders.</span></div>
   </div>
 
   <!-- ─── AUTO ORDER (NEW FEATURE) ─── -->
@@ -640,7 +650,8 @@
   <div class="card">
     <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
     <div class="chip-row">
-      <span class="chip blue">Items Master (par level &amp; primary supplier setup)</span>
+      <span class="chip blue">Items Master (primary supplier setup)</span>
+      <span class="chip green">WH Stock → Edit Item (par level set directly here)</span>
       <span class="chip" style="background:rgba(20,184,166,.12);color:#2dd4bf;border-color:rgba(20,184,166,.3)">Procurement → Approval Inbox (auto-generated orders)</span>
       <span class="chip blue">Store Procurement (branch order source)</span>
       <span class="chip amber">Delivery Note print (WH-DN-{request_no} format)</span>
