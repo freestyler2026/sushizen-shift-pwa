@@ -1,6 +1,48 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Phase 1 Cost Intelligence 実装・デプロイ完了)
+Last updated: 2026-08-21 (Phase 2 AR Revenue Auto-Link 実装完了 / Bug 3 修正)
+
+---
+
+## ✅ Completed: Phase 2 AR Revenue Auto-Link (2026-08-21, Heroku v2058, Vercel 5b0a372)
+
+**管理会計システム Phase 2 — AR Payouts から Revenue を自動取得**
+
+**実装内容**:
+
+**Backend (db.py)**:
+- `get_ar_revenue_by_month(city, year_month, store_code)`: ar_payoutsを月次集計
+  - Dubai: Careem + Keeta + Talabat gross_sales（net_payout/allocatedは除外して二重計上防止）
+  - Manila: GrabFood + Foodpanda
+- `get_mgmt_cost_summary()` 修正: manual revenue=0の場合、ar_payoutsから自動取得
+  - 新フィールド: `revenue_source` ('manual'|'ar_payouts'|'none'), `revenue_ar_total`
+
+**Backend (main.py)**:
+- `GET /api/admin/mgmt/ar-revenue-preview`: city+year_month の AR payout 総額・プラットフォーム別・店舗別プレビュー
+
+**Frontend (settings/page.tsx)**:
+- AR Payouts Revenue パネル: プラットフォーム別内訳表示
+- "Sync to Revenue" ボタン: AR合計をmgmt_revenue_manualにupsert
+- "Manual Revenue Override" として手動入力フォームをリネーム
+
+**Frontend (page.tsx — Dashboard)**:
+- Revenue KPI に source バッジ追加: `AR Payouts`（緑）/ `Manual`（紫）/ `Not set`（黄）
+- 警告バナー: revenue_source='none'のときのみ表示
+
+**Bug 3 修正 (Vercel 8da3dae)**:
+- settings/page.tsx: storeCode デフォルト "AM" → "" (City-wide)
+- DUBAI_STORES / MANILA_STORES に "" を追加
+- City 切替時も storeCode を "" にリセット
+- Store dropdown: "" を "City-wide" と表示
+
+**現状**:
+- Dubai AR payout データは本番DBに未投入（Keeta/Careem/TalabatファイルはDrive未アップ）
+- Manila: 3件のmanila payout records あり（grabfood/foodpanda 2026-08-19）
+- インフラ・コード完了。データ投入次第、Dashboard に自動反映される
+
+**次のPhase**:
+- Phase 2: Noon Dubai API（国番号問題調査中）
+- Dubai Keeta/Careem ファイルを Google Drive にアップロード → 自動インポート
 
 ---
 
@@ -46,7 +88,7 @@ Last updated: 2026-08-21 (Phase 1 Cost Intelligence 実装・デプロイ完了)
 - CK productions cost: mgmt_cost_snapshot.ck_cost 列は将来実装用
 
 **次のPhase**:
-- Phase 2: Noon/Careem/Grab 等からの Revenue 自動連携（Noon 国番号問題調査中）
+- Phase 2: ✅ AR Revenue Auto-Link 実装済み。Noon API は国番号問題で保留中。
 
 ---
 
