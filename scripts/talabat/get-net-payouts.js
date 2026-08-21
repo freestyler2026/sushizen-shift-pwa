@@ -61,10 +61,8 @@ const NAME_TO_CODE = {
   'sushi zen, al barsha south':                   'ARJ',
   'sushi zen, business bay':                      'BB',
   'sushi zen, jumeirah lakes towers - jlt':       'JLT',
-  'ramen zen, al hudaiba':                        'RZ_AM',
   'ramen zen, arjan':                             'RZ_ARJ',
   'ramen zen, business bay':                      'RZ_BB',
-  'ramen zen, jumeirah lakes towers - jlt':       'RZ_JLT',
   'all veggie sushi, al barsha, al barsha 3':     'VEGGIE_AB',
   'j - japanese authentic deli, al hudaiba':      'JJAD_AM',
   'j - japanese authentic deli, arjan':           'JJAD_ARJ',
@@ -355,8 +353,16 @@ const CHAINS = [
     storeCodes: ['AM', 'AB', 'JLT', 'BB', 'ARJ'],
   },
   {
+    // Chain 694540: JJAD expanded to all 4 locations (new billing contract, 0 payouts so far)
+    // Vendor names confirmed 2026-08-21 via vendor API:
+    //   763564 = J-Japanese Authentic Deli, Al Hudaiba (JJAD_AM)
+    //   761205 = J-Japanese Authentic Deli, Arjan      (JJAD_ARJ)
+    //   759210 = J-Japanese Authentic Deli, Business Bay (JJAD_BB)
+    //   761204 = J-Japanese Authentic Deli, JLT        (JJAD_JLT)
+    // Note: JJAD_AM and JJAD_JLT also appear in chain 673913 (old contract).
+    // Chain 694540 had 0 payouts as of 2026-08 — new/pending billing setup.
     chainId:   '694540',
-    chainName: 'Ramen ZEN',
+    chainName: 'JJAD (New — All 4 locations)',
     vendorId:  '763564',
     accounts:  [
       { grid: '4M8HWV', billingParentId: '', chainId: '694540' },
@@ -364,9 +370,15 @@ const CHAINS = [
       { grid: '4M3CV1', billingParentId: '', chainId: '694540' },
       { grid: '4M3CXB', billingParentId: '', chainId: '694540' },
     ],
-    storeCodes: ['RZ_AM', 'RZ_ARJ', 'RZ_BB', 'RZ_JLT'],
+    storeCodes: ['JJAD_AM', 'JJAD_ARJ', 'JJAD_BB', 'JJAD_JLT'],
   },
   {
+    // Chain 673913: original JJAD+RZ contract
+    // Vendor names confirmed 2026-08-21:
+    //   762721 = J-Japanese Authentic Deli, Al Hudaiba (JJAD_AM)
+    //   723685 = Ramen Zen, Arjan                      (RZ_ARJ)  ← was mislabeled RZ_AM
+    //   723684 = Ramen Zen, Business Bay               (RZ_BB)   ← was mislabeled RZ_JLT
+    //   723686 = J-Japanese Authentic Deli, JLT        (JJAD_JLT)
     chainId:   '673913',
     chainName: 'J-Japanese / Ramen ZEN',
     vendorId:  '762721',
@@ -376,7 +388,7 @@ const CHAINS = [
       { grid: '4CYUPE', billingParentId: '', chainId: '673913' },
       { grid: '4CYUP6', billingParentId: '', chainId: '673913' },
     ],
-    storeCodes: ['JJAD_AM', 'RZ_JLT', 'RZ_AM', 'JJAD_JLT'],
+    storeCodes: ['JJAD_AM', 'RZ_ARJ', 'RZ_BB', 'JJAD_JLT'],
   },
   {
     chainId:   '698589',

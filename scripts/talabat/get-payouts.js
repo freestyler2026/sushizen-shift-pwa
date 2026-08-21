@@ -60,11 +60,11 @@ const NAME_TO_CODE = {
   'sushi zen, al barsha south':                   'ARJ',
   'sushi zen, business bay':                      'BB',
   'sushi zen, jumeirah lakes towers - jlt':       'JLT',
-  'ramen zen, al hudaiba':                        'RZ_AM',
+  // Ramen Zen exists at Arjan and Business Bay only (confirmed 2026-08-21 via vendor API)
   'ramen zen, arjan':                             'RZ_ARJ',
   'ramen zen, business bay':                      'RZ_BB',
-  'ramen zen, jumeirah lakes towers - jlt':       'RZ_JLT',
   'all veggie sushi, al barsha, al barsha 3':     'VEGGIE_AB',
+  // JJAD: AM and JLT in chain 673913 (old); ARJ and BB in chain 694540 (new billing)
   'j - japanese authentic deli, al hudaiba':      'JJAD_AM',
   'j - japanese authentic deli, arjan':           'JJAD_ARJ',
   'j - japanese authentic deli, business bay':    'JJAD_BB',
