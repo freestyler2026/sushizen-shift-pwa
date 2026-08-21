@@ -32,17 +32,12 @@ function extractItemsFromResponse(json) {
   if (!json || typeof json !== 'object') return items;
 
   function resolvePrice(obj) {
-    // Direct numeric price fields (Careem uses various field names)
-    const raw = obj.price ?? obj.aed_price ?? obj.item_price
+    // Careem uses "defaultPrice" as the top-level price field
+    const raw = obj.defaultPrice ?? obj.price ?? obj.aed_price ?? obj.item_price
       ?? obj.basePrice ?? obj.sellingPrice ?? obj.unitPrice
       ?? obj.priceAed ?? obj.pricing?.price ?? obj.priceInfo?.price ?? null;
     if (raw !== null && raw !== undefined) {
       const n = parseFloat(raw);
-      return isNaN(n) ? null : n;
-    }
-    // Nested price object: { amount, currency }
-    if (obj.price && typeof obj.price === 'object' && 'amount' in obj.price) {
-      const n = parseFloat(obj.price.amount);
       return isNaN(n) ? null : n;
     }
     return null;
@@ -144,13 +139,11 @@ async function getOutletPricesViaNetwork(page, outletId) {
 
     if (categories.length === 0) return [];
 
-    // Try multiple status values — INACTIVE returns empty for some outlets
+    // status=ACTIVE is required — omitting status returns 400, INACTIVE returns empty
     const ts = Math.floor(Date.now() / 1000);
     const BASE = `https://partners.careem.com/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products`;
     const ATTEMPTS = [
-      `${BASE}?page=1&limit=200&snooze=${ts}`,            // no status filter
       `${BASE}?status=ACTIVE&page=1&limit=200&snooze=${ts}`,
-      `${BASE}?status=INACTIVE&page=1&limit=200&snooze=${ts}`,
     ];
 
     let productJson = null;
@@ -178,13 +171,9 @@ async function getOutletPricesViaNetwork(page, outletId) {
       console.log(`  Products count: ${count}`);
       if (count > 0) {
         productJson = result.json;
-        // Log first product's keys and full snippet to find price field
-        const first = result.json.products?.[0] || result.json.items?.[0];
-        if (first) console.log(`  First product keys: ${Object.keys(first).join(', ')}`);
-        console.log(`  Snippet: ${result.snippet.slice(0, 2000)}`);
         break;
       } else {
-        console.log(`  Snippet: ${result.snippet.slice(0, 300)}`);
+        console.log(`  Response: ${result.snippet.slice(0, 200)}`);
       }
     }
 
@@ -193,16 +182,7 @@ async function getOutletPricesViaNetwork(page, outletId) {
     const items = extractItemsFromResponse(productJson);
     console.log(`  Extracted: ${items.length} priced items`);
 
-    if (items.length > 0) {
-      return [...new Map(items.map(i => [i.name, i])).values()];
-    }
-
-    // Items found but price field unknown — log more to diagnose
-    const first = productJson.products?.[0] || productJson.items?.[0];
-    if (first) {
-      console.log(`  First product full: ${JSON.stringify(first).slice(0, 1500)}`);
-    }
-    return [];
+    return [...new Map(items.map(i => [i.name, i])).values()];
 
   } finally {
     page.off('response', responseHandler);
