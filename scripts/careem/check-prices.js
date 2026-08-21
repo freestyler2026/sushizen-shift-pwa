@@ -103,12 +103,46 @@ async function getOutletPricesViaNetwork(page, outletId) {
       return [...new Map(allItems.map(i => [i.name, i])).values()];
     }
 
-    // Log all captured API URLs for diagnosis
+    // Log all captured API URLs + response snippets for diagnosis
     if (captured.length === 0) {
       console.log(`  No catalog API calls captured`);
     } else {
       console.log(`  Captured ${captured.length} API calls but 0 items with prices:`);
-      captured.forEach(c => console.log(`    ${c.url.slice(0, 100)}`));
+      captured.forEach(c => {
+        const snippet = JSON.stringify(c.json).slice(0, 300);
+        console.log(`    URL: ${c.url.slice(0, 100)}`);
+        console.log(`    Body: ${snippet}`);
+      });
+    }
+
+    // Try to find catalogId from captured calls and then call active-products API directly
+    const catalogsCall = captured.find(c => c.url.includes('/catalogs?active=true'));
+    const catalogId = catalogsCall?.json?.data?.[0]?.id
+      ?? catalogsCall?.json?.[0]?.id
+      ?? catalogsCall?.json?.result?.[0]?.id
+      ?? null;
+    console.log(`  Extracted catalogId: ${catalogId}`);
+
+    if (catalogId) {
+      // Try different product API variants
+      const productUrls = [
+        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products`,
+        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products?status=ACTIVE`,
+        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/items`,
+        `/api/saturn-ext/v1/catalog-staging/items?catalogId=${catalogId}`,
+      ];
+      for (const path of productUrls) {
+        const fullUrl = `https://partners.careem.com${path}`;
+        const resp = await page.evaluate(async (url) => {
+          try {
+            const r = await fetch(url, { credentials: 'include' });
+            if (!r.ok) return { error: r.status };
+            const text = await r.text();
+            return { snippet: text.slice(0, 500) };
+          } catch (e) { return { error: e.message }; }
+        }, fullUrl).catch(() => null);
+        console.log(`  Direct API ${path}: ${JSON.stringify(resp)?.slice(0, 200)}`);
+      }
     }
 
     // Fallback: AED text walk in DOM (in case prices ARE rendered)
