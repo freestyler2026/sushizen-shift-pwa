@@ -1,0 +1,79 @@
+name: Talabat Dubai — Monthly Payout Extraction
+
+on:
+  schedule:
+    # 5th of each month at 02:00 UTC = 6:00 AM Dubai time
+    # Runs after month-end so all payout records have settled.
+    - cron: '0 2 5 * *'
+  workflow_dispatch:
+    inputs:
+      date_from:
+        description: 'Start date (YYYY-MM-DD). Default: 1st of previous month.'
+        required: false
+        default: ''
+      date_to:
+        description: 'End date (YYYY-MM-DD). Default: last day of previous month.'
+        required: false
+        default: ''
+
+jobs:
+  extract-payouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright --no-save
+          npx playwright install chromium --with-deps
+        timeout-minutes: 8
+
+      - name: Decode Talabat session state
+        run: |
+          echo "${{ secrets.TALABAT_SESSION_STATE }}" | base64 -d > /tmp/talabat-state.json.gz
+          gunzip /tmp/talabat-state.json.gz
+
+      - name: Refresh Bearer token (headless)
+        run: node scripts/talabat/refresh-token.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+        timeout-minutes: 5
+
+      - name: Calculate date range (previous month)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.date_from }}" ]; then
+            echo "DATE_FROM=${{ github.event.inputs.date_from }}" >> $GITHUB_ENV
+            echo "DATE_TO=${{ github.event.inputs.date_to }}" >> $GITHUB_ENV
+          else
+            # Previous month: 1st → last day
+            DATE_FROM=$(date -d "$(date +%Y-%m-01) -1 month" +%Y-%m-%d)
+            DATE_TO=$(date -d "$(date +%Y-%m-01) -1 day" +%Y-%m-%d)
+            echo "DATE_FROM=$DATE_FROM" >> $GITHUB_ENV
+            echo "DATE_TO=$DATE_TO" >> $GITHUB_ENV
+          fi
+          echo "Extracting payouts for: $DATE_FROM → $DATE_TO"
+
+      - name: Run gross sales extractor (per-outlet, 14 vendors)
+        run: node scripts/talabat/get-payouts.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+          DATE_FROM: ${{ env.DATE_FROM }}
+          DATE_TO: ${{ env.DATE_TO }}
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-payout-record
+        timeout-minutes: 10
+
+      - name: Run net payout extractor (per-chain, 4 billing chains)
+        run: node scripts/talabat/get-net-payouts.js
+        env:
+          TALABAT_SESSION_PATH: /tmp/talabat-state.json
+          DATE_FROM: ${{ env.DATE_FROM }}
+          DATE_TO: ${{ env.DATE_TO }}
+          WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-payout-record
+        timeout-minutes: 10
