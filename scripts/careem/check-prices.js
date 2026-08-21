@@ -59,115 +59,91 @@ function extractItemsFromResponse(json) {
 }
 
 async function getOutletPricesViaNetwork(page, outletId) {
-  const captured = [];
+  const allCaptured = [];
 
-  // Intercept JSON API responses that might contain catalog/item data
+  // Intercept ALL JSON API responses from Careem
   const responseHandler = async (response) => {
     const url = response.url();
     if (!url.includes('careem.com')) return;
-    if (!url.includes('catalog') && !url.includes('item') && !url.includes('menu') && !url.includes('product')) return;
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('json')) return;
     try {
       const json = await response.json();
-      captured.push({ url, json });
+      allCaptured.push({ url, json });
     } catch {}
   };
 
   page.on('response', responseHandler);
 
   try {
-    const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
-    await page.waitForTimeout(3000); // let any lazy-loaded API calls finish
+    // Step 1: Load catalog overview to get categoryIds from the categories API
+    const overviewUrl = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
+    allCaptured.length = 0; // reset
+    await page.goto(overviewUrl, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+    await page.waitForTimeout(2000);
 
     const title = await page.title();
     console.log(`  Title: ${title}`);
 
     if (title.includes('Something went wrong') || title === 'Partners Portal' || title === 'Overview - Careem') {
-      return null; // skip
+      return null;
     }
 
-    // Check captured API responses for price data
+    // Extract category IDs from the categories API response
+    const categoriesCall = allCaptured.find(c => c.url.includes('/categories?catalogId='));
+    const categories = Array.isArray(categoriesCall?.json)
+      ? categoriesCall.json.filter(c => c.status === 'ACTIVE').slice(0, 15)
+      : [];
+    console.log(`  Categories found: ${categories.map(c => `${c.id}(${c.name})`).join(', ').slice(0, 120)}`);
+
+    if (categories.length === 0) {
+      console.log(`  No categories — cannot navigate to specific category pages`);
+      return [];
+    }
+
+    // Step 2: For each category, navigate to /catalog/{outletId}/{categoryId}
+    // This triggers the SPA to load products with prices for that category
     const allItems = [];
-    for (const { url: u, json } of captured) {
-      const items = extractItemsFromResponse(json);
-      if (items.length > 0) {
-        console.log(`  API ${u.slice(0, 80)}: ${items.length} priced items`);
-        items.forEach(i => allItems.push(i));
+    for (const cat of categories) {
+      const catUrl = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}/${cat.id}`;
+      allCaptured.length = 0; // reset for this navigation
+
+      await page.goto(catUrl, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+
+      const catTitle = await page.title();
+      if (catTitle.includes('Something went wrong') || catTitle === 'Partners Portal') {
+        console.log(`  Category ${cat.name}: page error`);
+        continue;
       }
-    }
 
-    if (allItems.length > 0) {
-      console.log(`  Total from APIs: ${allItems.length} items`);
-      return [...new Map(allItems.map(i => [i.name, i])).values()];
-    }
-
-    // Log all captured API URLs + response snippets for diagnosis
-    if (captured.length === 0) {
-      console.log(`  No catalog API calls captured`);
-    } else {
-      console.log(`  Captured ${captured.length} API calls but 0 items with prices:`);
-      captured.forEach(c => {
-        const snippet = JSON.stringify(c.json).slice(0, 300);
-        console.log(`    URL: ${c.url.slice(0, 100)}`);
-        console.log(`    Body: ${snippet}`);
-      });
-    }
-
-    // Try to find catalogId from captured calls and then call active-products API directly
-    const catalogsCall = captured.find(c => c.url.includes('/catalogs?active=true'));
-    const catalogId = catalogsCall?.json?.data?.[0]?.id
-      ?? catalogsCall?.json?.[0]?.id
-      ?? catalogsCall?.json?.result?.[0]?.id
-      ?? null;
-    console.log(`  Extracted catalogId: ${catalogId}`);
-
-    if (catalogId) {
-      // Try different product API variants
-      const productUrls = [
-        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products`,
-        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/products?status=ACTIVE`,
-        `/api/saturn-ext/v1/catalog-staging/catalogs/${catalogId}/items`,
-        `/api/saturn-ext/v1/catalog-staging/items?catalogId=${catalogId}`,
-      ];
-      for (const path of productUrls) {
-        const fullUrl = `https://partners.careem.com${path}`;
-        const resp = await page.evaluate(async (url) => {
-          try {
-            const r = await fetch(url, { credentials: 'include' });
-            if (!r.ok) return { error: r.status };
-            const text = await r.text();
-            return { snippet: text.slice(0, 500) };
-          } catch (e) { return { error: e.message }; }
-        }, fullUrl).catch(() => null);
-        console.log(`  Direct API ${path}: ${JSON.stringify(resp)?.slice(0, 200)}`);
-      }
-    }
-
-    // Fallback: AED text walk in DOM (in case prices ARE rendered)
-    const aedItems = await page.evaluate(() => {
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      const result = [];
-      let node;
-      while ((node = walker.nextNode())) {
-        if (/^AED \d+/.test(node.textContent.trim())) {
-          let el = node.parentElement;
-          for (let i = 0; i < 5; i++) el = el?.parentElement || el;
-          const raw   = (el?.textContent || '').trim();
-          const price = node.textContent.trim();
-          const name  = raw.replace(price, '').trim().slice(0, 80);
-          result.push({ name, price });
+      // Look for product API responses
+      let catItems = [];
+      for (const { url: u, json } of allCaptured) {
+        if (!u.includes('product') && !u.includes('item')) continue;
+        const items = extractItemsFromResponse(json);
+        if (items.length > 0) {
+          catItems = items;
+          console.log(`  Category "${cat.name}": ${items.length} items from ${u.slice(u.lastIndexOf('/'))}`);
+          break;
         }
       }
-      return result;
-    });
-    if (aedItems.length > 0) {
-      console.log(`  DOM AED scan: ${aedItems.length} items`);
-      return aedItems;
+
+      if (catItems.length === 0) {
+        // Debug: show all captured URLs for this category
+        const capturedUrls = allCaptured.map(c => c.url.slice(0, 80));
+        console.log(`  Category "${cat.name}": 0 items. APIs: ${capturedUrls.join(' | ').slice(0, 200)}`);
+        // Show snippet of any product-related response
+        const prodCall = allCaptured.find(c => c.url.includes('product') || c.url.includes('item'));
+        if (prodCall) console.log(`    Snippet: ${JSON.stringify(prodCall.json).slice(0, 300)}`);
+      }
+
+      catItems.forEach(i => allItems.push({ ...i, category: cat.name }));
     }
 
-    return [];
+    // Deduplicate by item name
+    return [...new Map(allItems.map(i => [i.name, i])).values()];
+
   } finally {
     page.off('response', responseHandler);
   }
