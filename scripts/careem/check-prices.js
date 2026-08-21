@@ -135,7 +135,8 @@ async function main() {
       console.log(`Checking outlet ${outletId} (${name}): ${url}`);
 
       const page = await context.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
+      // Use domcontentloaded then explicitly wait for sidebar — networkidle often times out on GitHub Actions
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
 
       if (page.url().includes('/login') || page.url().includes('/auth')) {
         console.log('Session expired — login redirect detected');
@@ -148,7 +149,6 @@ async function main() {
       console.log(`  Title: ${title}`);
 
       if (title.includes('Something went wrong') || title.includes('Not Found') || title === 'Partners Portal' || title === 'Overview - Careem') {
-        // Log body for diagnosis
         const body = await page.evaluate(() => document.body?.innerText?.slice(0, 500) || '');
         console.log(`  Body snippet: ${body.replace(/\n/g, ' | ')}`);
         console.log(`  Outlet ${outletId}: page error/not found — skipping`);
@@ -156,14 +156,20 @@ async function main() {
         continue;
       }
 
-      // Try direct price scan first
-      let items = await getPrices(page);
-      console.log(`  Direct scan: ${items.length} prices`);
+      // Wait for category sidebar to render (up to 60s)
+      console.log(`  Waiting for sidebar...`);
+      const sidebarSelector = `a[href*="/catalog/${outletId}/"]`;
+      const sidebarAppeared = await page.waitForSelector(sidebarSelector, { timeout: 60_000 })
+        .then(() => true).catch(() => false);
+      console.log(`  Sidebar appeared: ${sidebarAppeared}`);
 
-      // Walk sidebar categories if direct scan empty
-      if (items.length === 0) {
-        items = await getPricesAllCategories(page, outletId);
+      if (!sidebarAppeared) {
+        const body = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+        console.log(`  Body: ${body.replace(/\n/g, ' | ')}`);
       }
+
+      // Walk sidebar categories (right panel needs a category click to show prices)
+      const items = await getPricesAllCategories(page, outletId);
 
       await page.close();
 
