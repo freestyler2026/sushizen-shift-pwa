@@ -17,6 +17,11 @@ type MasterItem = {
   category: string;
   unit: string;
   cost: number;
+  par_level: number;
+  supplier_id: string;
+  supplier_name: string;
+  order_unit: string;
+  purchase_cost: number;
 };
 
 type StockViewRow = {
@@ -29,6 +34,26 @@ type StockViewRow = {
   last_count_qty: number;
   last_count_date: string | null;
   adj_qty_total: number;
+  par_level: number;
+  need_qty: number;
+  supplier_id: string;
+  supplier_name: string;
+  order_unit: string;
+  purchase_cost: number;
+};
+
+type GeneratedOrder = {
+  request_id: string;
+  request_no: string;
+  supplier_name: string;
+  item_count: number;
+  total_amount: number;
+};
+
+type SkippedItem = {
+  name: string;
+  need_qty: number;
+  unit: string;
 };
 
 type PendingRequestItem = {
@@ -63,7 +88,7 @@ type HistoryRow = {
   total_abs_gap: number;
 };
 
-type Tab = "stock" | "orders" | "count" | "history";
+type Tab = "stock" | "autoorder" | "orders" | "count" | "history";
 
 type CountDraft = Record<string, string>; // key: item_id -> qty string
 
@@ -340,6 +365,12 @@ export default function WhInventoryPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
+  // Tab: Auto Order
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  const [generatedOrders, setGeneratedOrders] = useState<GeneratedOrder[] | null>(null);
+  const [skippedNoSupplier, setSkippedNoSupplier] = useState<SkippedItem[]>([]);
+
   // ---------------------------------------------------------------------------
   // Derived
   // ---------------------------------------------------------------------------
@@ -458,6 +489,7 @@ export default function WhInventoryPage() {
   // Load per tab switch
   useEffect(() => {
     if (!ready || !allowed) return;
+    if (tab === "autoorder" && stockRows.length === 0) void loadStock(city);
     if (tab === "orders" && pendingRequests.length === 0) void loadPending(city);
     if (tab === "count" && masterItems.length === 0) {
       void loadMaster(city);
@@ -479,6 +511,7 @@ export default function WhInventoryPage() {
       void loadMaster(city);
       void loadStockViewForCount(city);
     }
+    if (tab === "autoorder") { void loadStock(city); setGeneratedOrders(null); setSkippedNoSupplier([]); setGenerateError(""); }
     if (tab === "history") { setHistoryRows([]); void loadHistory(city); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -702,6 +735,38 @@ export default function WhInventoryPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Auto Order
+  // ---------------------------------------------------------------------------
+
+  async function handleGenerateOrders() {
+    setGenerating(true);
+    setGenerateError("");
+    setGeneratedOrders(null);
+    setSkippedNoSupplier([]);
+    try {
+      const res = await inventoryPost<{
+        ok: boolean;
+        created: GeneratedOrder[];
+        skipped_no_supplier: SkippedItem[];
+        message?: string;
+      }>("/api/admin/inventory/wh-stock/generate-orders", {
+        city,
+        store_code: "WH",
+        requested_by: staffName,
+        request_date: todayIso(),
+      });
+      setGeneratedOrders(res.created || []);
+      setSkippedNoSupplier(res.skipped_no_supplier || []);
+      // Refresh stock view to reflect any changes
+      void loadStock(city);
+    } catch (e: unknown) {
+      setGenerateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Guard
   // ---------------------------------------------------------------------------
 
@@ -738,10 +803,11 @@ export default function WhInventoryPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-neutral-800 bg-neutral-900/30 p-1">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-800 bg-neutral-900/30 p-1">
         {(
           [
             { id: "stock", label: "WH Stock" },
+            { id: "autoorder", label: "Auto Order" },
             { id: "orders", label: "Order From Branch" },
             { id: "count", label: "New Count" },
             { id: "history", label: "History" },
@@ -752,9 +818,11 @@ export default function WhInventoryPage() {
             type="button"
             onClick={() => setTab(t.id)}
             className={[
-              "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition",
+              "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition",
               tab === t.id
-                ? "bg-violet-700 text-white shadow"
+                ? t.id === "autoorder"
+                  ? "bg-teal-700 text-white shadow"
+                  : "bg-violet-700 text-white shadow"
                 : "text-neutral-400 hover:text-neutral-200",
             ].join(" ")}
           >
@@ -1564,6 +1632,215 @@ export default function WhInventoryPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Tab: Auto Order                                                      */}
+      {/* ------------------------------------------------------------------ */}
+      {tab === "autoorder" && (
+        <section className="space-y-5">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-neutral-400">
+                Items below par level are grouped by supplier. Click <strong className="text-neutral-200">Generate Purchase Orders</strong> to create one Direct Purchase per supplier in the Procurement Approval Inbox.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={stockLoading}
+              onClick={() => void loadStock(city)}
+              className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 disabled:opacity-50"
+            >
+              {stockLoading ? "Loading..." : "Refresh Stock"}
+            </button>
+          </div>
+
+          {stockError && (
+            <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
+              {stockError}
+            </div>
+          )}
+
+          {/* Items needing reorder */}
+          {(() => {
+            const needsOrder = stockRows.filter((r) => (r.need_qty || 0) > 0);
+            const withSupplier = needsOrder.filter((r) => r.supplier_id);
+            const withoutSupplier = needsOrder.filter((r) => !r.supplier_id);
+
+            const supplierGroups = withSupplier.reduce<Record<string, { name: string; items: StockViewRow[] }>>(
+              (acc, row) => {
+                const key = row.supplier_id;
+                if (!acc[key]) acc[key] = { name: row.supplier_name, items: [] };
+                acc[key].items.push(row);
+                return acc;
+              },
+              {},
+            );
+
+            return (
+              <>
+                {/* Summary */}
+                <div className="flex flex-wrap gap-3">
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-5 py-3">
+                    <p className="text-xs text-neutral-500 uppercase tracking-wide">Items Below Par</p>
+                    <p className="text-2xl font-bold text-amber-300">{needsOrder.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-5 py-3">
+                    <p className="text-xs text-neutral-500 uppercase tracking-wide">Suppliers</p>
+                    <p className="text-2xl font-bold text-teal-300">{Object.keys(supplierGroups).length}</p>
+                  </div>
+                  {withoutSupplier.length > 0 && (
+                    <div className="rounded-xl border border-amber-800/40 bg-amber-900/20 px-5 py-3">
+                      <p className="text-xs text-amber-500 uppercase tracking-wide">No Supplier Set</p>
+                      <p className="text-2xl font-bold text-amber-400">{withoutSupplier.length}</p>
+                    </div>
+                  )}
+                </div>
+
+                {needsOrder.length === 0 && !stockLoading && (
+                  <div className="rounded-xl border border-emerald-800/40 bg-emerald-900/20 px-5 py-4 text-sm text-emerald-300">
+                    All items are at or above par level. No reordering needed.
+                  </div>
+                )}
+
+                {/* Grouped by supplier */}
+                {Object.entries(supplierGroups).map(([sid, group]) => (
+                  <div key={sid} className="rounded-2xl border border-neutral-800 overflow-hidden">
+                    <div className="flex items-center justify-between bg-neutral-900/60 px-4 py-3">
+                      <span className="font-semibold text-neutral-100 text-sm">{group.name}</span>
+                      <span className="text-xs text-teal-400">{group.items.length} item{group.items.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-neutral-800 bg-neutral-900/30 text-xs uppercase tracking-wide text-neutral-500">
+                        <tr>
+                          <th className="px-4 py-2">Item</th>
+                          <th className="px-4 py-2 text-right">Current Stock</th>
+                          <th className="px-4 py-2 text-right">Par Level</th>
+                          <th className="px-4 py-2 text-right text-amber-400">Need Qty</th>
+                          <th className="px-4 py-2">Unit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.items.map((row) => (
+                          <tr key={row.id} className="border-t border-neutral-800 hover:bg-neutral-900/20">
+                            <td className="px-4 py-2 text-neutral-200">{row.name}</td>
+                            <td className={`px-4 py-2 text-right font-mono ${stockColor(row.theoretical_qty)}`}>
+                              {fmt3(row.theoretical_qty)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono text-neutral-400">
+                              {fmt3(row.par_level)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono font-semibold text-amber-300">
+                              {fmt3(row.need_qty)}
+                            </td>
+                            <td className="px-4 py-2 text-neutral-500">{row.order_unit || row.unit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+
+                {/* Items without supplier */}
+                {withoutSupplier.length > 0 && (
+                  <div className="rounded-2xl border border-amber-800/40 overflow-hidden">
+                    <div className="bg-amber-900/20 px-4 py-3 flex items-center gap-2">
+                      <span className="text-amber-400 text-sm font-semibold">No Supplier Assigned</span>
+                      <span className="text-xs text-amber-500">— these will be skipped. Set a primary supplier in Inventory Items.</span>
+                    </div>
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-amber-800/30 bg-amber-900/10 text-xs uppercase tracking-wide text-amber-600">
+                        <tr>
+                          <th className="px-4 py-2">Item</th>
+                          <th className="px-4 py-2 text-right">Current Stock</th>
+                          <th className="px-4 py-2 text-right">Par Level</th>
+                          <th className="px-4 py-2 text-right">Need Qty</th>
+                          <th className="px-4 py-2">Unit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withoutSupplier.map((row) => (
+                          <tr key={row.id} className="border-t border-amber-800/20">
+                            <td className="px-4 py-2 text-amber-200">{row.name}</td>
+                            <td className="px-4 py-2 text-right font-mono text-neutral-400">{fmt3(row.theoretical_qty)}</td>
+                            <td className="px-4 py-2 text-right font-mono text-neutral-500">{fmt3(row.par_level)}</td>
+                            <td className="px-4 py-2 text-right font-mono text-amber-400">{fmt3(row.need_qty)}</td>
+                            <td className="px-4 py-2 text-neutral-500">{row.unit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Generate button */}
+                {Object.keys(supplierGroups).length > 0 && generatedOrders === null && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={generating}
+                      onClick={() => void handleGenerateOrders()}
+                      className="rounded-xl bg-teal-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-teal-600 disabled:opacity-50 transition"
+                    >
+                      {generating ? "Generating..." : `Generate Purchase Orders (${Object.keys(supplierGroups).length} supplier${Object.keys(supplierGroups).length !== 1 ? "s" : ""})`}
+                    </button>
+                  </div>
+                )}
+
+                {generateError && (
+                  <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
+                    {generateError}
+                  </div>
+                )}
+
+                {/* Success state */}
+                {generatedOrders !== null && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-emerald-800/40 bg-emerald-900/20 px-5 py-4">
+                      <p className="font-semibold text-emerald-300 mb-3">
+                        {generatedOrders.length > 0
+                          ? `${generatedOrders.length} Purchase Order${generatedOrders.length !== 1 ? "s" : ""} created successfully`
+                          : "No purchase orders created — all items are at par level."}
+                      </p>
+                      {generatedOrders.length > 0 && (
+                        <div className="space-y-2">
+                          {generatedOrders.map((o) => (
+                            <div key={o.request_id} className="flex items-center justify-between rounded-lg bg-emerald-900/30 px-4 py-2.5 text-sm">
+                              <div>
+                                <span className="font-mono text-emerald-200">{o.request_no}</span>
+                                <span className="ml-3 text-neutral-300">{o.supplier_name}</span>
+                                <span className="ml-2 text-neutral-500">· {o.item_count} item{o.item_count !== 1 ? "s" : ""}</span>
+                              </div>
+                              <a
+                                href="/admin/procurement/approval-inbox"
+                                className="text-xs text-teal-400 hover:text-teal-300 underline underline-offset-2"
+                              >
+                                View in Inbox →
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {skippedNoSupplier.length > 0 && (
+                        <p className="mt-3 text-xs text-amber-400">
+                          {skippedNoSupplier.length} item{skippedNoSupplier.length !== 1 ? "s" : ""} skipped (no supplier assigned): {skippedNoSupplier.map((s) => s.name).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setGeneratedOrders(null); setSkippedNoSupplier([]); void loadStock(city); }}
+                      className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-300 hover:text-neutral-100 transition"
+                    >
+                      Generate Again
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </section>
       )}
 
       {/* ------------------------------------------------------------------ */}
