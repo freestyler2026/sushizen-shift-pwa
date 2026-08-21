@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GLASS_CARD, T_PAGE_TITLE, T_SECTION, SMALL_BUTTON, PRIMARY_BUTTON } from "@/lib/ui-tokens";
