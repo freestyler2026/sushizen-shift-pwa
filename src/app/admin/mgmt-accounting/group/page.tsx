@@ -68,6 +68,32 @@ interface StoreRanking {
   stores: StoreRow[];
 }
 
+interface KpiAlert {
+  city: string;
+  severity: "warning" | "critical";
+  type: string;
+  title: string;
+  message: string;
+}
+
+interface AlertData {
+  year_month: string;
+  alerts: KpiAlert[];
+  alert_count: number;
+}
+
+interface Prediction {
+  city: string;
+  next_month: string | null;
+  based_on_months: number;
+  predictions: {
+    food_cost: number | null;
+    revenue: number | null;
+    food_cost_trend: "up" | "down" | "flat";
+  } | null;
+  error: string | null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtJpy(v: number) {
@@ -118,6 +144,9 @@ export default function GroupManagementPage() {
   const [phpJpy, setPhpJpy] = useState("2.55");
   const [savingFx, setSavingFx] = useState(false);
   const [fxMsg, setFxMsg] = useState("");
+  const [alerts, setAlerts] = useState<AlertData | null>(null);
+  const [dubaiPred, setDubaiPred] = useState<Prediction | null>(null);
+  const [manilaPred, setManilaPred] = useState<Prediction | null>(null);
 
   const months = prevMonths(12);
 
@@ -133,9 +162,12 @@ export default function GroupManagementPage() {
     setError("");
     try {
       const h = authHeaders();
-      const [gRes, rRes] = await Promise.all([
+      const [gRes, rRes, aRes, dpRes, mpRes] = await Promise.all([
         fetch(`/api/admin/mgmt/group-summary?year_month=${yearMonth}`, { headers: h }),
         fetch(`/api/admin/mgmt/store-ranking?year_month=${yearMonth}`, { headers: h }),
+        fetch(`/api/admin/mgmt/kpi-alerts?year_month=${yearMonth}`, { headers: h }),
+        fetch(`/api/admin/mgmt/trend-prediction?city=dubai&months=6`, { headers: h }),
+        fetch(`/api/admin/mgmt/trend-prediction?city=manila&months=6`, { headers: h }),
       ]);
       if (!gRes.ok) throw new Error(`Group summary: ${gRes.status}`);
       if (!rRes.ok) throw new Error(`Store ranking: ${rRes.status}`);
@@ -147,6 +179,9 @@ export default function GroupManagementPage() {
         setAedJpy(g.fx_rates.AED_JPY.toFixed(2));
         setPhpJpy(g.fx_rates.PHP_JPY.toFixed(2));
       }
+      if (aRes.ok)  setAlerts(await aRes.json());
+      if (dpRes.ok) setDubaiPred(await dpRes.json());
+      if (mpRes.ok) setManilaPred(await mpRes.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -217,10 +252,37 @@ export default function GroupManagementPage() {
           <button onClick={() => router.push("/admin/mgmt-accounting/settings")} className={SMALL_BUTTON}>
             Settings
           </button>
+          <button onClick={() => router.push(`/admin/mgmt-accounting/report?month=${yearMonth}`)} className={SMALL_BUTTON}>
+            Monthly Report
+          </button>
         </div>
       </div>
 
       {error && <div className="text-rose-400 text-sm mb-4 px-1">{error}</div>}
+
+      {/* KPI Alerts */}
+      {alerts && alerts.alert_count > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          {alerts.alerts.map((a, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                a.severity === "critical"
+                  ? "border-rose-500/30 bg-rose-500/10"
+                  : "border-amber-500/30 bg-amber-500/10"
+              }`}
+            >
+              <span className="text-base mt-0.5">{a.severity === "critical" ? "🔴" : "🟠"}</span>
+              <div>
+                <div className={`font-semibold text-sm ${a.severity === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                  {a.title}
+                </div>
+                <div className="text-xs text-zinc-400 mt-0.5">{a.message}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Group KPI cards */}
       {g && (
@@ -370,6 +432,64 @@ export default function GroupManagementPage() {
       {ranking && ranking.stores.length === 0 && !loading && (
         <div className={`${GLASS_CARD} mb-4 text-center py-8 text-zinc-500 text-sm`}>
           No store data found for {yearMonth}
+        </div>
+      )}
+
+      {/* Trend Predictions */}
+      {(dubaiPred?.predictions || manilaPred?.predictions) && (
+        <div className={`${GLASS_CARD} mb-4`}>
+          <h2 className={`${T_SECTION} mb-1`}>Trend Predictions</h2>
+          <p className="text-xs text-zinc-500 mb-3">
+            Linear regression on last 6 months of procurement data. Revenue forecast requires manual revenue entries.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {([
+              { label: "Dubai",  flag: "🇦🇪", pred: dubaiPred,  cur: "AED" },
+              { label: "Manila", flag: "🇵🇭", pred: manilaPred, cur: "PHP" },
+            ] as const).map(({ label, flag, pred, cur }) => (
+              <div key={label} className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span>{flag}</span>
+                  <span className="text-sm font-semibold text-zinc-300">{label}</span>
+                  {pred?.next_month && (
+                    <span className="text-xs text-zinc-500 ml-auto">Forecast: {pred.next_month}</span>
+                  )}
+                </div>
+                {pred?.predictions ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-zinc-500">Food Cost (next mo.)</span>
+                      <span className={`text-sm font-mono font-semibold ${
+                        pred.predictions.food_cost_trend === "up"   ? "text-rose-400"
+                          : pred.predictions.food_cost_trend === "down" ? "text-emerald-400"
+                          : "text-zinc-300"
+                      }`}>
+                        {cur} {pred.predictions.food_cost != null
+                          ? Math.round(pred.predictions.food_cost).toLocaleString("en")
+                          : "—"}
+                        {" "}{pred.predictions.food_cost_trend === "up" ? "↑" : pred.predictions.food_cost_trend === "down" ? "↓" : "→"}
+                      </span>
+                    </div>
+                    {pred.predictions.revenue != null && pred.predictions.revenue > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-zinc-500">Revenue (next mo.)</span>
+                        <span className="text-sm font-mono text-zinc-400">
+                          {cur} {Math.round(pred.predictions.revenue).toLocaleString("en")}
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-xs text-zinc-600 pt-1">
+                      Based on {pred.based_on_months} months of data
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-500">
+                    {pred?.error || "Insufficient data for prediction"}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

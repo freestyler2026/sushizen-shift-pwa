@@ -129,7 +129,7 @@ type NavItem = {
   icon: LucideIcon;
   adminOnly?: boolean;
   match?: "exact" | "prefix";
-  excludePrefix?: string;
+  excludePrefix?: string | string[];
   external?: boolean;
   badgeCount?: number;
   badgeCritical?: boolean;
@@ -203,8 +203,9 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
   { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/ar-payouts", label: "AR Payouts", icon: Banknote, adminOnly: true, match: "prefix" },
-  { href: "/admin/mgmt-accounting", label: "Cost Intelligence", icon: ChartLine, adminOnly: true, match: "prefix", excludePrefix: "/admin/mgmt-accounting/group" },
+  { href: "/admin/mgmt-accounting", label: "Cost Intelligence", icon: ChartLine, adminOnly: true, match: "prefix", excludePrefix: ["/admin/mgmt-accounting/group", "/admin/mgmt-accounting/report"] },
   { href: "/admin/mgmt-accounting/group", label: "Group Management", icon: Building2, adminOnly: true, match: "prefix" },
+  { href: "/admin/mgmt-accounting/report", label: "Monthly Report", icon: FileBarChart, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
@@ -267,7 +268,10 @@ const MOBILE_PRIMARY_HREFS = ["/attendance", "/my-shift", "/request", "/inbox"];
 function isActive(pathname: string, item: NavItem) {
   const mode = item.match || "exact";
   if (mode === "prefix") {
-    if (item.excludePrefix && (pathname === item.excludePrefix || pathname.startsWith(item.excludePrefix + "/"))) return false;
+    if (item.excludePrefix) {
+      const excl = Array.isArray(item.excludePrefix) ? item.excludePrefix : [item.excludePrefix];
+      if (excl.some(p => pathname === p || pathname.startsWith(p + "/"))) return false;
+    }
     return pathname === item.href || pathname.startsWith(item.href + "/");
   }
   return pathname === item.href;
