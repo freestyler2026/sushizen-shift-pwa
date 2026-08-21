@@ -7,10 +7,7 @@ const { chromium } = require('playwright');
 const SESSION_PATH = process.env.CAREEM_SESSION_PATH;
 const WEBHOOK_URL  = process.env.WEBHOOK_URL;
 
-const CATALOGS = [
-  { outletId: '1054426', categoryId: '1076323393', categoryName: 'NEW Ramen' },
-  { outletId: '1074763', categoryId: '1076323393', categoryName: 'NEW Ramen' },
-];
+const OUTLETS = ['1054426', '1074763'];
 
 const PRICE_REGEX = /^AED \d+(\.\d+)?$/;
 const PRICE_WAIT_MS = 30_000;
@@ -50,6 +47,37 @@ async function postWebhook(payload) {
   return res.json();
 }
 
+// Click each sidebar category and collect prices
+async function getPricesAllCategories(page) {
+  // Wait for sidebar categories to appear
+  await page.waitForSelector('nav a, [class*="category"] a, [class*="Category"] a', { timeout: 15_000 }).catch(() => {});
+
+  // Collect category links from sidebar
+  const categoryLinks = await page.evaluate(() => {
+    const links = [];
+    document.querySelectorAll('a[href*="/catalog/"]').forEach(a => {
+      const href = a.href;
+      const text = a.textContent.trim();
+      if (href && text && !text.includes('Unavailable')) links.push({ href, text });
+    });
+    return [...new Map(links.map(l => [l.href, l])).values()]; // deduplicate
+  });
+
+  console.log(`  Found ${categoryLinks.length} categories`);
+  const allItems = [];
+
+  for (const cat of categoryLinks) {
+    await page.goto(cat.href, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await page.waitForTimeout(2000);
+    const items = await getPrices(page);
+    if (items.length > 0) {
+      console.log(`  Category "${cat.text}": ${items.length} items`);
+      items.forEach(i => allItems.push({ ...i, category: cat.text }));
+    }
+  }
+  return allItems;
+}
+
 async function main() {
   if (!SESSION_PATH) throw new Error('CAREEM_SESSION_PATH not set');
   if (!WEBHOOK_URL)  throw new Error('WEBHOOK_URL not set');
@@ -59,15 +87,15 @@ async function main() {
 
   try {
     const context = await browser.newContext({ storageState: SESSION_PATH });
+    const checkedAt = new Date().toISOString();
 
-    for (const catalog of CATALOGS) {
-      const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${catalog.outletId}/${catalog.categoryId}`;
-      console.log(`Checking: ${url}`);
+    for (const outletId of OUTLETS) {
+      const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
+      console.log(`Checking outlet ${outletId}: ${url}`);
 
       const page = await context.newPage();
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-      // Check if redirected to login (session expired)
       if (page.url().includes('/login') || page.url().includes('/auth')) {
         console.log('Session expired — login redirect detected');
         sessionExpired = true;
@@ -75,51 +103,44 @@ async function main() {
         break;
       }
 
-      const items = await getPrices(page);
+      const title = await page.title();
+      console.log(`  Title: ${title}`);
 
-      if (items.length === 0) {
-        // Try scrolling to trigger lazy-load, then re-scan
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(3000);
-        const items2 = await getPrices(page);
-        if (items2.length > 0) {
-          await page.close();
-          const result = await postWebhook({
-            outlet_id:  catalog.outletId,
-            category:   catalog.categoryName,
-            items:      items2,
-            checked_at: new Date().toISOString(),
-          });
-          console.log(`Outlet ${catalog.outletId}: ${items2.length} prices (after scroll) → webhook ${JSON.stringify(result)}`);
-          continue;
-        }
-        const finalUrl = page.url();
-        const title = await page.title();
-        const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 2000) || '');
+      if (title.includes('Something went wrong') || title.includes('Not Found')) {
+        console.log(`  Outlet ${outletId}: page error — skipping`);
         await page.close();
-        console.log(`Outlet ${catalog.outletId}: no prices found`);
-        console.log(`  URL: ${finalUrl}`);
-        console.log(`  Title: ${title}`);
-        console.log(`  Body: ${bodyText.replace(/\n/g, ' | ')}`);
         continue;
       }
+
+      // Try direct price scan first
+      let items = await getPrices(page);
+
+      // If no prices, walk through sidebar categories
+      if (items.length === 0) {
+        console.log(`  No prices on landing page — walking categories...`);
+        items = await getPricesAllCategories(page);
+      }
+
       await page.close();
 
-      const result = await postWebhook({
-        outlet_id:   catalog.outletId,
-        category:    catalog.categoryName,
-        items,
-        checked_at:  new Date().toISOString(),
-      });
+      if (items.length === 0) {
+        console.log(`  Outlet ${outletId}: no prices found in any category`);
+        continue;
+      }
 
-      console.log(`Outlet ${catalog.outletId}: ${items.length} prices → webhook ${JSON.stringify(result)}`);
+      const result = await postWebhook({
+        outlet_id:  outletId,
+        category:   'All',
+        items,
+        checked_at: checkedAt,
+      });
+      console.log(`Outlet ${outletId}: ${items.length} prices → ${JSON.stringify(result)}`);
     }
   } finally {
     await browser.close();
   }
 
   if (sessionExpired) {
-    // Notify via webhook with a special flag so Heroku can send Discord DM
     await postWebhook({
       outlet_id:  'SESSION_EXPIRED',
       category:   'SYSTEM',
