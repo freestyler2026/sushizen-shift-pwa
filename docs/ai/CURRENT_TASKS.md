@@ -1,6 +1,52 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (WH Inventory ①②③ 修正完了)
+Last updated: 2026-08-21 (Phase 1 Cost Intelligence 実装・デプロイ完了)
+
+---
+
+## ✅ Completed: Phase 1 Cost Intelligence (2026-08-21, Heroku v2056, Vercel bf80e2f)
+
+**管理会計システム Phase 1 — Cost Intelligence ページ群を実装・デプロイ完了**
+
+**実装内容**:
+
+**Backend (db.py — 追加)**:
+- `ensure_mgmt_accounting_tables()`: 4テーブル作成
+  - `mgmt_revenue_manual` (月次手動売上入力)
+  - `mgmt_overhead` (月次固定費入力)
+  - `mgmt_budget` (月次予算入力)
+  - `mgmt_cost_snapshot` (将来のスナップショット用)
+- `get_mgmt_cost_summary()`: 月次コストサマリー（food/labor/overhead/prime/total + rate計算）
+- `get_mgmt_food_cost_detail()`: 仕入先別・店舗別食材コスト詳細
+- `get_mgmt_labor_cost_detail()`: 部門別人件費詳細
+- `get_mgmt_cost_trend()`: 6ヶ月トレンドデータ
+- `upsert_mgmt_revenue_manual()`, `upsert_mgmt_overhead()`, `delete_mgmt_overhead()`, `upsert_mgmt_budget()` + List系3関数
+
+**Backend (main.py — 追加)**:
+- 9エンドポイント: `/api/admin/mgmt/cost-summary|food-cost-detail|labor-cost-detail|cost-trend|revenue-manual|overhead|budget`
+
+**Frontend (新規ページ)**:
+- `/admin/mgmt-accounting/page.tsx` — Cost Intelligence ダッシュボード（KPIカード・Budget vs Actual・6ヶ月トレンド・店舗別食材費）
+- `/admin/mgmt-accounting/cost-detail/page.tsx` — 食材費詳細（仕入先別・店舗別・発注リスト）+ 人件費（部門別）
+- `/admin/mgmt-accounting/settings/page.tsx` — Revenue/Overhead/Budget の手動入力フォーム
+
+**NavBar**: "Cost Intelligence" メニュー追加（ChartLine アイコン、HQ/ADMIN のみ表示）
+
+**不具合修正 (v2056)**:
+- `Depends(require_hq_or_admin)` が未定義変数参照 → NameError でuvicorn起動失敗（H10クラッシュ）
+- 4エンドポイントの `_auth=Depends(require_hq_or_admin)` を削除して修正
+
+**検証済みデータ（Dubai 2026-08）**:
+- Food Cost: AED 116,839（JLT: 19,632 / CK: 14,379 / AM: 10,639 etc）
+- 6ヶ月トレンド: 2026-03〜08 の食材費推移表示
+
+**Phase 1 制限事項（設計上）**:
+- Labor Cost: payroll_staff_monthly は city レベルのみ（店舗別データなし）
+- Revenue: 手動入力が必要（Phase 2でDelivery Platform自動連携予定）
+- CK productions cost: mgmt_cost_snapshot.ck_cost 列は将来実装用
+
+**次のPhase**:
+- Phase 2: Noon/Careem/Grab 等からの Revenue 自動連携（Noon 国番号問題調査中）
 
 ---
 
