@@ -164,10 +164,11 @@ async function getOutletPricesViaNetwork(page, outletId) {
 
     for (const cat of categories) {
       const catName = cat.name.trim();
-      // Try ACTIVE first, then no-status filter
+      // API requires status + page + pageSize (> 0)
+      // SPA uses INACTIVE (management view shows all catalog items incl. inactive)
       const urls = [
-        `${BASE}/catalogs/${catalogId}/products?status=ACTIVE&categoryId=${cat.id}`,
-        `${BASE}/catalogs/${catalogId}/products?categoryId=${cat.id}`,
+        `${BASE}/catalogs/${catalogId}/products?status=INACTIVE&categoryId=${cat.id}&page=1&pageSize=100`,
+        `${BASE}/catalogs/${catalogId}/products?status=ACTIVE&categoryId=${cat.id}&page=1&pageSize=100`,
       ];
 
       let catItems = [];
