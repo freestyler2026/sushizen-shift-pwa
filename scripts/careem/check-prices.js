@@ -78,14 +78,29 @@ async function main() {
       const items = await getPrices(page);
 
       if (items.length === 0) {
+        // Try scrolling to trigger lazy-load, then re-scan
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(3000);
+        const items2 = await getPrices(page);
+        if (items2.length > 0) {
+          await page.close();
+          const result = await postWebhook({
+            outlet_id:  catalog.outletId,
+            category:   catalog.categoryName,
+            items:      items2,
+            checked_at: new Date().toISOString(),
+          });
+          console.log(`Outlet ${catalog.outletId}: ${items2.length} prices (after scroll) → webhook ${JSON.stringify(result)}`);
+          continue;
+        }
         const finalUrl = page.url();
         const title = await page.title();
-        const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+        const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 2000) || '');
         await page.close();
         console.log(`Outlet ${catalog.outletId}: no prices found`);
         console.log(`  URL: ${finalUrl}`);
         console.log(`  Title: ${title}`);
-        console.log(`  Body: ${bodyText.replace(/\n/g, ' ')}`);
+        console.log(`  Body: ${bodyText.replace(/\n/g, ' | ')}`);
         continue;
       }
       await page.close();
