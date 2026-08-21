@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Company Policies & HR Policy Documents — Sushi ZEN Workforce OS</title>
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg:        #f4f5f9;
+  --surface:   #ffffff;
+  --surface2:  #f0f1f6;
+  --border:    #dde0ec;
+  --text:      #1a1c2b;
+  --muted:     #6b6f88;
+  --accent:    #6c47e8;
+  --accent-lo: #ede9fd;
+  --green:     #16a34a;
+  --green-lo:  #dcfce7;
+  --amber:     #b45309;
+  --amber-lo:  #fef3c7;
+  --red:       #dc2626;
+  --red-lo:    #fee2e2;
+  --nav-w:     240px;
+  --top-h:     56px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0e0f18;
+    --surface:   #171926;
+    --surface2:  #1e2133;
+    --border:    #2c2f45;
+    --text:      #ecedf6;
+    --muted:     #8b8fa8;
+    --accent:    #8b6fff;
+    --accent-lo: #2a1f5c;
+    --green:     #4ade80;
+    --green-lo:  #052e16;
+    --amber:     #fbbf24;
+    --amber-lo:  #451a03;
+    --red:       #f87171;
+    --red-lo:    #450a0a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:        #0e0f18;
+  --surface:   #171926;
+  --surface2:  #1e2133;
+  --border:    #2c2f45;
+  --text:      #ecedf6;
+  --muted:     #8b8fa8;
+  --accent:    #8b6fff;
+  --accent-lo: #2a1f5c;
+  --green:     #4ade80;
+  --green-lo:  #052e16;
+  --amber:     #fbbf24;
+  --amber-lo:  #451a03;
+  --red:       #f87171;
+  --red-lo:    #450a0a;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  min-height: 100vh;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────── */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--top-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  z-index: 100;
+}
+.topbar-brand {
+  display: flex; align-items: center; gap: 10px;
+}
+.topbar-logo {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; letter-spacing: -.5px;
+}
+.topbar-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+}
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.lang-btn {
+  display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.lang-btn button {
+  padding: 5px 13px; background: none; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--muted); transition: all .15s;
+}
+.lang-btn button.active {
+  background: var(--accent); color: #fff;
+}
+.theme-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: none;
+  cursor: pointer; color: var(--muted); font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Sidebar nav ─────────────────────────────────────────────────── */
+.nav {
+  position: fixed; top: var(--top-h); left: 0; bottom: 0; width: var(--nav-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 20px 0;
+}
+.nav-group-label {
+  padding: 6px 18px; font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.nav-item {
+  display: block; padding: 8px 18px;
+  font-size: 13px; color: var(--muted);
+  cursor: pointer; border-left: 2px solid transparent;
+  transition: all .15s; text-decoration: none;
+}
+.nav-item:hover { color: var(--text); background: var(--surface2); }
+.nav-item.active {
+  color: var(--accent); border-left-color: var(--accent);
+  background: var(--accent-lo); font-weight: 600;
+}
+.nav-section-icon { margin-right: 7px; font-size: 14px; }
+
+/* ── Main content ────────────────────────────────────────────────── */
+.main {
+  margin-left: var(--nav-w);
+  padding-top: calc(var(--top-h) + 40px);
+  padding-bottom: 80px;
+  max-width: 840px;
+  padding-left: 44px;
+  padding-right: 32px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────── */
+.section { display: none; }
+.section.active { display: block; }
+
+/* ── Hero ─────────────────────────────────────────────────────────── */
+.hero {
+  display: flex; gap: 20px; align-items: flex-start;
+  padding: 28px; border-radius: 16px;
+  background: var(--accent-lo);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  margin-bottom: 32px;
+}
+.hero-icon {
+  font-size: 36px; flex-shrink: 0; line-height: 1;
+  width: 60px; height: 60px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hero-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; line-height: 1.2; }
+.hero-path {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--accent); margin-bottom: 8px;
+}
+.hero-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+/* ── Cards ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .ct-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--accent-lo);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+
+/* ── Steps ───────────────────────────────────────────────────────── */
+.steps { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.step {
+  display: flex; gap: 16px; align-items: flex-start;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 14px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.step-body { flex: 1; }
+.step-body strong { display: block; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.step-body p { font-size: 13px; color: var(--muted); margin: 0; }
+.step-body ul {
+  margin-top: 8px; padding-left: 18px;
+  color: var(--muted); font-size: 13px; line-height: 1.8;
+}
+
+/* ── Badges (demo) ───────────────────────────────────────────────── */
+.badge-row { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.badge-item {
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+  border-radius: 10px; background: var(--surface2); border: 1px solid var(--border);
+}
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.badge.green  { background: var(--green-lo); color: var(--green); }
+.badge.amber  { background: var(--amber-lo); color: var(--amber); }
+.badge.red    { background: var(--red-lo); color: var(--red); }
+.badge-desc { font-size: 13px; color: var(--muted); }
+
+/* ── Tips ────────────────────────────────────────────────────────── */
+.tip {
+  display: flex; gap: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px; padding: 14px 16px;
+  margin-top: 16px;
+  font-size: 13px; color: var(--muted); line-height: 1.6;
+}
+.tip.warn { border-left-color: var(--amber); }
+.tip.danger { border-left-color: var(--red); }
+.tip-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+/* ── UI Mockup ───────────────────────────────────────────────────── */
+.mockup {
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  background: var(--surface2);
+  margin: 16px 0;
+  font-size: 13px;
+}
+.mockup-bar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 8px 14px; font-size: 11px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+}
+.mockup-body { padding: 16px 14px; }
+.mockup-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface);
+  margin-bottom: 8px;
+}
+.mockup-row:last-child { margin-bottom: 0; }
+.mockup-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.mockup-info { flex: 1; }
+.mockup-title { font-weight: 700; color: var(--text); font-size: 13px; }
+.mockup-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.mockup-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mockup-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.mbtn {
+  padding: 5px 12px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+  cursor: default;
+}
+.mbtn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Modal mock ──────────────────────────────────────────────────── */
+.modal-mock {
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  background: var(--surface);
+  margin: 16px 0;
+  max-width: 420px;
+}
+.modal-mock-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.modal-mock-doc {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+}
+.modal-mock-doc-title { font-weight: 700; color: var(--text); font-size: 13px; }
+.modal-mock-doc-dl { font-size: 11px; color: var(--amber); margin-top: 4px; }
+.modal-mock-decl {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 10px; padding: 12px 14px;
+  font-size: 13px; color: var(--muted); line-height: 1.6;
+  margin-bottom: 14px;
+}
+.modal-mock-decl strong { color: var(--text); }
+.modal-mock-btns { display: flex; gap: 8px; }
+.modal-mock-btn {
+  flex: 1; padding: 9px; border-radius: 9px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+  text-align: center; cursor: default;
+}
+.modal-mock-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pin-field {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px;
+  text-align: center; font-size: 22px; font-weight: 800;
+  color: var(--text); letter-spacing: .4em;
+  margin: 12px 0;
+}
+
+/* ── Table ───────────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 9px 12px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+}
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+td:first-child { color: var(--text); font-weight: 500; }
+tr:last-child td { border-bottom: none; }
+
+/* ── Divider ─────────────────────────────────────────────────────── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+/* ── Callout ─────────────────────────────────────────────────────── */
+.callout {
+  padding: 14px 18px; border-radius: 10px;
+  font-size: 13px; margin: 14px 0; line-height: 1.6;
+}
+.callout.info  { background: var(--accent-lo); color: color-mix(in srgb, var(--accent) 70%, var(--text)); border-left: 3px solid var(--accent); }
+.callout.success { background: var(--green-lo); color: var(--green); border-left: 3px solid var(--green); }
+.callout.warn  { background: var(--amber-lo); color: var(--amber); border-left: 3px solid var(--amber); }
+
+/* ── KPI mini ─────────────────────────────────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 12px 0; }
+.kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; text-align: center;
+}
+.kpi-val { font-size: 22px; font-weight: 800; color: var(--text); }
+.kpi-val.green { color: var(--green); }
+.kpi-val.amber { color: var(--amber); }
+.kpi-val.red   { color: var(--red); }
+.kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 2px; }
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .nav { display: none; }
+  .main { margin-left: 0; padding-left: 18px; padding-right: 18px; }
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ──────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">ZEN</div>
+    <span class="topbar-title" data-en="Policy Documents Manual" data-ja="規則文書マニュアル">Policy Documents Manual</span>
+  </div>
+  <div class="topbar-right">
+    <div class="lang-btn">
+      <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+      <button id="btn-ja" onclick="setLang('ja')">日本語</button>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<!-- ── Sidebar ─────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-group-label" data-en="For Staff" data-ja="スタッフ向け">For Staff</div>
+  <a class="nav-item active" onclick="show('overview')" data-en="📋 Overview" data-ja="📋 概要">📋 Overview</a>
+  <a class="nav-item" onclick="show('finding')" data-en="🔍 Finding the Page" data-ja="🔍 ページの場所">🔍 Finding the Page</a>
+  <a class="nav-item" onclick="show('badges')" data-en="🏷️ Status Badges" data-ja="🏷️ ステータスバッジ">🏷️ Status Badges</a>
+  <a class="nav-item" onclick="show('view-pdf')" data-en="📄 Viewing a PDF" data-ja="📄 PDFを閲覧する">📄 Viewing a PDF</a>
+  <a class="nav-item" onclick="show('acknowledge')" data-en="✅ Acknowledging" data-ja="✅ 受領確認する">✅ Acknowledging</a>
+  <a class="nav-item" onclick="show('after')" data-en="🎉 After Acknowledging" data-ja="🎉 確認後の状態">🎉 After Acknowledging</a>
+  <a class="nav-item" onclick="show('faq')" data-en="❓ FAQ" data-ja="❓ よくある質問">❓ FAQ</a>
+
+  <div class="nav-group-label" style="margin-top:16px" data-en="For HR / Admin" data-ja="HR・管理者向け">For HR / Admin</div>
+  <a class="nav-item" onclick="show('hr-upload')" data-en="⬆️ Uploading Documents" data-ja="⬆️ 文書をアップロード">⬆️ Uploading Documents</a>
+  <a class="nav-item" onclick="show('hr-tracking')" data-en="📊 Tracking Acknowledgements" data-ja="📊 確認状況を追跡">📊 Tracking Acknowledgements</a>
+  <a class="nav-item" onclick="show('hr-archive')" data-en="📦 Archiving & Restoring" data-ja="📦 アーカイブと復元">📦 Archiving & Restoring</a>
+</nav>
+
+<!-- ── Main ────────────────────────────────────────────────────── -->
+<main class="main">
+
+<!-- ═══ OVERVIEW ═══ -->
+<div class="section active" id="sec-overview">
+  <div class="hero">
+    <div class="hero-icon">📄</div>
+    <div>
+      <div class="hero-path" data-en="Company Policies — Staff Guide" data-ja="Company Policies — スタッフガイド">Company Policies — Staff Guide</div>
+      <div class="hero-title" data-en="Policy Document Hub" data-ja="規則文書ハブ">Policy Document Hub</div>
+      <div class="hero-desc" data-en="The Company Policies page is where Sushi ZEN HR publishes official policies, memos, SOPs, and announcements as PDFs. You can read them inside the app and confirm receipt with your PIN — no more paper signatures." data-ja="Company Policiesページは、Sushi ZEN HRが規則・通達・SOP・お知らせをPDFとして公開する場所です。アプリ内で閲覧し、PINで受領確認ができます。紙の署名は不要です。">The Company Policies page is where Sushi ZEN HR publishes official policies, memos, SOPs, and announcements as PDFs. You can read them inside the app and confirm receipt with your PIN — no more paper signatures.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">✨</span> <span data-en="What this feature does" data-ja="この機能でできること">What this feature does</span></div>
+    <div class="table-wrap">
+      <table>
+        <tr><th data-en="For Staff" data-ja="スタッフ">For Staff</th><th data-en="For HR / Managers" data-ja="HR・管理者">For HR / Managers</th></tr>
+        <tr>
+          <td data-en="View all active company policies and memos in one place" data-ja="全ての有効な会社規則・通達を一覧で確認">View all active company policies and memos</td>
+          <td data-en="Upload policy PDFs (max 10 MB) with title, category, city, and deadline" data-ja="タイトル・カテゴリ・都市・期限付きでPDFをアップロード">Upload policy PDFs (max 10 MB)</td>
+        </tr>
+        <tr>
+          <td data-en="Preview or download PDFs directly in the app" data-ja="アプリ内でPDFをプレビューまたはダウンロード">Preview or download PDFs in the app</td>
+          <td data-en="See exactly who has and hasn't acknowledged each document" data-ja="各文書の確認済み・未確認のスタッフを正確に把握">See who has and hasn't acknowledged</td>
+        </tr>
+        <tr>
+          <td data-en="Confirm receipt by entering your PIN (permanent digital record)" data-ja="PINを入力して受領確認（永続デジタル記録）">Confirm receipt with your PIN</td>
+          <td data-en="Set acknowledgement deadlines for urgent policies" data-ja="緊急規則に確認期限を設定">Set acknowledgement deadlines</td>
+        </tr>
+        <tr>
+          <td data-en="See your personal acknowledgement status for each document" data-ja="各文書の個人確認ステータスを確認">See your acknowledgement status</td>
+          <td data-en="Archive documents when no longer active" data-ja="不要になった文書をアーカイブ">Archive documents when no longer active</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span data-en="Acknowledgement is a permanent digital record. Once you confirm with your PIN, the timestamp is stored and cannot be removed — it works like a digital signature." data-ja="受領確認は永続デジタル記録です。PINで確認すると日時が保存され、削除できません。デジタル署名と同等の効力を持ちます。">Acknowledgement is a permanent digital record. Once you confirm with your PIN, the timestamp is stored and cannot be removed.</span>
+  </div>
+</div>
+
+<!-- ═══ FINDING THE PAGE ═══ -->
+<div class="section" id="sec-finding">
+  <div class="hero">
+    <div class="hero-icon">🔍</div>
+    <div>
+      <div class="hero-path">Staff Portal</div>
+      <div class="hero-title" data-en="Finding the Page" data-ja="ページの場所">Finding the Page</div>
+      <div class="hero-desc" data-en="The Company Policies page is accessible to all staff from the left sidebar." data-ja="Company Policiesページは全スタッフがサイドバーからアクセスできます。">The Company Policies page is accessible to all staff from the left sidebar.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📱</span> <span data-en="Staff: Access via sidebar" data-ja="スタッフ：サイドバーからアクセス">Staff: Access via sidebar</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="Log in to the Sushi ZEN Workforce OS" data-ja="Sushi ZEN Workforce OSにログイン">Log in to the Sushi ZEN Workforce OS</strong>
+          <p data-en="Use your staff name and PIN at the login screen." data-ja="ログイン画面でスタッフ名とPINを入力します。">Use your staff name and PIN at the login screen.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='Find "Company Policies" in the left sidebar' data-ja='左サイドバーの「Company Policies」を探す'>Find "Company Policies" in the left sidebar</strong>
+          <p data-en="It appears just below My Notices. Click it." data-ja="「My Notices」の下に表示されています。クリックします。">It appears just below My Notices. Click it.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en="The Policy Documents page opens" data-ja="Policy Documentsページが開く">The Policy Documents page opens</strong>
+          <p data-en="You will see your personal KPI summary at the top and a list of all active documents below." data-ja="上部に個人KPIサマリー、下部に有効文書の一覧が表示されます。">You will see your KPI summary at the top and all active documents below.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📊</span> <span data-en="Your personal KPI cards" data-ja="個人KPIカード">Your personal KPI cards</span></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px" data-en="At the top of the page you will see four summary cards:" data-ja="ページ上部に4つのサマリーカードが表示されます：">At the top of the page you will see four summary cards:</p>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-val">3</div><div class="kpi-label" data-en="Documents" data-ja="文書数">Documents</div></div>
+      <div class="kpi"><div class="kpi-val green">2</div><div class="kpi-label" data-en="Acknowledged" data-ja="確認済み">Acknowledged</div></div>
+      <div class="kpi"><div class="kpi-val amber">1</div><div class="kpi-label" data-en="Pending" data-ja="確認待ち">Pending</div></div>
+      <div class="kpi"><div class="kpi-val red">0</div><div class="kpi-label" data-en="Overdue" data-ja="期限切れ">Overdue</div></div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-top:10px" data-en="These counts reflect YOUR acknowledgement status — not all staff." data-ja="これらのカウントはあなた個人の確認状況を示します（全スタッフ合計ではありません）。">These counts reflect YOUR acknowledgement status — not all staff combined.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">🏢</span> <span data-en="HR Admin: Access HR Policy Documents" data-ja="HR管理者：HR Policy Documentsにアクセス">HR Admin: Access HR Policy Documents</span></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px" data-en="HR Managers, HQ, and Admin users have a separate management page:" data-ja="HR Manager・HQ・Adminロールのユーザーは別の管理ページがあります：">HR Managers, HQ, and Admin users have a separate management page:</p>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="Scroll down in the left sidebar to the Admin section" data-ja="左サイドバーをスクロールしてAdminセクションへ">Scroll down to the Admin section in the sidebar</strong>
+          <p data-en='Find "HR Policy Documents" and click it.' data-ja='「HR Policy Documents」を見つけてクリックします。'>Find "HR Policy Documents" and click it.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en="The admin management page opens" data-ja="管理ページが開く">The admin management page opens</strong>
+          <p data-en="From here you can upload documents, track acknowledgements, and manage archived items." data-ja="文書のアップロード、確認状況の追跡、アーカイブ管理ができます。">Upload documents, track acknowledgements, and manage archived items.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══ STATUS BADGES ═══ -->
+<div class="section" id="sec-badges">
+  <div class="hero">
+    <div class="hero-icon">🏷️</div>
+    <div>
+      <div class="hero-path">Company Policies</div>
+      <div class="hero-title" data-en="Status Badges" data-ja="ステータスバッジ">Status Badges</div>
+      <div class="hero-desc" data-en="Each document card shows a colored badge so you can tell at a glance what action (if any) is needed." data-ja="各文書カードにカラーバッジが表示され、必要なアクション（あれば）を一目で確認できます。">Each document card shows a colored badge so you can tell at a glance what action is needed.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">🎨</span> <span data-en="Badge meanings" data-ja="バッジの意味">Badge meanings</span></div>
+    <div class="badge-row">
+      <div class="badge-item">
+        <span class="badge green">✓ <span data-en="Acknowledged" data-ja="確認済み">Acknowledged</span></span>
+        <span class="badge-desc" data-en="You already confirmed receipt with your PIN. No action needed." data-ja="PINで受領確認済みです。操作は不要です。">You already confirmed receipt with your PIN. No action needed.</span>
+      </div>
+      <div class="badge-item">
+        <span class="badge amber">⏰ <span data-en="Acknowledgement required" data-ja="確認が必要">Acknowledgement required</span></span>
+        <span class="badge-desc" data-en="HR requires you to confirm receipt. The deadline has not passed yet." data-ja="HRからの確認要求があります。まだ期限内です。">HR requires confirmation. Deadline has not passed yet.</span>
+      </div>
+      <div class="badge-item">
+        <span class="badge red">⚠️ <span data-en="Overdue" data-ja="期限切れ">Overdue</span></span>
+        <span class="badge-desc" data-en="The acknowledgement deadline has passed and you have not confirmed yet. Please acknowledge immediately." data-ja="確認期限が過ぎていますが、まだ確認されていません。すぐに確認してください。">Deadline passed and you have not confirmed yet. Acknowledge immediately.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📋</span> <span data-en="Category chips" data-ja="カテゴリチップ">Category chips</span></div>
+    <div class="table-wrap">
+      <table>
+        <tr><th data-en="Category" data-ja="カテゴリ">Category</th><th data-en="Typical content" data-ja="主な内容">Typical content</th></tr>
+        <tr><td>Policy</td><td data-en="Official company rules and regulations" data-ja="会社の公式規則・規程">Official company rules and regulations</td></tr>
+        <tr><td>Memo</td><td data-en="Internal announcements or updates from management" data-ja="経営陣からの社内連絡・お知らせ">Internal announcements from management</td></tr>
+        <tr><td>Announcement</td><td data-en="General notices for all staff" data-ja="全スタッフへの一般通達">General notices for all staff</td></tr>
+        <tr><td>Guideline</td><td data-en="Best practices and recommended procedures" data-ja="ベストプラクティス・推奨手順">Best practices and recommended procedures</td></tr>
+        <tr><td>SOP</td><td data-en="Standard Operating Procedures for specific tasks" data-ja="特定業務の標準作業手順書">Standard Operating Procedures</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-bar" data-en="Example — document list" data-ja="例 — 文書一覧">Example — document list</div>
+    <div class="mockup-body">
+      <div class="mockup-row">
+        <div class="mockup-icon">✅</div>
+        <div class="mockup-info">
+          <div class="mockup-title">Leave Policy 2026 &nbsp;<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:5px;color:var(--muted)">Policy</span></div>
+          <div class="mockup-badges"><span class="badge green">✓ <span data-en="Acknowledged 20 Aug 2026" data-ja="確認済み 2026年8月20日">Acknowledged 20 Aug 2026</span></span></div>
+          <div class="mockup-btns"><span class="mbtn" data-en="View PDF" data-ja="PDFを見る">View PDF</span><span class="mbtn" data-en="Download" data-ja="ダウンロード">Download</span></div>
+        </div>
+      </div>
+      <div class="mockup-row">
+        <div class="mockup-icon">⚠️</div>
+        <div class="mockup-info">
+          <div class="mockup-title">Uniform & Grooming Standards &nbsp;<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:5px;color:var(--muted)">Guideline</span></div>
+          <div class="mockup-badges"><span class="badge amber">⏰ <span data-en="Acknowledgement required" data-ja="確認が必要">Acknowledgement required</span></span></div>
+          <div class="mockup-btns"><span class="mbtn" data-en="View PDF" data-ja="PDFを見る">View PDF</span><span class="mbtn" data-en="Download" data-ja="ダウンロード">Download</span><span class="mbtn primary" data-en="Acknowledge" data-ja="受領確認">Acknowledge</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEWING A PDF ═══ -->
+<div class="section" id="sec-view-pdf">
+  <div class="hero">
+    <div class="hero-icon">📄</div>
+    <div>
+      <div class="hero-path">Company Policies</div>
+      <div class="hero-title" data-en="Viewing a PDF" data-ja="PDFを閲覧する">Viewing a PDF</div>
+      <div class="hero-desc" data-en="You can read any policy document directly in the app, or download it to your device." data-ja="規則文書はアプリ内で直接読むことも、端末にダウンロードすることもできます。">You can read any policy document directly in the app, or download it to your device.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">👁️</span> <span data-en="Option A: View PDF in-browser" data-ja="方法A：ブラウザ内でPDFを閲覧">Option A: View PDF in-browser</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='Click the "View PDF" button on any document card' data-ja='文書カードの「View PDF」ボタンをクリック'>Click "View PDF" on any document card</strong>
+          <p data-en="The PDF opens in a full-screen overlay inside the app. You can scroll through the document without leaving the page." data-ja="アプリ内のフルスクリーンオーバーレイでPDFが開きます。ページを離れずに文書を読めます。">The PDF opens in a full-screen overlay inside the app.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='Click "Download" inside the viewer if you want a copy' data-ja='コピーが必要な場合はビューア内の「Download」をクリック'>Click "Download" in the viewer toolbar for a copy</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en='Click ✕ to close the viewer and return to the list' data-ja='✕をクリックしてビューアを閉じ、一覧に戻る'>Click ✕ to close and return to the list</strong>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">⬇️</span> <span data-en="Option B: Download to device" data-ja="方法B：端末にダウンロード">Option B: Download to device</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='Click the "Download" button on a document card' data-ja='文書カードの「Download」ボタンをクリック'>Click "Download" on a document card</strong>
+          <p data-en="The PDF downloads directly to your device's default download folder." data-ja="PDFが端末のデフォルトダウンロードフォルダに保存されます。">The PDF saves to your device's download folder.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="tip warn">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Viewing or downloading a PDF does NOT count as acknowledgement. You must click Acknowledge and enter your PIN separately to confirm receipt." data-ja="PDFの閲覧・ダウンロードは受領確認にはなりません。受領確認は「Acknowledge」ボタンをクリックしてPINを入力する必要があります。">Viewing or downloading a PDF does NOT count as acknowledgement. You must click Acknowledge and enter your PIN separately.</span>
+  </div>
+</div>
+
+<!-- ═══ ACKNOWLEDGING ═══ -->
+<div class="section" id="sec-acknowledge">
+  <div class="hero">
+    <div class="hero-icon">✅</div>
+    <div>
+      <div class="hero-path">Company Policies</div>
+      <div class="hero-title" data-en="Acknowledging a Policy" data-ja="規則の受領確認">Acknowledging a Policy</div>
+      <div class="hero-desc" data-en="When HR marks a document as requiring acknowledgement, you will see an Acknowledge button. This is a 2-step process — read the declaration, then confirm with your PIN." data-ja="HRが受領確認必須に設定した文書には「Acknowledge」ボタンが表示されます。2段階のプロセス——宣言を読んでからPINで確認します。">When HR requires acknowledgement, you'll see an Acknowledge button. This is a 2-step process.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">1️⃣</span> <span data-en="Step 1 — Read the declaration" data-ja="Step 1 — 宣言内容を読む">Step 1 — Read the declaration</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='Click the purple "Acknowledge" button on the document card' data-ja='文書カードの紫色の「Acknowledge」ボタンをクリック'>Click the purple "Acknowledge" button</strong>
+          <p data-en='A modal opens titled "Acknowledge Document".' data-ja='「Acknowledge Document」というタイトルのモーダルが開きます。'>A modal opens titled "Acknowledge Document".</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en="Read the document summary and deadline shown in the modal" data-ja="モーダルに表示された文書サマリーと期限を確認する">Read the document summary and deadline in the modal</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en='Read the declaration text, then click "I Understand — Continue"' data-ja='宣言文を読んでから「I Understand — Continue」をクリック'>Read the declaration, then click "I Understand — Continue"</strong>
+          <p data-en="The declaration confirms you have received and understood the policy." data-ja="宣言は規則を受領し理解したことを確認するものです。">This confirms you have received and understood the policy.</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="modal-mock" style="margin-top:18px">
+      <div class="modal-mock-title">🔒 <span data-en="Acknowledge Document" data-ja="Acknowledge Document">Acknowledge Document</span></div>
+      <div class="modal-mock-doc">
+        <div class="modal-mock-doc-title" data-en="Leave Policy 2026" data-ja="Leave Policy 2026">Leave Policy 2026</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px" data-en="Annual leave entitlement and procedures…" data-ja="年次有給休暇の付与と手順…">Annual leave entitlement and procedures…</div>
+        <div class="modal-mock-doc-dl" data-en="⏰ Deadline: 15 Sept 2026" data-ja="⏰ 期限: 2026年9月15日">⏰ Deadline: 15 Sept 2026</div>
+      </div>
+      <div class="modal-mock-decl" data-en='By proceeding, I confirm that I have <strong>received and understood</strong> the above company policy/memo. My PIN will be used to verify this acknowledgement.' data-ja='続行することで、上記の会社規則・通達を<strong>受領し理解した</strong>ことを確認します。PINがこの確認の証明として使用されます。'>By proceeding, I confirm that I have <strong>received and understood</strong> the above company policy/memo. My PIN will be used to verify this acknowledgement.</div>
+      <div class="modal-mock-btns">
+        <div class="modal-mock-btn" data-en="Cancel" data-ja="キャンセル">Cancel</div>
+        <div class="modal-mock-btn primary" data-en="✓ I Understand — Continue" data-ja="✓ 理解しました — 続ける">✓ I Understand — Continue</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">2️⃣</span> <span data-en="Step 2 — Enter your PIN" data-ja="Step 2 — PINを入力する">Step 2 — Enter your PIN</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='The modal changes to "Confirm with PIN"' data-ja='モーダルが「Confirm with PIN」に切り替わる'>The modal changes to "Confirm with PIN"</strong>
+          <p data-en="Your name is shown to confirm you are the one acknowledging." data-ja="確認者を明確にするため、あなたの名前が表示されます。">Your name is shown to confirm you are the one acknowledging.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en="Tap the PIN field and enter your login PIN" data-ja="PINフィールドをタップしてログインPINを入力">Tap the PIN field and enter your login PIN</strong>
+          <p data-en="The same PIN you use to log in to the app. Digits only." data-ja="アプリへのログインに使用しているPINと同じです。数字のみ。">The same PIN you use to log in. Digits only.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en='Click "Confirm Acknowledgement"' data-ja='「Confirm Acknowledgement」をクリック'>Click "Confirm Acknowledgement"</strong>
+          <p data-en="The button is only enabled once you have typed at least 4 digits." data-ja="4桁以上入力するとボタンが有効になります。">The button activates once you type at least 4 digits.</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="modal-mock" style="margin-top:18px">
+      <div class="modal-mock-title">🔒 <span data-en="Confirm with PIN" data-ja="Confirm with PIN">Confirm with PIN</span></div>
+      <div style="text-align:center;padding:10px 0 4px">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--accent-lo);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px">🔒</div>
+        <div style="font-size:13px;color:var(--muted)" data-en="Enter your PIN to confirm" data-ja="PINを入力して確認してください">Enter your PIN to confirm</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px" data-en="Yukihiro Nishimura" data-ja="Yukihiro Nishimura">Yukihiro Nishimura</div>
+      </div>
+      <div class="pin-field">● ● ● ● ● ● ●</div>
+      <div class="modal-mock-btns">
+        <div class="modal-mock-btn" data-en="← Back" data-ja="← 戻る">← Back</div>
+        <div class="modal-mock-btn primary" data-en="✓ Confirm Acknowledgement" data-ja="✓ 受領確認を完了">✓ Confirm Acknowledgement</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <span class="tip-icon">🔙</span>
+    <span data-en='If you entered Step 2 by mistake, click "Back" to return to the declaration screen. You can also click ✕ to cancel entirely.' data-ja='Step 2に誤って進んだ場合は「Back」をクリックして宣言画面に戻れます。✕をクリックすると完全にキャンセルできます。'>If you entered Step 2 by mistake, click "Back" to return to the declaration screen, or ✕ to cancel entirely.</span>
+  </div>
+</div>
+
+<!-- ═══ AFTER ACKNOWLEDGING ═══ -->
+<div class="section" id="sec-after">
+  <div class="hero">
+    <div class="hero-icon">🎉</div>
+    <div>
+      <div class="hero-path">Company Policies</div>
+      <div class="hero-title" data-en="After Acknowledging" data-ja="確認後の状態">After Acknowledging</div>
+      <div class="hero-desc" data-en="Once your PIN is verified, the acknowledgement is recorded instantly." data-ja="PINが確認されると、受領確認が即座に記録されます。">Once your PIN is verified, the acknowledgement is recorded instantly.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">✨</span> <span data-en="What changes on your screen" data-ja="画面上の変化">What changes on your screen</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="The modal closes automatically" data-ja="モーダルが自動的に閉じる">The modal closes automatically</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='The document card updates to show a green ✓ "Acknowledged" badge with today\'s date' data-ja='文書カードが緑の ✓「Acknowledged」バッジと日付に更新される'>The document card shows a green ✓ "Acknowledged" badge with today's date</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en='The "Acknowledge" button disappears — only View PDF and Download remain' data-ja='「Acknowledge」ボタンが消え、View PDFとDownloadのみ残る'>"Acknowledge" button disappears — only View PDF and Download remain</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong data-en='The KPI cards update: Acknowledged count increases, Pending count decreases' data-ja='KPIカードが更新：Acknowledged数が増え、Pending数が減る'>KPI cards update: Acknowledged ↑, Pending ↓</strong>
+        </div>
+      </li>
+    </ol>
+
+    <div class="callout success" style="margin-top:16px" data-en="✓ Your HR team can now see that you have acknowledged this document. The timestamp and your staff name are permanently recorded." data-ja="✓ HRチームがあなたの確認を確認できるようになりました。タイムスタンプとスタッフ名が永続的に記録されます。">✓ Your HR team can now see that you have acknowledged. The timestamp and your name are permanently recorded.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">⚠️</span> <span data-en="Important notes" data-ja="重要事項">Important notes</span></div>
+    <div class="badge-row">
+      <div class="badge-item">
+        <span style="font-size:18px;flex-shrink:0">🔒</span>
+        <span class="badge-desc" data-en="Acknowledgement is PERMANENT. Once confirmed, it cannot be undone or removed — not by you, not by HR." data-ja="受領確認は永続です。確認後は取り消しできません。スタッフ本人もHRも削除できません。"><strong data-en="Acknowledgement is permanent" data-ja="受領確認は永続">Acknowledgement is permanent.</strong> <span data-en="Once confirmed, it cannot be undone or removed — not by you, not by HR." data-ja="確認後は取り消せません。スタッフ本人もHRも削除できません。">Once confirmed, it cannot be undone or removed — not by you, not by HR.</span></span>
+      </div>
+      <div class="badge-item">
+        <span style="font-size:18px;flex-shrink:0">👤</span>
+        <span class="badge-desc"><strong data-en="Your PIN = your signature" data-ja="PINはあなたの署名">Your PIN = your signature.</strong> <span data-en="Never enter your PIN on behalf of another staff member." data-ja="他のスタッフの代わりにPINを入力しないでください。">Never enter your PIN on behalf of another staff member.</span></span>
+      </div>
+      <div class="badge-item">
+        <span style="font-size:18px;flex-shrink:0">🔁</span>
+        <span class="badge-desc"><strong data-en="Each document is acknowledged once" data-ja="各文書の確認は一回のみ">Each document is acknowledged once.</strong> <span data-en="Once confirmed, you cannot acknowledge it a second time." data-ja="一度確認すると、再度確認することはできません。">Once confirmed, you cannot acknowledge it again.</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FAQ ═══ -->
+<div class="section" id="sec-faq">
+  <div class="hero">
+    <div class="hero-icon">❓</div>
+    <div>
+      <div class="hero-path">Company Policies</div>
+      <div class="hero-title" data-en="Frequently Asked Questions" data-ja="よくある質問">Frequently Asked Questions</div>
+      <div class="hero-desc" data-en="Common questions from staff about the Policy Documents feature." data-ja="スタッフからよくある質問をまとめました。">Common questions from staff about the Policy Documents feature.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">💬</span> <span data-en="Q &amp; A" data-ja="質問と回答">Q &amp; A</span></div>
+    <div class="table-wrap">
+      <table>
+        <tr>
+          <td style="width:45%"><strong data-en="I forgot my PIN — can I still acknowledge?" data-ja="PINを忘れた場合でも確認できますか？">I forgot my PIN — can I still acknowledge?</strong></td>
+          <td data-en="No — you need your PIN to confirm. Ask your manager or HR to reset your PIN first, then acknowledge." data-ja="PINが必要です。まずマネージャーまたはHRにPINのリセットを依頼してから確認してください。">No. Ask your manager or HR to reset your PIN first, then acknowledge.</td>
+        </tr>
+        <tr>
+          <td><strong data-en="I clicked Acknowledge by mistake — can I cancel?" data-ja="誤ってAcknowledgeをクリックした場合キャンセルできますか？">I clicked Acknowledge by mistake — can I cancel?</strong></td>
+          <td data-en='Yes — click Cancel or ✕ before entering your PIN. Once you click "Confirm Acknowledgement" the action cannot be reversed.' data-ja='PINを入力する前は「Cancel」または✕でキャンセルできます。「Confirm Acknowledgement」をクリックすると元に戻せません。'>Yes — click Cancel or ✕ before entering your PIN. Once confirmed it cannot be reversed.</td>
+        </tr>
+        <tr>
+          <td><strong data-en="Do I need to acknowledge every document?" data-ja="全ての文書を確認する必要がありますか？">Do I need to acknowledge every document?</strong></td>
+          <td data-en="Only documents that have the Acknowledge button require your confirmation. Documents without it are informational — no action needed." data-ja="「Acknowledge」ボタンがある文書のみ確認が必要です。ボタンがない文書は参考情報のみで操作不要です。">Only documents with an Acknowledge button. Informational-only documents need no action.</td>
+        </tr>
+        <tr>
+          <td><strong data-en="I don't see a document that my colleague sees. Why?" data-ja="同僚が見ている文書が自分には表示されません。なぜですか？">I don't see a document my colleague sees. Why?</strong></td>
+          <td data-en="Some documents are city-specific (Manila or Dubai only). If the document is not for your city, it will not appear on your page." data-ja="一部の文書は都市限定（マニラまたはドバイのみ）です。あなたの都市向けでない文書はページに表示されません。">Some documents are city-specific. If it is not for your city, it won't appear on your page.</td>
+        </tr>
+        <tr>
+          <td><strong data-en="Can I read the PDF after I acknowledge?" data-ja="確認後もPDFを読めますか？">Can I read the PDF after I acknowledge?</strong></td>
+          <td data-en="Yes — View PDF and Download are always available, even after acknowledging." data-ja="はい — 確認後もView PDFとDownloadは常に利用できます。">Yes — View PDF and Download are always available after acknowledging.</td>
+        </tr>
+        <tr>
+          <td><strong data-en="My screen shows a red Overdue badge. What should I do?" data-ja="画面に赤い「Overdue」バッジが表示されています。どうすればいいですか？">My screen shows a red Overdue badge. What should I do?</strong></td>
+          <td data-en="Acknowledge the document immediately. Read it first if you haven't, then confirm with your PIN. Contact HR if you have questions about the content." data-ja="すぐに文書を確認してください。まだ読んでいない場合は読んでから、PINで確認します。内容について質問があればHRに連絡してください。">Acknowledge it immediately. Read the document first, then confirm with your PIN. Contact HR if you have questions.</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ HR / ADMIN SECTIONS ═══════════ -->
+
+<!-- ═══ HR UPLOAD ═══ -->
+<div class="section" id="sec-hr-upload">
+  <div class="hero">
+    <div class="hero-icon">⬆️</div>
+    <div>
+      <div class="hero-path" data-en="HR Policy Documents — Admin Guide" data-ja="HR Policy Documents — 管理者ガイド">HR Policy Documents — Admin Guide</div>
+      <div class="hero-title" data-en="Uploading Documents" data-ja="文書をアップロードする">Uploading Documents</div>
+      <div class="hero-desc" data-en="HR Managers, HQ, and Admin users can upload PDF policy documents from the HR Policy Documents admin page. Max file size is 10 MB, PDF only." data-ja="HR Manager・HQ・Adminユーザーは管理ページからPDFを最大10MBまでアップロードできます。">HR Managers, HQ, and Admin can upload PDFs up to 10 MB from the admin page.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📤</span> <span data-en="Upload steps" data-ja="アップロード手順">Upload steps</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='Go to Admin → HR Policy Documents and click "+ Upload Document"' data-ja='Admin → HR Policy Documents に移動し「+ Upload Document」をクリック'>Go to Admin → HR Policy Documents, click "+ Upload Document"</strong>
+          <p data-en="The upload modal opens." data-ja="アップロードモーダルが開きます。">The upload modal opens.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en="Fill in the required fields" data-ja="必須項目を入力する">Fill in the required fields</strong>
+          <ul>
+            <li data-en="Title (required) — shown to staff on their Company Policies page" data-ja="タイトル（必須）— スタッフのCompany Policiesページに表示される"><strong data-en="Title" data-ja="タイトル">Title</strong> <span data-en="(required) — shown to staff" data-ja="（必須）— スタッフに表示">(required) — shown to staff</span></li>
+            <li data-en="Category — Policy / Memo / Announcement / Guideline / SOP" data-ja="カテゴリ — Policy / Memo / Announcement / Guideline / SOP"><strong data-en="Category" data-ja="カテゴリ">Category</strong> — Policy / Memo / Announcement / Guideline / SOP</li>
+            <li data-en="Target City — All Cities / Manila / Dubai (limits who can see the document)" data-ja="対象都市 — All Cities / Manila / Dubai（閲覧スタッフを制限）"><strong data-en="Target City" data-ja="対象都市">Target City</strong> — All / Manila / Dubai</li>
+            <li data-en="Description — optional summary shown below the title on staff's page" data-ja="説明 — スタッフページでタイトル下に表示される任意のサマリー"><strong data-en="Description" data-ja="説明">Description</strong> <span data-en="(optional)" data-ja="（任意）">(optional)</span></li>
+            <li data-en="Effective Date — when the policy takes effect (optional)" data-ja="発効日 — 規則の発効日（任意）"><strong data-en="Effective Date" data-ja="発効日">Effective Date</strong> <span data-en="(optional)" data-ja="（任意）">(optional)</span></li>
+            <li data-en="Require staff acknowledgement — toggle ON if staff must PIN-confirm receipt" data-ja="受領確認必須 — スタッフのPIN確認が必要な場合にオン"><strong data-en="Require acknowledgement" data-ja="受領確認必須">Require acknowledgement</strong> toggle</li>
+            <li data-en="Acknowledgement Deadline — last date by which all staff must acknowledge (appears when toggle is ON)" data-ja="確認期限 — 全スタッフが確認する最終日（確認必須をオンにした場合に表示）"><strong data-en="Acknowledgement Deadline" data-ja="確認期限">Acknowledgement Deadline</strong> <span data-en="(when toggle is ON)" data-ja="（確認必須オン時に入力）">(when toggle is ON)</span></li>
+            <li data-en="PDF File (required) — click the file area to select your PDF" data-ja="PDFファイル（必須）— ファイルエリアをクリックしてPDFを選択"><strong data-en="PDF File" data-ja="PDFファイル">PDF File</strong> <span data-en="(required, max 10 MB)" data-ja="（必須、最大10MB）">(required, max 10 MB)</span></li>
+          </ul>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en='Click "Upload" — the document appears in the list immediately' data-ja='「Upload」をクリック — 文書が即座にリストに表示される'>Click "Upload" — the document is immediately visible to staff</strong>
+          <p data-en="The KPI cards update, and the document appears in staff's Company Policies page right away." data-ja="KPIカードが更新され、文書がすぐにスタッフのCompany Policiesページに表示されます。">KPI cards update and staff can see the document immediately.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="callout warn" data-en="⚠️ Documents are published to staff immediately upon upload. There is no draft or scheduled-publish mode — upload only when the document is ready to be seen." data-ja="⚠️ 文書はアップロード直後にスタッフに公開されます。下書きや公開予約モードはありません。公開準備が完了してからアップロードしてください。">⚠️ Documents publish to staff immediately. There is no draft mode — upload only when ready.</div>
+</div>
+
+<!-- ═══ HR TRACKING ═══ -->
+<div class="section" id="sec-hr-tracking">
+  <div class="hero">
+    <div class="hero-icon">📊</div>
+    <div>
+      <div class="hero-path" data-en="HR Policy Documents — Admin Guide" data-ja="HR Policy Documents — 管理者ガイド">HR Policy Documents — Admin Guide</div>
+      <div class="hero-title" data-en="Tracking Acknowledgements" data-ja="確認状況を追跡する">Tracking Acknowledgements</div>
+      <div class="hero-desc" data-en="For each document that requires acknowledgement, you can see exactly who has confirmed and when — so you know who to follow up with." data-ja="受領確認必須の各文書について、誰がいつ確認したかを正確に確認できます。フォローアップが必要な人を把握できます。">See exactly who confirmed and when, so you know who needs follow-up.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">🔍</span> <span data-en="Viewing the acknowledgement report" data-ja="確認レポートを見る">Viewing the acknowledgement report</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="Click on a document card to expand it" data-ja="文書カードをクリックして展開する">Click on a document card to expand it</strong>
+          <p data-en="A row of action buttons appears: Download PDF, View Acknowledgements, Archive, Delete." data-ja="アクションボタンの列が表示されます：Download PDF、View Acknowledgements、Archive、Delete。">Action buttons appear: Download PDF, View Acknowledgements, Archive, Delete.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='Click "View Acknowledgements (N)"' data-ja='「View Acknowledgements (N)」をクリック'>Click "View Acknowledgements (N)"</strong>
+          <p data-en="An inline panel opens showing the document title, total count, deadline, and a list of every staff member who acknowledged — with the date and time of each confirmation." data-ja="インラインパネルが開き、文書タイトル・合計確認数・期限、そして確認済み各スタッフの名前と確認日時が表示されます。">A panel shows the document title, total count, deadline, and every staff member who acknowledged with their timestamp.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong data-en="Compare the list against your full staff list to identify who hasn't acknowledged" data-ja="全スタッフリストと照合して未確認者を特定する">Compare against your full staff list to find who hasn't acknowledged yet</strong>
+          <p data-en="Staff who have not acknowledged do not appear in the report. They will still have a pending or overdue badge on their own Company Policies page." data-ja="未確認スタッフはレポートに表示されません。そのスタッフのCompany Policiesページには確認待ちまたは期限切れバッジが表示されます。">Non-acknowledgers are absent from the list. Their portal shows a pending or overdue badge.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📈</span> <span data-en="KPI cards on the admin page" data-ja="管理ページのKPIカード">KPI cards on the admin page</span></div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-val">5</div><div class="kpi-label" data-en="Active Docs" data-ja="有効文書数">Active Docs</div></div>
+      <div class="kpi"><div class="kpi-val green">42</div><div class="kpi-label" data-en="Total Acks" data-ja="総確認数">Total Acks</div></div>
+      <div class="kpi"><div class="kpi-val red">3</div><div class="kpi-label" data-en="Overdue" data-ja="期限切れ文書数">Overdue</div></div>
+      <div class="kpi"><div class="kpi-val">7</div><div class="kpi-label" data-en="Total Docs" data-ja="総文書数">Total Docs</div></div>
+    </div>
+    <div class="table-wrap" style="margin-top:14px">
+      <table>
+        <tr><th data-en="Card" data-ja="カード">Card</th><th data-en="What it counts" data-ja="カウント対象">What it counts</th></tr>
+        <tr><td data-en="Active Docs" data-ja="Active Docs">Active Docs</td><td data-en="Documents currently visible to staff (not archived)" data-ja="スタッフに表示中の文書（アーカイブ除く）">Documents currently visible to staff</td></tr>
+        <tr><td data-en="Total Acks" data-ja="Total Acks">Total Acks</td><td data-en="Total acknowledgements recorded across all active documents" data-ja="全有効文書の総確認数">Total confirmations across all active documents</td></tr>
+        <tr><td data-en="Overdue" data-ja="Overdue">Overdue</td><td data-en="Documents where the acknowledgement deadline has passed but not all staff have confirmed" data-ja="期限が過ぎたが全スタッフの確認が完了していない文書数">Documents past their deadline without full acknowledgement</td></tr>
+        <tr><td data-en="Total Docs" data-ja="Total Docs">Total Docs</td><td data-en="Active + archived documents combined" data-ja="有効文書とアーカイブ済み文書の合計">Active + archived documents combined</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ HR ARCHIVE ═══ -->
+<div class="section" id="sec-hr-archive">
+  <div class="hero">
+    <div class="hero-icon">📦</div>
+    <div>
+      <div class="hero-path" data-en="HR Policy Documents — Admin Guide" data-ja="HR Policy Documents — 管理者ガイド">HR Policy Documents — Admin Guide</div>
+      <div class="hero-title" data-en="Archiving & Restoring" data-ja="アーカイブと復元">Archiving &amp; Restoring</div>
+      <div class="hero-desc" data-en="When a policy is superseded or no longer applies, archive it to hide it from staff while keeping the history intact." data-ja="規則が更新または廃止された場合、アーカイブするとスタッフから非表示になりますが、履歴は保持されます。">Archive an outdated policy to hide it from staff while keeping history intact.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">📦</span> <span data-en="Archive a document" data-ja="文書をアーカイブする">Archive a document</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="Click the document card to expand it" data-ja="文書カードをクリックして展開する">Click the document card to expand it</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='Click the amber "Archive" button' data-ja='琥珀色の「Archive」ボタンをクリック'>Click the amber "Archive" button</strong>
+          <p data-en="The document disappears from the active list and from staff's Company Policies page immediately. KPI cards update." data-ja="文書が有効リストとスタッフのCompany Policiesページから即座に消えます。KPIカードが更新されます。">The document disappears from staff's view immediately. KPI cards update.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">♻️</span> <span data-en="Restore an archived document" data-ja="アーカイブ済み文書を復元する">Restore an archived document</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en='Enable "Show Archived" by clicking the checkbox near the filter bar' data-ja='フィルターバー付近の「Show Archived」チェックボックスをクリックして有効にする'>Enable "Show Archived" checkbox near the filter bar</strong>
+          <p data-en='Archived documents appear with an "Archived" amber badge.' data-ja='アーカイブ済み文書が「Archived」琥珀バッジ付きで表示されます。'>Archived documents appear with an "Archived" badge.</p>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en='Click "Restore" on the document you want to make active again' data-ja='再度有効にしたい文書の「Restore」をクリック'>Click "Restore" on the document</strong>
+          <p data-en="The document returns to the active list and becomes visible to staff again." data-ja="文書が有効リストに戻り、スタッフから再び閲覧できるようになります。">The document returns to the active list and becomes visible to staff again.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ct-icon">🗑️</span> <span data-en="Delete a document (permanent)" data-ja="文書を削除する（永続）">Delete a document (permanent)</span></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px" data-en="Deleting a document permanently removes it and all its acknowledgement records. This cannot be undone." data-ja="削除すると文書と全ての確認記録が永続的に消去されます。元に戻せません。">Deleting permanently removes the document and all acknowledgement records. This cannot be undone.</p>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong data-en="Expand the document card and click the red Delete button" data-ja="文書カードを展開し、赤い「Delete」ボタンをクリック">Expand the card and click the red Delete button</strong>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong data-en="Confirm the deletion in the browser dialog" data-ja="ブラウザダイアログで削除を確認する">Confirm the deletion in the browser dialog</strong>
+          <p data-en="The document and all acknowledgement history are permanently removed." data-ja="文書と全ての確認履歴が永続的に削除されます。">Document and all acknowledgement history are permanently removed.</p>
+        </div>
+      </li>
+    </ol>
+    <div class="tip danger" style="margin-top:14px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Prefer Archive over Delete. Archiving hides the document from staff but preserves the acknowledgement history. Delete should only be used for documents uploaded by mistake." data-ja="DeleteよりArchiveを優先してください。Archiveはスタッフから非表示にしますが確認履歴は保持されます。Deleteは誤ってアップロードした文書にのみ使用してください。">Prefer Archive over Delete. Archiving preserves acknowledgement history. Delete only for documents uploaded by mistake.</span>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+let currentLang = 'en';
+
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.innerHTML = lang === 'ja' ? el.dataset.ja : el.dataset.en;
+  });
+  document.documentElement.lang = lang === 'ja' ? 'ja' : 'en';
+}
+
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-' + id);
+  if (sec) sec.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  try { localStorage.setItem('sz_manual_theme', root.getAttribute('data-theme')); } catch {}
+}
+
+// Restore theme
+try {
+  const saved = localStorage.getItem('sz_manual_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+} catch {}
+</script>
+</body>
+</html>

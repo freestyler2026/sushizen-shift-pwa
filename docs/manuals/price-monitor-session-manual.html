@@ -1,0 +1,841 @@
+<title>Price Monitor — Session Renewal Manual</title>
+<style>
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 400;
+    src: local('JetBrains Mono'), local('Courier New'), local('monospace');
+  }
+
+  :root {
+    --bg: #f8fafc;
+    --bg2: #ffffff;
+    --bg3: #f1f5f9;
+    --code-bg: #1e293b;
+    --code-text: #7dd3fc;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --border2: #cbd5e1;
+    --careem: #15803d;
+    --careem-bg: #f0fdf4;
+    --careem-border: #bbf7d0;
+    --noon: #b45309;
+    --noon-bg: #fffbeb;
+    --noon-border: #fde68a;
+    --keeta: #0369a1;
+    --keeta-bg: #f0f9ff;
+    --keeta-border: #bae6fd;
+    --grab: #047857;
+    --grab-bg: #ecfdf5;
+    --grab-border: #6ee7b7;
+    --talabat: #c2500a;
+    --talabat-bg: #fff7ed;
+    --talabat-border: #fed7aa;
+    --warn-bg: #fef9c3;
+    --warn-border: #fde047;
+    --warn-text: #854d0e;
+    --step-num: #94a3b8;
+    --tag-bg: #f1f5f9;
+    --tag-text: #475569;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1117;
+      --bg2: #161b27;
+      --bg3: #1e2435;
+      --code-bg: #0a0e1a;
+      --code-text: #7dd3fc;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --border: #252d3f;
+      --border2: #2d374f;
+      --careem: #22c55e;
+      --careem-bg: #0a1f12;
+      --careem-border: #166534;
+      --noon: #f59e0b;
+      --noon-bg: #1c1305;
+      --noon-border: #92400e;
+      --keeta: #38bdf8;
+      --keeta-bg: #071a2e;
+      --keeta-border: #0c4a6e;
+      --grab: #34d399;
+      --grab-bg: #022c1d;
+      --grab-border: #065f46;
+      --talabat: #fb923c;
+      --talabat-bg: #1c0d00;
+      --talabat-border: #9a3412;
+      --warn-bg: #1a1505;
+      --warn-border: #854d0e;
+      --warn-text: #fbbf24;
+      --step-num: #4a5568;
+      --tag-bg: #1e2435;
+      --tag-text: #8892a4;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0f1117;
+    --bg2: #161b27;
+    --bg3: #1e2435;
+    --code-bg: #0a0e1a;
+    --code-text: #7dd3fc;
+    --text: #e2e8f0;
+    --text-muted: #8892a4;
+    --border: #252d3f;
+    --border2: #2d374f;
+    --careem: #22c55e;
+    --careem-bg: #0a1f12;
+    --careem-border: #166534;
+    --noon: #f59e0b;
+    --noon-bg: #1c1305;
+    --noon-border: #92400e;
+    --keeta: #38bdf8;
+    --keeta-bg: #071a2e;
+    --keeta-border: #0c4a6e;
+    --grab: #34d399;
+    --grab-bg: #022c1d;
+    --grab-border: #065f46;
+    --talabat: #fb923c;
+    --talabat-bg: #1c0d00;
+    --talabat-border: #9a3412;
+    --warn-bg: #1a1505;
+    --warn-border: #854d0e;
+    --warn-text: #fbbf24;
+    --step-num: #4a5568;
+    --tag-bg: #1e2435;
+    --tag-text: #8892a4;
+    --shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 32px 20px 64px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .header {
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .header p { color: var(--text-muted); font-size: 14px; }
+  .badges { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-careem  { color: var(--careem);  border-color: var(--careem-border);  background: var(--careem-bg); }
+  .badge-noon    { color: var(--noon);    border-color: var(--noon-border);    background: var(--noon-bg); }
+  .badge-keeta   { color: var(--keeta);   border-color: var(--keeta-border);   background: var(--keeta-bg); }
+  .badge-grab    { color: var(--grab);    border-color: var(--grab-border);    background: var(--grab-bg); }
+  .badge-talabat { color: var(--talabat); border-color: var(--talabat-border); background: var(--talabat-bg); }
+  .badge-auto    { color: var(--text-muted); border-color: var(--border); background: var(--tag-bg); }
+
+  .trigger-box {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 32px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .trigger-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .trigger-box h2 { font-size: 13px; font-weight: 700; color: var(--warn-text); margin-bottom: 4px; }
+  .trigger-box p  { color: var(--warn-text); font-size: 13px; line-height: 1.5; }
+  .trigger-box code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(0,0,0,0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    padding-left: 2px;
+  }
+
+  .platform-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 600px) { .platform-grid { grid-template-columns: 1fr; } }
+
+  .platform-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: clip;
+    min-width: 0;
+    box-shadow: var(--shadow);
+  }
+  .platform-card.full-width { grid-column: 1 / -1; }
+
+  .card-header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .logo-careem  { background: var(--careem-bg);  color: var(--careem);  border: 1px solid var(--careem-border); }
+  .logo-noon    { background: var(--noon-bg);    color: var(--noon);    border: 1px solid var(--noon-border); }
+  .logo-keeta   { background: var(--keeta-bg);   color: var(--keeta);   border: 1px solid var(--keeta-border); }
+  .logo-grab    { background: var(--grab-bg);    color: var(--grab);    border: 1px solid var(--grab-border); }
+  .logo-talabat { background: var(--talabat-bg); color: var(--talabat); border: 1px solid var(--talabat-border); }
+
+  .card-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .card-sub   { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .card-body  { padding: 16px 18px; }
+
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step  { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; line-height: 1.4; }
+  .step-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 6px; }
+
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 7px;
+    padding: 10px 14px;
+    margin-top: 6px;
+    overflow-x: auto;
+  }
+  .code-block code {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--code-text);
+    white-space: pre;
+    display: block;
+    line-height: 1.6;
+  }
+
+  .ic {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  .note {
+    background: var(--bg3);
+    border-left: 3px solid var(--border2);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  .talabat-note {
+    background: var(--talabat-bg);
+    border-left: 3px solid var(--talabat-border);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: 12px;
+    color: var(--talabat);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  .full-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .full-card-header {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .full-card-header .icon { font-size: 16px; }
+  .full-card-header h3 { font-size: 14px; font-weight: 700; color: var(--text); }
+  .full-card-body { padding: 18px 20px; }
+
+  .github-steps { display: flex; flex-direction: column; gap: 16px; }
+  .github-step  { display: flex; gap: 14px; }
+  .github-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .github-step-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .github-step-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .path-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .path-nav span { font-size: 12px; color: var(--text-muted); }
+  .path-nav .nav-item {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 5px;
+  }
+  .path-nav .sep { color: var(--text-muted); font-size: 12px; }
+
+  .secret-row  { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .secret-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .secret-dot         { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .secret-dot-careem  { background: var(--careem); }
+  .secret-dot-noon    { background: var(--noon); }
+  .secret-dot-keeta   { background: var(--keeta); }
+  .secret-dot-grab    { background: var(--grab); }
+  .secret-dot-talabat { background: var(--talabat); }
+  .secret-name   { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: var(--text); }
+  .secret-source { font-size: 11px; color: var(--text-muted); text-align: right; }
+
+  .verify-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .verify-box h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .verify-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .verify-grid { grid-template-columns: 1fr; } }
+  .verify-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .verify-item-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .verify-item p { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .footer {
+    margin-top: 36px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+</style>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-eyebrow">Sushi ZEN Workforce OS</div>
+  <h1>Price Monitor — Session Renewal Manual</h1>
+  <p>各プラットフォームのセッションが切れたときの再設定手順。</p>
+  <div class="badges">
+    <span class="badge badge-careem">● Careem Partners</span>
+    <span class="badge badge-noon">● Noon Food RMS</span>
+    <span class="badge badge-keeta">● Keeta Merchant Portal</span>
+    <span class="badge badge-grab">● Grab Food PH</span>
+    <span class="badge badge-talabat">● Talabat Partner Portal</span>
+    <span class="badge badge-auto">4時間ごと自動チェック</span>
+  </div>
+</div>
+
+<!-- TRIGGER -->
+<div class="trigger-box">
+  <div class="trigger-icon">🔔</div>
+  <div>
+    <h2>いつ再設定が必要か</h2>
+    <p>Discord DMに <code>SESSION_EXPIRED</code> の通知が届いたとき。<br>
+    Careemは数週間〜1ヶ月、Noonは数週間〜数ヶ月、Keetaは約30日、Grab Foodは約30日、<strong>Talabatはセッションクッキーが数週間〜数ヶ月</strong>で切れる（JWTは4時間ごとに自動更新されるため手動対応不要）。<br>
+    通知が届かなければ何もしなくてよい。</p>
+  </div>
+</div>
+
+<!-- STEP 1: PLATFORM CARDS -->
+<div class="section-title">Step 1 — セッションを再取得する</div>
+<div class="platform-grid">
+
+  <!-- CAREEM -->
+  <div class="platform-card">
+    <div class="card-header">
+      <div class="card-logo logo-careem">C</div>
+      <div>
+        <div class="card-title">Careem</div>
+        <div class="card-sub">partners.careem.com</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-label">プロジェクトフォルダへ移動</div>
+            <div class="code-block"><code>cd /Users/jaynishimura/Desktop/sushizen-shift-pwa</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-label">セットアップスクリプトを実行</div>
+            <div class="code-block"><code>node scripts/careem/setup-session.js</code></div>
+            <div class="step-desc">ブラウザが自動で開く。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-label">ブラウザでCareemにログイン</div>
+            <div class="step-desc">partners.careem.com が開く。メールアドレスとパスワードを入力してダッシュボードが表示されるまで待つ。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-label">ターミナルに戻りEnterを押す</div>
+            <div class="step-desc">「Press Enter after you see the Dashboard...」と表示されている。Enterを押すとセッションが保存される。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-label">b64ファイルの内容をコピー</div>
+            <div class="code-block"><code>cat scripts/careem/careem-session.b64.txt | pbcopy</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOON -->
+  <div class="platform-card">
+    <div class="card-header">
+      <div class="card-logo logo-noon">N</div>
+      <div>
+        <div class="card-title">Noon Food</div>
+        <div class="card-sub">restaurant.noon.partners</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-label">プロジェクトフォルダへ移動</div>
+            <div class="code-block"><code>cd /Users/jaynishimura/Desktop/sushizen-shift-pwa</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-label">セットアップスクリプトを実行</div>
+            <div class="code-block"><code>node scripts/noon/setup-session.js</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-label">ブラウザでNoonにログイン</div>
+            <div class="step-desc">restaurant.noon.partners が開く。ユーザー名 <span class="ic">sushi@p108431</span> とパスワードを入力してMenu Makerが表示されるまで待つ。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-label">ターミナルに戻りEnterを押す</div>
+            <div class="step-desc">「Press Enter after you see the Noon Food RMS Dashboard...」と表示されている。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-label">b64ファイルの内容をコピー</div>
+            <div class="code-block"><code>cat scripts/noon/noon-session.b64.txt | pbcopy</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEETA -->
+  <div class="platform-card">
+    <div class="card-header">
+      <div class="card-logo logo-keeta">K</div>
+      <div>
+        <div class="card-title">Keeta</div>
+        <div class="card-sub">merchant.mykeeta.com</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-label">プロジェクトフォルダへ移動</div>
+            <div class="code-block"><code>cd /Users/jaynishimura/Desktop/sushizen-shift-pwa</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-label">セットアップスクリプトを実行</div>
+            <div class="code-block"><code>node scripts/keeta/setup-session.js</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-label">ブラウザでKeetaにログイン</div>
+            <div class="step-desc">merchant.mykeeta.com が開く。<span class="ic">b297253@m.meeta.com</span> でログイン。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-label">自動検知を待つ</div>
+            <div class="step-desc">「<strong>Login detected!</strong>」が表示されたら成功。Enterは不要。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-label">b64ファイルの内容をコピー</div>
+            <div class="code-block"><code>cat scripts/keeta/keeta-session.b64.txt | pbcopy</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRAB -->
+  <div class="platform-card">
+    <div class="card-header">
+      <div class="card-logo logo-grab">G</div>
+      <div>
+        <div class="card-title">Grab Food PH</div>
+        <div class="card-sub">merchant.grab.com — PNQ / Taft / QC</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-label">プロジェクトフォルダへ移動</div>
+            <div class="code-block"><code>cd /Users/jaynishimura/Desktop/sushizen-shift-pwa</code></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-label">セットアップスクリプトを実行</div>
+            <div class="code-block"><code>node scripts/grab/setup-session.js paranaque</code></div>
+            <div class="step-desc">「Go to Portal」を自動クリックする。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-label">ブラウザでGrabにログイン</div>
+            <div class="step-desc"><span class="ic">sushizen.paranaque_manager</span> でログイン（Paranaqueアカウント1つで3店舗をカバー）。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-label">自動検知後、Menuページへ移動</div>
+            <div class="step-desc">「<strong>Dashboard detected!</strong>」表示後、45秒以内に <strong>Food → Menu</strong> をクリック。その後自動保存。</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-label">GitHub Secretを更新</div>
+            <div class="code-block"><code>cat scripts/grab/paranaque-session.b64.txt | gh secret set GRAB_SESSION_STATE</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TALABAT (full width) -->
+  <div class="platform-card full-width">
+    <div class="card-header">
+      <div class="card-logo logo-talabat">T</div>
+      <div>
+        <div class="card-title">Talabat AE</div>
+        <div class="card-sub">partner-app.talabat.com — Dubai 14店舗（Sushi ZEN / Ramen ZEN）</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="talabat-note" style="margin-bottom: 14px;">
+        <strong>Talabatの仕組み：</strong> Bearer JWT（4時間有効）は毎回の自動実行時に <code>refresh-token.js</code> が無人でリフレッシュする。セッション更新が必要になるのは、JWTの基になっている<strong>セッションクッキーが切れたとき</strong>（数週間〜数ヶ月）だけ。
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-label">プロジェクトフォルダへ移動</div>
+              <div class="code-block"><code>cd /Users/jaynishimura/Desktop/sushizen-shift-pwa</code></div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-label">セットアップスクリプトを実行</div>
+              <div class="code-block"><code>node scripts/talabat/setup-session.js</code></div>
+              <div class="step-desc">Chromiumブラウザが自動で開く。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-label">ブラウザでTalabatにログイン</div>
+              <div class="step-desc">partner-app.talabat.com が開く。メールアドレスとパスワードを入力。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <div class="step-label">2FAが表示されたら完了させる</div>
+              <div class="step-desc">スマートフォンのOTPまたはメールOTPを入力。その後ダッシュボードへ自動遷移する。<br>
+              <strong>2FAページ（/2fa）での60秒は消費される</strong> — 慌てず確実に入力すること。</div>
+            </div>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-content">
+              <div class="step-label">60秒以内にMenu Managementへ移動</div>
+              <div class="step-desc">ダッシュボード表示後、左サイドバーの <strong>Menu Management</strong> をクリック。ターミナルにAPIキャプチャログが流れたら成功（「Captured vendor API call」など）。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div class="step-content">
+              <div class="step-label">セッションをトリム（軽量化）する</div>
+              <div class="code-block"><code>node scripts/talabat/trim-session.js</code></div>
+              <div class="step-desc">Bearer tokenを抽出してb64ファイルを生成。65,536バイト以内に収まっていることを確認（「✅ Fits!」と表示される）。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div class="step-content">
+              <div class="step-label">GitHub Secretを更新してテスト</div>
+              <div class="code-block"><code>cat scripts/talabat/talabat-session.b64.txt | gh secret set TALABAT_SESSION_STATE
+
+gh workflow run talabat-price-check.yml</code></div>
+              <div class="step-desc">ワークフローが成功し、全14ベンダーで priced items が表示されれば完了。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">!</div>
+            <div class="step-content">
+              <div class="step-label">セッションファイルをgitに入れない</div>
+              <div class="step-desc"><span class="ic">talabat-session.json</span> / <span class="ic">talabat-session.b64.txt</span> / <span class="ic">talabat-api-discovery.json</span> は .gitignore 済み。<code>git status</code> で確認してからpushすること。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- STEP 2: GITHUB SECRETS -->
+<div class="section-title">Step 2 — GitHub Secretを更新する</div>
+<div class="full-card" style="margin-bottom: 20px;">
+  <div class="full-card-header">
+    <span class="icon">🔑</span>
+    <h3>GitHub Actions Secret の更新</h3>
+  </div>
+  <div class="full-card-body">
+    <div class="github-steps">
+      <div class="github-step">
+        <div class="github-step-num">1</div>
+        <div class="github-step-content">
+          <div class="github-step-label">GitHubリポジトリのSettings を開く</div>
+          <div class="path-nav">
+            <span class="nav-item">freestyler2026/sushizen-shift-pwa</span>
+            <span class="sep">›</span>
+            <span class="nav-item">Settings</span>
+            <span class="sep">›</span>
+            <span class="nav-item">Secrets and variables</span>
+            <span class="sep">›</span>
+            <span class="nav-item">Actions</span>
+          </div>
+        </div>
+      </div>
+      <div class="github-step">
+        <div class="github-step-num">2</div>
+        <div class="github-step-content">
+          <div class="github-step-label">該当するSecretの「Update」をクリック</div>
+          <div class="secret-row">
+            <div class="secret-item">
+              <div class="secret-dot secret-dot-careem"></div>
+              <div class="secret-name">CAREEM_SESSION_STATE</div>
+              <div class="secret-source">← Careemを更新したとき</div>
+            </div>
+            <div class="secret-item">
+              <div class="secret-dot secret-dot-noon"></div>
+              <div class="secret-name">NOON_SESSION_STATE</div>
+              <div class="secret-source">← Noonを更新したとき</div>
+            </div>
+            <div class="secret-item">
+              <div class="secret-dot secret-dot-keeta"></div>
+              <div class="secret-name">KEETA_SESSION_STATE</div>
+              <div class="secret-source">← Keetaを更新したとき</div>
+            </div>
+            <div class="secret-item">
+              <div class="secret-dot secret-dot-grab"></div>
+              <div class="secret-name">GRAB_SESSION_STATE</div>
+              <div class="secret-source">← Grab Foodを更新したとき</div>
+            </div>
+            <div class="secret-item">
+              <div class="secret-dot secret-dot-talabat"></div>
+              <div class="secret-name">TALABAT_SESSION_STATE</div>
+              <div class="secret-source">← Talabatを更新したとき</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="github-step">
+        <div class="github-step-num">3</div>
+        <div class="github-step-content">
+          <div class="github-step-label">コピーした値をペーストして保存</div>
+          <div class="github-step-desc">
+            Value フィールドに Step 1 でコピーした b64 文字列をペーストして <strong>Update secret</strong> をクリック。<br>
+            Talabatはコマンドラインから直接更新可能: <span class="ic">cat scripts/talabat/talabat-session.b64.txt | gh secret set TALABAT_SESSION_STATE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3: VERIFY -->
+<div class="section-title">Step 3 — 動作確認</div>
+<div class="verify-box">
+  <h3>🧪 手動で実行して確認する</h3>
+  <div class="verify-grid">
+    <div class="verify-item">
+      <div class="verify-item-title">
+        <span style="color: var(--careem)">●</span> Careem
+      </div>
+      <p>GitHub Actions → <strong>Careem Price Check</strong> → <strong>Run workflow</strong> をクリック。緑のチェックが出れば成功。</p>
+    </div>
+    <div class="verify-item">
+      <div class="verify-item-title">
+        <span style="color: var(--noon)">●</span> Noon
+      </div>
+      <p>GitHub Actions → <strong>Noon Food Price Check</strong> → <strong>Run workflow</strong> をクリック。緑のチェックが出れば成功。</p>
+    </div>
+    <div class="verify-item">
+      <div class="verify-item-title">
+        <span style="color: var(--keeta)">●</span> Keeta
+      </div>
+      <p>GitHub Actions → <strong>Keeta Price Check</strong> → <strong>Run workflow</strong> をクリック。緑のチェックが出れば成功。</p>
+    </div>
+    <div class="verify-item">
+      <div class="verify-item-title">
+        <span style="color: var(--grab)">●</span> Grab Food PH
+      </div>
+      <p>GitHub Actions → <strong>Grab PH Price Check</strong> → <strong>Run workflow</strong> をクリック。成功すると3店舗 × 89アイテムを確認。</p>
+    </div>
+    <div class="verify-item" style="grid-column: 1 / -1;">
+      <div class="verify-item-title">
+        <span style="color: var(--talabat)">●</span> Talabat AE
+      </div>
+      <p>GitHub Actions → <strong>Talabat AE Price Check</strong> → <strong>Run workflow</strong> をクリック。ログで全14ベンダーの「priced items」が表示されれば成功。<br>
+      コマンドラインで確認する場合:</p>
+      <div class="code-block" style="margin-top: 6px;"><code>gh run view $(gh run list --workflow=talabat-price-check.yml --limit 1 --json databaseId -q '.[0].databaseId') --log 2>&1 | grep -E "Vendor [0-9]+|priced items|expired" | head -30</code></div>
+      <p style="margin-top: 8px;">「Session expired」が出た場合は Step 1 のTalabat手順を再実施。「Token still valid for Xh」が表示されれば自動リフレッシュは正常動作中。</p>
+    </div>
+  </div>
+  <div class="note" style="margin-top: 14px;">
+    失敗した場合は、Step 1 から再実施。ログイン後にダッシュボードが完全に表示されてから Enter を押すこと（Talabatはその後にMenu Managementへ移動）。
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <strong>注意：</strong> パスワードは自分で入力すること。スクリプトや Claude に入力させないこと。<br>
+  Careemのcron: 毎時00分（1,5,9,13,17,21 UTC）／ Noonのcron: 毎時30分（1,5,9,13,17,21 UTC）／ Keetaのcron: 毎時00分（2,6,10,14,18,22 UTC）／ Grab Foodのcron: 毎時00分（3,7,11,15,19,23 UTC）／ <strong>Talabatのcron: 毎時30分（1,5,9,13,17,21 UTC）</strong><br>
+  セッションファイル: <span class="ic">scripts/careem/careem-session.json</span> / <span class="ic">scripts/noon/noon-session.json</span> / <span class="ic">scripts/keeta/keeta-session.json</span> / <span class="ic">scripts/grab/paranaque-session.json</span> / <span class="ic">scripts/talabat/talabat-session.json</span>（Gitには含めないこと）<br>
+  セッション有効期限: Keeta・Grab Foodは約30日 / Talabatのクッキーは数週間〜数ヶ月（JWTは4時間ごと自動更新）。期限切れ通知が届いたら上記手順で更新すること。<br>
+  Grab Foodは Paranaque管理者アカウント1つで Paranaque・Taft・QC の3店舗すべてをカバーしている。
+</div>

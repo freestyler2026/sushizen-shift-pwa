@@ -268,7 +268,8 @@ interface SalmonYield {
   id: number;
   whole_weight_g: number;
   main_portion_g: number;
-  topping_g: number;
+  scrap_g: number;
+  skin_g: number;
   waste_g: number;
   waste_pct: number;
   photo_url: string;
@@ -464,28 +465,42 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
 
 // ─── Salmon Portioning Section ────────────────────────────────────────────────
 
+function pctColor(pct: number, parMin: number | null, parMax: number, alertDelta: number) {
+  if (parMin !== null && pct < parMin - alertDelta) return { text: "text-red-400", bg: "bg-red-500/15 border-red-500/30" };
+  if (parMin !== null && pct < parMin) return { text: "text-yellow-400", bg: "bg-yellow-500/12 border-yellow-500/25" };
+  if (pct > parMax + alertDelta) return { text: "text-red-400", bg: "bg-red-500/15 border-red-500/30" };
+  if (pct > parMax) return { text: "text-yellow-400", bg: "bg-yellow-500/12 border-yellow-500/25" };
+  return { text: "text-emerald-400", bg: "bg-emerald-500/12 border-emerald-500/25" };
+}
+
 function SalmonPortioningSection({
   enabled, onToggle,
   wholeKg, onWholeKg,
   mainKg, onMainKg,
-  toppingKg, onToppingKg,
-  wasteG, wastePct,
+  scrapKg, onScrapKg,
+  skinKg, onSkinKg,
   photo, onPhoto,
 }: {
   enabled: boolean; onToggle: () => void;
   wholeKg: string; onWholeKg: (v: string) => void;
   mainKg: string; onMainKg: (v: string) => void;
-  toppingKg: string; onToppingKg: (v: string) => void;
-  wasteG: number; wastePct: number;
+  scrapKg: string; onScrapKg: (v: string) => void;
+  skinKg: string; onSkinKg: (v: string) => void;
   photo: File | null; onPhoto: (f: File | null) => void;
 }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const wasteColor = wastePct >= 5 ? "text-red-400" : wastePct >= 3 ? "text-yellow-400" : "text-emerald-400";
-  const wasteBg = wastePct >= 5
-    ? "bg-red-500/15 border-red-500/30"
-    : wastePct >= 3
-    ? "bg-yellow-500/12 border-yellow-500/25"
-    : "bg-emerald-500/12 border-emerald-500/25";
+  const whole = parseFloat(wholeKg) || 0;
+  const mainPct  = whole > 0 ? Math.round((parseFloat(mainKg)  || 0) / whole * 10000) / 100 : 0;
+  const scrapPct = whole > 0 ? Math.round((parseFloat(scrapKg) || 0) / whole * 10000) / 100 : 0;
+  const skinPct  = whole > 0 ? Math.round((parseFloat(skinKg)  || 0) / whole * 10000) / 100 : 0;
+
+  const mainStyle  = pctColor(mainPct,  67.5, 67.5, 2.5);
+  const scrapStyle = pctColor(scrapPct, null, 10,   2.5);
+  const skinStyle  = pctColor(skinPct,  null, 22.5, 2.5);
+
+  const hasAlert = whole > 0 && (
+    mainPct < 65.0 || mainPct > 70.0 || scrapPct > 12.5 || skinPct > 25.0
+  );
 
   return (
     <div className={`${GLASS_CARD} p-4 sm:p-6`}>
@@ -503,37 +518,52 @@ function SalmonPortioningSection({
 
       {enabled && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Whole Salmon (kg)</label>
+              <label className={`${T_LABEL} block mb-1`}>Whole Salmon (kg)</label>
+              <p className="text-xs text-zinc-500 mb-1.5">100% reference</p>
               <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
                 value={wholeKg} onChange={(e) => onWholeKg(e.target.value)} placeholder="e.g. 5.20" />
             </div>
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Main Portion (kg)</label>
+              <label className={`${T_LABEL} block mb-1`}>Main Portion (kg)</label>
+              <p className="text-xs text-zinc-500 mb-1.5">Par ≥67.5% &nbsp;|&nbsp; Alert if &lt;65% or &gt;70%</p>
               <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
-                value={mainKg} onChange={(e) => onMainKg(e.target.value)} placeholder="e.g. 3.50" />
+                value={mainKg} onChange={(e) => onMainKg(e.target.value)} placeholder="e.g. 3.60" />
             </div>
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Topping (kg)</label>
+              <label className={`${T_LABEL} block mb-1`}>Scrap — Decoration / Gunkan / Hosomaki (kg)</label>
+              <p className="text-xs text-zinc-500 mb-1.5">Par ≤10% &nbsp;|&nbsp; Alert if &gt;12.5%</p>
               <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
-                value={toppingKg} onChange={(e) => onToppingKg(e.target.value)} placeholder="e.g. 1.00" />
+                value={scrapKg} onChange={(e) => onScrapKg(e.target.value)} placeholder="e.g. 0.50" />
+            </div>
+            <div>
+              <label className={`${T_LABEL} block mb-1`}>Salmon Skin (kg)</label>
+              <p className="text-xs text-zinc-500 mb-1.5">Par ≤22.5% &nbsp;|&nbsp; Alert if &gt;25%</p>
+              <input type="number" step="0.01" min="0" className={`${INPUT_CLASS} py-3 text-base`}
+                value={skinKg} onChange={(e) => onSkinKg(e.target.value)} placeholder="e.g. 1.10" />
             </div>
           </div>
 
-          {parseFloat(wholeKg) > 0 && (
-            <div className={`rounded-xl border p-3 ${wasteBg}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-300">Waste</span>
-                <span className={`text-lg font-bold font-mono tabular-nums ${wasteColor}`}>
-                  {wastePct.toFixed(1)}%
-                  <span className="text-sm font-normal text-zinc-400 ml-2">({wasteG}g)</span>
-                </span>
-              </div>
-              {wastePct >= 5 && (
-                <p className="text-xs text-red-300 mt-1">High waste — management will be notified</p>
-              )}
+          {whole > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Main Portion", pct: mainPct, style: mainStyle },
+                { label: "Scrap",        pct: scrapPct, style: scrapStyle },
+                { label: "Salmon Skin",  pct: skinPct,  style: skinStyle },
+              ].map(({ label, pct, style }) => (
+                <div key={label} className={`rounded-xl border p-2.5 text-center ${style.bg}`}>
+                  <p className="text-xs text-zinc-400 mb-0.5">{label}</p>
+                  <p className={`text-lg font-bold font-mono tabular-nums ${style.text}`}>{pct.toFixed(1)}%</p>
+                </div>
+              ))}
             </div>
+          )}
+
+          {hasAlert && (
+            <p className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/25 rounded-lg px-3 py-2">
+              Par level deviation detected — management will be notified via inbox alert
+            </p>
           )}
 
           <div>
@@ -637,17 +667,24 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                 <span className={BADGE_INFO}>{r.shift}</span>
                 <span className="text-xs text-zinc-400">by {r.reported_by}</span>
                 <span className="text-xs text-zinc-500 ml-auto">{nonZero} item{nonZero !== 1 ? "s" : ""}</span>
-                {r.salmon_yield && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                    r.salmon_yield.waste_pct >= 5
-                      ? "text-red-300 bg-red-500/15 border-red-500/30"
-                      : r.salmon_yield.waste_pct >= 3
-                      ? "text-yellow-300 bg-yellow-500/12 border-yellow-500/25"
-                      : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
-                  }`}>
-                    Salmon {r.salmon_yield.waste_pct.toFixed(1)}%
-                  </span>
-                )}
+                {r.salmon_yield && (() => {
+                  const sy = r.salmon_yield;
+                  const mainPct = sy.whole_weight_g > 0 ? sy.main_portion_g / sy.whole_weight_g * 100 : 0;
+                  const alert = sy.whole_weight_g > 0 && (
+                    mainPct < 65 || mainPct > 70 ||
+                    sy.scrap_g / sy.whole_weight_g * 100 > 12.5 ||
+                    sy.skin_g  / sy.whole_weight_g * 100 > 25
+                  );
+                  return (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                      alert
+                        ? "text-yellow-300 bg-yellow-500/12 border-yellow-500/25"
+                        : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
+                    }`}>
+                      Salmon {mainPct.toFixed(1)}% main
+                    </span>
+                  );
+                })()}
                 {isAdmin && (
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1">
@@ -659,25 +696,22 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
               {expanded === r.id && (
                 <div className="border-t border-white/8 px-4 py-3 space-y-3">
                   {r.notes && <p className="text-xs text-zinc-400 italic">{r.notes}</p>}
-                  {r.salmon_yield && (
+                  {r.salmon_yield && (() => {
+                    const sy = r.salmon_yield;
+                    const w = sy.whole_weight_g;
+                    const mainPct  = w > 0 ? (sy.main_portion_g / w * 100).toFixed(1) : "—";
+                    const scrapPct = w > 0 ? (sy.scrap_g        / w * 100).toFixed(1) : "—";
+                    const skinPct  = w > 0 ? (sy.skin_g         / w * 100).toFixed(1) : "—";
+                    return (
                     <div className="rounded-xl border border-white/10 bg-white/3 p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Salmon Yield</span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                          r.salmon_yield.waste_pct >= 5
-                            ? "text-red-300 bg-red-500/15 border-red-500/30"
-                            : r.salmon_yield.waste_pct >= 3
-                            ? "text-yellow-300 bg-yellow-500/12 border-yellow-500/25"
-                            : "text-emerald-300 bg-emerald-500/12 border-emerald-500/25"
-                        }`}>
-                          {r.salmon_yield.waste_pct.toFixed(1)}% waste
-                        </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-zinc-300 mb-2">
-                        <div><span className="text-zinc-500">Whole: </span>{r.salmon_yield.whole_weight_g}g</div>
-                        <div><span className="text-zinc-500">Main: </span>{r.salmon_yield.main_portion_g}g</div>
-                        <div><span className="text-zinc-500">Topping: </span>{r.salmon_yield.topping_g}g</div>
-                        <div><span className="text-zinc-500">Waste: </span>{r.salmon_yield.waste_g}g</div>
+                        <div><span className="text-zinc-500">Whole: </span>{w}g</div>
+                        <div><span className="text-zinc-500">Main: </span>{sy.main_portion_g}g <span className="text-zinc-500">({mainPct}%)</span></div>
+                        <div><span className="text-zinc-500">Scrap: </span>{sy.scrap_g}g <span className="text-zinc-500">({scrapPct}%)</span></div>
+                        <div><span className="text-zinc-500">Skin: </span>{sy.skin_g}g <span className="text-zinc-500">({skinPct}%)</span></div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
                         {r.salmon_yield.photo_url && (
@@ -686,15 +720,16 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                             View Photo
                           </a>
                         )}
-                        {r.salmon_yield.ai_score !== null && (
+                        {sy.ai_score !== null && (
                           <span className="text-xs text-zinc-400">
-                            AI Score: <span className="text-white font-semibold">{r.salmon_yield.ai_score}</span>
-                            {r.salmon_yield.ai_score_note && ` — ${r.salmon_yield.ai_score_note}`}
+                            AI Score: <span className="text-white font-semibold">{sy.ai_score}</span>
+                            {sy.ai_score_note && ` — ${sy.ai_score_note}`}
                           </span>
                         )}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                   {Object.entries(groups).map(([sec, lines]) => {
                     const hasQty = lines.filter(l => Number(l.quantity) > 0);
                     if (hasQty.length === 0 && sec !== "extra") return null;
@@ -987,23 +1022,9 @@ export default function BackupReportPage() {
   const [salmonEnabled, setSalmonEnabled] = useState(false);
   const [salmonWholeKg, setSalmonWholeKg] = useState("");
   const [salmonMainKg, setSalmonMainKg] = useState("");
-  const [salmonToppingKg, setSalmonToppingKg] = useState("");
+  const [salmonScrapKg, setSalmonScrapKg] = useState("");
+  const [salmonSkinKg, setSalmonSkinKg] = useState("");
   const [salmonPhoto, setSalmonPhoto] = useState<File | null>(null);
-
-  const salmonWasteG = useMemo(() => {
-    const w = parseFloat(salmonWholeKg) || 0;
-    const m = parseFloat(salmonMainKg) || 0;
-    const t = parseFloat(salmonToppingKg) || 0;
-    return Math.round((w - m - t) * 1000);
-  }, [salmonWholeKg, salmonMainKg, salmonToppingKg]);
-
-  const salmonWastePct = useMemo(() => {
-    const w = parseFloat(salmonWholeKg) || 0;
-    if (w <= 0) return 0;
-    const m = parseFloat(salmonMainKg) || 0;
-    const t = parseFloat(salmonToppingKg) || 0;
-    return Math.round(((w - m - t) / w) * 10000) / 100;
-  }, [salmonWholeKg, salmonMainKg, salmonToppingKg]);
 
   useEffect(() => {
     const branches = BRANCHES[city];
@@ -1051,7 +1072,8 @@ export default function BackupReportPage() {
     setSalmonEnabled(false);
     setSalmonWholeKg("");
     setSalmonMainKg("");
-    setSalmonToppingKg("");
+    setSalmonScrapKg("");
+    setSalmonSkinKg("");
     setSalmonPhoto(null);
   }, []);
 
@@ -1101,10 +1123,9 @@ export default function BackupReportPage() {
       salmonEnabled && parseFloat(salmonWholeKg) > 0
         ? {
             whole_weight_g: Math.round(parseFloat(salmonWholeKg) * 1000),
-            main_portion_g: Math.round(parseFloat(salmonMainKg) * 1000),
-            topping_g: Math.round(parseFloat(salmonToppingKg) * 1000),
-            waste_g: salmonWasteG,
-            waste_pct: salmonWastePct,
+            main_portion_g: Math.round(parseFloat(salmonMainKg)  * 1000),
+            scrap_g:        Math.round(parseFloat(salmonScrapKg) * 1000),
+            skin_g:         Math.round(parseFloat(salmonSkinKg)  * 1000),
           }
         : null;
 
@@ -1144,7 +1165,8 @@ export default function BackupReportPage() {
       setSalmonEnabled(false);
       setSalmonWholeKg("");
       setSalmonMainKg("");
-      setSalmonToppingKg("");
+      setSalmonScrapKg("");
+      setSalmonSkinKg("");
       setSalmonPhoto(null);
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
@@ -1329,10 +1351,10 @@ export default function BackupReportPage() {
             onWholeKg={setSalmonWholeKg}
             mainKg={salmonMainKg}
             onMainKg={setSalmonMainKg}
-            toppingKg={salmonToppingKg}
-            onToppingKg={setSalmonToppingKg}
-            wasteG={salmonWasteG}
-            wastePct={salmonWastePct}
+            scrapKg={salmonScrapKg}
+            onScrapKg={setSalmonScrapKg}
+            skinKg={salmonSkinKg}
+            onSkinKg={setSalmonSkinKg}
             photo={salmonPhoto}
             onPhoto={setSalmonPhoto}
           />

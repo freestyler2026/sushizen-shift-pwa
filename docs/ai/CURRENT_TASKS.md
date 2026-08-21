@@ -46,8 +46,16 @@ onboarding API: `so-backend.deliveryhero.io/api/v1/entity/TB_AE/onboarding/vendo
 | 723684 | 4CYUPE | 673913 | RZ_JLT相当 |
 | 723686 | 4CYUP6 | 673913 | JJAD_JLT |
 
+**完了済み追加実装 (2026-08-21)**:
+- GitHub Actions `.github/workflows/talabat-payout-extract.yml`: 月次自動実行（毎月5日 06:00 Dubai）
+  - ① get-payouts.js (gross sales / 店舗別)
+  - ② get-net-payouts.js (net payout / チェーン別)
+  - ③ `POST /api/talabat/run-payout-allocation` 呼び出し → 店舗別 net payout 推計を upsert
+- `POST /api/talabat/run-payout-allocation` (Heroku v2049): 配分計算エンドポイント
+  - outlet_net = chain_net × (outlet_gross / chain_gross) の比例配分
+  - ar_payouts に data_type='net_payout_allocated' で保存
+
 **残タスク**:
-- GitHub Actions ワークフローに get-payouts.js + get-net-payouts.js を月次実行ステップとして追加
 - chainId 694540 (Ramen ZEN新) のペイアウトが 0 の理由を調査
 - Noon Dubai のサンプルファイル取得
 

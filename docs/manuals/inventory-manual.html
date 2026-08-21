@@ -544,21 +544,81 @@
   <div class="section-hero"><div class="hero-icon">🏬</div><div>
     <div class="section-title" data-en="WH Inventory" data-ja="倉庫在庫">WH Inventory</div>
     <div class="section-path">Admin → Inventory → WH Inventory</div>
-    <div class="section-desc" data-en="Warehouse stocktaking, branch order fulfillment, and stock tracking. 4 tabs." data-ja="倉庫の棚卸し、店舗オーダーの対応、在庫追跡。4つのタブで構成。">Warehouse stocktaking, branch order fulfillment, and stock tracking. 4 tabs.</div>
+    <div class="section-desc" data-en="Warehouse stocktaking, auto-replenishment ordering, branch order fulfillment, and stock tracking. 5 tabs." data-ja="倉庫の棚卸し、自動補充発注、店舗オーダー対応、在庫追跡。5つのタブで構成。">Warehouse stocktaking, auto-replenishment ordering, branch order fulfillment, and stock tracking. 5 tabs.</div>
   </div></div>
 
   <div class="card">
     <div class="card-title" data-en="Tab 1 — WH Stock" data-ja="タブ1 — WH Stock">Tab 1 — WH Stock</div>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Columns: Item Name, Category, Unit, Last Count, Adjustments, Theoretical, Status (OK/LOW/OUT). Use search or category chips to filter." data-ja="列：アイテム名・カテゴリ・単位・前回棚卸し・調整・理論在庫・ステータス（OK/LOW/OUT）。検索またはカテゴリチップでフィルタ。">Columns: Item, Category, Unit, Counts, Theoretical, Status. Same OK/LOW/OUT badges as CK.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Columns: Item Name, Category, Unit, Last Count, Adjustments, Theoretical, Par Level, Need Qty, Supplier, Status (OK/LOW/OUT). Use search or category chips to filter." data-ja="列：アイテム名・カテゴリ・単位・前回棚卸し・調整・理論在庫・Par Level・必要数量・サプライヤー・ステータス（OK/LOW/OUT）。検索またはカテゴリチップでフィルタ。">Columns: Item, Category, Unit, Theoretical, Par Level, Need Qty, Supplier, Status. Search or filter by category.</p>
     <div class="chip-row">
       <span class="chip green">Add Item (+ button)</span>
       <span class="chip blue">Edit Item (pencil icon)</span>
       <span class="chip red">Delete (soft)</span>
     </div>
+    <div class="tip" style="margin-top:10px"><span class="tip-icon">💡</span><span data-en="Par Level and Supplier shown here are set in Items Master → each item's edit page. These two fields are required for Auto Order to work." data-ja="ここに表示されるPar LevelとサプライヤーはItems Masterの各アイテム編集ページで設定します。Auto Orderを機能させるには両フィールドの設定が必要です。">Par Level and Supplier shown here are configured in Items Master (per-item edit). Both are required for Auto Order.</span></div>
+  </div>
+
+  <!-- ─── AUTO ORDER (NEW FEATURE) ─── -->
+  <div class="card" style="border-color:rgba(20,184,166,.4);background:linear-gradient(135deg,rgba(20,184,166,.06) 0%,var(--surface) 60%)">
+    <div class="card-title" style="color:#2dd4bf" data-en="✦ Tab 2 — Auto Order (WH Replenishment)" data-ja="✦ タブ2 — Auto Order（WH補充発注）">✦ Tab 2 — Auto Order (WH Replenishment)</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px" data-en="Automatically calculates how much to order for each WH item based on Par Level vs current stock, then generates Direct Purchase orders grouped by supplier — all in one click. Orders go directly to Procurement Approval Inbox." data-ja="Par Levelと現在庫を比較して各WHアイテムの発注必要数を自動計算し、サプライヤーごとにDirect Purchase Orderを一括生成します。生成したオーダーはそのままProcurement Approval Inboxへ送られます。">Compares Par Level vs current stock, calculates reorder quantities, and creates one Direct Purchase per supplier — all in one click. Orders go straight to Procurement Approval Inbox as DRAFT.</p>
+
+    <div class="sub-title" data-en="Prerequisites — must be set before using Auto Order" data-ja="前提条件 — Auto Order使用前に必ず設定">Prerequisites — must be set before using Auto Order</div>
+    <div class="table-wrap" style="margin-bottom:14px"><table>
+      <tr><th data-en="What" data-ja="項目">What</th><th data-en="Where to set it" data-ja="設定場所">Where to set it</th><th data-en="Why it matters" data-ja="重要な理由">Why it matters</th></tr>
+      <tr><td><strong data-en="Par Level" data-ja="Par Level">Par Level</strong></td><td><span style="color:var(--muted);font-size:12px" data-en="Items Master → edit item → Par Level field" data-ja="Items Master → アイテム編集 → Par Levelフィールド">Items Master → edit item → Par Level</span></td><td class="muted" data-en="Defines the minimum target stock. Items with Par Level = 0 are skipped." data-ja="最低目標在庫を定義します。Par Level=0のアイテムはスキップされます。">Defines target stock. Par=0 → skipped.</td></tr>
+      <tr><td><strong data-en="Primary Supplier" data-ja="Primary Supplier">Primary Supplier</strong></td><td><span style="color:var(--muted);font-size:12px" data-en="Items Master → edit item → Suppliers tab → set one as Primary" data-ja="Items Master → アイテム編集 → Suppliersタブ → 1社をPrimaryに設定">Items Master → edit item → Suppliers → mark one as Primary</span></td><td class="muted" data-en="Determines which supplier's order the item is grouped under. Items without a primary supplier are listed as 'skipped' and not ordered." data-ja="アイテムがどのサプライヤーの発注書にグループ化されるかを決定します。Primary Supplierが未設定のアイテムは「skipped」として一覧に表示され、発注されません。">Determines order grouping. No supplier → item is skipped (shown in amber warning).</td></tr>
+    </table></div>
+
+    <div class="sub-title" data-en="How Auto Order works — step by step" data-ja="Auto Orderの使い方 — ステップごとの解説">How Auto Order works — step by step</div>
+    <ol class="steps" style="margin-bottom:14px">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Count stock first (Tab 4 — New Count)" data-ja="先に在庫棚卸しを行う（タブ4 — New Count）">Count stock first (Tab 4 — New Count)</strong><p data-en="Enter actual WH stock quantities on the New Count tab. The Auto Order calculation uses the most recent count as 'current stock'." data-ja="New CountタブでWH実在庫数量を入力します。Auto Orderの計算には最新の棚卸し数量が「現在庫」として使用されます。">Enter actual stock on the New Count tab. Auto Order uses the latest count as current stock.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Switch to the Auto Order tab" data-ja="Auto Orderタブに切り替える">Switch to the Auto Order tab</strong><p data-en="The page automatically loads all items where Need Qty > 0 (i.e. current stock is below par level). Items are grouped by supplier." data-ja="Need Qty &gt; 0（現在庫がPar Level以下）のすべてのアイテムが自動的に読み込まれます。アイテムはサプライヤーごとにグループ化されます。">All items with Need Qty &gt; 0 load automatically, grouped by supplier.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review the summary cards" data-ja="サマリーカードを確認">Review the summary cards</strong><p data-en="Two blue summary cards at the top show: ITEMS BELOW PAR (total count of items that need reordering) and SUPPLIERS (how many separate orders will be created)." data-ja="上部の2つのブルーサマリーカードに「ITEMS BELOW PAR（発注が必要なアイテム総数）」と「SUPPLIERS（作成される個別発注書の数）」が表示されます。">Top cards show: ITEMS BELOW PAR count and SUPPLIERS count (= number of orders that will be created).</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Check each supplier group and the order quantities" data-ja="各サプライヤーグループと発注数量を確認">Check each supplier group and order quantities</strong><p data-en="Each supplier section shows a table with: Item name, Current Stock, Par Level, Need Qty (= Par − Stock), Unit. Need Qty is the quantity that will be ordered." data-ja="各サプライヤーセクションに表が表示されます：アイテム名・現在庫・Par Level・Need Qty（= Par − 現在庫）・単位。Need Qtyが実際に発注される数量です。">Table shows: Item, Current Stock, Par Level, Need Qty (= Par − Stock), Unit.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click 'Generate Purchase Orders (N suppliers)'" data-ja="「Generate Purchase Orders (N suppliers)」をクリック">Click "Generate Purchase Orders (N suppliers)"</strong><p data-en="The teal button creates one Direct Purchase order per supplier. Unit prices are pulled from each item's primary supplier cost in Items Master." data-ja="ティールのボタンをクリックすると、サプライヤーごとに1件のDirect Purchase Orderが作成されます。単価はItems Masterの各アイテムのPrimary Supplier単価から自動取得されます。">Creates one Direct Purchase per supplier. Unit prices auto-filled from Items Master supplier costs.</p></div></li>
+      <li class="step"><span class="step-num">6</span><div class="step-body"><strong data-en="See the result — one row per generated order" data-ja="結果を確認 — 生成された発注書ごとに1行表示">See the result — one row per generated order</strong><p data-en="Each result row shows: request number (e.g. DUB-PR-202608-0001), supplier name, number of items, and total amount in AED. Click 'View in Inbox →' to open the order in Procurement Approval Inbox." data-ja="各結果行には発注番号（例：DUB-PR-202608-0001）・サプライヤー名・アイテム数・AED合計金額が表示されます。「View in Inbox →」をクリックするとProcurement Approval Inboxで発注書が開きます。">Each row: request no., supplier, item count, AED total. Click "View in Inbox →" to open in Procurement.</p></div></li>
+    </ol>
+
+    <div class="sub-title" data-en="What happens after Generate" data-ja="Generate後の流れ">What happens after Generate</div>
+    <div class="flow-wrap" style="margin-bottom:14px"><div class="flow">
+      <div class="flow-col" style="min-width:100px">
+        <div class="flow-col-title" data-en="WH Auto Order" data-ja="WH Auto Order">WH Auto Order</div>
+        <div class="flow-box" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#2dd4bf" data-en="Click Generate" data-ja="Generateをクリック">Click Generate</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col" style="min-width:120px">
+        <div class="flow-col-title" data-en="Procurement" data-ja="調達">Procurement</div>
+        <div class="flow-box amber" data-en="DRAFT Direct Purchase (per supplier)" data-ja="DRAFT Direct Purchase（サプライヤー別）">DRAFT Direct Purchase (per supplier)</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col" style="min-width:120px">
+        <div class="flow-col-title" data-en="Approval" data-ja="承認">Approval</div>
+        <div class="flow-box blue" data-en="Manager / HQ approves in Approval Inbox" data-ja="Manager / HQがApproval Inboxで承認">Manager / HQ approves</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-col" style="min-width:100px">
+        <div class="flow-col-title" data-en="Fulfillment" data-ja="受注">Fulfillment</div>
+        <div class="flow-box green" data-en="PO → Receiving" data-ja="PO → 入荷">PO → Receiving</div>
+      </div>
+    </div></div>
+
+    <div class="two-col">
+      <div class="card" style="background:var(--surface2);border-color:var(--border)">
+        <div class="card-title" data-en="Items skipped (amber warning)" data-ja="スキップされたアイテム（アンバー警告）">Items skipped (amber warning)</div>
+        <p style="color:var(--muted);font-size:12px" data-en="If any below-par items have no primary supplier set, they appear in an amber warning box labeled 'Items without supplier (will not be ordered)'. These items are excluded from the generated orders. To fix: go to Items Master, edit the item, and assign a Primary Supplier." data-ja="Par以下のアイテムにPrimary Supplierが設定されていない場合、「Items without supplier（発注されません）」のアンバー警告ボックスに表示されます。Items Masterでアイテムを編集してPrimary Supplierを設定してください。">Below-par items with no primary supplier appear in an amber warning box and are excluded from orders. Fix: Items Master → edit item → assign Primary Supplier.</p>
+      </div>
+      <div class="card" style="background:var(--surface2);border-color:var(--border)">
+        <div class="card-title" data-en="Generate Again" data-ja="再Generate">Generate Again</div>
+        <p style="color:var(--muted);font-size:12px" data-en="After orders are generated, a 'Generate Again' button appears. Use it if you need to recreate orders — for example, if you updated par levels or supplier assignments. Note: new orders will be created in addition to any existing ones." data-ja="発注書生成後に「Generate Again」ボタンが表示されます。Par LevelやSupplier設定を更新した後などに再生成が必要な場合に使用します。注意：既存の発注書はそのまま残り、新しい発注書が追加作成されます。">Use "Generate Again" to recreate orders after updating par levels or suppliers. Note: existing orders remain; new ones are added.</p>
+      </div>
+    </div>
+
+    <div class="tip" style="margin-top:4px"><span class="tip-icon">⚠️</span><span data-en="If no items appear on the Auto Order tab, it means either (a) all items are at or above their par level — no restocking needed, or (b) no items have par levels set. Check WH Stock tab: the 'Par Level' and 'Need Qty' columns tell you which items are configured." data-ja="Auto Orderタブにアイテムが表示されない場合、（a）すべてのアイテムがPar Level以上 — 補充不要、または（b）Par Levelが設定されたアイテムがない、のいずれかです。WH Stockタブで「Par Level」と「Need Qty」列を確認してください。">No items on Auto Order tab = either all stock is at/above par, or no par levels are set. Check the Par Level and Need Qty columns on WH Stock tab.</span></div>
   </div>
 
   <div class="card">
-    <div class="card-title" data-en="Tab 2 — Order From Branch (Fulfill Orders)" data-ja="タブ2 — Order From Branch（店舗オーダー対応）">Tab 2 — Order From Branch</div>
+    <div class="card-title" data-en="Tab 3 — Order From Branch (Fulfill Orders)" data-ja="タブ3 — Order From Branch（店舗オーダー対応）">Tab 3 — Order From Branch</div>
     <ol class="steps">
       <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Review pending orders" data-ja="待機中オーダーを確認">Review pending orders</strong><p data-en="Cards show: store code, request no., needed-by date, items list." data-ja="カードに店舗コード・依頼番号・必要日・アイテムリストが表示されます。">Cards: store code, request no., needed-by, items.</p></div></li>
       <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Start Packing → tap items to check off" data-ja="「Start Packing」→ アイテムをタップして完了チェック">Start Packing → tap to check</strong><p data-en="Active packing card (amber border) shows progress X/N." data-ja="梱包中カード（アンバーボーダー）にX/Nの進捗が表示されます。">Amber border + X/N counter.</p></div></li>
@@ -568,17 +628,23 @@
 
   <div class="two-col">
     <div class="card">
-      <div class="card-title" data-en="Tab 3 — New Count" data-ja="タブ3 — New Count">Tab 3 — New Count</div>
-      <p style="color:var(--muted);font-size:12px" data-en="Same pattern as CK Inventory New Count: set date/staff, enter quantities, Save Count → returns to WH Stock." data-ja="CK在庫のNew Countと同じパターン：日付・スタッフ設定、数量入力、Save Count → WH Stockへ戻る。">Same as CK New Count: date → quantities → Save Count.</p>
+      <div class="card-title" data-en="Tab 4 — New Count" data-ja="タブ4 — New Count">Tab 4 — New Count</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Same pattern as CK Inventory New Count: set date/staff, enter quantities, Save Count → returns to WH Stock. Count on Mon/Wed/Fri to keep Auto Order data fresh." data-ja="CK在庫のNew Countと同じパターン：日付・スタッフ設定、数量入力、Save Count → WH Stockへ戻る。Auto Orderのデータを最新に保つため月・水・金に棚卸しを行います。">Date → quantities → Save Count. Count Mon/Wed/Fri to keep Auto Order data current.</p>
     </div>
     <div class="card">
-      <div class="card-title" data-en="Tab 4 — History" data-ja="タブ4 — History">Tab 4 — History</div>
+      <div class="card-title" data-en="Tab 5 — History" data-ja="タブ5 — History">Tab 5 — History</div>
       <p style="color:var(--muted);font-size:12px" data-en="Past stocktake sessions: Count Date, Counted By, Items count, Shortages (rose), Surpluses (emerald), Total Abs Gap." data-ja="過去の棚卸しセッション：棚卸し日・担当者・アイテム数・不足数（ローズ）・過剰数（エメラルド）・総絶対差。">Past sessions: date, counted by, shortages, surpluses, total gap.</p>
     </div>
   </div>
+
   <div class="card">
     <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
-    <div class="chip-row"><span class="chip blue">Store Procurement (branch order source)</span><span class="chip amber">Delivery Note print (WH-DN-{request_no} format)</span></div>
+    <div class="chip-row">
+      <span class="chip blue">Items Master (par level &amp; primary supplier setup)</span>
+      <span class="chip" style="background:rgba(20,184,166,.12);color:#2dd4bf;border-color:rgba(20,184,166,.3)">Procurement → Approval Inbox (auto-generated orders)</span>
+      <span class="chip blue">Store Procurement (branch order source)</span>
+      <span class="chip amber">Delivery Note print (WH-DN-{request_no} format)</span>
+    </div>
   </div>
 </div>
 

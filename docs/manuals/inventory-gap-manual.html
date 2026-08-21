@@ -1,0 +1,1118 @@
+
+<title>Inventory Gap Manual — Sushi ZEN OS</title>
+<style>
+  :root {
+    --bg: #F8F9FC;
+    --bg-card: #FFFFFF;
+    --bg-alt: #F1F5F9;
+    --bg-dark-card: #1E2330;
+    --text: #111827;
+    --text-2: #6B7280;
+    --text-3: #9CA3AF;
+    --border: #E5E7EB;
+    --accent: #7C3AED;
+    --accent-light: #EDE9FE;
+    --emerald: #059669;
+    --emerald-light: #D1FAE5;
+    --amber: #D97706;
+    --amber-light: #FEF3C7;
+    --red: #DC2626;
+    --red-light: #FEE2E2;
+    --blue: #2563EB;
+    --blue-light: #DBEAFE;
+    --os-bg: #0F1117;
+    --os-card: #1A1E2A;
+    --os-border: #2D3348;
+    --os-text: #F3F4F6;
+    --os-text2: #9CA3AF;
+    --os-accent: #7C3AED;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1117;
+      --bg-card: #161B25;
+      --bg-alt: #1C2230;
+      --text: #F0F2F5;
+      --text-2: #8B949E;
+      --text-3: #6B7280;
+      --border: #2D3448;
+      --accent-light: #2D1B69;
+      --emerald-light: #064E3B;
+      --amber-light: #78350F;
+      --red-light: #7F1D1D;
+      --blue-light: #1E3A5F;
+      --shadow: 0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
+      --shadow-md: 0 4px 16px rgba(0,0,0,.4), 0 1px 4px rgba(0,0,0,.2);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1117;
+    --bg-card: #161B25;
+    --bg-alt: #1C2230;
+    --text: #F0F2F5;
+    --text-2: #8B949E;
+    --text-3: #6B7280;
+    --border: #2D3448;
+    --accent-light: #2D1B69;
+    --emerald-light: #064E3B;
+    --amber-light: #78350F;
+    --red-light: #7F1D1D;
+    --blue-light: #1E3A5F;
+    --shadow: 0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.4), 0 1px 4px rgba(0,0,0,.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  /* ---- HEADER ---- */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    box-shadow: var(--shadow);
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: -.5px;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .header-subtitle {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lang-toggle {
+    display: flex;
+    background: var(--bg-alt);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .lang-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .lang-btn.active {
+    background: var(--bg-card);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  }
+
+  /* ---- HERO FORMULA ---- */
+  .hero {
+    background: linear-gradient(135deg, #1a0533 0%, #0f1117 50%, #0a1628 100%);
+    padding: 48px 24px 40px;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    display: inline-block;
+    background: rgba(124,58,237,.25);
+    border: 1px solid rgba(124,58,237,.4);
+    color: #C4B5FD;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .hero-title { font-size: clamp(22px, 4vw, 32px); font-weight: 700; color: #F3F4F6; margin-bottom: 8px; }
+  .hero-subtitle { font-size: 14px; color: #9CA3AF; margin-bottom: 32px; }
+  .formula-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 900px;
+    margin: 0 auto 24px;
+  }
+  .f-chip {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .f-chip.opening   { background: rgba(37,99,235,.2);  border: 1px solid rgba(37,99,235,.4);  color: #93C5FD; }
+  .f-chip.delivery  { background: rgba(5,150,105,.2);  border: 1px solid rgba(5,150,105,.4);  color: #6EE7B7; }
+  .f-chip.pos       { background: rgba(124,58,237,.2); border: 1px solid rgba(124,58,237,.4); color: #C4B5FD; }
+  .f-chip.disposal  { background: rgba(217,119,6,.2);  border: 1px solid rgba(217,119,6,.4);  color: #FCD34D; }
+  .f-chip.meal      { background: rgba(217,119,6,.2);  border: 1px solid rgba(217,119,6,.4);  color: #FCD34D; }
+  .f-chip.result    { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.4); color: #34D399; font-size: 14px; }
+  .f-op { color: #6B7280; font-size: 18px; font-weight: 300; }
+  .formula-note { font-size: 12px; color: #6B7280; }
+  .gap-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(217,119,6,.1);
+    border: 1px solid rgba(217,119,6,.3);
+    border-radius: 12px;
+    padding: 12px 24px;
+    margin-top: 8px;
+  }
+  .gap-label { font-size: 12px; color: #FCD34D; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .gap-formula { font-size: 14px; color: #F3F4F6; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+
+  /* ---- MAIN CONTENT ---- */
+  .content { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* section heading */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    margin-top: 48px;
+  }
+  .section-label:first-child { margin-top: 0; }
+  .step-badge {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-badge.auto {
+    background: var(--emerald);
+    font-size: 10px;
+    letter-spacing: -.5px;
+  }
+  .section-heading { font-size: 20px; font-weight: 700; }
+  .section-heading small { display: block; font-size: 13px; font-weight: 400; color: var(--text-2); margin-top: 1px; }
+
+  /* card */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-body { padding: 20px 24px; }
+  .card-row { display: flex; gap: 24px; align-items: flex-start; }
+  @media (max-width: 640px) { .card-row { flex-direction: column; } }
+  .card-text { flex: 1; }
+  .card-screen { flex: 0 0 340px; }
+  @media (max-width: 640px) { .card-screen { flex: none; width: 100%; } }
+
+  /* text inside cards */
+  .card p { color: var(--text-2); font-size: 14px; margin-bottom: 10px; }
+  .card p:last-child { margin-bottom: 0; }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+
+  /* step list */
+  .step-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .step-list li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 14px;
+    color: var(--text-2);
+  }
+  .step-list li .num {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+
+  /* info/warning/tip chips */
+  .callout {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-top: 12px;
+    align-items: flex-start;
+  }
+  .callout.info    { background: var(--blue-light);   color: var(--blue);   }
+  .callout.tip     { background: var(--emerald-light); color: var(--emerald); }
+  .callout.warning { background: var(--amber-light);  color: var(--amber);  }
+  .callout.danger  { background: var(--red-light);    color: var(--red);    }
+  .callout-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .callout-text { line-height: 1.5; }
+
+  /* ---- OS MOCKUP ---- */
+  .os-mock {
+    background: var(--os-bg);
+    border-radius: 10px;
+    border: 1px solid var(--os-border);
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .os-bar {
+    background: var(--os-card);
+    border-bottom: 1px solid var(--os-border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .os-bar-logo {
+    width: 20px; height: 20px;
+    background: var(--os-accent);
+    border-radius: 5px;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .os-bar-title { font-size: 11px; font-weight: 600; color: var(--os-text); }
+  .os-content { padding: 12px; }
+  .os-page-title { font-size: 14px; font-weight: 700; color: var(--os-text); margin-bottom: 4px; }
+  .os-page-sub { font-size: 10px; color: var(--os-text2); margin-bottom: 10px; }
+  .os-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .os-select {
+    flex: 1;
+    background: #232838;
+    border: 1px solid var(--os-border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: var(--os-text);
+    font-size: 10px;
+  }
+  .os-label { font-size: 9px; color: var(--os-text2); margin-bottom: 2px; }
+  .os-field-group { flex: 1; }
+  .os-table { width: 100%; border-collapse: collapse; }
+  .os-table th {
+    font-size: 9px;
+    color: var(--os-text2);
+    font-weight: 600;
+    text-align: left;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--os-border);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .os-table td {
+    font-size: 10px;
+    color: var(--os-text);
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(45,51,72,.5);
+  }
+  .os-table tr:last-child td { border-bottom: none; }
+  .os-table td.neg { color: #F87171; }
+  .os-table td.pos { color: #34D399; }
+  .os-table td.muted { color: var(--os-text2); }
+  .os-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 5px 10px; border-radius: 6px;
+    font-size: 10px; font-weight: 600; cursor: default;
+    border: none;
+  }
+  .os-btn-primary { background: var(--os-accent); color: #fff; }
+  .os-btn-emerald { background: #059669; color: #fff; }
+  .os-btn-amber   { background: #D97706; color: #fff; }
+  .os-section-title {
+    font-size: 11px; font-weight: 700; color: var(--os-text);
+    margin-bottom: 6px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--os-border);
+  }
+  .os-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 7px; border-radius: 10px;
+    font-size: 9px; font-weight: 600;
+  }
+  .os-badge-purple { background: rgba(124,58,237,.25); color: #C4B5FD; }
+  .os-badge-green  { background: rgba(5,150,105,.25);  color: #6EE7B7; }
+  .os-badge-amber  { background: rgba(217,119,6,.25);  color: #FCD34D; }
+  .os-item-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(45,51,72,.4);
+  }
+  .os-item-row:last-child { border-bottom: none; }
+  .os-item-name { font-size: 10px; color: var(--os-text); }
+  .os-item-sub { font-size: 9px; color: var(--os-text2); }
+  .os-qty-input {
+    background: #232838; border: 1px solid #3D4560;
+    border-radius: 4px; padding: 3px 6px;
+    font-size: 10px; color: var(--os-text);
+    width: 56px; text-align: right;
+  }
+
+  /* ---- GAP ANALYSIS TABLE ---- */
+  .gap-table-wrap { overflow-x: auto; }
+  .gap-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  .gap-table th {
+    text-align: left; font-size: 11px; font-weight: 600;
+    color: var(--text-2); text-transform: uppercase; letter-spacing: .05em;
+    padding: 8px 12px; border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  .gap-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .gap-table tr:last-child td { border-bottom: none; }
+  .gap-table td.num { text-align: right; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .gap-table td.neg-gap { color: var(--red); font-weight: 600; }
+  .gap-table td.ok-gap  { color: var(--emerald); font-weight: 600; }
+  .gap-table td.cause   { font-size: 12px; color: var(--amber); }
+
+  /* cause cards */
+  .cause-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .cause-grid { grid-template-columns: 1fr; } }
+  .cause-card {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .cause-card-icon { font-size: 18px; margin-bottom: 8px; }
+  .cause-card h5 { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+  .cause-card p  { font-size: 12px; color: var(--text-2); }
+
+  /* language hide/show — English visible by default (no JS dependency) */
+  .lang-jp { display: none; }
+  span.lang-jp { display: none; }
+  body.lang-jp .lang-jp { display: block; }
+  body.lang-jp span.lang-jp { display: inline; }
+  body.lang-jp .lang-en { display: none; }
+  body.lang-jp span.lang-en { display: none; }
+
+  /* divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* tag pill */
+  .tag {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+    background: var(--accent-light);
+    color: var(--accent);
+    margin-left: 6px;
+  }
+  .tag.auto  { background: var(--emerald-light); color: var(--emerald); }
+  .tag.warn  { background: var(--amber-light);   color: var(--amber); }
+  .tag.new   { background: var(--blue-light);    color: var(--blue); }
+
+  /* flow connector */
+  .flow-connector {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-3); font-size: 20px; margin: 4px 0;
+  }
+
+  /* footer */
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--text-3);
+    border-top: 1px solid var(--border);
+  }
+</style>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">ZEN</div>
+    <div>
+      <div class="header-title"><span class="lang-en">Inventory Gap Manual</span><span class="lang-jp">在庫ギャップ管理マニュアル</span></div>
+      <div class="header-subtitle">Sushi ZEN Workforce OS</div>
+    </div>
+  </div>
+  <div class="header-controls">
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btn-en">EN</button>
+      <button class="lang-btn" id="btn-jp">日本語</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow lang-en">Theoretical vs Actual Inventory</div>
+  <div class="hero-eyebrow lang-jp">理論在庫 vs 実際在庫</div>
+  <h1 class="hero-title lang-en">How to Manage the Inventory Gap</h1>
+  <h1 class="hero-title lang-jp">在庫ギャップの管理方法</h1>
+  <p class="hero-subtitle lang-en">Track where every gram goes — from delivery to disposal</p>
+  <p class="hero-subtitle lang-jp">入荷から廃棄まで、すべての食材の流れを追跡する</p>
+
+  <div class="formula-box">
+    <div class="f-chip opening">
+      <span class="lang-en">Opening Stock</span><span class="lang-jp">前回残高</span>
+    </div>
+    <span class="f-op">+</span>
+    <div class="f-chip delivery">
+      <span class="lang-en">Deliveries</span><span class="lang-jp">仕入れ</span>
+    </div>
+    <span class="f-op">−</span>
+    <div class="f-chip pos">
+      <span class="lang-en">POS Consumption</span><span class="lang-jp">POS食材消費</span>
+    </div>
+    <span class="f-op">−</span>
+    <div class="f-chip disposal">
+      <span class="lang-en">Disposal</span><span class="lang-jp">廃棄</span>
+    </div>
+    <span class="f-op">−</span>
+    <div class="f-chip meal">
+      <span class="lang-en">Staff Meals</span><span class="lang-jp">賄い飯</span>
+    </div>
+    <span class="f-op">=</span>
+    <div class="f-chip result">
+      <span class="lang-en">Theoretical Stock</span><span class="lang-jp">理論在庫</span>
+    </div>
+  </div>
+  <p class="formula-note lang-en">Compare theoretical stock with the physical count to find the <strong style="color:#FCD34D">gap</strong></p>
+  <p class="formula-note lang-jp">理論在庫と実際の棚卸し結果を比較して<strong style="color:#FCD34D">ギャップ</strong>を発見する</p>
+  <div class="gap-box">
+    <span class="gap-label">GAP</span>
+    <span class="gap-formula">Theoretical − Actual Count</span>
+  </div>
+</section>
+
+<!-- MAIN CONTENT -->
+<main class="content">
+
+  <!-- STEP 1: Full Inventory Count -->
+  <div class="section-label">
+    <div class="step-badge">1</div>
+    <h2 class="section-heading">
+      <span class="lang-en">Physical Count → Enter in OS <small>Full Inventory Count page</small></span>
+      <span class="lang-jp">棚卸し → OSに入力 <small>Full Inventory Count ページ</small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body card-row">
+      <div class="card-text">
+        <div class="lang-en">
+          <h4>How to record a physical count</h4>
+          <p>After counting actual stock in the store, store staff enter the quantities in the OS. This becomes the "Actual Inventory" baseline.</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>Go to <strong>Admin → Inventory → Full Inventory Count</strong></li>
+            <li><span class="num">2</span>Select City, Branch, Date, and Cycle (15th or Month-end)</li>
+            <li><span class="num">3</span>Select a Count Template from the dropdown to pre-load items</li>
+            <li><span class="num">4</span>Enter counted quantities for each ingredient/product</li>
+            <li><span class="num">5</span>Click <strong>Submit Count</strong> to finalize</li>
+          </ul>
+          <div class="callout info">
+            <span class="callout-icon">ℹ️</span>
+            <span class="callout-text">Count Templates define which items appear in the count sheet. Set them up under <strong>Count Templates</strong> tab first.</span>
+          </div>
+        </div>
+        <div class="lang-jp">
+          <h4>棚卸しデータの入力方法</h4>
+          <p>店舗で実際に在庫を数えた後、店舗スタッフがOSに数量を入力します。これが「実際在庫」のベースラインになります。</p>
+          <ul class="step-list">
+            <li><span class="num">1</span><strong>Admin → Inventory → Full Inventory Count</strong> に移動</li>
+            <li><span class="num">2</span>City（都市）、Branch（店舗）、Date（日付）、Cycle（15日 または 月末）を選択</li>
+            <li><span class="num">3</span>ドロップダウンから Count Template を選択してアイテムリストを読み込む</li>
+            <li><span class="num">4</span>各食材・商品の数えた数量を入力</li>
+            <li><span class="num">5</span><strong>Submit Count</strong> をクリックして確定</li>
+          </ul>
+          <div class="callout info">
+            <span class="callout-icon">ℹ️</span>
+            <span class="callout-text">Count Template で棚卸しシートに表示するアイテムを定義します。まず <strong>Count Templates</strong> タブで設定してください。</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-screen">
+        <!-- OS MOCKUP: Full Inventory Count -->
+        <div class="os-mock">
+          <div class="os-bar">
+            <div class="os-bar-logo">ZEN</div>
+            <span class="os-bar-title">Full Inventory Count</span>
+          </div>
+          <div class="os-content">
+            <div style="font-size:11px;font-weight:700;color:#F3F4F6;margin-bottom:4px;">Full Inventory Count</div>
+            <div style="font-size:9px;color:#9CA3AF;margin-bottom:10px;">Formal 15th and month-end counts</div>
+            <div class="os-row">
+              <div class="os-field-group">
+                <div class="os-label">CITY</div>
+                <div class="os-select">Dubai ▾</div>
+              </div>
+              <div class="os-field-group">
+                <div class="os-label">BRANCH</div>
+                <div class="os-select">Business Bay ▾</div>
+              </div>
+            </div>
+            <div class="os-row">
+              <div class="os-field-group">
+                <div class="os-label">DATE</div>
+                <div class="os-select">08/16/2026</div>
+              </div>
+              <div class="os-field-group">
+                <div class="os-label">CYCLE</div>
+                <div class="os-select">15th ▾</div>
+              </div>
+            </div>
+            <div style="margin:8px 0;">
+              <div class="os-label">COUNT TEMPLATE</div>
+              <div class="os-select">Store Ingredients – Standard ▾</div>
+            </div>
+            <div class="os-section-title" style="margin-top:10px;">Draft Count</div>
+            <div class="os-item-row">
+              <div><div class="os-item-name">Fresh Salmon Fillet</div><div class="os-item-sub">Par: 25.000 KG</div></div>
+              <input class="os-qty-input" value="18.500" readonly>
+            </div>
+            <div class="os-item-row">
+              <div><div class="os-item-name">Tuna Loin</div><div class="os-item-sub">Par: 1.000 KG</div></div>
+              <input class="os-qty-input" value="0.750" readonly>
+            </div>
+            <div class="os-item-row">
+              <div><div class="os-item-name">Avocado</div><div class="os-item-sub">Par: 6.000 KG</div></div>
+              <input class="os-qty-input" value="2.200" readonly>
+            </div>
+            <div style="margin-top:10px;display:flex;gap:6px;">
+              <div class="os-btn" style="background:#2D3348;color:#9CA3AF;">Save Draft</div>
+              <div class="os-btn os-btn-primary">Submit Count</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: POS Consumption (Auto) -->
+  <div class="section-label">
+    <div class="step-badge auto">AUTO</div>
+    <h2 class="section-heading">
+      <span class="lang-en">POS Sales → Ingredient Deduction <small>Automatic via UrbanPiper sync</small></span>
+      <span class="lang-jp">POS販売 → 食材自動減算 <small>UrbanPiper 同期による自動処理</small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body card-row">
+      <div class="card-text">
+        <div class="lang-en">
+          <h4>How ingredient deduction works</h4>
+          <p>Every time a menu item is sold via POS (UrbanPiper), the OS automatically deducts the required ingredients from theoretical stock based on the <strong>Cost Calculation BOM</strong>.</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>POS sale syncs via UrbanPiper → <code style="font-size:11px;background:var(--bg-alt);padding:1px 5px;border-radius:3px">inv_pos_menu_sales_daily</code></li>
+            <li><span class="num">2</span>System looks up BOM in <strong>Cost Calculation</strong> (menu_item_master)</li>
+            <li><span class="num">3</span>Leaf ingredients are resolved and deducted from the ledger</li>
+            <li><span class="num">4</span>View in Inventory → <strong>POS Sync</strong> tab</li>
+          </ul>
+          <div class="callout warning">
+            <span class="callout-icon">⚠️</span>
+            <span class="callout-text lang-en"><strong>Important:</strong> If a menu item is NOT registered in <strong>Cost Calculation</strong>, it will NOT deduct ingredients. This creates a gap.</span>
+          </div>
+          <p style="margin-top:10px;font-size:13px;">To check registrations: <strong>Admin → Cost Calculation</strong></p>
+        </div>
+        <div class="lang-jp">
+          <h4>食材自動減算の仕組み</h4>
+          <p>POSでメニューアイテムが販売されるたびに（UrbanPiper経由）、OSは<strong>Cost Calculation の BOM</strong>に基づいて理論在庫から必要な食材を自動的に減算します。</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>POS販売データが UrbanPiper 経由で同期 → <code style="font-size:11px;background:var(--bg-alt);padding:1px 5px;border-radius:3px">inv_pos_menu_sales_daily</code></li>
+            <li><span class="num">2</span>システムが <strong>Cost Calculation</strong>（menu_item_master）のBOMを参照</li>
+            <li><span class="num">3</span>末端食材が解決されて台帳から減算</li>
+            <li><span class="num">4</span>Inventory → <strong>POS Sync</strong> タブで確認</li>
+          </ul>
+          <div class="callout warning">
+            <span class="callout-icon">⚠️</span>
+            <span class="callout-text"><strong>重要:</strong> メニューアイテムが <strong>Cost Calculation</strong> に登録されていない場合、食材は減算されません。これがギャップの原因になります。</span>
+          </div>
+          <p style="margin-top:10px;font-size:13px;">登録確認: <strong>Admin → Cost Calculation</strong></p>
+        </div>
+      </div>
+      <div class="card-screen">
+        <!-- OS MOCKUP: POS Sync flow -->
+        <div class="os-mock">
+          <div class="os-bar">
+            <div class="os-bar-logo">ZEN</div>
+            <span class="os-bar-title">Inventory · POS Sync</span>
+          </div>
+          <div class="os-content">
+            <div class="os-section-title">POS → Ingredient Deduction Flow</div>
+            <div style="background:#1C2230;border-radius:6px;padding:10px;margin-bottom:8px;">
+              <div style="font-size:10px;color:#9CA3AF;margin-bottom:6px;">Menu sold (UrbanPiper)</div>
+              <div class="os-item-row" style="border-bottom:1px solid #2D3348;">
+                <span class="os-item-name">Salmon Aburi Roll ×2</span>
+                <span class="os-badge os-badge-purple">POS</span>
+              </div>
+              <div class="os-item-row" style="border-bottom:1px solid #2D3348;">
+                <span class="os-item-name">Dragon Roll ×1</span>
+                <span class="os-badge os-badge-purple">POS</span>
+              </div>
+              <div style="text-align:center;color:#6B7280;font-size:10px;padding:6px 0;">↓ BOM expansion (Cost Calculation)</div>
+              <div style="font-size:9px;color:#9CA3AF;margin-bottom:4px;">Ingredients deducted:</div>
+              <div class="os-item-row">
+                <span class="os-item-name">Salmon Fillet</span>
+                <span style="font-size:10px;color:#F87171;">−0.240 KG</span>
+              </div>
+              <div class="os-item-row">
+                <span class="os-item-name">Sushi Rice</span>
+                <span style="font-size:10px;color:#F87171;">−0.360 KG</span>
+              </div>
+              <div class="os-item-row">
+                <span class="os-item-name">Nori Sheet</span>
+                <span style="font-size:10px;color:#F87171;">−3 pcs</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="os-badge os-badge-green">✓ Auto-posted to Ledger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Disposal Report -->
+  <div class="section-label">
+    <div class="step-badge">3</div>
+    <h2 class="section-heading">
+      <span class="lang-en">Record Disposals & Staff Meals <small>Admin → Disposal Report <span class="tag new">New Feature</span></small></span>
+      <span class="lang-jp">廃棄・賄い飯を記録する <small>Admin → Disposal Report <span class="tag new">新機能</span></small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body card-row">
+      <div class="card-text">
+        <div class="lang-en">
+          <h4>Submit a Disposal Report at end of day</h4>
+          <p>Any ingredient or prepared item that is thrown away (end-of-day leftover, spoilage) or used as a staff meal must be recorded. These are now automatically deducted from the inventory ledger.</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>Go to <strong>Disposal Report</strong> in the side menu</li>
+            <li><span class="num">2</span>Select City, Branch, Date, and Shift</li>
+            <li><span class="num">3</span>Under "Disposal Items", search and add each item with quantity and <strong>disposal reason</strong>:
+              <br><span style="font-size:12px;color:#9CA3AF;margin-top:4px;display:block;">• EOD Leftover (end-of-day) &nbsp;• Spoilage &nbsp;• Staff Meal &nbsp;• Other</span>
+            </li>
+            <li><span class="num">4</span>Click <strong>Submit Disposal Report</strong></li>
+          </ul>
+          <div class="callout tip">
+            <span class="callout-icon">✅</span>
+            <span class="callout-text">After submitting, the system automatically posts entries to the inventory ledger. Menu items are expanded via BOM — all ingredients are deducted correctly.</span>
+          </div>
+        </div>
+        <div class="lang-jp">
+          <h4>当日終了時に廃棄報告書を提出する</h4>
+          <p>廃棄された食材や調理品（日次残余、傷み）、または賄い飯として使用されたものはすべて記録が必要です。これらは在庫台帳から自動的に減算されます。</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>サイドメニューの <strong>Disposal Report</strong> に移動</li>
+            <li><span class="num">2</span>City、Branch、Date、Shift を選択</li>
+            <li><span class="num">3</span>「Disposal Items」で各アイテムを検索・追加し、数量と <strong>廃棄理由</strong> を入力:
+              <br><span style="font-size:12px;color:#9CA3AF;margin-top:4px;display:block;">• EOD Leftover（日次残余）&nbsp;• Spoilage（傷み）&nbsp;• Staff Meal（賄い）&nbsp;• Other</span>
+            </li>
+            <li><span class="num">4</span><strong>Submit Disposal Report</strong> をクリック</li>
+          </ul>
+          <div class="callout tip">
+            <span class="callout-icon">✅</span>
+            <span class="callout-text">提出後、システムが在庫台帳に自動投稿します。メニューアイテムはBOMで展開され、すべての食材が正しく減算されます。</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-screen">
+        <!-- OS MOCKUP: Disposal Report -->
+        <div class="os-mock">
+          <div class="os-bar">
+            <div class="os-bar-logo">ZEN</div>
+            <span class="os-bar-title">Disposal Report</span>
+          </div>
+          <div class="os-content">
+            <div style="font-size:11px;font-weight:700;color:#F3F4F6;margin-bottom:8px;">Disposal Report</div>
+            <div class="os-row">
+              <div class="os-field-group">
+                <div class="os-label">CITY</div>
+                <div class="os-select">Dubai ▾</div>
+              </div>
+              <div class="os-field-group">
+                <div class="os-label">BRANCH</div>
+                <div class="os-select">Business Bay ▾</div>
+              </div>
+            </div>
+            <div class="os-row">
+              <div class="os-field-group">
+                <div class="os-label">DATE</div>
+                <div class="os-select">08/16/2026</div>
+              </div>
+              <div class="os-field-group">
+                <div class="os-label">SHIFT</div>
+                <div class="os-select">Closing ▾</div>
+              </div>
+            </div>
+            <div class="os-section-title" style="margin-top:10px;">Disposal Items</div>
+            <div class="os-item-row">
+              <div>
+                <div class="os-item-name">Salmon Nigiri (set)</div>
+                <div style="display:flex;gap:4px;margin-top:2px;">
+                  <span class="os-badge os-badge-amber">EOD Leftover</span>
+                </div>
+              </div>
+              <span style="font-size:10px;color:#F3F4F6;">3 pcs</span>
+            </div>
+            <div class="os-item-row">
+              <div>
+                <div class="os-item-name">Staff Meal Rice</div>
+                <div style="display:flex;gap:4px;margin-top:2px;">
+                  <span class="os-badge" style="background:rgba(16,185,129,.2);color:#6EE7B7;">Staff Meal</span>
+                </div>
+              </div>
+              <span style="font-size:10px;color:#F3F4F6;">0.5 KG</span>
+            </div>
+            <div style="margin-top:10px;">
+              <div class="os-btn os-btn-primary" style="width:100%;text-align:center;">Submit Disposal Report</div>
+            </div>
+            <div style="margin-top:8px;padding:6px 8px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;font-size:9px;color:#6EE7B7;">
+              ✓ 4 ingredient entries posted to inventory ledger.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Retroactive Sync -->
+  <div class="card" style="border-color: var(--amber); border-left: 3px solid var(--amber);">
+    <div class="card-body">
+      <div class="lang-en">
+        <h4>Retroactive Sync (Past Reports)</h4>
+        <p>Disposal reports submitted <em>before</em> this feature was activated are not yet in the ledger. Use the <strong>"Sync to Ledger"</strong> button on each past report in the Past Reports section to backfill them. This is idempotent — safe to run multiple times.</p>
+        <div class="callout warning">
+          <span class="callout-icon">⚠️</span>
+          <span class="callout-text">Action required: For all disposal reports before 2026-08-16, click <strong>"Sync to Ledger"</strong> on the Disposal Report page (Past Reports section). Filter the date range to find older reports.</span>
+        </div>
+      </div>
+      <div class="lang-jp">
+        <h4>過去レポートの遡及同期</h4>
+        <p>この機能が導入される前に提出された廃棄レポートはまだ台帳に反映されていません。過去レポートセクションの各レポートにある <strong>「Sync to Ledger」</strong> ボタンを使って遡及入力してください。べき等性があり、複数回実行しても安全です。</p>
+        <div class="callout warning">
+          <span class="callout-icon">⚠️</span>
+          <span class="callout-text">要対応: 2026年8月16日以前のすべての廃棄レポートについて、Disposal Report ページ（Past Reports セクション）の <strong>「Sync to Ledger」</strong> ボタンをクリックしてください。日付範囲を絞り込んで古いレポートを表示できます。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: Ledger / Gap View -->
+  <div class="section-label">
+    <div class="step-badge">4</div>
+    <h2 class="section-heading">
+      <span class="lang-en">View Inventory Gap in Ledger <small>Admin → Inventory → Ledger</small></span>
+      <span class="lang-jp">台帳でギャップを確認する <small>Admin → Inventory → Ledger</small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body card-row">
+      <div class="card-text">
+        <div class="lang-en">
+          <h4>Reading the Ledger / Balances page</h4>
+          <p>The Ledger shows the <strong>theoretical stock on-hand</strong> calculated from all movements (deliveries, POS consumption, disposals). Compare this against your physical count to find the gap.</p>
+          <ul class="step-list">
+            <li><span class="num">1</span>Go to <strong>Admin → Inventory → Ledger</strong> tab</li>
+            <li><span class="num">2</span>Select City and Branch (or "All branches")</li>
+            <li><span class="num">3</span>Set a date range and review <strong>QTY ON HAND</strong></li>
+            <li><span class="num">4</span>Negative values = theoretical stock went below zero</li>
+            <li><span class="num">5</span>Compare with last physical count → calculate gap</li>
+          </ul>
+          <div class="callout danger">
+            <span class="callout-icon">🔴</span>
+            <span class="callout-text">Negative QTY ON HAND means consumption is higher than recorded deliveries. This could indicate unrecorded deliveries, unregistered POS items, or theft.</span>
+          </div>
+        </div>
+        <div class="lang-jp">
+          <h4>台帳/残高ページの見方</h4>
+          <p>台帳はすべての動き（仕入れ、POS消費、廃棄）から計算された<strong>理論的な手持ち在庫</strong>を表示します。これを実際の棚卸し結果と比較してギャップを見つけます。</p>
+          <ul class="step-list">
+            <li><span class="num">1</span><strong>Admin → Inventory → Ledger</strong> タブに移動</li>
+            <li><span class="num">2</span>City と Branch を選択（または「All branches」）</li>
+            <li><span class="num">3</span>日付範囲を設定して <strong>QTY ON HAND</strong>（手持ち数量）を確認</li>
+            <li><span class="num">4</span>マイナス値 = 理論在庫がゼロを下回った状態</li>
+            <li><span class="num">5</span>最新の棚卸し結果と比較 → ギャップを計算</li>
+          </ul>
+          <div class="callout danger">
+            <span class="callout-icon">🔴</span>
+            <span class="callout-text">QTY ON HAND がマイナス = 消費量が記録された入荷量を超えています。未記録の仕入れ、未登録のPOSアイテム、または盗難の可能性があります。</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-screen">
+        <!-- OS MOCKUP: Ledger -->
+        <div class="os-mock">
+          <div class="os-bar">
+            <div class="os-bar-logo">ZEN</div>
+            <span class="os-bar-title">Ledger / Balances</span>
+          </div>
+          <div class="os-content">
+            <div style="font-size:11px;font-weight:700;color:#F3F4F6;margin-bottom:2px;">Ledger / Balances</div>
+            <div style="font-size:9px;color:#9CA3AF;margin-bottom:8px;">Current on-hand stock and recent movements</div>
+            <div class="os-row" style="margin-bottom:8px;">
+              <div class="os-select" style="flex:1;">Dubai ▾</div>
+              <div class="os-select" style="flex:1;">All branches ▾</div>
+            </div>
+            <div class="os-section-title">Current Balances</div>
+            <table class="os-table">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th>BRANCH</th>
+                  <th style="text-align:right;">QTY ON HAND</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>12pcs Box</td>
+                  <td class="muted">AL_BARSHA</td>
+                  <td class="neg" style="text-align:right;">-77.0</td>
+                </tr>
+                <tr>
+                  <td>12pcs Box</td>
+                  <td class="muted">AL_MINA</td>
+                  <td class="neg" style="text-align:right;">-22.0</td>
+                </tr>
+                <tr>
+                  <td>16pcs Box</td>
+                  <td class="muted">AL_BARSHA</td>
+                  <td class="neg" style="text-align:right;">-102.0</td>
+                </tr>
+                <tr>
+                  <td>Salmon Fillet</td>
+                  <td class="muted">BUS_BAY</td>
+                  <td class="pos" style="text-align:right;">+3.2</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5: Gap Analysis Table -->
+  <div class="section-label">
+    <div class="step-badge">5</div>
+    <h2 class="section-heading">
+      <span class="lang-en">Gap Analysis — Example <small>Theoretical vs Actual comparison</small></span>
+      <span class="lang-jp">ギャップ分析 — 例 <small>理論在庫 vs 実際在庫の比較</small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <div class="lang-en">
+        <p style="margin-bottom:14px;">After running a physical count, compare it with the theoretical stock from the ledger. A <strong>negative gap</strong> (theoretical &lt; actual) means more stock on hand than expected — possible unrecorded consumption. A <strong>positive gap</strong> (theoretical &gt; actual) means stock is missing.</p>
+      </div>
+      <div class="lang-jp">
+        <p style="margin-bottom:14px;">棚卸し実施後、台帳の理論在庫と比較します。<strong>マイナスギャップ</strong>（理論 &lt; 実際）= 予想より多い在庫 → 未記録消費の可能性。<strong>プラスギャップ</strong>（理論 &gt; 実際）= 在庫が不足 → 調査が必要。</p>
+      </div>
+      <div class="gap-table-wrap">
+        <table class="gap-table">
+          <thead>
+            <tr>
+              <th><span class="lang-en">Item</span><span class="lang-jp">アイテム</span></th>
+              <th style="text-align:right;"><span class="lang-en">Theoretical</span><span class="lang-jp">理論在庫</span></th>
+              <th style="text-align:right;"><span class="lang-en">Actual Count</span><span class="lang-jp">実際棚卸し</span></th>
+              <th style="text-align:right;"><span class="lang-en">Gap</span><span class="lang-jp">ギャップ</span></th>
+              <th><span class="lang-en">Action</span><span class="lang-jp">対応</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Salmon Fillet</td>
+              <td class="num">3.20 KG</td>
+              <td class="num">2.80 KG</td>
+              <td class="num neg-gap">−0.40 KG</td>
+              <td class="cause"><span class="lang-en">Check portioning / disposal records</span><span class="lang-jp">ポーション・廃棄記録を確認</span></td>
+            </tr>
+            <tr>
+              <td>Sushi Rice</td>
+              <td class="num">5.10 KG</td>
+              <td class="num">5.10 KG</td>
+              <td class="num ok-gap">0.00 KG</td>
+              <td><span style="color:var(--emerald);font-size:12px;">✓ <span class="lang-en">OK</span><span class="lang-jp">問題なし</span></span></td>
+            </tr>
+            <tr>
+              <td>Avocado</td>
+              <td class="num">1.80 KG</td>
+              <td class="num">0.90 KG</td>
+              <td class="num neg-gap">−0.90 KG</td>
+              <td class="cause"><span class="lang-en">Large gap — investigate immediately</span><span class="lang-jp">大きなギャップ — 即調査</span></td>
+            </tr>
+            <tr>
+              <td>12pcs Box</td>
+              <td class="num">−77.0 pcs</td>
+              <td class="num">45.0 pcs</td>
+              <td class="num neg-gap">−122.0 pcs</td>
+              <td class="cause"><span class="lang-en">Likely not registered in Cost Calc</span><span class="lang-jp">Cost Calc に未登録の可能性</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 6: Business Improvement -->
+  <div class="section-label">
+    <div class="step-badge">6</div>
+    <h2 class="section-heading">
+      <span class="lang-en">Business Improvement — Root Cause Analysis <small>Fix the gap for good</small></span>
+      <span class="lang-jp">業務改善 — 根本原因分析 <small>ギャップを根本から解消する</small></span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <div class="lang-en">
+        <p style="margin-bottom:16px;">A persistent inventory gap almost always has one of these root causes. Identify which applies and take the corrective action.</p>
+      </div>
+      <div class="lang-jp">
+        <p style="margin-bottom:16px;">在庫ギャップが続く場合、ほぼ必ずこのいずれかが原因です。該当するものを特定して是正措置を取ります。</p>
+      </div>
+      <div class="cause-grid">
+        <div class="cause-card">
+          <div class="cause-card-icon">📋</div>
+          <h5><span class="lang-en">Missing Cost Calculation BOM</span><span class="lang-jp">Cost Calculation BOM 未登録</span></h5>
+          <p><span class="lang-en">A menu item sold via POS has no BOM in Cost Calculation → zero ingredients deducted → ledger never decrements. Fix: register all menu items in Admin → Cost Calculation.</span><span class="lang-jp">POSで販売されるメニューアイテムのBOMがCost Calculationに未登録 → 食材が減算されない → 台帳が減少しない。対応: Admin → Cost Calculation でメニューアイテムを登録。</span></p>
+        </div>
+        <div class="cause-card">
+          <div class="cause-card-icon">🗑️</div>
+          <h5><span class="lang-en">Unrecorded Disposal</span><span class="lang-jp">廃棄の未記録</span></h5>
+          <p><span class="lang-en">Staff discarded food without filing a Disposal Report → ledger does not deduct → gap grows. Fix: enforce daily closing disposal report submission for every branch.</span><span class="lang-jp">廃棄報告書なしに食材を廃棄 → 台帳から減算されない → ギャップが拡大。対応: 全店舗でクローズ時の廃棄報告書提出を義務化。</span></p>
+        </div>
+        <div class="cause-card">
+          <div class="cause-card-icon">🍱</div>
+          <h5><span class="lang-en">Unrecorded Staff Meals</span><span class="lang-jp">賄い飯の未記録</span></h5>
+          <p><span class="lang-en">Staff meals consumed but not logged in the disposal report as "Staff Meal" reason → unaccounted consumption. Fix: add staff meals to each closing disposal report.</span><span class="lang-jp">賄い飯が廃棄報告書の "Staff Meal" 理由として記録されていない → 未計上の消費。対応: クローズ時の廃棄報告書に賄い飯を必ず追記。</span></p>
+        </div>
+        <div class="cause-card">
+          <div class="cause-card-icon">📦</div>
+          <h5><span class="lang-en">Missing Delivery Records</span><span class="lang-jp">入荷記録の漏れ</span></h5>
+          <p><span class="lang-en">Deliveries received but not entered in Daily Inventory Input → ledger never credits the incoming stock. Fix: ensure all supplier/CK/warehouse deliveries are recorded on the day they arrive.</span><span class="lang-jp">仕入れを受け取ったがDaily Inventory Inputに入力されていない → 台帳に在庫が加算されない。対応: 全ての仕入れ（サプライヤー/CK/倉庫）は受け取り当日に記録。</span></p>
+        </div>
+        <div class="cause-card">
+          <div class="cause-card-icon">⚖️</div>
+          <h5><span class="lang-en">Portioning Variance</span><span class="lang-jp">ポーション差異</span></h5>
+          <p><span class="lang-en">Actual portion sizes differ from the BOM specification → more or less ingredient used per dish than expected. Fix: regular portioning audits and BOM spec updates.</span><span class="lang-jp">実際のポーションサイズがBOM仕様と異なる → 1皿あたりの使用量が期待値とずれる。対応: 定期的なポーション監査とBOM仕様の更新。</span></p>
+        </div>
+        <div class="cause-card">
+          <div class="cause-card-icon">🔍</div>
+          <h5><span class="lang-en">Theft / Shrinkage</span><span class="lang-jp">盗難・ロス</span></h5>
+          <p><span class="lang-en">If all other causes are ruled out and a large gap persists, consider internal shrinkage. Escalate to management for investigation. Cross-check with CCTV records.</span><span class="lang-jp">他の原因を排除してもギャップが続く場合、内部ロスを検討。管理者にエスカレートして調査。CCTVと照合。</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Checklist -->
+  <hr class="divider">
+  <div class="section-label">
+    <div class="step-badge" style="background:var(--emerald);">✓</div>
+    <h2 class="section-heading">
+      <span class="lang-en">Daily Checklist for Store Managers</span>
+      <span class="lang-jp">店舗マネージャーの日次チェックリスト</span>
+    </h2>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+            <span class="lang-en">During / After Service</span><span class="lang-jp">営業中・営業後</span>
+          </div>
+          <ul class="step-list">
+            <li>
+              <span style="color:var(--emerald);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Record all incoming deliveries in <strong>Daily Inventory Input</strong></span>
+              <span class="lang-jp"><strong>Daily Inventory Input</strong> に全入荷を記録</span>
+            </li>
+            <li>
+              <span style="color:var(--emerald);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Submit <strong>Disposal Report</strong> at closing (include staff meals)</span>
+              <span class="lang-jp">クローズ時に <strong>廃棄報告書</strong> を提出（賄い飯含む）</span>
+            </li>
+            <li>
+              <span style="color:var(--emerald);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Verify POS sync ran (check <strong>POS Sync</strong> tab)</span>
+              <span class="lang-jp">POS同期が実行済みか確認（<strong>POS Sync</strong> タブ）</span>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+            <span class="lang-en">15th / Month-end</span><span class="lang-jp">15日・月末</span>
+          </div>
+          <ul class="step-list">
+            <li>
+              <span style="color:var(--accent);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Run <strong>Full Inventory Count</strong> — enter actual quantities</span>
+              <span class="lang-jp"><strong>Full Inventory Count</strong> を実施 — 実数を入力</span>
+            </li>
+            <li>
+              <span style="color:var(--accent);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Compare with <strong>Ledger / Balances</strong> — identify gaps &gt;5%</span>
+              <span class="lang-jp"><strong>台帳</strong> と比較 — 5%超のギャップを特定</span>
+            </li>
+            <li>
+              <span style="color:var(--accent);font-size:14px;flex-shrink:0;">☐</span>
+              <span class="lang-en">Root-cause top 3 gaps and report to HQ</span>
+              <span class="lang-jp">上位3ギャップの根本原因を分析してHQに報告</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  Sushi ZEN Workforce OS — Inventory Gap Manual &nbsp;|&nbsp; Last updated: 2026-08-16
+</footer>
+
+<script>
+  function setLang(lang) {
+    document.body.classList.toggle('lang-jp', lang === 'jp');
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-jp').classList.toggle('active', lang === 'jp');
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-en').addEventListener('click', function() { setLang('en'); });
+    document.getElementById('btn-jp').addEventListener('click', function() { setLang('jp'); });
+  });
+</script>

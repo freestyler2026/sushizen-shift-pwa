@@ -1,0 +1,4299 @@
+[
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "headers": {
+      "isdebug": "false",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "f7f149d8-b481-4ba2-a619-beecefeb10b9",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:8.2.2",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "custom": {
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      },
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "featureList": [
+        "dashboard-v2-active-experiment",
+        "reco-1-card-experiment",
+        "dashboard-thumbs-up",
+        "v3-tos-url",
+        "recommendations-on-dashboard-active",
+        "contextual-articles-active",
+        "new-onboarding-flow-active",
+        "reviews-on-dashboard-active",
+        "rewards-on-dashboard-active",
+        "image-suggestions-on-dashboard-active",
+        "one-click-deals-on-dashboard-active",
+        "incubation-banner-is-active",
+        "v3-onboarding-widget-active",
+        "v3-onboarding-completed-widget-active",
+        "v3-university-widget-active",
+        "v3-outlet-widget-active",
+        "v3-issues-widget-active",
+        "v3-image-suggestions-active",
+        "overall-customer-rating-reviews",
+        "multi-vendor-view-enabled"
+      ]
+    },
+    "ts": "2026-08-21T14:37:03.593Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "headers": {
+      "isdebug": "false",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "f7f149d8-b481-4ba2-a619-beecefeb10b9",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:8.2.2",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "custom": {
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      },
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "featureList": [
+        "dashboard-v2-active-experiment",
+        "reco-1-card-experiment",
+        "dashboard-thumbs-up",
+        "v3-tos-url",
+        "recommendations-on-dashboard-active",
+        "contextual-articles-active",
+        "new-onboarding-flow-active",
+        "reviews-on-dashboard-active",
+        "rewards-on-dashboard-active",
+        "image-suggestions-on-dashboard-active",
+        "one-click-deals-on-dashboard-active",
+        "incubation-banner-is-active",
+        "v3-onboarding-widget-active",
+        "v3-onboarding-completed-widget-active",
+        "v3-university-widget-active",
+        "v3-outlet-widget-active",
+        "v3-issues-widget-active",
+        "v3-image-suggestions-active",
+        "overall-customer-rating-reviews",
+        "multi-vendor-view-enabled"
+      ]
+    },
+    "ts": "2026-08-21T14:37:03.622Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "b4003136-5733-4548-b5c6-d391ec657bbd",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "brand-view"
+        },
+        {
+          "key": "nested-navigation"
+        },
+        {
+          "key": "ai-agent-in-header"
+        },
+        {
+          "key": "nested-navigation-peya-fintech"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:03.633Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "b4003136-5733-4548-b5c6-d391ec657bbd",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "brand-view"
+        },
+        {
+          "key": "nested-navigation"
+        },
+        {
+          "key": "ai-agent-in-header"
+        },
+        {
+          "key": "nested-navigation-peya-fintech"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:03.633Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/logging/queue/status",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "content-type": "text/plain;charset=UTF-8",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": {
+      "sdkVersion": "0.0.7-beta",
+      "userAgent": "Perseus/0.0.7-beta",
+      "clientId": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sessionId": "1787323023633.124329236580190716.j3in7l90vu",
+      "numberOfDeletedMessages": 0,
+      "ageOfOldestMessageInQueue": 0,
+      "amountOfMessagesInQueue": 0,
+      "backlogMetadata": {},
+      "dispatchDelay": 5,
+      "batchSize": 60,
+      "countryCode": "AE",
+      "globalEntityId": "TB_AE",
+      "maxBackoffTime": 10,
+      "maxStorageDays": 30,
+      "retentionTime": 30,
+      "platform": "Web",
+      "routing": {},
+      "firebaseInstanceId": "",
+      "priorityMapping": {},
+      "infrastructure": {
+        "urlPrefix": "/"
+      },
+      "advertisingId": "",
+      "appId": "vendor-partner-portal",
+      "appName": "Talabat Partner",
+      "appVersionName": "2.4.0",
+      "entity": "vendor-service",
+      "environment": "https://perseus-productanalytics.deliveryhero.net",
+      "adjustId": "",
+      "userId": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "uaId": "",
+      "debuggable": false,
+      "timestamp": "2026-08-21T14:37:03.634Z",
+      "appVersionCode": "2.4.0",
+      "brand": "vendor-service",
+      "batchSizeDelay": 5
+    },
+    "ts": "2026-08-21T14:37:03.634Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "b4003136-5733-4548-b5c6-d391ec657bbd",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "brand-view"
+        },
+        {
+          "key": "nested-navigation"
+        },
+        {
+          "key": "ai-agent-in-header"
+        },
+        {
+          "key": "nested-navigation-peya-fintech"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:04.307Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "bbc9f048-0f25-4436-92a1-c4b20ed7adaa",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "version-update"
+        },
+        {
+          "key": "minimum-wrapper-version-v2"
+        },
+        {
+          "key": "should-send-device-status-to-dms"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:04.310Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:04.576Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "statusCode": 200,
+    "body": {
+      "contextual-articles-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "dashboard-thumbs-up": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "dashboard-v2-active-experiment": {
+        "variation": "DEFAULT",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,vendorsCount,verticalTypes,role,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Control",
+          "flagType": "abntest",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "image-suggestions-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "country",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "incubation-banner-is-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "multi-vendor-view-enabled": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "new-onboarding-flow-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,restaurantCount,verticalTypes,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "one-click-deals-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,verticalTypes,role,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "overall-customer-rating-reviews": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "reco-1-card-experiment": {
+        "variation": "Control",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "OFF_VARIATION"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": "Control",
+          "flagType": "abntest",
+          "flagEnabled": false,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "recommendations-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "reviews-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "rewards-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,verticalTypes,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-image-suggestions-active": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "inactive",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-issues-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-onboarding-completed-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-onboarding-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-outlet-widget-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": "visible",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-tos-url": {
+        "variation": "none",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "None",
+          "flagType": "multivariate",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-university-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      }
+    },
+    "ts": "2026-08-21T14:37:04.587Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "statusCode": 200,
+    "body": {
+      "contextual-articles-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "dashboard-thumbs-up": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "dashboard-v2-active-experiment": {
+        "variation": "DEFAULT",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,vendorsCount,verticalTypes,role,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Control",
+          "flagType": "abntest",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "image-suggestions-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "country",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "incubation-banner-is-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "multi-vendor-view-enabled": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "new-onboarding-flow-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,restaurantCount,verticalTypes,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "one-click-deals-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,verticalTypes,role,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "overall-customer-rating-reviews": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "reco-1-card-experiment": {
+        "variation": "Control",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "OFF_VARIATION"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": "Control",
+          "flagType": "abntest",
+          "flagEnabled": false,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "recommendations-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "reviews-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "rewards-on-dashboard-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,verticalTypes,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-image-suggestions-active": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "inactive",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-issues-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-onboarding-completed-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-onboarding-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "v3-outlet-widget-active": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": "visible",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-tos-url": {
+        "variation": "none",
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "None",
+          "flagType": "multivariate",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "v3-university-widget-active": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      }
+    },
+    "ts": "2026-08-21T14:37:04.588Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:04.588Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-d82d21f39ddf4df81b37dcb7df220093-90c1e2436407fdb1-00",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "x-px-cookies": "_pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIo3q0q0WT2Ts5qN5uRKWUlB7KWGdBYMM6WkxWqZrsBDdb",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "query": "\n  query GeUnreadMessageCounts($input: GetUnreadCountRequest!) {\n    messageApi {\n      getUnreadCount(input: $input) {\n        count\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "country": "AE"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:04.701Z"
+  },
+  {
+    "type": "response",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/logging/queue/status",
+    "statusCode": 200,
+    "body": {
+      "status": "success",
+      "timestamp": "2026-08-21 14:37:04.715",
+      "message": "",
+      "errors": null
+    },
+    "ts": "2026-08-21T14:37:04.716Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:04.716Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:04.716Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "headers": {
+      "isdebug": "false",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "560af03f-8b7e-46dd-9725-fd94e34eef84",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:8.2.2",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "custom": {
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      },
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "featureList": [
+        "is-phone-number-editing-enabled",
+        "is-otp-enabled",
+        "should-my-account-drawer-open-after-login",
+        "should-use-extended-phone-validation",
+        "should-use-new-otp-endpoint",
+        "phone-verification-intervals"
+      ]
+    },
+    "ts": "2026-08-21T14:37:04.743Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features/brand-view",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "b4003136-5733-4548-b5c6-d391ec657bbd",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "googleClientId": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "email": "yuejima0831@gmail.com",
+      "custom": {
+        "isStaff": false,
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      }
+    },
+    "ts": "2026-08-21T14:37:04.975Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "statusCode": 200,
+    "body": {
+      "is-otp-enabled": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "is-phone-number-editing-enabled": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "phone-verification-intervals": {
+        "variation": null,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "ERROR",
+          "error": "[Feature validation error] feature flag not found"
+        },
+        "relevantContext": "",
+        "holdoutsEvaluations": null
+      },
+      "should-my-account-drawer-open-after-login": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,vendorsCount,userId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "should-use-extended-phone-validation": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "OFF_VARIATION"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": false,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "should-use-new-otp-endpoint": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      }
+    },
+    "ts": "2026-08-21T14:37:05.052Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "headers": {
+      "isdebug": "false",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "4edbc0a7-ca30-4082-944a-83248c3926ce",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:8.2.2",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "custom": {
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      },
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "featureList": [
+        "should-show-contextual-articles-in-plugins",
+        "is-support-button-visible-for-impersonation",
+        "should-render-html-in-markdown",
+        "should-use-backend-search"
+      ]
+    },
+    "ts": "2026-08-21T14:37:05.116Z"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://config-client-api.fwf.deliveryhero.net/configs/rps/portal-plugin-user-management-system/production/phone-verification-intervals/active.json",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": null,
+    "ts": "2026-08-21T14:37:05.116Z"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://bff-api.eu.prd.portal.restaurant/ump/v1/users/caf3d695-0908-412b-8371-79bedaa7e56f/contacts",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": null,
+    "ts": "2026-08-21T14:37:05.118Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "statusCode": 200,
+    "body": {
+      "is-support-button-visible-for-impersonation": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "Disable",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "should-render-html-in-markdown": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers",
+        "trackInfo": {
+          "variationName": "False",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "should-show-contextual-articles-in-plugins": {
+        "variation": [
+          "overview",
+          "user_profile",
+          "reports",
+          "onboarding",
+          "incubation",
+          "menu",
+          "ratings_and_reviews",
+          "order",
+          "bank_details",
+          "business_management",
+          "rewards",
+          "schedule",
+          "shops",
+          "promotion",
+          "ad_tech",
+          "finance"
+        ],
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "",
+        "trackInfo": {
+          "variationName": "All Contexts",
+          "flagType": "multivariate",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "should-use-backend-search": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      }
+    },
+    "ts": "2026-08-21T14:37:05.406Z"
+  },
+  {
+    "type": "response",
+    "url": "https://config-client-api.fwf.deliveryhero.net/configs/rps/portal-plugin-user-management-system/production/phone-verification-intervals/active.json",
+    "statusCode": 200,
+    "body": {
+      "version": "6",
+      "value": {
+        "admin": {
+          "unverified_interval_days": 7,
+          "empty_interval_days": 3
+        },
+        "manager": {
+          "unverified_interval_days": 14,
+          "empty_interval_days": 14
+        },
+        "owner": {
+          "unverified_interval_days": 7,
+          "empty_interval_days": 7
+        }
+      },
+      "rules": [
+        {
+          "clauses": [
+            {
+              "op": "in",
+              "field": "country",
+              "value": [
+                "TR"
+              ],
+              "negate": false
+            }
+          ],
+          "patch": {
+            "admin": {
+              "unverified_interval_days": 4,
+              "empty_interval_days": 4
+            },
+            "manager": {
+              "unverified_interval_days": 5,
+              "empty_interval_days": 5
+            },
+            "owner": {
+              "unverified_interval_days": 5,
+              "empty_interval_days": 5
+            }
+          }
+        },
+        {
+          "clauses": [
+            {
+              "op": "in",
+              "field": "country",
+              "value": [
+                "KW"
+              ],
+              "negate": false
+            }
+          ],
+          "patch": {
+            "admin": {
+              "unverified_interval_days": 7,
+              "empty_interval_days": 3
+            },
+            "manager": {
+              "unverified_interval_days": 14,
+              "empty_interval_days": 14
+            },
+            "owner": {
+              "unverified_interval_days": 14,
+              "empty_interval_days": 14
+            }
+          }
+        }
+      ]
+    },
+    "ts": "2026-08-21T14:37:05.409Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features/brand-view",
+    "statusCode": 200,
+    "body": {
+      "variation": "BrandView",
+      "abTest": false,
+      "mabTest": false,
+      "explanation": {
+        "kind": "RULE"
+      },
+      "relevantContext": "platformIdentifiers,verticalTypes,userId,email,googleClientId",
+      "trackInfo": {
+        "variationName": "Variation1",
+        "flagType": "abntest",
+        "flagEnabled": true,
+        "trackerServices": [
+          "FWF_GTM_DATA_LAYER_TRACKER"
+        ]
+      },
+      "holdoutsEvaluations": null
+    },
+    "ts": "2026-08-21T14:37:05.442Z"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://vss.me.restaurant-partners.com/api/v2/vendors/status/counts",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "x-is-impersonation": "false",
+      "x-rps-client-app-name": "OneWeb",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*"
+    },
+    "postData": null,
+    "ts": "2026-08-21T14:37:05.460Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "ab250454-fa8a-4c80-a3b9-a151250c7fe4",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "availability-high-demand-mode"
+        },
+        {
+          "key": "availability-closing-awareness"
+        },
+        {
+          "key": "enable-heartbeat-web-worker"
+        },
+        {
+          "key": "enable-checkin-open-anytime"
+        },
+        {
+          "key": "enable-check-in-text-to-speech"
+        },
+        {
+          "key": "enable-pwa-dialog"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:05.473Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "ab250454-fa8a-4c80-a3b9-a151250c7fe4",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "availability-high-demand-mode"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:05.473Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "be7a6d29-0997-4ba0-b244-f129f880c6a5",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "should-enable-self-activation"
+        },
+        {
+          "key": "enable-only-for-opp"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:05.474Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "messageApi": {
+          "getUnreadCount": {
+            "count": 77
+          }
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:05.524Z"
+  },
+  {
+    "type": "response",
+    "url": "https://bff-api.eu.prd.portal.restaurant/ump/v1/users/caf3d695-0908-412b-8371-79bedaa7e56f/contacts",
+    "statusCode": 200,
+    "body": {
+      "channels": [
+        {
+          "contact_type": "phone",
+          "contact_value": "+971503023214",
+          "status": "",
+          "verified": true,
+          "verified_at": "2026-08-18T06:42:23.568988Z",
+          "created_at": "0001-01-01T00:00:00Z",
+          "updated_at": "2026-08-18T06:42:23.568988Z"
+        }
+      ]
+    },
+    "ts": "2026-08-21T14:37:05.627Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:05.696Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:05.696Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:05.703Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vss.me.restaurant-partners.com/api/v2/vendors/status/counts",
+    "statusCode": 200,
+    "body": {
+      "userId": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "counts": {
+        "open": 10,
+        "closed": 0,
+        "offHours": 4
+      }
+    },
+    "ts": "2026-08-21T14:37:06.180Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "x-global-entity-id": "TB_AE",
+      "x-user-id": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "x-rps-device": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "x-vendor-id": "VEJfQUUtNzIzNjg1",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-18a1576f9e9be72319ad187cd3c9a04f-38bc180dd297deb2-00",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "apollographql-client-name": "API Gateway",
+      "referer": "https://partner-app.talabat.com/",
+      "x-app-name": "one-web",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "x-country": "AE",
+      "x-px-cookies": "_pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIowk0e3oc-7EzrQh2guqct0gQvTDYrs2ZUScu1qGt5-4d"
+    },
+    "postData": {
+      "operationName": "TodayIssues",
+      "variables": {
+        "issuesMetricParams": {
+          "global_vendor_codes": [
+            "TB_AE;723150",
+            "TB_AE;765535",
+            "TB_AE;763564",
+            "TB_AE;761205",
+            "TB_AE;759210",
+            "TB_AE;761204",
+            "TB_AE;762721",
+            "TB_AE;723685",
+            "TB_AE;723684",
+            "TB_AE;723686",
+            "TB_AE;729481",
+            "TB_AE;744680",
+            "TB_AE;719717",
+            "TB_AE;719720"
+          ],
+          "from": "2026-08-21",
+          "to": "2026-08-21"
+        },
+        "cancelledOrdersCountParams": {
+          "globalVendorCodes": [
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723150"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "765535"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "763564"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761205"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "759210"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761204"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "762721"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723685"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723684"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723686"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "729481"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "744680"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719717"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719720"
+            }
+          ],
+          "disableLimit": true,
+          "timeFrom": "2026-08-20T20:00:00.000Z",
+          "timeTo": "2026-08-21T19:59:59.999Z",
+          "filter": {
+            "orderStatuses": [
+              "CANCELLED"
+            ]
+          }
+        },
+        "delayedOrdersCountParams": {
+          "globalVendorCodes": [
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723150"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "765535"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "763564"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761205"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "759210"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761204"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "762721"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723685"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723684"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723686"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "729481"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "744680"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719717"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719720"
+            }
+          ],
+          "disableLimit": true,
+          "timeFrom": "2026-08-20T20:00:00.000Z",
+          "timeTo": "2026-08-21T19:59:59.999Z",
+          "filter": {
+            "isDelayedOrder": true
+          }
+        }
+      },
+      "query": "query TodayIssues($cancelledOrdersCountParams: OrdersCountReq!, $delayedOrdersCountParams: OrdersCountReq!, $issuesMetricParams: DateRangeVendorsMetricRequest!) {\n  orders {\n    cancelledOrders: ordersCount(input: $cancelledOrdersCountParams) {\n      amount\n      __typename\n    }\n    delayedOrders: ordersCount(input: $delayedOrdersCountParams) {\n      amount\n      __typename\n    }\n    __typename\n  }\n  reports {\n    issuesMetric(input: $issuesMetricParams) {\n      oneStarRatingsCount\n      oneStarRatingsDetails {\n        global_vendor_code\n        count\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+    },
+    "ts": "2026-08-21T14:37:06.696Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "x-global-entity-id": "TB_AE",
+      "x-user-id": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "x-rps-device": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "x-vendor-id": "VEJfQUUtNzIzNjg1",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-7bfcef0269ef9ce50d7ec1e012b70103-e141114d386f82fa-00",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "apollographql-client-name": "API Gateway",
+      "referer": "https://partner-app.talabat.com/",
+      "x-app-name": "one-web",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "x-country": "AE",
+      "x-px-cookies": "_pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIowk0e3oc-7EzrQh2guqct0gQvTDYrs2ZUScu1qGt5-4d"
+    },
+    "postData": {
+      "operationName": "SalesOverviewByTime",
+      "variables": {
+        "params": {
+          "global_vendor_codes": [
+            "TB_AE;723150",
+            "TB_AE;765535",
+            "TB_AE;763564",
+            "TB_AE;761205",
+            "TB_AE;759210",
+            "TB_AE;761204",
+            "TB_AE;762721",
+            "TB_AE;723685",
+            "TB_AE;723684",
+            "TB_AE;723686",
+            "TB_AE;729481",
+            "TB_AE;744680",
+            "TB_AE;719717",
+            "TB_AE;719720"
+          ],
+          "from": "2026-08-21",
+          "to": "2026-08-21",
+          "precision": "Hour"
+        }
+      },
+      "query": "query SalesOverviewByTime($params: DateRangeWithPrecisionVendorsReportRequest!) {\n  salesOverview {\n    salesByTime(input: $params) {\n      order_count\n      revenue\n      details {\n        order_count\n        revenue\n        milestone\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+    },
+    "ts": "2026-08-21T14:37:06.782Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://so-backend.deliveryhero.io/api/v1/entity/TB_AE/onboarding/vendors",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "grids": [
+        "4CO4Y1",
+        "4ML3TQ",
+        "4M8HWV",
+        "4M3CV9",
+        "4M3CV1",
+        "4M3CXB",
+        "4M869V",
+        "4CYUPL",
+        "4CYUPE",
+        "4CYUP6",
+        "4CM5GD",
+        "4C19Z9",
+        "HARLKZ",
+        "4CYUPB"
+      ]
+    },
+    "ts": "2026-08-21T14:37:06.801Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "orders": {
+          "cancelledOrders": {
+            "amount": 0,
+            "__typename": "OrdersCountRes"
+          },
+          "delayedOrders": {
+            "amount": 5,
+            "__typename": "OrdersCountRes"
+          },
+          "__typename": "OrdersQuery"
+        },
+        "reports": {
+          "issuesMetric": {
+            "oneStarRatingsCount": 0,
+            "oneStarRatingsDetails": [],
+            "__typename": "IssuesMetric"
+          },
+          "__typename": "Reports"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:07.184Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "salesOverview": {
+          "salesByTime": {
+            "order_count": 17,
+            "revenue": "2214.76",
+            "details": [
+              {
+                "order_count": 2,
+                "revenue": "394.00",
+                "milestone": "00",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 1,
+                "revenue": "124.00",
+                "milestone": "01",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 1,
+                "revenue": "86.00",
+                "milestone": "02",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 1,
+                "revenue": "215.00",
+                "milestone": "03",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 1,
+                "revenue": "64.00",
+                "milestone": "12",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 2,
+                "revenue": "333.98",
+                "milestone": "13",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 3,
+                "revenue": "327.98",
+                "milestone": "14",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 4,
+                "revenue": "584.80",
+                "milestone": "15",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 2,
+                "revenue": "176.00",
+                "milestone": "16",
+                "__typename": "TimeSalesMetric"
+              },
+              {
+                "order_count": 1,
+                "revenue": "124.00",
+                "milestone": "17",
+                "__typename": "TimeSalesMetric"
+              }
+            ],
+            "__typename": "SalesByTime"
+          },
+          "__typename": "SalesOverview"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:07.184Z"
+  },
+  {
+    "type": "response",
+    "url": "https://so-backend.deliveryhero.io/api/v1/entity/TB_AE/onboarding/vendors",
+    "statusCode": 200,
+    "body": [
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "744680",
+        "grid": "4C19Z9",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2024-11-18T04:04:46Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "729481",
+        "grid": "4CM5GD",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2024-04-25T14:05:48Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "723150",
+        "grid": "4CO4Y1",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2024-02-08T05:10:02Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "723686",
+        "grid": "4CYUP6",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-23T04:56:58Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "719720",
+        "grid": "4CYUPB",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2023-12-13T15:07:06Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "723684",
+        "grid": "4CYUPE",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-11T06:44:47Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "723685",
+        "grid": "4CYUPL",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-22T08:16:43Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "759210",
+        "grid": "4M3CV1",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-11T06:45:27Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "761205",
+        "grid": "4M3CV9",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-22T08:04:16Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "761204",
+        "grid": "4M3CXB",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-04-22T08:01:53Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "762721",
+        "grid": "4M869V",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-05-06T06:15:14Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "763564",
+        "grid": "4M8HWV",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-05-14T04:06:23Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "765535",
+        "grid": "4ML3TQ",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2025-06-27T08:08:30Z"
+      },
+      {
+        "global_entity_id": "TB_AE",
+        "vendor_id": "719717",
+        "grid": "HARLKZ",
+        "vertical": "Restaurant",
+        "account_status": "Active",
+        "activated_at": "2023-12-13T14:49:32Z"
+      }
+    ],
+    "ts": "2026-08-21T14:37:07.660Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "f8b09c85-9e71-4de4-9a20-74372b5770fd",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:11.2.0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "content-type": "application/json",
+      "isserver": "false"
+    },
+    "postData": {
+      "features": [
+        {
+          "key": "ops-insights-enabled"
+        },
+        {
+          "key": "reco-zombie-prediction"
+        },
+        {
+          "key": "offline-rate-personalised-insight"
+        },
+        {
+          "key": "vfr-personalised-insights"
+        },
+        {
+          "key": "ml-2-3-with-feedback-loop"
+        }
+      ],
+      "holdouts": []
+    },
+    "ts": "2026-08-21T14:37:08.042Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features-config/latest",
+    "statusCode": 200,
+    "body": null,
+    "ts": "2026-08-21T14:37:08.279Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vm-supergraph.me.prd.portal.restaurant/graphql",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "x-global-entity-id": "tb_ae",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "query": "query GetRecommendations($input: RecommendationsReq!) {\n  recommendations(input: $input) {\n    vendorId\n    type {\n      name\n      ads\n      __typename\n    }\n    completed\n    status\n    statusReason\n    version\n    priority\n    metadata {\n      key\n      value\n      __typename\n    }\n    opsInsights {\n      cancellationReasons {\n        reason\n        lostOrders\n        lostRevenue\n        __typename\n      }\n      offlineRateReasons {\n        reason\n        durationHours\n        __typename\n      }\n      __typename\n    }\n    framework\n    icon\n    __typename\n  }\n}",
+      "variables": {
+        "input": {
+          "globalVendorCodes": [
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723150"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "765535"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "763564"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761205"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "759210"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "761204"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "762721"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723685"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723684"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "723686"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "729481"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "744680"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719717"
+            },
+            {
+              "globalEntityId": "TB_AE",
+              "vendorId": "719720"
+            }
+          ],
+          "version": "ml_v2.2",
+          "pageSize": 20,
+          "client": "partner_portal"
+        }
+      },
+      "operationName": "GetRecommendations"
+    },
+    "ts": "2026-08-21T14:37:08.287Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/insert/vendor-service/hits",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "content-type": "text/plain;charset=UTF-8",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": {
+      "hits": [
+        {
+          "ecommerceItems": [],
+          "ecommerceComponents": [],
+          "isDebug": false,
+          "firebaseInstanceId": "",
+          "priority": 1.7976931348623157e+308,
+          "advertisingId": "",
+          "appId": "vendor-partner-portal",
+          "appName": "Talabat Partner",
+          "appVersionCode": "2.4.0",
+          "clientId": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+          "country": "AE",
+          "globalEntityId": "TB_AE",
+          "hitNumber": 2,
+          "payloadTimestamp": "2026-08-21T14:37:08.286Z",
+          "clientSentTimestamp": "2026-08-21T14:37:08.287Z",
+          "platform": "Web",
+          "sdkVersion": "0.0.7-beta",
+          "sessionId": "1787323023633.124329236580190716.j3in7l90vu",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+          "userId": "caf3d695-0908-412b-8371-79bedaa7e56f",
+          "eventVariables": {
+            "abtestParticipated": "true",
+            "changeVersionControl": "12",
+            "evaluationKind": "RULE",
+            "evaluationTimestamp": "2026-08-21T14:37:08.281Z",
+            "experimentActivityId": "87044",
+            "featureAccount": "rps",
+            "featureEnvironment": "production",
+            "featureKey": "ml-2-3-with-feedback-loop",
+            "featureKind": "abntest",
+            "featureProject": "portal-plugin-recommendations",
+            "fwfEvaluationOutcome": "EXPERIMENT_PARTICIPATED",
+            "fwfSdkVersion": "JsIsomorphic;sdk:11.2.0",
+            "randomizationUnit": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+            "randomizationUnitBucket": "0.6611118425438709",
+            "ruleId": "0",
+            "userContext": "{\"isStaff\":false,\"brand\":\"talabat\",\"allChainIds\":\"673913,671526,694540,698589\",\"country\":\"AE\",\"currentChainId\":\"671526\",\"currentVendorId\":\"TB_AE;723150\",\"currentVerticalType\":\"restaurants\",\"isConcept\":false,\"platformIdentifiers\":\"TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535\",\"restaurantCount\":14,\"role\":\"ADMIN\",\"selectedVendorIds\":\"TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720\",\"subject\":\"caf3d695-0908-412b-8371-79bedaa7e56f\",\"userId\":\"master-caf3d695-0908-412b-8371-79bedaa7e56f\",\"userEmail\":\"yuejima0831@gmail.com\",\"vendorsCount\":14,\"verticalTypes\":\"restaurants\"}",
+            "variation": "Control",
+            "variationName": "Control",
+            "theme": "talabat",
+            "wrapperType": "Web",
+            "wrapperVersion": "unknown",
+            "hostname": "partner-app.talabat.com",
+            "selectedLanguage": "ja",
+            "impersonation": "false",
+            "shellSdkVersion": "0.39.6",
+            "radioType": "unknown",
+            "effectiveType": "3g",
+            "visibilityStatus": "visible",
+            "hitMatchId": "1787323028286.147114808421250744.eodazve51s",
+            "perseusHitMatchId": "1787323028286.147114808421250744.eodazve51s",
+            "eventAction": "fwf.evaluated",
+            "perseusDataSource": "client"
+          },
+          "deviceScreenResolution": "1280x720",
+          "deviceLanguage": "ja",
+          "idfv": "",
+          "hitMatchId": "1787323028286.147114808421250744.eodazve51s",
+          "eventAction": "fwf.evaluated",
+          "dispatchDelay": 5,
+          "batchSize": 60,
+          "countryCode": "AE",
+          "maxBackoffTime": 10,
+          "maxStorageDays": 30,
+          "retentionTime": 30,
+          "routing": {},
+          "priorityMapping": {},
+          "infrastructure": {
+            "urlPrefix": "/"
+          },
+          "appVersionName": "2.4.0",
+          "entity": "vendor-service",
+          "environment": "https://perseus-productanalytics.deliveryhero.net",
+          "debuggable": false
+        },
+        {
+          "ecommerceItems": [],
+          "ecommerceComponents": [],
+          "isDebug": false,
+          "firebaseInstanceId": "",
+          "priority": 1.7976931348623157e+308,
+          "advertisingId": "",
+          "appId": "vendor-partner-portal",
+          "appName": "Talabat Partner",
+          "appVersionCode": "2.4.0",
+          "clientId": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+          "country": "AE",
+          "globalEntityId": "TB_AE",
+          "hitNumber": 1,
+          "payloadTimestamp": "2026-08-21T14:37:07.183Z",
+          "clientSentTimestamp": "2026-08-21T14:37:07.188Z",
+          "platform": "Web",
+          "sdkVersion": "0.0.7-beta",
+          "sessionId": "1787323023633.124329236580190716.j3in7l90vu",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+          "userId": "caf3d695-0908-412b-8371-79bedaa7e56f",
+          "eventVariables": {
+            "pageType": "DASHBOARD",
+            "pageUrlPath": "/dashboard",
+            "timeToInteractiveMs": "3567.899999856949",
+            "screenType": "dashboard",
+            "screenName": "/dashboard",
+            "screenAvailable": "true",
+            "pluginId": "portalPluginDashboard",
+            "pluginVersion": "2.1.20",
+            "pluginSdkVersion": "0.38.7",
+            "theme": "talabat",
+            "wrapperType": "Web",
+            "wrapperVersion": "unknown",
+            "hostname": "partner-app.talabat.com",
+            "selectedLanguage": "ja",
+            "impersonation": "false",
+            "shellSdkVersion": "0.39.6",
+            "radioType": "unknown",
+            "effectiveType": "3g",
+            "visibilityStatus": "visible",
+            "hitMatchId": "1787323027183.164962244549424264.l6ch6budqx",
+            "perseusHitMatchId": "1787323027183.164962244549424264.l6ch6budqx",
+            "eventAction": "screen_metrics.triggered",
+            "perseusDataSource": "client"
+          },
+          "deviceScreenResolution": "1280x720",
+          "deviceLanguage": "ja",
+          "idfv": "",
+          "hitMatchId": "1787323027183.164962244549424264.l6ch6budqx",
+          "eventAction": "screen_metrics.triggered",
+          "dispatchDelay": 5,
+          "batchSize": 60,
+          "countryCode": "AE",
+          "maxBackoffTime": 10,
+          "maxStorageDays": 30,
+          "retentionTime": 30,
+          "routing": {},
+          "priorityMapping": {},
+          "infrastructure": {
+            "urlPrefix": "/"
+          },
+          "appVersionName": "2.4.0",
+          "entity": "vendor-service",
+          "environment": "https://perseus-productanalytics.deliveryhero.net",
+          "debuggable": false
+        }
+      ]
+    },
+    "ts": "2026-08-21T14:37:08.481Z"
+  },
+  {
+    "type": "response",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/insert/vendor-service/hits",
+    "statusCode": 200,
+    "body": {
+      "status": "success",
+      "timestamp": "2026-08-21 14:37:08.867",
+      "message": "",
+      "errors": null
+    },
+    "ts": "2026-08-21T14:37:08.875Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vm-supergraph.me.prd.portal.restaurant/graphql",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "recommendations": [
+          {
+            "vendorId": "TB_AE#723684",
+            "type": {
+              "name": "BOOK_CPC",
+              "ads": true,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 321.02,
+            "metadata": [
+              {
+                "key": "socialRanking",
+                "value": "94",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "projectedOrderGrowthPercentage",
+                "value": "30",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "MegaphoneIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723684",
+            "type": {
+              "name": "BOOK_VFD",
+              "ads": true,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 80.6,
+            "metadata": [
+              {
+                "key": "socialRanking",
+                "value": "10",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "projectedSalesGrowthPercentage",
+                "value": "20",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "LoyaltyIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#729481",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 8.68,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "33",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "233.96",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "3.9",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#744680",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 7.17,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "11",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "307.4",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "5.1",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#719717",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 3.56,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "20",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "294.52",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "4.9",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723150",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 2.68,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "16",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "252.59",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "4.2",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#719720",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 2.06,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "12",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "334.97",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "5.6",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#762721",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 1.63,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "16",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "309.13",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "5.2",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723685",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.73,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "20",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "242.56",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "4",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723686",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.71,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "7",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "439.67",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "7.3",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#765535",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.34,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "22",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "330.93",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "5.5",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723684",
+            "type": {
+              "name": "IMPROVE_AVOIDABLE_WAITING_TIME",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.18,
+            "metadata": [
+              {
+                "key": "threshold",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "55",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "180.84",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "averageAwt",
+                "value": "3",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "TimeIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#723684",
+            "type": {
+              "name": "SPONSORED_DEAL_NEW",
+              "ads": true,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.002,
+            "metadata": [
+              {
+                "key": "title",
+                "value": "120",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "61",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "subtitle",
+                "value": "61",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": true,
+            "icon": "TagIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#763564",
+            "type": {
+              "name": "IMPROVE_OFFLINE_RATE",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "offlineHours",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "5",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "100",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "totalScheduledDuration",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": {
+              "cancellationReasons": null,
+              "offlineRateReasons": [
+                {
+                  "reason": "CLOSED",
+                  "durationHours": 89.99861111111112,
+                  "__typename": "OfflineRateReason"
+                }
+              ],
+              "__typename": "OpsInsights"
+            },
+            "framework": false,
+            "icon": "WarningCircleIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#761205",
+            "type": {
+              "name": "IMPROVE_OFFLINE_RATE",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "offlineHours",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "5",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "42",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "100",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "totalScheduledDuration",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": {
+              "cancellationReasons": null,
+              "offlineRateReasons": [
+                {
+                  "reason": "OTHER",
+                  "durationHours": 89.99861111111112,
+                  "__typename": "OfflineRateReason"
+                }
+              ],
+              "__typename": "OpsInsights"
+            },
+            "framework": false,
+            "icon": "WarningCircleIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#759210",
+            "type": {
+              "name": "IMPROVE_OFFLINE_RATE",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "offlineHours",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "5",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "37",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "100",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "totalScheduledDuration",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": {
+              "cancellationReasons": null,
+              "offlineRateReasons": [
+                {
+                  "reason": "OTHER",
+                  "durationHours": 89.99861111111112,
+                  "__typename": "OfflineRateReason"
+                }
+              ],
+              "__typename": "OpsInsights"
+            },
+            "framework": false,
+            "icon": "WarningCircleIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#759210",
+            "type": {
+              "name": "IMPROVE_RATINGS_AND_REVIEWS",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "socialRanking",
+                "value": "87",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "3.7",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "4",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "StarEmptyIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#761204",
+            "type": {
+              "name": "IMPROVE_OFFLINE_RATE",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "offlineHours",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "5",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "socialRanking",
+                "value": "43",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "100",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "totalScheduledDuration",
+                "value": "90",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": {
+              "cancellationReasons": null,
+              "offlineRateReasons": [
+                {
+                  "reason": "CLOSED",
+                  "durationHours": 89.99861111111112,
+                  "__typename": "OfflineRateReason"
+                }
+              ],
+              "__typename": "OpsInsights"
+            },
+            "framework": false,
+            "icon": "WarningCircleIcon",
+            "__typename": "RecommendationItem"
+          },
+          {
+            "vendorId": "TB_AE#761204",
+            "type": {
+              "name": "IMPROVE_RATINGS_AND_REVIEWS",
+              "ads": false,
+              "__typename": "RecommendationType"
+            },
+            "completed": false,
+            "status": "NEW",
+            "statusReason": null,
+            "version": "ml_v2.2",
+            "priority": 0.001,
+            "metadata": [
+              {
+                "key": "socialRanking",
+                "value": "60",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "value",
+                "value": "3.9",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "threshold",
+                "value": "4",
+                "__typename": "MetadataEntry"
+              },
+              {
+                "key": "recommendationModel",
+                "value": "ml_v2.2",
+                "__typename": "MetadataEntry"
+              }
+            ],
+            "opsInsights": null,
+            "framework": false,
+            "icon": "StarEmptyIcon",
+            "__typename": "RecommendationItem"
+          }
+        ]
+      }
+    },
+    "ts": "2026-08-21T14:37:08.889Z"
+  },
+  {
+    "type": "request",
+    "method": "PUT",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "headers": {
+      "isdebug": "false",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "authorization": "c561c6ba-61cf-4311-9b6e-d8ec5f0623a9",
+      "referer": "https://partner-app.talabat.com/",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0",
+      "sdkinfo": "JsIsomorphic;sdk:8.2.2",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+      "content-type": "application/json"
+    },
+    "postData": {
+      "custom": {
+        "brand": "talabat",
+        "allChainIds": "673913,671526,694540,698589",
+        "country": "AE",
+        "currentChainId": "671526",
+        "currentVendorId": "TB_AE;723150",
+        "currentVerticalType": "restaurants",
+        "isConcept": false,
+        "platformIdentifiers": "TB_AE;723685,TB_AE;744680,TB_AE;729481,TB_AE;763564,TB_AE;761205,TB_AE;761204,TB_AE;723150,TB_AE;723686,TB_AE;762721,TB_AE;759210,TB_AE;719717,TB_AE;719720,TB_AE;723684,TB_AE;765535",
+        "restaurantCount": 14,
+        "role": "ADMIN",
+        "selectedVendorIds": "TB_AE;723150,TB_AE;765535,TB_AE;763564,TB_AE;761205,TB_AE;759210,TB_AE;761204,TB_AE;762721,TB_AE;723685,TB_AE;723684,TB_AE;723686,TB_AE;729481,TB_AE;744680,TB_AE;719717,TB_AE;719720",
+        "subject": "caf3d695-0908-412b-8371-79bedaa7e56f",
+        "userEmail": "yuejima0831@gmail.com",
+        "vendorsCount": 14,
+        "verticalTypes": "restaurants"
+      },
+      "userId": "master-caf3d695-0908-412b-8371-79bedaa7e56f",
+      "featureList": [
+        "additional-statements-tab",
+        "combined-payouts",
+        "outstanding-invoices",
+        "outlet-column",
+        "pay-now",
+        "earning-summary",
+        "old-finance-plugin",
+        "loan-eligibility-banner",
+        "bulk-download"
+      ]
+    },
+    "ts": "2026-08-21T14:37:09.292Z"
+  },
+  {
+    "type": "response",
+    "url": "https://client-api.fwf.deliveryhero.net/v3/features",
+    "statusCode": 200,
+    "body": {
+      "additional-statements-tab": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Visible",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "bulk-download": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "combined-payouts": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Yes",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "earning-summary": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": true,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "loan-eligibility-banner": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "old-finance-plugin": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Not visible",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "outlet-column": {
+        "variation": true,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Visible",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "outstanding-invoices": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": "Hidden",
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      },
+      "pay-now": {
+        "variation": false,
+        "abTest": false,
+        "mabTest": false,
+        "explanation": {
+          "kind": "DEFAULT_RULE"
+        },
+        "relevantContext": "email,userId,googleClientId",
+        "trackInfo": {
+          "variationName": false,
+          "flagType": "boolean",
+          "flagEnabled": true,
+          "trackerServices": [
+            "FWF_GTM_DATA_LAYER_TRACKER"
+          ]
+        },
+        "holdoutsEvaluations": null
+      }
+    },
+    "ts": "2026-08-21T14:37:09.596Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "x-request-id": "3661dd8c-05c5-435e-af76-0cd6aec1e654",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "x-global-entity-id": "TB_AE",
+      "x-user-id": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "x-rps-device": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "x-vendor-id": "VEJfQUUtNzIzNjg1",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-40ddf1235551d89dd22bf0f13eb2363b-4599a29321909769-00",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "apollographql-client-name": "API Gateway",
+      "referer": "https://partner-app.talabat.com/",
+      "x-app-name": "one-web",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "x-country": "AE",
+      "x-px-cookies": "_px3=d7365bb7273dacfc04ae0a7cd66420302c5484278d302af8c3dc5c09293de48f:7JER67SUGyaAA906Cc5CEurpbWdWJq/hjPGvTEHOaDPBHgsOXhOVDkw60+LTMFm30I6gJjRWAkC0oRHri1OFjA==:1000:rqJcGK+E7Nhq4CncHGXj5+QLp0Z3c9OVpns0MIlBREA4IdiHL8KQwpFtNDABY39kkJBCc6SN8e2Zvk+tKcYDR124fKZHwODc+L0nh0JOWAXHySKwNJsFFEkbki/KSelxdf1eAx9E69ZBn48ry5hzpa9YaqGG8ua6FKTthU4kSQ+BGHfwSYTEqzCg3OnU3T1EF0T2+TWDHjIweB07C+g9G0DgHTL8sn8hpEEVCRv6avBD+Ke45+n7DDtZ33rqUGcpUjVKBbjRBvXrICLFWXdCA+1k86h67Dx87o3EzLQBTjjbfo2H/zb+zsh0b3LejuLj8Thkxsfzx+L+PkU6OkKskwMupjcWYp95iMcL5R4smCiOTHUeROfYzcDC9jxhiNT3ixq18zNcSc630zuv4zNnCLbuxG6GBC+XabzbyHa7Wv+K3IPlj+BKTfunAQljqnm/mdWKCdqfG0yzMFzg5hRnsV6/l2SJ9pdmnRXvMxEBybw=; _pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIowk0e3oc-7EzrQh2guqct0gVwzHQP4RM-lrygTHJp1og"
+    },
+    "postData": {
+      "operationName": "getPayoutEarningsSummary",
+      "variables": {
+        "withBreakdown": false,
+        "params": {
+          "globalEntityId": "TB_AE",
+          "accounts": [
+            {
+              "grid": "4CO4Y1",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4ML3TQ",
+              "billingParentId": "",
+              "chainId": "698589"
+            },
+            {
+              "grid": "4M8HWV",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV9",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV1",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CXB",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M869V",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPL",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPE",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUP6",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CM5GD",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4C19Z9",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "HARLKZ",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4CYUPB",
+              "billingParentId": "",
+              "chainId": "671526"
+            }
+          ],
+          "startDate": "2026-07-22",
+          "endDate": "2026-08-21"
+        }
+      },
+      "query": "query getPayoutEarningsSummary($params: GetPayoutEarningsSummaryRequest!, $withBreakdown: Boolean = false) {\n  finances {\n    getPayoutEarningsSummary(input: $params) {\n      currency\n      totalGrossSales\n      totalCommissions\n      totalNetPayout\n      ordersCount\n      breakdown @include(if: $withBreakdown) {\n        grossSales\n        additionalSales {\n          total\n          deliveryFees\n          packagingFees\n          movFees\n          foodCostReimbursement\n          tips\n          additionalEarnings {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        discounts {\n          total\n          totalDiscounts\n          discountsByBrand\n          discountsBySelf\n          __typename\n        }\n        vouchers {\n          vouchersByBrand\n          vouchersBySelf\n          __typename\n        }\n        customerRefundCharges {\n          total\n          charges {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        marketingFees {\n          total\n          cpcFee\n          jokerFee\n          marketingFee {\n            type\n            amount\n            __typename\n          }\n          __typename\n        }\n        commissions {\n          total\n          commissionList {\n            type\n            amount\n            __typename\n          }\n          __typename\n        }\n        customerFees {\n          reason\n          amount\n          __typename\n        }\n        taxCharges {\n          total\n          taxChargeList {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        additionalFees {\n          total\n          platformFeesCollected\n          taxCharge\n          additionalCharges {\n            reason\n            amount\n            __typename\n          }\n          paymentFee\n          __typename\n        }\n        owedToPlatform\n        totalEarnings\n        cashCollected\n        paymentFeeGross\n        paymentFeeNet\n        loans {\n          total\n          loans {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        waitTimeFee {\n          totalCharge\n          __typename\n        }\n        currentBalance\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+    },
+    "ts": "2026-08-21T14:37:10.086Z"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "https://vob-cms-tb.me.prd.portal.restaurant/v2/articles-summaries?locale=ja&target_country=AE&target_vertical=restaurants&context=finance",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": null,
+    "ts": "2026-08-21T14:37:10.124Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "finances": {
+          "getPayoutEarningsSummary": {
+            "currency": "AED",
+            "totalGrossSales": 97902.51,
+            "totalCommissions": -31147.9420875,
+            "totalNetPayout": 66413.1,
+            "ordersCount": 1617,
+            "__typename": "GetPayoutEarningsSummaryResponse"
+          },
+          "__typename": "Finances"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:10.443Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vob-cms-tb.me.prd.portal.restaurant/v2/articles-summaries?locale=ja&target_country=AE&target_vertical=restaurants&context=finance",
+    "statusCode": 200,
+    "body": [],
+    "ts": "2026-08-21T14:37:10.450Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "x-request-id": "bbf51ab4-60e0-41c2-85a6-e7fbe0d0b8c6",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "x-global-entity-id": "TB_AE",
+      "x-user-id": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "x-rps-device": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "x-vendor-id": "VEJfQUUtNzIzNjg1",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-8f94f6732f46d9c151646c83b30ee006-9b57ad66b2935a7f-00",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "apollographql-client-name": "API Gateway",
+      "referer": "https://partner-app.talabat.com/",
+      "x-app-name": "one-web",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "x-country": "AE",
+      "x-px-cookies": "_px3=d7365bb7273dacfc04ae0a7cd66420302c5484278d302af8c3dc5c09293de48f:7JER67SUGyaAA906Cc5CEurpbWdWJq/hjPGvTEHOaDPBHgsOXhOVDkw60+LTMFm30I6gJjRWAkC0oRHri1OFjA==:1000:rqJcGK+E7Nhq4CncHGXj5+QLp0Z3c9OVpns0MIlBREA4IdiHL8KQwpFtNDABY39kkJBCc6SN8e2Zvk+tKcYDR124fKZHwODc+L0nh0JOWAXHySKwNJsFFEkbki/KSelxdf1eAx9E69ZBn48ry5hzpa9YaqGG8ua6FKTthU4kSQ+BGHfwSYTEqzCg3OnU3T1EF0T2+TWDHjIweB07C+g9G0DgHTL8sn8hpEEVCRv6avBD+Ke45+n7DDtZ33rqUGcpUjVKBbjRBvXrICLFWXdCA+1k86h67Dx87o3EzLQBTjjbfo2H/zb+zsh0b3LejuLj8Thkxsfzx+L+PkU6OkKskwMupjcWYp95iMcL5R4smCiOTHUeROfYzcDC9jxhiNT3ixq18zNcSc630zuv4zNnCLbuxG6GBC+XabzbyHa7Wv+K3IPlj+BKTfunAQljqnm/mdWKCdqfG0yzMFzg5hRnsV6/l2SJ9pdmnRXvMxEBybw=; _pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIowk0e3oc-7EzrQh2guqct0gVwzHQP4RM-lrygTHJp1og"
+    },
+    "postData": {
+      "operationName": "getPayoutEarningsSummary",
+      "variables": {
+        "withBreakdown": false,
+        "params": {
+          "globalEntityId": "TB_AE",
+          "accounts": [
+            {
+              "grid": "4CO4Y1",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4ML3TQ",
+              "billingParentId": "",
+              "chainId": "698589"
+            },
+            {
+              "grid": "4M8HWV",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV9",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV1",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CXB",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M869V",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPL",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPE",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUP6",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CM5GD",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4C19Z9",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "HARLKZ",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4CYUPB",
+              "billingParentId": "",
+              "chainId": "671526"
+            }
+          ],
+          "startDate": "2026-06-22",
+          "endDate": "2026-07-21"
+        }
+      },
+      "query": "query getPayoutEarningsSummary($params: GetPayoutEarningsSummaryRequest!, $withBreakdown: Boolean = false) {\n  finances {\n    getPayoutEarningsSummary(input: $params) {\n      currency\n      totalGrossSales\n      totalCommissions\n      totalNetPayout\n      ordersCount\n      breakdown @include(if: $withBreakdown) {\n        grossSales\n        additionalSales {\n          total\n          deliveryFees\n          packagingFees\n          movFees\n          foodCostReimbursement\n          tips\n          additionalEarnings {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        discounts {\n          total\n          totalDiscounts\n          discountsByBrand\n          discountsBySelf\n          __typename\n        }\n        vouchers {\n          vouchersByBrand\n          vouchersBySelf\n          __typename\n        }\n        customerRefundCharges {\n          total\n          charges {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        marketingFees {\n          total\n          cpcFee\n          jokerFee\n          marketingFee {\n            type\n            amount\n            __typename\n          }\n          __typename\n        }\n        commissions {\n          total\n          commissionList {\n            type\n            amount\n            __typename\n          }\n          __typename\n        }\n        customerFees {\n          reason\n          amount\n          __typename\n        }\n        taxCharges {\n          total\n          taxChargeList {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        additionalFees {\n          total\n          platformFeesCollected\n          taxCharge\n          additionalCharges {\n            reason\n            amount\n            __typename\n          }\n          paymentFee\n          __typename\n        }\n        owedToPlatform\n        totalEarnings\n        cashCollected\n        paymentFeeGross\n        paymentFeeNet\n        loans {\n          total\n          loans {\n            reason\n            amount\n            __typename\n          }\n          __typename\n        }\n        waitTimeFee {\n          totalCharge\n          __typename\n        }\n        currentBalance\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+    },
+    "ts": "2026-08-21T14:37:10.629Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "finances": {
+          "getPayoutEarningsSummary": {
+            "currency": "AED",
+            "totalGrossSales": 157374.74,
+            "totalCommissions": -50612.9719305,
+            "totalNetPayout": 107428.8,
+            "ordersCount": 2469,
+            "__typename": "GetPayoutEarningsSummaryResponse"
+          },
+          "__typename": "Finances"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:10.881Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "headers": {
+      "x-request-id": "5d4e7e1e-7b9e-49cc-bc1c-90d767ed9a22",
+      "authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleW1ha2VyLXZwLTAwMTQtdnAtZXUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3ZlbmRvcnBvcnRhbC1ldS5kaC1hdXRoLmlvIiwic3ViIjoiY2FmM2Q2OTUtMDkwOC00MTJiLTgzNzEtNzliZWRhYTdlNTZmIiwiYXVkIjoidmVuZG9yLXBvcnRhbC1wcmQtZXUiLCJleHAiOjE3ODczMzYwMDUsImlhdCI6MTc4NzMyMTYwNSwianRpIjoiZ3V2cnNwOGk3b2dnbXE5ZnA3N2ZiaHJ4dGcwYnVwYjY3bmZ6ZTZraSIsInNjb3BlIjoia2V5bWFrZXItdXNlci52ZW5kb3Jwb3J0YWwudmVuZG9yLXBvcnRhbC1wcmQtZXUudGJfYWUiLCJtZXRhZGF0YSI6eyJlbWFpbCI6Inl1ZWppbWEwODMxQGdtYWlsLmNvbSIsImxwdmlkIjoiVkVKZlFVVXROekl6TmpnMSIsInBsYXRmb3JtcyI6WyI3MjM2ODU7VEJfQUUiLCI3NDQ2ODA7VEJfQUUiLCI3Mjk0ODE7VEJfQUUiLCI3NjM1NjQ7VEJfQUUiLCI3NjEyMDU7VEJfQUUiLCI3NjEyMDQ7VEJfQUUiLCI3MjMxNTA7VEJfQUUiLCI3MjM2ODY7VEJfQUUiLCI3NjI3MjE7VEJfQUUiLCI3NTkyMTA7VEJfQUUiLCI3MTk3MTc7VEJfQUUiLCI3MTk3MjA7VEJfQUUiLCI3MjM2ODQ7VEJfQUUiLCI3NjU1MzU7VEJfQUUiXX19.gSN0A0SUZ-lmvSiPbBfDWZKpHG9l6Ib1mWeTSWrgoCAl67JAOM-qqCKsDnwX-N8JY1hAAhiDurDycHHac4voTwJT2heJhNfdwR8_ABDaCd2PGwkf22TeoSwZa0d-Wg9-ShX42Jz3X8Z5gUzz2c4uBV_ZBup-F0OQnrbXhBNDW27h-E8pc0QUjJOVFfkQSLEwRwWVFlzx2L6zjjPvxHd5FaSZBHw_ZIsraPLyLK-d9rH0lXqyhv9YyfseNVNnI-ZBDhLWITzVKbzLTbtDVnCJvcraGm8-Msn3gMlV08lz2sh0bQVnqjljPE5w4q8lJzmYERNkI0gIG0BO2hdK7K9sgA",
+      "x-global-entity-id": "TB_AE",
+      "x-user-id": "caf3d695-0908-412b-8371-79bedaa7e56f",
+      "x-rps-device": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "x-vendor-id": "VEJfQUUtNzIzNjg1",
+      "sec-ch-ua-mobile": "?0",
+      "traceparent": "00-aeb461f465a953e7e206a991f664b299-09e7d22eeb8caaa0-00",
+      "sec-ch-ua-platform": "\"macOS\"",
+      "accept": "*/*",
+      "content-type": "application/json",
+      "apollographql-client-name": "API Gateway",
+      "referer": "https://partner-app.talabat.com/",
+      "x-app-name": "one-web",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "x-country": "AE",
+      "x-px-cookies": "_px3=d7365bb7273dacfc04ae0a7cd66420302c5484278d302af8c3dc5c09293de48f:7JER67SUGyaAA906Cc5CEurpbWdWJq/hjPGvTEHOaDPBHgsOXhOVDkw60+LTMFm30I6gJjRWAkC0oRHri1OFjA==:1000:rqJcGK+E7Nhq4CncHGXj5+QLp0Z3c9OVpns0MIlBREA4IdiHL8KQwpFtNDABY39kkJBCc6SN8e2Zvk+tKcYDR124fKZHwODc+L0nh0JOWAXHySKwNJsFFEkbki/KSelxdf1eAx9E69ZBn48ry5hzpa9YaqGG8ua6FKTthU4kSQ+BGHfwSYTEqzCg3OnU3T1EF0T2+TWDHjIweB07C+g9G0DgHTL8sn8hpEEVCRv6avBD+Ke45+n7DDtZ33rqUGcpUjVKBbjRBvXrICLFWXdCA+1k86h67Dx87o3EzLQBTjjbfo2H/zb+zsh0b3LejuLj8Thkxsfzx+L+PkU6OkKskwMupjcWYp95iMcL5R4smCiOTHUeROfYzcDC9jxhiNT3ixq18zNcSc630zuv4zNnCLbuxG6GBC+XabzbyHa7Wv+K3IPlj+BKTfunAQljqnm/mdWKCdqfG0yzMFzg5hRnsV6/l2SJ9pdmnRXvMxEBybw=; _pxvid=295dcbad-9d6a-11f1-98ab-b751c7b4a184; pxcts=S-Uzh1QQjZLekkXLAs8mn9o4OV-oOLNfvdkrulQDRfw=:sd3QLPd9C0tkxlonCIjTR2kjiv0ehR/xUtPzx2R3hDj-N1YxSMJKJaKYUFYjxqGLuxAwWtsPm94GbXJPvfOBzifJ50rkkR2k/VyJLugIDnnvbRWNRaiFZuZ5tCJV9mUx18CI/8F/OY7pFPZLQ5nIowk0e3oc-7EzrQh2guqct0gVwzHQP4RM-lrygTHJp1og"
+    },
+    "postData": {
+      "operationName": "ListPayouts",
+      "variables": {
+        "params": {
+          "startDate": "2026-07-22",
+          "endDate": "2026-08-21",
+          "filter": {},
+          "pagination": {
+            "pageSize": 5
+          },
+          "globalEntityId": "TB_AE",
+          "accounts": [
+            {
+              "grid": "4CO4Y1",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4ML3TQ",
+              "billingParentId": "",
+              "chainId": "698589"
+            },
+            {
+              "grid": "4M8HWV",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV9",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CV1",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M3CXB",
+              "billingParentId": "",
+              "chainId": "694540"
+            },
+            {
+              "grid": "4M869V",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPL",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUPE",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CYUP6",
+              "billingParentId": "",
+              "chainId": "673913"
+            },
+            {
+              "grid": "4CM5GD",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4C19Z9",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "HARLKZ",
+              "billingParentId": "",
+              "chainId": "671526"
+            },
+            {
+              "grid": "4CYUPB",
+              "billingParentId": "",
+              "chainId": "671526"
+            }
+          ]
+        }
+      },
+      "query": "query ListPayouts($params: ListPayoutsRequest!) {\n  finances {\n    listPayouts(input: $params) {\n      nextPageToken\n      prevPageToken\n      payouts {\n        payoutId: id\n        payoutAmount: netPayout\n        payoutCurrency: currency\n        payoutOrders: ordersCount\n        at: paymentDateLocal\n        status: payoutStatus\n        payoutAttachments: attachments\n        payoutAccount: account {\n          grid\n          billingParentId\n          chainId\n          __typename\n        }\n        invoices {\n          invoiceId: id\n          invoiceAmount: totalPayout\n          invoiceCurrency: currency\n          invoiceOrders: ordersCount\n          processedDate\n          invoiceAttachments: attachments\n          period: earningsPeriod {\n            from: invoiceStartDate\n            to: invoiceEndDate\n            __typename\n          }\n          invoiceAccount: account {\n            grid\n            billingParentId\n            chainId\n            __typename\n          }\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}"
+    },
+    "ts": "2026-08-21T14:37:11.084Z"
+  },
+  {
+    "type": "response",
+    "url": "https://vagw-api.eu.prd.portal.restaurant/query",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "finances": {
+          "listPayouts": {
+            "nextPageToken": "next__CggxNDk1MDM4NxABGgoyMDI2LTA4LTEzIBYprkfhehSuiEAyWgoIMTQ5NTAzODcSGAoKMjAyNi0wOC0wOBIKMjAyNi0wOC0xMBgWIT0K16NwkXdAKgNBRUQyCjIwMjYtMDgtMTNCBVRCX0FFSggSBjY3MzkxM1GuR+F6FK6IQDoDQUVESgVUQl9BRVIIEgY2NzM5MTM=",
+            "prevPageToken": "",
+            "payouts": [
+              {
+                "payoutId": "15004331",
+                "payoutAmount": 196.1,
+                "payoutCurrency": "AED",
+                "payoutOrders": 5,
+                "at": "2026-08-17",
+                "status": "RECEIVED_BY_BANK",
+                "payoutAttachments": null,
+                "payoutAccount": {
+                  "grid": "",
+                  "billingParentId": "",
+                  "chainId": "698589",
+                  "__typename": "FinanceAccount"
+                },
+                "invoices": [
+                  {
+                    "invoiceId": "15004331",
+                    "invoiceAmount": 196.1,
+                    "invoiceCurrency": "AED",
+                    "invoiceOrders": 5,
+                    "processedDate": "2026-08-17",
+                    "invoiceAttachments": null,
+                    "period": {
+                      "from": "2026-08-11",
+                      "to": "2026-08-14",
+                      "__typename": "EarningsPeriod"
+                    },
+                    "invoiceAccount": {
+                      "grid": "",
+                      "billingParentId": "",
+                      "chainId": "698589",
+                      "__typename": "FinanceAccount"
+                    },
+                    "__typename": "Invoice"
+                  }
+                ],
+                "__typename": "Payout"
+              },
+              {
+                "payoutId": "15001659",
+                "payoutAmount": 637.77,
+                "payoutCurrency": "AED",
+                "payoutOrders": 31,
+                "at": "2026-08-17",
+                "status": "RECEIVED_BY_BANK",
+                "payoutAttachments": null,
+                "payoutAccount": {
+                  "grid": "",
+                  "billingParentId": "",
+                  "chainId": "673913",
+                  "__typename": "FinanceAccount"
+                },
+                "invoices": [
+                  {
+                    "invoiceId": "15001659",
+                    "invoiceAmount": 637.77,
+                    "invoiceCurrency": "AED",
+                    "invoiceOrders": 31,
+                    "processedDate": "2026-08-17",
+                    "invoiceAttachments": null,
+                    "period": {
+                      "from": "2026-08-11",
+                      "to": "2026-08-14",
+                      "__typename": "EarningsPeriod"
+                    },
+                    "invoiceAccount": {
+                      "grid": "",
+                      "billingParentId": "",
+                      "chainId": "673913",
+                      "__typename": "FinanceAccount"
+                    },
+                    "__typename": "Invoice"
+                  }
+                ],
+                "__typename": "Payout"
+              },
+              {
+                "payoutId": "14996365",
+                "payoutAmount": 7675.45,
+                "payoutCurrency": "AED",
+                "payoutOrders": 199,
+                "at": "2026-08-17",
+                "status": "RECEIVED_BY_BANK",
+                "payoutAttachments": null,
+                "payoutAccount": {
+                  "grid": "",
+                  "billingParentId": "",
+                  "chainId": "671526",
+                  "__typename": "FinanceAccount"
+                },
+                "invoices": [
+                  {
+                    "invoiceId": "14996365",
+                    "invoiceAmount": 7675.45,
+                    "invoiceCurrency": "AED",
+                    "invoiceOrders": 199,
+                    "processedDate": "2026-08-17",
+                    "invoiceAttachments": null,
+                    "period": {
+                      "from": "2026-08-11",
+                      "to": "2026-08-14",
+                      "__typename": "EarningsPeriod"
+                    },
+                    "invoiceAccount": {
+                      "grid": "",
+                      "billingParentId": "",
+                      "chainId": "671526",
+                      "__typename": "FinanceAccount"
+                    },
+                    "__typename": "Invoice"
+                  }
+                ],
+                "__typename": "Payout"
+              },
+              {
+                "payoutId": "14954327",
+                "payoutAmount": 138.05,
+                "payoutCurrency": "AED",
+                "payoutOrders": 4,
+                "at": "2026-08-13",
+                "status": "RECEIVED_BY_BANK",
+                "payoutAttachments": null,
+                "payoutAccount": {
+                  "grid": "",
+                  "billingParentId": "",
+                  "chainId": "698589",
+                  "__typename": "FinanceAccount"
+                },
+                "invoices": [
+                  {
+                    "invoiceId": "14954327",
+                    "invoiceAmount": 138.05,
+                    "invoiceCurrency": "AED",
+                    "invoiceOrders": 4,
+                    "processedDate": "2026-08-13",
+                    "invoiceAttachments": null,
+                    "period": {
+                      "from": "2026-08-08",
+                      "to": "2026-08-10",
+                      "__typename": "EarningsPeriod"
+                    },
+                    "invoiceAccount": {
+                      "grid": "",
+                      "billingParentId": "",
+                      "chainId": "698589",
+                      "__typename": "FinanceAccount"
+                    },
+                    "__typename": "Invoice"
+                  }
+                ],
+                "__typename": "Payout"
+              },
+              {
+                "payoutId": "14950387",
+                "payoutAmount": 789.76,
+                "payoutCurrency": "AED",
+                "payoutOrders": 22,
+                "at": "2026-08-13",
+                "status": "RECEIVED_BY_BANK",
+                "payoutAttachments": null,
+                "payoutAccount": {
+                  "grid": "",
+                  "billingParentId": "",
+                  "chainId": "673913",
+                  "__typename": "FinanceAccount"
+                },
+                "invoices": [
+                  {
+                    "invoiceId": "14950387",
+                    "invoiceAmount": 789.76,
+                    "invoiceCurrency": "AED",
+                    "invoiceOrders": 22,
+                    "processedDate": "2026-08-13",
+                    "invoiceAttachments": null,
+                    "period": {
+                      "from": "2026-08-08",
+                      "to": "2026-08-10",
+                      "__typename": "EarningsPeriod"
+                    },
+                    "invoiceAccount": {
+                      "grid": "",
+                      "billingParentId": "",
+                      "chainId": "673913",
+                      "__typename": "FinanceAccount"
+                    },
+                    "__typename": "Invoice"
+                  }
+                ],
+                "__typename": "Payout"
+              }
+            ],
+            "__typename": "ListPayoutsResponse"
+          },
+          "__typename": "Finances"
+        }
+      }
+    },
+    "ts": "2026-08-21T14:37:11.442Z"
+  },
+  {
+    "type": "request",
+    "method": "POST",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/insert/vendor-service/hits",
+    "headers": {
+      "sec-ch-ua-platform": "\"macOS\"",
+      "referer": "https://partner-app.talabat.com/",
+      "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"151\", \"Not=A?Brand\";v=\"99\"",
+      "content-type": "text/plain;charset=UTF-8",
+      "sec-ch-ua-mobile": "?0"
+    },
+    "postData": {
+      "hits": [
+        {
+          "ecommerceItems": [],
+          "ecommerceComponents": [],
+          "isDebug": false,
+          "firebaseInstanceId": "",
+          "priority": 1.7976931348623157e+308,
+          "advertisingId": "",
+          "appId": "vendor-partner-portal",
+          "appName": "Talabat Partner",
+          "appVersionCode": "2.4.0",
+          "clientId": "c87a088a-192e-4af9-8f72-7f2f6f7e521c",
+          "country": "AE",
+          "globalEntityId": "TB_AE",
+          "hitNumber": 3,
+          "payloadTimestamp": "2026-08-21T14:37:11.414Z",
+          "clientSentTimestamp": "2026-08-21T14:37:11.443Z",
+          "platform": "Web",
+          "sdkVersion": "0.0.7-beta",
+          "sessionId": "1787323023633.124329236580190716.j3in7l90vu",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+          "userId": "caf3d695-0908-412b-8371-79bedaa7e56f",
+          "eventVariables": {
+            "pageType": "FINANCE",
+            "pageUrlPath": "/finance",
+            "timeToInteractiveMs": "2972.7999999523163",
+            "screenType": "finance",
+            "screenName": "/finance",
+            "screenAvailable": "true",
+            "pluginId": "portalPluginFinance",
+            "pluginVersion": "bc801a6c",
+            "pluginSdkVersion": "0.31.5",
+            "theme": "talabat",
+            "wrapperType": "Web",
+            "wrapperVersion": "unknown",
+            "hostname": "partner-app.talabat.com",
+            "selectedLanguage": "ja",
+            "impersonation": "false",
+            "shellSdkVersion": "0.39.6",
+            "radioType": "unknown",
+            "effectiveType": "3g",
+            "visibilityStatus": "visible",
+            "hitMatchId": "1787323031414.138272412769010952.8xy9w0ar8v",
+            "perseusHitMatchId": "1787323031414.138272412769010952.8xy9w0ar8v",
+            "eventAction": "screen_metrics.triggered",
+            "perseusDataSource": "client"
+          },
+          "deviceScreenResolution": "1280x720",
+          "deviceLanguage": "ja",
+          "idfv": "",
+          "hitMatchId": "1787323031414.138272412769010952.8xy9w0ar8v",
+          "eventAction": "screen_metrics.triggered",
+          "dispatchDelay": 5,
+          "batchSize": 60,
+          "countryCode": "AE",
+          "maxBackoffTime": 10,
+          "maxStorageDays": 30,
+          "retentionTime": 30,
+          "routing": {},
+          "priorityMapping": {},
+          "infrastructure": {
+            "urlPrefix": "/"
+          },
+          "appVersionName": "2.4.0",
+          "entity": "vendor-service",
+          "environment": "https://perseus-productanalytics.deliveryhero.net",
+          "debuggable": false
+        }
+      ]
+    },
+    "ts": "2026-08-21T14:37:13.880Z"
+  },
+  {
+    "type": "response",
+    "url": "https://perseus-productanalytics.deliveryhero.net/v1/insert/vendor-service/hits",
+    "statusCode": 200,
+    "body": {
+      "status": "success",
+      "timestamp": "2026-08-21 14:37:14.200",
+      "message": "",
+      "errors": null
+    },
+    "ts": "2026-08-21T14:37:14.314Z"
+  }
+]
