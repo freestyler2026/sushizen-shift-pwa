@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Draft Staff Roster Check panel)
+Last updated: 2026-08-21 (WH Inventory Auto Order)
+
+---
+
+## ✅ Completed: WH Inventory Auto Order (2026-08-21, Heroku v2044 / Vercel f052472)
+
+**目的**: Warehouse在庫でpar levelを下回るアイテムを自動検出し、サプライヤー別にDirect Purchase発注を生成してProcurement Approval Inboxへ送信。
+
+**Backend — `inventory_db.py`**:
+- `get_wh_master_items()`: `inv_item_suppliers`（`is_primary=TRUE`）+ `inv_suppliers` をLEFT JOINして `par_level`, `supplier_id`, `supplier_name`, `order_unit`, `purchase_cost` を追加
+- `get_wh_stock_view()`: `need_qty = max(0, par_level - theoretical_qty)` を計算、全supplier情報をresultに追加
+
+**Backend — `inventory_api.py`**:
+- `POST /api/admin/inventory/wh-stock/generate-orders`: need_qty>0のアイテムをサプライヤー別にグループ化し、`create_proc_request(purchase_type='direct_purchase')` + `replace_proc_request_items()` + `recalc_proc_request_total()` で一括生成
+
+**Frontend — `wh-inventory/page.tsx`**:
+- `MasterItem` + `StockViewRow` 型に `par_level`, `need_qty`, `supplier_id`, `supplier_name`, `order_unit`, `purchase_cost` を追加
+- "Auto Order" タブ（ティール色）: par level以下のアイテムをサプライヤー別にグループ表示、"Generate Purchase Orders" ボタンで一括発注、成功後はApproval Inboxリンク付きで作成済みリクエスト番号を表示
+- サプライヤー未設定アイテムはアンバー警告セクションに表示（発注スキップ）
+
+---
+
+## ✅ Completed: Careem Portal Price Check — GitHub Actions (2026-08-21, commit bf9601e)
+
+**目的**: Careem Partner Portal の公開価格を毎4時間自動チェックして Heroku Webhook に送信。
+
+**実装ファイル**:
+- `scripts/careem/check-prices.js` — Playwright + ネットワーク傍受で SPA の認証ヘッダーを取得し、`catalog-staging/products?status=ACTIVE` を呼び出す
+- `.github/workflows/careem-price-check.yml` — schedule (4h) + workflow_dispatch
+
+**解決した技術課題**:
+- SPA は `status=ACTIVE` 必須（省略→400、`INACTIVE`→0件）
+- 価格フィールドは `defaultPrice`（`price`/`basePrice` 等ではない）
+- カテゴリクリックは headless では API を発火させない → ページロード時の intercepted response を利用
+- `pageSize`/`size` は無効、`limit=` が正しいパラメータ名
+- GitHub Actions キュー詰まり → 他ワークフローの stuck in_progress runs を一括キャンセルで解決
+
+**結果** (初回スナップショット):
+- Ramen ZEN, Jumeirah: 103品 → `{"ok":true,"first_snapshot":true}`
+- Sushi ZEN, Al Barsha 3: 132品 → `{"ok":true,"first_snapshot":true}`
+- Ramen Zen, Al Jaffiliya: 54品 → `{"ok":true,"first_snapshot":true}`
 
 ---
 
