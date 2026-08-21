@@ -6,7 +6,7 @@ import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, KPI_VALUE,
   T_PAGE_TITLE, T_SECTION, SMALL_BUTTON, PRIMARY_BUTTON,
   TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER,
-  BADGE_WARNING, BADGE_ERROR,
+  BADGE_WARNING, BADGE_ERROR, BADGE_SUCCESS, BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { getAuth } from "@/lib/auth";
 
@@ -18,6 +18,8 @@ interface CostSummary {
   store_code: string;
   currency: string;
   revenue: number;
+  revenue_source: "manual" | "ar_payouts" | "none";
+  revenue_ar_total: number;
   food_cost: number;
   labor_cost: number;
   overhead_total: number;
@@ -174,9 +176,9 @@ export default function MgmtAccountingPage() {
             {loading ? "Loading…" : "Refresh"}
           </button>
         </div>
-        {!summary?.revenue && (
+        {summary?.revenue_source === "none" && (
           <div className="flex items-end">
-            <span className={BADGE_WARNING}>No revenue entered — cost rates unavailable</span>
+            <span className={BADGE_WARNING}>No revenue — enter in Settings or sync AR Payouts</span>
           </div>
         )}
       </div>
@@ -190,9 +192,24 @@ export default function MgmtAccountingPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Revenue (Manual)</p>
+          <div className="flex items-center justify-between mb-0.5">
+            <p className={KPI_LABEL}>Revenue</p>
+            {summary && (
+              summary.revenue_source === "ar_payouts"
+                ? <span className={BADGE_SUCCESS} style={{fontSize: "9px", padding: "1px 6px"}}>AR Payouts</span>
+                : summary.revenue_source === "manual"
+                  ? <span className={BADGE_INFO} style={{fontSize: "9px", padding: "1px 6px"}}>Manual</span>
+                  : <span className={BADGE_WARNING} style={{fontSize: "9px", padding: "1px 6px"}}>Not set</span>
+            )}
+          </div>
           <p className={KPI_VALUE}>{summary ? fmtAmt(summary.revenue, cur) : "—"}</p>
-          <p className="text-xs text-zinc-600 mt-1">Enter in Settings if not set</p>
+          <p className="text-xs text-zinc-600 mt-1">
+            {summary?.revenue_source === "ar_payouts"
+              ? "Auto from delivery platforms"
+              : summary?.revenue_source === "manual"
+                ? "Manually entered"
+                : "Enter in Settings or sync AR Payouts"}
+          </p>
         </div>
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>Food Cost</p>

@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   GLASS_CARD, T_PAGE_TITLE, T_SECTION, INPUT_CLASS,
-  PRIMARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
+  PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
   TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER,
+  BADGE_SUCCESS, BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { getAuth } from "@/lib/auth";
 
@@ -44,6 +45,14 @@ interface RevenueEntry {
   updated_at: string | null;
 }
 
+interface ArRevenueData {
+  total: number;
+  currency: string;
+  record_count: number;
+  by_platform: { platform: string; amount: number; records: number }[];
+  by_store: { store_code: string; amount: number }[];
+}
+
 const DUBAI_STORES = ["", "AM", "AB", "JLT", "BB", "ARJ", "JJAD_AM", "JJAD_JLT", "RZ_ARJ", "RZ_BB"];
 const MANILA_STORES = ["", "CUB", "BER", "MOA", "MKT", "QC", "CEB"];
 const OVERHEAD_CATEGORIES = ["Rent", "Utilities", "Insurance", "Marketing", "Maintenance", "Delivery Fees", "Admin", "Other"];
@@ -76,6 +85,9 @@ export default function MgmtSettingsPage() {
   const [revenue, setRevenue] = useState("");
   const [revNotes, setRevNotes] = useState("");
   const [revList, setRevList] = useState<RevenueEntry[]>([]);
+  const [arRevenue, setArRevenue] = useState<ArRevenueData | null>(null);
+  const [arLoading, setArLoading] = useState(false);
+  const [syncingAr, setSyncingAr] = useState(false);
 
   // Overhead state
   const [ohCategory, setOhCategory] = useState("Rent");
@@ -113,7 +125,47 @@ export default function MgmtSettingsPage() {
     if (budRes.ok) setBudList(await budRes.json());
   }, [city, storeCode, yearMonth]);
 
-  useEffect(() => { fetchLists(); }, [fetchLists]);
+  const fetchArRevenue = useCallback(async () => {
+    setArLoading(true);
+    try {
+      const h = authHeaders();
+      const qs = `city=${city}&year_month=${yearMonth}${storeCode ? `&store_code=${storeCode}` : ""}`;
+      const res = await fetch(`/api/admin/mgmt/ar-revenue-preview?${qs}`, { headers: h });
+      if (res.ok) setArRevenue(await res.json());
+    } finally {
+      setArLoading(false);
+    }
+  }, [city, storeCode, yearMonth]);
+
+  useEffect(() => { fetchLists(); fetchArRevenue(); }, [fetchLists, fetchArRevenue]);
+
+  async function syncArRevenue() {
+    if (!arRevenue || arRevenue.total === 0) return;
+    setSyncingAr(true);
+    setMsg(null);
+    try {
+      const currentAuth = getAuth();
+      const platforms = arRevenue.by_platform.map(p => p.platform).join(", ");
+      const res = await fetch("/api/admin/mgmt/revenue-manual", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          store_code: storeCode, city, year_month: yearMonth,
+          revenue_amount: arRevenue.total,
+          currency: cur,
+          entered_by: currentAuth?.staffName || "",
+          notes: `Synced from AR Payouts (${platforms})`,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setMsg({ text: `Revenue synced: ${cur} ${arRevenue.total.toLocaleString("en", { maximumFractionDigits: 0 })}`, ok: true });
+      fetchLists();
+    } catch (e: unknown) {
+      setMsg({ text: e instanceof Error ? e.message : String(e), ok: false });
+    } finally {
+      setSyncingAr(false);
+    }
+  }
 
   async function saveRevenue() {
     setSaving(true);
@@ -266,10 +318,67 @@ export default function MgmtSettingsPage() {
       {/* Revenue Tab */}
       {tab === "revenue" && (
         <div className="space-y-5">
+
+          {/* AR Payouts Auto-Revenue Panel */}
+          <div className={`${GLASS_CARD} p-5 border-emerald-500/20`}>
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <h2 className={`${T_SECTION} mb-0.5`}>AR Payouts Revenue</h2>
+                <p className="text-xs text-zinc-500">Auto-computed from Careem, Keeta, Talabat, GrabFood, Foodpanda</p>
+              </div>
+              {arRevenue && arRevenue.total > 0 && (
+                <span className={BADGE_SUCCESS}>Live</span>
+              )}
+            </div>
+
+            {arLoading ? (
+              <p className="text-sm text-zinc-500">Loading AR data…</p>
+            ) : arRevenue && arRevenue.total > 0 ? (
+              <>
+                <div className="mb-4">
+                  <p className="text-3xl font-bold text-emerald-300 tabular-nums">
+                    {cur} {arRevenue.total.toLocaleString("en", { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{arRevenue.record_count} payout records · {yearMonth}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {arRevenue.by_platform.map(p => (
+                    <div key={p.platform} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-0.5">{p.platform}</p>
+                      <p className="text-sm font-mono font-semibold text-zinc-200">
+                        {cur} {p.amount.toLocaleString("en", { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-xs text-zinc-600">{p.records} records</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={syncArRevenue}
+                    disabled={syncingAr}
+                    className={SECONDARY_BUTTON}
+                  >
+                    {syncingAr ? "Syncing…" : `Sync to Revenue (${cur} ${arRevenue.total.toLocaleString("en", { maximumFractionDigits: 0 })})`}
+                  </button>
+                  <p className="text-xs text-zinc-600">Overwrites manual entry for this store/month</p>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-zinc-500">No AR payout records found for {yearMonth}.</p>
+                {arRevenue && (
+                  <span className={BADGE_INFO}>0 records</span>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className={`${GLASS_CARD} p-5`}>
-            <h2 className={`${T_SECTION} mb-1`}>Enter Monthly Revenue</h2>
+            <h2 className={`${T_SECTION} mb-1`}>Manual Revenue Override</h2>
             <p className="text-xs text-zinc-500 mb-4">
-              Manual entry until POS/delivery platform data is automated (Phase 2).
+              Use this to enter revenue manually or override the AR Payouts total.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
