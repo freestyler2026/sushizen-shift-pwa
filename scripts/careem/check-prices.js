@@ -31,24 +31,36 @@ function extractItemsFromResponse(json) {
   const items = [];
   if (!json || typeof json !== 'object') return items;
 
-  // Walk the JSON tree looking for price-bearing item structures
+  function resolvePrice(obj) {
+    // Direct numeric price fields (Careem uses various field names)
+    const raw = obj.price ?? obj.aed_price ?? obj.item_price
+      ?? obj.basePrice ?? obj.sellingPrice ?? obj.unitPrice
+      ?? obj.priceAed ?? obj.pricing?.price ?? obj.priceInfo?.price ?? null;
+    if (raw !== null && raw !== undefined) {
+      const n = parseFloat(raw);
+      return isNaN(n) ? null : n;
+    }
+    // Nested price object: { amount, currency }
+    if (obj.price && typeof obj.price === 'object' && 'amount' in obj.price) {
+      const n = parseFloat(obj.price.amount);
+      return isNaN(n) ? null : n;
+    }
+    return null;
+  }
+
   function walk(obj, depth = 0) {
-    if (depth > 6 || !obj || typeof obj !== 'object') return;
+    if (depth > 8 || !obj || typeof obj !== 'object') return;
     if (Array.isArray(obj)) {
       obj.forEach(el => walk(el, depth + 1));
     } else {
-      // Look for objects that have a name + price field
-      const hasPrice = 'price' in obj || 'aed_price' in obj || 'item_price' in obj;
-      const hasName  = 'name' in obj || 'name_en' in obj || 'item_name' in obj || 'nameEn' in obj;
-      if (hasPrice && hasName) {
-        const name  = obj.name || obj.name_en || obj.item_name || obj.nameEn || '';
-        const price = obj.price ?? obj.aed_price ?? obj.item_price ?? null;
-        if (name && price !== null && price !== undefined) {
-          items.push({
-            name:  String(name).trim().slice(0, 80),
-            price: `AED ${parseFloat(price).toFixed(0)}`,
-          });
-        }
+      const name = obj.name || obj.name_en || obj.item_name || obj.nameEn
+        || obj.itemName || obj.title || obj.titleEn || '';
+      const priceVal = resolvePrice(obj);
+      if (name && typeof name === 'string' && priceVal !== null && priceVal > 0) {
+        items.push({
+          name:  String(name).trim().slice(0, 80),
+          price: `AED ${priceVal.toFixed(0)}`,
+        });
       }
       Object.values(obj).forEach(v => walk(v, depth + 1));
     }
@@ -58,10 +70,20 @@ function extractItemsFromResponse(json) {
   return [...new Map(items.map(i => [i.name, i])).values()];
 }
 
+// Wait for a specific API response to be captured (polling approach)
+async function waitForApiResponse(captured, urlSubstring, maxMs = 10_000) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    const found = captured.find(c => c.url.includes(urlSubstring));
+    if (found) return found;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return null;
+}
+
 async function getOutletPricesViaNetwork(page, outletId) {
   const allCaptured = [];
 
-  // Intercept ALL JSON API responses from Careem
   const responseHandler = async (response) => {
     const url = response.url();
     if (!url.includes('careem.com')) return;
@@ -76,72 +98,88 @@ async function getOutletPricesViaNetwork(page, outletId) {
   page.on('response', responseHandler);
 
   try {
-    // Step 1: Load catalog overview to get categoryIds from the categories API
+    // Step 1: Load catalog overview (don't wait for networkidle — it times out)
+    allCaptured.length = 0;
     const overviewUrl = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
-    allCaptured.length = 0; // reset
-    await page.goto(overviewUrl, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
-    await page.waitForTimeout(2000);
+    await page.goto(overviewUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
 
-    const title = await page.title();
-    console.log(`  Title: ${title}`);
+    // Wait for the categories API response (up to 30s)
+    const categoriesCall = await waitForApiResponse(allCaptured, '/categories?catalogId=', 30_000);
 
-    if (title.includes('Something went wrong') || title === 'Partners Portal' || title === 'Overview - Careem') {
+    const titleAfterCats = await page.title();
+    console.log(`  Title: ${titleAfterCats}`);
+
+    if (titleAfterCats.includes('Something went wrong') || titleAfterCats === 'Partners Portal' || titleAfterCats === 'Overview - Careem') {
       return null;
     }
 
-    // Extract category IDs from the categories API response
-    const categoriesCall = allCaptured.find(c => c.url.includes('/categories?catalogId='));
     const categories = Array.isArray(categoriesCall?.json)
-      ? categoriesCall.json.filter(c => c.status === 'ACTIVE').slice(0, 15)
+      ? categoriesCall.json.filter(c => c.status === 'ACTIVE').slice(0, 12)
       : [];
-    console.log(`  Categories found: ${categories.map(c => `${c.id}(${c.name})`).join(', ').slice(0, 120)}`);
+    console.log(`  Categories: ${categories.map(c => c.name).join(', ').slice(0, 120)}`);
 
     if (categories.length === 0) {
-      console.log(`  No categories — cannot navigate to specific category pages`);
+      console.log(`  No categories found in API response`);
       return [];
     }
 
-    // Step 2: For each category, navigate to /catalog/{outletId}/{categoryId}
-    // This triggers the SPA to load products with prices for that category
+    // Collect items already loaded during the overview page load
+    // (the SPA often pre-loads the first/selected category on arrival)
     const allItems = [];
-    for (const cat of categories) {
-      const catUrl = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}/${cat.id}`;
-      allCaptured.length = 0; // reset for this navigation
-
-      await page.goto(catUrl, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
-      await page.waitForTimeout(2000);
-
-      const catTitle = await page.title();
-      if (catTitle.includes('Something went wrong') || catTitle === 'Partners Portal') {
-        console.log(`  Category ${cat.name}: page error`);
-        continue;
+    const preloaded = allCaptured.filter(c => c.url.includes('product') || c.url.includes('item'));
+    for (const p of preloaded) {
+      const items = extractItemsFromResponse(p.json);
+      if (items.length > 0) {
+        console.log(`  Pre-loaded ${items.length} items from overview (${p.url.slice(p.url.lastIndexOf('/') - 20)})`);
+        items.forEach(i => allItems.push(i));
       }
+    }
 
-      // Look for product API responses
-      let catItems = [];
-      for (const { url: u, json } of allCaptured) {
-        if (!u.includes('product') && !u.includes('item')) continue;
-        const items = extractItemsFromResponse(json);
-        if (items.length > 0) {
-          catItems = items;
-          console.log(`  Category "${cat.name}": ${items.length} items from ${u.slice(u.lastIndexOf('/'))}`);
-          break;
+    // Step 2: Click each category sidebar item, capture product API response
+    for (const cat of categories) {
+      const catName = cat.name.trim();
+      const snapshotLen = allCaptured.length;
+
+      // Click the category element by text content
+      const clicked = await page.getByText(catName, { exact: true }).first().click({ timeout: 5_000 })
+        .then(() => true).catch(() => false);
+
+      if (!clicked) {
+        // Try partial match
+        const clicked2 = await page.locator(`text="${catName}"`).first().click({ timeout: 3_000 })
+          .then(() => true).catch(() => false);
+        if (!clicked2) {
+          console.log(`  "${catName}": could not click`);
+          continue;
         }
       }
 
-      if (catItems.length === 0) {
-        // Debug: show all captured URLs for this category
-        const capturedUrls = allCaptured.map(c => c.url.slice(0, 80));
-        console.log(`  Category "${cat.name}": 0 items. APIs: ${capturedUrls.join(' | ').slice(0, 200)}`);
-        // Show snippet of any product-related response
-        const prodCall = allCaptured.find(c => c.url.includes('product') || c.url.includes('item'));
-        if (prodCall) console.log(`    Snippet: ${JSON.stringify(prodCall.json).slice(0, 300)}`);
+      // Wait for product API response after the click (up to 8s)
+      const deadline = Date.now() + 8_000;
+      let productCall = null;
+      while (Date.now() < deadline) {
+        const newCalls = allCaptured.slice(snapshotLen);
+        productCall = newCalls.find(c => c.url.includes('product') || c.url.includes('item'));
+        if (productCall) break;
+        await new Promise(r => setTimeout(r, 300));
       }
 
-      catItems.forEach(i => allItems.push({ ...i, category: cat.name }));
+      if (!productCall) {
+        // Log new URLs for diagnosis
+        const newUrls = allCaptured.slice(snapshotLen).map(c => c.url.slice(0, 80));
+        console.log(`  "${catName}": no product API. New calls: ${newUrls.join(', ').slice(0, 200) || 'none'}`);
+        continue;
+      }
+
+      const catItems = extractItemsFromResponse(productCall.json);
+      console.log(`  "${catName}": ${catItems.length} items from ${productCall.url.slice(productCall.url.lastIndexOf('/') - 20)}`);
+      if (catItems.length === 0) {
+        console.log(`    Snippet: ${JSON.stringify(productCall.json).slice(0, 300)}`);
+      }
+      catItems.forEach(i => allItems.push({ ...i, category: catName }));
     }
 
-    // Deduplicate by item name
+    // Deduplicate by name
     return [...new Map(allItems.map(i => [i.name, i])).values()];
 
   } finally {

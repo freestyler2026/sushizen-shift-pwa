@@ -119,9 +119,9 @@ async function main() {
   console.log(`\n  Outlet-related elements: ${outletSwitcher.length}`);
   outletSwitcher.forEach(h => console.log(`    ${h}`));
 
-  // Try known outlet IDs to find which ones work
-  const testOutletIds = ['1054426', '1067896', '1074763'];
-  const testCatIds = ['1076323393'];
+  // Inspect category element structure on a real outlet page
+  const testOutletIds = ['1054426'];
+  const testCatIds = ['1076323393']; // kept for reference but not used below
 
   console.log('\n--- Testing outlet catalog URLs ---');
   for (const oid of testOutletIds) {
@@ -142,20 +142,60 @@ async function main() {
     }
   }
 
-  // Navigate to menu management section
-  console.log('\n--- Navigating to menu/catalog management ---');
-  const menuUrls = [
-    'https://partners.careem.com/saturn-ext/merchant/menu',
-    'https://partners.careem.com/saturn-ext/merchant/menu-management',
-  ];
-  for (const mu of menuUrls) {
-    await page.goto(mu, { waitUntil: 'networkidle', timeout: 15_000 }).catch(() => {});
-    const t = await page.title();
-    console.log(`  ${mu}  → "${t}"`);
-  }
+  // Inspect actual catalog page DOM structure
+  console.log('\n--- Inspecting catalog page DOM for category 1054426 ---');
+  await page.goto('https://partners.careem.com/saturn-ext/merchant/catalog/1054426', {
+    waitUntil: 'networkidle', timeout: 60_000
+  }).catch(() => {});
+  await page.waitForTimeout(3000);
+  console.log(`  Title: ${await page.title()}`);
 
-  console.log('\n--- All API calls (first 30) ---');
-  [...new Set(apiCalls)].slice(0, 30).forEach(u => console.log(`  ${u}`));
+  const domInspect = await page.evaluate(() => {
+    // Find all links that might be category links
+    const allLinks = [...document.querySelectorAll('a')].map(a => ({
+      tag: 'a',
+      href: a.href,
+      text: a.textContent.trim().slice(0, 60),
+    })).filter(l => l.href.includes('catalog') || l.text.match(/Soup|Ramen|Salad|Bowl|Hoso|Roll|Sashimi|Nigiri|Drink|Side/i));
+
+    // Find all nav items
+    const navItems = [...document.querySelectorAll('nav *')].slice(0, 30).map(el => ({
+      tag: el.tagName,
+      text: el.textContent.trim().slice(0, 40),
+      class: el.className.slice(0, 80),
+      href: el.href || el.getAttribute('href') || null,
+    }));
+
+    // Find elements matching common sidebar patterns
+    const sidebarEls = [...document.querySelectorAll('[class*="sidebar"] *, [class*="category"] *, [class*="Category"] *, [class*="nav-item"] *')].slice(0, 20).map(el => ({
+      tag: el.tagName,
+      text: el.textContent.trim().slice(0, 40),
+      class: el.className.slice(0, 80),
+      href: el.href || null,
+    }));
+
+    // Find all elements that contain category-sounding text
+    const catTextEls = [];
+    const catNames = ['Soup', 'Ramen', 'Salads', 'Hosomaki', 'Bowls', 'Drinks'];
+    catNames.forEach(cat => {
+      const el = [...document.querySelectorAll('*')].find(e => e.childNodes.length === 1 && e.textContent.trim() === cat);
+      if (el) catTextEls.push({ tag: el.tagName, class: el.className.slice(0, 80), href: el.href || null, outerHTML: el.outerHTML.slice(0, 200) });
+    });
+
+    return { allLinks, navItems: navItems.slice(0, 10), sidebarEls: sidebarEls.slice(0, 10), catTextEls };
+  });
+
+  console.log('\nAll catalog links:');
+  domInspect.allLinks.forEach(l => console.log(`  <a href="${l.href}"> ${l.text}`));
+  console.log('\nNav items:');
+  domInspect.navItems.forEach(l => console.log(`  <${l.tag} class="${l.class}"> "${l.text}" href=${l.href}`));
+  console.log('\nSidebar elements:');
+  domInspect.sidebarEls.forEach(l => console.log(`  <${l.tag} class="${l.class}"> "${l.text}" href=${l.href}`));
+  console.log('\nCategory text elements:');
+  domInspect.catTextEls.forEach(l => console.log(`  ${l.outerHTML}`));
+
+  console.log('\n--- All API calls (last 30 unique) ---');
+  [...new Set(apiCalls)].slice(-30).forEach(u => console.log(`  ${u}`));
 
   await browser.close();
   console.log('\nDone.');
