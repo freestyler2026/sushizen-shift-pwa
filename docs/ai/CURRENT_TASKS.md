@@ -1,6 +1,53 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Talabat net payout extractor — ListPayouts API discovered)
+Last updated: 2026-08-21 (WH Inventory ①②③ 修正完了)
+
+---
+
+## ✅ Completed: WH Inventory 3件修正 (2026-08-21, Heroku f5632c0, Vercel 2a4ddaa)
+
+**問題①**: メニュー名などITEM以外のアイテムがWH Inventoryリストに表示されていた
+→ `get_wh_master_items` は既に `AND i.item_type = 'ITEM'` でフィルタ済み。不要なアイテムは Delete ボタン（soft-delete）で削除可能。コード変更不要。
+
+**問題②**: Unit変更時に「SKU must follow SK-001 format」エラー
+→ `inventory_db.py` の `update_inv_item` で SKU 未送信時も `assert_shared_sku_available` を呼んでいたバグ
+→ 修正: `if sku is not None:` ガードを追加（SKUが送信されていない場合はバリデーションをスキップ）
+
+**問題③**: Edit Item モーダルに Par Level 入力欄を追加 + テーブルに Par Lv カラム表示
+→ `editParLevel` state + `openEditModal` / `handleEditItem` に `par_level` を追加（前セッションで実装済み）
+→ Edit モーダルに Par Level 入力欄追加（「auto-order triggered when stock falls below this」ヒント付き）
+→ WH Stock テーブルに「Par Lv」カラム追加（`—` 表示でpar level 0を識別）
+→ `stockBadge` を `stockBadge(theoretical, needQty?)` に更新: `need_qty > 0` のとき「LOW」バッジ表示
+→ 自動Direct Purchase注文ロジックは既存の `wh_generate_orders` エンドポイントで対応済み
+
+---
+
+## ✅ Completed: Salmon Portioning — 4-Category + Par-Level Alerts + E2E Test (2026-08-21, Heroku v2051→v2053, Vercel 36f800e)
+
+**スタッフ要望対応**: サーモンポーショニングの分類を3項目から4項目に変更 + Par Level アラート
+
+**変更内容**:
+- 旧: Whole / Main Portion / Topping（Waste計算）
+- 新: Whole (100%) / Main Portion (Par ≥67.5%) / Scrap — Decoration/Gunkan/Hosomaki (Par ≤10%) / Salmon Skin (Par ≤22.5%)
+
+**アラート条件（±2.5%）**:
+- Main Portion < 65% or > 70% → alert
+- Scrap > 12.5% → alert
+- Salmon Skin > 25% → alert
+→ Management Inbox に `task_type="salmon_yield_alert"` タスク作成 + メッセージ付与（サーモンカットトレーニング案内含む）
+
+**DB変更**: `salmon_yield_records` に `scrap_g` と `skin_g` カラム追加（ALTER TABLE IF NOT EXISTS で後方互換）
+
+**フロントエンド**: per-category % リアルタイム表示（green/yellow/red）、アラートバナー表示
+
+**E2Eテスト結果（2026-08-21 v2053で完全動作確認）**:
+- Whole=5kg / Main=3kg(60%) / Scrap=0.7kg(14%) / Skin=1.3kg(26%) で提出
+- salmon_yield_records レコード正常作成 ✅
+- management_tasks レコード作成（salmon_yield_alert, severity=yellow）✅
+- task_messages にアラート詳細テキスト添付 ✅
+- Management Back Office Dubai画面に「Salmon Yield Alert」表示 ✅
+- **v2052バグ修正**: topping_g NOT NULL制約エラー → INSERT に `topping_g=0` 明示
+- **v2053バグ修正**: Task Message未作成 → `create_management_task`の戻り値を直接使用（余分なSELECT削除）
 
 ---
 
