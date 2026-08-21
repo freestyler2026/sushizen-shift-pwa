@@ -79,7 +79,13 @@ async function main() {
       await page.close();
 
       if (items.length === 0) {
-        console.log(`Outlet ${catalog.outletId}: no prices found (page may have errored)`);
+        const finalUrl = page.url();
+        const title = await page.title();
+        const bodyText = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+        console.log(`Outlet ${catalog.outletId}: no prices found`);
+        console.log(`  URL: ${finalUrl}`);
+        console.log(`  Title: ${title}`);
+        console.log(`  Body: ${bodyText.replace(/\n/g, ' ')}`);
         continue;
       }
 
