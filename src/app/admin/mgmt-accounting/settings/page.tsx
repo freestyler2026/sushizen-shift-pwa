@@ -44,8 +44,8 @@ interface RevenueEntry {
   updated_at: string | null;
 }
 
-const DUBAI_STORES = ["AM", "AB", "JLT", "BB", "ARJ", "JJAD_AM", "JJAD_JLT", "RZ_ARJ", "RZ_BB"];
-const MANILA_STORES = ["CUB", "BER", "MOA", "MKT", "QC", "CEB"];
+const DUBAI_STORES = ["", "AM", "AB", "JLT", "BB", "ARJ", "JJAD_AM", "JJAD_JLT", "RZ_ARJ", "RZ_BB"];
+const MANILA_STORES = ["", "CUB", "BER", "MOA", "MKT", "QC", "CEB"];
 const OVERHEAD_CATEGORIES = ["Rent", "Utilities", "Insurance", "Marketing", "Maintenance", "Delivery Fees", "Admin", "Other"];
 const BUDGET_CATEGORIES = ["food", "labor", "overhead"];
 
@@ -67,7 +67,7 @@ export default function MgmtSettingsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"revenue" | "overhead" | "budget">("revenue");
   const [city, setCity] = useState("dubai");
-  const [storeCode, setStoreCode] = useState("AM");
+  const [storeCode, setStoreCode] = useState("");
   const [yearMonth, setYearMonth] = useState(thisMonth());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -222,7 +222,7 @@ export default function MgmtSettingsPage() {
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3`}>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">City</label>
-          <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(e.target.value === "dubai" ? "AM" : "CUB"); }}
+          <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
             <option value="dubai">Dubai</option>
             <option value="manila">Manila</option>
@@ -232,7 +232,7 @@ export default function MgmtSettingsPage() {
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Store</label>
           <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            {storeOptions.map(s => <option key={s} value={s}>{s || "City-wide"}</option>)}
           </select>
         </div>
         <div className="space-y-1">
