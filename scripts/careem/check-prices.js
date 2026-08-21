@@ -83,6 +83,7 @@ async function waitForApiResponse(captured, urlSubstring, maxMs = 10_000) {
 
 async function getOutletPricesViaNetwork(page, outletId) {
   const allCaptured = [];
+  let spaHeaders = {};  // auth headers sniffed from an actual SPA request
 
   const responseHandler = async (response) => {
     const url = response.url();
@@ -95,95 +96,116 @@ async function getOutletPricesViaNetwork(page, outletId) {
     } catch {}
   };
 
+  // Capture auth headers from the first catalog-staging request the SPA makes
+  const requestHandler = (request) => {
+    const url = request.url();
+    if (url.includes('catalog-staging') && Object.keys(spaHeaders).length === 0) {
+      const h = { ...request.headers() };
+      delete h['cookie'];  // cookies sent automatically via credentials:'include'
+      spaHeaders = h;
+    }
+  };
+
   page.on('response', responseHandler);
+  page.on('request', requestHandler);
 
   try {
-    // Step 1: Load catalog overview (don't wait for networkidle — it times out)
     allCaptured.length = 0;
-    const overviewUrl = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
-    await page.goto(overviewUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    await page.goto(
+      `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 }
+    ).catch(() => {});
 
-    // Wait for the categories API response (up to 30s)
+    // Wait for categories API — this gives us catalogId + auth headers
     const categoriesCall = await waitForApiResponse(allCaptured, '/categories?catalogId=', 30_000);
+    await page.waitForTimeout(500);  // let spaHeaders settle
 
-    const titleAfterCats = await page.title();
-    console.log(`  Title: ${titleAfterCats}`);
+    const title = await page.title();
+    console.log(`  Title: ${title}`);
 
-    if (titleAfterCats.includes('Something went wrong') || titleAfterCats === 'Partners Portal' || titleAfterCats === 'Overview - Careem') {
+    if (!categoriesCall || title.includes('Something went wrong') || title === 'Partners Portal') {
+      // Log all captured URLs for diagnosis
+      console.log(`  Captured APIs: ${allCaptured.map(c => c.url.slice(0, 80)).join(' | ').slice(0, 300) || 'none'}`);
       return null;
     }
 
-    const categories = Array.isArray(categoriesCall?.json)
-      ? categoriesCall.json.filter(c => c.status === 'ACTIVE').slice(0, 12)
-      : [];
-    console.log(`  Categories: ${categories.map(c => c.name).join(', ').slice(0, 120)}`);
-
-    if (categories.length === 0) {
-      console.log(`  No categories found in API response`);
+    const catalogIdMatch = categoriesCall.url.match(/catalogId=(\d+)/);
+    if (!catalogIdMatch) {
+      console.log(`  No catalogId in: ${categoriesCall.url}`);
       return [];
     }
+    const catalogId = catalogIdMatch[1];
 
-    // Collect items already loaded during the overview page load
-    // (the SPA often pre-loads the first/selected category on arrival)
+    const categories = Array.isArray(categoriesCall.json)
+      ? categoriesCall.json.filter(c => c.status === 'ACTIVE').slice(0, 15)
+      : [];
+    console.log(`  catalogId: ${catalogId}, categories: ${categories.map(c => c.name).join(', ').slice(0, 120)}`);
+    console.log(`  SPA headers: ${Object.keys(spaHeaders).join(', ')}`);
+
+    if (categories.length === 0) return [];
+
+    // Collect items already pushed during the page load (any pre-loaded product APIs)
     const allItems = [];
-    const preloaded = allCaptured.filter(c => c.url.includes('product') || c.url.includes('item'));
-    for (const p of preloaded) {
-      const items = extractItemsFromResponse(p.json);
+    for (const c of allCaptured) {
+      if (!c.url.includes('product') && !c.url.includes('item')) continue;
+      const items = extractItemsFromResponse(c.json);
       if (items.length > 0) {
-        console.log(`  Pre-loaded ${items.length} items from overview (${p.url.slice(p.url.lastIndexOf('/') - 20)})`);
+        console.log(`  Pre-loaded: ${items.length} items from ${c.url.slice(c.url.lastIndexOf('/') - 20)}`);
         items.forEach(i => allItems.push(i));
       }
     }
+    if (allItems.length > 0) {
+      return [...new Map(allItems.map(i => [i.name, i])).values()];
+    }
 
-    // Step 2: Click each category sidebar item, capture product API response
+    // Main approach: use page.evaluate() to make authenticated fetch calls from
+    // inside the browser (cookies + spaHeaders are both available)
+    const BASE = 'https://partners.careem.com/api/saturn-ext/v1/catalog-staging';
+
     for (const cat of categories) {
       const catName = cat.name.trim();
-      const snapshotLen = allCaptured.length;
+      // Try ACTIVE first, then no-status filter
+      const urls = [
+        `${BASE}/catalogs/${catalogId}/products?status=ACTIVE&categoryId=${cat.id}`,
+        `${BASE}/catalogs/${catalogId}/products?categoryId=${cat.id}`,
+      ];
 
-      // Click the category element by text content
-      const clicked = await page.getByText(catName, { exact: true }).first().click({ timeout: 5_000 })
-        .then(() => true).catch(() => false);
+      let catItems = [];
+      for (const apiUrl of urls) {
+        const result = await page.evaluate(async ({ url, hdrs }) => {
+          try {
+            const res = await fetch(url, { credentials: 'include', headers: hdrs });
+            const text = await res.text();
+            let json = null;
+            try { json = JSON.parse(text); } catch {}
+            return { status: res.status, snippet: text.slice(0, 400), json };
+          } catch (e) {
+            return { error: e.message };
+          }
+        }, { url: apiUrl, hdrs: spaHeaders });
 
-      if (!clicked) {
-        // Try partial match
-        const clicked2 = await page.locator(`text="${catName}"`).first().click({ timeout: 3_000 })
-          .then(() => true).catch(() => false);
-        if (!clicked2) {
-          console.log(`  "${catName}": could not click`);
-          continue;
+        if (result.json) {
+          catItems = extractItemsFromResponse(result.json);
+          const tag = apiUrl.includes('ACTIVE') ? 'ACTIVE' : 'ALL';
+          console.log(`  "${catName}" [${tag}]: ${catItems.length} items`);
+          if (catItems.length === 0) {
+            console.log(`    Snippet: ${result.snippet}`);
+          }
+          if (catItems.length > 0) break;
+        } else {
+          console.log(`  "${catName}": HTTP ${result.status || 'err'} — ${(result.snippet || result.error || '').slice(0, 120)}`);
+          break;  // don't retry if server returned an error
         }
       }
 
-      // Wait for product API response after the click (up to 8s)
-      const deadline = Date.now() + 8_000;
-      let productCall = null;
-      while (Date.now() < deadline) {
-        const newCalls = allCaptured.slice(snapshotLen);
-        productCall = newCalls.find(c => c.url.includes('product') || c.url.includes('item'));
-        if (productCall) break;
-        await new Promise(r => setTimeout(r, 300));
-      }
-
-      if (!productCall) {
-        // Log new URLs for diagnosis
-        const newUrls = allCaptured.slice(snapshotLen).map(c => c.url.slice(0, 80));
-        console.log(`  "${catName}": no product API. New calls: ${newUrls.join(', ').slice(0, 200) || 'none'}`);
-        continue;
-      }
-
-      const catItems = extractItemsFromResponse(productCall.json);
-      console.log(`  "${catName}": ${catItems.length} items from ${productCall.url.slice(productCall.url.lastIndexOf('/') - 20)}`);
-      if (catItems.length === 0) {
-        console.log(`    Snippet: ${JSON.stringify(productCall.json).slice(0, 300)}`);
-      }
       catItems.forEach(i => allItems.push({ ...i, category: catName }));
     }
 
-    // Deduplicate by name
     return [...new Map(allItems.map(i => [i.name, i])).values()];
 
   } finally {
     page.off('response', responseHandler);
+    page.off('request', requestHandler);
   }
 }
 
