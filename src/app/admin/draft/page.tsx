@@ -1472,6 +1472,14 @@ export default function AdminDraftPage() {
   const [xlsxApplyBusy, setXlsxApplyBusy] = useState(false);
   const xlsxFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Staff Roster Check — pre-generate preview
+  type RosterEntry = { name: string; days: number; is_excluded: boolean };
+  const [rosterPreview, setRosterPreview] = useState<Record<string, RosterEntry[]>>({});
+  const [rosterLoading, setRosterLoading] = useState(false);
+  // unchecked[branchCode] = Set of staff names to exclude for this run
+  const [rosterUnchecked, setRosterUnchecked] = useState<Record<string, Set<string>>>({});
+  const [rosterOpen, setRosterOpen] = useState(true);
+
   // Auto-export state: triggered right after Confirm Generate
   const [autoExportBusy, setAutoExportBusy] = useState(false);
   const [autoExportResults, setAutoExportResults] = useState<Record<string, string>>({}); // branch_code → sheet url (success)
@@ -1672,6 +1680,25 @@ export default function AdminDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOperate, approverName, pin, city, applyMonth]);
 
+  async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
+    setRosterLoading(true);
+    setRosterUnchecked({});
+    const results: Record<string, RosterEntry[]> = {};
+    await Promise.allSettled(
+      branchCodes.map(async (bc) => {
+        try {
+          const qs = new URLSearchParams({ city: cityVal, branch_code: bc, target_month: targetMon });
+          const data = await apiGet<{ staff: RosterEntry[] }>(`/api/draft/staff_preview?${qs}`);
+          results[bc] = data.staff || [];
+        } catch {
+          results[bc] = [];
+        }
+      })
+    );
+    setRosterPreview(results);
+    setRosterLoading(false);
+  }
+
   function prepareDraft() {
     setError("");
     setGenerateResult(null);
@@ -1684,6 +1711,8 @@ export default function AdminDraftPage() {
     setApplyPrepared(null);
     setApplyResult(null);
     setPublished(null);
+    setRosterOpen(true);
+    fetchRosterPreview(draftBranches, targetMonth, city);
   }
 
   async function confirmGenerate() {
@@ -1711,11 +1740,13 @@ export default function AdminDraftPage() {
       const blockedBranches: string[] = [];
       for (const code of prepared.branch_codes) {
         try {
+          const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
           const res = (await apiPost(`/api/draft/generate_month`, {
             city: prepared.city,
             branch_code: code,
             target_month: prepared.target_month,
             created_by: approverName || "AI",
+            extra_excluded_names: extraExcluded,
           })) as DraftGenerateMonthResult;
           // Branch had no previous-month data — skip gracefully (not an error)
           if (res.skipped) {
@@ -1849,12 +1880,14 @@ export default function AdminDraftPage() {
     let totalRowsInserted = 0;
     for (const code of replaceGuard.branch_codes) {
       try {
+        const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
         const res = (await apiPost(`/api/draft/generate_month`, {
           city: replaceGuard.city,
           branch_code: code,
           target_month: replaceGuard.target_month,
           created_by: approverName || "AI",
           force_replace: true,
+          extra_excluded_names: extraExcluded,
         })) as DraftGenerateMonthResult;
         nextVersions.push({
           branch_code: res.branch_code,
@@ -3195,6 +3228,110 @@ export default function AdminDraftPage() {
             Prepared: All {city === "dubai" ? "Dubai" : "Manila"} stores • {prepared.target_month}
           </p>
         ) : null}
+
+        {/* ── Staff Roster Check ── */}
+        {prepared && (
+          <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between px-5 py-3"
+              onClick={() => setRosterOpen((p) => !p)}
+            >
+              <span className="flex items-center gap-2 font-semibold text-sky-300 text-sm">
+                <ClipboardList className="h-4 w-4" />
+                Staff Roster Check
+                <span className="ml-1 text-xs font-normal text-sky-400/70">
+                  — uncheck staff to exclude from this generation
+                </span>
+              </span>
+              <span className="text-neutral-400 text-xs">{rosterOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {rosterOpen && (
+              <div className="px-5 pb-5 space-y-4">
+                {rosterLoading ? (
+                  <p className="text-xs text-neutral-500 flex items-center gap-1.5">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading previous month roster…
+                  </p>
+                ) : (
+                  prepared.branch_codes.map((bc) => {
+                    const staff = rosterPreview[bc] || [];
+                    const unchecked = rosterUnchecked[bc] || new Set<string>();
+                    const activeStaff = staff.filter((s) => !s.is_excluded);
+                    const excludedByDb = staff.filter((s) => s.is_excluded);
+                    const uncheckedCount = activeStaff.filter((s) => unchecked.has(s.name)).length;
+
+                    function toggleStaff(name: string) {
+                      setRosterUnchecked((prev) => {
+                        const next = { ...prev };
+                        const set = new Set(next[bc] || []);
+                        if (set.has(name)) set.delete(name);
+                        else set.add(name);
+                        next[bc] = set;
+                        return next;
+                      });
+                    }
+
+                    return (
+                      <div key={bc}>
+                        {prepared.branch_codes.length > 1 && (
+                          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
+                            {labelOf(city as City, bc as BranchCode)}
+                          </p>
+                        )}
+                        {staff.length === 0 ? (
+                          <p className="text-xs text-neutral-500">No previous month data found for this branch.</p>
+                        ) : (
+                          <div className="space-y-0.5">
+                            {activeStaff.map((s) => {
+                              const isUnchecked = unchecked.has(s.name);
+                              return (
+                                <label
+                                  key={s.name}
+                                  className={`flex items-center gap-2.5 cursor-pointer rounded px-2 py-1 text-sm transition-colors ${
+                                    isUnchecked
+                                      ? "text-red-400/70 line-through"
+                                      : "text-zinc-200 hover:bg-white/5"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!isUnchecked}
+                                    onChange={() => toggleStaff(s.name)}
+                                    className="accent-sky-500 h-3.5 w-3.5 rounded shrink-0"
+                                  />
+                                  <span className="flex-1">{s.name}</span>
+                                  <span className="text-xs text-neutral-500 shrink-0">{s.days}d</span>
+                                </label>
+                              );
+                            })}
+                            {excludedByDb.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-white/10">
+                                <p className="text-xs text-neutral-500 mb-1">Already excluded (Exclusion Manager):</p>
+                                {excludedByDb.map((s) => (
+                                  <div key={s.name} className="flex items-center gap-2.5 px-2 py-0.5 text-xs text-neutral-600">
+                                    <span className="h-3.5 w-3.5 shrink-0 flex items-center justify-center text-neutral-600">✕</span>
+                                    <span className="line-through">{s.name}</span>
+                                    <span className="shrink-0">{s.days}d</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {uncheckedCount > 0 && (
+                          <p className="mt-2 text-xs text-amber-400">
+                            {uncheckedCount} staff will be excluded from this generation run.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {error ? <div className={`${BADGE_ERROR} mt-3 whitespace-pre-wrap px-4 py-2 text-sm`}>{error}</div> : null}
       </div>
