@@ -43,6 +43,8 @@ async function noonFetch(cookieStr, method, path, body) {
   const resp = await fetch(`${PORTAL}${path}`, opts);
   const text = await resp.text();
   if (!resp.ok) throw new Error(`${resp.status}: ${text.slice(0, 300)}`);
+  // Noon redirects to login page with 200 when session expires
+  if (text.trimStart().startsWith('<')) throw new Error(`401: session expired (HTML response)`);
   return JSON.parse(text);
 }
 
