@@ -144,13 +144,21 @@ async function getOutletPricesViaNetwork(page, outletId) {
 
     if (categories.length === 0) return [];
 
-    // Collect items already pushed during the page load (any pre-loaded product APIs)
+    // Wait 5s for SPA to make additional API calls (e.g. auto-selected first category)
+    await page.waitForTimeout(5_000);
+
+    // Log ALL captured URLs (no filter) to find the actual products endpoint
+    const capturedPaths = allCaptured
+      .map(c => c.url.replace('https://partners.careem.com', ''))
+      .join('\n    ');
+    console.log(`  All captured APIs (${allCaptured.length}):\n    ${capturedPaths.slice(0, 1500)}`);
+
+    // Check if any already-captured response has priced items
     const allItems = [];
     for (const c of allCaptured) {
-      if (!c.url.includes('product') && !c.url.includes('item')) continue;
       const items = extractItemsFromResponse(c.json);
       if (items.length > 0) {
-        console.log(`  Pre-loaded: ${items.length} items from ${c.url.slice(c.url.lastIndexOf('/') - 20)}`);
+        console.log(`  Pre-loaded ${items.length} items from: ${c.url.slice(-80)}`);
         items.forEach(i => allItems.push(i));
       }
     }
@@ -158,61 +166,59 @@ async function getOutletPricesViaNetwork(page, outletId) {
       return [...new Map(allItems.map(i => [i.name, i])).values()];
     }
 
-    // Main approach: use page.evaluate() to make authenticated fetch calls from
-    // inside the browser (cookies + spaHeaders are both available)
-    const BASE = 'https://partners.careem.com/api/saturn-ext/v1/catalog-staging';
-
+    // Try clicking each category with force:true (bypasses viewport visibility)
+    // and also fall back to JS .click() which works on off-screen elements
     for (const cat of categories) {
       const catName = cat.name.trim();
-      // Try multiple pagination + path variants to find the right API format.
-      // Other Careem APIs use size= not pageSize=; try both plus 0-indexed page.
-      const pagVariants = [
-        'page=1&pageSize=100',
-        'page=1&size=100',
-        'page=0&pageSize=100',
-        'page=0&size=100',
-        'page=1&page_size=100',
-      ];
+      const snapshotLen = allCaptured.length;
 
-      let catItems = [];
-      let foundWorkingVariant = false;
+      // Playwright click with force:true
+      const clicked = await page.getByText(catName, { exact: true }).first()
+        .click({ force: true, timeout: 3_000 })
+        .then(() => true).catch(() => false);
 
-      for (const pag of pagVariants) {
-        const apiUrl = `${BASE}/catalogs/${catalogId}/products?status=INACTIVE&categoryId=${cat.id}&${pag}`;
-        console.log(`  Trying: ...${apiUrl.slice(-90)}`);
-
-        const result = await page.evaluate(async ({ url, hdrs }) => {
-          try {
-            const res = await fetch(url, { credentials: 'include', headers: hdrs });
-            const text = await res.text();
-            let json = null;
-            try { json = JSON.parse(text); } catch {}
-            return { status: res.status, snippet: text.slice(0, 400), json };
-          } catch (e) {
-            return { error: e.message };
+      if (!clicked) {
+        // JS .click() — works even on off-screen/invisible elements
+        await page.evaluate((text) => {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          let node;
+          while ((node = walker.nextNode())) {
+            if (node.textContent.trim() === text) {
+              node.parentElement?.click();
+              break;
+            }
           }
-        }, { url: apiUrl, hdrs: spaHeaders });
-
-        const snippet = result.snippet || result.error || '';
-        if (!result.json || snippet.includes('"error"')) {
-          console.log(`    → HTTP ${result.status || 'err'}: ${snippet.slice(0, 120)}`);
-          continue;  // try next variant
-        }
-
-        catItems = extractItemsFromResponse(result.json);
-        console.log(`  "${catName}": ${catItems.length} items [${pag}]`);
-        if (catItems.length === 0) {
-          console.log(`    Snippet: ${result.snippet}`);
-        }
-        foundWorkingVariant = true;
-        break;
+        }, catName);
       }
 
-      if (!foundWorkingVariant && catItems.length === 0) {
-        console.log(`  "${catName}": all pagination variants failed`);
+      // Wait up to 5s for any new API response to be captured
+      const deadline = Date.now() + 5_000;
+      let found = null;
+      while (Date.now() < deadline) {
+        const newCalls = allCaptured.slice(snapshotLen);
+        // Look for any response that has priced items
+        for (const c of newCalls) {
+          const items = extractItemsFromResponse(c.json);
+          if (items.length > 0) { found = { c, items }; break; }
+        }
+        if (found) break;
+        await new Promise(r => setTimeout(r, 300));
       }
 
-      catItems.forEach(i => allItems.push({ ...i, category: catName }));
+      if (found) {
+        console.log(`  "${catName}": ${found.items.length} items from ${found.c.url.slice(-80)}`);
+        found.items.forEach(i => allItems.push({ ...i, category: catName }));
+      } else {
+        // Log new URLs captured after the click (to identify the products endpoint)
+        const newUrls = allCaptured.slice(snapshotLen)
+          .map(c => c.url.replace('https://partners.careem.com', '').slice(0, 90));
+        console.log(`  "${catName}": no priced items. New calls: ${newUrls.join(', ').slice(0, 300) || 'none'}`);
+        // Dump snippets of any new JSON response
+        const newJsonCalls = allCaptured.slice(snapshotLen).filter(c => c.json);
+        for (const nc of newJsonCalls.slice(0, 2)) {
+          console.log(`    [${nc.url.slice(-60)}] snippet: ${JSON.stringify(nc.json).slice(0, 300)}`);
+        }
+      }
     }
 
     return [...new Map(allItems.map(i => [i.name, i])).values()];
