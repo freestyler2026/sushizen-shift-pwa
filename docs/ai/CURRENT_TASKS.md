@@ -1,6 +1,72 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Phase 2 テスト完了・Bug 2 修正: Manila GrabFood platform name)
+Last updated: 2026-08-21 (Phase 3 KPI Alerts + Trend Prediction + Executive Report: Heroku v2061, Vercel f49f3b2)
+
+---
+
+## ✅ Completed: Phase 3 KPI Alerts + Trend Prediction + Executive Report (2026-08-21, Heroku v2061, Vercel f49f3b2)
+
+**管理会計システム Phase 3 — KPI Alerts / Trend Prediction / Executive Report**
+
+**Backend (db.py)**:
+- 新関数: `check_mgmt_kpi_alerts(year_month)` — food cost >30%/40%, prime cost >65%/80%, revenue decline >25% MoM をオンザフライで検知
+- 新関数: `get_mgmt_trend_prediction(city, months=6)` — 6ヶ月の食材費データを線形回帰で翌月予測
+- 新関数: `get_mgmt_executive_report(year_month)` — 全データを集約した月次エグゼクティブレポート
+
+**Backend (main.py)**:
+- `GET /api/admin/mgmt/kpi-alerts?year_month=` — KPIアラート一覧
+- `GET /api/admin/mgmt/trend-prediction?city=&months=` — トレンド予測
+- `GET /api/admin/mgmt/executive-report?year_month=` — 月次レポート集約
+
+**Frontend**:
+- `group/page.tsx`: KPI Alertsパネル（重大度別カラー）+ Trend Predictionsセクション追加
+- 新ページ: `/admin/mgmt-accounting/report/page.tsx` — 印刷可能な月次エグゼクティブレポート (window.print() PDF出力)
+- NavBar: "Monthly Report" (FileBarChart) を Group Management の直下に追加
+- NavBar: excludePrefix を string[] に対応（Cost Intelligence が /report も除外）
+
+**動作確認 (2026-08-21)**:
+- KPI Alerts API: Manila food cost 5807% → Critical alert × 2 ✅
+- Trend Prediction API: Dubai 翌月 (2026-09) AED 217,188 予測（趨勢↑）✅
+- Executive Report API: 全データ集約動作確認済み ✅
+- Frontend: Vercel deploy 進行中 (f49f3b2)
+
+---
+
+## ✅ Completed: Phase 3 Group Management — Core (2026-08-21, Heroku v2060, Vercel 2688cd7)
+
+**管理会計システム Phase 3 — Group Management ページ初期実装**
+
+**Backend (db.py)**:
+- 新テーブル: `mgmt_fx_rates` (year_month, currency_from, currency_to, rate)
+- 新関数: `get_mgmt_fx_rates(year_month)` — FXレート取得（デフォルト AED=¥40.50, PHP=¥2.55）
+- 新関数: `upsert_mgmt_fx_rate(...)` — FXレート更新
+- 新関数: `get_mgmt_group_summary(year_month)` — Manila+Dubai連結P&L（JPY換算）
+- 新関数: `get_mgmt_store_ranking(year_month)` — 全店舗食材費ランキング
+
+**Backend (main.py)**:
+- `GET /api/admin/mgmt/group-summary` — 連結サマリー
+- `GET /api/admin/mgmt/store-ranking` — 店舗ランキング
+- `GET /api/admin/mgmt/fx-rates` — FXレート取得
+- `POST /api/admin/mgmt/fx-rates` — FXレート設定
+
+**Frontend**:
+- 新ページ: `/admin/mgmt-accounting/group/page.tsx`
+  - KPIカード4枚（グループ合計 JPY）
+  - City Breakdown テーブル (Dubai/Manila/Group Total)
+  - Store Food Cost Ranking テーブル
+  - Exchange Rate Settings (AED/PHP→JPY、月別設定)
+- NavBar: "Group Management" (Building2 アイコン) を Cost Intelligence の直下に追加
+
+**動作確認結果 (2026-08-21)**:
+- Group Revenue: ¥20,427,368 (Dubai AED 500,000 + Manila PHP 69,556)
+- Dubai: ¥4,731,971 food cost @ 23.4% ✅
+- Manila: ¥10,300,181 food cost @ 5807% (Manila AR収入が少ない段階のため高率)
+- Store Ranking: TAFT Manila PHP 1,239,164 が首位 ✅
+
+**次のPhase 3機能** (未着手):
+- KPI Alerts (Prime Cost 過剰・売上急落の自動検知 → Manager Inbox 連携)
+- Executive Report (月次経営レポート PDF export)
+- Trend Prediction (過去データからのAI予測)
 
 ---
 
