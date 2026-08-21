@@ -119,73 +119,80 @@ async function main() {
     const context = await browser.newContext({ storageState: SESSION_PATH });
     const checkedAt = new Date().toISOString();
 
-    // Establish SPA context by loading the merchant home page first
-    {
-      const seedPage = await context.newPage();
-      await seedPage.goto('https://partners.careem.com/saturn-ext/merchant/home', {
-        waitUntil: 'domcontentloaded', timeout: 30_000,
-      }).catch(() => {});
-      await seedPage.waitForTimeout(2000);
-      await seedPage.close();
-    }
+    // Use one persistent page for all outlets — keeps SPA React state alive between navigations
+    const page = await context.newPage();
 
-    for (const outlet of OUTLETS) {
-      const { outletId, name } = outlet;
-      const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
-      console.log(`Checking outlet ${outletId} (${name}): ${url}`);
+    // Step 1: Establish merchant context by loading the portal home → merchant home
+    console.log('Establishing merchant SPA context...');
+    await page.goto('https://partners.careem.com', { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+    // Navigate into the Store Manager portal
+    await page.goto('https://partners.careem.com/saturn-ext/merchant/home', {
+      waitUntil: 'networkidle', timeout: 60_000,
+    }).catch(() => {});
+    await page.waitForTimeout(2000);
+    console.log(`  Context page: ${page.url()} — "${await page.title()}"`);
 
-      const page = await context.newPage();
-      // Use domcontentloaded then explicitly wait for sidebar — networkidle often times out on GitHub Actions
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+    if (page.url().includes('/login') || page.url().includes('/auth')) {
+      console.log('Session expired at context step');
+      sessionExpired = true;
+      await page.close();
+    } else {
 
-      if (page.url().includes('/login') || page.url().includes('/auth')) {
-        console.log('Session expired — login redirect detected');
-        sessionExpired = true;
-        await page.close();
-        break;
+      for (const outlet of OUTLETS) {
+        const { outletId, name } = outlet;
+        const url = `https://partners.careem.com/saturn-ext/merchant/catalog/${outletId}`;
+        console.log(`\nChecking outlet ${outletId} (${name}): ${url}`);
+
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+
+        // Wait for title to change from generic to outlet-specific
+        await page.waitForFunction(
+          () => document.title !== 'Partners Portal' && document.title !== '' && document.title !== 'Overview - Careem',
+          { timeout: 30_000 }
+        ).catch(() => {});
+
+        const title = await page.title();
+        console.log(`  Title: ${title}`);
+
+        if (title.includes('Something went wrong') || title.includes('Not Found') || title === 'Partners Portal' || title === 'Overview - Careem') {
+          const body = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+          console.log(`  Body: ${body.replace(/\n/g, ' | ')}`);
+          console.log(`  Skipping.`);
+          continue;
+        }
+
+        // Wait for category sidebar links to appear
+        console.log(`  Waiting for sidebar...`);
+        const sidebarSelector = `a[href*="/catalog/${outletId}/"]`;
+        const sidebarAppeared = await page.waitForSelector(sidebarSelector, { timeout: 30_000 })
+          .then(() => true).catch(() => false);
+        console.log(`  Sidebar appeared: ${sidebarAppeared}`);
+
+        if (!sidebarAppeared) {
+          const body = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
+          console.log(`  Body: ${body.replace(/\n/g, ' | ')}`);
+          continue;
+        }
+
+        const items = await getPricesAllCategories(page, outletId);
+
+        if (items.length === 0) {
+          console.log(`  No prices found`);
+          continue;
+        }
+
+        const result = await postWebhook({
+          outlet_id:   outletId,
+          outlet_name: name,
+          category:    'All',
+          items,
+          checked_at:  checkedAt,
+        });
+        console.log(`  ${items.length} prices → ${JSON.stringify(result)}`);
       }
-
-      const title = await page.title();
-      console.log(`  Title: ${title}`);
-
-      if (title.includes('Something went wrong') || title.includes('Not Found') || title === 'Partners Portal' || title === 'Overview - Careem') {
-        const body = await page.evaluate(() => document.body?.innerText?.slice(0, 500) || '');
-        console.log(`  Body snippet: ${body.replace(/\n/g, ' | ')}`);
-        console.log(`  Outlet ${outletId}: page error/not found — skipping`);
-        await page.close();
-        continue;
-      }
-
-      // Wait for category sidebar to render (up to 60s)
-      console.log(`  Waiting for sidebar...`);
-      const sidebarSelector = `a[href*="/catalog/${outletId}/"]`;
-      const sidebarAppeared = await page.waitForSelector(sidebarSelector, { timeout: 60_000 })
-        .then(() => true).catch(() => false);
-      console.log(`  Sidebar appeared: ${sidebarAppeared}`);
-
-      if (!sidebarAppeared) {
-        const body = await page.evaluate(() => document.body?.innerText?.slice(0, 300) || '');
-        console.log(`  Body: ${body.replace(/\n/g, ' | ')}`);
-      }
-
-      // Walk sidebar categories (right panel needs a category click to show prices)
-      const items = await getPricesAllCategories(page, outletId);
 
       await page.close();
-
-      if (items.length === 0) {
-        console.log(`  Outlet ${outletId}: no prices found in any category`);
-        continue;
-      }
-
-      const result = await postWebhook({
-        outlet_id:  outletId,
-        outlet_name: name,
-        category:   'All',
-        items,
-        checked_at: checkedAt,
-      });
-      console.log(`Outlet ${outletId} (${name}): ${items.length} prices → ${JSON.stringify(result)}`);
     }
   } finally {
     await browser.close();
