@@ -1,10 +1,43 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-21 (Phase 3 KPI Alerts + Trend Prediction + Executive Report: Heroku v2061, Vercel f49f3b2)
+Last updated: 2026-08-22 (Phase 3 完全完了: Group Budget Targets + Push to Manager Inbox + Talabat日次化: Heroku v2062, Vercel a21e8e0 — デプロイ中)
 
 ---
 
-## ✅ Completed: Phase 3 KPI Alerts + Trend Prediction + Executive Report (2026-08-21, Heroku v2061, Vercel f49f3b2)
+## ✅ Completed: Phase 3 Group Budget Targets + Manager Inbox Push + Talabat Daily (2026-08-22, Heroku v2062, Vercel a21e8e0)
+
+**管理会計システム Phase 3 — 追加機能 ②③④**
+
+**Backend (db.py)**:
+- 新テーブル: `mgmt_group_targets` (year_month, city, food_cost_rate_target, prime_cost_rate_target, notes) — UNIQUE(year_month, city)
+- `ensure_mgmt_group_targets_table()` — テーブル自動作成
+- `upsert_mgmt_group_target(year_month, city, food_cost_rate_target, prime_cost_rate_target, notes)` — INSERT ON CONFLICT DO UPDATE
+- `get_mgmt_group_targets(year_month)` — 全都市のターゲット取得
+- `push_kpi_alerts_to_management_tasks(year_month)` — KPIアラートを management_tasks に Push（source_id でDedup）
+
+**Backend (main.py)**:
+- `GET /api/admin/mgmt/group-targets?year_month=` — ターゲット取得
+- `POST /api/admin/mgmt/group-targets` — Dubai/Manila ターゲット登録/更新
+- `POST /api/admin/mgmt/push-kpi-alerts` — KPIアラート → Manager Inbox Push
+
+**Frontend (group/page.tsx)**:
+- Group Budget Targets セクション: Dubai/Manila の Food/Prime Cost % ターゲット設定、実績 vs ターゲット差分をカラーコード表示
+- KPI Alertsパネルに "Push to Manager Inbox" ボタン + フィードバックメッセージ追加
+- fetchData に `/api/admin/mgmt/group-targets` を追加（6並列fetch）
+
+**Talabat 日次化 (.github/workflows/talabat-daily-extract.yml)**:
+- 毎日 02:00 UTC (06:00 Dubai) — `cron: '0 2 * * *'`
+- DATE_FROM=DATE_TO=昨日 → 前日分の gross sales のみ抽出
+- workflow_dispatch で任意日付指定可能
+- net payouts / payout allocation はスキップ（月次決済のため）
+
+**備考**:
+- Phase 2C 日次P&Lダッシュボードは全プラットフォームが日次データを提供できるまで保留
+- Noon (Manila/Dubai) のTalabat統合は未着手 — 公開APIなし、ウェブスクレイピング要検討
+
+---
+
+## ✅ Completed: Phase 3 KPI Alerts + Trend Prediction + Executive Report (2026-08-21, Heroku v2061, Vercel d0b9c48)
 
 **管理会計システム Phase 3 — KPI Alerts / Trend Prediction / Executive Report**
 
@@ -28,7 +61,10 @@ Last updated: 2026-08-21 (Phase 3 KPI Alerts + Trend Prediction + Executive Repo
 - KPI Alerts API: Manila food cost 5807% → Critical alert × 2 ✅
 - Trend Prediction API: Dubai 翌月 (2026-09) AED 217,188 予測（趨勢↑）✅
 - Executive Report API: 全データ集約動作確認済み ✅
-- Frontend: Vercel deploy 進行中 (f49f3b2)
+- Frontend: Vercel d0b9c48 デプロイ完了 ✅ (kk1mx1nrs) — 本番確認済み (2026-08-22)
+- /admin/mgmt-accounting/group: KPI Alerts × 2 (Manila Critical) + Trend Predictions + Monthly Report ボタン ✅
+- /admin/mgmt-accounting/report: 全セクション表示確認、Print / Save PDF ボタン動作確認 ✅
+- **解決した問題**: useSearchParams() in Next.js App Router requires Suspense boundary → 完全削除して thisMonth() デフォルトに変更 (4回失敗後、5回目で成功)
 
 ---
 
