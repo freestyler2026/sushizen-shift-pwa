@@ -1,0 +1,54 @@
+name: FoodPanda Manila — Daily Gross Sales Extraction
+
+on:
+  schedule:
+    # Every day at 23:05 UTC = 07:05 PHT (after midnight Manila time, previous day closed)
+    - cron: '5 23 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to extract (YYYY-MM-DD). Default: yesterday (PHT).'
+        required: false
+        default: ''
+
+jobs:
+  extract-daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Calculate target date (yesterday PHT = UTC+8)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            TARGET_DATE="${{ github.event.inputs.date }}"
+          else
+            # PHT is UTC+8: "yesterday PHT" when run at 23:05 UTC = 07:05 PHT
+            TARGET_DATE=$(TZ=Asia/Manila date -d "yesterday" +%Y-%m-%d 2>/dev/null \
+              || python3 -c "from datetime import datetime, timedelta, timezone; \
+                              pht = timezone.utc; \
+                              print((datetime.now(pht) + timedelta(hours=8) - timedelta(days=1)).strftime('%Y-%m-%d'))")
+          fi
+          echo "DATE_FROM=$TARGET_DATE" >> $GITHUB_ENV
+          echo "DATE_TO=$TARGET_DATE"   >> $GITHUB_ENV
+          echo "Extracting FoodPanda PH gross sales for: $TARGET_DATE"
+
+      - name: Run FoodPanda payout extractor (3 stores, pure REST)
+        run: node scripts/foodpanda/get-payouts.js
+        env:
+          DATE_FROM:             ${{ env.DATE_FROM }}
+          DATE_TO:               ${{ env.DATE_TO }}
+          WEBHOOK_URL:           https://sushizen-shift-app-038d846023bc.herokuapp.com/api/foodpanda/portal-payout-record
+          FP_EMAIL_PARANAQUE:    ${{ secrets.FP_EMAIL_PARANAQUE }}
+          FP_PASSWORD_PARANAQUE: ${{ secrets.FP_PASSWORD_PARANAQUE }}
+          FP_EMAIL_TAFT:         ${{ secrets.FP_EMAIL_TAFT }}
+          FP_PASSWORD_TAFT:      ${{ secrets.FP_PASSWORD_TAFT }}
+          FP_EMAIL_QC:           ${{ secrets.FP_EMAIL_QC }}
+          FP_PASSWORD_QC:        ${{ secrets.FP_PASSWORD_QC }}
+        timeout-minutes: 8

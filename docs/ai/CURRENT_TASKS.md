@@ -1,6 +1,108 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Management Accounting 3ページ→1タブページ統合 + Draft Sync UX修正)
+Last updated: 2026-08-22 (FoodPanda Manila 日次API抽出 実装完了)
+
+---
+
+## ✅ Completed: FoodPanda Manila 日次自動API抽出 (2026-08-22)
+
+**Talabatと同じように FoodPanda PH も GitHub Actions → 直接API → ar_payouts に自動格納。**
+
+**スクリプト** (`scripts/foodpanda/get-payouts.js`):
+- Playwright不要 — pure REST JWT auth (check-prices.jsと同じ認証フロー)
+- 3店舗 (Paranaque/Taft/Cubao) それぞれ独立認証 → orders API → 日付範囲でフィルタ
+- 完了済みオーダーのみ合計（CANCELLED/REJECTED除外）
+- 複数のordersレスポンス形式に対応 (orders[]/data.items[]/etc.)
+- paramスタイル自動フォールバック: datetime → date → start_date/end_date
+
+**バックエンド** (`app/main.py` — Heroku):
+- `POST /api/foodpanda/portal-payout-record`
+- platform='foodpanda', city='manila', currency='PHP'
+- ar_payoutsにupsert (payout_id = FP_PORTAL_{store_code}_{date})
+- Talabat エンドポイントと同パターン
+
+**GitHub Actions** (`.github/workflows/foodpanda-manila-daily-payout.yml`):
+- Cron: `5 23 * * *` (UTC) = 毎日07:05 PHT (前日分が確定した後)
+- Node 20 のみ (Playwrightインストール不要 → 起動が速い)
+- workflow_dispatch で任意日付指定可能
+- Secrets: FP_EMAIL/PASSWORD_{PARANAQUE,TAFT,QC} (既存)
+
+**次のステップ**: Herokuデプロイ後、GitHub Actions で workflow_dispatch → 直近の日付でテスト実行
+
+---
+
+## ✅ Completed: Inventory Manual 更新 (2026-08-22, Artifact f4964149)
+
+- Backup Reportセクション: Step 5に「Salmon Portioning（Done today）」を追加、Step 6でSubmit条件を「①バックアップアイテム OR ②Salmon Portioning入力」に修正
+- Parレベル表（Main% 67.5% / Scrap% ≤10% / Skin% ≥22.5%）カード追加
+- Connected Pagesに「Yield Control」リンク追加
+- 🐟 Yield Control (Salmon) 新規セクション追加（KPI・Branch Summary・使い方・単独提出の注記）
+
+---
+
+## ✅ Completed: Yield Control クラッシュ修正 + Backup Report Salmon単独提出 (2026-08-22, Vercel ea619bd)
+
+**Yield Control ページクラッシュ修正 (`/admin/yield-control`):**
+- 原因: バックエンドが `avg_main_pct`/`avg_scrap_pct`/`avg_skin_pct` を返すのにフロントが `avg_waste_pct.toFixed()` を呼んでいた → `undefined.toFixed()` → クラッシュ
+- `YieldSummaryRow` interface を新4カテゴリモデルに合わせて修正
+- `YieldRecord` interface: `topping_g` → `scrap_g` / `skin_g` に修正
+- `SummaryTable`: Avg Main% / Avg Scrap% / Avg Skin% 列に変更（par値ベースの色分け）
+- `RecordsList`: Main%/Scrap%/Skin% を数値付きで表示
+- KPI cards: Avg Main%, Par Deviations, Total Whole Salmon に変更
+
+**Backup Report — Salmon Yield のみ提出対応 (`/admin/backup`):**
+- 修正前: `lines.length === 0` で無条件にブロック → Salmon Portioning セクションだけ入力しても提出不可
+- 修正後: `hasSalmon` フラグ導入、`lines.length === 0 && !hasSalmon` の場合のみブロック
+- サーモンカット完了後すぐにYield Controlだけ提出できるようになった
+
+---
+
+## ✅ Completed: Shift Manual (Step 3) 更新 (2026-08-22, Artifact 95d69bbe)
+
+- Branch統合ドロップダウン (MAIN TAB NAME + BRANCH FILTER → BRANCH 1本化) を反映
+- Sync後の stats バー (Rows scanned / Changed rows / Imported / Skipped) モックアップ追加
+- スキップ行アンバーパネル (折りたたみ式) モックアップ追加
+- Day-off 行の取り込みサポート記述 (DAY OFF / 00-00 / VL / SL 等) を note に追加
+- URL: https://claude.ai/code/artifact/95d69bbe-d22a-4528-bb5c-2729dbb1f2f1
+
+---
+
+## ✅ Completed: Draft Sync スキップ行UI + 00-00パターン修正 (2026-08-22, Heroku v2064+v2065, Vercel a2740ab)
+
+**スキップ行の可視化 (Vercel a2740ab):**
+- Sync 後に stats バー表示: 「Rows scanned / Changed rows / Imported / Skipped」件数
+- スキップ行をアンバー色の折りたたみパネルで表示（理由付き）
+- メッセージ改善: 「✅ Imported N proposals」＋「⚠️ M rows skipped (see below)」
+
+**00-00 パターン対応 (Heroku 0cd25c7):**
+- `00–00` / `00-00`（エンダッシュ・ハイフン）を day-off として認識
+- `_is_day_off_label()` に正規表現 `/^0+[-–]0+$/` を追加
+
+**エンドツーエンドテスト結果 (2026-08-22):**
+- Sync (CUB/Manila/2026-09): `inserted:276, warnings:0` ← 修正前182件→全276件取込 ✅
+- stats: `rows_scanned:300, changed_rows:276, parsed_proposals:276` ✅
+- Approve 通常シフト変更: `draft_rows_applied:1` ✅
+- Approve day-off→勤務 (0-0→9-18): `draft_rows_applied:1` ✅
+
+---
+
+## ✅ Completed: Draft Sync バグ修正 4件 + day-off label対応 (2026-08-22, Heroku v2063)
+
+**Sync Proposals From Sheet の4バグ修正:**
+
+1. **Sync Branchドロップダウン選択肢なし** → `versions`（Generate後のみ）→ `BRANCHES[city]`（常に全支店）に変更
+2. **Table Filter / Sync Branch が混乱** → `pendingBranch` state廃止、`syncBranchCode` 1本化、UI統合
+3. **`/admin/sheet_tabs` 405エラー** → `/api/admin/sheet_tabs`（Next.jsプロキシ経由）に修正
+4. **シート取得が0件** → `DUBAI_SHEET_ID`/`MANILA_SHEET_ID`（旧週次）→ `_get_export_sheet_id()`（DRAFTスプレッドシート）に修正
+5. **`propose_sync` の NameError** → `_export_sheet_id_for_city()` → `_get_export_sheet_id()` に修正
+6. **マルチ支店スプレッドシートで違う支店のタブを選ぶ** → branch prefixで先にフィルタするように修正
+
+**day-off label対応 (Heroku v2063):**
+- "DAY OFF", "VL", "SL", "OFF" 等のCurrent Shiftを `(0.0, 0.0)` として扱い、改定時間があれば採用
+- 以前: 94行スキップ → 修正後: これらもProposalとして取り込み可能
+
+**動作確認 (2026-08-22):**
+- Manila/CUB/2026-09テスト: `ok:true, inserted:182` ✅ (day-off fix前の結果。修正後は最大276件まで増加予定)
 
 ---
 

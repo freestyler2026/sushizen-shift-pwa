@@ -127,6 +127,7 @@
   <div class="nav-item" onclick="show('daily-inventory')"><span class="nav-icon">📅</span><span data-en="Daily Inventory" data-ja="日次在庫確認">Daily Inventory</span></div>
   <div class="nav-item" onclick="show('disposal')"><span class="nav-icon">🗑️</span><span data-en="Disposal Report" data-ja="廃棄レポート">Disposal Report</span></div>
   <div class="nav-item" onclick="show('backup')"><span class="nav-icon">💾</span><span data-en="Backup Report" data-ja="仕込みレポート">Backup Report</span></div>
+  <div class="nav-item" onclick="show('yield-control')"><span class="nav-icon">🐟</span><span data-en="Yield Control (Salmon)" data-ja="歩留まり管理（サーモン）">Yield Control (Salmon)</span></div>
 
   <div class="sidebar-label" data-en="Counting" data-ja="棚卸し">Counting</div>
   <div class="nav-item" onclick="show('counts')"><span class="nav-icon">📋</span><span data-en="Full Count" data-ja="定期棚卸し">Full Count</span></div>
@@ -759,8 +760,20 @@
       <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill fixed template sections" data-ja="固定テンプレートセクションに入力">Fill fixed template sections</strong><p data-en="Sections differ by city. Manila: Condiments, Packaging, Prepared Ingredients, Toppings, Hot Section, Base Roll (6 sections). Dubai: Condiments, Packaging, Prepared Ingredients, Toppings, Sushi Rolls (5 sections). Tap the section header to expand/collapse." data-ja="セクションは都市により異なります。Manila：Condiments・Packaging・Prepared Ingredients・Toppings・Hot Section・Base Roll（6セクション）。Dubai：5セクション。ヘッダーをタップして展開/折りたたみ。">Expand sections by tapping the header. Enter quantities per item.</p></div></li>
       <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Watch the Shortage Alert panel" data-ja="不足アラートパネルを確認">Check Shortage Alert panel</strong><p data-en="Red panel appears if any item is below its standard. Red = below 70% of standard, amber = 70–100%." data-ja="赤いパネルは基準値を下回るアイテムがある場合に表示されます。赤＝基準の70%未満、アンバー＝70〜100%。">Red = below 70% of standard; amber = 70–100%. Resolve shortages before submitting.</p></div></li>
       <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Add extra items (optional)" data-ja="追加アイテムを入力（任意）">Add extra items (optional)</strong><p data-en="Use the item search to add items not in the template. Or click '+ Add blank line'." data-ja="テンプレートにないアイテムはアイテム検索で追加、または「+ Add blank line」をクリック。">Search or blank line for non-template items.</p></div></li>
-      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click Submit Report" data-ja="「Submit Report」をクリック">Submit Report</strong><p data-en="Requires reporter name and at least one quantity filled." data-ja="担当者名と少なくとも1つの数量入力が必要です。">Requires reporter name + ≥1 quantity entered.</p></div></li>
+      <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Fill Salmon Portioning (optional)" data-ja="サーモンカット結果を入力（任意）">Fill Salmon Portioning (optional)</strong><p data-en="Check 'Done today' to expand the Salmon Portioning section. Enter Whole Salmon, Main Portion, Scrap, and Salmon Skin weights (kg). Attach a photo. This section can be submitted independently — you do not need to fill backup items if submitting salmon yield only." data-ja="「Done today」にチェックしてSalmon Portioningセクションを展開。全体重量・メインポーション・スクラップ・サーモンスキンの重量（kg）を入力し、写真を添付します。このセクションはバックアップアイテムなしで単独提出できます。">Check "Done today" → enter Whole, Main Portion, Scrap, Skin weights → attach photo. Can be submitted without backup items.</p></div></li>
+      <li class="step"><span class="step-num">6</span><div class="step-body"><strong data-en="Click Submit Report" data-ja="「Submit Report」をクリック">Submit Report</strong><p data-en="Requires reporter name. At least one of: ① a backup item quantity filled, or ② Salmon Portioning 'Done today' with Whole Salmon weight entered." data-ja="担当者名が必要です。以下のいずれか1つが必要：①バックアップアイテムの数量入力、②Salmon Portioningの「Done today」チェック＋全体重量入力。">Requires reporter name + either ① ≥1 backup item, or ② Salmon Portioning "Done today" + whole weight.</p></div></li>
     </ol>
+  </div>
+
+  <div class="card" style="border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.04)">
+    <div class="card-title" data-en="🐟 Salmon Portioning — Par Levels" data-ja="🐟 サーモンカット — パーレベル">🐟 Salmon Portioning — Par Levels</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Category" data-ja="カテゴリ">Category</th><th data-en="Par target" data-ja="目標値">Par</th><th data-en="Alert if..." data-ja="アラート条件">Alert if</th></tr>
+      <tr><td data-en="Main Portion" data-ja="メインポーション">Main Portion</td><td>≥ 67.5%</td><td data-en="&lt; 65% or &gt; 70% of whole weight" data-ja="全体重量の65%未満または70%超">&lt; 65% or &gt; 70%</td></tr>
+      <tr><td data-en="Scrap (Deco/Gunkan/Hosomaki)" data-ja="スクラップ（飾り/軍艦/細巻き）">Scrap</td><td>≤ 10%</td><td data-en="&gt; 12.5% of whole weight" data-ja="全体重量の12.5%超">&gt; 12.5%</td></tr>
+      <tr><td data-en="Salmon Skin" data-ja="サーモンスキン">Salmon Skin</td><td>≥ 22.5%</td><td data-en="&gt; 25% of whole weight" data-ja="全体重量の25%超">&gt; 25%</td></tr>
+    </table></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="When a par deviation is detected, the system automatically sends a Management Inbox alert. Results are viewable on the Yield Control page." data-ja="パーレベル偏差が検出されると、Management Inboxアラートが自動送信されます。結果はYield Controlページで確認できます。">Par deviation → auto alert to Management Inbox. View history on Yield Control page.</p>
   </div>
 
   <div class="two-col">
@@ -770,10 +783,54 @@
     </div>
     <div class="card">
       <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
-      <div class="chip-row"><span class="chip violet">Backup Standards library (Manila standards)</span><span class="chip amber">Disposal Report (shared item search API)</span></div>
+      <div class="chip-row"><span class="chip violet">Backup Standards library (Manila standards)</span><span class="chip amber">Disposal Report (shared item search API)</span><span class="chip green">Yield Control (salmon portioning history)</span></div>
       <p style="color:var(--muted);font-size:12px;margin-top:6px" data-en="Dubai has no defined standards — all inputs stay neutral color." data-ja="Dubaiには基準値が定義されていないため、すべての入力欄はニュートラルカラーのままです。">Dubai: no standards defined, all neutral color.</p>
     </div>
   </div>
+</div>
+
+<!-- ═══ YIELD CONTROL ═══ -->
+<div class="section" id="sec-yield-control">
+  <div class="section-hero"><div class="hero-icon">🐟</div><div>
+    <div class="section-title" data-en="Yield Control (Salmon Portioning)" data-ja="歩留まり管理（サーモンカット）">Yield Control (Salmon Portioning)</div>
+    <div class="section-path">Admin → Yield Control</div>
+    <div class="section-desc" data-en="Dashboard for tracking salmon portioning efficiency across all branches. Shows Main Portion %, Scrap %, and Skin % per cutting session. Par deviations are flagged as alerts." data-ja="全店舗のサーモンカット歩留まりを追跡するダッシュボードです。セッションごとのメインポーション%・スクラップ%・スキン%を表示し、パーレベルの偏差をアラートとしてフラグします。">Track salmon portioning efficiency across branches. Shows Main %, Scrap %, Skin % per session with par-based alerts.</div>
+  </div></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="KPI Cards" data-ja="KPIカード">KPI Cards</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Card" data-ja="カード">Card</th><th data-en="Description" data-ja="説明">Description</th></tr>
+        <tr><td>Total Records</td><td class="muted" data-en="Number of salmon cutting sessions in the selected period." data-ja="選択期間内のサーモンカットセッション数。">Sessions in period</td></tr>
+        <tr><td>Avg Main%</td><td class="muted" data-en="Average main portion % across all branches. Green = on par (67.5%), red = deviation." data-ja="全店舗の平均メインポーション%。緑＝パー（67.5%）、赤＝偏差。">Avg main portion %. Green = on par</td></tr>
+        <tr><td data-en="Par Deviations" data-ja="パー偏差">Par Deviations</td><td class="muted" data-en="Total count of sessions where Main%, Scrap%, or Skin% fell outside par range." data-ja="Main%・Scrap%・Skin%のいずれかがパー範囲外になったセッションの合計数。">Sessions outside par for any metric</td></tr>
+        <tr><td data-en="Total Whole Salmon" data-ja="サーモン合計重量">Total Whole Salmon</td><td class="muted" data-en="Total kg of whole salmon processed in the period." data-ja="期間内に処理したサーモンの合計重量（kg）。">Total kg processed</td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="Branch Summary Table" data-ja="店舗別サマリーテーブル">Branch Summary Table</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Column" data-ja="列">Column</th><th data-en="Description" data-ja="説明">Description</th></tr>
+        <tr><td>Avg Main%</td><td class="muted" data-en="Average main portion %. Red if &lt;65% or &gt;70%." data-ja="平均メインポーション%。65%未満または70%超で赤表示。">Avg main %. Red if &lt;65% or &gt;70%</td></tr>
+        <tr><td>Avg Scrap%</td><td class="muted" data-en="Average scrap %. Red if &gt;12.5%." data-ja="平均スクラップ%。12.5%超で赤表示。">Avg scrap %. Red if &gt;12.5%</td></tr>
+        <tr><td>Avg Skin%</td><td class="muted" data-en="Average skin %. Red if &gt;25%." data-ja="平均スキン%。25%超で赤表示。">Avg skin %. Red if &gt;25%</td></tr>
+        <tr><td>Alerts</td><td class="muted" data-en="Total par deviations for this branch. Click the row to filter records." data-ja="この店舗のパー偏差の合計数。行をクリックしてレコードをフィルタ。">Total deviations. Click row to filter</td></tr>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How to Use" data-ja="使い方">How to Use</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select City and date range" data-ja="都市と期間を選択">Select City and date range</strong><p data-en="Choose Dubai or Manila. Set From / To dates. Click Load." data-ja="DubaiまたはManilaを選択。From / To日付を設定してLoadをクリック。">Dubai or Manila → set date range → Load.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Review Branch Summary" data-ja="店舗別サマリーを確認">Review Branch Summary</strong><p data-en="Table shows avg portioning % per branch. Color-coded: green = within par, yellow = borderline, red = out of par." data-ja="テーブルには店舗ごとの平均カット率が表示されます。色コード：緑＝パー内、黄＝ボーダーライン、赤＝パー外。">Color-coded by par level. Click a branch row to filter records below.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review individual records" data-ja="個別レコードを確認">Review individual records</strong><p data-en="Each card shows date, branch, shift, reporter, and Main / Scrap / Skin weights with % of whole. Cards with a red border had at least one par deviation." data-ja="各カードには日付・店舗・シフト・担当者と、メイン/スクラップ/スキンの重量と全体に対する%が表示されます。赤いボーダーのカードは少なくとも1つのパー偏差があります。">Each card: date, branch, shift, weights + %. Red border = par deviation.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="View attached photo (if any)" data-ja="添付写真を確認（ある場合）">View photo (if attached)</strong><p data-en="Click 'View Photo' link on a record to open the Google Drive image of the salmon cut." data-ja="レコードの「View Photo」リンクをクリックして、サーモンカットのGoogle Driveの写真を開きます。">Click "View Photo" to open the cut photo in Google Drive.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="tip"><span class="tip-icon">💡</span><span data-en="Salmon Portioning data is submitted from the Backup Report page. Staff can submit salmon yield independently — without filling in backup items — as soon as the cut is done." data-ja="サーモンカット結果はBackup Reportページから提出します。スタッフはバックアップアイテムを入力せずに、カット完了後すぐにサーモン歩留まりのみを単独提出できます。">Salmon yield data is entered on the Backup Report page. It can be submitted independently — no backup items required — so staff can report immediately after cutting.</span></div>
 </div>
 
 <!-- ═══ FULL COUNT ═══ -->
