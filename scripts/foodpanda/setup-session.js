@@ -60,10 +60,13 @@ async function main() {
   while (Date.now() < deadline) {
     const url = page.url();
 
-    // URL changed away from login
-    const notLoginPage = !url.includes('/login') && !url.includes('/signin') && url !== loginPageUrl;
-    if (notLoginPage) {
-      console.log(`Login detected! URL: ${url}`);
+    // URL changed away from login AND past 2FA step
+    const stillAuthFlow = url.includes('/login') || url.includes('/signin') ||
+                          url.includes('/2fa') || url.includes('/two-factor') ||
+                          url.includes('/otp') || url.includes('/verify') ||
+                          url === loginPageUrl;
+    if (!stillAuthFlow) {
+      console.log(`Login + 2FA complete! URL: ${url}`);
       loggedIn = true;
       capturing = true;
       break;
