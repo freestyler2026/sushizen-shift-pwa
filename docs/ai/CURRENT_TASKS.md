@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (FoodPanda Manila 3店舗 launchd 自動化完了)
+Last updated: 2026-08-22 (Daily P&L system 完全実装・デプロイ完了)
+
+---
+
+## ✅ Completed: Daily P&L System 完全実装 (2026-08-22, Heroku v2083, Vercel)
+
+**実装内容:**
+
+**バックエンド (db.py + main.py):**
+- 新テーブル: `mgmt_commission_rate`, `mgmt_dow_weights`, `mgmt_food_cost_rate`, `mgmt_daily_pl_cache`
+- `compute_mgmt_dow_weights(city)`: Talabat過去90日データからDOW別トラフィック重みを算出・保存
+- `compute_mgmt_food_cost_rate(city)`: `menu_item_master.cost_unit_price/selling_price` の平均を食材原価率として保存
+- `refresh_mgmt_daily_pl_cache(city, date_from, date_to)`: 各アグリゲーターの決済データを日次に分配
+  - Talabat日次 → 直接gross_sales (is_estimated=False)
+  - Smiles → `raw_data->>'total_sales_aed'` で正確値
+  - 他 → `payout / (1 - commission_rate)` × DOW重みで日次分配 (is_estimated=True)
+  - Careem残高スナップショット (`payout_id LIKE 'careem_balance_%'`) は除外
+  - 確定値 → 推計値への降格禁止 (never downgrade is_estimated=False)
+- `get_mgmt_daily_pl(city, date_from, date_to, store_code)`: 売上 + COGS + 人件費 + 固定費 + 利益を返す
+- APIエンドポイント: GET/POST daily-pl, refresh, compute-dow-weights, compute-food-cost-rate, commission-rates, food-cost-rates
+- コミッション率プリシード: Careem (SZ 35.4%/RZ 36.1%/AV 37.0%), Noon 28.4%, Talabat 30.1%, Keeta 24.2%, Smiles 28.4%, FP各店舗, Grab 25.0%
+
+**フロントエンド (Next.js):**
+- 新ページ `/admin/mgmt-accounting/daily-pl/page.tsx`:
+  - 都市・日付レンジ選択 (Yesterday/7/14/30日プリセット)
+  - 7 KPIカード: Gross Revenue / Commission / Net Revenue / COGS / Labor / Overhead / Operating Profit
+  - SummaryビューとDaily Detailビュー (日別カード + 店舗×プラットフォーム内訳)
+  - 「推計」バッジ表示・利益の色分け (emerald/red/slate)
+  - "⟳ Sync Payouts" ボタンでキャッシュ再計算
+- Settings `dailypl` タブ: Food Cost Rate計算ボタン / DOW Weights計算ボタン / コミッション率テーブル / ダッシュボードリンク
+- `mgmt-accounting/page.tsx`: "Daily P&L ›" ナビボタン追加
+
+**次のアクション (初回セットアップ):**
+1. Settings → Daily P&L タブ → "Compute" (Food Cost Rate) をクリック
+2. Settings → Daily P&L タブ → "Compute" (DOW Weights) をクリック (Talabat日次データが必要)
+3. Daily P&L → "⟳ Sync Payouts" をクリックして過去30日分のキャッシュ生成
+
+**未実装・既知の制限:**
+- Careem残高スナップショットのみでSettlementデータなし → Careemは0表示
+- Smiles JLT・Al Hudaiba: パスワード認証失敗 → 手動でパスワードリセット後 SMILES_ACCOUNTS secret 更新
+- Keeta: `KEETA_SESSION` GH Secretアップロード未実行
 
 ---
 
