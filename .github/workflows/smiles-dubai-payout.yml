@@ -2,9 +2,8 @@ name: Smiles (EatEasily) Dubai — Monthly Payout Extract
 
 on:
   schedule:
-    # 1st of each month at 02:00 UTC = 06:00 GST (Dubai)
-    # Smiles settles monthly; runs on the 1st to capture the full previous month.
-    - cron: '0 2 1 * *'
+    # Every day at 02:00 UTC = 06:00 GST (Dubai)
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       target_month:
