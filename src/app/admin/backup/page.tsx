@@ -1117,10 +1117,14 @@ export default function BackupReportPage() {
       });
     }
 
-    if (lines.length === 0) { setSubmitError("No items entered. Please fill in at least one quantity."); return; }
+    const hasSalmon = salmonEnabled && parseFloat(salmonWholeKg) > 0;
+    if (lines.length === 0 && !hasSalmon) {
+      setSubmitError("No items entered. Please fill in at least one quantity, or complete the Salmon Portioning section.");
+      return;
+    }
 
     const salmonPayload =
-      salmonEnabled && parseFloat(salmonWholeKg) > 0
+      hasSalmon
         ? {
             whole_weight_g: Math.round(parseFloat(salmonWholeKg) * 1000),
             main_portion_g: Math.round(parseFloat(salmonMainKg)  * 1000),

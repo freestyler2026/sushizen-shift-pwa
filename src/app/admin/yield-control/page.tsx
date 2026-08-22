@@ -28,13 +28,14 @@ import SelectDark from "@/components/SelectDark";
 interface YieldSummaryRow {
   branch_code: string;
   record_count: number;
-  avg_waste_pct: number;
-  min_waste_pct: number;
-  max_waste_pct: number;
-  total_waste_kg: number;
+  avg_main_pct: number;
+  avg_scrap_pct: number;
+  avg_skin_pct: number;
   total_whole_kg: number;
   last_date: string;
-  high_waste_count: number;
+  low_main_count: number;
+  high_scrap_count: number;
+  high_skin_count: number;
 }
 
 interface YieldRecord {
@@ -45,7 +46,8 @@ interface YieldRecord {
   shift: string;
   whole_weight_g: number;
   main_portion_g: number;
-  topping_g: number;
+  scrap_g: number;
+  skin_g: number;
   waste_g: number;
   waste_pct: number;
   photo_url: string;
@@ -75,18 +77,30 @@ async function apiFetch<T>(path: string): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-// ─── Waste color helpers ──────────────────────────────────────────────────────
+// ─── Color helpers ────────────────────────────────────────────────────────────
 
-function wastePctColor(pct: number): string {
-  if (pct >= 5) return "text-red-400";
-  if (pct >= 3) return "text-yellow-400";
+function mainPctColor(pct: number): string {
+  if (pct < 65 || pct > 70) return "text-red-400";
+  if (pct < 67.5) return "text-yellow-400";
   return "text-emerald-400";
 }
 
-function wastePctBadge(pct: number): string {
-  if (pct >= 5)
+function scrapPctColor(pct: number): string {
+  if (pct > 12.5) return "text-red-400";
+  if (pct > 10) return "text-yellow-400";
+  return "text-emerald-400";
+}
+
+function skinPctColor(pct: number): string {
+  if (pct > 25) return "text-red-400";
+  if (pct > 22.5) return "text-yellow-400";
+  return "text-emerald-400";
+}
+
+function mainPctBadge(pct: number): string {
+  if (pct < 65 || pct > 70)
     return "text-red-300 bg-red-500/15 border border-red-500/30";
-  if (pct >= 3)
+  if (pct < 67.5)
     return "text-yellow-300 bg-yellow-500/12 border border-yellow-500/25";
   return "text-emerald-300 bg-emerald-500/12 border border-emerald-500/25";
 }
@@ -112,49 +126,50 @@ function SummaryTable({
           <tr className="border-b border-white/8">
             <th className="text-left py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Branch</th>
             <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Records</th>
-            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Avg Waste%</th>
-            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Min</th>
-            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Max</th>
-            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Total Waste</th>
+            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Avg Main%</th>
+            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Avg Scrap%</th>
+            <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Avg Skin%</th>
             <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Total Whole</th>
             <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Alerts</th>
             <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Last Date</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.branch_code}
-              className={`${TABLE_ROW} cursor-pointer transition-colors ${
-                selectedBranch === r.branch_code ? "bg-violet-500/10" : "hover:bg-white/3"
-              }`}
-              onClick={() => onSelectBranch(selectedBranch === r.branch_code ? "" : r.branch_code)}
-            >
-              <td className={`${TABLE_CELL} font-semibold text-white`}>{r.branch_code}</td>
-              <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{r.record_count}</td>
-              <td className={`${TABLE_CELL} text-right`}>
-                <span className={`font-mono font-bold ${wastePctColor(r.avg_waste_pct)}`}>
-                  {r.avg_waste_pct.toFixed(1)}%
-                </span>
-              </td>
-              <td className={`${TABLE_CELL} text-right font-mono ${wastePctColor(r.min_waste_pct)}`}>
-                {r.min_waste_pct.toFixed(1)}%
-              </td>
-              <td className={`${TABLE_CELL} text-right font-mono ${wastePctColor(r.max_waste_pct)}`}>
-                {r.max_waste_pct.toFixed(1)}%
-              </td>
-              <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{r.total_waste_kg.toFixed(3)} kg</td>
-              <td className={`${TABLE_CELL} text-right font-mono text-zinc-400`}>{r.total_whole_kg.toFixed(3)} kg</td>
-              <td className={`${TABLE_CELL} text-right`}>
-                {r.high_waste_count > 0 ? (
-                  <span className="font-semibold text-red-400">{r.high_waste_count}</span>
-                ) : (
-                  <span className="text-zinc-600">–</span>
-                )}
-              </td>
-              <td className={`${TABLE_CELL} text-right text-zinc-400`}>{r.last_date}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const alertCount = r.low_main_count + r.high_scrap_count + r.high_skin_count;
+            return (
+              <tr
+                key={r.branch_code}
+                className={`${TABLE_ROW} cursor-pointer transition-colors ${
+                  selectedBranch === r.branch_code ? "bg-violet-500/10" : "hover:bg-white/3"
+                }`}
+                onClick={() => onSelectBranch(selectedBranch === r.branch_code ? "" : r.branch_code)}
+              >
+                <td className={`${TABLE_CELL} font-semibold text-white`}>{r.branch_code}</td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{r.record_count}</td>
+                <td className={`${TABLE_CELL} text-right`}>
+                  <span className={`font-mono font-bold ${mainPctColor(r.avg_main_pct ?? 0)}`}>
+                    {(r.avg_main_pct ?? 0).toFixed(1)}%
+                  </span>
+                </td>
+                <td className={`${TABLE_CELL} text-right font-mono ${scrapPctColor(r.avg_scrap_pct ?? 0)}`}>
+                  {(r.avg_scrap_pct ?? 0).toFixed(1)}%
+                </td>
+                <td className={`${TABLE_CELL} text-right font-mono ${skinPctColor(r.avg_skin_pct ?? 0)}`}>
+                  {(r.avg_skin_pct ?? 0).toFixed(1)}%
+                </td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-400`}>{(r.total_whole_kg ?? 0).toFixed(3)} kg</td>
+                <td className={`${TABLE_CELL} text-right`}>
+                  {alertCount > 0 ? (
+                    <span className="font-semibold text-red-400">{alertCount}</span>
+                  ) : (
+                    <span className="text-zinc-600">–</span>
+                  )}
+                </td>
+                <td className={`${TABLE_CELL} text-right text-zinc-400`}>{r.last_date}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -172,50 +187,55 @@ function RecordsList({ records, branchFilter }: { records: YieldRecord[]; branch
 
   return (
     <div className="space-y-2">
-      {filtered.map((r) => (
-        <div
-          key={r.id}
-          className={`rounded-xl border p-3 ${
-            r.waste_pct >= 5
-              ? "border-red-500/25 bg-red-500/5"
-              : r.waste_pct >= 3
-              ? "border-yellow-500/20 bg-yellow-500/4"
-              : "border-white/8 bg-white/3"
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="text-sm font-semibold text-white">{r.report_date}</span>
-            <span className="text-xs text-zinc-400">{r.branch_code}</span>
-            <span className={BADGE_INFO}>{r.shift}</span>
-            <span className="text-xs text-zinc-500">by {r.reported_by}</span>
-            <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${wastePctBadge(r.waste_pct)}`}>
-              {r.waste_pct.toFixed(1)}% waste
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-zinc-300">
-            <div><span className="text-zinc-500">Whole: </span>{r.whole_weight_g}g</div>
-            <div><span className="text-zinc-500">Main: </span>{r.main_portion_g}g</div>
-            <div><span className="text-zinc-500">Topping: </span>{r.topping_g}g</div>
-            <div><span className="text-zinc-500">Waste: </span>{r.waste_g}g</div>
-          </div>
-          {(r.photo_url || r.ai_score !== null) && (
-            <div className="flex flex-wrap items-center gap-3 mt-2">
-              {r.photo_url && (
-                <a href={r.photo_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                  View Photo
-                </a>
-              )}
-              {r.ai_score !== null && (
-                <span className="text-xs text-zinc-400">
-                  AI Score: <span className="text-white font-semibold">{r.ai_score}</span>
-                  {r.ai_score_note && ` — ${r.ai_score_note}`}
-                </span>
-              )}
+      {filtered.map((r) => {
+        const whole = r.whole_weight_g || 0;
+        const mainPct = whole > 0 ? r.main_portion_g / whole * 100 : 0;
+        const scrapPct = whole > 0 ? r.scrap_g / whole * 100 : 0;
+        const skinPct = whole > 0 ? r.skin_g / whole * 100 : 0;
+        const hasAlert = mainPct < 65 || mainPct > 70 || scrapPct > 12.5 || skinPct > 25;
+        return (
+          <div
+            key={r.id}
+            className={`rounded-xl border p-3 ${
+              hasAlert
+                ? "border-red-500/25 bg-red-500/5"
+                : "border-white/8 bg-white/3"
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-white">{r.report_date}</span>
+              <span className="text-xs text-zinc-400">{r.branch_code}</span>
+              <span className={BADGE_INFO}>{r.shift}</span>
+              <span className="text-xs text-zinc-500">by {r.reported_by}</span>
+              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${mainPctBadge(mainPct)}`}>
+                Main {mainPct.toFixed(1)}%
+              </span>
             </div>
-          )}
-        </div>
-      ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-zinc-300">
+              <div><span className="text-zinc-500">Whole: </span>{whole}g</div>
+              <div><span className={`font-semibold ${mainPctColor(mainPct)}`}>Main: {r.main_portion_g}g ({mainPct.toFixed(1)}%)</span></div>
+              <div><span className={`font-semibold ${scrapPctColor(scrapPct)}`}>Scrap: {r.scrap_g}g ({scrapPct.toFixed(1)}%)</span></div>
+              <div><span className={`font-semibold ${skinPctColor(skinPct)}`}>Skin: {r.skin_g}g ({skinPct.toFixed(1)}%)</span></div>
+            </div>
+            {(r.photo_url || r.ai_score !== null) && (
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                {r.photo_url && (
+                  <a href={r.photo_url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                    View Photo
+                  </a>
+                )}
+                {r.ai_score !== null && (
+                  <span className="text-xs text-zinc-400">
+                    AI Score: <span className="text-white font-semibold">{r.ai_score}</span>
+                    {r.ai_score_note && ` — ${r.ai_score_note}`}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -259,12 +279,15 @@ export default function YieldControlPage() {
   // KPI aggregates from summary
   const kpi = useMemo(() => {
     const totalRecords = summary.reduce((n, r) => n + r.record_count, 0);
-    const totalWasteKg = summary.reduce((n, r) => n + r.total_waste_kg, 0);
-    const totalWholeKg = summary.reduce((n, r) => n + r.total_whole_kg, 0);
-    const overallWastePct = totalWholeKg > 0 ? (totalWasteKg / totalWholeKg) * 100 : 0;
-    const highWasteBranches = summary.filter((r) => r.avg_waste_pct >= 5).length;
-    const alertEvents = summary.reduce((n, r) => n + r.high_waste_count, 0);
-    return { totalRecords, totalWasteKg, overallWastePct, highWasteBranches, alertEvents };
+    const totalWholeKg = summary.reduce((n, r) => n + (r.total_whole_kg ?? 0), 0);
+    const avgMainPct = summary.length > 0
+      ? summary.reduce((n, r) => n + (r.avg_main_pct ?? 0), 0) / summary.length
+      : 0;
+    const alertEvents = summary.reduce(
+      (n, r) => n + (r.low_main_count ?? 0) + (r.high_scrap_count ?? 0) + (r.high_skin_count ?? 0),
+      0
+    );
+    return { totalRecords, totalWholeKg, avgMainPct, alertEvents };
   }, [summary]);
 
   const filteredRecords = selectedBranch
@@ -279,7 +302,7 @@ export default function YieldControlPage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className={T_PAGE_TITLE}>Salmon Yield Control</h1>
-            <p className="mt-0.5 text-sm text-zinc-500">Store-by-store waste% tracking</p>
+            <p className="mt-0.5 text-sm text-zinc-500">Store-by-store portioning % tracking</p>
           </div>
           <Link href="/admin/backup" className={`${SECONDARY_BUTTON} shrink-0`}>Backup Report</Link>
         </div>
@@ -330,21 +353,21 @@ export default function YieldControlPage() {
               <span className="text-2xl font-bold text-white">{kpi.totalRecords}</span>
             </div>
             <div className={`${KPI_CARD} flex flex-col gap-1`}>
-              <span className={T_CAPTION}>Overall Waste%</span>
-              <span className={`text-2xl font-bold ${wastePctColor(kpi.overallWastePct)}`}>
-                {kpi.overallWastePct.toFixed(1)}%
+              <span className={T_CAPTION}>Avg Main%</span>
+              <span className={`text-2xl font-bold ${mainPctColor(kpi.avgMainPct)}`}>
+                {kpi.avgMainPct.toFixed(1)}%
               </span>
             </div>
             <div className={`${KPI_CARD} flex flex-col gap-1`}>
-              <span className={T_CAPTION}>High Waste Events</span>
+              <span className={T_CAPTION}>Par Deviations</span>
               <span className={`text-2xl font-bold ${kpi.alertEvents > 0 ? "text-red-400" : "text-zinc-400"}`}>
                 {kpi.alertEvents}
               </span>
             </div>
             <div className={`${KPI_CARD} flex flex-col gap-1`}>
-              <span className={T_CAPTION}>Total Waste</span>
-              <span className="text-2xl font-bold text-orange-300">
-                {kpi.totalWasteKg.toFixed(2)} kg
+              <span className={T_CAPTION}>Total Whole Salmon</span>
+              <span className="text-2xl font-bold text-zinc-200">
+                {kpi.totalWholeKg.toFixed(2)} kg
               </span>
             </div>
           </div>
