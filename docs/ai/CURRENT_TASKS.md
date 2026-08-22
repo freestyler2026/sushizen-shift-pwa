@@ -1,6 +1,87 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Noon Food Dubai payout automation 完了 — 全プラットフォーム自動化完成)
+Last updated: 2026-08-22 (Salmon multi-photo 5スロット実装・検証完了 Heroku v2082)
+
+---
+
+## ⚠️ USER ACTION REQUIRED: Anthony Plaza の published shift を登録してから DTR 再 Sync
+
+**背景:** 2026-08-2H (Aug 11–25) 期間に Anthony Plaza の OS Attendance 記録はあるが、published shift が存在しない。
+これにより DTR "Sync from OS Attendance" が安全ゲートでブロックされる。
+
+**手順:**
+1. Manual Shift ページ (`/admin/draft`) → Manila → 2026-08-2H
+2. Anthony Plaza の Aug 11–25 分を公開 (勤務日は実際のシフト、休日は Day Off)
+3. DTR Upload (`/admin/payroll/manila/dtr-upload`) → "Sync from OS Attendance" → "Confirm Sync"
+
+---
+
+## ✅ Completed: Salmon Portioning 写真5枚対応 (2026-08-22, Heroku v2081+v2082, Vercel)
+
+**要望:** 現在1枚のみ → Whole Salmon / Scrap / Skin / Main Portion + Extra の計5スロットへ拡張
+
+**実装内容:**
+- `db.py`: `ensure_salmon_yield_table()` に `photo_urls JSONB DEFAULT '[]'` カラム追加マイグレーション
+- `db.py`: `update_salmon_yield_photo()` を上書き→appendに変更 (`|| to_jsonb()`)
+- `db.py`: `get_salmon_yield_records()` / `list_backup_reports()` で `photo_urls` を返すよう更新
+- `backup/page.tsx`: `SalmonPortioningSection` を5スロットグリッドUIに刷新 (5 `useRef` × 固定順)
+- `backup/page.tsx`: 送信時に `salmonPhotos[i]` をループしてsequential upload
+- `yield-control/page.tsx`: Past Recordsで `photo_urls` の全リンクをラベル付きで表示
+- **v2082 追加fix:** `list_backup_reports()` 冒頭に `ensure_salmon_yield_table()` 呼び出し追加 → Past Reportsの `column sy.photo_urls does not exist` エラーを解消
+
+**検証済み (本番):**
+- Done today チェックで5スロット表示: Whole Salmon / Scrap / Skin / Main Portion / Extra ✅
+- PHOTOS ヘッダー: "PHOTOS (UP TO 5 — WHOLE SALMON, SCRAP, SKIN, MAIN PORTION REQUIRED)" ✅
+- Past Reports: DBエラーなし、過去レポート一覧表示 ✅
+
+---
+
+## ✅ Completed: Draft :30分シフト int()→float() 全箇所修正 (2026-08-22, Heroku v2080)
+
+**根本原因:** `shift_draft_rows.start_hour/end_hour` は `NUMERIC(4,1)` だが、全読み書きパスで `int()` にキャストされ :30 精度が失われていた。
+
+**修正箇所 (app/main.py):**
+- `DraftRowUpsertIn / DraftRowDeleteIn / DraftRowUpdateIn` Pydantic models: `start_hour: int` / `end_hour: int` → `float`（Pydantic が 15.5→15 に強制変換するのを防止）
+- `api_draft_rows_upsert` / `api_draft_rows_delete` / `api_draft_rows_update`: `st = int(payload.start_hour)` → `float()`（Delete 時のキー照合失敗も修正）
+- ※ `api_draft_sheet_decide`: 前セッション (Heroku v2079) で修正済み
+
+**修正箇所 (app/db.py):**
+- `_list_attendance_comparison_effective()` (Manila/Dubai 両方): `st = int(r.get("start_hour"))` → `float()` — planned_map に正確な :30 値を格納
+- Manila 遅刻/早退/残業計算 (line 17482-17486): `int(actual_check_in_hour) - int(scheduled_start_hour)` → `float()` — 30分単位の精度を保持
+- Dubai 遅刻/早退/残業計算 (line 24059, 24076, 24081-24082): `int()` → `float()`
+
+**影響:** :30 分シフト（15:30-0:30 等）のスタッフに対して、Sync Proposal 承認・手動編集・削除・勤怠遅刻計算が全て正確に動作するようになった。
+
+---
+
+## ✅ Completed: Manila Attendance/DTR 2バグ修正 (2026-08-22, Heroku v2077+, Vercel)
+
+### Bug 1: Manual Shift変更がOS Attendanceに反映されない (Patrick late 372分誤検知)
+
+**原因:** `get_shift_schedule_for_date()` と `list_no_shows()` が `shift_draft_rows` を参照していた。
+Manual Shift Publish 後に別ブランチで "Save Draft" が実行されると、より新しいドラフトバージョンが生成され、
+published の変更が上書き・無視されてしまう。
+
+**修正 (app/db.py):**
+- `get_shift_schedule_for_date()`: `shift_draft_rows/shift_draft_versions` → `shift_published_rows/shift_published_versions`、`v.created_at DESC` → `v.published_at DESC`
+- `list_no_shows()`: 同様に published テーブルへ変更
+
+**テスト結果 (本番確認済み):**
+- Patrick Danel Santiago, 2026-08-18: `sched: 15.5-24.5 (15:30-0:30)`, `late: 0` ✅
+- 修正前: `sched: 9.0-18.0`, `late: 372`
+
+### Bug 2: DTR Upload Sync blocked 時に "Sync complete" が誤表示 + OS Records = 0
+
+**原因1:** `syncResult.preview_only` が undefined のとき `!undefined = true` → blocked でも "Sync complete" バナー表示
+**修正 (dtr-upload/page.tsx:679):** `!syncResult.preview_only` → `!syncResult.preview_only && !syncResult.error`
+
+**原因2:** blocked レスポンスに `total_os_rows` フィールドがなかった → UI が 0 表示
+**修正 (main.py):** `shift_data_missing_blocked` レスポンスに `"total_os_rows": len(sessions)` を追加
+
+**テスト結果 (本番確認済み):**
+- OS Records = 618 (正しい実件数) ✅
+- "Sync complete" バナー非表示 ✅
+- "Sync blocked — no published shift found (1 staff)" + Anthony Plaza 表示 ✅
 
 ---
 
