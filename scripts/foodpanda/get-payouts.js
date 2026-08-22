@@ -75,8 +75,10 @@ const ACCOUNTS = {
     storeName:     'Sushi Zen - Cubao',
     storeCode:     'FP_QC',
     globalEntityId: 'FP_PH',
-    grids: [],
-    gridToStore: {},
+    grids: ['HP7R23'],
+    gridToStore: {
+      'HP7R23': 'FP_QC',
+    },
   },
 };
 
