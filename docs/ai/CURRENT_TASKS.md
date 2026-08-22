@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Phase 3 完全完了: Group Budget Targets + Push to Manager Inbox + Talabat日次化: Heroku v2062, Vercel a21e8e0 — デプロイ中)
+Last updated: 2026-08-22 (Management Accounting 3ページ→1タブページ統合 + Draft Sync UX修正)
+
+---
+
+## ✅ Completed: Management Accounting ページ統合 + Draft Sync UX修正 (2026-08-22, Vercel pending)
+
+**Management Accounting 3ページ→1タブページ統合**:
+- `Cost Intelligence` / `Group Management` / `Monthly Report` の3ページを `/admin/mgmt-accounting` 1ページ（3タブ）に統合
+- NavBar: 3エントリ→1エントリ "Management Accounting" (ChartLine)
+- 旧ページ (`/group`, `/report`) は `/admin/mgmt-accounting` にリダイレクト
+- HQ Manual artifact 更新・republish (c3d0944d)
+- `getHeaders()` をモジュールレベル関数に統一（useCallbackではない）
+
+**Draft 「Sync Proposals From Sheet」 調査・UX修正**:
+- 原因①: "Spreadsheet ID" フィールドにタブ名 (`PAR_2026-9_DRAFT_MAIN`) を入力 → 実際はGoogleスプレッドシートのURLの英数字IDを入れるか空白にするべき
+- 原因②: "MAIN Tab Name" ドロップダウン未選択 (`sheetTabMain=""`) → フロント側で400相当の処理が走りSyncが実行されない
+- 修正: Spreadsheet IDフィールドのplacehloder + ヒントテキスト追加（「通常は空白のまま。URLの長い英数字ID（タブ名ではない）。」）
+- 正しい手順: SpreadsheetID空白 → ↻ボタンでタブ一覧読み込み → MAINタブ選択 → Sync
 
 ---
 

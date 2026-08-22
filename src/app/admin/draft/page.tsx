@@ -3773,8 +3773,9 @@ export default function AdminDraftPage() {
                 className={INPUT_CLASS}
                 value={sheetSpreadsheetId}
                 onChange={(e) => setSheetSpreadsheetId(e.target.value)}
-                placeholder="blank = use city export sheet env"
+                placeholder="Leave blank to use default sheet"
               />
+              <p className={`${T_CAPTION} mt-1`}>通常は空白のまま。URLの長い英数字ID（タブ名ではない）。</p>
             </div>
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>MAIN Tab Name</label>
