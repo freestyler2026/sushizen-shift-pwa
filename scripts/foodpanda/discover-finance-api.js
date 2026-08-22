@@ -1,17 +1,16 @@
 /**
- * FoodPanda finance API discovery via Playwright
+ * FoodPanda finance API discovery
  *
- * Gets JWT via REST, injects into browser, navigates to Orders/Revenue pages,
- * captures all non-static API calls to find the financial endpoint.
+ * Phase 1: Try vagw-api GraphQL (same Delivery Hero architecture as Talabat)
+ * Phase 2: Use existing paranaque-session.json cookies to navigate portal
+ * Phase 3: Full Playwright login with session storage + PX cookie intercept
  *
  * Usage:
  *   node scripts/foodpanda/discover-finance-api.js paranaque
- *   node scripts/foodpanda/discover-finance-api.js taft
- *   node scripts/foodpanda/discover-finance-api.js qc
  */
 
 const { chromium } = require('playwright');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 const LOCATION = process.argv[2] || 'paranaque';
@@ -21,162 +20,320 @@ const ACCOUNTS = {
     email:    process.env.FP_EMAIL_PARANAQUE,
     password: process.env.FP_PASSWORD_PARANAQUE,
     vendorId: 't0z4',
+    sessionFile: path.join(__dirname, 'paranaque-session.json'),
   },
   taft: {
     email:    process.env.FP_EMAIL_TAFT,
     password: process.env.FP_PASSWORD_TAFT,
     vendorId: 'ryqc',
+    sessionFile: path.join(__dirname, 'taft-session.json'),
   },
   qc: {
     email:    process.env.FP_EMAIL_QC,
     password: process.env.FP_PASSWORD_QC,
     vendorId: 'a97i',
+    sessionFile: null,
   },
 };
 
 const account = ACCOUNTS[LOCATION];
 if (!account) { console.error('Use: paranaque | taft | qc'); process.exit(1); }
-if (!account.email || !account.password) {
-  console.error(`FP_EMAIL_${LOCATION.toUpperCase()} / FP_PASSWORD_${LOCATION.toUpperCase()} not set`);
-  process.exit(1);
-}
 
 const AUTH_URL  = 'https://partner-auth.ap.prd.portal.restaurant/auth/v5/login-two-step';
 const PORTAL    = 'https://partner.foodpanda.com';
-const OUT_FILE  = path.join(__dirname, `${LOCATION}-finance-api-discovery.json`);
+const PLATFORM  = 'FP_PH';
+const DATE      = '2026-08-21';
+
+// Delivery Hero vagw-api candidates (same architecture as Talabat EU)
+const VAGW_CANDIDATES = [
+  'https://vagw-api.as.prd.portal.restaurant/query',
+  'https://vagw-api.ap.prd.portal.restaurant/query',
+  'https://vagw-api.sg.prd.portal.restaurant/query',
+  'https://vagw-api.ph.prd.portal.restaurant/query',
+  'https://vagw-api.gdp-ph.prd.portal.restaurant/query',
+];
+
+const SALES_QUERY = `query SalesOverviewByTime($params: DateRangeWithPrecisionVendorsReportRequest!) {
+  salesOverview {
+    salesByTime(input: $params) {
+      order_count
+      revenue
+      __typename
+    }
+    __typename
+  }
+}`;
+
+function vendorHeaders(token, extraHeaders = {}) {
+  return {
+    'Authorization':   `Bearer ${token}`,
+    'Accept':          'application/json',
+    'Content-Type':    'application/json',
+    'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    'Origin':          PORTAL,
+    'Referer':         `${PORTAL}/`,
+    ...extraHeaders,
+  };
+}
 
 async function getJwt() {
   const resp = await fetch(AUTH_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': PORTAL },
+    headers: { 'Content-Type': 'application/json', 'Origin': PORTAL, 'Accept': 'application/json' },
     body:    JSON.stringify({ username: account.email, password: account.password, type: 'password' }),
     signal:  AbortSignal.timeout(20_000),
   });
   const data = await resp.json();
-  if (!data.access_token) throw new Error(`No token: ${JSON.stringify(data).slice(0, 200)}`);
+  if (!data.access_token) throw new Error(`No token: ${JSON.stringify(data).slice(0, 300)}`);
   console.log('✓ JWT obtained');
-  return data;
+  return { token: data.access_token, refreshToken: data.refresh_token };
 }
 
-async function main() {
-  console.log(`\n=== FoodPanda Finance API Discovery — ${LOCATION.toUpperCase()} ===\n`);
+// ── Phase 1: Try vagw-api GraphQL endpoints ────────────────────────────────
 
-  const authData  = await getJwt();
-  const jwt       = authData.access_token;
-  const refreshToken = authData.refresh_token;
+async function tryVagwApi(token) {
+  console.log('\n── Phase 1: Delivery Hero vagw-api GraphQL candidates ──');
 
-  const captured = [];
-  const interesting = [];
+  const vendorIdB64 = Buffer.from(`${PLATFORM}-${account.vendorId}`).toString('base64');
+  const body = JSON.stringify({
+    operationName: 'SalesOverviewByTime',
+    variables: {
+      params: {
+        global_vendor_codes: [`${PLATFORM};${account.vendorId}`],
+        from:      DATE,
+        to:        DATE,
+        precision: 'Day',
+      },
+    },
+    query: SALES_QUERY,
+  });
 
+  for (const url of VAGW_CANDIDATES) {
+    try {
+      const resp = await fetch(url, {
+        method:  'POST',
+        headers: vendorHeaders(token, {
+          'x-global-entity-id':  PLATFORM,
+          'x-vendor-id':         vendorIdB64,
+          'x-country':           'PH',
+          'apollographql-client-name': 'SalesOverviewWebApp',
+        }),
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await resp.text();
+      if (resp.ok || resp.status === 200) {
+        console.log(`  ✅ [${resp.status}] ${url}`);
+        console.log(`     Response: ${text.slice(0, 400)}`);
+        return { found: true, url, response: text };
+      } else {
+        console.log(`  ❌ [${resp.status}] ${url}: ${text.slice(0, 100)}`);
+      }
+    } catch (err) {
+      console.log(`  ❌ [ERR] ${url}: ${err.message}`);
+    }
+  }
+  return { found: false };
+}
+
+// ── Phase 2: Use existing session cookies to navigate portal ──────────────
+
+async function tryWithSessionCookies(token) {
+  console.log('\n── Phase 2: Try with existing session cookies ──');
+
+  if (!account.sessionFile || !fs.existsSync(account.sessionFile)) {
+    console.log('  No session file found — skip');
+    return { found: false };
+  }
+
+  let sessionData;
+  try {
+    sessionData = JSON.parse(fs.readFileSync(account.sessionFile, 'utf8'));
+    console.log(`  Loaded session from ${account.sessionFile}`);
+    console.log(`  Cookies: ${(sessionData.cookies || []).length}`);
+  } catch (err) {
+    console.log(`  Failed to load session: ${err.message}`);
+    return { found: false };
+  }
+
+  const capturedFinancial = [];
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
+    storageState: {
+      cookies: sessionData.cookies || [],
+      origins: sessionData.origins || [],
+    },
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
   });
 
-  // Capture all non-static requests
+  let capturedJwt    = token;
+  const capturedPxHeaders = {};
+
   context.on('request', req => {
     const url = req.url();
+    const h   = req.headers();
+
     if (url.match(/\.(js|css|png|jpg|gif|svg|ico|woff2?)(\?|$)/)) return;
-    if (url.includes('google-analytics') || url.includes('doubleclick') || url.includes('hotjar') ||
-        url.includes('sentry') || url.includes('segment') || url.includes('amplitude') ||
-        url.includes('datadog') || url.includes('facebook') || url.includes('px-cloud') ||
-        url.includes('hotjar') || url.includes('gtm')) return;
+    if (url.includes('google-analytics') || url.includes('px-cloud') || url.includes('gtm')) return;
 
-    const entry = {
-      method: req.method(),
-      url,
-      headers: {
-        authorization: req.headers()['authorization'] ? '[Bearer]' : undefined,
-        'content-type': req.headers()['content-type'],
-      },
-      postData: req.postData()?.slice(0, 400),
-    };
-    captured.push(entry);
+    if ((url.includes('portal.restaurant') || url.includes('restaurant-partners')) && h.authorization) {
+      const tok = h.authorization.replace('Bearer ', '');
+      if (tok && tok !== capturedJwt) { capturedJwt = tok; console.log('  ✓ Fresh JWT captured'); }
+    }
+    if (url.includes('vagw-api') || url.includes('portal.restaurant')) {
+      if (h['x-px-cookies']) { capturedPxHeaders['x-px-cookies'] = h['x-px-cookies']; }
+      if (h['x-user-id'])    { capturedPxHeaders['x-user-id']    = h['x-user-id']; }
+    }
 
-    // Flag interesting (API) requests
-    if (url.includes('/api/') || url.includes('/query') || url.includes('/graphql') ||
-        url.includes('portal.restaurant') || url.includes('foodpanda') ||
-        url.includes('restaurant-partners')) {
-      interesting.push(entry);
+    if (!url.includes('partner.foodpanda.com') &&
+        (url.includes('/api/') || url.includes('/query') || url.includes('/graphql') ||
+         url.includes('portal.restaurant') || url.includes('restaurant-partners'))) {
+      capturedFinancial.push({ method: req.method(), url, postData: req.postData()?.slice(0, 400) });
       console.log(`  [API] ${req.method()} ${url.slice(0, 120)}`);
     }
   });
 
   const page = await context.newPage();
 
-  // Inject JWT into localStorage before navigating
-  await page.addInitScript(([token, refresh]) => {
-    try {
-      // Common storage keys FoodPanda partner portal might use
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('fp_access_token', token);
-      localStorage.setItem('token', token);
-      if (refresh) localStorage.setItem('refresh_token', refresh);
-      // Also set auth data as JSON
-      localStorage.setItem('auth', JSON.stringify({ access_token: token, refresh_token: refresh }));
-      localStorage.setItem('partnerAuth', JSON.stringify({ token, refreshToken: refresh }));
-    } catch (_) {}
-  }, [jwt, refreshToken]);
-
-  // Step 1: Load portal homepage (might redirect to login or dashboard)
-  console.log('\nNavigating to portal...');
-  await page.goto(PORTAL, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
-  await page.waitForTimeout(3000);
-  console.log(`  Current URL: ${page.url()}`);
-
-  // Step 2: If on login page, do UI login
-  if (page.url().includes('/login') || page.url().includes('/signin')) {
-    console.log('  On login page — attempting UI login...');
-    try {
-      await page.fill('input[type="email"], input[name="username"], input[name="email"]', account.email);
-      await page.fill('input[type="password"], input[name="password"]', account.password);
-      await page.click('button[type="submit"]');
-      await page.waitForNavigation({ timeout: 15_000 }).catch(() => {});
-      await page.waitForTimeout(3000);
-      console.log(`  After login URL: ${page.url()}`);
-    } catch (err) {
-      console.log(`  Login UI error: ${err.message}`);
-    }
-  }
-
-  // Step 3: Navigate to Orders section
-  const orderUrls = [
-    `${PORTAL}/orders`,
-    `${PORTAL}/revenue`,
-    `${PORTAL}/dashboard`,
-    `${PORTAL}/finance`,
-    `${PORTAL}/report-builder`,
-    `${PORTAL}/analytics`,
+  const pages = [
+    '/orders', '/revenue', '/dashboard', '/finance',
+    '/report-builder', '/analytics', '/report-builder/create/FINANCE',
   ];
 
-  for (const url of orderUrls) {
-    console.log(`\nNavigating to: ${url}`);
+  for (const p of pages) {
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 }).catch(() => {});
+      await page.goto(`${PORTAL}${p}`, { waitUntil: 'networkidle', timeout: 20_000 }).catch(() => {});
       await page.waitForTimeout(3000);
-      console.log(`  Landed at: ${page.url()}`);
+      const url = page.url();
+      console.log(`  ${p} → ${url.replace(PORTAL, '')}`);
+      if (!url.includes('/login')) {
+        console.log('  *** Authenticated! Waiting for API calls...');
+        await page.waitForTimeout(5000);
+      }
     } catch (err) {
-      console.log(`  Error: ${err.message.slice(0, 100)}`);
+      console.log(`  Error navigating ${p}: ${err.message.slice(0, 100)}`);
     }
   }
 
   await browser.close();
 
-  // Save and summarize results
-  fs.writeFileSync(OUT_FILE, JSON.stringify({ captured, interesting }, null, 2));
-  console.log(`\n✓ Saved to ${OUT_FILE}`);
-  console.log(`\n=== Interesting API calls (${interesting.length}) ===`);
-  interesting.forEach(c => {
+  console.log(`\n  Captured ${capturedFinancial.length} financial API calls`);
+  capturedFinancial.forEach(c => {
     console.log(`  ${c.method} ${c.url}`);
     if (c.postData) console.log(`    body: ${c.postData.slice(0, 200)}`);
   });
 
-  // Summarize unique domains
-  const domains = [...new Set(interesting.map(c => {
-    try { return new URL(c.url).hostname; } catch (_) { return '?'; }
-  }))];
-  console.log('\n=== Unique API domains ===');
-  domains.forEach(d => console.log(`  ${d}`));
+  if (capturedPxHeaders['x-px-cookies']) {
+    console.log('  ✓ PX cookies captured — session was valid!');
+  }
+
+  return {
+    found: capturedFinancial.length > 0,
+    calls: capturedFinancial,
+    jwt: capturedJwt,
+    pxHeaders: capturedPxHeaders,
+  };
+}
+
+// ── Phase 3: Full Playwright login + capture ──────────────────────────────
+
+async function tryFullLogin(token) {
+  console.log('\n── Phase 3: Full Playwright login (intercept all portal API calls) ──');
+
+  const captured = [];
+  let capturedJwt = token;
+  const pxHeaders = {};
+  let loginSuccess = false;
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+  });
+
+  context.on('request', req => {
+    const url = req.url();
+    const h   = req.headers();
+
+    if (url.match(/\.(js|css|png|jpg|gif|svg|ico|woff2?)(\?|$)/)) return;
+    if (url.includes('google') || url.includes('px-cloud') || url.includes('gtm')) return;
+
+    if (h.authorization?.startsWith('Bearer ')) {
+      const tok = h.authorization.slice(7);
+      if (tok !== capturedJwt) { capturedJwt = tok; console.log('  ✓ JWT captured from browser'); }
+    }
+    if (url.includes('vagw-api') || (url.includes('portal.restaurant') && !url.includes('partner.foodpanda.com'))) {
+      if (h['x-px-cookies']) pxHeaders['x-px-cookies'] = h['x-px-cookies'];
+      if (h['x-user-id'])    pxHeaders['x-user-id']    = h['x-user-id'];
+      captured.push({ method: req.method(), url, postData: req.postData()?.slice(0, 400) });
+      console.log(`  [API] ${req.method()} ${url.slice(0, 120)}`);
+    }
+  });
+
+  const page = await context.newPage();
+  await page.goto(`${PORTAL}/login`, { waitUntil: 'domcontentloaded', timeout: 20_000 }).catch(() => {});
+  await page.waitForTimeout(2000);
+
+  // UI login
+  try {
+    await page.fill('input[type="email"], input[name="username"], input[placeholder*="mail"]', account.email);
+    await page.fill('input[type="password"]', account.password);
+    await page.click('button[type="submit"]');
+    await page.waitForTimeout(5000);
+    const url = page.url();
+    console.log(`  After login: ${url.replace(PORTAL, '')}`);
+    loginSuccess = !url.includes('/login') && !url.includes('/2fa');
+  } catch (err) {
+    console.log(`  Login error: ${err.message.slice(0, 100)}`);
+  }
+
+  if (!loginSuccess) {
+    console.log('  Login did not succeed (2FA or redirect) — session-based approach needed');
+    await browser.close();
+    return { found: false };
+  }
+
+  // Navigate to financial pages
+  for (const p of ['/revenue', '/orders', '/report-builder/create/FINANCE']) {
+    try {
+      await page.goto(`${PORTAL}${p}`, { waitUntil: 'networkidle', timeout: 20_000 }).catch(() => {});
+      await page.waitForTimeout(5000);
+      console.log(`  ${p} → ${page.url().replace(PORTAL, '')}`);
+    } catch (_) {}
+  }
+
+  await browser.close();
+
+  console.log(`\n  Captured ${captured.length} API calls`);
+  captured.forEach(c => console.log(`  ${c.method} ${c.url}`));
+
+  return { found: captured.length > 0, calls: captured };
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log(`\n=== FoodPanda Finance API Discovery — ${LOCATION.toUpperCase()} ===\n`);
+  if (!account.email || !account.password) {
+    console.error('Credentials not set — check FP_EMAIL/PASSWORD env vars');
+    process.exit(1);
+  }
+
+  const { token } = await getJwt();
+
+  // Phase 1: vagw-api GraphQL
+  const r1 = await tryVagwApi(token);
+  if (r1.found) { console.log('\n🎉 vagw-api works! Update get-payouts.js to use GraphQL.'); process.exit(0); }
+
+  // Phase 2: existing session cookies
+  const r2 = await tryWithSessionCookies(token);
+  if (r2.found) { console.log('\n🎉 Session cookies valid! Finance API found.'); process.exit(0); }
+
+  // Phase 3: full login
+  const r3 = await tryFullLogin(token);
+  if (r3.found) { console.log('\n🎉 Full login succeeded! Finance API found.'); process.exit(0); }
+
+  console.log('\n⚠️  No financial API endpoint found automatically.');
+  console.log('Next step: run setup-session.js locally and navigate to Revenue/Orders pages to capture API calls.');
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
