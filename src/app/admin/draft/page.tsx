@@ -1438,11 +1438,6 @@ export default function AdminDraftPage() {
   const [decisionNote, setDecisionNote] = useState("");
   const [pendingBusy, setPendingBusy] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
-  const [sheetSpreadsheetId, setSheetSpreadsheetId] = useState("");
-  const [sheetTabMain, setSheetTabMain] = useState("");
-  const [sheetRange, setSheetRange] = useState("A1:CL2000");
-  const [sheetTabs, setSheetTabs] = useState<string[]>([]);
-  const [sheetTabsBusy, setSheetTabsBusy] = useState(false);
 
   // AI analysis
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResult | null>(null);
@@ -1667,18 +1662,6 @@ export default function AdminDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOperate, approverName, pin, applyMonth, pendingBranch]);
 
-  useEffect(() => {
-    if (sheetTabMain.trim()) return;
-    const fromApply = (applyResult?.items || [])
-      .map((x) => x.export?.tab_main || "")
-      .find((x) => !!x);
-    if (fromApply) setSheetTabMain(fromApply);
-  }, [applyResult, sheetTabMain]);
-
-  useEffect(() => {
-    loadSheetTabs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canOperate, approverName, pin, city, applyMonth]);
 
   async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
     setRosterLoading(true);
@@ -2659,7 +2642,7 @@ export default function AdminDraftPage() {
     }
   }
 
-  async function proposeFromSheet() {
+  async function syncFromSheet() {
     if (!canOperate) return;
     if (!approverName.trim() || !pin.trim()) {
       setPendingMessage("Approver and PIN are required.");
@@ -2673,55 +2656,41 @@ export default function AdminDraftPage() {
       setPendingMessage("Select branch first.");
       return;
     }
-    if (!sheetTabMain.trim()) {
-      setPendingMessage("MAIN tab name is required.");
-      return;
-    }
     setPendingBusy(true);
-    setPendingMessage("");
+    setPendingMessage("Searching for MAIN tab…");
     try {
+      const resp = await apiGet<{ ok: boolean; tabs: string[] }>(`/admin/sheet_tabs${qs({ city })}`);
+      const all = Array.isArray(resp?.tabs) ? resp.tabs : [];
+      const mains = all.filter((t) => /_MAIN$/i.test(t));
+      // Match applyMonth with or without zero-padding (e.g. "2026-09" or "2026-9")
+      const monthVariants = [applyMonth, applyMonth.replace(/-0(\d)$/, "-$1")];
+      const tabMain = mains.find((t) => monthVariants.some((m) => t.includes(m))) || mains[0];
+      if (!tabMain) {
+        setPendingMessage("No MAIN tab found in spreadsheet. Make sure tabs ending in _MAIN exist.");
+        return;
+      }
+      setPendingMessage(`Syncing from "${tabMain}"…`);
       const res = await apiPost<{ ok: boolean; inserted: number; warnings?: string[] }>(`/api/draft/sheet/propose_sync`, {
         city,
         branch_code: defaultSyncBranch,
         month_key: applyMonth,
-        spreadsheet_id: sheetSpreadsheetId.trim(),
-        tab_main: sheetTabMain.trim(),
-        a1_range: sheetRange.trim() || "A1:CL2000",
+        spreadsheet_id: "",
+        tab_main: tabMain,
+        a1_range: "A1:CL2000",
         draft_version_id: version?.version_id || "",
         approver_name: approverName,
         pin,
       });
       const w = (res.warnings || []).join(" / ");
-      setPendingMessage(`Proposed ${res.inserted} rows.${w ? ` Warnings: ${w}` : ""}`);
+      setPendingMessage(`Proposed ${res.inserted} rows from "${tabMain}".${w ? ` Warnings: ${w}` : ""}`);
       await loadPendingProposals();
     } catch (e: any) {
-      setPendingMessage(String(e?.message || e || "Sync propose failed"));
+      setPendingMessage(String(e?.message || e || "Sync failed"));
     } finally {
       setPendingBusy(false);
     }
   }
 
-  async function loadSheetTabs() {
-    if (!canOperate) return;
-    if (!approverName.trim() || !pin.trim()) return;
-    setSheetTabsBusy(true);
-    try {
-      const resp = await apiGet<{ ok: boolean; tabs: string[] }>(
-        `/admin/sheet_tabs${qs({ city })}`
-      );
-      const all = Array.isArray(resp?.tabs) ? resp.tabs : [];
-      const mains = all.filter((t) => /_MAIN$/i.test(t));
-      setSheetTabs(mains.length ? mains : all);
-      if (!sheetTabMain) {
-        const candidate = mains.find((t) => t.includes(applyMonth)) || mains[0];
-        if (candidate) setSheetTabMain(candidate);
-      }
-    } catch {
-      setSheetTabs([]);
-    } finally {
-      setSheetTabsBusy(false);
-    }
-  }
 
   // Auto-export banner computed values (used in JSX below)
   const aeHasSuccess = Object.keys(autoExportResults).length > 0;
@@ -3738,7 +3707,7 @@ export default function AdminDraftPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>Month</label>
               <input type="month" className={INPUT_CLASS} value={applyMonth} onChange={(e) => setApplyMonth(e.target.value)} />
@@ -3755,74 +3724,13 @@ export default function AdminDraftPage() {
                 ]}
               />
             </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Decision Note (optional)</label>
-              <input
-                className={INPUT_CLASS}
-                value={decisionNote}
-                onChange={(e) => setDecisionNote(e.target.value)}
-                placeholder="Reason for approve/reject"
-              />
-            </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Spreadsheet ID (optional)</label>
-              <input
-                className={INPUT_CLASS}
-                value={sheetSpreadsheetId}
-                onChange={(e) => setSheetSpreadsheetId(e.target.value)}
-                placeholder="Leave blank to use default sheet"
-              />
-              <p className={`${T_CAPTION} mt-1`}>通常は空白のまま。URLの長い英数字ID（タブ名ではない）。</p>
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>MAIN Tab Name</label>
-              <SelectDark
-                className={SELECT_CLASS}
-                value={sheetTabMain}
-                onChange={setSheetTabMain}
-                options={[
-                  { value: "", label: "Select MAIN tab" },
-                  ...sheetTabs.map((t) => ({ value: t, label: t })),
-                ]}
-              />
-              {!sheetTabs.length ? (
-                <input
-                  className={`${INPUT_CLASS} mt-2`}
-                  value={sheetTabMain}
-                  onChange={(e) => setSheetTabMain(e.target.value)}
-                  placeholder="fallback: type MAIN tab manually"
-                />
-              ) : null}
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>A1 Range</label>
-              <div className="flex gap-2">
-                <input
-                  className={INPUT_CLASS}
-                  value={sheetRange}
-                  onChange={(e) => setSheetRange(e.target.value)}
-                  placeholder="A1:CL2000"
-                />
-                <button
-                  type="button"
-                  onClick={loadSheetTabs}
-                  disabled={sheetTabsBusy}
-                  className={`${SMALL_BUTTON} whitespace-nowrap disabled:opacity-60`}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-          <p className={`${T_CAPTION} mb-4`}>sync branch: {defaultSyncBranch || "-"}</p>
+          <p className={`${T_CAPTION} mb-3`}>Reads the {city === "dubai" ? "Dubai" : "Manila"} draft spreadsheet and auto-selects the MAIN tab for {applyMonth}. Branch: {defaultSyncBranch || "—"}</p>
 
           <div className="flex justify-end mb-4">
             <button
               type="button"
-              onClick={proposeFromSheet}
+              onClick={syncFromSheet}
               disabled={pendingBusy || !defaultSyncBranch}
               className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
             >
@@ -3833,7 +3741,7 @@ export default function AdminDraftPage() {
 
           <hr className="border-white/5 mb-4" />
 
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
             <button
               type="button"
               onClick={() => runBulkDecision("APPROVE")}
@@ -3855,6 +3763,14 @@ export default function AdminDraftPage() {
             <span className={T_CAPTION}>
               selected: {fmtNum(selectedProposalIds.length)} / {fmtNum(pendingVisibleRows.length)}
             </span>
+          </div>
+          <div className="mb-4">
+            <input
+              className={`${INPUT_CLASS} max-w-sm`}
+              value={decisionNote}
+              onChange={(e) => setDecisionNote(e.target.value)}
+              placeholder="Note for this decision (optional)"
+            />
           </div>
 
           {pendingMessage ? <div className={`${BADGE_WARNING} mb-4 px-4 py-2 text-sm`}>{pendingMessage}</div> : null}
