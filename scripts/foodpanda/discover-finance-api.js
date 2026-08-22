@@ -240,41 +240,38 @@ async function probeJwtScope(token) {
     'User-Agent':    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
   };
 
-  const endpoints = [
-    // Known working
-    `https://vendor-api-gdp-ph.as.restaurant-partners.com/api/5/platforms/FP_PH/vendors/${account.vendorId}/catalogs?locale=en`,
-    // Auth service probe
-    'https://partner-auth.ap.prd.portal.restaurant/auth/v5/me',
-    'https://partner-auth.ap.prd.portal.restaurant/auth/v5/profile',
-    // Portal APIs
-    `https://partner.foodpanda.com/api/v1/vendors/${account.vendorId}/orders?from=${DATE}&to=${DATE}`,
+  // Known-working endpoints from previous discovery run — get FULL response
+  const winners = [
+    `https://partner.foodpanda.com/api/v1/vendors/${account.vendorId}/orders?from=${DATE}&to=${DATE}&limit=5`,
     `https://partner.foodpanda.com/api/v1/revenue?vendor_id=${account.vendorId}&from=${DATE}&to=${DATE}`,
     `https://partner.foodpanda.com/api/vendors/${account.vendorId}/revenue`,
-    // Delivery Hero shared APIs
-    'https://portal-api.ap.prd.portal.restaurant/graphql',
-    'https://portal-api.ap.prd.portal.restaurant/query',
-    'https://backend.ap.prd.portal.restaurant/graphql',
-    'https://api.ap.prd.portal.restaurant/graphql',
+    `https://partner.foodpanda.com/api/vendors/${account.vendorId}/revenue?from=${DATE}&to=${DATE}`,
+    // Variants: status filter, pagination
+    `https://partner.foodpanda.com/api/v1/vendors/${account.vendorId}/orders?from=${DATE}&to=${DATE}&status=ACCEPTED&limit=5`,
+    `https://partner.foodpanda.com/api/v1/vendors/${account.vendorId}/orders?from=${DATE}&to=${DATE}&status=DELIVERED&limit=5`,
+    `https://partner.foodpanda.com/api/v1/revenue?vendor_id=${account.vendorId}&from=${DATE}&to=${DATE}&period=daily`,
+    // More path variants
+    `https://partner.foodpanda.com/api/v1/vendors/${account.vendorId}/revenue?from=${DATE}&to=${DATE}`,
+    `https://partner.foodpanda.com/api/v2/vendors/${account.vendorId}/orders?from=${DATE}&to=${DATE}&limit=5`,
+    `https://partner.foodpanda.com/api/v2/revenue?vendor_id=${account.vendorId}&from=${DATE}&to=${DATE}`,
   ];
 
-  for (const url of endpoints) {
-    const method = url.includes('graphql') || url.includes('/query') ? 'POST' : 'GET';
-    const body   = method === 'POST' ? JSON.stringify({ query: '{ __typename }' }) : undefined;
-    const extraHeaders = method === 'POST' ? { 'Content-Type': 'application/json' } : {};
+  console.log('\n  [Winners from previous run — full response bodies]');
+  for (const url of winners) {
     try {
-      const resp = await fetch(url, {
-        method,
-        headers: { ...headers, ...extraHeaders },
-        body,
-        signal: AbortSignal.timeout(8_000),
-      });
+      const resp = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
       const text = await resp.text();
-      const icon = resp.ok ? '✅' : resp.status === 404 ? '❌' : resp.status === 401 ? '🔐' : resp.status === 403 ? '⛔' : `⚠️(${resp.status})`;
-      console.log(`  ${icon} [${resp.status}] ${method} ${url.slice(0, 80)}`);
-      if (resp.ok) console.log(`      ${text.slice(0, 200)}`);
-      else if (resp.status !== 404) console.log(`      ${text.slice(0, 100)}`);
+      const icon = resp.ok ? '✅' : resp.status === 404 ? '❌' : `⚠️(${resp.status})`;
+      console.log(`\n  ${icon} [${resp.status}] ${url.replace('https://partner.foodpanda.com', '')}`);
+      if (resp.ok) {
+        // Print FULL response (up to 1500 chars)
+        console.log(`  RESPONSE (${text.length} bytes):`);
+        console.log(text.slice(0, 1500));
+      } else {
+        console.log(`  ${text.slice(0, 200)}`);
+      }
     } catch (err) {
-      console.log(`  ❌ [ERR] ${url.slice(0, 80)}: ${err.message.slice(0, 60)}`);
+      console.log(`  ❌ [ERR] ${url.slice(0, 80)}: ${err.message}`);
     }
   }
 }
