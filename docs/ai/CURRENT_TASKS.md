@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (FoodPanda Manila API発見 BLOCKED — setup-session.js実行待ち)
+Last updated: 2026-08-22 (Careem Dubai balance snapshot automation 完了)
+
+---
+
+## ✅ Completed: Careem Dubai 日次残高スナップショット自動化 (2026-08-22, Heroku v2074)
+
+**発見API:** `GET /api/saturn-ext/v1/billing/billingAccounts/earnings` → 店舗ごとの未払い残高
+**手法:** Playwright headless でFinancesページを開き、自動コールされるAPIレスポンスをインターセプト
+**対象10店舗:** Sushi ZEN×5 + Ramen Zen×4 + All Veggie Sushi×1 (合計 AED ~36,714)
+**payout_id形式:** `careem_balance_{STORE_CODE}_{YYYY-MM-DD}`
+**銀行振込検知:** 前日比 >500 AED減少 → `payout_detected=true` をレスポンスに含む
+**シークレット:** `CAREEM_SESSION` 登録済み (refresh session自動保存機能付き)
+**Workflow:** `.github/workflows/careem-dubai-daily-payout.yml` (毎日 02:00 UTC = 06:00 GST)
+**本番テスト:** 2026-08-22に全10店舗をar_payoutsにポスト成功確認済み
 
 ---
 
