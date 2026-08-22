@@ -1438,6 +1438,9 @@ export default function AdminDraftPage() {
   const [decisionNote, setDecisionNote] = useState("");
   const [pendingBusy, setPendingBusy] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
+  const [syncSkipped, setSyncSkipped] = useState<string[]>([]);
+  const [syncStats, setSyncStats] = useState<{ rows_scanned: number; changed_rows: number; parsed_proposals: number } | null>(null);
+  const [syncSkippedOpen, setSyncSkippedOpen] = useState(false);
 
   // AI analysis
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResult | null>(null);
@@ -2668,8 +2671,11 @@ export default function AdminDraftPage() {
         setPendingMessage("No MAIN tab found in spreadsheet. Make sure tabs ending in _MAIN exist.");
         return;
       }
+      setSyncSkipped([]);
+      setSyncStats(null);
+      setSyncSkippedOpen(false);
       setPendingMessage(`Syncing from "${tabMain}"…`);
-      const res = await apiPost<{ ok: boolean; inserted: number; warnings?: string[] }>(`/api/draft/sheet/propose_sync`, {
+      const res = await apiPost<{ ok: boolean; inserted: number; warnings?: string[]; stats?: { rows_scanned: number; changed_rows: number; parsed_proposals: number } }>(`/api/draft/sheet/propose_sync`, {
         city,
         branch_code: syncBranchCode,
         month_key: applyMonth,
@@ -2680,8 +2686,14 @@ export default function AdminDraftPage() {
         approver_name: approverName,
         pin,
       });
-      const w = (res.warnings || []).join(" / ");
-      setPendingMessage(`Proposed ${res.inserted} rows from "${tabMain}".${w ? ` Warnings: ${w}` : ""}`);
+      const skipped = res.warnings || [];
+      setSyncSkipped(skipped);
+      if (res.stats) setSyncStats(res.stats);
+      const skipCount = skipped.length;
+      setPendingMessage(
+        `✅ Imported ${res.inserted} proposals from "${tabMain}"` +
+        (skipCount ? ` · ⚠️ ${skipCount} rows skipped (see below)` : "")
+      );
       await loadPendingProposals();
     } catch (e: any) {
       setPendingMessage(String(e?.message || e || "Sync failed"));
@@ -3779,6 +3791,41 @@ export default function AdminDraftPage() {
           </div>
 
           {pendingMessage ? <div className={`${BADGE_WARNING} mb-4 px-4 py-2 text-sm`}>{pendingMessage}</div> : null}
+
+          {syncStats && (
+            <div className="mb-3 flex flex-wrap gap-4 text-xs text-zinc-400">
+              <span>Rows scanned: <span className="text-zinc-200">{syncStats.rows_scanned}</span></span>
+              <span>Changed rows detected: <span className="text-zinc-200">{syncStats.changed_rows}</span></span>
+              <span>Imported: <span className="text-emerald-400 font-semibold">{syncStats.parsed_proposals}</span></span>
+              {syncSkipped.length > 0 && (
+                <span>Skipped: <span className="text-amber-400 font-semibold">{syncSkipped.length}</span></span>
+              )}
+            </div>
+          )}
+
+          {syncSkipped.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-500/25 bg-amber-500/5 overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                onClick={() => setSyncSkippedOpen((v) => !v)}
+              >
+                <span className="text-xs font-semibold text-amber-400">
+                  ⚠️ {syncSkipped.length} rows skipped — click to {syncSkippedOpen ? "hide" : "view"} details
+                </span>
+                <span className="text-zinc-500 text-xs">{syncSkippedOpen ? "▲" : "▼"}</span>
+              </button>
+              {syncSkippedOpen && (
+                <div className="px-4 pb-3 max-h-60 overflow-y-auto space-y-1">
+                  {syncSkipped.map((w, i) => (
+                    <div key={i} className="text-xs text-amber-300/80 py-0.5 border-b border-white/5 last:border-0">
+                      {w}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-white/8 overflow-hidden">
             <table className="w-full">
