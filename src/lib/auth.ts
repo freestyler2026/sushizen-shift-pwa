@@ -165,9 +165,21 @@ export function nonDowngradedAccess(
   const currentPerms = current.permissions || [];
 
   let role: StaffRole = incomingRole || current.role || "STAFF";
-  // Never drop a non-STAFF session down to STAFF/unknown on a refresh.
+  // Never drop a privileged session to a lower role on a transient refresh.
+  // HQ/ADMIN are the highest roles — never downgrade them to anything else.
+  // Non-STAFF sessions are never downgraded to STAFF/unknown.
+  // The server enforces real permissions on every request, so keeping the client
+  // optimistic on transient failures is safe.
   let keptRole = false;
+  const PRIVILEGED = new Set(["HQ", "ADMIN"]);
+  const currentIsPrivileged = PRIVILEGED.has(currentRole);
+  const incomingLowersPrivilege = currentIsPrivileged && !PRIVILEGED.has(incoming);
   if (currentRole !== "STAFF" && (incoming === "" || incoming === "STAFF")) {
+    role = current.role || role;
+    keptRole = true;
+  } else if (incomingLowersPrivilege && incoming !== "") {
+    // Backend returned a non-HQ/ADMIN role for a privileged session — likely a
+    // transient DB blip or profile-lookup fallback. Keep the privileged role.
     role = current.role || role;
     keptRole = true;
   }
