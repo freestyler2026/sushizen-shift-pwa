@@ -9,6 +9,7 @@
 const { chromium } = require('playwright');
 const fs   = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const LOCATION = process.argv[2] || 'paranaque';
 const ACCOUNTS = {
@@ -22,8 +23,11 @@ const OUT_JSON = path.join(__dirname, `${LOCATION}-session.json`);
 const OUT_B64  = path.join(__dirname, `${LOCATION}-session.b64.txt`);
 const OUT_API  = path.join(__dirname, `${LOCATION}-api-discovery.json`);
 
-const captured = [];
-let capturing  = false;
+const captured   = [];
+const responses  = [];   // vagw-api response bodies
+let capturing    = false;
+
+const OUT_RESP = path.join(__dirname, `${LOCATION}-api-responses.json`);
 
 async function main() {
   console.log(`\n=== Food Panda — ${LOCATION.toUpperCase()} ===`);
@@ -33,7 +37,7 @@ async function main() {
   const context = await browser.newContext();
   const page    = await context.newPage();
 
-  // Capture all XHR/fetch after login
+  // Capture requests (request bodies)
   context.on('request', req => {
     if (!capturing) return;
     const url = req.url();
@@ -43,6 +47,23 @@ async function main() {
         url.includes('segment.io') || url.includes('amplitude') ||
         url.includes('datadog') || url.includes('facebook')) return;
     captured.push({ method: req.method(), url, postData: req.postData()?.slice(0, 400) });
+  });
+
+  // Capture vagw-api RESPONSE bodies at network level (bypasses PX in-page interception)
+  context.on('response', async resp => {
+    if (!capturing) return;
+    const url = resp.url();
+    if (!url.includes('vagw-api') && !url.includes('bff-api')) return;
+    try {
+      const body = await resp.text();
+      const postData = resp.request().postData() || '';
+      const opMatch  = postData.match(/"operationName"\s*:\s*"([^"]+)"/);
+      const opName   = opMatch ? opMatch[1] : 'unknown';
+      responses.push({ url, status: resp.status(), operationName: opName, body });
+      if (resp.status() === 200) {
+        process.stdout.write(`  [API OK] ${opName}\n`);
+      }
+    } catch (_) {}
   });
 
   console.log('Opening Food Panda Partner Portal...');
@@ -150,13 +171,20 @@ async function main() {
 
   // Save session
   await context.storageState({ path: OUT_JSON });
-  const data     = JSON.parse(fs.readFileSync(OUT_JSON, 'utf8'));
-  const stripped = { cookies: data.cookies, origins: [] };
-  const b64      = Buffer.from(JSON.stringify(stripped)).toString('base64');
+  const data = JSON.parse(fs.readFileSync(OUT_JSON, 'utf8'));
+  // Include full localStorage — authSessionFlag and other keys the portal needs to
+  // skip the /login redirect when restoring the session in a new browser context.
+  const fullState = { cookies: data.cookies, origins: data.origins || [] };
+  const b64 = zlib.gzipSync(Buffer.from(JSON.stringify(fullState)), { level: 9 }).toString('base64');
   fs.writeFileSync(OUT_B64, b64);
   fs.writeFileSync(OUT_API, JSON.stringify(captured, null, 2));
+  if (responses.length > 0) {
+    fs.writeFileSync(OUT_RESP, JSON.stringify(responses, null, 2));
+    console.log(`✓ API responses: ${OUT_RESP} (${responses.length} calls)`);
+  }
 
-  console.log(`\n✓ Session: ${OUT_B64} (${b64.length} chars)`);
+  const lsCount = (data.origins?.[0]?.localStorage || []).length;
+  console.log(`\n✓ Session: ${OUT_B64} (${b64.length} chars, gzip, ${data.cookies.length} cookies, ${lsCount} localStorage keys)`);
   console.log(`✓ API calls captured: ${captured.length}`);
 
   // Show financial API calls specifically
@@ -178,6 +206,18 @@ async function main() {
     console.log('  (none captured — portal may have redirected to login)');
     console.log('  All captured URLs:');
     captured.slice(0, 30).forEach(c => console.log(`    ${c.method} ${c.url.slice(0, 100)}`));
+  }
+
+  // Show vagw-api response summary
+  if (responses.length > 0) {
+    console.log(`\n=== vagw-api / bff-api Response Bodies Captured (${responses.length}) ===`);
+    responses.forEach(r => {
+      const preview = r.body.slice(0, 300).replace(/\n/g, ' ');
+      console.log(`  [${r.status}] ${r.operationName}`);
+      console.log(`    ${preview}`);
+    });
+  } else {
+    console.log('\n(No vagw-api response bodies captured)');
   }
 
   await browser.close();

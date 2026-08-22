@@ -1,247 +1,135 @@
 /**
- * FoodPanda PH Partner Portal — per-store daily revenue extractor (REST, no Playwright)
+ * FoodPanda Manila — actual payout extractor (Playwright + response interception)
+ *
+ * Uses saved Playwright session to load the Finance page and capture
+ * ListPayouts GraphQL response bodies via network-level interception
+ * (bypasses PerimeterX in-page fetch wrapper).
  *
  * Flow:
- *   1. For each store, POST to partner-auth → fresh JWT (no 2FA, no session file needed)
- *   2. GET vendor orders for the target date range
- *   3. Sum completed order totals → gross sales per store
- *   4. POST per-store record to WEBHOOK_URL
+ *   1. Load saved session (b64 from env var or local file)
+ *   2. Launch Playwright headless, navigate to /finance
+ *   3. Portal auto-refreshes auth and calls ListPayouts
+ *   4. Capture ListPayouts response via context.on('response', ...)
+ *   5. POST each payout record to WEBHOOK_URL
  *
- * Auth:    POST https://partner-auth.ap.prd.portal.restaurant/auth/v5/login-two-step
- * Orders:  GET  https://vendor-api-gdp-ph.as.restaurant-partners.com/api/5/platforms/FP_PH/vendors/{vendorId}/orders
+ * Session management:
+ *   - Local dev:  scripts/foodpanda/{LOCATION}-session.b64.txt
+ *   - GitHub CI:  FP_SESSION_PARANAQUE / FP_SESSION_TAFT / FP_SESSION_QC env var (base64)
+ *   - If portal redirects to /login → session expired → script exits 1
+ *   - Re-run setup-session.js to refresh
  *
- * Usage (local test):
- *   DATE_FROM=2026-08-21 DATE_TO=2026-08-21 \
- *   FP_EMAIL_PARANAQUE=xxx FP_PASSWORD_PARANAQUE=xxx \
- *   FP_EMAIL_TAFT=xxx      FP_PASSWORD_TAFT=xxx \
- *   FP_EMAIL_QC=xxx        FP_PASSWORD_QC=xxx \
- *   node scripts/foodpanda/get-payouts.js
+ * Usage (local):
+ *   DATE_FROM=2026-07-23 DATE_TO=2026-08-22 \
+ *   WEBHOOK_URL=https://sushizen-shift-app-038d846023bc.herokuapp.com \
+ *   node scripts/foodpanda/get-payouts.js paranaque
  *
- * Usage (CI): all env vars set from GitHub Secrets + workflow env.
+ * Usage (CI — all env vars from GitHub Secrets):
+ *   FP_SESSION_PARANAQUE=<base64> DATE_FROM=2026-07-23 DATE_TO=2026-08-22 \
+ *   WEBHOOK_URL=https://... node scripts/foodpanda/get-payouts.js paranaque
  */
 
-const DATE_FROM   = process.env.DATE_FROM;   // YYYY-MM-DD required
-const DATE_TO     = process.env.DATE_TO;     // YYYY-MM-DD required
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
+const { chromium } = require('playwright');
+const fs   = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 
-if (!DATE_FROM || !DATE_TO) {
-  console.error('DATE_FROM and DATE_TO must be set (e.g. 2026-08-21)');
+// Decode a session b64 — handles both plain JSON and gzip-compressed JSON.
+function decodeSession(b64) {
+  const buf = Buffer.from(b64.trim(), 'base64');
+  const raw = (buf[0] === 0x1f && buf[1] === 0x8b)
+    ? zlib.gunzipSync(buf).toString('utf8')
+    : buf.toString('utf8');
+  return JSON.parse(raw);
+}
+
+const LOCATION = process.argv[2] || 'paranaque';
+
+const ACCOUNTS = {
+  paranaque: {
+    sessionEnvVar: 'FP_SESSION_PARANAQUE',
+    sessionFile:   path.join(__dirname, 'paranaque-session.b64.txt'),
+    storeName:     'Sushi Zen - Paranaque',
+    storeCode:     'FP_PARANAQUE',
+    globalEntityId: 'FP_PH',
+    // Grids known for this account (from setup-session.js discovery 2026-08-22)
+    grids: ['HPSBLI', 'HP6SJW'],
+    gridToStore: {
+      'HP6SJW': 'FP_PARANAQUE',
+      'HPSBLI': 'FP_PARANAQUE_SBLI',
+    },
+  },
+  taft: {
+    sessionEnvVar: 'FP_SESSION_TAFT',
+    sessionFile:   path.join(__dirname, 'taft-session.b64.txt'),
+    storeName:     'Sushi Zen - Taft',
+    storeCode:     'FP_TAFT',
+    globalEntityId: 'FP_PH',
+    grids: [],
+    gridToStore: {},
+  },
+  qc: {
+    sessionEnvVar: 'FP_SESSION_QC',
+    sessionFile:   path.join(__dirname, 'qc-session.b64.txt'),
+    storeName:     'Sushi Zen - Cubao',
+    storeCode:     'FP_QC',
+    globalEntityId: 'FP_PH',
+    grids: [],
+    gridToStore: {},
+  },
+};
+
+if (!ACCOUNTS[LOCATION]) {
+  console.error('Usage: node get-payouts.js paranaque|taft|qc');
   process.exit(1);
 }
 
-const AUTH_URL   = 'https://partner-auth.ap.prd.portal.restaurant/auth/v5/login-two-step';
-const VENDOR_API = 'https://vendor-api-gdp-ph.as.restaurant-partners.com';
-const PLATFORM   = 'FP_PH';
+const DATE_FROM   = process.env.DATE_FROM;
+const DATE_TO     = process.env.DATE_TO;
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
-const ACCOUNTS = [
-  {
-    email:     process.env.FP_EMAIL_PARANAQUE,
-    password:  process.env.FP_PASSWORD_PARANAQUE,
-    storeName: 'Sushi Zen - Paranaque',
-    storeCode: 'FP_PARANAQUE',
-    vendorId:  't0z4',
-  },
-  {
-    email:     process.env.FP_EMAIL_TAFT,
-    password:  process.env.FP_PASSWORD_TAFT,
-    storeName: 'Sushi Zen - Taft',
-    storeCode: 'FP_TAFT',
-    vendorId:  'ryqc',
-  },
-  {
-    email:     process.env.FP_EMAIL_QC,
-    password:  process.env.FP_PASSWORD_QC,
-    storeName: 'Sushi Zen - Cubao',
-    storeCode: 'FP_QC',
-    vendorId:  'a97i',
-  },
-];
-
-// ── Headers ───────────────────────────────────────────────────────────────────
-
-function authHeaders() {
-  return {
-    'Content-Type':    'application/json',
-    'Accept':          'application/json',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
-    'Origin':          'https://partner.foodpanda.com',
-    'Referer':         'https://partner.foodpanda.com/login',
-  };
+if (!DATE_FROM || !DATE_TO) {
+  console.error('DATE_FROM and DATE_TO must be set (e.g. 2026-07-23 / 2026-08-22)');
+  process.exit(1);
 }
 
-function vendorHeaders(token) {
-  return {
-    'Authorization':   `Bearer ${token}`,
-    'Accept':          'application/json',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
-    'Origin':          'https://partner.foodpanda.com',
-    'Referer':         'https://partner.foodpanda.com/',
-  };
-}
+const acct = ACCOUNTS[LOCATION];
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Session loader ─────────────────────────────────────────────────────────
 
-async function login(email, password) {
-  const resp = await fetch(AUTH_URL, {
-    method:  'POST',
-    headers: authHeaders(),
-    body:    JSON.stringify({ username: email, password, type: 'password' }),
-    signal:  AbortSignal.timeout(20_000),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`Auth failed ${resp.status}: ${text.slice(0, 200)}`);
+const TMP_SESSION = path.join(__dirname, `${LOCATION}-session-tmp.json`);
+
+function loadSession() {
+  // GitHub CI: env var takes priority
+  const b64Env = process.env[acct.sessionEnvVar];
+  if (b64Env) {
+    const data = decodeSession(b64Env);
+    fs.writeFileSync(TMP_SESSION, JSON.stringify(data));
+    const lsCount = (data.origins?.[0]?.localStorage || []).length;
+    console.log(`✓ Session loaded from env var ${acct.sessionEnvVar} (${data.cookies?.length} cookies, ${lsCount} localStorage keys)`);
+    return TMP_SESSION;
   }
-  const data = await resp.json();
-  const token = data.access_token;
-  if (!token) throw new Error(`No access_token in response: ${JSON.stringify(data).slice(0, 300)}`);
-  return token;
-}
-
-// ── Orders ────────────────────────────────────────────────────────────────────
-
-// Build date range for FoodPanda PH (PHT = UTC+8)
-// Try ISO datetime format with timezone first; fallback handled in fetch
-function makeTimeRange(dateStr) {
-  return {
-    from: `${dateStr}T00:00:00+08:00`,
-    to:   `${dateStr}T23:59:59+08:00`,
-  };
-}
-
-async function fetchOrdersPage(vendorId, token, paramStyle, offset, limit) {
-  const base   = `${VENDOR_API}/api/5/platforms/${PLATFORM}/vendors/${vendorId}`;
-  const range  = makeTimeRange(DATE_FROM === DATE_TO ? DATE_FROM : DATE_FROM);
-
-  let params;
-  if (paramStyle === 'datetime') {
-    // First attempt: ISO datetime with timezone
-    params = new URLSearchParams({
-      from:   range.from,
-      to:     range.to,
-      limit:  String(limit),
-      offset: String(offset),
-    });
-  } else if (paramStyle === 'date') {
-    // Second attempt: plain date strings
-    params = new URLSearchParams({
-      from:   DATE_FROM,
-      to:     DATE_TO,
-      limit:  String(limit),
-      offset: String(offset),
-    });
-  } else {
-    // Third attempt: start_date / end_date naming
-    params = new URLSearchParams({
-      start_date: DATE_FROM,
-      end_date:   DATE_TO,
-      limit:      String(limit),
-      offset:     String(offset),
-    });
+  // Local dev: read from file
+  if (fs.existsSync(acct.sessionFile)) {
+    const b64  = fs.readFileSync(acct.sessionFile, 'utf8').trim();
+    const data = decodeSession(b64);
+    fs.writeFileSync(TMP_SESSION, JSON.stringify(data));
+    const lsCount = (data.origins?.[0]?.localStorage || []).length;
+    console.log(`✓ Session loaded from ${acct.sessionFile} (${data.cookies?.length} cookies, ${lsCount} localStorage keys)`);
+    return TMP_SESSION;
   }
-
-  const url  = `${base}/orders?${params}`;
-  const resp = await fetch(url, {
-    headers: vendorHeaders(token),
-    signal:  AbortSignal.timeout(25_000),
-  });
-  return { resp, url };
+  console.error(`❌ No session found. Set ${acct.sessionEnvVar} env var or run setup-session.js ${LOCATION}`);
+  process.exit(1);
 }
 
-function extractItems(data) {
-  if (Array.isArray(data))                          return data;
-  if (Array.isArray(data.orders))                   return data.orders;
-  if (Array.isArray(data.items))                    return data.items;
-  if (data.data && Array.isArray(data.data))        return data.data;
-  if (data.data && Array.isArray(data.data.items))  return data.data.items;
-  if (data.data && Array.isArray(data.data.orders)) return data.data.orders;
-  return null;   // unknown shape
-}
-
-async function fetchOrders(vendorId, token) {
-  const LIMIT   = 200;
-  const all     = [];
-  let paramStyle = 'datetime';
-
-  for (let offset = 0; offset < 10_000; offset += LIMIT) {
-    const { resp, url } = await fetchOrdersPage(vendorId, token, paramStyle, offset, LIMIT);
-
-    if (!resp.ok) {
-      if (offset === 0 && paramStyle !== 'start_date') {
-        // Retry with next param style
-        const next = { datetime: 'date', date: 'start_date' }[paramStyle];
-        console.log(`    [RETRY] ${resp.status} — switching to paramStyle=${next}`);
-        paramStyle = next;
-        const { resp: r2, url: u2 } = await fetchOrdersPage(vendorId, token, paramStyle, 0, LIMIT);
-        if (!r2.ok) {
-          const text = await r2.text().catch(() => '');
-          throw new Error(`Orders API ${r2.status} (all param styles tried): ${text.slice(0, 200)}`);
-        }
-        const data2 = await r2.json();
-        const items2 = extractItems(data2);
-        if (!items2) {
-          console.log(`    [DEBUG] Unknown response shape: ${JSON.stringify(data2).slice(0, 400)}`);
-          break;
-        }
-        all.push(...items2);
-        if (items2.length < LIMIT) break;
-        offset = 0;
-        continue;
-      }
-      const text = await resp.text().catch(() => '');
-      throw new Error(`Orders API ${resp.status}: ${text.slice(0, 200)}`);
-    }
-
-    const data  = await resp.json();
-    const items = extractItems(data);
-
-    if (!items) {
-      console.log(`    [DEBUG] Unknown response shape: ${JSON.stringify(data).slice(0, 400)}`);
-      break;
-    }
-    all.push(...items);
-    if (items.length < LIMIT) break;
-    await new Promise(r => setTimeout(r, 200));
-  }
-
-  return all;
-}
-
-// ── Aggregation ───────────────────────────────────────────────────────────────
-
-const CANCELLED_STATUSES = new Set(['CANCELLED', 'REJECTED', 'FAILED', 'FRAUD', 'DECLINED']);
-
-function sumOrders(orders) {
-  let grossSales  = 0;
-  let ordersCount = 0;
-
-  for (const o of orders) {
-    const status = String(o.status || o.order_status || '').toUpperCase();
-    if (CANCELLED_STATUSES.has(status)) continue;
-
-    // FoodPanda uses several field names across API versions
-    const value = parseFloat(
-      o.total_value  ?? o.order_value ?? o.grand_total ??
-      o.total_amount ?? o.sub_total   ?? o.amount      ?? 0
-    );
-
-    grossSales += value;
-    ordersCount++;
-  }
-
-  return { grossSales: Math.round(grossSales * 100) / 100, ordersCount };
-}
-
-// ── Webhook ───────────────────────────────────────────────────────────────────
+// ── Webhook ────────────────────────────────────────────────────────────────
 
 async function postWebhook(payload) {
+  const endpoint = `${WEBHOOK_URL}/api/foodpanda/portal-payout-record`;
   if (!WEBHOOK_URL) {
     process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
     return;
   }
-  const resp = await fetch(WEBHOOK_URL, {
+  const resp = await fetch(endpoint, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(payload),
@@ -251,86 +139,159 @@ async function postWebhook(payload) {
     const text = await resp.text().catch(() => '');
     throw new Error(`Webhook ${resp.status}: ${text.slice(0, 200)}`);
   }
+  return resp.json();
 }
 
-// ── main ──────────────────────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log(`FoodPanda PH daily extractor: ${DATE_FROM} → ${DATE_TO}`);
+  console.log(`\nFoodPanda PH payout extractor — ${LOCATION.toUpperCase()}`);
+  console.log(`Date range: ${DATE_FROM} → ${DATE_TO}`);
   console.log('='.repeat(60));
 
-  const extractedAt  = new Date().toISOString();
-  let totalOrders    = 0;
-  let totalRevenue   = 0;
+  const sessionPath = loadSession();
+  const extractedAt = new Date().toISOString();
 
-  console.log('\n' + 'Store'.padEnd(28) + 'Orders'.padStart(8) + 'Gross PHP'.padStart(14));
-  console.log('-'.repeat(52));
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    storageState: sessionPath,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+  });
 
-  for (const { email, password, storeName, storeCode, vendorId } of ACCOUNTS) {
-    console.log(`\n──── ${storeName} (${vendorId}) ────`);
+  const allPayouts = [];
 
-    if (!email || !password) {
-      console.error(`  ⚠ Credentials not configured for ${storeName} — skipping`);
-      continue;
-    }
-
-    let token, rawOrders, grossSales, ordersCount;
-
+  // Capture ListPayouts response via network-level interception (bypasses PX)
+  context.on('response', async resp => {
+    const url = resp.url();
+    if (!url.includes('vagw-api')) return;
+    const postData = resp.request().postData() || '';
+    if (!postData.includes('ListPayouts')) return;
     try {
-      console.log('  Authenticating...');
-      token = await login(email, password);
-      console.log('  ✓ JWT obtained');
-
-      console.log('  Fetching orders...');
-      rawOrders = await fetchOrders(vendorId, token);
-      console.log(`  ✓ ${rawOrders.length} raw orders fetched`);
-
-      ({ grossSales, ordersCount } = sumOrders(rawOrders));
+      const body = await resp.text();
+      const json = JSON.parse(body);
+      const payouts = json?.data?.finances?.listPayouts?.payouts || [];
+      const httpStatus = typeof resp.status === 'function' ? resp.status() : resp.status;
+      console.log(`  [ListPayouts] HTTP ${httpStatus} — ${payouts.length} payout(s)`);
+      allPayouts.push(...payouts);
     } catch (err) {
-      console.error(`  ❌ Error: ${err.message}`);
-      continue;
+      console.error(`  [ListPayouts] parse error: ${err.message}`);
     }
+  });
 
-    totalOrders  += ordersCount;
-    totalRevenue += grossSales;
+  const page = await context.newPage();
+
+  // Navigate to /finance — portal triggers ListPayouts automatically
+  console.log('\nLoading Finance page (headless)...');
+  try {
+    await page.goto('https://partner.foodpanda.com/finance', {
+      waitUntil: 'networkidle',
+      timeout:   30_000,
+    });
+  } catch (_) {}
+
+  const finalUrl = page.url();
+  console.log(`Landed: ${finalUrl.slice(0, 80)}`);
+
+  // Session expired check
+  if (finalUrl.includes('/login') || finalUrl.includes('/signin')) {
+    await browser.close();
+    try { fs.unlinkSync(TMP_SESSION); } catch (_) {}
+    console.error(`\n❌ Session expired — re-run: node scripts/foodpanda/setup-session.js ${LOCATION}`);
+    process.exit(1);
+  }
+
+  // Allow extra time for deferred API calls
+  await page.waitForTimeout(5000);
+  await browser.close();
+  try { fs.unlinkSync(TMP_SESSION); } catch (_) {}
+
+  if (allPayouts.length === 0) {
+    console.log('\n⚠ No payouts captured. Portal may not have called ListPayouts.');
+    console.log('  Possible causes: session expired, no payouts in date range, portal layout change.');
+    process.exit(0);
+  }
+
+  console.log(`\n✓ Total payouts captured: ${allPayouts.length}`);
+  console.log('\n' + 'PayoutID'.padEnd(18) + 'Date'.padStart(12) + 'Grid'.padStart(10) + 'Amount PHP'.padStart(14) + 'Orders'.padStart(8) + ' Status');
+  console.log('-'.repeat(70));
+
+  let totalAmount = 0;
+  let totalOrders = 0;
+  let posted = 0;
+
+  for (const p of allPayouts) {
+    const payoutId    = String(p.payoutId || '');
+    const payoutDate  = p.at || '';
+    const amount      = parseFloat(p.payoutAmount || 0);
+    const orders      = parseInt(p.payoutOrders || 0, 10);
+    const status      = p.status || '';
+    const grid        = p.payoutAccount?.grid || 'UNKNOWN';
+    const storeCode   = acct.gridToStore[grid] || acct.storeCode;
+
+    totalAmount += amount;
+    totalOrders += orders;
 
     console.log(
-      '  ' + storeName.padEnd(26) +
-      String(ordersCount).padStart(8) +
-      grossSales.toFixed(2).padStart(14),
+      payoutId.padEnd(18) +
+      payoutDate.padStart(12) +
+      grid.padStart(10) +
+      amount.toFixed(2).padStart(14) +
+      String(orders).padStart(8) +
+      ' ' + status,
     );
 
+    // Skip payouts outside our date window (portal returns rolling 30 days)
+    if (payoutDate < DATE_FROM || payoutDate > DATE_TO) {
+      console.log(`  (skipped — ${payoutDate} outside ${DATE_FROM}→${DATE_TO})`);
+      continue;
+    }
+
+    // Compute period covered by invoices in this payout
+    let periodStart = payoutDate;
+    let periodEnd   = payoutDate;
+    for (const inv of (p.invoices || [])) {
+      if (inv?.period?.from && inv.period.from < periodStart) periodStart = inv.period.from;
+      if (inv?.period?.to   && inv.period.to   > periodEnd)   periodEnd   = inv.period.to;
+    }
+
     try {
-      await postWebhook({
-        vendor_id:        vendorId,
-        vendor_name:      storeName,
+      const result = await postWebhook({
+        payout_id:        `FP_${payoutId}`,       // explicit ID — actual FP payout ID
+        vendor_id:        grid,
+        vendor_name:      acct.storeName,
         store_code:       storeCode,
-        period_start:     DATE_FROM,
-        period_end:       DATE_TO,
-        total_payout_php: grossSales,
-        orders_count:     ordersCount,
+        period_start:     periodStart,
+        period_end:       periodEnd,
+        total_payout_php: amount,
+        orders_count:     orders,
         raw: {
-          data_type:            'gross_sales',
-          vendor_id:            vendorId,
-          total_orders_fetched: rawOrders.length,
+          payoutId,
+          status,
+          payoutCurrency: p.payoutCurrency,
+          payoutDate,
+          grid,
+          globalEntityId: acct.globalEntityId,
+          invoiceCount:   (p.invoices || []).length,
         },
         extracted_at: extractedAt,
       });
-      console.log('  ✓ Webhook posted');
+      console.log(`  ✓ Posted → payout_id=FP_${payoutId} (${result?.payout_id || 'ok'})`);
+      posted++;
     } catch (err) {
       console.error(`  ❌ Webhook error: ${err.message}`);
     }
-
-    await new Promise(r => setTimeout(r, 500));
   }
 
-  console.log('-'.repeat(52));
+  console.log('-'.repeat(70));
   console.log(
-    'TOTAL'.padEnd(28) +
-    String(totalOrders).padStart(8) +
-    totalRevenue.toFixed(2).padStart(14),
+    'TOTAL'.padEnd(18) +
+    ''.padStart(12) +
+    ''.padStart(10) +
+    totalAmount.toFixed(2).padStart(14) +
+    String(totalOrders).padStart(8),
   );
-  console.log('\nNote: "Gross PHP" = total order value before FoodPanda commission deduction.');
+  console.log(`\n✓ ${posted}/${allPayouts.length} payouts posted to ar_payouts.`);
+  console.log('  Amount = net payout deposited to bank (post-commission).');
   console.log('Done.');
 }
 
