@@ -53,8 +53,8 @@ interface ArRevenueData {
   by_store: { store_code: string; amount: number }[];
 }
 
-const DUBAI_STORES = ["", "AM", "AB", "JLT", "BB", "ARJ", "JJAD_AM", "JJAD_JLT", "RZ_ARJ", "RZ_BB"];
-const MANILA_STORES = ["", "CUB", "BER", "MOA", "MKT", "QC", "CEB"];
+const DUBAI_STORES = ["", "AM", "AB", "JLT", "BB", "ARJ", "JJAD_AM", "JJAD_JLT", "RZ_ARJ", "RZ_BB", "CK"];
+const MANILA_STORES = ["", "CUB", "BER", "MOA", "MKT", "QC", "CEB", "CK"];
 const OVERHEAD_CATEGORIES = ["Rent", "Utilities", "Insurance", "Marketing", "Maintenance", "Delivery Fees", "Admin", "Other"];
 const BUDGET_CATEGORIES = ["food", "labor", "overhead"];
 
@@ -284,7 +284,11 @@ export default function MgmtSettingsPage() {
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Store</label>
           <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            {storeOptions.map(s => <option key={s} value={s}>{s || "City-wide"}</option>)}
+            {storeOptions.map(s => (
+              <option key={s} value={s}>
+                {s === "" ? "City-wide" : s === "CK" ? "CK — Shared/Central Kitchen" : s}
+              </option>
+            ))}
           </select>
         </div>
         <div className="space-y-1">
@@ -603,24 +607,45 @@ function DailyPLSettingsTab({
   const [foodRates, setFoodRates] = useState<{ rate_pct: number; computed_at: string; source: string }[]>([]);
   const [dowWeights, setDowWeights] = useState<{ dow: number; weight: number }[]>([]);
   const [commRates, setCommRates] = useState<{ platform: string; store_code: string; brand: string; rate: number }[]>([]);
+  const [laborDefaults, setLaborDefaults] = useState<{ default_daily_wage: number; currency: string; updated_at: string }[]>([]);
+  const [laborWageInput, setLaborWageInput] = useState("");
 
   const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const jsonH = { "Content-Type": "application/json" };
 
   const loadData = useCallback(async () => {
-    const [fr, cr] = await Promise.all([
+    const [fr, cr, ld] = await Promise.all([
       fetch(`/api/admin/mgmt/food-cost-rates?city=${city}`).then(r => r.json()),
       fetch(`/api/admin/mgmt/commission-rates?city=${city}`).then(r => r.json()),
+      fetch(`/api/admin/mgmt/labor-defaults?city=${city}`).then(r => r.json()),
     ]);
     setFoodRates(fr.rates ?? []);
     setCommRates(cr.rates ?? []);
-
-    // DOW weights from any daily PL call (derive from mgmt_dow_weights via the response)
-    // For now we show the food cost rate and commission rates only
+    const lds = ld.defaults ?? [];
+    setLaborDefaults(lds);
+    const cityDefault = lds.find((d: { store_code: string }) => d.store_code === "");
+    if (cityDefault) setLaborWageInput(String(cityDefault.default_daily_wage));
   }, [city]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const saveLaborDefault = async () => {
+    const wage = parseFloat(laborWageInput);
+    if (isNaN(wage) || wage < 0) return;
+    const res = await fetch("/api/admin/mgmt/labor-defaults", {
+      method: "POST",
+      headers: jsonH,
+      body: JSON.stringify({ city, default_daily_wage: wage }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      setMsg({ ok: true, text: `Default daily wage saved: ${wage.toFixed(0)} ${city === "dubai" ? "AED" : "PHP"}/day` });
+      await loadData();
+    } else {
+      setMsg({ ok: false, text: json.error ?? "Save failed" });
+    }
+  };
 
   const compute = async (what: "food-cost-rate" | "dow-weights") => {
     setComputing(what);
@@ -744,6 +769,49 @@ function DailyPLSettingsTab({
         ) : (
           <p className="text-xs text-slate-600 italic">No rates loaded. Auto-seeded on first use.</p>
         )}
+      </div>
+
+      {/* Labor Defaults */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <h2 className="text-sm font-semibold text-slate-200 mb-1">Labor — Default Daily Wage</h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Labor cost is computed from published shifts × staff monthly salary (from Payroll).
+          Staff with no salary record use this fallback daily rate.
+          Monthly salary is prorated as: monthly ÷ days_in_month.
+        </p>
+
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            placeholder={city === "dubai" ? "e.g. 200" : "e.g. 600"}
+            value={laborWageInput}
+            onChange={e => setLaborWageInput(e.target.value)}
+            className="w-32 bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1 text-sm"
+          />
+          <span className="text-xs text-slate-400">{city === "dubai" ? "AED" : "PHP"} / day</span>
+          <button onClick={saveLaborDefault} className={PRIMARY_BUTTON}>Save</button>
+        </div>
+
+        {laborDefaults.length > 0 && (
+          <div className="text-xs text-slate-500">
+            {laborDefaults.map((d, i) => (
+              <span key={i}>
+                Current: <strong className="text-emerald-400">{d.default_daily_wage} {d.currency}/day</strong>
+                {d.updated_at && <span className="text-slate-600 ml-2">(set {d.updated_at.slice(0,10)})</span>}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 text-xs text-slate-600">
+          <strong className="text-slate-500">How labor is calculated:</strong>{" "}
+          For each day, all staff with a published shift at that store are looked up in Payroll.
+          If a staff member has a monthly salary → salary ÷ days_in_month.
+          If no salary record → the default daily rate above.
+          CK staff costs should be entered as overhead (store = CK) and are distributed equally to all stores.
+        </div>
       </div>
 
       {/* Link to Daily P&L */}

@@ -229,7 +229,7 @@ export default function DailyPLPage() {
         <div>
           <label className={KPI_LABEL}>To</label>
           <input type="date" value={dateTo}
-            max={daysAgo(0)}
+            max={today()}
             onChange={e => setDateTo(e.target.value)}
             className="mt-1 block bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1 text-sm"
           />
@@ -297,7 +297,7 @@ export default function DailyPLPage() {
               )}
               {card.label === "COGS" && data.food_cost_rate > 0 && (
                 <div className="text-xs text-slate-500 mt-0.5">
-                  {data.food_cost_rate_pct}% of gross
+                  {data.food_cost_rate_pct}% food cost
                 </div>
               )}
             </div>
@@ -405,8 +405,8 @@ function StoreSummaryTable({ data, cur }: { data: PLData; cur: string }) {
           </thead>
           <tbody>
             {stores.map(([storeCode, s]) => {
-              const margin = s.gross_sales > 0
-                ? (s.profit / s.gross_sales * 100)
+              const margin = s.net_revenue > 0
+                ? (s.profit / s.net_revenue * 100)
                 : null;
               return (
                 <tr key={storeCode}
@@ -490,8 +490,8 @@ function DayCard({
           <div className={`text-sm font-semibold ${profitColor(day.total.profit)}`}>
             {fmt(day.total.profit, cur)}
             <span className="text-slate-500 font-normal ml-1 text-xs">
-              {day.total.gross_sales > 0
-                ? `${(day.total.profit / day.total.gross_sales * 100).toFixed(1)}% margin`
+              {day.total.net_revenue > 0
+                ? `${(day.total.profit / day.total.net_revenue * 100).toFixed(1)}% margin`
                 : ""}
             </span>
           </div>

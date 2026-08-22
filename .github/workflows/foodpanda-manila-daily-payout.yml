@@ -82,3 +82,12 @@ jobs:
           WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
           FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
         timeout-minutes: 8
+
+      - name: Refresh Daily P&L cache
+        if: always()
+        run: |
+          DATE_FROM=$(date -u -d '35 days ago' +%Y-%m-%d)
+          DATE_TO=$(date -u +%Y-%m-%d)
+          curl -s -X POST "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/admin/mgmt/daily-pl/refresh" \
+            -H "Content-Type: application/json" \
+            -d "{\"city\":\"manila\",\"date_from\":\"${DATE_FROM}\",\"date_to\":\"${DATE_TO}\"}" || true
