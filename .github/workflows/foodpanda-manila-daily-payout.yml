@@ -1,4 +1,4 @@
-name: FoodPanda Manila — Daily Gross Sales Extraction
+name: FoodPanda Manila — Daily Payout Extraction
 
 on:
   schedule:
@@ -6,15 +6,23 @@ on:
     - cron: '5 23 * * *'
   workflow_dispatch:
     inputs:
-      date:
-        description: 'Date to extract (YYYY-MM-DD). Default: yesterday (PHT).'
+      date_from:
+        description: 'Period start (YYYY-MM-DD). Default: 30 days ago.'
         required: false
         default: ''
+      date_to:
+        description: 'Period end (YYYY-MM-DD). Default: yesterday (PHT).'
+        required: false
+        default: ''
+      location:
+        description: 'Account to run: paranaque | taft | qc | all'
+        required: false
+        default: 'all'
 
 jobs:
-  extract-daily:
+  extract-payouts:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -23,32 +31,60 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Calculate target date (yesterday PHT = UTC+8)
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright
+          npx playwright install chromium
+
+      - name: Calculate date range (rolling 30 days, PHT)
         id: dates
         run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            TARGET_DATE="${{ github.event.inputs.date }}"
+          if [ -n "${{ github.event.inputs.date_to }}" ]; then
+            DATE_TO="${{ github.event.inputs.date_to }}"
           else
-            # PHT is UTC+8: "yesterday PHT" when run at 23:05 UTC = 07:05 PHT
-            TARGET_DATE=$(TZ=Asia/Manila date -d "yesterday" +%Y-%m-%d 2>/dev/null \
-              || python3 -c "from datetime import datetime, timedelta, timezone; \
-                              pht = timezone.utc; \
-                              print((datetime.now(pht) + timedelta(hours=8) - timedelta(days=1)).strftime('%Y-%m-%d'))")
+            DATE_TO=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+pht = timezone(timedelta(hours=8))
+print((datetime.now(pht) - timedelta(days=1)).strftime('%Y-%m-%d'))")
           fi
-          echo "DATE_FROM=$TARGET_DATE" >> $GITHUB_ENV
-          echo "DATE_TO=$TARGET_DATE"   >> $GITHUB_ENV
-          echo "Extracting FoodPanda PH gross sales for: $TARGET_DATE"
+          if [ -n "${{ github.event.inputs.date_from }}" ]; then
+            DATE_FROM="${{ github.event.inputs.date_from }}"
+          else
+            DATE_FROM=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+pht = timezone(timedelta(hours=8))
+print((datetime.now(pht) - timedelta(days=30)).strftime('%Y-%m-%d'))")
+          fi
+          echo "DATE_FROM=$DATE_FROM" >> $GITHUB_ENV
+          echo "DATE_TO=$DATE_TO"     >> $GITHUB_ENV
+          echo "Extracting FoodPanda PH payouts: $DATE_FROM → $DATE_TO"
 
-      - name: Run FoodPanda payout extractor (3 stores, pure REST)
-        run: node scripts/foodpanda/get-payouts.js
+      - name: Extract Paranaque payouts
+        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque' }}
+        run: node scripts/foodpanda/get-payouts.js paranaque
         env:
-          DATE_FROM:             ${{ env.DATE_FROM }}
-          DATE_TO:               ${{ env.DATE_TO }}
-          WEBHOOK_URL:           https://sushizen-shift-app-038d846023bc.herokuapp.com/api/foodpanda/portal-payout-record
-          FP_EMAIL_PARANAQUE:    ${{ secrets.FP_EMAIL_PARANAQUE }}
-          FP_PASSWORD_PARANAQUE: ${{ secrets.FP_PASSWORD_PARANAQUE }}
-          FP_EMAIL_TAFT:         ${{ secrets.FP_EMAIL_TAFT }}
-          FP_PASSWORD_TAFT:      ${{ secrets.FP_PASSWORD_TAFT }}
-          FP_EMAIL_QC:           ${{ secrets.FP_EMAIL_QC }}
-          FP_PASSWORD_QC:        ${{ secrets.FP_PASSWORD_QC }}
+          DATE_FROM:              ${{ env.DATE_FROM }}
+          DATE_TO:                ${{ env.DATE_TO }}
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_PARANAQUE:   ${{ secrets.FP_SESSION_PARANAQUE }}
+        timeout-minutes: 8
+
+      - name: Extract Taft payouts
+        if: ${{ github.event.inputs.location == 'all' || github.event.inputs.location == 'taft' }}
+        run: node scripts/foodpanda/get-payouts.js taft
+        env:
+          DATE_FROM:              ${{ env.DATE_FROM }}
+          DATE_TO:                ${{ env.DATE_TO }}
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_TAFT:        ${{ secrets.FP_SESSION_TAFT }}
+        timeout-minutes: 8
+
+      - name: Extract QC payouts
+        if: ${{ github.event.inputs.location == 'all' || github.event.inputs.location == 'qc' }}
+        run: node scripts/foodpanda/get-payouts.js qc
+        env:
+          DATE_FROM:              ${{ env.DATE_FROM }}
+          DATE_TO:                ${{ env.DATE_TO }}
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
         timeout-minutes: 8

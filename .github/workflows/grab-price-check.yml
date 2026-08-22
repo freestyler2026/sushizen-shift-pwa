@@ -19,7 +19,13 @@ jobs:
 
       - name: Restore Grab session state
         run: |
-          echo "${{ secrets.GRAB_SESSION_STATE }}" | base64 -d > /tmp/grab-state.json
+          # Detect gzip magic bytes (1f 8b) — new sessions are gzip+base64; old ones are plain base64 JSON
+          DECODED=$(echo "${{ secrets.GRAB_SESSION_STATE }}" | base64 -d)
+          if printf '%s' "$DECODED" | head -c2 | od -An -tx1 | grep -q "1f 8b"; then
+            printf '%s' "$DECODED" | gunzip > /tmp/grab-state.json
+          else
+            printf '%s' "$DECODED" > /tmp/grab-state.json
+          fi
 
       - name: Run price check
         run: node scripts/grab/check-prices.js

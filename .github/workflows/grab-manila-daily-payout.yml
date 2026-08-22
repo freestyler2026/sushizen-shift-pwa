@@ -1,0 +1,60 @@
+name: Grab Manila — Daily Payout Extraction
+
+on:
+  schedule:
+    # Every day at 23:15 UTC = 07:15 PHT (after FoodPanda at 23:05)
+    - cron: '15 23 * * *'
+  workflow_dispatch:
+    inputs:
+      date_from:
+        description: 'Period start (YYYY-MM-DD). Default: 30 days ago.'
+        required: false
+        default: ''
+      date_to:
+        description: 'Period end (YYYY-MM-DD). Default: yesterday (PHT).'
+        required: false
+        default: ''
+
+jobs:
+  extract-payouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Pure HTTP — fast (no Playwright)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Node 20 has built-in fetch
+
+      - name: Calculate date range (rolling 30 days, PHT)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.date_to }}" ]; then
+            DATE_TO="${{ github.event.inputs.date_to }}"
+          else
+            DATE_TO=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+pht = timezone(timedelta(hours=8))
+print((datetime.now(pht) - timedelta(days=1)).strftime('%Y-%m-%d'))")
+          fi
+          if [ -n "${{ github.event.inputs.date_from }}" ]; then
+            DATE_FROM="${{ github.event.inputs.date_from }}"
+          else
+            DATE_FROM=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+pht = timezone(timedelta(hours=8))
+print((datetime.now(pht) - timedelta(days=30)).strftime('%Y-%m-%d'))")
+          fi
+          echo "DATE_FROM=$DATE_FROM" >> $GITHUB_ENV
+          echo "DATE_TO=$DATE_TO"     >> $GITHUB_ENV
+          echo "Extracting Grab PH payouts: $DATE_FROM → $DATE_TO"
+
+      - name: Extract payouts (all PH stores via Paranaque manager account)
+        run: node scripts/grab/get-payouts.js
+        env:
+          DATE_FROM:           ${{ env.DATE_FROM }}
+          DATE_TO:             ${{ env.DATE_TO }}
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_PARANAQUE }}
+        timeout-minutes: 4
