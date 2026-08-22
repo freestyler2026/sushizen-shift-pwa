@@ -36,10 +36,7 @@ jobs:
           if [ -n "${{ github.event.inputs.snapshot_date }}" ]; then
             SNAPSHOT_DATE="${{ github.event.inputs.snapshot_date }}"
           else
-            SNAPSHOT_DATE=$(python3 -c "
-from datetime import datetime, timedelta, timezone
-gst = timezone(timedelta(hours=4))
-print(datetime.now(gst).strftime('%Y-%m-%d'))")
+            SNAPSHOT_DATE=$(python3 -c "from datetime import datetime, timedelta, timezone; gst = timezone(timedelta(hours=4)); print(datetime.now(gst).strftime('%Y-%m-%d'))")
           fi
           echo "SNAPSHOT_DATE=$SNAPSHOT_DATE" >> $GITHUB_ENV
           echo "Snapshot date (GST): $SNAPSHOT_DATE"
