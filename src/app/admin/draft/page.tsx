@@ -3688,13 +3688,12 @@ export default function AdminDraftPage() {
 
       {canOperate ? (
         <div className={`${GLASS_CARD} p-6`}>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-sky-400" />
               <h2 className={T_SECTION}>Pending Sheet Proposals</h2>
             </div>
             <div className="flex items-center gap-2">
-              <p className={T_CAPTION}>Manager edits from spreadsheet are queued here until HQ/Admin bulk decision.</p>
               <button
                 type="button"
                 onClick={loadPendingProposals}
@@ -3705,6 +3704,15 @@ export default function AdminDraftPage() {
                 Refresh Pending
               </button>
             </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-1 mb-5">
+            {(["Prepare & Confirm Generate → spreadsheet is created with MAIN tabs", "Branch managers fill in shift changes in their MAIN tab", "Select month & branch, then click \"Sync Proposals From Sheet\"", "Review the imported rows, select them, then Approve or Reject"] as const).map((text, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-xs text-zinc-400">
+                <span className="text-sky-500 font-semibold shrink-0">{["①","②","③","④"][i]}</span>
+                <span>{text}</span>
+              </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
