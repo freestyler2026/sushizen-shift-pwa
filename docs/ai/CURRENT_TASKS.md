@@ -1,33 +1,47 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (FoodPanda Manila 日次API抽出 実装完了)
+Last updated: 2026-08-22 (FoodPanda Manila API発見 BLOCKED — setup-session.js実行待ち)
 
 ---
 
-## ✅ Completed: FoodPanda Manila 日次自動API抽出 (2026-08-22)
+## 🔴 BLOCKED: FoodPanda Manila 日次自動API抽出 — 財務APIエンドポイント未発見
 
-**Talabatと同じように FoodPanda PH も GitHub Actions → 直接API → ar_payouts に自動格納。**
+**Talabatと同様に自動化したいが、FoodPanda PHの財務APIがまだわかっていない。**
 
-**スクリプト** (`scripts/foodpanda/get-payouts.js`):
-- Playwright不要 — pure REST JWT auth (check-prices.jsと同じ認証フロー)
-- 3店舗 (Paranaque/Taft/Cubao) それぞれ独立認証 → orders API → 日付範囲でフィルタ
-- 完了済みオーダーのみ合計（CANCELLED/REJECTED除外）
-- 複数のordersレスポンス形式に対応 (orders[]/data.items[]/etc.)
-- paramスタイル自動フォールバック: datetime → date → start_date/end_date
+### 調査結果（2026-08-22）
+- **JWT認証**: `partner-auth.ap.prd.portal.restaurant/auth/v5/login-two-step` → 成功（no 2FA）
+- **vendor-api-gdp-ph.as.restaurant-partners.com**: カタログのみ。`/orders`等の財務エンドポイントはない（404）
+- **vagw-api.ap.prd.portal.restaurant/query** (GraphQL): 403 — PX anti-botに弾かれる
+- **partner.foodpanda.com/api/v1/...**: HTTP 200 だが中身はRemix SPAシェル（フェイク）
 
-**バックエンド** (`app/main.py` — Heroku):
-- `POST /api/foodpanda/portal-payout-record`
-- platform='foodpanda', city='manila', currency='PHP'
-- ar_payoutsにupsert (payout_id = FP_PORTAL_{store_code}_{date})
-- Talabat エンドポイントと同パターン
+### 解決策: `setup-session.js` でブラウザセッション+財務APIキャプチャ（ローカル実行必要）
 
-**GitHub Actions** (`.github/workflows/foodpanda-manila-daily-payout.yml`):
-- Cron: `5 23 * * *` (UTC) = 毎日07:05 PHT (前日分が確定した後)
-- Node 20 のみ (Playwrightインストール不要 → 起動が速い)
-- workflow_dispatch で任意日付指定可能
-- Secrets: FP_EMAIL/PASSWORD_{PARANAQUE,TAFT,QC} (既存)
+`setup-session.js` を財務ページ自動ナビゲーション対応に更新済み:
+- ログイン後、`/revenue`, `/orders`, `/report-builder`, `/analytics`, `/dashboard` を自動巡回
+- 30秒の手動ナビゲーション追加時間あり
+- `portal.restaurant` ドメインへのXHR/fetch APIコールを全件キャプチャ → `paranaque-api-discovery.json` に保存
 
-**次のステップ**: Herokuデプロイ後、GitHub Actions で workflow_dispatch → 直近の日付でテスト実行
+**ユーザーが実行するコマンド:**
+```bash
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+node scripts/foodpanda/setup-session.js paranaque
+```
+→ ブラウザが開く → `contact@ramensushizen.com` でログイン（2FA含む）
+→ スクリプトが財務ページを自動巡回してAPIをキャプチャ
+→ 終了後、コンソールに「Financial / XHR API calls」リストが表示される
+
+**Claudeが確認すること:** キャプチャされたURLから実際の財務エンドポイントを特定 → `get-payouts.js` を修正
+
+### 既存ファイル（修正・更新待ち）
+- `scripts/foodpanda/get-payouts.js` — 現在は間違ったエンドポイント使用中
+- `scripts/foodpanda/setup-session.js` — 更新済み（財務ページ自動ナビ対応）
+- `.github/workflows/foodpanda-manila-daily-payout.yml` — 構造は正しいが `get-payouts.js` 修正後に有効
+- `app/main.py` — `POST /api/foodpanda/portal-payout-record` — Heroku v2070にデプロイ済み、動作確認済み
+
+### 一時ファイル（最終確定後に削除予定）
+- `scripts/foodpanda/fp-discover.js`
+- `scripts/foodpanda/discover-finance-api.js`
+- `.github/workflows/fp-api-discovery.yml`
 
 ---
 

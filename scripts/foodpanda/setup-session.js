@@ -113,12 +113,32 @@ async function main() {
     console.log('Timed out waiting for login — saving partial session');
   }
 
-  // 60s window to navigate to menu/items page
-  console.log('\nNavigate to Menu Management / Items page now...');
-  console.log('(60 seconds to capture API calls)\n');
-  for (let i = 60; i > 0; i -= 5) {
+  // ── Auto-navigate to financial pages to capture API calls ──────────────
+  console.log('\n=== Auto-navigating to financial pages (capturing API calls) ===');
+  const FINANCIAL_PAGES = [
+    { url: 'https://partner.foodpanda.com/revenue',            label: 'Revenue' },
+    { url: 'https://partner.foodpanda.com/orders',             label: 'Orders' },
+    { url: 'https://partner.foodpanda.com/report-builder',     label: 'Report Builder' },
+    { url: 'https://partner.foodpanda.com/analytics',          label: 'Analytics' },
+    { url: 'https://partner.foodpanda.com/dashboard',          label: 'Dashboard' },
+  ];
+
+  for (const { url, label } of FINANCIAL_PAGES) {
+    console.log(`  → Navigating to ${label} (${url})...`);
+    try {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 });
+      await page.waitForTimeout(4000);
+      console.log(`    Landed: ${page.url().slice(0, 80)}`);
+    } catch (err) {
+      console.log(`    Error: ${err.message.slice(0, 80)}`);
+    }
+  }
+
+  // Extra 30s for manual navigation if desired
+  console.log('\n(30 seconds — you can manually click additional pages)\n');
+  for (let i = 30; i > 0; i -= 5) {
     await page.waitForTimeout(5000);
-    process.stdout.write(`  ${i}s remaining — page: ${page.url()}\n`);
+    process.stdout.write(`  ${i}s remaining — page: ${page.url().slice(0, 60)}\n`);
   }
 
   // Save session
@@ -131,11 +151,27 @@ async function main() {
 
   console.log(`\n✓ Session: ${OUT_B64} (${b64.length} chars)`);
   console.log(`✓ API calls captured: ${captured.length}`);
-  console.log('\n=== Captured API calls (non-static) ===');
-  captured
-    .filter(c => c.method !== 'GET' || c.url.includes('/api/') || c.url.includes('menu') || c.url.includes('item'))
-    .slice(0, 50)
-    .forEach(c => console.log(`  ${c.method} ${c.url}`));
+
+  // Show financial API calls specifically
+  const financialCalls = captured.filter(c => {
+    const u = c.url;
+    return !u.includes('partner.foodpanda.com') && (
+      u.includes('portal.restaurant') || u.includes('restaurant-partners') ||
+      u.includes('/api/') || u.includes('/query') || u.includes('/graphql')
+    );
+  });
+
+  console.log(`\n=== Financial / XHR API calls (${financialCalls.length}) ===`);
+  financialCalls.slice(0, 60).forEach(c => {
+    console.log(`  ${c.method} ${c.url}`);
+    if (c.postData) console.log(`    body: ${c.postData.slice(0, 200)}`);
+  });
+
+  if (financialCalls.length === 0) {
+    console.log('  (none captured — portal may have redirected to login)');
+    console.log('  All captured URLs:');
+    captured.slice(0, 30).forEach(c => console.log(`    ${c.method} ${c.url.slice(0, 100)}`));
+  }
 
   await browser.close();
   process.exit(0);
