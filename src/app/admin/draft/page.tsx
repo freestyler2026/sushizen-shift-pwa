@@ -2652,7 +2652,7 @@ export default function AdminDraftPage() {
     setPendingBusy(true);
     setPendingMessage("Searching for MAIN tab…");
     try {
-      const resp = await apiGet<{ ok: boolean; tabs: string[] }>(`/admin/sheet_tabs${qs({ city })}`);
+      const resp = await apiGet<{ ok: boolean; tabs: string[] }>(`/api/admin/sheet_tabs${qs({ city })}`);
       const all = Array.isArray(resp?.tabs) ? resp.tabs : [];
       const mains = all.filter((t) => /_MAIN$/i.test(t));
       // Match applyMonth with or without zero-padding (e.g. "2026-09" or "2026-9")
