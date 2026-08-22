@@ -42,22 +42,16 @@ jobs:
           if [ -n "${{ github.event.inputs.date_to }}" ]; then
             DATE_TO="${{ github.event.inputs.date_to }}"
           else
-            DATE_TO=$(python3 -c "
-from datetime import datetime, timedelta, timezone
-pht = timezone(timedelta(hours=8))
-print((datetime.now(pht) - timedelta(days=1)).strftime('%Y-%m-%d'))")
+            DATE_TO=$(python3 -c "from datetime import datetime, timedelta, timezone; pht = timezone(timedelta(hours=8)); print((datetime.now(pht) - timedelta(days=1)).strftime('%Y-%m-%d'))")
           fi
           if [ -n "${{ github.event.inputs.date_from }}" ]; then
             DATE_FROM="${{ github.event.inputs.date_from }}"
           else
-            DATE_FROM=$(python3 -c "
-from datetime import datetime, timedelta, timezone
-pht = timezone(timedelta(hours=8))
-print((datetime.now(pht) - timedelta(days=30)).strftime('%Y-%m-%d'))")
+            DATE_FROM=$(python3 -c "from datetime import datetime, timedelta, timezone; pht = timezone(timedelta(hours=8)); print((datetime.now(pht) - timedelta(days=30)).strftime('%Y-%m-%d'))")
           fi
           echo "DATE_FROM=$DATE_FROM" >> $GITHUB_ENV
           echo "DATE_TO=$DATE_TO"     >> $GITHUB_ENV
-          echo "Extracting FoodPanda PH payouts: $DATE_FROM → $DATE_TO"
+          echo "Extracting FoodPanda PH payouts: $DATE_FROM to $DATE_TO"
 
       - name: Extract Paranaque payouts
         if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque' }}
