@@ -1,6 +1,23 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Keeta Dubai settlement payout automation 完了)
+Last updated: 2026-08-22 (Smiles EatEasily Dubai payout automation 完了)
+
+---
+
+## ✅ Completed: Smiles (EatEasily) Dubai 月次支払い自動抽出 (2026-08-22, Heroku v2076)
+
+**手法:** Playwright headless で各アカウントにログイン → Agent Handled XLSレポートをXHR(arraybuffer)でDL → SheetJSで解析
+**計算式:** `payout_aed = Total Sales − Total Commission(Excl VAT)`（月次集計）
+**対象4アカウント:**
+  - Arjan (ramenzen21016, rest_id: 21016) ✅
+  - Business Bay (ramenzen21051, rest_id: 21051) ✅
+  - JLT (ramenzen21013) ⚠️ **パスワード認証失敗** — manage.eateasily.comで要パスワードリセット
+  - Al Hudaiba (sushizen21315) ⚠️ **パスワード認証失敗** — 同上
+**payout_id形式:** `smiles_{rest_id}_{YYYY}_{MM}` (例: smiles_21016_2026_07)
+**バックフィル:** 2025-01〜2026-07 の38レコード（Arjan+BBay各19ヶ月）をar_payoutsに挿入済み
+**Workflow:** `.github/workflows/smiles-dubai-payout.yml` (毎月1日 02:00 UTC = 06:00 GST)
+**SMILES_ACCOUNTS secret:** 登録済み (freestyler2026/sushizen-shift-pwa)
+**TODO:** JLT・Al Hudaiba のパスワードをリセット後、SMILES_ACCOUNTS secret を更新
 
 ---
 
