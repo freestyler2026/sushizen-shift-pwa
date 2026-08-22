@@ -7,26 +7,31 @@ Last updated: 2026-08-22 (Noon Food Dubai payout automation 完了 — 全プラ
 ## ✅ Completed: Noon Food Dubai 隔週払い自動抽出 (2026-08-22, Heroku v2077)
 
 **調査経緯:** `restaurant.noon.partners` (Food RMS) → Firefox必須 (Chromiumは HTTP/2でブロック)
-**ログイン:** `login-webview-embed.noon.partners`のiframe経由 → `session/token` JWT → cookieが設定される
 **財務API:** `POST /_food-restaurant/finance/wallet` with `{"entryType":"payment"}`
-  - **認証:** `_npsid`/`_nprtnetid` cookie (自動送信)
-  - **レストラン選択:** URLパス `/restaurant/<brandCode>/payment/` でサーバー側が判別
+  - **認証:** `_npsid`/`_nprtnetid` cookie
+  - **レストラン選択:** Refererヘッダー `/restaurant/<brandCode>/payment/` でサーバー側が判別
   - **N-BrandCode headerは不要**
 **対象2ブランド（partner 108431 / PRJ108431）:**
   - Sushi ZEN: `R5346332756132073257580964A` → storeCode: `NOON_SZ`
   - Ramen ZEN: `R7226482692501293869409357A` → storeCode: `NOON_RZ`
 **settlement周期:** 隔週（約14日）
 **payout_id形式:** Noonの `referenceNr` (例: `bt_2623101044515007`)
-**実績:** Sushi ZEN 65件、Ramen ZEN 35件の決済履歴確認済み
-**Workflow:** `.github/workflows/noon-dubai-payout.yml` (毎週火曜 04:00 UTC = 08:00 GST)
-**シークレット登録が必要:**
+**バックフィル完了:** Sushi ZEN 65件 / Ramen ZEN 35件 — 2024-01〜2026-08 全履歴挿入済み
+
+**⚠️ GitHub Actions不可 — Akamaiが全GitHub Actions IPをTCPレベルでブロック**
+**→ Macのlaunchdジョブで代替（毎週火曜10:00 AM ローカル時間）:**
+  - plist: `~/Library/LaunchAgents/com.sushizen.noon-payouts.plist` ← インストール済み・有効
+  - runner: `scripts/noon/run-payout-local.sh`
+  - logs: `~/Library/Logs/sushizen-noon-payouts.log`
+  - GH Actionsワークフロー: 無効化済み (`gh workflow disable noon-dubai-payout.yml`)
+
+**セッション更新（401が出たら）:**
 ```bash
-gh secret set NOON_USERNAME --body "sushi@p108431"
-gh secret set NOON_PASSWORD --body "noonfood123"
+NOON_USERNAME=sushi@p108431 NOON_PASSWORD=noonfood123 node scripts/noon/setup-session.js --upload
 ```
-**バックフィル実行方法:**
+**手動バックフィル:**
 ```bash
-gh workflow run noon-dubai-payout.yml --field backfill=1
+NOON_BACKFILL=1 WEBHOOK_URL=https://sushizen-shift-app-038d846023bc.herokuapp.com node scripts/noon/get-payouts.js
 ```
 
 ---
