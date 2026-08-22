@@ -1,0 +1,43 @@
+name: Smiles (EatEasily) Dubai — Monthly Payout Extract
+
+on:
+  schedule:
+    # 1st of each month at 02:00 UTC = 06:00 GST (Dubai)
+    # Smiles settles monthly; runs on the 1st to capture the full previous month.
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
+    inputs:
+      target_month:
+        description: 'Month to extract (YYYY-MM). Leave blank for previous month.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Set to "true" to skip posting to backend'
+        required: false
+        default: 'false'
+
+jobs:
+  extract-payouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install playwright xlsx --no-save
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Extract Smiles monthly payouts
+        run: node scripts/smiles/get-payouts.js
+        env:
+          SMILES_ACCOUNTS:      ${{ secrets.SMILES_ACCOUNTS }}
+          SMILES_TARGET_MONTH:  ${{ github.event.inputs.target_month }}
+          WEBHOOK_URL:          ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+        timeout-minutes: 18
