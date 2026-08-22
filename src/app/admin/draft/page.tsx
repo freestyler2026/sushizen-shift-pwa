@@ -3727,7 +3727,7 @@ export default function AdminDraftPage() {
                 onChange={setSyncBranchCode}
                 options={[
                   { value: "", label: "Select branch" },
-                  ...versions.map((v) => ({ value: v.branch_code, label: v.branch_name })),
+                  ...(BRANCHES[city as City] ?? []).map((b) => ({ value: b.code, label: b.name })),
                 ]}
               />
             </div>
