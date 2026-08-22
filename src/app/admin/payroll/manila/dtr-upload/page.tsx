@@ -676,7 +676,7 @@ export default function DtrUploadPage() {
                     </div>
 
                     {/* Success banner for actual sync */}
-                    {!syncResult.preview_only && (
+                    {!syncResult.preview_only && !syncResult.error && (
                       <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-900/20 p-3 text-sm text-emerald-300">
                         <CheckCircle2 size={15} /> Sync complete — {syncResult.synced} rows written to DTR records.
                         {(syncResult.new_staff_created ?? 0) > 0 && (
