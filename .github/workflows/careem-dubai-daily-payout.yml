@@ -1,0 +1,53 @@
+name: Careem Dubai — Daily Balance Snapshot
+
+on:
+  schedule:
+    # Every day at 02:00 UTC = 06:00 GST (Dubai)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      snapshot_date:
+        description: 'Snapshot date (YYYY-MM-DD). Default: today (GST).'
+        required: false
+        default: ''
+
+jobs:
+  snapshot-balances:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          cd /Users/jaynishimura/Desktop/sushizen-shift-pwa 2>/dev/null || true
+          npm install playwright --no-save
+          npx playwright install chromium --with-deps
+        working-directory: ${{ github.workspace }}
+
+      - name: Calculate snapshot date (GST = UTC+4)
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.snapshot_date }}" ]; then
+            SNAPSHOT_DATE="${{ github.event.inputs.snapshot_date }}"
+          else
+            SNAPSHOT_DATE=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+gst = timezone(timedelta(hours=4))
+print(datetime.now(gst).strftime('%Y-%m-%d'))")
+          fi
+          echo "SNAPSHOT_DATE=$SNAPSHOT_DATE" >> $GITHUB_ENV
+          echo "Snapshot date (GST): $SNAPSHOT_DATE"
+
+      - name: Extract Careem balance snapshots
+        run: node scripts/careem/get-payouts.js
+        env:
+          SNAPSHOT_DATE:  ${{ env.SNAPSHOT_DATE }}
+          WEBHOOK_URL:    https://sushizen-shift-app-038d846023bc.herokuapp.com
+          CAREEM_SESSION: ${{ secrets.CAREEM_SESSION }}
+        timeout-minutes: 8
