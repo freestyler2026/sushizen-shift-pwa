@@ -64,8 +64,10 @@ const ACCOUNTS = {
     storeName:     'Sushi Zen - Taft',
     storeCode:     'FP_TAFT',
     globalEntityId: 'FP_PH',
-    grids: [],
-    gridToStore: {},
+    grids: ['HPMI1R'],
+    gridToStore: {
+      'HPMI1R': 'FP_TAFT',
+    },
   },
   qc: {
     sessionEnvVar: 'FP_SESSION_QC',
