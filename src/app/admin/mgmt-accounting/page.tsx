@@ -15,7 +15,7 @@ import { getAuth } from "@/lib/auth";
 interface CostSummary {
   year_month: string; city: string; store_code: string; currency: string;
   revenue: number; revenue_source: "manual" | "ar_payouts" | "none"; revenue_ar_total: number;
-  food_cost: number; labor_cost: number; overhead_total: number;
+  food_cost: number; labor_cost: number; labor_source?: "payroll" | "estimated_shifts" | "none"; overhead_total: number;
   prime_cost: number; total_cost: number;
   food_cost_rate: number | null; labor_cost_rate: number | null;
   prime_cost_rate: number | null; total_cost_rate: number | null;
@@ -37,6 +37,7 @@ interface TrendMonth {
 interface NativeCity {
   currency: string; revenue: number; food_cost: number;
   revenue_source: "manual" | "ar_payouts" | "none";
+  labor_source?: "payroll" | "estimated_shifts" | "none";
 }
 interface CityData {
   revenue: number; food_cost: number; labor_cost: number; overhead_total: number;
@@ -243,8 +244,16 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
         </div>
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>Labor Cost</p>
-          <p className={`${KPI_VALUE} text-blue-300`}>{summary ? fmtAmt(summary.labor_cost, cur) : "—"}</p>
-          <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.labor_cost_rate ?? null)}</p>
+          <div className="flex items-center gap-2">
+            <p className={`${KPI_VALUE} text-blue-300`}>{summary ? fmtAmt(summary.labor_cost, cur) : "—"}</p>
+            {summary?.labor_source === "estimated_shifts" && (
+              <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">Est.</span>
+            )}
+          </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            {summary?.labor_source === "estimated_shifts" ? "Estimated from shifts · Rate: " : "Rate: "}
+            {fmtRate(summary?.labor_cost_rate ?? null)}
+          </p>
         </div>
         <div className={`${KPI_CARD} border-violet-500/20`}>
           <p className={KPI_LABEL}>Prime Cost</p>
@@ -580,7 +589,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           </div>
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>Labor Cost</p>
-            <p className={KPI_VALUE}>{fmtJpy(g.labor_cost)}</p>
+            <div className="flex items-center gap-2">
+              <p className={KPI_VALUE}>{fmtJpy(g.labor_cost)}</p>
+              {(summary?.dubai.native.labor_source === "estimated_shifts" || summary?.manila.native.labor_source === "estimated_shifts") && (
+                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">Est.</span>
+              )}
+            </div>
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.labor_cost_rate)}</p>
           </div>
           <div className={KPI_CARD}>
@@ -627,7 +641,14 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     <td className={`text-right py-2.5 pr-4 font-semibold ${foodRateCls(data.food_cost_rate)}`}>
                       {fmtRate(data.food_cost_rate)}
                     </td>
-                    <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.labor_cost)}</td>
+                    <td className="text-right py-2.5 pr-4">
+                      <div className="font-mono inline-flex items-center gap-1">
+                        {fmtJpy(data.labor_cost)}
+                        {data.native.labor_source === "estimated_shifts" && (
+                          <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1 py-0">Est.</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.prime_cost)}</td>
                     <td className={`text-right py-2.5 pr-4 font-semibold ${primeRateCls(data.prime_cost_rate)}`}>
                       {fmtRate(data.prime_cost_rate)}
