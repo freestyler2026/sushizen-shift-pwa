@@ -1,6 +1,20 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Careem Dubai balance snapshot automation 完了)
+Last updated: 2026-08-22 (Keeta Dubai settlement payout automation 完了)
+
+---
+
+## ✅ Completed: Keeta Dubai 決済明細自動抽出 (2026-08-22, Heroku v2075)
+
+**手法:** Playwright headless で `/web/app/finance` を開き、`page.evaluate()` で `POST /api/settlement/statement/v2/r/download/task/list` を呼ぶ（mtgsig自動生成）
+**S3ダウンロード:** 取得したpre-signed URLから決済Excelを直接DL（認証不要）
+**解析:** `Invoice Details` シートの列H(Payable to Restaurant)をBilling Cycle単位で集計
+**対象5店舗:** Arjan / Al Barsha 3 / Business Bay / JLT / Al Mina
+**payout_id形式:** `keeta_{STORE_CODE}_{cycle_start_YYYYMMDD}`
+**バックフィル:** 2025-10〜2026-07 の全109決済サイクルをar_payoutsに挿入済み
+**Workflow:** `.github/workflows/keeta-dubai-payout.yml` (毎週月曜 03:00 UTC = 07:00 GST)
+**セッション有効期限:** 2027-02 (6ヶ月有効)
+**要対応 (一手間):** `cat scripts/keeta/keeta-session.b64.txt | gh secret set KEETA_SESSION --repo jaynishimura/sushizen-shift-pwa`
 
 ---
 

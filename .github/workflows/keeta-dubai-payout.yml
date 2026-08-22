@@ -1,0 +1,40 @@
+name: Keeta Dubai — Settlement Payout Extract
+
+on:
+  schedule:
+    # Every Monday at 03:00 UTC = 07:00 GST (Dubai)
+    # Keeta settles weekly (or monthly from June 2026), so weekly is fine.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Set to "true" to skip posting to backend (no WEBHOOK_URL)'
+        required: false
+        default: 'false'
+
+jobs:
+  extract-payouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install playwright xlsx --no-save
+        working-directory: ${{ github.workspace }}
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+        working-directory: ${{ github.workspace }}
+
+      - name: Extract Keeta settlement payouts
+        run: node scripts/keeta/get-payouts.js
+        env:
+          KEETA_SESSION: ${{ secrets.KEETA_SESSION }}
+          WEBHOOK_URL:   ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+        timeout-minutes: 12
