@@ -51,6 +51,7 @@ interface YieldRecord {
   waste_g: number;
   waste_pct: number;
   photo_url: string;
+  photo_urls: string[];
   ai_score: number | null;
   ai_score_note: string;
   created_at: string;
@@ -217,14 +218,20 @@ function RecordsList({ records, branchFilter }: { records: YieldRecord[]; branch
               <div><span className={`font-semibold ${scrapPctColor(scrapPct)}`}>Scrap: {r.scrap_g}g ({scrapPct.toFixed(1)}%)</span></div>
               <div><span className={`font-semibold ${skinPctColor(skinPct)}`}>Skin: {r.skin_g}g ({skinPct.toFixed(1)}%)</span></div>
             </div>
-            {(r.photo_url || r.ai_score !== null) && (
+            {(r.photo_url || (r.photo_urls?.length > 0) || r.ai_score !== null) && (
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                {r.photo_url && (
-                  <a href={r.photo_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                    View Photo
-                  </a>
-                )}
+                {(() => {
+                  const urls = Array.isArray(r.photo_urls) && r.photo_urls.length > 0
+                    ? r.photo_urls
+                    : r.photo_url ? [r.photo_url] : [];
+                  const labels = ["Whole Salmon", "Scrap", "Skin", "Main Portion", "Extra"];
+                  return urls.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                      {labels[i] ?? `Photo ${i + 1}`}
+                    </a>
+                  ));
+                })()}
                 {r.ai_score !== null && (
                   <span className="text-xs text-zinc-400">
                     AI Score: <span className="text-white font-semibold">{r.ai_score}</span>

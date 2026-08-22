@@ -273,6 +273,7 @@ interface SalmonYield {
   waste_g: number;
   waste_pct: number;
   photo_url: string;
+  photo_urls: string[];
   ai_score: number | null;
   ai_score_note: string;
 }
@@ -479,16 +480,23 @@ function SalmonPortioningSection({
   mainKg, onMainKg,
   scrapKg, onScrapKg,
   skinKg, onSkinKg,
-  photo, onPhoto,
+  photos, onPhoto,
 }: {
   enabled: boolean; onToggle: () => void;
   wholeKg: string; onWholeKg: (v: string) => void;
   mainKg: string; onMainKg: (v: string) => void;
   scrapKg: string; onScrapKg: (v: string) => void;
   skinKg: string; onSkinKg: (v: string) => void;
-  photo: File | null; onPhoto: (f: File | null) => void;
+  photos: (File | null)[]; onPhoto: (index: number, f: File | null) => void;
 }) {
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const PHOTO_SLOTS = ["Whole Salmon", "Scrap", "Skin", "Main Portion", "Extra"];
+  const photoInputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
   const whole = parseFloat(wholeKg) || 0;
   const mainPct  = whole > 0 ? Math.round((parseFloat(mainKg)  || 0) / whole * 10000) / 100 : 0;
   const scrapPct = whole > 0 ? Math.round((parseFloat(scrapKg) || 0) / whole * 10000) / 100 : 0;
@@ -567,25 +575,45 @@ function SalmonPortioningSection({
           )}
 
           <div>
-            <label className={`${T_LABEL} block mb-1.5`}>Photo</label>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
-            />
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => photoInputRef.current?.click()}
-                className={SMALL_BUTTON}>
-                {photo ? "Change Photo" : "Take / Upload Photo"}
-              </button>
-              {photo && (
-                <span className="text-xs text-emerald-400">
-                  Photo selected: {photo.name}
-                </span>
-              )}
+            <label className={`${T_LABEL} block mb-1.5`}>
+              Photos <span className="text-zinc-500 font-normal">(up to 5 — Whole Salmon, Scrap, Skin, Main Portion required)</span>
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {PHOTO_SLOTS.map((slotLabel, idx) => {
+                const file = photos[idx] ?? null;
+                return (
+                  <div key={slotLabel} className={`rounded-xl border p-3 ${file ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-white/2"}`}>
+                    <input
+                      ref={photoInputRefs[idx]}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        onPhoto(idx, e.target.files?.[0] ?? null);
+                        e.target.value = "";
+                      }}
+                    />
+                    <p className="text-xs font-medium text-zinc-300 mb-2">{slotLabel}</p>
+                    {file ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-emerald-400 break-all leading-snug">{file.name}</p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => photoInputRefs[idx].current?.click()}
+                            className="text-xs text-zinc-400 hover:text-white transition-colors">Change</button>
+                          <button type="button" onClick={() => onPhoto(idx, null)}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => photoInputRefs[idx].current?.click()}
+                        className={`${SMALL_BUTTON} w-full justify-center text-xs py-1.5`}>
+                        {idx < 4 ? "Take / Upload" : "Add Extra"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -714,12 +742,18 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                         <div><span className="text-zinc-500">Skin: </span>{sy.skin_g}g <span className="text-zinc-500">({skinPct}%)</span></div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
-                        {r.salmon_yield.photo_url && (
-                          <a href={r.salmon_yield.photo_url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                            View Photo
-                          </a>
-                        )}
+                        {(() => {
+                          const urls: string[] = Array.isArray(r.salmon_yield.photo_urls) && r.salmon_yield.photo_urls.length > 0
+                            ? r.salmon_yield.photo_urls
+                            : r.salmon_yield.photo_url ? [r.salmon_yield.photo_url] : [];
+                          const labels = ["Whole Salmon", "Scrap", "Skin", "Main Portion", "Extra"];
+                          return urls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                              {labels[i] ?? `Photo ${i + 1}`}
+                            </a>
+                          ));
+                        })()}
                         {sy.ai_score !== null && (
                           <span className="text-xs text-zinc-400">
                             AI Score: <span className="text-white font-semibold">{sy.ai_score}</span>
@@ -1024,7 +1058,7 @@ export default function BackupReportPage() {
   const [salmonMainKg, setSalmonMainKg] = useState("");
   const [salmonScrapKg, setSalmonScrapKg] = useState("");
   const [salmonSkinKg, setSalmonSkinKg] = useState("");
-  const [salmonPhoto, setSalmonPhoto] = useState<File | null>(null);
+  const [salmonPhotos, setSalmonPhotos] = useState<(File | null)[]>([null, null, null, null, null]);
 
   useEffect(() => {
     const branches = BRANCHES[city];
@@ -1074,7 +1108,7 @@ export default function BackupReportPage() {
     setSalmonMainKg("");
     setSalmonScrapKg("");
     setSalmonSkinKg("");
-    setSalmonPhoto(null);
+    setSalmonPhotos([null, null, null, null, null]);
   }, []);
 
   const handleSubmit = async () => {
@@ -1147,18 +1181,21 @@ export default function BackupReportPage() {
         }
       );
 
-      // Upload salmon photo if captured
-      if (result.salmon_yield_id && salmonPhoto) {
-        try {
-          const fd = new FormData();
-          fd.append("photo", salmonPhoto);
-          await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
-            method: "POST",
-            headers: { ...(getAuthHeaders(auth) ?? {}) },
-            body: fd,
-          });
-        } catch {
-          // Photo upload failure is non-critical — report was saved
+      // Upload salmon photos (up to 5) sequentially — non-critical if any fail
+      if (result.salmon_yield_id && salmonPhotos.some(Boolean)) {
+        for (const photo of salmonPhotos) {
+          if (!photo) continue;
+          try {
+            const fd = new FormData();
+            fd.append("photo", photo);
+            await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
+              method: "POST",
+              headers: { ...(getAuthHeaders(auth) ?? {}) },
+              body: fd,
+            });
+          } catch {
+            // Photo upload failure is non-critical — report was saved
+          }
         }
       }
 
@@ -1171,7 +1208,7 @@ export default function BackupReportPage() {
       setSalmonMainKg("");
       setSalmonScrapKg("");
       setSalmonSkinKg("");
-      setSalmonPhoto(null);
+      setSalmonPhotos([null, null, null, null, null]);
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1359,8 +1396,8 @@ export default function BackupReportPage() {
             onScrapKg={setSalmonScrapKg}
             skinKg={salmonSkinKg}
             onSkinKg={setSalmonSkinKg}
-            photo={salmonPhoto}
-            onPhoto={setSalmonPhoto}
+            photos={salmonPhotos}
+            onPhoto={(idx, f) => setSalmonPhotos((prev) => { const next = [...prev]; next[idx] = f; return next; })}
           />
 
           {/* Past Reports */}
