@@ -23,7 +23,7 @@ on:
 jobs:
   extract-payouts:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -32,18 +32,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm install playwright --no-save
-
-      - name: Install Playwright Firefox
-        run: npx playwright install firefox --with-deps
-
-      - name: Extract Noon biweekly payouts
+      - name: Extract Noon biweekly payouts (direct HTTP — no browser required)
         run: node scripts/noon/get-payouts.js
         env:
-          NOON_USERNAME:    ${{ secrets.NOON_USERNAME }}
-          NOON_PASSWORD:    ${{ secrets.NOON_PASSWORD }}
-          NOON_BACKFILL:    ${{ github.event.inputs.backfill }}
-          NOON_SINCE:       ${{ github.event.inputs.since_date }}
-          WEBHOOK_URL:      ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
-        timeout-minutes: 18
+          NOON_SESSION:  ${{ secrets.NOON_SESSION }}
+          NOON_BACKFILL: ${{ github.event.inputs.backfill }}
+          NOON_SINCE:    ${{ github.event.inputs.since_date }}
+          WEBHOOK_URL:   ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+        timeout-minutes: 8
