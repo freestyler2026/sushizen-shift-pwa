@@ -1,0 +1,49 @@
+name: Noon Food Dubai — Biweekly Payout Extract
+
+on:
+  schedule:
+    # Every Tuesday at 04:00 UTC = 08:00 GST (Dubai)
+    # Noon settles biweekly (every ~14 days); weekly runs ensure we never miss a cycle.
+    - cron: '0 4 * * 2'
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: 'Set to "1" to extract ALL historical payouts since 2020'
+        required: false
+        default: ''
+      since_date:
+        description: 'Extract payouts since this date (YYYY-MM-DD). Leave blank for last 60 days.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Set to "true" to skip posting to backend'
+        required: false
+        default: 'false'
+
+jobs:
+  extract-payouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install playwright --no-save
+
+      - name: Install Playwright Firefox
+        run: npx playwright install firefox --with-deps
+
+      - name: Extract Noon biweekly payouts
+        run: node scripts/noon/get-payouts.js
+        env:
+          NOON_USERNAME:    ${{ secrets.NOON_USERNAME }}
+          NOON_PASSWORD:    ${{ secrets.NOON_PASSWORD }}
+          NOON_BACKFILL:    ${{ github.event.inputs.backfill }}
+          NOON_SINCE:       ${{ github.event.inputs.since_date }}
+          WEBHOOK_URL:      ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+        timeout-minutes: 18

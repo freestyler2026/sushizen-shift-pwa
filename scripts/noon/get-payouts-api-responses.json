@@ -1,0 +1,28 @@
+{
+  "note": "Sample wallet API responses captured 2026-08-22 for documentation",
+  "sushi_zen_brand_code": "R5346332756132073257580964A",
+  "ramen_zen_brand_code": "R7226482692501293869409357A",
+  "wallet_api": "POST /_food-restaurant/finance/wallet with {\"entryType\":\"payment\"}",
+  "auth": "Session cookies (_npsid, _nprtnetid) set by iframe login at restaurant.noon.partners/public/login/",
+  "restaurant_context": "Determined by URL path: /restaurant/<brandCode>/payment/",
+  "sample_lines": [
+    {
+      "referenceNr": "bt_2623101044515007",
+      "entryType": "payment",
+      "date": "2026-08-19",
+      "amount": -48732.05,
+      "periodStart": "2026-08-05",
+      "periodEnd": "2026-08-19",
+      "runningBalance": 0.0
+    },
+    {
+      "referenceNr": "bt_2621902045983003",
+      "entryType": "payment",
+      "date": "2026-08-07",
+      "amount": -49631.02,
+      "periodStart": "2026-07-24",
+      "periodEnd": "2026-08-07",
+      "runningBalance": 25140.08
+    }
+  ]
+}
