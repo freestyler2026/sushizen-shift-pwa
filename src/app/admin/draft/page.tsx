@@ -1433,7 +1433,6 @@ export default function AdminDraftPage() {
   const [applyResult, setApplyResult] = useState<BatchApplyConfirmResult | null>(null);
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
-  const [pendingBranch, setPendingBranch] = useState<string>("ALL");
   const [syncBranchCode, setSyncBranchCode] = useState<string>("");
   const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
   const [decisionNote, setDecisionNote] = useState("");
@@ -1500,9 +1499,9 @@ export default function AdminDraftPage() {
     return Array.from(m.entries());
   }, [rows]);
   const pendingVisibleRows = useMemo(() => {
-    if (pendingBranch === "ALL") return pendingRows;
-    return pendingRows.filter((r) => (r.branch_code || "").toUpperCase() === pendingBranch);
-  }, [pendingRows, pendingBranch]);
+    if (!syncBranchCode) return pendingRows;
+    return pendingRows.filter((r) => (r.branch_code || "").toUpperCase() === syncBranchCode.toUpperCase());
+  }, [pendingRows, syncBranchCode]);
   useEffect(() => {
     if (!auth?.staffName) {
       router.replace("/login");
@@ -1654,13 +1653,8 @@ export default function AdminDraftPage() {
   useEffect(() => {
     loadPendingProposals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canOperate, approverName, pin, applyMonth, pendingBranch]);
+  }, [canOperate, approverName, pin, applyMonth, syncBranchCode]);
 
-  useEffect(() => {
-    if (!syncBranchCode && versions.length > 0) {
-      setSyncBranchCode(activeBranchCode || versions[0].branch_code);
-    }
-  }, [versions, activeBranchCode, syncBranchCode]);
 
   async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
     setRosterLoading(true);
@@ -2272,7 +2266,7 @@ export default function AdminDraftPage() {
     setPendingBusy(true);
     setPendingMessage("");
     try {
-      const branchParam = pendingBranch === "ALL" ? "" : pendingBranch;
+      const branchParam = syncBranchCode;
       const resp = await apiGet<{ ok: boolean; count: number; items: PendingSheetProposal[] }>(
         `/api/draft/sheet/proposals${qs({
           city,
@@ -3720,13 +3714,13 @@ export default function AdminDraftPage() {
               <input type="month" className={INPUT_CLASS} value={applyMonth} onChange={(e) => setApplyMonth(e.target.value)} />
             </div>
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Sync Branch</label>
+              <label className={`${T_LABEL} block mb-1.5`}>Branch</label>
               <SelectDark
                 className={SELECT_CLASS}
                 value={syncBranchCode}
                 onChange={setSyncBranchCode}
                 options={[
-                  { value: "", label: "Select branch" },
+                  { value: "", label: "All branches" },
                   ...(BRANCHES[city as City] ?? []).map((b) => ({ value: b.code, label: b.name })),
                 ]}
               />
@@ -3742,19 +3736,6 @@ export default function AdminDraftPage() {
                 Sync Proposals From Sheet
               </button>
             </div>
-          </div>
-
-          <div className="mb-4">
-            <label className={`${T_LABEL} block mb-1.5`}>Table Filter</label>
-            <SelectDark
-              className={`${SELECT_CLASS} max-w-xs`}
-              value={pendingBranch}
-              onChange={setPendingBranch}
-              options={[
-                { value: "ALL", label: "All branches" },
-                ...versions.map((v) => ({ value: v.branch_code, label: v.branch_name })),
-              ]}
-            />
           </div>
 
           <hr className="border-white/5 mb-4" />
