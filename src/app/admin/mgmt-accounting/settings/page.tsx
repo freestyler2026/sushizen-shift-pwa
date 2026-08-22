@@ -74,7 +74,7 @@ function prevMonths(n: number): string[] {
 
 export default function MgmtSettingsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"revenue" | "overhead" | "budget">("revenue");
+  const [tab, setTab] = useState<"revenue" | "overhead" | "budget" | "dailypl">("revenue");
   const [city, setCity] = useState("dubai");
   const [storeCode, setStoreCode] = useState("");
   const [yearMonth, setYearMonth] = useState(thisMonth());
@@ -312,6 +312,9 @@ export default function MgmtSettingsPage() {
         </button>
         <button onClick={() => setTab("budget")} className={tab === "budget" ? TAB_ACTIVE : TAB_INACTIVE}>
           Budget
+        </button>
+        <button onClick={() => setTab("dailypl")} className={tab === "dailypl" ? TAB_ACTIVE : TAB_INACTIVE}>
+          Daily P&amp;L
         </button>
       </div>
 
@@ -578,6 +581,181 @@ export default function MgmtSettingsPage() {
           )}
         </div>
       )}
+
+      {/* Daily P&L Tab */}
+      {tab === "dailypl" && (
+        <DailyPLSettingsTab city={city} router={router} setMsg={setMsg} />
+      )}
+    </div>
+  );
+}
+
+// ─── Daily P&L Settings Tab ───────────────────────────────────────────────────
+
+function DailyPLSettingsTab({
+  city, router, setMsg,
+}: {
+  city: string;
+  router: ReturnType<typeof useRouter>;
+  setMsg: (m: { text: string; ok: boolean } | null) => void;
+}) {
+  const [computing, setComputing] = useState<string | null>(null);
+  const [foodRates, setFoodRates] = useState<{ rate_pct: number; computed_at: string; source: string }[]>([]);
+  const [dowWeights, setDowWeights] = useState<{ dow: number; weight: number }[]>([]);
+  const [commRates, setCommRates] = useState<{ platform: string; store_code: string; brand: string; rate: number }[]>([]);
+
+  const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const jsonH = { "Content-Type": "application/json" };
+
+  const loadData = useCallback(async () => {
+    const [fr, cr] = await Promise.all([
+      fetch(`/api/admin/mgmt/food-cost-rates?city=${city}`).then(r => r.json()),
+      fetch(`/api/admin/mgmt/commission-rates?city=${city}`).then(r => r.json()),
+    ]);
+    setFoodRates(fr.rates ?? []);
+    setCommRates(cr.rates ?? []);
+
+    // DOW weights from any daily PL call (derive from mgmt_dow_weights via the response)
+    // For now we show the food cost rate and commission rates only
+  }, [city]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const compute = async (what: "food-cost-rate" | "dow-weights") => {
+    setComputing(what);
+    try {
+      const res = await fetch(`/api/admin/mgmt/daily-pl/compute-${what}`, {
+        method: "POST",
+        headers: jsonH,
+        body: JSON.stringify({ city }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setMsg({
+          ok: true,
+          text: what === "food-cost-rate"
+            ? `Food cost rate: ${(json.rate * 100).toFixed(1)}% (${json.items_count} items)`
+            : `DOW weights updated (${json.data_points} data points)`,
+        });
+        await loadData();
+      } else {
+        setMsg({ ok: false, text: json.reason ?? json.error ?? "Failed" });
+      }
+    } finally {
+      setComputing(null);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Food Cost Rate */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Food Cost Rate</h2>
+            <p className="text-xs text-slate-500">
+              Computed from Cost Calculation master (menu_item_master).
+              Used for COGS = Gross Revenue × food_cost_rate in the Daily P&amp;L.
+            </p>
+          </div>
+          <button
+            onClick={() => compute("food-cost-rate")}
+            disabled={computing === "food-cost-rate"}
+            className={PRIMARY_BUTTON}
+          >
+            {computing === "food-cost-rate" ? "Computing…" : "Compute"}
+          </button>
+        </div>
+
+        {foodRates.length > 0 ? (
+          <div className="mt-3 text-sm space-y-1">
+            {foodRates.map((r, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-emerald-400 text-lg font-semibold">{r.rate_pct}%</span>
+                <span className="text-slate-500 text-xs">source: {r.source}</span>
+                <span className="text-slate-600 text-xs">{r.computed_at?.slice(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-slate-600 italic">
+            Not computed yet. Click Compute to calculate from Cost Calculation master.
+          </div>
+        )}
+      </div>
+
+      {/* DOW Weights */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Day-of-Week Traffic Weights</h2>
+            <p className="text-xs text-slate-500">
+              Computed from Talabat daily sales (last 90 days). Used to distribute
+              multi-day settlements into per-day revenue estimates.
+            </p>
+          </div>
+          <button
+            onClick={() => compute("dow-weights")}
+            disabled={computing === "dow-weights"}
+            className={PRIMARY_BUTTON}
+          >
+            {computing === "dow-weights" ? "Computing…" : "Compute"}
+          </button>
+        </div>
+        <p className="text-xs text-slate-600 italic">
+          Weights are auto-initialized to 1.0 (uniform). After computing, Fri/Sat will be higher
+          and Mon/Tue lower, reflecting actual traffic patterns.
+        </p>
+      </div>
+
+      {/* Commission Rates */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <h2 className="text-sm font-semibold text-slate-200 mb-1">Commission Rates</h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Used to compute gross_sales from net settlement payouts.
+          Pre-populated from July 2026 P&amp;L analysis.
+        </p>
+        {commRates.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-slate-500">
+                  <th className="text-left py-1.5 pr-3">Platform</th>
+                  <th className="text-left py-1.5 pr-3">Store</th>
+                  <th className="text-left py-1.5 pr-3">Brand</th>
+                  <th className="text-right py-1.5">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commRates.map((r, i) => (
+                  <tr key={i} className="border-b border-[var(--border)]/50">
+                    <td className="py-1.5 pr-3 capitalize">{r.platform}</td>
+                    <td className="py-1.5 pr-3 text-slate-400">{r.store_code || "—"}</td>
+                    <td className="py-1.5 pr-3 text-slate-400">{r.brand || "—"}</td>
+                    <td className="py-1.5 text-right font-mono text-amber-400">
+                      {(r.rate * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-600 italic">No rates loaded. Auto-seeded on first use.</p>
+        )}
+      </div>
+
+      {/* Link to Daily P&L */}
+      <div className={`${GLASS_CARD} p-4 flex items-center justify-between`}>
+        <span className="text-sm text-slate-300">Ready to view the daily P&amp;L dashboard?</span>
+        <button
+          onClick={() => router.push("/admin/mgmt-accounting/daily-pl")}
+          className={PRIMARY_BUTTON}
+        >
+          Open Daily P&amp;L →
+        </button>
+      </div>
     </div>
   );
 }

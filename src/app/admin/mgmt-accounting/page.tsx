@@ -199,6 +199,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
           {loading ? "Loading…" : "Refresh"}
         </button>
         <div className="ml-auto flex gap-2">
+          <button onClick={() => router.push("/admin/mgmt-accounting/daily-pl")} className={SMALL_BUTTON}>Daily P&amp;L ›</button>
           <button onClick={() => router.push("/admin/mgmt-accounting/cost-detail")} className={SMALL_BUTTON}>Cost Detail ›</button>
           <button onClick={() => router.push("/admin/mgmt-accounting/settings")} className={SMALL_BUTTON}>Settings ›</button>
         </div>
