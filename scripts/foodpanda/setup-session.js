@@ -113,12 +113,16 @@ async function main() {
   }
 
   if (!loggedIn) {
-    console.log('Timed out waiting for login — saving partial session');
+    console.log('Timed out waiting for login — proceeding anyway (browser may be logged in)');
   }
+  // Always enable capturing before page navigation — even if login detection
+  // timed out, the browser may already be authenticated.
+  capturing = true;
 
   // ── Auto-navigate to financial pages to capture API calls ──────────────
   console.log('\n=== Auto-navigating to financial pages (capturing API calls) ===');
   const FINANCIAL_PAGES = [
+    { url: 'https://partner.foodpanda.com/finance',            label: 'Finance' },
     { url: 'https://partner.foodpanda.com/revenue',            label: 'Revenue' },
     { url: 'https://partner.foodpanda.com/orders',             label: 'Orders' },
     { url: 'https://partner.foodpanda.com/report-builder',     label: 'Report Builder' },
