@@ -1434,6 +1434,7 @@ export default function AdminDraftPage() {
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
   const [pendingBranch, setPendingBranch] = useState<string>("ALL");
+  const [syncBranchCode, setSyncBranchCode] = useState<string>("");
   const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
   const [decisionNote, setDecisionNote] = useState("");
   const [pendingBusy, setPendingBusy] = useState(false);
@@ -1502,13 +1503,6 @@ export default function AdminDraftPage() {
     if (pendingBranch === "ALL") return pendingRows;
     return pendingRows.filter((r) => (r.branch_code || "").toUpperCase() === pendingBranch);
   }, [pendingRows, pendingBranch]);
-  const defaultSyncBranch = useMemo(() => {
-    if (pendingBranch !== "ALL") return pendingBranch;
-    if (activeBranchCode) return activeBranchCode;
-    if (versions[0]?.branch_code) return versions[0].branch_code;
-    return "";
-  }, [pendingBranch, activeBranchCode, versions]);
-
   useEffect(() => {
     if (!auth?.staffName) {
       router.replace("/login");
@@ -1662,6 +1656,11 @@ export default function AdminDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOperate, approverName, pin, applyMonth, pendingBranch]);
 
+  useEffect(() => {
+    if (!syncBranchCode && versions.length > 0) {
+      setSyncBranchCode(activeBranchCode || versions[0].branch_code);
+    }
+  }, [versions, activeBranchCode, syncBranchCode]);
 
   async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
     setRosterLoading(true);
@@ -2652,7 +2651,7 @@ export default function AdminDraftPage() {
       setPendingMessage("Select month first.");
       return;
     }
-    if (!defaultSyncBranch) {
+    if (!syncBranchCode) {
       setPendingMessage("Select branch first.");
       return;
     }
@@ -2672,7 +2671,7 @@ export default function AdminDraftPage() {
       setPendingMessage(`Syncing from "${tabMain}"…`);
       const res = await apiPost<{ ok: boolean; inserted: number; warnings?: string[] }>(`/api/draft/sheet/propose_sync`, {
         city,
-        branch_code: defaultSyncBranch,
+        branch_code: syncBranchCode,
         month_key: applyMonth,
         spreadsheet_id: "",
         tab_main: tabMain,
@@ -3707,7 +3706,7 @@ export default function AdminDraftPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-1 mb-5">
-            {(["Prepare & Confirm Generate → spreadsheet is created with MAIN tabs", "Branch managers fill in shift changes in their MAIN tab", "Select month & branch, then click \"Sync Proposals From Sheet\"", "Review the imported rows, select them, then Approve or Reject"] as const).map((text, i) => (
+            {(["Prepare & Confirm Generate → spreadsheet is created with MAIN tabs", "Branch managers fill in shift changes in their MAIN tab", "Select month & branch, then click \"Sync Proposals From Sheet\" — auto-reads the correct MAIN tab", "Review the imported rows, select them, then Approve or Reject"] as const).map((text, i) => (
               <div key={i} className="flex items-start gap-1.5 text-xs text-zinc-400">
                 <span className="text-sky-500 font-semibold shrink-0">{["①","②","③","④"][i]}</span>
                 <span>{text}</span>
@@ -3715,36 +3714,47 @@ export default function AdminDraftPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
               <label className={`${T_LABEL} block mb-1.5`}>Month</label>
               <input type="month" className={INPUT_CLASS} value={applyMonth} onChange={(e) => setApplyMonth(e.target.value)} />
             </div>
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Branch Filter</label>
+              <label className={`${T_LABEL} block mb-1.5`}>Sync Branch</label>
               <SelectDark
                 className={SELECT_CLASS}
-                value={pendingBranch}
-                onChange={setPendingBranch}
+                value={syncBranchCode}
+                onChange={setSyncBranchCode}
                 options={[
-                  { value: "ALL", label: "All branches" },
+                  { value: "", label: "Select branch" },
                   ...versions.map((v) => ({ value: v.branch_code, label: v.branch_name })),
                 ]}
               />
             </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={syncFromSheet}
+                disabled={pendingBusy || !syncBranchCode}
+                className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2 text-sm disabled:opacity-40`}
+              >
+                <ArrowDownToLine className="h-4 w-4" />
+                Sync Proposals From Sheet
+              </button>
+            </div>
           </div>
-          <p className={`${T_CAPTION} mb-3`}>Reads the {city === "dubai" ? "Dubai" : "Manila"} draft spreadsheet and auto-selects the MAIN tab for {applyMonth}. Branch: {defaultSyncBranch || "—"}</p>
 
-          <div className="flex justify-end mb-4">
-            <button
-              type="button"
-              onClick={syncFromSheet}
-              disabled={pendingBusy || !defaultSyncBranch}
-              className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
-            >
-              <ArrowDownToLine className="h-4 w-4" />
-              Sync Proposals From Sheet
-            </button>
+          <div className="mb-4">
+            <label className={`${T_LABEL} block mb-1.5`}>Table Filter</label>
+            <SelectDark
+              className={`${SELECT_CLASS} max-w-xs`}
+              value={pendingBranch}
+              onChange={setPendingBranch}
+              options={[
+                { value: "ALL", label: "All branches" },
+                ...versions.map((v) => ({ value: v.branch_code, label: v.branch_name })),
+              ]}
+            />
           </div>
 
           <hr className="border-white/5 mb-4" />
