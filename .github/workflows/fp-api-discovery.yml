@@ -1,0 +1,20 @@
+name: FoodPanda — API Discovery (temporary, delete after use)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run API discovery
+        run: node scripts/foodpanda/fp-discover.js
+        env:
+          FP_EMAIL_PARANAQUE:    ${{ secrets.FP_EMAIL_PARANAQUE }}
+          FP_PASSWORD_PARANAQUE: ${{ secrets.FP_PASSWORD_PARANAQUE }}
+        timeout-minutes: 4
