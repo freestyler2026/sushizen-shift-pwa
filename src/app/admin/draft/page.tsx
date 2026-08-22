@@ -2657,7 +2657,13 @@ export default function AdminDraftPage() {
       const mains = all.filter((t) => /_MAIN$/i.test(t));
       // Match applyMonth with or without zero-padding (e.g. "2026-09" or "2026-9")
       const monthVariants = [applyMonth, applyMonth.replace(/-0(\d)$/, "-$1")];
-      const tabMain = mains.find((t) => monthVariants.some((m) => t.includes(m))) || mains[0];
+      const branchPrefix = syncBranchCode.toUpperCase() + "_";
+      // First: tab that matches both this branch AND this month (e.g. "BB_2026-9_DRAFT_MAIN")
+      // Fallback: any MAIN tab for this month (single-branch spreadsheets or different naming)
+      const tabMain =
+        mains.find((t) => t.toUpperCase().startsWith(branchPrefix) && monthVariants.some((m) => t.includes(m))) ||
+        mains.find((t) => monthVariants.some((m) => t.includes(m))) ||
+        mains[0];
       if (!tabMain) {
         setPendingMessage("No MAIN tab found in spreadsheet. Make sure tabs ending in _MAIN exist.");
         return;
