@@ -5,7 +5,7 @@ import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2, Plus,
   BarChart2, ShieldCheck, Pencil, Mail, Users, Bell, FileCheck, TrendingUp, TrendingDown,
-  CalendarClock, X, FileDown,
+  CalendarClock, X, FileDown, Camera, ExternalLink,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -79,6 +79,7 @@ interface OrderDetail extends OrderListItem {
   ck_decision: string | null;
   ck_decision_by: string | null;
   ck_decision_at: string | null;
+  invoice_photo_url: string | null;
   items: OrderItem[];
 }
 
@@ -240,9 +241,14 @@ export default function StoreSupplierOrdersPage() {
   // Receive modal
   const [receiveModal, setReceiveModal] = useState<{
     orderId: number;
+    store: string;
+    orderDate: string;
     items: { item_id: number; item_name: string; unit: string; qty_ordered: number; qty_received: string; receive_note: string }[];
     invoiceNumber: string;
     receiveStatus: "received" | "partial" | "issue";
+    invoicePhotoUrl: string;
+    invoicePhotoFile: File | null;
+    invoicePhotoUploading: boolean;
   } | null>(null);
   const [receiveSaving, setReceiveSaving] = useState(false);
 
@@ -719,6 +725,8 @@ export default function StoreSupplierOrdersPage() {
   function openReceiveModal(order: OrderDetail) {
     setReceiveModal({
       orderId: order.id,
+      store: order.store,
+      orderDate: order.order_date,
       items: order.items.map((it) => ({
         item_id: it.id,
         item_name: it.item_name,
@@ -729,11 +737,44 @@ export default function StoreSupplierOrdersPage() {
       })),
       invoiceNumber: order.invoice_number ?? "",
       receiveStatus: "received",
+      invoicePhotoUrl: "",
+      invoicePhotoFile: null,
+      invoicePhotoUploading: false,
     });
+  }
+
+  async function handleInvoicePhotoChange(file: File) {
+    if (!receiveModal) return;
+    setReceiveModal({ ...receiveModal, invoicePhotoFile: file, invoicePhotoUploading: true, invoicePhotoUrl: "" });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("store", receiveModal.store);
+      fd.append("order_date", receiveModal.orderDate);
+      const res = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}/upload-invoice-photo`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail ?? "Photo upload failed.");
+        setReceiveModal((m) => m ? { ...m, invoicePhotoFile: null, invoicePhotoUploading: false } : m);
+        return;
+      }
+      setReceiveModal((m) => m ? { ...m, invoicePhotoUrl: data.photo_url ?? "", invoicePhotoUploading: false } : m);
+    } catch {
+      setError("Photo upload failed.");
+      setReceiveModal((m) => m ? { ...m, invoicePhotoFile: null, invoicePhotoUploading: false } : m);
+    }
   }
 
   async function handleConfirmReceipt() {
     if (!receiveModal) return;
+    if (!receiveModal.invoicePhotoUrl) {
+      setError("Please upload an invoice photo before confirming receipt.");
+      return;
+    }
     setReceiveSaving(true);
     try {
       const res = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}/receive`, {
@@ -747,6 +788,7 @@ export default function StoreSupplierOrdersPage() {
           })),
           status: receiveModal.receiveStatus,
           invoice_number: receiveModal.invoiceNumber.trim() || null,
+          invoice_photo_url: receiveModal.invoicePhotoUrl,
         }),
       });
       const data = await res.json();
@@ -1407,6 +1449,13 @@ export default function StoreSupplierOrdersPage() {
                                       <FileCheck className="h-3.5 w-3.5 text-emerald-400" />
                                       Invoice: <strong className="text-white">{detail.invoice_number}</strong>
                                     </span>
+                                  )}
+                                  {detail.invoice_photo_url && (
+                                    <a href={detail.invoice_photo_url} target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs">
+                                      <Camera className="h-3.5 w-3.5" /> View Invoice Photo
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
                                   )}
                                   {detail.received_by && (
                                     <span className="text-zinc-500">Received by: <strong className="text-zinc-300">{detail.received_by}</strong></span>
@@ -2119,6 +2168,42 @@ export default function StoreSupplierOrdersPage() {
               </button>
             </div>
             <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Invoice photo (required) */}
+              <div>
+                <label className="text-xs text-zinc-400 font-medium flex items-center gap-1">
+                  <Camera className="h-3.5 w-3.5" /> Invoice Photo <span className="text-red-400 ml-0.5">*</span>
+                </label>
+                {receiveModal.invoicePhotoUrl ? (
+                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                    <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span className="text-xs text-emerald-300 truncate">Photo uploaded</span>
+                    <a href={receiveModal.invoicePhotoUrl} target="_blank" rel="noopener noreferrer" className="ml-auto text-zinc-400 hover:text-zinc-200">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                    <button
+                      className="text-zinc-500 hover:text-zinc-300 text-xs"
+                      onClick={() => setReceiveModal((m) => m ? { ...m, invoicePhotoUrl: "", invoicePhotoFile: null } : m)}
+                    >
+                      Replace
+                    </button>
+                  </div>
+                ) : (
+                  <label className="mt-1 flex items-center justify-center gap-2 rounded-lg border border-dashed border-white/20 bg-white/3 hover:bg-white/5 py-3 cursor-pointer transition-colors">
+                    {receiveModal.invoicePhotoUploading ? (
+                      <><RefreshCw className="h-4 w-4 text-zinc-400 animate-spin" /><span className="text-xs text-zinc-400">Uploading…</span></>
+                    ) : (
+                      <><Camera className="h-4 w-4 text-zinc-400" /><span className="text-xs text-zinc-400">Tap to upload invoice photo</span></>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="sr-only"
+                      disabled={receiveModal.invoicePhotoUploading}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleInvoicePhotoChange(f); }}
+                    />
+                  </label>
+                )}
+              </div>
               {/* Invoice number */}
               <div>
                 <label className="text-xs text-zinc-400 font-medium">Invoice Number</label>
@@ -2192,8 +2277,9 @@ export default function StoreSupplierOrdersPage() {
             <div className="flex gap-2 px-6 py-4 border-t border-white/10">
               <button
                 onClick={handleConfirmReceipt}
-                disabled={receiveSaving}
+                disabled={receiveSaving || !receiveModal.invoicePhotoUrl || receiveModal.invoicePhotoUploading}
                 className={PRIMARY_BUTTON + " flex items-center gap-2"}
+                title={!receiveModal.invoicePhotoUrl ? "Upload invoice photo first" : undefined}
               >
                 <PackageCheck className="h-4 w-4" />
                 {receiveSaving ? "Saving…" : "Confirm Receipt"}
