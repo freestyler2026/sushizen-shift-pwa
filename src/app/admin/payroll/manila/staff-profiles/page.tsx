@@ -50,6 +50,7 @@ type StaffProfile = {
   mdr_submitted_date: string | null;
   mdr_notes: string;
   is_active: boolean;
+  is_confidential: boolean;
   cola: string | null;
   is_minimum_wage_earner: boolean;
   rice_allowance: string | null;
@@ -86,6 +87,7 @@ type FormState = {
   mdr_submitted_date: string;
   mdr_notes: string;
   is_active: boolean;
+  is_confidential: boolean;
   cola: string;
   is_minimum_wage_earner: boolean;
   rice_allowance: string;
@@ -106,6 +108,7 @@ function emptyForm(): FormState {
     bank_name: "", bank_account_no: "", gcash_number: "",
     civil_status: "", num_qualified_dependents: 0, mdr_submitted: false, mdr_submitted_date: "", mdr_notes: "",
     is_active: true,
+    is_confidential: false,
     cola: "", is_minimum_wage_earner: false,
     rice_allowance: "", clothing_allowance: "", laundry_allowance: "", medical_allowance: "",
     pagibig_voluntary: "",
@@ -138,6 +141,7 @@ function profileToForm(p: StaffProfile): FormState {
     mdr_submitted_date: p.mdr_submitted_date ?? "",
     mdr_notes: p.mdr_notes,
     is_active: p.is_active,
+    is_confidential: p.is_confidential ?? false,
     cola: p.cola ?? "",
     is_minimum_wage_earner: p.is_minimum_wage_earner ?? false,
     rice_allowance:     p.rice_allowance ?? "",
@@ -560,6 +564,19 @@ function ProfileModal({
               </label>
               <span className="text-sm text-slate-300">Active employee</span>
             </div>
+
+            {/* Confidential */}
+            <div className="flex items-center gap-3 pt-2">
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input type="checkbox" className="peer sr-only" checked={form.is_confidential}
+                  onChange={e => set("is_confidential", e.target.checked)} />
+                <div className="h-6 w-11 rounded-full bg-slate-700 peer-checked:bg-rose-600 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" />
+              </label>
+              <div>
+                <span className="text-sm text-slate-300">Confidential salary (HQ only)</span>
+                <p className="text-xs text-slate-500 mt-0.5">Salary hidden from non-HQ users. Not included in payroll runs — counts in P&amp;L only.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -583,6 +600,7 @@ function ProfileModal({
 
 export default function StaffProfilesPage() {
   const router = useRouter();
+  const isHQ = getAuth()?.role === "HQ";
   const [profiles, setProfiles] = useState<StaffProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -672,6 +690,7 @@ export default function StaffProfilesPage() {
         bank_account_no: p.bank_account_no || null,
         gcash_number: p.gcash_number || null,
         is_active: false,
+        is_confidential: p.is_confidential,
         civil_status: p.civil_status || null,
         num_qualified_dependents: p.num_qualified_dependents,
         mdr_submitted: p.mdr_submitted,
@@ -875,7 +894,12 @@ export default function StaffProfilesPage() {
                     return (
                       <tr key={p.id} className={TABLE_ROW}>
                         <td className={TABLE_CELL + " px-4 py-3"}>
-                          <p className="font-semibold text-white">{p.staff_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-white">{p.staff_name}</p>
+                            {p.is_confidential && (
+                              <span className="rounded-full border border-rose-500/30 bg-rose-900/20 px-1.5 py-0.5 text-[10px] text-rose-400">Confidential</span>
+                            )}
+                          </div>
                           {p.department && <p className="text-xs text-slate-500">{p.department}</p>}
                           {p.last_working_date && (
                             <p className="text-xs text-amber-400 mt-0.5">Last day: {p.last_working_date}</p>
@@ -903,7 +927,9 @@ export default function StaffProfilesPage() {
                           </span>
                         </td>
                         <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-medium text-white"}>
-                          {php(p.monthly_rate)}
+                          {p.is_confidential && !isHQ
+                            ? <span className="text-slate-500 tracking-widest">****</span>
+                            : php(p.monthly_rate)}
                         </td>
                         <td className="px-3 py-3 text-center">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
