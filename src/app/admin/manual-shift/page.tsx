@@ -1555,10 +1555,22 @@ export default function ManualShiftPage() {
                               ? { ...s, role: "DAY_OFF" }
                               : s
                           );
-                          const isApprovedDayOff = normalizedShifts.length === 0 && approvedDayOffs.has(`${name}|${d}`);
+                          // Approved Day Off overrides published shifts (approval updates draft only, not published)
+                          const publishedIsAlreadyDayOff = normalizedShifts.length === 1 && normalizedShifts[0].role === "DAY_OFF";
+                          const isApprovedDayOff = !publishedIsAlreadyDayOff && approvedDayOffs.has(`${name}|${d}`);
                           return (
                             <td key={d} className="px-1 py-1 text-center align-top">
-                              {normalizedShifts.length > 0 ? (
+                              {isApprovedDayOff ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => openEdit(name, d, e)}
+                                  title="Day Off (Approved proposal — original shift overridden)"
+                                  className="w-full rounded-lg border border-gray-300 bg-gray-100 px-1.5 py-2 text-center text-[10px] font-semibold text-gray-500 hover:opacity-80 transition"
+                                >
+                                  Day Off
+                                  <span className="ml-1 rounded bg-gray-200 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-gray-400">approved</span>
+                                </button>
+                              ) : normalizedShifts.length > 0 ? (
                                 normalizedShifts.length === 1 && isSpecialRole(normalizedShifts[0].role) ? (
                                   <div className="group relative">
                                     <button
@@ -1643,16 +1655,6 @@ export default function ManualShiftPage() {
                                     )}
                                   </div>
                                 )
-                              ) : isApprovedDayOff ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => openEdit(name, d, e)}
-                                  title="Day Off (Approved proposal)"
-                                  className="w-full rounded-lg border border-gray-300 bg-gray-100 px-1.5 py-2 text-center text-[10px] font-semibold text-gray-500 hover:opacity-80 transition"
-                                >
-                                  Day Off
-                                  <span className="ml-1 rounded bg-gray-200 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-gray-400">approved</span>
-                                </button>
                               ) : (
                                 <button
                                   type="button"
