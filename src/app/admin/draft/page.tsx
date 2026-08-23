@@ -2485,8 +2485,11 @@ export default function AdminDraftPage() {
       const XLSX = await import("xlsx");
 
       const fmtH = (h: number) => {
-        const hr = h >= 24 ? h - 24 : h;
-        return `${String(hr).padStart(2, "0")}:00${h >= 24 ? "(+1)" : ""}`;
+        const base = h >= 24 ? h - 24 : h;
+        const suffix = h >= 24 ? "(+1)" : "";
+        const wh = Math.floor(base);
+        const mm = Math.round((base - wh) * 60);
+        return `${String(wh).padStart(2, "0")}:${String(mm).padStart(2, "0")}${suffix}`;
       };
       const fmtShift = (s: number, e: number) => `${fmtH(s)}-${fmtH(e)}`;
 
