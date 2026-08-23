@@ -313,12 +313,16 @@ export default function WhInventoryPage() {
   const [stockQ, setStockQ] = useState("");
   const [stockCatFilter, setStockCatFilter] = useState("");
 
+  // Suppliers list
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+
   // Add Item modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState("");
   const [addCategory, setAddCategory] = useState("");
   const [addUnit, setAddUnit] = useState("pc");
   const [addCost, setAddCost] = useState("");
+  const [addSupplierId, setAddSupplierId] = useState("");
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
 
@@ -330,6 +334,7 @@ export default function WhInventoryPage() {
   const [editUnit, setEditUnit] = useState("");
   const [editCost, setEditCost] = useState("");
   const [editParLevel, setEditParLevel] = useState("");
+  const [editSupplierId, setEditSupplierId] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -482,11 +487,23 @@ export default function WhInventoryPage() {
     }
   }, []);
 
+  const loadSuppliers = useCallback(async (c: City) => {
+    try {
+      const res = await inventoryGet<{ rows: { id: string; name: string }[] }>(
+        `/api/admin/inventory/suppliers?city=${encodeURIComponent(c)}&tab=ALL&limit=200`,
+      );
+      setSuppliers(res.rows || []);
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
   // Load on ready
   useEffect(() => {
     if (!ready || !allowed) return;
     void loadStock(city);
-  }, [ready, allowed, city, loadStock]);
+    void loadSuppliers(city);
+  }, [ready, allowed, city, loadStock, loadSuppliers]);
 
   // Load per tab switch
   useEffect(() => {
@@ -515,6 +532,7 @@ export default function WhInventoryPage() {
     }
     if (tab === "autoorder") { void loadStock(city); setGeneratedOrders(null); setSkippedNoSupplier([]); setGenerateError(""); }
     if (tab === "history") { setHistoryRows([]); void loadHistory(city); }
+    void loadSuppliers(city);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
 
@@ -656,6 +674,7 @@ export default function WhInventoryPage() {
     setAddCategory(stockCatFilter || "");
     setAddUnit("pc");
     setAddCost("");
+    setAddSupplierId("");
     setAddError("");
     setShowAddModal(true);
   }
@@ -672,6 +691,7 @@ export default function WhInventoryPage() {
         storage_unit: addUnit.trim(),
         cost: parseFloat(addCost) || 0,
         item_type: "ITEM",
+        suppliers: addSupplierId ? [{ supplier_id: addSupplierId, is_primary: true }] : [],
       });
       setShowAddModal(false);
       await loadStock(city);
@@ -693,6 +713,7 @@ export default function WhInventoryPage() {
     setEditUnit(row.unit || "");
     setEditCost(String(row.cost ?? ""));
     setEditParLevel(row.par_level > 0 ? String(row.par_level) : "");
+    setEditSupplierId(row.supplier_id || "");
     setEditError("");
     setShowEditModal(true);
   }
@@ -709,6 +730,7 @@ export default function WhInventoryPage() {
         cost: parseFloat(editCost) || 0,
         par_level: parseFloat(editParLevel) || 0,
         city,
+        suppliers: editSupplierId ? [{ supplier_id: editSupplierId, is_primary: true }] : [],
       });
       setShowEditModal(false);
       await loadStock(city);
@@ -1503,6 +1525,20 @@ export default function WhInventoryPage() {
                   />
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">
+                  Primary Supplier
+                  <span className="ml-1.5 text-neutral-600">(required for Auto Order)</span>
+                </label>
+                <SelectDark
+                  value={addSupplierId}
+                  onChange={(v) => setAddSupplierId(v)}
+                  options={[{ value: "", label: "— No supplier —" }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
+                  placeholder="— No supplier —"
+                  clearable
+                  className="w-full"
+                />
+              </div>
             </div>
 
             {/* Footer */}
@@ -1602,6 +1638,20 @@ export default function WhInventoryPage() {
                   onChange={(e) => setEditParLevel(e.target.value)}
                   placeholder="0 = no par level"
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">
+                  Primary Supplier
+                  <span className="ml-1.5 text-neutral-600">(required for Auto Order)</span>
+                </label>
+                <SelectDark
+                  value={editSupplierId}
+                  onChange={(v) => setEditSupplierId(v)}
+                  options={[{ value: "", label: "— No supplier —" }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
+                  placeholder="— No supplier —"
+                  clearable
+                  className="w-full"
                 />
               </div>
             </div>
@@ -1770,7 +1820,7 @@ export default function WhInventoryPage() {
                   <div className="rounded-2xl border border-amber-800/40 overflow-hidden">
                     <div className="bg-amber-900/20 px-4 py-3 flex items-center gap-2">
                       <span className="text-amber-400 text-sm font-semibold">No Supplier Assigned</span>
-                      <span className="text-xs text-amber-500">— these will be skipped. Set a primary supplier in Inventory Items.</span>
+                      <span className="text-xs text-amber-500">— these will be skipped. Set a primary supplier by editing each item in the WH Stock tab.</span>
                     </div>
                     <table className="min-w-full text-left text-sm">
                       <thead className="border-b border-amber-800/30 bg-amber-900/10 text-xs uppercase tracking-wide text-amber-600">
