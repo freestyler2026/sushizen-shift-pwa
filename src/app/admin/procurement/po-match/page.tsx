@@ -104,6 +104,7 @@ type CheckRow = {
   vat_amount?: number;
   grand_total?: number;
   receiving_id?: string;
+  store_supplier_order_id?: number | null;
 };
 
 type PoLineItem = {
@@ -196,6 +197,7 @@ type PendingCheck = {
   extra_photos?: string[];
   receiving_id: string;
   linked_request_id?: string;
+  store_supplier_order_id?: number | null;
   created_at: string;
   // Joined from proc_receivings
   qty_received?: number;
@@ -1011,7 +1013,14 @@ function QuickEntryTab({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <div className="text-sm font-semibold text-white">{pc.vendor_name}</div>
+                      <div className="text-sm font-semibold text-white flex items-center gap-2">
+                        {pc.vendor_name}
+                        {pc.store_supplier_order_id && (
+                          <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                            Store Order
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-0.5 text-xs text-zinc-400">
                         {pc.po_no}{pc.branch ? ` · ${pc.branch}` : ""}
                         {pc.delivery_date ? ` · Delivered ${pc.delivery_date.slice(0, 10)}` : ""}
@@ -1021,6 +1030,15 @@ function QuickEntryTab({
                           Receiving: {pc.receiving_no}
                           {pc.store_received_by ? ` by ${pc.store_received_by}` : ""}
                         </div>
+                      )}
+                      {pc.store_supplier_order_id && pc.photo_data && (
+                        <a href={pc.photo_data} target="_blank" rel="noopener noreferrer"
+                          className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <Camera size={10} /> View Invoice Photo
+                          <ExternalLink size={9} />
+                        </a>
                       )}
                     </div>
                     <div className="text-right">
@@ -1647,6 +1665,11 @@ function DiscrepancyQueueTab() {
           >
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-semibold text-white">{row.vendor_name}</span>
+              {row.store_supplier_order_id && (
+                <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                  Store Order
+                </span>
+              )}
               <span className={T_CAPTION}>{row.invoice_no}</span>
               <MatchBadge status={row.match_status} variance={row.variance_amount} />
               <PaymentStatusBadge row={row} />
