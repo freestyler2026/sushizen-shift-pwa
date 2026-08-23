@@ -2116,6 +2116,187 @@ function calculateComplianceRate(row: ComparisonItem) {
   return Math.max(0, Math.min(1, raw));
 }
 
+const RANKING_PLATFORMS_VIEW = ["GrabFood", "Foodpanda"] as const;
+const RANKING_STORES_VIEW = [
+  { code: "PAR", label: "Parañaque" },
+  { code: "TAFT", label: "Taft" },
+  { code: "CUB", label: "Cubao" },
+] as const;
+const RANKING_KEYWORDS_VIEW = ["Sushi", "Japanese", "Ramen"] as const;
+
+type RankRow = {
+  id: number;
+  recorded_date: string;
+  platform: string;
+  store_code: string;
+  keyword: string;
+  rank: number | null;
+  notes: string | null;
+  recorded_by: string | null;
+};
+
+function SearchRankingsSection() {
+  const [rows, setRows] = useState<RankRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedDate, setSelectedDate] = useState<string>("all");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/analytics/rankings/history?limit=500");
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        setRows(data.rows || []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const dates = Array.from(new Set(rows.map((r) => r.recorded_date))).sort((a, b) => b.localeCompare(a));
+  const filtered = selectedDate === "all" ? rows : rows.filter((r) => r.recorded_date === selectedDate);
+
+  const lookup = (date: string, platform: string, storeCode: string, keyword: string): number | null => {
+    const r = filtered.find(
+      (x) => x.recorded_date === date && x.platform === platform && x.store_code === storeCode && x.keyword === keyword
+    );
+    return r ? r.rank : null;
+  };
+
+  const dispDates = selectedDate === "all" ? dates : [selectedDate];
+
+  return (
+    <div className="mt-8 space-y-5">
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className={SECTION_TITLE}>Search Rankings History</h2>
+            <p className={`${BODY_TEXT} mt-1`}>
+              GrabFood / Foodpanda search position by store and keyword. Lower rank = higher position.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={LABEL_TEXT}>Date:</span>
+            <select
+              className="rounded-lg border border-white/10 bg-neutral-900 px-3 py-1.5 text-sm text-white"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            >
+              <option value="all">All dates</option>
+              {dates.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-sm text-neutral-400">Loading…</div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-700/30 bg-red-950/20 p-4 text-sm text-red-300">{error}</div>
+        ) : rows.length === 0 ? (
+          <div className="py-8 text-center text-sm text-neutral-400">No ranking data recorded yet.</div>
+        ) : (
+          <>
+          {RANKING_PLATFORMS_VIEW.map((platform) => (
+            <div key={platform} className="mb-6">
+              <div className="mb-3">
+                <span className="rounded-lg border border-violet-500/20 bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-300">
+                  {platform}
+                </span>
+              </div>
+              {RANKING_KEYWORDS_VIEW.map((kw) => (
+                <div key={kw} className="mb-4">
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wider text-neutral-400">{kw}</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[400px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="pb-2 pr-4 text-left text-xs font-medium text-neutral-400 w-28">Store</th>
+                          {dispDates.map((d) => (
+                            <th key={d} className="pb-2 px-3 text-center text-xs font-medium text-neutral-400">{d}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {RANKING_STORES_VIEW.map((s) => (
+                          <tr key={s.code} className="border-b border-white/5">
+                            <td className="py-2 pr-4 text-sm text-neutral-300 font-medium">{s.label}</td>
+                            {dispDates.map((d) => {
+                              const rank = lookup(d, platform, s.code, kw);
+                              return (
+                                <td key={d} className="py-2 px-3 text-center">
+                                  {rank != null ? (
+                                    <span className={`inline-block min-w-[2rem] rounded px-2 py-0.5 text-sm font-semibold ${
+                                      rank <= 3 ? "bg-emerald-500/20 text-emerald-300" :
+                                      rank <= 10 ? "bg-amber-500/15 text-amber-300" :
+                                      "bg-neutral-800 text-neutral-400"
+                                    }`}>
+                                      #{rank}
+                                    </span>
+                                  ) : (
+                                    <span className="text-neutral-600">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          </>
+        )}
+      </div>
+
+      {rows.length > 0 && (
+      <div className={`${GLASS_CARD} p-5`}>
+        <h2 className={`${SECTION_TITLE} mb-3`}>Raw Data Log</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="pb-2 pr-3 text-left text-xs font-medium text-neutral-400">Date</th>
+                <th className="pb-2 pr-3 text-left text-xs font-medium text-neutral-400">Platform</th>
+                <th className="pb-2 pr-3 text-left text-xs font-medium text-neutral-400">Store</th>
+                <th className="pb-2 pr-3 text-left text-xs font-medium text-neutral-400">Keyword</th>
+                <th className="pb-2 pr-3 text-center text-xs font-medium text-neutral-400">Rank</th>
+                <th className="pb-2 pr-3 text-left text-xs font-medium text-neutral-400">Recorded By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-b border-white/5">
+                  <td className="py-1.5 pr-3 text-neutral-300">{r.recorded_date}</td>
+                  <td className="py-1.5 pr-3 text-neutral-300">{r.platform}</td>
+                  <td className="py-1.5 pr-3 text-neutral-300">{RANKING_STORES_VIEW.find((s) => s.code === r.store_code)?.label ?? r.store_code}</td>
+                  <td className="py-1.5 pr-3 text-neutral-300">{r.keyword}</td>
+                  <td className="py-1.5 pr-3 text-center">
+                    {r.rank != null ? (
+                      <span className={`font-semibold ${r.rank <= 3 ? "text-emerald-400" : r.rank <= 10 ? "text-amber-400" : "text-neutral-400"}`}>
+                        #{r.rank}
+                      </span>
+                    ) : <span className="text-neutral-600">—</span>}
+                  </td>
+                  <td className="py-1.5 pr-3 text-neutral-500">{r.recorded_by ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminAnalyticsPage() {
   const stripStepUpForFreshVisit = (value: ReturnType<typeof getAuth>) => {
     if (!value) return value;
@@ -2557,7 +2738,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time" | "rankings">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -5803,7 +5984,7 @@ export default function AdminAnalyticsPage() {
                             ? "Backup Report"
                             : "Analytics";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time" | "rankings";
     label: string;
     visible: boolean;
   }> = [
@@ -5822,6 +6003,7 @@ export default function AdminAnalyticsPage() {
     { key: "absence", label: "Absence", visible: canViewStaffChannel },
     { key: "adherence", label: "Shift Adherence", visible: canViewStaffChannel },
     { key: "lean_shift", label: "Lean Shift", visible: canViewStaffChannel },
+    { key: "rankings", label: "Search Rankings", visible: canViewStaffChannel },
     { key: "ai", label: "AI Analyst", visible: false },
   ];
   const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
@@ -9585,7 +9767,7 @@ export default function AdminAnalyticsPage() {
           </div>
           ) : analyticsTab === "procurement" ? (
           <ProcurementAnalyticsSection />
-          ) : analyticsTab === "overtime" ? null : analyticsTab === "late" ? null : analyticsTab === "absence" ? null : analyticsTab === "adherence" ? null : analyticsTab === "lean_shift" ? null : analyticsTab === "ai" ? null : analyticsTab === "product_scoring" ? null : analyticsTab === "prep_time" ? null : (
+          ) : analyticsTab === "overtime" ? null : analyticsTab === "late" ? null : analyticsTab === "absence" ? null : analyticsTab === "adherence" ? null : analyticsTab === "lean_shift" ? null : analyticsTab === "ai" ? null : analyticsTab === "product_scoring" ? null : analyticsTab === "prep_time" ? null : analyticsTab === "rankings" ? null : (
           <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
           </div>
@@ -9715,6 +9897,10 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
           )
+          )}
+
+          {analyticsTab === "rankings" && canViewStaffChannel && (
+          <SearchRankingsSection />
           )}
 
           {analyticsTab === "staff" && canViewStaffChannel ? (

@@ -77,7 +77,8 @@ type AdminDashView =
   | "cashierEvalInput"
   | "dailyInventory"
   | "cancellationInput"
-  | "dubaiCancellationInput";
+  | "dubaiCancellationInput"
+  | "rankingInput";
 
 type OrderEntrySub = "dubai" | "manila";
 
@@ -94,6 +95,7 @@ const ADMIN_DASH_TABS = [
   { view: "cancellationInput" as const, label: "Manila Cancellation", icon: "🚫", tabQuery: "cancellation-input" },
   { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
+  { view: "rankingInput" as const, label: "Search Rankings Input", icon: "🔍", tabQuery: "ranking-input" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -591,6 +593,22 @@ function AdminPageInner() {
   const [pin, setPin] = useState(initialAuth?.pin || "");
   const [opMsg, setOpMsg] = useState("");
   const [opLoading, setOpLoading] = useState(false);
+
+  // ---- Search Rankings Input state ----
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [rankingDate, setRankingDate] = useState(todayIso);
+  type RankKey = `${string}-${string}-${string}`;
+  const [rankingValues, setRankingValues] = useState<Record<RankKey, string>>({});
+  const [rankingNotes, setRankingNotes] = useState("");
+  const [rankingSubmitting, setRankingSubmitting] = useState(false);
+  const [rankingMsg, setRankingMsg] = useState("");
+  const RANKING_PLATFORMS = ["GrabFood", "Foodpanda"] as const;
+  const RANKING_STORES = [
+    { code: "PAR", label: "Parañaque" },
+    { code: "TAFT", label: "Taft" },
+    { code: "CUB", label: "Cubao" },
+  ] as const;
+  const RANKING_KEYWORDS = ["Sushi", "Japanese", "Ramen"] as const;
 
   // ---- HQ Export state ----
   const [myRole, setMyRole] = useState<
@@ -1291,6 +1309,134 @@ function AdminPageInner() {
             </div>
           </div>
           {orderEntrySub === "dubai" ? <OrderEntryTab /> : <ManilaOfflineOrderEntryTab />}
+        </div>
+      ) : dashView === "rankingInput" ? (
+        <div className="space-y-5">
+          <div className={`${GLASS_CARD} p-5`}>
+            <h2 className={`${T_SECTION} mb-4`}>Search Rankings Input</h2>
+            <p className={`${T_CAPTION} mb-5`}>
+              Record GrabFood / Foodpanda search ranking positions for each store and keyword. Submit twice per week.
+            </p>
+
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Date</label>
+                <input
+                  type="date"
+                  className={INPUT_CLASS}
+                  value={rankingDate}
+                  onChange={(e) => setRankingDate(e.target.value)}
+                />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className={`${T_LABEL} mb-1.5 block`}>Notes (optional)</label>
+                <input
+                  type="text"
+                  className={INPUT_CLASS}
+                  placeholder="e.g. lunch rush, holiday weekend…"
+                  value={rankingNotes}
+                  onChange={(e) => setRankingNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {RANKING_PLATFORMS.map((platform) => (
+              <div key={platform} className="mb-6">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="rounded-lg bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-300 border border-violet-500/20">
+                    {platform}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[360px] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="pb-2 pr-4 text-left text-xs font-medium text-neutral-400 w-24">Keyword</th>
+                        {RANKING_STORES.map((s) => (
+                          <th key={s.code} className="pb-2 px-3 text-center text-xs font-medium text-neutral-400">{s.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {RANKING_KEYWORDS.map((kw) => (
+                        <tr key={kw} className="border-b border-white/5">
+                          <td className="py-2 pr-4 text-sm text-neutral-300 font-medium">{kw}</td>
+                          {RANKING_STORES.map((s) => {
+                            const key = `${platform}-${s.code}-${kw}` as RankKey;
+                            return (
+                              <td key={s.code} className="py-2 px-3">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="999"
+                                  placeholder="—"
+                                  className={`${INPUT_CLASS} w-20 text-center`}
+                                  value={rankingValues[key] ?? ""}
+                                  onChange={(e) =>
+                                    setRankingValues((prev) => ({ ...prev, [key]: e.target.value }))
+                                  }
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            {rankingMsg && (
+              <div className={`mb-3 rounded-lg px-4 py-2 text-sm ${rankingMsg.startsWith("✅") ? "bg-emerald-950/40 border border-emerald-700/30 text-emerald-300" : "bg-red-950/40 border border-red-700/30 text-red-300"}`}>
+                {rankingMsg}
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={rankingSubmitting || !rankingDate}
+              className={`${PRIMARY_BUTTON} mt-2`}
+              onClick={async () => {
+                setRankingSubmitting(true);
+                setRankingMsg("");
+                try {
+                  const records: Array<{recorded_date: string; platform: string; store_code: string; keyword: string; rank: number | null; notes: string}> = [];
+                  for (const platform of RANKING_PLATFORMS) {
+                    for (const store of RANKING_STORES) {
+                      for (const kw of RANKING_KEYWORDS) {
+                        const key = `${platform}-${store.code}-${kw}` as RankKey;
+                        const val = rankingValues[key];
+                        records.push({
+                          recorded_date: rankingDate,
+                          platform,
+                          store_code: store.code,
+                          keyword: kw,
+                          rank: val ? parseInt(val, 10) : null,
+                          notes: rankingNotes,
+                        });
+                      }
+                    }
+                  }
+                  const res = await fetch("/api/admin/analytics/rankings/record", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ records, recorded_by: auth?.staffName || "" }),
+                  });
+                  if (!res.ok) throw new Error(await res.text());
+                  setRankingMsg(`✅ Saved ${records.length} ranking entries for ${rankingDate}`);
+                  setRankingValues({});
+                  setRankingNotes("");
+                } catch (e) {
+                  setRankingMsg(`❌ Error: ${e instanceof Error ? e.message : String(e)}`);
+                } finally {
+                  setRankingSubmitting(false);
+                }
+              }}
+            >
+              {rankingSubmitting ? "Saving…" : "Save Rankings"}
+            </button>
+          </div>
         </div>
       ) : (
         <>
