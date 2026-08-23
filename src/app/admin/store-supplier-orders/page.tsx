@@ -5,7 +5,7 @@ import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
   CheckCircle, Clock, Send, PackageCheck, PackageX, AlertTriangle, Trash2, Plus,
   BarChart2, ShieldCheck, Pencil, Mail, Users, Bell, FileCheck, TrendingUp, TrendingDown,
-  CalendarClock, X,
+  CalendarClock, X, FileDown,
 } from "lucide-react";
 import {
   GLASS_CARD,
@@ -250,6 +250,32 @@ export default function StoreSupplierOrdersPage() {
   const [actualPrices, setActualPrices] = useState<Record<number, string>>({});
   const [actualPriceSaving, setActualPriceSaving] = useState<number | null>(null);
   const [invoiceCheckSaving, setInvoiceCheckSaving] = useState(false);
+  const [poPdfDownloading, setPoPdfDownloading] = useState<number | null>(null);
+
+  async function handleDownloadPoPdf(orderId: number, store: string, supplierName: string) {
+    setPoPdfDownloading(orderId);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/po-pdf`, { headers: getAuthHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError((err as { detail?: string }).detail ?? `PDF download failed (${res.status})`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PO_SSO-${orderId}_${store}_${supplierName.replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(`PDF download error: ${e}`);
+    } finally {
+      setPoPdfDownloading(null);
+    }
+  }
 
   const loadAlerts = useCallback(async () => {
     try {
@@ -1190,6 +1216,21 @@ export default function StoreSupplierOrdersPage() {
                                     )}
                                   </>
                                 )}
+                              </div>
+                            )}
+
+                            {/* Download PO PDF */}
+                            {!["draft"].includes(detail.status) && (
+                              <div className="flex items-center gap-3 py-1 border-t border-white/5">
+                                <button
+                                  onClick={() => handleDownloadPoPdf(order.id, order.store, order.supplier_name)}
+                                  disabled={poPdfDownloading === order.id}
+                                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 text-xs font-medium py-1.5 px-3 transition-colors disabled:opacity-50"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" />
+                                  {poPdfDownloading === order.id ? "Generating…" : "Download PO"}
+                                </button>
+                                <span className="text-xs text-zinc-600">PO SSO-{order.id}</span>
                               </div>
                             )}
 
