@@ -427,6 +427,7 @@ export default function ManualShiftPage() {
   const [serverDraftCells, setServerDraftCells] = useState<Set<string>>(new Set());
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
   const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
+  const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
   const [paintMode, setPaintMode] = useState(false);
   const [paintStart, setPaintStart] = useState(9);
   const [paintEnd, setPaintEnd] = useState(17);
@@ -655,6 +656,19 @@ export default function ManualShiftPage() {
         }
       } catch {
         // Server draft is optional — ignore load errors silently
+      }
+      // Fetch approved Day-Off proposals so empty cells can show "Day Off" badge
+      try {
+        const restData = await apiFetch<{ ok: boolean; items: { staff_name: string; work_date: string; note: string }[] }>(
+          `/api/admin/shifts/week-rest-proposals?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
+        );
+        if (!cancelledRef.current && restData.ok && restData.items?.length > 0) {
+          setApprovedDayOffs(new Set(restData.items.map((r) => `${r.staff_name}|${r.work_date}`)));
+        } else if (!cancelledRef.current) {
+          setApprovedDayOffs(new Set());
+        }
+      } catch {
+        // Approved day-offs overlay is optional — ignore errors silently
       }
       if (cancelledRef.current) return;
       if (Object.keys(savedDraft).length > 0) {
@@ -1535,19 +1549,26 @@ export default function ManualShiftPage() {
                           const cellRaw = gridData[name]?.[d] ?? null;
                           const shifts = cellsOf(cellRaw);
                           const isDraft = serverDraftCells.has(`${name}|${d}`);
+                          // Treat 0:00-0:00 published shift as Day Off (normalize role)
+                          const normalizedShifts = shifts.map((s) =>
+                            s.start_hour === 0 && s.end_hour === 0 && !isSpecialRole(s.role)
+                              ? { ...s, role: "DAY_OFF" }
+                              : s
+                          );
+                          const isApprovedDayOff = normalizedShifts.length === 0 && approvedDayOffs.has(`${name}|${d}`);
                           return (
                             <td key={d} className="px-1 py-1 text-center align-top">
-                              {shifts.length > 0 ? (
-                                shifts.length === 1 && isSpecialRole(shifts[0].role) ? (
+                              {normalizedShifts.length > 0 ? (
+                                normalizedShifts.length === 1 && isSpecialRole(normalizedShifts[0].role) ? (
                                   <div className="group relative">
                                     <button
                                       type="button"
                                       onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
-                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
+                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(normalizedShifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
                                     >
-                                      {specialLabel(shifts[0].role)}
-                                      {shifts[0].note && (
-                                        <span className="block truncate text-[9px] opacity-60">{shifts[0].note}</span>
+                                      {specialLabel(normalizedShifts[0].role)}
+                                      {normalizedShifts[0].note && (
+                                        <span className="block truncate text-[9px] opacity-60">{normalizedShifts[0].note}</span>
                                       )}
                                     </button>
                                     <button
@@ -1566,7 +1587,7 @@ export default function ManualShiftPage() {
                                   </div>
                                 ) : (
                                   <div className="group relative flex flex-col gap-0.5">
-                                    {shifts.map((c, idx) => {
+                                    {normalizedShifts.map((c, idx) => {
                                       const tc = timeColor(c.start_hour);
                                       return (
                                         <button
@@ -1605,7 +1626,7 @@ export default function ManualShiftPage() {
                                       </button>
                                     )}
                                     {/* For multi-shift cells, hide the × button — use the edit popup's per-segment ✕ buttons to avoid accidentally deleting all shifts */}
-                                    {shifts.length === 1 && (
+                                    {normalizedShifts.length === 1 && (
                                       <button
                                         type="button"
                                         title="Delete shift"
@@ -1622,6 +1643,16 @@ export default function ManualShiftPage() {
                                     )}
                                   </div>
                                 )
+                              ) : isApprovedDayOff ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => openEdit(name, d, e)}
+                                  title="Day Off (Approved proposal)"
+                                  className="w-full rounded-lg border border-gray-300 bg-gray-100 px-1.5 py-2 text-center text-[10px] font-semibold text-gray-500 hover:opacity-80 transition"
+                                >
+                                  Day Off
+                                  <span className="ml-1 rounded bg-gray-200 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-gray-400">approved</span>
+                                </button>
                               ) : (
                                 <button
                                   type="button"
