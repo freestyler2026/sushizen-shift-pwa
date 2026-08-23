@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-23 (Daily P&L — POS実売上への完全移行、Dubai/Manila両対応)
+Last updated: 2026-08-23 (Daily P&L — legacy store code cleanup; Dubai/Manila clean)
 
 ---
 
@@ -30,6 +30,23 @@ Last updated: 2026-08-23 (Daily P&L — POS実売上への完全移行、Dubai/M
 **検証:**
 - Dubai: pos_days=13, records=213, 全store_code=BB/JLT/AM/ARJ/AB, brand=sushi_zen/ramen_zen, is_confirmed=True ✅
 - Manila: pos_days=15, records=143, 全store_code=TAFT/PAR/CUB, channel=grab/foodpanda/dine_in, is_confirmed=True ✅
+
+**2026-08-23 追加修正: Legacy store code cleanup (Heroku v2111-v2113)**
+
+**問題**: mgmt_daily_pl_cache に ar_payout 旧方式の store_code が残存（KEETA_SZ_BB, RZ_ARJ, NOON_SZ=0ゴースト等）し、P&L表示が汚染されていた
+**修正 (db.py):**
+- `_LEGACY_PAYOUT_STORE_MAP`: 旧コード → (正規store_code, brand) マッピング
+  - KEETA_SZ_BB/AM/ARJ/JLT/AB3 → (BB/AM/ARJ/JLT/AB, sushi_zen)
+  - SMILES_SZ_* → 対応ブランチ
+  - RZ_ARJ/BB → (ARJ/BB, ramen_zen); VEGGIE_AB → (AB, all_veggie)
+  - NOON_SZ/RZ → 維持（POSカバー外の日のみ有効な仮想コード）
+- `ensure_mgmt_daily_pl_tables` 一回限りクリーンアップ:
+  - Dubai: is_estimated=TRUE かつ非正規コードを全DELETE + 0収益ゴースト削除
+  - Manila: is_estimated=TRUE 全削除（manila_sales_by_channelがSOT）
+- Dubai DELETE拡張: POSカバー日は旧コード行も削除（is_estimated問わず）
+**検証後 store_code:**
+- Dubai: AB/AM/ARJ/BB/JLT/NOON_RZ/NOON_SZ のみ ✅
+- Manila: CUB/PAR/TAFT のみ、confirmed=100% ✅
 
 **残タスク:**
 - 月次POS vs ar_payouts 照合エンドポイント（差異 >2% アラート）
