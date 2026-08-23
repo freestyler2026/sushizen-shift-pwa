@@ -95,6 +95,27 @@ function buildCookieHeader(session) {
 const BASE = 'https://restaurant.noon.partners/_food-restaurant';
 
 async function callFinanceWallet(brandCode, cookieHeader) {
+  // Route through Heroku proxy when running in CI (GitHub Actions IPs are blocked by Noon's WAF).
+  // Falls back to direct call when no WEBHOOK_URL (local dev).
+  if (WEBHOOK_URL) {
+    const proxyResp = await fetch(`${WEBHOOK_URL}/api/noon/proxy-wallet`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ cookie_header: cookieHeader, brand_code: brandCode, entry_type: 'payment' }),
+    });
+    if (proxyResp.status === 401) {
+      throw new Error('401 Unauthorized (via proxy) — session expired. Run: node scripts/noon/setup-session.js --upload');
+    }
+    if (!proxyResp.ok) {
+      const text = await proxyResp.text();
+      throw new Error(`Proxy wallet ${proxyResp.status}: ${text.substring(0, 200)}`);
+    }
+    const data = await proxyResp.json();
+    if (data.status !== 'success') throw new Error(`API error (via proxy): ${JSON.stringify(data).substring(0, 200)}`);
+    return data.data?.lines || [];
+  }
+
+  // Direct call (local)
   const referer = `https://restaurant.noon.partners/restaurant/${brandCode}/payment/?project=PRJ108431`;
   const resp = await fetch(`${BASE}/finance/wallet`, {
     method:  'POST',

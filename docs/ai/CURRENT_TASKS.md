@@ -1,6 +1,250 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-22 (Daily P&L system 完全実装・デプロイ完了)
+Last updated: 2026-08-23 (Management Accounting 食材費二重計上修正 + store_code 正規化)
+
+---
+
+## ✅ Completed: Manual Shift — 承認済み Day Off 表示修正 (2026-08-23)
+
+**問題**: 承認済み Day Off プロポーザルが Manual Shift ページで表示されず、公開シフト（7:00-16:00等）がそのまま残って見えていた
+**根本原因**: プロポーザル承認は `shift_draft_rows` のみ更新し `shift_published_rows` は更新しないため、表示が食い違う
+**修正**:
+- バックエンド: 新エンドポイント `GET /api/admin/shifts/week-rest-proposals` を追加（APPROVED、proposed_start/end=0 の行を返す）
+- フロントエンド: `approvedDayOffs` Set を作成、承認済み Day Off がある場合は公開シフトを上書きして "Day Off ▸ APPROVED" バッジを表示
+- `is_ck_order=FALSE`: 優先順位: 承認済み Day Off > 公開シフト > 空セル
+**検証**: Mayorico Furio 9/12(土) のセルで DOM から "Day Off ▸ approved" バッジ表示を確認 ✅
+
+---
+
+## ✅ Completed: Management Accounting 食材費二重計上修正 (2026-08-23, Heroku)
+
+**問題**: Manila 食材費が +45.8% 過剰計上（CK/WH 内部転送が二重カウント）
+**根本原因**: `proc_requests` が「外部調達」と「内部転送（CK/WH→店舗）」を区別せず全加算
+
+**修正（db.py の food cost 集計4箇所）**:
+1. `is_ck_order = FALSE` フィルタ追加: CK→店舗 内部転送を除外
+2. `is_wh_order = FALSE` フィルタ追加: WH→店舗 内部転送（フラグ付き）を除外
+3. vendor='Warehouse' サブクエリフィルタ: `is_wh_order` フラグなしの旧データも除外
+   ```sql
+   NOT (pr.store_code NOT IN ('CK','WH','BO') AND EXISTS (
+     SELECT 1 FROM proc_request_items pi
+     WHERE pi.request_id = pr.id AND LOWER(pi.vendor_name) = 'warehouse'
+   ))
+   ```
+
+**効果（Manila 2026-08）**:
+- 修正前（フィルタなし推定）: PHP ~3,237,476
+- is_ck_order 追加後:  PHP 2,496,315
+- is_wh_order 追加後:  PHP 2,433,822
+- vendor='Warehouse' 追加後: PHP 2,159,536 ✅
+- 2026-07 Excel 実績: PHP 2,220,696（±3% 誤差範囲内）
+
+**2026-07 は Excel override (manual_excel) が引き続き優先表示される**
+
+---
+
+## ✅ Completed: proc_requests store_code 正規化 (2026-08-23, Heroku)
+
+**問題**: Dubai の proc_requests に store_code が複数表記で登録されており、集計が分散
+**修正**: `normalize_proc_requests_store_codes()` 関数 + `POST /api/admin/proc/normalize-store-codes` エンドポイント追加
+**実行結果**: 1,800行 更新
+
+| 旧 | → | 新 |
+|---|---|---|
+| CENTRAL KITCHEN | → | CK |
+| AL MINA | → | AM |
+| B BAY | → | BB |
+| AL BARSHA | → | AB |
+| M CITY | → | MC |
+| CUBAO | → | CUB |
+| PARANAQUE | → | PAR |
+| WAREHOUSE | → | WH |
+
+---
+
+## ✅ Completed: DTR Sync バグ修正 — Patrick Late 372m / Anthony Ricaplaza (2026-08-23)
+
+**問題1: Patrick Danel Santiago "Late 372m" (8/18)**
+- **根本原因①**: DTR syncで `scheduled_shift_start` が None のときだけ `shift_times_map` を参照していた。Bayzat旧データの09:00がすでにセットされていると参照しない → 手動シフト再publishしても09:00のまま
+- **根本原因②**: UPSERT の `COALESCE(existing, new)` → 既存値を優先するため常に09:00が勝つ
+- **修正**: `shift_times_map` に存在する場合は常に上書き（優先）+ COALESCEの向きを反転 `COALESCE(new, existing)`
+- **検証**: Shift Compliance 8/18 で Patrick の scheduled 時刻が 15:30–00:30 に修正されたことを確認 ✅
+
+**問題2: Anthony Ricaplaza名前不一致 → DTR sync ブロック**
+- **根本原因**: Staff ページでは "Anthony Ricaplaza" に修正済みだが、OS Attendance には "Anthony Ricaplaza" で記録されているのに `shift_published_rows` に一切シフトが存在しなかった。`shift_data_missing` に入り sync をブロック
+- **副問題**: `repair_staff_name_cascade()` が `os_attendance_sessions` と `manila_attendance_daily` をカバーしていなかった
+- **修正**:
+  - `repair_staff_name_cascade()` に両テーブルの DELETE-then-UPDATE を追加 (重複キー対策)
+  - 新エンドポイント `POST /api/admin/shifts/inject_staff_published_rows`: 他スタッフ行を消さずに1名分のシフトをmerge inject
+  - Anthony Ricaplaza の 8/11–8/25 (15.5–24.5) シフト15行を CUB 公開済みweekに inject
+- **検証**: DTR sync → `{synced: 643, errors: []}` ✅
+
+**デプロイ**: Heroku v2089
+
+---
+
+## ✅ Completed: Shift Sheet Sync — :30分刻みシフト表示バグ修正 (2026-08-23)
+
+**背景:** Manila 2026-09シフトのExcelに30分刻み（15:30, 00:30等）のシフトが含まれる。バックエンドで `int()` キャストによる切り捨てが発生 → DBに 15.5 → 15 で保存されていた。前セッションでDB修正済み。今セッションではフロントエンド表示バグを修正。
+
+**バックエンド修正（前セッション完了）:**
+- `list_shift_sheet_sync_proposals()` / `get_shift_sheet_sync_proposals_by_ids()` (db.py): `int()` → `float()` に変更
+- `shift_sheet_sync_proposals` テーブル: `start_hour`, `end_hour`, `proposed_start_hour`, `proposed_end_hour` を `NUMERIC(4,1)` に変更
+- Heroku v2088 デプロイ済み
+
+**フロントエンド修正（今セッション）:**
+- `hourText()` in `page.tsx` (line 346): `pad2(base)` → floor+minutes に変更 (15.5 → "15:30", 24.5 → "00:30(+1)")
+- `fmtH` in `page.tsx` (line 2487, Excel export): 同様の修正
+- `fmtShift()` in `ShiftScheduleView.tsx` (line 59): 同様の修正
+- `fmtHourOpt()` in `ShiftScheduleView.tsx` (line 180): 同様の修正
+- Vercel デプロイ済み (commits fff01f3, f6cf9b6)
+
+**検証結果:**
+- Manila TAFT 2026-09: 397件の proposals をSync → `:30`表示が正しく "15:30–00:30(+1)" で表示されることをJSコンソールで確認
+- Excel内 :30分刻み行: TAFT=165, CUB=114, CK=12, BO=21 (計312行)
+
+**全作業完了 (2026-08-23):**
+- CUB: 276件インポート (Sync + Approve済)
+- CK: 209件インポート (1スキップ: Francis Ibana 空欄)
+- BO (Back Office): 257件インポート (4スキップ: Caila Macararanga 有給休暇)
+- Manila 2026-09 全ブランチ proposals 合計 1,053件 Approve 完了
+- :30分シフト表示確認: "08:30–17:30", "15:30–00:30(+1)" 等 正常 ✅
+
+---
+
+---
+
+## ✅ Completed: Management Accounting コストオーバーライド機能 (2026-08-23, Heroku v2091, Vercel)
+
+**背景:** `proc_requests` からの食材費計算が不正確（CKオーダーの二重計上など）→ PLアプリ用データ Excelの値で上書きする仕組みを実装
+
+**バックエンド (db.py + main.py):**
+- `mgmt_cost_overrides` テーブル新設: (city, year_month, store_code, food_cost, labor_cost, currency, source)
+- `upsert_mgmt_cost_override()` / `get_mgmt_cost_override()` 関数追加
+- `get_mgmt_cost_summary()` 優先順位: Excel override > payroll > shifts > none
+  - `food_source` フィールドを返却: `"proc_requests"` | `"manual_excel"`
+  - `labor_source` も Excel override 対応: `"manual_excel"` 追加
+- `get_mgmt_group_summary()` native dicts に `food_source` を追加
+- 新エンドポイント: `POST /api/admin/mgmt/cost-override`
+
+**フロントエンド (mgmt-accounting/page.tsx):**
+- `NativeCity` interface に `food_source` と `labor_cost` を追加
+- `labor_source` 型に `"manual_excel"` を追加
+- food_source=manual_excel のとき紫色 "Excel" バッジを表示:
+  - Cost Intelligence タブ Food Cost KPI
+  - Group Management タブ Food Cost KPI
+  - City Breakdown テーブル食材費セル
+
+**Excelインポート結果 (29/29件):**
+
+| City | 期間 | 食材費例 (2026-07) | 人件費例 (2026-07) |
+|---|---|---|---|
+| Dubai | 2025-01〜2026-07 | AED 252,660 | AED 203,252 |
+| Manila | 2025-10〜2026-07 | PHP 2,220,696 | PHP 1,004,579 |
+
+- 食材分類キーワード: `食材, CKデリバリー, WHデリバリー, WH Item, CK食材`
+- 人件費分類キーワード: `人件費, Allowance, 従業員保険, Government Contribution, バックオフィス人件費`
+- Dubai 2025-01〜04 / Manila 2025-10〜11: Excelデータが少なく部分的なみ
+
+**Heroku v2091 / Vercel デプロイ済み**
+
+---
+
+## ✅ Completed: Management Accounting 売上データ一括インポート (2026-08-23)
+
+**ソース:** PLアプリ用データ Excel（Dubai + Manila 各月シート）
+**インポート内容:** 収入合計（アグリゲーター全プラットフォーム合計 + Dine-In）→ mgmt_revenue_manual
+
+| City | 期間 | 件数 |
+|---|---|---|
+| Dubai | 2025-05 〜 2026-07 | 14ヶ月 |
+| Manila | 2025-12 〜 2026-07 | 8ヶ月 |
+
+**処理内容:**
+- revenue_source が `"manual"` に変わり正しい売上が表示される
+- 誤った Dubai 2026-08 AED 500,000 テストエントリを 0 に上書き → ar_payouts へフォールバック (AED 90,353)
+- 2026-08以降（Excelに含まれない月）はar_payoutsを自動使用
+
+**未インポート:** Dubai 2025-01〜04（Excel該当シートに収入合計行なし）、Manila 2025-10〜11（収入合計=0）
+
+---
+
+## ✅ Completed: Management Accounting 労務費概算 (2026-08-23, Heroku v2086, Vercel)
+
+**症状:** Labor Costがゼロ — payroll_staff_monthly は給与Excelアップロード後のみ埋まる
+
+**修正内容:**
+- `get_mgmt_cost_summary()` (db.py): payroll データが0の場合、`get_labor_from_shifts()` をフォールバックとして呼び出し
+  - 給与優先順位: `payroll_salary_configs.basic_salary` → `monthly_rate` → `mgmt_labor_defaults`
+  - 日割り = `monthly_salary / days_in_month`
+- `labor_source` フィールドを返却: `"payroll"` | `"estimated_shifts"` | `"none"`
+- `get_mgmt_group_summary()` の native dicts に `labor_source` を追加
+- フロントエンド: labor_source=estimated_shifts のとき Labor Cost KPI に琥珀色 "Est." バッジ表示
+  - Cost Intelligence タブ・Group Management タブ・City Breakdown テーブルに対応
+  - 「Estimated from shifts · Rate: xx%」のサブテキスト表示
+
+**Heroku v2086 / Vercel commit 4247ff3 デプロイ済み**
+
+---
+
+## ✅ Completed: Admin Dashboard HQアクセス不可バグ修正 (2026-08-22, Vercel)
+
+**症状:** HQユーザー (Yukihiro) が `/admin` に移動すると "Admin dashboard is available only to authorized admin roles." が表示される
+
+**根本原因:** `nonDowngradedAccess()` 関数が STAFF への降格のみ保護していた。バックエンドが一時的に HQ 以外のロール (例: "MANILA_MANAGEMENT") を返した場合、HQ → 非HQ の降格を防げなかった。
+
+**修正 (`src/lib/auth.ts`):**
+- `nonDowngradedAccess()` に HQ/ADMIN の追加保護を追加
+- `PRIVILEGED = Set(["HQ", "ADMIN"])` を定義
+- incoming ロールが HQ/ADMIN 以外の場合は current.role を維持 (= HQ/ADMIN からの降格を防止)
+- 原則: サーバーは全リクエストで権限を実施するため、クライアント側でオプティミスティックに保持しても安全
+
+**Vercel デプロイ済み (commit 1706b2d)**
+
+---
+
+## ✅ Completed: AR Payouts Manual v1.2 更新 (2026-08-22)
+
+**更新内容:**
+- FoodPanda Manila のみスタッフ手動CSVアップロード必要
+- その他全プラットフォームは自動化済みを明記
+- Dubai: Talabat/Careem/Keeta/Noon/Smiles Arjan+BBay ✅, Smiles JLT+Al Hudaiba ⚠️ ログイン不可
+- Manila: GrabFood ✅, FoodPanda 📂 手動
+- Artifact: https://claude.ai/code/artifact/eb809004-7ac6-415b-bf55-588fb00fb28b
+
+---
+
+## ✅ Completed: Daily P&L 7項目修正・自動同期実装 (2026-08-22, Heroku v2085, Vercel)
+
+**修正内容 (ダブルチェック後の7項目):**
+
+**バックエンド (db.py + main.py, Heroku v2085):**
+- ① `refresh_mgmt_daily_pl_cache()` upsertガード修正: `is_estimated=FALSE` のとき `gross_sales/commission/net_revenue/payout_id` を確定値で上書き不可に
+- ② `get_labor_from_shifts(city, date_from, date_to)` 新関数: シフト公開データ×給与から日別労務費を算出
+  - 優先順位: `payroll_salary_configs.basic_salary` → `dubai/manila_staff_profiles.monthly_rate` → `mgmt_labor_defaults.default_daily_wage`
+  - 日割り計算: `monthly_salary / days_in_month`
+- ③ CKオーバーヘッド分配: `store_code='CK'` の`mgmt_overhead`エントリを店舗数で均等割り・日割りで各店舗に算入
+- ④ 食材原価率修正: `AVG(ratio)` → `SUM(cost_unit_price) / SUM(selling_price)`
+- ⑤ 利益率分母修正: `gross_sales` → `net_revenue` (手数料控除後)
+- 新テーブル `mgmt_labor_defaults`: 都市別デフォルト日給 (Dubai 200 AED, Manila 600 PHP)
+- 新エンドポイント: GET/POST `/api/admin/mgmt/labor-defaults`
+
+**フロントエンド (Vercel):**
+- ⑦ `daily-pl/page.tsx`: 日付max属性を `today()` 使用に修正
+- `daily-pl/page.tsx`: 利益率分母を `net_revenue` に修正 (StoreSummary・DayCard両方)
+- `settings/page.tsx`: CKをOverhead Settingsのストアセレクタに追加
+- `settings/page.tsx`: Labor Defaults カード追加 (デフォルト日給入力・保存)
+
+**⑥ 自動同期 GitHub Actions (7ワークフロー):**
+- talabat, keeta, smiles, noon, careem → `city: "dubai"` refresh
+- grab, foodpanda → `city: "manila"` refresh
+- 各ワークフロー末尾に `Refresh Daily P&L cache` ステップ追加 (`if: always()`, 35日ローリング)
+
+**未実装・既知の制限:**
+- Noon: ローカル launchd 経由のため GitHub Actions に refresh ステップ不要（noon-dubai-payout.yml には追加済み）
+- Careem残高スナップショットのみでSettlementデータなし → Careemは0表示
+- Smiles JLT・Al Hudaiba: パスワード認証失敗 → 手動でパスワードリセット後 SMILES_ACCOUNTS secret 更新
+- Keeta: `KEETA_SESSION` GH Secretアップロード未実行: `cat scripts/keeta/keeta-session.b64.txt | gh secret set KEETA_SESSION --repo freestyler2026/sushizen-shift-pwa`
 
 ---
 
