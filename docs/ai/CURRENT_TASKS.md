@@ -1,6 +1,39 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-23 (Management Accounting 食材費二重計上修正 + store_code 正規化)
+Last updated: 2026-08-23 (Daily P&L — POS実売上への完全移行、Dubai/Manila両対応)
+
+---
+
+## ✅ Completed: Daily P&L — POS実売上への完全移行 (2026-08-23, Heroku v2107-v2110)
+
+**背景/問題**: `mgmt_daily_pl_cache` が `ar_payouts` のDOW加重配分（キャッシュフロー）を使っており、忙しい日ほど赤字に見える逆転P&Lが発生。`store_code=''`で店舗別P&Lが不可。
+
+**解決した問題:**
+1. ar_payouts（決済金額）→ 実売上（POS実績）への切り替え
+2. store_code=''（市区集計）→ 店舗別（BB/JLT/AM/ARJ/AB、TAFT/PAR/CUB）
+3. brand次元の追加（sushi_zen/ramen_zen/all_veggie）
+4. Manila: ar_payout落とし込みなし → manila_sales_by_channelを直接使用
+
+**実装 (db.py):**
+- **DDL**: `brand VARCHAR(50) DEFAULT ''`, `source VARCHAR(20) DEFAULT 'PAYOUT_EST'` カラム追加; UNIQUE制約を5列に拡張 `(date,city,store_code,platform,brand)`
+- **`refresh_mgmt_daily_pl_cache` 全書き直し**:
+  - Dubai: `pos_sales_channel_daily` (Foodics+Atlas) → store/channel/brand別 (is_estimated=False, source='POS'). ar_payoutsはPOSカバー外の日のみfallback
+  - Manila: `manila_sales_by_channel` (Sales Data Input) → TAFT/PAR/CUB × grab/foodpanda/dine_in/beep. ar_payoutsフォールバックなし
+  - DELETE: Dubai=推定レコードのみ削除; Manila=POSカバー日は全件削除（Sales Data InputがSOT）
+  - UPSERT: `ON CONFLICT ... WHERE is_estimated=TRUE OR EXCLUDED.is_estimated=FALSE`（確定値を守る）
+- **`get_mgmt_daily_pl`**: `brand` をGROUP BY・SELECT・platforms出力に追加
+
+**実装 (main.py):**
+- `_run_dubai_pos_sales_sync_background()`: Foodics Drive同期 + Daily P&L自動リフレッシュ（14日分）
+- APScheduler: 06:15 UTC (14:15 PHT) 毎日 `id="dubai_pos_sales_sync_1415ph"`
+
+**検証:**
+- Dubai: pos_days=13, records=213, 全store_code=BB/JLT/AM/ARJ/AB, brand=sushi_zen/ramen_zen, is_confirmed=True ✅
+- Manila: pos_days=15, records=143, 全store_code=TAFT/PAR/CUB, channel=grab/foodpanda/dine_in, is_confirmed=True ✅
+
+**残タスク:**
+- 月次POS vs ar_payouts 照合エンドポイント（差異 >2% アラート）
+- Daily P&Lフロントエンドページの店舗別・ブランド別表示対応（platforms配列に brand フィールド追加済み）
 
 ---
 
