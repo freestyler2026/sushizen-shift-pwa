@@ -97,6 +97,19 @@ export default function CkParLevelsPage() {
   const [newVendorName, setNewVendorName] = useState("");
   const [savingVendor, setSavingVendor] = useState(false);
 
+  // unit inline edit
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+  const [unitValue, setUnitValue] = useState<string>("");
+  const [savingUnit, setSavingUnit] = useState(false);
+
+  // add item modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ item_name: "", unit: "", par_level: "", category: "", supplier: "", notes: "" });
+  const [addingItem, setAddingItem] = useState(false);
+
+  // export template
+  const [exportingTemplate, setExportingTemplate] = useState(false);
+
   // create direct purchase orders modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPin, setCreatePin] = useState("");
@@ -140,6 +153,99 @@ export default function CkParLevelsPage() {
       .then((d) => { if (d.vendors) setVendors(d.vendors); })
       .catch(() => {});
   }, [city]);
+
+  // ── unit inline save ──────────────────────────────────────────────────────
+  const saveUnit = async (row: ParLevelRow, value: string) => {
+    setSavingUnit(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({ unit: value.trim() || null }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      setRows((prev) =>
+        prev.map((r) => r.id === row.id ? { ...r, unit: data.row.unit } : r)
+      );
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingUnit(false);
+      setEditingUnitId(null);
+    }
+  };
+
+  // ── add item ──────────────────────────────────────────────────────────────
+  const handleAddItem = async () => {
+    const name = addForm.item_name.trim();
+    if (!name) { alert("Item name is required."); return; }
+    setAddingItem(true);
+    try {
+      const auth = getAuth();
+      const par = addForm.par_level.trim() === "" ? null : parseFloat(addForm.par_level);
+      if (addForm.par_level.trim() !== "" && (isNaN(par as number) || (par as number) < 0)) {
+        alert("Please enter a valid non-negative number for Par Level.");
+        return;
+      }
+      const res = await fetch(`/api/admin/ck/par-levels/add`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: cityParam(city),
+          item_type: tab,
+          item_name: name,
+          unit: addForm.unit.trim() || null,
+          par_level: par,
+          category: addForm.category.trim() || null,
+          supplier: addForm.supplier.trim() || null,
+          notes: addForm.notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Add failed");
+      setShowAddModal(false);
+      setAddForm({ item_name: "", unit: "", par_level: "", category: "", supplier: "", notes: "" });
+      await loadRows();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  // ── export template ───────────────────────────────────────────────────────
+  const handleExportTemplate = async () => {
+    setExportingTemplate(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/export-template?city=${cityParam(city)}`,
+        { headers: getAuthHeaders(auth) }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || "Export failed");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `CK_ParLevel_Template_${city}_${today}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e.message || "Error exporting template");
+    } finally {
+      setExportingTemplate(false);
+    }
+  };
 
   // ── supplier inline save ──────────────────────────────────────────────────
   const saveSupplier = async (row: ParLevelRow, value: string) => {
@@ -612,13 +718,22 @@ export default function CkParLevelsPage() {
             </button>
           )}
 
-          {/* Download template link */}
-          <a
-            href="/CK_ParLevel_Template.xlsx"
-            className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-2 text-sm font-medium text-zinc-400 hover:bg-zinc-500/20 transition-all"
+          {/* Add Item */}
+          <button
+            onClick={() => { setShowAddModal(true); setAddForm({ item_name: "", unit: "", par_level: "", category: "", supplier: "", notes: "" }); }}
+            className="rounded-xl border border-sky-500/30 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-400 hover:bg-sky-500/25 transition-all"
           >
-            ⬇ Download Template
-          </a>
+            + Add Item
+          </button>
+
+          {/* Export Template (dynamic — pre-filled with current items) */}
+          <button
+            onClick={handleExportTemplate}
+            disabled={exportingTemplate}
+            className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-2 text-sm font-medium text-zinc-400 hover:bg-zinc-500/20 disabled:opacity-60 transition-all"
+          >
+            {exportingTemplate ? "Exporting…" : "⬇ Download Template"}
+          </button>
         </div>
 
         {/* Push result */}
@@ -740,7 +855,47 @@ export default function CkParLevelsPage() {
                           <td className="px-4 py-2.5 text-zinc-500 text-xs">{row.category || "—"}</td>
                         )}
                         <td className="px-4 py-2.5 text-white font-medium">{row.item_name}</td>
-                        <td className="px-4 py-2.5 text-center text-zinc-400 text-xs">{row.unit || "—"}</td>
+
+                        {/* Unit — inline editable */}
+                        <td className="px-4 py-2.5 text-center">
+                          {editingUnitId === row.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="text"
+                                value={unitValue}
+                                onChange={(e) => setUnitValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") void saveUnit(row, unitValue);
+                                  if (e.key === "Escape") setEditingUnitId(null);
+                                }}
+                                autoFocus
+                                placeholder="e.g. kg"
+                                className="w-16 rounded-lg bg-white/10 px-2 py-1 text-center text-white text-xs border border-sky-500/50 outline-none"
+                              />
+                              <button
+                                onClick={() => void saveUnit(row, unitValue)}
+                                disabled={savingUnit}
+                                className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-sky-500/20 text-sky-300 hover:bg-sky-500/35 disabled:opacity-60"
+                              >
+                                {savingUnit ? "…" : "✓"}
+                              </button>
+                              <button
+                                onClick={() => setEditingUnitId(null)}
+                                className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingUnitId(row.id); setUnitValue(row.unit || ""); }}
+                              className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-sky-500/10 hover:text-sky-300 transition-colors"
+                              title="Click to edit unit"
+                            >
+                              {row.unit || "—"}
+                            </button>
+                          )}
+                        </td>
 
                         {/* Par Level — inline editable */}
                         <td className="px-4 py-2.5 text-center">
@@ -930,6 +1085,113 @@ export default function CkParLevelsPage() {
         </div>
 
       </div>
+
+      {/* ── Add Item Modal ───────────────────────────────────────────────── */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">
+                Add Item — {tab === "ck_produced" ? "CK-Produced" : "Supplier Orders"}
+              </h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="rounded p-1 text-zinc-400 hover:text-white hover:bg-white/10"
+              >✕</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Item Name *</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={addForm.item_name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, item_name: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleAddItem(); }}
+                  placeholder="e.g. PHILADELPHIA CREAM CHEESE"
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={addForm.unit}
+                    onChange={(e) => setAddForm((f) => ({ ...f, unit: e.target.value }))}
+                    placeholder="e.g. kg, pc, g"
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Par Level</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={addForm.par_level}
+                    onChange={(e) => setAddForm((f) => ({ ...f, par_level: e.target.value }))}
+                    placeholder="e.g. 10"
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                  />
+                </div>
+              </div>
+              {tab === "supplier" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Category</label>
+                    <input
+                      type="text"
+                      value={addForm.category}
+                      onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))}
+                      placeholder="e.g. Dairy"
+                      className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Supplier</label>
+                    <select
+                      value={addForm.supplier}
+                      onChange={(e) => setAddForm((f) => ({ ...f, supplier: e.target.value }))}
+                      className="w-full rounded-lg bg-zinc-800 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                    >
+                      <option value="">— None —</option>
+                      {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={addForm.notes}
+                  onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Optional notes"
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-1">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleAddItem()}
+                disabled={addingItem || !addForm.item_name.trim()}
+                className="rounded-xl border border-sky-500/30 bg-sky-500/15 px-5 py-2 text-sm font-semibold text-sky-400 hover:bg-sky-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {addingItem ? "Adding…" : "Add Item"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Create Direct Purchase Orders Modal ─────────────────────────── */}
       {showCreateModal && (
