@@ -1,6 +1,152 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-23 (Labor cost — hour-weighted allocation + 13th month / EOS provisions)
+Last updated: 2026-08-23 (is_confidential 実装完了 + 管理・BO Staff Profiles 全データ投入完了)
+
+---
+
+## ✅ Completed: is_confidential flag + Management/BO Staff Profiles 全データ投入 (2026-08-23)
+
+**作業内容**: 管理職給与の秘匿化機能実装 + Manila/Dubai Staff Profiles 全データ投入
+
+**実装内容**:
+- `db.py`: `manila_staff_profiles` / `dubai_staff_profiles` に `is_confidential BOOLEAN DEFAULT FALSE` マイグレーション追加
+- `main.py` Manila GET: HQ以外は `is_confidential=TRUE` スタッフの `monthly_rate`/`daily_rate` を `null` にマスク
+- `main.py` Manila PUT: `is_confidential` をupsertに含める
+- `main.py` Manila payroll run生成: `WHERE is_active=TRUE AND NOT COALESCE(is_confidential, FALSE)` — 秘匿スタッフはpayroll runに含めない（P&Lには含まれる）
+- `main.py` Dubai GET/PUT: 同様に `is_confidential` 対応
+- Frontend Manila Staff Profiles: HQ以外は月収に `****` 表示、`Confidential` バッジ、is_confidentialトグル追加
+
+**投入データ**:
+
+Manila 新規プロフィール（is_confidential=true）:
+| 氏名 | monthly_rate (PHP) | 備考 |
+|---|---|---|
+| Yuri Yamada | 47,500 | 95,000 ÷ 2（Manila/Dubai 50/50） |
+| Ayako Nishimura | 36,500 | 73,000 ÷ 2 |
+| Yusuke Uejima | 67,500 | 135,000 ÷ 2 |
+
+Manila 新規プロフィール（is_confidential=false）:
+| 氏名 | monthly_rate (PHP) |
+|---|---|
+| Francis Ibana | 35,000 |
+| Richard S. Gante | 40,000 |
+| Mariano Espenida Jr. | 35,000 |
+
+Dubai 更新（is_confidential=true）:
+| 氏名 | monthly_rate (AED) | 備考 |
+|---|---|---|
+| Yuri Yamada | 3,065 | PHP 47,500 ÷ 15.5 |
+| Ayako Nishimura | 2,355 | PHP 36,500 ÷ 15.5 |
+| Yusuke Uejima | 5,500 | 11,000 AED ÷ 2 |
+
+**デプロイ**: Backend Heroku v2127、Frontend Vercel (commit dfce16f)
+
+---
+
+## ✅ Completed: Manila Staff Profiles monthly_rate 入力 (2026-08-23)
+
+**作業内容**: Manila Staff Profiles の monthly_rate が NULL だった16名のうち9名を更新
+
+**ソース**:
+- `7CZ Payroll Information(Salary information).csv` → 8名 (7/26/2026以降の最新レート)
+- ユーザー直接指定 → 1名 (Peter Villafuerte)
+
+**更新完了 (9名)**:
+| 氏名 | monthly_rate |
+|---|---|
+| Cyrine Fernandez | 35,000 |
+| Rose Ann Onido | 23,500 |
+| Aliana Manuel | 30,000 |
+| Erica Sadiasa | 23,500 |
+| Ruby Rongcales | 22,500 |
+| Marithel Queri | 25,500 |
+| Camilla Gadingan | 24,000 |
+| Caila Macararanga | 22,000 |
+| Peter Villafuerte | 65,000 |
+
+**除外 (7名)** — ソース未判明またはプロフィール不存在:
+Alyza Arabela Lagrimas, Mariano Espenida Jr., Nathaneil Santos, Noel Lucas, Paula Arbollente, Rudi Frances Maggay, Sheryl Fernandez
+
+---
+
+## ✅ Completed: Dubai July 2026 Salary — OS確認・照合完了 (2026-08-23)
+
+**作業内容**: Excelファイル「2026. 7 Dubai Salary Computation.xlsx」(Jul31シート、49名) をOSと照合
+
+**結果**: July 2026 Dubai Payroll Cycle (id=36, CLOSED) は既にCyrineが入力済み
+- 201件の調整エントリ、56スタッフカバー
+- payroll_salary_configs: 64件（accommodation+transportation込み）
+- OS推定ネット vs Excel col28（調整後）: **14名が完全一致、35名で小差異**（avg 12 AED/人、最大72 AED）
+- 差異合計: OS側が AED 595.70 少ない（night premium/OT計算の丸め誤差が主因）
+- 実際の支払い額 (col40 "7/1支払い給与") はWPS送金額で、クロスマンス調整を含むため OS計算値と別途差異あり
+- ユーザー判断: 差異は許容範囲 → cycle 36 はそのまま維持
+
+**残タスク対応なし**: July Dubai Payroll は完了扱い
+
+---
+
+## ✅ Completed: Manila September 2026 Shift Import v2 — CHANGED修正適用 (2026-08-23)
+
+**要求**: Excel col79「Final Preview」のマネージャー修正分をスケジュールに反映
+
+**経緯:**
+- 初回 (v1) は col4「Next Shift」のみアップロード → CHANGED行が未反映
+- 突合検証で Sep 30だけで147件のズレを確認
+- v2で col79 CHANGED行を正しく適用して再注入
+
+**実装:**
+- `gen_v2.py` スクリプト: Excel col79/col80を読み、CHANGEDマークがある行はcol79、ないものはcol4を使用
+- 特殊ケース対応:
+  - `col79='00(+1)–00(+1)'` = Excel TBDアーティファクト → col4にフォールバック
+  - `col79=None` → col4使用
+  - `col4='00–00'` = 未定 → (0.0, 24.0) TBD
+- CHANGEDで実際に反映された件数: TAFT=353, PAR=321, CUB=247, CK=188, BO=261 = 計1,370件
+- 25ペイロードを `/api/admin/shifts/manual_publish` 再注入 (全て ✅)
+- 検証: TAFT Joanna Mae Saraos Sep 30: 9:00-18:00（修正前16:00-25:00）→ API確認済み ✅
+
+**注意**: ペイロードファイル: scratchpad/p00-p24_v2.json + p00-p24.json (削除可)
+
+---
+
+## ✅ Completed: Search Rankings — GrabFood/Foodpanda Weekly Tracking (2026-08-23, Heroku v2121)
+
+**要求**: 店舗ごとのGrabFood/Foodpanda検索順位を週2回記録・履歴確認できる機能
+
+**実装:**
+- **DB**: `platform_search_rankings` テーブル新設 (recorded_date, platform, store_code, keyword, rank, notes, recorded_by)
+- **Backend**: `ensure_search_ranking_tables()` / `record_search_rankings()` / `get_search_rankings_history()` in `db.py`
+- **API**: `POST /api/admin/analytics/rankings/record`, `GET /api/admin/analytics/rankings/history` in `main.py`
+- **Input**: Admin Dashboard → "Search Rankings Input" タブ (🔍)。2プラットフォーム × 3店舗 × 3キーワード = 18入力セル
+- **View**: Analytics → "Search Rankings" タブ。プラットフォーム/キーワード別テーブル、色分け (1-3位:緑, 4-10位:橙, 11位以下:灰)
+- **対象**: GrabFood/Foodpanda × Parañaque/Taft/Cubao × Sushi/Japanese/Ramen
+- **Heroku**: v2121、Vercel: 自動デプロイ済み
+
+---
+
+## ✅ Completed: Store Supplier Orders — Post-order Operations (2026-08-23, Heroku v2118-v2119)
+
+**要求**: 発注後のオペレーション3機能を追加
+
+### ① PO PDF Download
+- **実装**: `store_supplier_mail.py` の `generate_store_supplier_po_pdf()` で reportlab A4 PDF生成
+- **エンドポイント**: `GET /api/admin/store-supplier/orders/{order_id}/po-pdf` → binary PDF レスポンス
+- **フロント**: 発注詳細パネルの "Download PO PDF" ボタン（approved/sent/received ステータス時のみ表示）
+- **検証**: 200 OK (非draft) / 400 (draft) ✅
+
+### ② Invoice Photo Required on Receipt
+- **実装**: 
+  - バックエンド: `receive_store_supplier_order()` に `invoice_photo_url` カラム追加。受取確認時に写真なしなら 400 エラー
+  - 写真アップロード: `POST /api/admin/store-supplier/orders/{order_id}/upload-invoice-photo` → Google Drive `StoreSupplierOrders/{store}/{date}/` に保存
+  - フロント: 受取モーダルに「Invoice Photo *」セクション追加。ファイル選択時即時アップロード、完了前は Confirm ボタン無効
+- **DB**: `store_supplier_orders.invoice_photo_url TEXT` カラム追加
+- **検証**: モーダルに写真欄あり、Confirm ボタン無効化確認 ✅
+
+### ③ PO Match Linkage
+- **実装**:
+  - `db.py`: `proc_po_invoice_checks.store_supplier_order_id BIGINT` カラム追加。`create_po_invoice_check()` / list 関数に対応
+  - `store_supplier_api.py`: 受取確認後に `create_po_invoice_check(city='manila', po_no='SSO-{id}', force_status='PENDING', store_supplier_order_id=order_id)` を自動作成
+  - `po-match/page.tsx`: `CheckRow` / `PendingCheck` / `PoMatchRecord` 型に `store_supplier_order_id` 追加。Pending queue と Discrepancy リストに緑色「Store Order」バッジと「View Invoice Photo」リンク表示
+- **検証**: コード・デプロイ確認済み (v2119) ✅。次回 SSO 受取時に Manila PO Match pending queue に PENDING レコードが自動作成される
 
 ---
 
