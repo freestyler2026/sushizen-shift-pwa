@@ -188,6 +188,8 @@ export default function StoreSupplierOrdersPage() {
   });
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
   const [generateInvDate, setGenerateInvDate] = useState<string | null>(null);
+  const [generateDebug, setGenerateDebug] = useState<{item_name:string;stock_found:boolean;stock:number;par:number;par_source:string;order_qty:number}[]|null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editQty, setEditQty] = useState<string>("");
@@ -483,6 +485,8 @@ export default function StoreSupplierOrdersPage() {
     setGenerating(true);
     setGenerateMsg(null);
     setGenerateInvDate(null);
+    setGenerateDebug(null);
+    setShowDebug(false);
     setError(null);
     try {
       const res = await fetch(`/api/admin/store-supplier/generate`, {
@@ -493,6 +497,7 @@ export default function StoreSupplierOrdersPage() {
       const data = await res.json();
       setGenerateMsg(data.message ?? `Created ${data.created} order(s)`);
       setGenerateInvDate(data.inventory_date_used ?? null);
+      setGenerateDebug(data.item_debug ?? null);
       await loadOrders();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Generation failed.");
@@ -1027,7 +1032,7 @@ export default function StoreSupplierOrdersPage() {
           <>
             {/* Generate panel */}
             <div className={GLASS_CARD + " p-4 flex flex-wrap items-center gap-3"}>
-              <span className="text-sm text-zinc-400 font-medium">Generate Orders for:</span>
+              <span className="text-sm text-zinc-400 font-medium">Delivery Date:</span>
               <input
                 type="date"
                 className={INPUT_CLASS + " max-w-[160px]"}
@@ -1049,6 +1054,33 @@ export default function StoreSupplierOrdersPage() {
                     ? <span className="text-xs text-zinc-400">Inventory ref: {generateInvDate}</span>
                     : <span className="text-xs text-amber-400">⚠ No inventory data found — full par levels used</span>
                   }
+                  {generateDebug && (
+                    <button onClick={() => setShowDebug(v => !v)} className="text-xs text-blue-400 underline text-left">
+                      {showDebug ? "Hide" : "Show"} stock debug ({generateDebug.filter(i => !i.stock_found).length} items with no inventory match)
+                    </button>
+                  )}
+                </div>
+              )}
+              {showDebug && generateDebug && (
+                <div className="w-full overflow-x-auto mt-2">
+                  <table className="text-xs w-full border-collapse">
+                    <thead><tr className="text-zinc-400">
+                      <th className="text-left pr-2">Item</th>
+                      <th className="text-right pr-2">Stock</th>
+                      <th className="text-right pr-2">Par</th>
+                      <th className="text-right pr-2">Par src</th>
+                      <th className="text-right">Order</th>
+                    </tr></thead>
+                    <tbody>{generateDebug.map((d, i) => (
+                      <tr key={i} className={d.stock_found ? "" : "text-amber-400"}>
+                        <td className="pr-2">{d.stock_found ? "" : "⚠ "}{d.item_name}</td>
+                        <td className="text-right pr-2">{d.stock}</td>
+                        <td className="text-right pr-2">{d.par}</td>
+                        <td className="text-right pr-2">{d.par_source}</td>
+                        <td className="text-right">{d.order_qty > 0 ? d.order_qty : "-"}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
                 </div>
               )}
             </div>
