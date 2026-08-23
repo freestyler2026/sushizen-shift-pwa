@@ -58,8 +58,12 @@ function fmtHourLabel(h: number): string {
 
 function fmtShift(s: number, e: number): string {
   const fh = (h: number) => {
-    if (h >= 24) return `${String(h - 24).padStart(2, "0")}(+1)`;
-    return String(h).padStart(2, "0");
+    const base = h >= 24 ? h - 24 : h;
+    const suffix = h >= 24 ? "(+1)" : "";
+    const wholeH = Math.floor(base);
+    const mins = Math.round((base - wholeH) * 60);
+    const t = mins > 0 ? `${String(wholeH).padStart(2, "0")}:${String(mins).padStart(2, "0")}` : String(wholeH).padStart(2, "0");
+    return `${t}${suffix}`;
   };
   return `${fh(s)}–${fh(e)}`;
 }
@@ -178,8 +182,12 @@ function firstWeekOfMonth(month: string): string {
 const HOUR_OPTIONS = Array.from({ length: 23 }, (_, i) => i + 8); // 8..30
 
 function fmtHourOpt(h: number): string {
-  if (h >= 24) return `${String(h - 24).padStart(2, "0")}:00 (+1)`;
-  return `${String(h).padStart(2, "0")}:00`;
+  const base = h >= 24 ? h - 24 : h;
+  const suffix = h >= 24 ? " (+1)" : "";
+  const wholeH = Math.floor(base);
+  const mins = Math.round((base - wholeH) * 60);
+  const t = mins > 0 ? `${String(wholeH).padStart(2, "0")}:${String(mins).padStart(2, "0")}` : `${String(wholeH).padStart(2, "0")}:00`;
+  return `${t}${suffix}`;
 }
 
 // ---------------------------------------------------------------------------

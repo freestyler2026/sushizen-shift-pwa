@@ -347,7 +347,10 @@ function hourText(h: number) {
   const hh = Number(h || 0);
   const base = hh >= 24 ? hh - 24 : hh;
   const suffix = hh >= 24 ? "(+1)" : "";
-  return `${pad2(base)}${suffix}`;
+  const wholeH = Math.floor(base);
+  const mins = Math.round((base - wholeH) * 60);
+  const timeStr = mins > 0 ? `${pad2(wholeH)}:${pad2(mins)}` : pad2(wholeH);
+  return `${timeStr}${suffix}`;
 }
 
 function rangeText(st: number, en: number) {
