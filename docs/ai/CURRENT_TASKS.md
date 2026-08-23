@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-23 (Daily P&L — legacy store code cleanup; Dubai/Manila clean)
+Last updated: 2026-08-23 (Labor cost — hour-weighted allocation + 13th month / EOS provisions)
 
 ---
 
@@ -51,6 +51,39 @@ Last updated: 2026-08-23 (Daily P&L — legacy store code cleanup; Dubai/Manila 
 **残タスク:**
 - 月次POS vs ar_payouts 照合エンドポイント（差異 >2% アラート）
 - Daily P&Lフロントエンドページの店舗別・ブランド別表示対応（platforms配列に brand フィールド追加済み）
+
+---
+
+## ✅ Completed: Labor Cost — 時間加重配賦 + 法定引当金実装 (2026-08-23, Heroku v2114)
+
+**問題**: 人件費が「月給 / 稼働日数」の一律計算 → フラット配賦で不正確、13th月手当・EOS引当なし
+
+**調査結果:**
+- `manila_staff_profiles.monthly_rate`: **45/61スタッフに実績あり** (avg 21,044 PHP, min 19,695, max 27,500)
+- 残り16名は monthly_rate 未入力 → 600 PHP/日デフォルト
+- `dubai_staff_profiles.monthly_rate`: **全員 NULL** → 200 AED/日デフォルト（Dubai給与データ入力が必要）
+- `payroll_salary_configs`: 0件（現在未使用）
+
+**実装 (db.py `get_labor_from_shifts`)**:
+- **時間加重配賦**: `monthly_salary × (branch_shift_hours / total_month_hours_for_staff)`
+  - `GREATEST(1, COALESCE(end_hour,8) - COALESCE(start_hour,0))` でシフト時間計算（NULL→8h default）
+  - 月合計時間（全月分シフト）を分母として各日の費用を配賦
+  - 複数ブランチ同日勤務は時間比率で各ブランチに分割
+- **法定引当金（1回の salary_map 取得後に追加）**:
+  - Manila: `monthly_sal × (1/12) / days_in_month` 毎日 → 月計 = `monthly_sal/12`（PD 851 13th month）
+  - Dubai: `monthly_sal × 0.0575 / days_in_month` 毎日 → 月計 = `monthly_sal × 5.75%`（UAE EOS積立）
+  - 法定引当もブランチ比率で配賦
+
+**検証（Manila 2026-08）:**
+- 旧労務費: ~26,228 PHP/日（フラット、13th month なし）
+- 新労務費: ~29,050–34,300 PHP/日（日変動あり、13th month込み）
+- 13th month 引当 ≈ 2,400–3,000 PHP/日 ≈ **75,000–90,000 PHP/月** ← 当初見積り 75,000-80,000 と整合 ✅
+- 店舗別: CUB 7,500 / PAR 11,500 / TAFT 10,000 PHP/日（実シフト時間に基づく）✅
+
+**残タスク:**
+- Manila: 16名の monthly_rate 未入力スタッフの給与データ入力（Manila Payroll → Staff Profiles）
+- Dubai: 全スタッフの basic_salary データ入力（dubai_staff_profiles.monthly_rate または payroll_salary_configs.basic_salary）
+- Dubai EOS引当は給与データ入力後に自動適用される
 
 ---
 
