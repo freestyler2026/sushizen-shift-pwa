@@ -35,7 +35,7 @@ interface EPRItem {
   estimated_unit_price: number;
   estimated_total: number;
   notes: string;
-  current_stock: number;
+  current_stock: number | "";
 }
 
 interface EPRRequest {
@@ -118,7 +118,7 @@ function approvalLevelLabel(level: string) {
 }
 
 function emptyItem(): EPRItem {
-  return { item_name: "", qty: 1, unit: "pc", estimated_unit_price: 0, estimated_total: 0, notes: "", current_stock: 0 };
+  return { item_name: "", qty: 1, unit: "pc", estimated_unit_price: 0, estimated_total: 0, notes: "", current_stock: "" };
 }
 
 // ─── Catalog Autocomplete Input ───────────────────────────────────────────────
@@ -412,7 +412,12 @@ export default function EmergencyRequestPage() {
     if (items.length === 0 || items.every((i) => !i.item_name.trim())) {
       setToast({ msg: "Add at least one item.", ok: false }); return;
     }
-    const validItems = items.filter((i) => i.item_name.trim());
+    const namedItems = items.filter((i) => i.item_name.trim());
+    const missingStock = namedItems.some((i) => i.current_stock === "");
+    if (missingStock) { setToast({ msg: "Please enter Current Stock for all items.", ok: false }); return; }
+    const missingQty = namedItems.some((i) => !i.qty || i.qty <= 0);
+    if (missingQty) { setToast({ msg: "Please enter Qty Needed for all items.", ok: false }); return; }
+    const validItems = namedItems;
     setSubmitting(true);
     try {
       const res = await fetch("/api/store/emergency-request", {
@@ -558,11 +563,11 @@ export default function EmergencyRequestPage() {
 
                   <div className="grid grid-cols-5 gap-2">
                     <div>
-                      <label className={T_LABEL}>Stock</label>
-                      <input type="number" min={0} step="0.01" className={`mt-0.5 ${INPUT_CLASS}`} value={item.current_stock} onChange={(e) => updateItem(idx, "current_stock", parseFloat(e.target.value) || 0)} placeholder="0" />
+                      <label className={T_LABEL}>Current Stock <span className="text-red-400">*</span></label>
+                      <input type="number" min={0} step="0.01" className={`mt-0.5 ${INPUT_CLASS}${item.current_stock === "" ? " border-red-500/50" : ""}`} value={item.current_stock} onChange={(e) => updateItem(idx, "current_stock", e.target.value === "" ? "" : parseFloat(e.target.value))} placeholder="Enter stock" />
                     </div>
                     <div>
-                      <label className={T_LABEL}>Qty</label>
+                      <label className={T_LABEL}>Qty Needed <span className="text-red-400">*</span></label>
                       <input type="number" min={0.01} step="0.01" className={`mt-0.5 ${INPUT_CLASS}`} value={item.qty} onChange={(e) => updateItem(idx, "qty", parseFloat(e.target.value) || 0)} />
                     </div>
                     <div>
@@ -640,7 +645,7 @@ export default function EmergencyRequestPage() {
                   {req.items.map((it, i) => (
                     <span key={i} className="rounded-lg bg-white/5 border border-white/8 px-2 py-0.5">
                       {it.item_name} ×{it.qty}{it.unit}
-                      {it.current_stock > 0 && <span className="text-zinc-500 ml-1">(Stock:{it.current_stock})</span>}
+                      {Number(it.current_stock) > 0 && <span className="text-zinc-500 ml-1">(Stock:{it.current_stock})</span>}
                     </span>
                   ))}
                 </div>
