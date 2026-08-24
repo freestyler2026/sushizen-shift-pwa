@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
+import { SALARY_HIDDEN } from "@/lib/salary";
 import { GLASS_CARD, PRIMARY_BUTTON, INPUT_CLASS, SELECT_CLASS, TABLE_HEADER, TABLE_ROW, TABLE_CELL } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
 
@@ -166,6 +167,10 @@ function ProfileModal({
   const [form, setForm] = useState<FormState>(existing ? profileToForm(existing) : emptyForm());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  // Compensation is masked to null for every role except HQ, so a non-HQ user
+  // sees these inputs blank. The server pins them back to the stored values on
+  // save — they must not be validated or editable here.
+  const canSeeSalary = getAuth()?.role === "HQ";
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [rosterNames, setRosterNames] = useState<string[]>([]);
@@ -190,7 +195,7 @@ function ProfileModal({
 
   async function save() {
     if (!form.staff_name.trim()) { setErr("Staff name is required"); return; }
-    if (!form.monthly_rate && !form.daily_rate) { setErr("Either monthly rate or daily rate is required"); return; }
+    if (canSeeSalary && !form.monthly_rate && !form.daily_rate) { setErr("Either monthly rate or daily rate is required"); return; }
     setSaving(true); setErr("");
     try {
       const body = {
@@ -359,31 +364,45 @@ function ProfileModal({
             </div>
 
             {/* Rates */}
+            {!canSeeSalary && (
+              <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Salary amounts are visible to HQ only. The rate and allowance fields below stay
+                hidden, and saving keeps the stored amounts — every other field is yours to edit.
+              </div>
+            )}
             <div>
-              <label className={L}>Monthly Rate (PHP) *</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.monthly_rate}
+              <label className={L}>Monthly Rate (PHP){canSeeSalary ? " *" : ""}</label>
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.monthly_rate : ""}
                 onChange={e => set("monthly_rate", e.target.value)}
-                placeholder="e.g. 18000.00" />
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "e.g. 18000.00" : SALARY_HIDDEN} />
             </div>
             <div>
               <label className={L}>Daily Rate (PHP)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.daily_rate}
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.daily_rate : ""}
                 onChange={e => set("daily_rate", e.target.value)}
-                placeholder="Auto-computed if blank" />
-              <p className="mt-1 text-xs text-slate-500">If blank, engine uses monthly÷26</p>
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "Auto-computed if blank" : SALARY_HIDDEN} />
+              {canSeeSalary && <p className="mt-1 text-xs text-slate-500">If blank, engine uses monthly÷26</p>}
             </div>
             <div>
               <label className={L}>COLA (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.cola}
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.cola : ""}
                 onChange={e => set("cola", e.target.value)}
-                placeholder="0.00" />
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">Cost of Living Allowance — included in Pag-IBIG base</p>
             </div>
             <div>
               <label className={L}>Pag-IBIG Voluntary (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.pagibig_voluntary}
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.pagibig_voluntary : ""}
                 onChange={e => set("pagibig_voluntary", e.target.value)}
-                placeholder="0.00" />
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">Extra HDMF contribution above mandatory ₱200 — ER does not match; not deducted from BIR WHT base</p>
             </div>
 
@@ -512,26 +531,38 @@ function ProfileModal({
             </div>
             <div>
               <label className={L}>Rice Subsidy (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.rice_allowance}
-                onChange={e => set("rice_allowance", e.target.value)} placeholder="0.00" />
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.rice_allowance : ""}
+                onChange={e => set("rice_allowance", e.target.value)}
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱2,000/month</p>
             </div>
             <div>
               <label className={L}>Clothing / Uniform Allowance (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.clothing_allowance}
-                onChange={e => set("clothing_allowance", e.target.value)} placeholder="0.00" />
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.clothing_allowance : ""}
+                onChange={e => set("clothing_allowance", e.target.value)}
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱500/month (₱6,000/year)</p>
             </div>
             <div>
               <label className={L}>Laundry Allowance (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.laundry_allowance}
-                onChange={e => set("laundry_allowance", e.target.value)} placeholder="0.00" />
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.laundry_allowance : ""}
+                onChange={e => set("laundry_allowance", e.target.value)}
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱300/month</p>
             </div>
             <div>
               <label className={L}>Medical Cash Allowance (PHP/month)</label>
-              <input className={I} type="number" min="0" step="0.01" value={form.medical_allowance}
-                onChange={e => set("medical_allowance", e.target.value)} placeholder="0.00" />
+              <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
+                value={canSeeSalary ? form.medical_allowance : ""}
+                onChange={e => set("medical_allowance", e.target.value)}
+                readOnly={!canSeeSalary}
+                placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱250/month (to dependents)</p>
             </div>
 
