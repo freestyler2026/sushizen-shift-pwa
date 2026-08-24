@@ -43,10 +43,48 @@ Staff Profiles の Monthly Rate 列 `—`、給与グリッド・期間詳細・
    バイパスされていた。サーバー側マスクがあったため実害はなかったが、**フロント判定だけに
    頼っていたら全額漏れていた**。`role === "HQ"` のロール基準に変更（サーバーと同一基準）。
 
+---
+
+## ✅ Completed: /api/admin/* デフォルト拒否ゲート + 給与表PDFのHQロック (2026-08-24)
+
+**発端**: 監査で `/api/admin/*` の **130ルート**に認証チェックが無いと判明。読み取り専用17件
+を実測したところ **11件が匿名で実データを返した** — 経営レポート、グループP&L(AED 547万)、
+staff_master 97名、資産台帳、未公表の新店計画(SM Southmall)、そして
+**`Career Roadmap, Evaluation Criteria, and Salary Table` PDF (263KB)**。
+
+**対策1: `admin_auth_gate` ミドルウェア** (`app/main.py` ~1125)
+- `/api/admin/*` は全て有効なトークン必須。許可リストは2件のみ
+  (`staff_master/names`=ログイン画面, `backend-version`=AutoReload)
+- **キルスイッチ**: `heroku config:set ADMIN_AUTH_GATE=log` で即座にログ専用へ降格可能
+- 手順: log モードで投入 → ログイン済み巡回で正当リクエストが1件も巻き込まれないことを
+  確認 → `enforce` へ切替。切替後も巻き込みゼロ、5xxゼロ
+- 遮断確認: 上記16エンドポイント全て 401、ログイン画面は 200
+
+**対策2: 給与表PDFのHQ+PINロック**
+- `policy_documents.requires_hq_pin` を追加、doc #5 に設定
+- 通常GETは 403 `hq_pin_required`。**POST**でHQの名前+PINを body で送ると配信
+  （PINがURL・アクセスログに残らない）
+- 「正しいPINでも非HQなら拒否」を実測確認。全試行を監査ログに記録
+  (`policy-doc 5 unlock GRANTED approver=... requested_by=...`)
+- UI: 🔒 Download PDF (HQ PIN) → HQ選択+PIN入力ダイアログ
+
+**対策3: `/api/store/policy-docs` の抜け穴を発見・修正**
+ゲート投入後も `/api/store/policy-docs/5/file` が**匿名で給与表PDFを配信していた**
+（`/api/admin/*` ゲートの対象外、かつ元々認証チェック皆無）。両ルートに認証+ロック判定を追加。
+
+### 🔴 未解決 — ロール付与の問題（技術ではなく運用）
+`_effective_staff_role` で **HQ** に解決される人物に以下が含まれる:
+- **Marithel Queri** — 2026-08-15 に Yuri Yamada が HQ を付与(active)
+- **Peter Villafuerte** — 2026-05-08 に Yuri Yamada が HQ を付与(active)
+
+つまり**今回マスク対象にした本人(Peter)と、マスクを依頼された相手(Marithel)が
+HQとして全員の給与を閲覧できる**。マスク機構は正しく動作しているが、
+ロール付与を見直さない限り当初の目的は達成されない。Role Management で要確認。
+
 ### ⚠️ 残課題
-- **認証なしエンドポイント**: `/api/admin/mgmt/cost-trend` と
-  `/api/admin/mgmt/labor-cost-detail` は `request` 引数すら取らず認証チェックが皆無。
-  個人別給与は含まないためマスク対象外だが、店舗別人件費・売上・原価率が誰でも取得可能
+- **`/api/store/*` に45ルートの認証なし** — policy-docs 以外は未対応。
+  `/api/admin/*` と同じ手順（log→enforce）でゲートを広げるのが次の一手
+- ~~認証なしエンドポイント~~ → `admin_auth_gate` で解決済み（上記）
 - **PIN平文保存**: ログイン後 `localStorage["sushizen_shift_auth"].pin` に PIN が平文で残る
 - `tsconfig.json` は `strict: false` のため `strictNullChecks` が無効。今回追加した
   `number | null` 型は**ドキュメントであって強制力がない** — tsc は null 参照を検出しない
