@@ -483,16 +483,17 @@ export default function ArPayoutsPage() {
               <div className="flex flex-col items-center gap-2">
                 <div className="text-3xl">📂</div>
                 <p className="text-sm font-medium text-white/70">
-                  {uploading ? "Uploading…" : "Drop PDF or XLSX files"}
+                  {uploading ? "Uploading…" : "Drop PDF, XLSX, or Noon CSV"}
                 </p>
                 <p className="text-xs text-white/30 space-y-0.5">
                   Careem: any <span className="font-mono">.pdf</span> payout report<br />
                   Keeta: <span className="font-mono">bill-[...].xlsx</span><br />
-                  Talabat: any <span className="font-mono">.xlsx</span> payout report
+                  Talabat: any <span className="font-mono">.xlsx</span> payout report<br />
+                  Noon: <span className="font-mono">statement_orders_*.csv</span>
                 </p>
                 <label className={`cursor-pointer ${PRIMARY_BUTTON} text-sm px-4 py-1.5 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
                   {uploading ? "Uploading…" : "Select Files"}
-                  <input type="file" accept=".pdf,.xlsx" multiple className="sr-only"
+                  <input type="file" accept=".pdf,.xlsx,.csv" multiple className="sr-only"
                     onChange={(e) => e.target.files && handleUpload(e.target.files, "dubai")} />
                 </label>
               </div>
