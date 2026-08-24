@@ -68,13 +68,18 @@ function _extractErrorMessage(text: string, status: number): string {
   return text || `HTTP ${status}`;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+/**
+ * @param approverPin  Sent as the X-Approver-Pin header. Endpoints that require an
+ *   approver PIN used to take it as a query parameter, which wrote the credential
+ *   into access logs and browser history; the backend now reads this header.
+ */
+export async function apiGet<T>(path: string, approverPin?: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const doFetch = () =>
     fetch(url, {
       method: "GET",
       credentials: "same-origin",
-      headers: getAuthHeaders(),
+      headers: { ...getAuthHeaders(), ...(approverPin ? { "X-Approver-Pin": approverPin } : {}) },
     });
 
   let res = await doFetch();
@@ -93,13 +98,13 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-export async function apiPost<T>(path: string, body: any): Promise<T> {
+export async function apiPost<T>(path: string, body: any, approverPin?: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const doFetch = () =>
     fetch(url, {
       method: "POST",
       credentials: "same-origin",
-      headers: getAuthHeaders(),
+      headers: { ...getAuthHeaders(), ...(approverPin ? { "X-Approver-Pin": approverPin } : {}) },
       body: JSON.stringify(body ?? {}),
     });
 

@@ -167,11 +167,12 @@ function normalizeAttendanceSyncMessage(raw: string, fallback: string) {
   return text;
 }
 
-async function apiGet<T = any>(path: string): Promise<T> {
+async function apiGet<T = any>(path: string, approverPin?: string): Promise<T> {
+  // approverPin travels as a header so the credential never enters the query string.
   const request = async () =>
     fetch(`${getApiBase()}${path}`, {
       cache: "no-store",
-      headers: getAuthHeaders(),
+      headers: { ...getAuthHeaders(), ...(approverPin ? { "X-Approver-Pin": approverPin } : {}) },
     });
   let res = await request();
   let text = await res.text();
@@ -3654,8 +3655,9 @@ export default function AdminAnalyticsPage() {
             "Staff analytics (Dubai city summary)",
             () =>
               apiGet<CitySummaryResp>(
-                `/api/admin/analytics/city_summary?city=dubai&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
-                  + `&exclude_flexible=true&source=auto`
+                `/api/admin/analytics/city_summary?city=dubai&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}`
+                  + `&exclude_flexible=true&source=auto`,
+                pin.trim()
               ),
             (dubaiCity) => setDubaiSummary(dubaiCity),
             () => setDubaiSummary(null)
@@ -3664,8 +3666,9 @@ export default function AdminAnalyticsPage() {
             "Staff analytics (Manila city summary)",
             () =>
               apiGet<CitySummaryResp>(
-                `/api/admin/analytics/city_summary?city=manila&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
-                  + `&exclude_flexible=true&source=auto`
+                `/api/admin/analytics/city_summary?city=manila&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}`
+                  + `&exclude_flexible=true&source=auto`,
+                pin.trim()
               ),
             (manilaCity) => setManilaSummary(manilaCity),
             () => setManilaSummary(null)
@@ -4924,13 +4927,15 @@ export default function AdminAnalyticsPage() {
           tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
           tryFetch<CitySummaryResp>("city_summary", () =>
             apiGet<CitySummaryResp>(
-              `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}&source=auto`
+              `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&source=auto`,
+              pinValue
             )
           ),
           tryFetch<PosSalesDailyResp>("pos_sales_daily", () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${commonQs.toString()}`)),
           tryFetch<AttendanceSchedulePolicyResp>("schedule_policy", () =>
             apiGet<AttendanceSchedulePolicyResp>(
-              `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+              `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}`,
+              pinValue
             )
           ),
           // pos_branch_ranking is optional enrichment data — silently ignore errors so missingSources stays clean
