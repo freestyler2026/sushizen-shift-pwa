@@ -137,7 +137,24 @@ Staff ページの保存 (`upsert_staff_master`) は `staff_master` しか書か
 旧GETは405で廃止。フロント参照が無かったため影響なし。
 
 ### ⚠️ 残課題
-- 🔴 **PINをクエリ文字列で受け取るルートが159件残っている**（今回直したのは1件のみ）。
+### ✅ 完了: PINをURLから排除 (2026-08-25)
+`X-Approver-Pin` ヘッダーを受け取り、ミドルウェア `approver_pin_header_shim`
+(`app/main.py`) が **プロセス内で query_string に注入**。159ルートの署名は無改修。
+クエリのPINも引き続き受け付ける（後方互換）。
+
+フロント側は **URL内のPINをゼロに**（login / draft / absences / discord-alerts /
+staff-create / analytics / LowRatingsAdminPanel / PrepTimeTab / ProductScoringTab）。
+QC写真は `<a href>` でヘッダーを送れないため fetch+blob 方式へ変更。
+
+> 🔴 **この作業で一度ログインを壊した。** `[...slug]` catch-all にだけヘッダー転送を
+> 足したが、`src/app/api/auth/verify/route.ts` という**個別ルートが優先される**ため
+> ログインのPINが落ちて全員ログイン不能に。即 revert で復旧 → 個別ルートにも転送を
+> 追加して再適用。CLAUDE.md 教訓19に記載。
+
+検証: `/api/auth/verify` ヘッダー正=200 / 誤=403 / クエリ=200(互換)。
+実ブラウザでログイン成功し、Networkタブで `pin=` を含むURLはゼロ。
+
+**旧項目（対応済み）**: PINをクエリ文字列で受け取るルートが159件あった。
   フロント側で実際にURLへPINを載せているのは **8ファイル**:
   `admin/draft`, `admin/absences`, `admin/discord-alerts`, `admin/staff/create`,
   `admin/analytics`, `components/lowratings/LowRatingsAdminPanel`,
