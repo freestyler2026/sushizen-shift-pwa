@@ -60,7 +60,6 @@ type CashierEvalRow = {
   branch: string;
   pic_at_closing: string | null;
   cashier_name: string;
-  sales_record_klikit: string | null;
   cash_counting_report: string | null;
   diff_cash_pos: number | null;
   qrph_count_pos: number | null;
@@ -150,8 +149,7 @@ export function ManilaCashierEvaluationTab({
         <div>
           <h2 className={T_SECTION}>Cashier Evaluation (Manila)</h2>
           <p className={T_CAPTION}>
-            QRPH / SC-PWD checklist rows (<code className="text-neutral-400">manila_cashier_evaluations</code>). Klikit
-            column is a checklist label from source spreadsheets, not live Klikit sync.
+            QRPH / SC-PWD checklist rows (<code className="text-neutral-400">manila_cashier_evaluations</code>).
           </p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading || !canLoad} className={SECONDARY_BUTTON}>
@@ -199,7 +197,6 @@ export function ManilaCashierEvaluationTab({
                     <th className="px-2 py-2">Branch</th>
                     <th className="px-2 py-2">PIC</th>
                     <th className="px-2 py-2">Cashier</th>
-                    <th className="px-2 py-2 text-center">Klikit log</th>
                     <th className="px-2 py-2 text-center">Cash check</th>
                     <th className="px-2 py-2 text-right">Cash−POS</th>
                     <th className="px-2 py-2 text-right">QRPH #</th>
@@ -219,17 +216,6 @@ export function ManilaCashierEvaluationTab({
                       <td className="px-2 py-1.5 text-neutral-300">{row.branch}</td>
                       <td className="px-2 py-1.5">{row.pic_at_closing || "—"}</td>
                       <td className="px-2 py-1.5 font-medium text-white">{row.cashier_name}</td>
-                      <td
-                        className={`px-2 py-1.5 text-center ${
-                          row.sales_record_klikit === "ok"
-                            ? "text-emerald-400"
-                            : row.sales_record_klikit === "no"
-                              ? "text-rose-400"
-                              : "text-neutral-500"
-                        }`}
-                      >
-                        {row.sales_record_klikit || "—"}
-                      </td>
                       <td
                         className={`px-2 py-1.5 text-center ${
                           row.cash_counting_report === "ok" ? "text-emerald-400" : "text-neutral-500"

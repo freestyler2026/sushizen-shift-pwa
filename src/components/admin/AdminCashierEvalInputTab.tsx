@@ -12,7 +12,6 @@ interface CashierEvalRow {
   branch: string;
   cashier_name: string;
   pic_at_closing: string | null;
-  sales_record_klikit: string | null;
   cash_counting_report: string | null;
   diff_cash_pos: number | null;
   qrph_count_pos: number | null;
@@ -32,7 +31,6 @@ interface EditableCashier {
   branch: string;
   cashier_name: string;
   pic_at_closing: string;
-  sales_record_klikit: string;
   cash_counting_report: string;
   diff_cash_pos: string;
   qrph_count_pos: string;
@@ -115,7 +113,6 @@ function dbRowToEditable(r: CashierEvalRow): EditableCashier {
     branch,
     cashier_name: name,
     pic_at_closing: r.pic_at_closing ?? "",
-    sales_record_klikit: okNgApiToUi(r.sales_record_klikit),
     cash_counting_report: okNgApiToUi(r.cash_counting_report),
     diff_cash_pos: r.diff_cash_pos != null ? String(r.diff_cash_pos) : "",
     qrph_count_pos: r.qrph_count_pos != null ? String(r.qrph_count_pos) : "",
@@ -138,7 +135,6 @@ function emptyRow(branch: string): EditableCashier {
     branch,
     cashier_name: "",
     pic_at_closing: "",
-    sales_record_klikit: "",
     cash_counting_report: "",
     diff_cash_pos: "",
     qrph_count_pos: "",
@@ -354,15 +350,6 @@ function CashierCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {row.sales_record_klikit ? (
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                row.sales_record_klikit === "OK" ? "bg-emerald-600/30 text-emerald-400" : "bg-red-600/30 text-red-400"
-              }`}
-            >
-              Klikit: {row.sales_record_klikit}
-            </span>
-          ) : null}
           {row.diff_cash_pos !== "" ? <CashDiffBadge value={row.diff_cash_pos} /> : null}
         </div>
 
@@ -402,10 +389,6 @@ function CashierCard({
               <div>
                 <label className="mb-1 block text-xs text-white/40">PIC at Closing</label>
                 <TextInput value={row.pic_at_closing} onChange={(v) => onUpdate("pic_at_closing", v)} placeholder="Manager name" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-white/40">Sales Record (Klikit)</label>
-                <OkNgToggle value={row.sales_record_klikit} onChange={(v) => onUpdate("sales_record_klikit", v)} />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-white/40">Cash Counting Report</label>
@@ -583,7 +566,6 @@ export default function AdminCashierEvalInputTab() {
         branch: row.branch,
         cashier_name: row.cashier_name.trim(),
         pic_at_closing: row.pic_at_closing.trim() || null,
-        sales_record_klikit: okNgUiToApi(row.sales_record_klikit),
         cash_counting_report: okNgUiToApi(row.cash_counting_report),
         diff_cash_pos: numOrNull(row.diff_cash_pos),
         qrph_count_pos: intOrNull(row.qrph_count_pos),
