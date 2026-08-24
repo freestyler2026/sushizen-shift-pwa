@@ -767,7 +767,7 @@ function OperatingHoursPanel({
   }
 
   async function deleteRecord(id: number) {
-    await fetch(`/api/admin/operating-hours/${id}?approver_name=${encodeURIComponent(approverName)}`, { method: "DELETE", headers: { "X-Approver-Pin": pin } });
+    await fetch(`/api/admin/operating-hours/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
     setRecords((prev) => prev.filter((r) => r.id !== id));
   }
 
@@ -912,7 +912,7 @@ function StaffingRulesPanel({
   }
 
   async function deleteRule(id: number) {
-    await fetch(`/api/admin/staffing-rules/${id}?approver_name=${encodeURIComponent(approverName)}`, { method: "DELETE", headers: { "X-Approver-Pin": pin } });
+    await fetch(`/api/admin/staffing-rules/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
     setRules((prev) => prev.filter((r) => r.id !== id));
   }
 
@@ -1292,7 +1292,7 @@ function DemandEventsPanel({
   }
 
   async function deleteEvent(id: number) {
-    await fetch(`/api/admin/demand-events/${id}?approver_name=${encodeURIComponent(approverName)}`, { method: "DELETE", headers: { "X-Approver-Pin": pin } });
+    await fetch(`/api/admin/demand-events/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 

@@ -21,14 +21,10 @@ import {
 } from "@/lib/ui-tokens";
 
 const API_BASE = "";
-async function apiPost<T = any>(path: string, body?: any, approverPin?: string): Promise<T> {
-  // approverPin travels as a header so the credential never enters the query string.
+async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(approverPin ? { "X-Approver-Pin": approverPin } : {}),
-    },
+    headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -106,9 +102,7 @@ export default function CreateStaffPage() {
       }
       try {
         const r = await apiPost<VerifyResp>(
-          `/api/auth/verify?staff_name=${encodeURIComponent(nm)}`,
-          undefined,
-          p
+          `/api/auth/verify?staff_name=${encodeURIComponent(nm)}&pin=${encodeURIComponent(p)}`
         );
         if (r?.ok) setMyRole(r.role || "");
         else setMyRole("");

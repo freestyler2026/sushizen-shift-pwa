@@ -53,7 +53,6 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: "GE
     headers: {
       Accept: req.headers.get("accept") || "*/*",
       ...cookieAuthHeaders(req),
-      ...(req.headers.get("x-approver-pin") ? { "X-Approver-Pin": req.headers.get("x-approver-pin") as string } : {}),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
       ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),

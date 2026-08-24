@@ -334,8 +334,8 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     setDeleting((prev) => new Set(prev).add(id));
     try {
       await apiFetch(
-        `/api/admin/prep-time/records/${id}?approver_name=${encodeURIComponent(approverName)}`,
-        { method: "DELETE", headers: { "X-Approver-Pin": pin } }
+        `/api/admin/prep-time/records/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`,
+        { method: "DELETE" }
       );
       setRecords((prev) => prev.filter((r) => r.id !== id));
       apiFetch(`/api/admin/prep-time/stats?${params()}`)

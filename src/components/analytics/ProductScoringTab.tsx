@@ -691,8 +691,8 @@ function ReferenceImagesPanel({ approverName, pin }: { approverName: string; pin
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/admin/qc/reference-images?approver_name=${encodeURIComponent(approverName)}`,
-        { headers: { ...getAuthHeaders(), "X-Approver-Pin": pin } }
+        `/api/admin/qc/reference-images?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`,
+        { headers: getAuthHeaders() }
       );
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -737,8 +737,8 @@ function ReferenceImagesPanel({ approverName, pin }: { approverName: string; pin
     if (!confirm("Delete this reference image?")) return;
     try {
       const res = await fetch(
-        `/api/admin/qc/reference-images/${id}?approver_name=${encodeURIComponent(approverName)}`,
-        { method: "DELETE", headers: { ...getAuthHeaders(), "X-Approver-Pin": pin } }
+        `/api/admin/qc/reference-images/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`,
+        { method: "DELETE", headers: getAuthHeaders() }
       );
       if (!res.ok) throw new Error(await res.text());
       setImages((prev) => prev.filter((img) => img.id !== id));
@@ -863,25 +863,6 @@ export default function ProductScoringTab({
   const [scoreStoreFilter, setScoreStoreFilter] = useState<string>("");
   const [orderTotals, setOrderTotals] = useState<Record<string, number>>({});
 
-  /**
-   * A plain <a href> cannot carry the X-Approver-Pin header, so the PIN would have
-   * to sit in the URL. Fetch the photo instead and hand the browser a blob URL.
-   */
-  async function openScorePhoto(scoreId: number) {
-    try {
-      const res = await fetch(
-        `/api/admin/qc/scores/${scoreId}/photo?approver_name=${encodeURIComponent(approverName)}`,
-        { headers: { ...getAuthHeaders(), "X-Approver-Pin": pin } }
-      );
-      if (!res.ok) return;
-      const url = URL.createObjectURL(await res.blob());
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      /* ignore — the row still shows its scores */
-    }
-  }
-
   async function load() {
     setLoading(true);
     setError("");
@@ -905,7 +886,7 @@ export default function ProductScoringTab({
       const [sumRes, scoresRes, chRes, orderRes] = await Promise.all([
         fetch(`/api/admin/qc/summary?${qs}`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/scores?${qs}&limit=1000`, { headers: getAuthHeaders() }),
-        fetch(`/api/admin/qc/channels?approver_name=${approverName}`, { headers: { ...getAuthHeaders(), "X-Approver-Pin": pin } }),
+        fetch(`/api/admin/qc/channels?approver_name=${approverName}&pin=${pin}`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/order-totals?${orderQs}`, { headers: getAuthHeaders() }),
       ]);
 
@@ -1542,13 +1523,14 @@ export default function ProductScoringTab({
                             })}
                           </div>
                           {row.image_url && (
-                            <button
-                              type="button"
-                              onClick={() => { void openScorePhoto(row.id); }}
+                            <a
+                              href={`/api/admin/qc/scores/${row.id}/photo?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="mt-2 inline-block text-xs text-violet-400 underline"
                             >
                               View photo ↗
-                            </button>
+                            </a>
                           )}
                         </td>
                       </tr>

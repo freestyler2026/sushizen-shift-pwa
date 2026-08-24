@@ -171,12 +171,10 @@ function buildHeaders(extra: Record<string, string> = {}): HeadersInit {
   return h;
 }
 
-async function apiGet<T = any>(path: string, approverPin?: string): Promise<T> {
-  // The PIN travels in a header, never the query string, so it stays out of
-  // access logs and browser history.
+async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
-    headers: { ...buildHeaders(), ...(approverPin ? { "X-Approver-Pin": approverPin } : {}) },
+    headers: buildHeaders(),
   });
   const text = await res.text();
 
@@ -508,8 +506,7 @@ export default function AdminAbsencesPage() {
     }
     try {
       const res = await apiGet<StaffNamesResp>(
-        `/api/admin/staff_master/names?city=${encodeURIComponent(nextCity)}&status=ACTIVE&limit=5000&approver_name=${encodeURIComponent(nm)}`,
-        p
+        `/api/admin/staff_master/names?city=${encodeURIComponent(nextCity)}&status=ACTIVE&limit=5000&approver_name=${encodeURIComponent(nm)}&pin=${encodeURIComponent(p)}`
       );
       setStaffOptions(Array.isArray(res?.names) ? res.names : []);
     } catch {
@@ -531,14 +528,15 @@ export default function AdminAbsencesPage() {
       qs.set("date_from", reportDateFrom);
       qs.set("date_to", addDaysIso(reportDateTo, 1));
       qs.set("approver_name", nm);
+      qs.set("pin", p);
       qs.set("limit", "500");
       return qs.toString();
     };
 
     try {
       const [rd, rm] = await Promise.all([
-        apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("dubai")}`, p),
-        apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("manila")}`, p),
+        apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("dubai")}`),
+        apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("manila")}`),
       ]);
       setReportDubai(Array.isArray(rd?.rows) ? rd.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
       setReportManila(Array.isArray(rm?.rows) ? rm.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
@@ -566,10 +564,11 @@ export default function AdminAbsencesPage() {
       qs.set("date_from", dateFrom);
       qs.set("date_to", addDaysIso(dateTo, 1));
       qs.set("approver_name", nm);
+      qs.set("pin", p);
       qs.set("limit", "1000");
       if (norm(filterStaffName)) qs.set("staff_name", norm(filterStaffName));
 
-      const res = await apiGet<AbsenceListResp>(`/api/admin/absences?${qs.toString()}`, p);
+      const res = await apiGet<AbsenceListResp>(`/api/admin/absences?${qs.toString()}`);
       const list = Array.isArray(res?.rows) ? res.rows : [];
       setRows(list);
       setMsg({ kind: "ok", text: `Loaded ${list.length} rows.` });

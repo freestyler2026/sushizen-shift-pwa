@@ -44,8 +44,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
   const upstreamHeaders: Record<string, string> = {
     Accept: req.headers.get("accept") || "*/*",
     ...resolveAuthHeaders(req),
-    ...(req.headers.get("x-approver-pin") ? { "X-Approver-Pin": req.headers.get("x-approver-pin") as string } : {}),
-      ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
+    ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
     ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
     ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
     ...(body && body.byteLength > 0 ? { "Content-Type": req.headers.get("content-type") || "application/json" } : {}),

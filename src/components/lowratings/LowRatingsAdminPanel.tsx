@@ -243,8 +243,8 @@ export function LowRatingsAdminPanel() {
     setApproverOptionsLoading(true);
     try {
       const res = await fetch(
-        `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=5000&approver_name=${encodeURIComponent(nm)}`,
-        { cache: "no-store", headers: { "X-Approver-Pin": p } },
+        `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=5000&approver_name=${encodeURIComponent(nm)}&pin=${encodeURIComponent(p)}`,
+        { cache: "no-store" },
       );
       const data: { names?: string[] } = await res.json().catch(() => ({}));
       const names = Array.isArray(data?.names) ? [...data.names] : [];

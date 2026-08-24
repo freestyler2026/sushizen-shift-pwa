@@ -111,8 +111,7 @@ export default function DiscordAlertsPage() {
     setError("");
     try {
       const data = await apiGet<{ recipients: Recipient[] }>(
-        `/api/admin/discord-alert-recipients?store_code=${code}&approver_name=${encodeURIComponent(approver)}`,
-        pin
+        `/api/admin/discord-alert-recipients?store_code=${code}&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pin)}`
       );
       setRecipients(data.recipients ?? []);
     } catch (e: unknown) {
@@ -157,8 +156,8 @@ export default function DiscordAlertsPage() {
     setError("");
     try {
       await apiFetchAuthed(
-        `/api/admin/discord-alert-recipients/${id}?approver_name=${encodeURIComponent(approver)}`,
-        { method: "DELETE", headers: { "X-Approver-Pin": pin } }
+        `/api/admin/discord-alert-recipients/${id}?approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pin)}`,
+        { method: "DELETE" }
       );
       setRecipients((prev) => prev.filter((r) => r.id !== id));
     } catch (e: unknown) {
@@ -170,8 +169,8 @@ export default function DiscordAlertsPage() {
     setError("");
     try {
       await apiFetchAuthed(
-        `/api/admin/discord-alert-recipients/${id}/toggle?is_active=${!current}&approver_name=${encodeURIComponent(approver)}`,
-        { method: "PATCH", headers: { "X-Approver-Pin": pin } }
+        `/api/admin/discord-alert-recipients/${id}/toggle?is_active=${!current}&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pin)}`,
+        { method: "PATCH" }
       );
       setRecipients((prev) =>
         prev.map((r) => (r.id === id ? { ...r, is_active: !current } : r))
@@ -186,8 +185,8 @@ export default function DiscordAlertsPage() {
     setTestResult(null);
     try {
       const data = await apiFetchAuthed(
-        `/api/admin/discord-alert-recipients/${id}/test-dm?approver_name=${encodeURIComponent(approver)}`,
-        { method: "POST", headers: { "X-Approver-Pin": pin } }
+        `/api/admin/discord-alert-recipients/${id}/test-dm?approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pin)}`,
+        { method: "POST" }
       );
       setTestResult({ id, ok: data.ok, message: data.message });
       // Refresh to get updated dm_status badge

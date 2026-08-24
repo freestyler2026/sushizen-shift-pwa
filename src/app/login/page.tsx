@@ -52,21 +52,14 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
     required_for_admin?: boolean;
   };
 }> {
-  // The PIN goes in a header, never the query string: a query-string credential is
-  // written verbatim into the Heroku router log, the Vercel access log and browser
-  // history. The backend accepts either while older clients catch up.
-  const qs = new URLSearchParams({ staff_name: staffName, city }).toString();
+  const qs = new URLSearchParams({ staff_name: staffName, pin, city }).toString();
   const url = `${getApiBase()}/api/auth/verify?${qs}`;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
   let res: Response;
   let text = "";
   try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "X-Approver-Pin": pin },
-      signal: controller.signal,
-    });
+    res = await fetch(url, { method: "POST", signal: controller.signal });
     text = await res.text();
   } finally {
     window.clearTimeout(timer);
