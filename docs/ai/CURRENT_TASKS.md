@@ -1,6 +1,81 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (Management Accounting "Not set" 修正 / Dubai AR Payouts データ未入力確認)
+Last updated: 2026-08-24 (給与額マスク HQ限定 / Noon Food CSV parser + AR Payouts アップロード対応)
+
+---
+
+## ✅ Completed: 給与額をHQロール限定に (2026-08-24)
+
+個人別の給与・報酬額は **`role == "HQ"` のみ** 閲覧可能に変更。ADMIN / MANAGEMENT /
+MANILA_MANAGEMENT / MANILA_MANAGER / HR_MANAGER はすべて `••••` 表示。
+
+**背景**: 既存の `is_confidential` フラグは6名のみが対象で、しかも表示マスクのみ。
+監査の結果 **62エンドポイント** が全スタッフの給与を非HQに返しており、CSVエクスポートと
+DevTools はフロントのマスクを完全に回避できた。
+
+**実装** — サーバー側が唯一の防御線:
+- `salary_masking_guard` ミドルウェア (`app/main.py` ~1125) — 給与系パス配下の全JSON
+  レスポンスから `_SALARY_FIELDS` を除去。`role == "HQ"` のみで判定し、ADMIN が持つ
+  `*` 権限や `channel.admin.payroll.*` では**解錠しない**
+- `_mask_salary()` / `_strip_salary_fields()` / `_is_hq()` (`app/main.py` ~36060)
+- `/api/admin/payroll/my-pay/` は除外（本人の給与明細・step-upトークン必須）
+- 非HQ保存時の**書き込み保護** — Manila/Dubai 両 staff-profiles upsert で、マスク対象
+  フィールドをDB既存値に固定。これがないと非HQが保存するたび給与が null で消える
+- フロント `src/lib/salary.ts` + 全11ページを null 安全化（`.toFixed()` クラッシュ対策）
+
+**本番実測**: `/payroll/staff` HQ 1,301件 / 非HQ 0件、`periods/6/runs` 245件 / 0件、
+`compliance/minimum-wage` 196件 / 0件。匿名→401、署名偽造トークン→401。
+書き込み保護も実証（ADMIN が null で保存 → ₱30,000 が無傷）。
+
+### ⚠️ 残課題
+- **非HQブラウザ確認が未完了** — `Test Admin Account` の PIN が不明（`1111` / `1230851`
+  ともに API 直叩きで `Invalid PIN`）。HQ側の回帰確認は完了済み
+- **認証なしエンドポイント**: `/api/admin/mgmt/cost-trend` と
+  `/api/admin/mgmt/labor-cost-detail` は `request` 引数すら取らず認証チェックが皆無。
+  個人別給与は含まないためマスク対象外だが、店舗別人件費・売上・原価率が誰でも取得可能
+- **PIN平文保存**: ログイン後 `localStorage["sushizen_shift_auth"].pin` に PIN が平文で残る
+- `tsconfig.json` は `strict: false` のため `strictNullChecks` が無効。今回追加した
+  `number | null` 型は**ドキュメントであって強制力がない** — tsc は null 参照を検出しない
+
+---
+
+## ✅ Completed: Noon Food CSV Parser + AR Payouts アップロード対応 (2026-08-24)
+
+Noon portal の Payments → Statement からダウンロードした `statement_orders_*.csv` を
+Dubai タブからアップロードできるように対応。
+
+- `parse_noon_statement_csv()` — 行単位CSVを `(statement_nr, outlet_code)` でグループ化し、
+  `net_payable` を合計 → 1レコード/店舗/週に集約
+- `NOON_OUTLET_STORE_MAP` — `outlet_name` → store_code マッピング (JLT/BB/AB/ARJ/AM)
+- `insert_noon_csv_payout_records()` — `ar_payouts` テーブルに挿入、`ar_drive_imports` に記録
+- `_classify_csv()` — `statement_orders` ファイル名 → `"noon"` に分類
+- Dubai アップロードゾーン: `.pdf,.xlsx,.csv` 対応、ラベル更新
+- Drive: `Finance/Payouts/Dubai/Noon/` フォルダに保存
+- 実データ検証: July 2026, 20レコード, AED 110,683.83 を確認
+- フロント commit `2b327ec1`, バックエンド Heroku v2140
+
+---
+
+## ✅ Completed: Talabat ゼロ行削除 + アップロード検証 (2026-08-24)
+
+旧 GitHub Actions 自動化（現在無効）が生成したゼロ金額・未確認の Talabat 行 17件を削除。
+
+- `DELETE /api/admin/ar-payouts/talabat-zeros` エンドポイント追加
+- ガード: `bank_confirmed = FALSE` かつ `expected_amount = 0` の行のみ対象
+- スタッフのアップロードフロー（PDF/XLSX → Drive → DB）は正常動作確認済み
+
+---
+
+## ✅ Completed: Aggregator Discount Rates タブ (2026-08-24)
+
+Admin Dashboard → "Discount Rates" タブを新設。
+
+- Dubai (Careem/Noon/Talabat/Keeta/Smiles) + Manila (Grab Food/Food Panda) 全7アグリゲーターの値引率を入力・管理
+- 標準 50% 以外は赤文字・赤バッジで警告表示
+- 各 Save で `aggregator_discount_rate` テーブルに新エントリ追加 → 履歴が全件保持される
+- "Change History" トグルで全履歴を表示（フィルタ・リフレッシュ付き）
+- Backend: `list_aggregator_discount_rate_history()` + `GET /api/admin/aggregator-discount-rates/history` (FastAPI routing rule に従い /history を先に定義)
+- Vercel + Heroku デプロイ済み (フロント commit `8ea24e40`, バックエンド Heroku v2138)
 
 ---
 
