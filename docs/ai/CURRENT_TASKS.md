@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (DTR Sync 根本改善: 行単位スキップ + 矛盾ガード)
+Last updated: 2026-08-24 (Management Accounting "Not set" 修正 / Dubai AR Payouts データ未入力確認)
+
+---
+
+## ⚠️ 要対応: Dubai 8月売上データ未入力 (2026-08-24 確認)
+
+Management Accounting で Dubai Food Cost 230.3%、Prime Cost 453.7% が表示されている原因は **8月の AR Payouts がアップロードされていないため**。コードのバグではない。
+
+- Dubai 売上は `ar_payouts` テーブルから集計（Careem/Noon/Keeta + Talabat×(1-手数料率)）
+- 8月分の CSV がアップロードされていないので売上 ≒ AED 59,213 のみ
+- 食材費（procurement）は通常通り積み上がっているため、比率が爆発している
+
+**対応**: Procurement → AR Payouts から 8月の Careem/Noon/Keeta/Talabat CSV をアップロードすれば正常値に戻る。
+
+---
+
+## ✅ Completed: Management Accounting "Not set" フロント修正 (2026-08-24)
+
+Manila の売上ソースが常に "Not set" と表示されていた原因: バックエンドが `"sales_data_input"` を返すが、フロントは `"ar_payouts"` / `"manual"` しか認識していなかった。
+
+- `src/app/admin/mgmt-accounting/page.tsx` を3ヶ所修正 → `"sales_data_input"` → **"Daily Sales"** バッジ表示
+- Vercel デプロイ済み (commit `1b2c5a7`)
+
+---
+
+## ✅ Completed: WH Inventory Suppliers タブ追加 (2026-08-24)
+
+スタッフ問い合わせ「WH サプライヤーをどこで登録する？」に対応。
+
+- `src/app/admin/inventory/wh-inventory/page.tsx` に "Suppliers" タブを追加
+- バックエンド `/api/admin/inventory/suppliers` (POST) で登録
+- Vercel デプロイ済み (commit `f461400`)
+
+---
+
+## ✅ Completed: DTR Sync DISTINCT ON 修正 (2026-08-24)
+
+Manila の Manual Shift 再 publish 後も DTR Sync に反映されない問題。
+
+- `main.py` `manila_sync_dtr_from_os_attendance` のシフト取得クエリを `DISTINCT ON (staff_name, work_date) ORDER BY v.published_at DESC` に修正
+- Heroku デプロイ済み (commit `a1a7d4e`, v2132)
 
 ---
 
