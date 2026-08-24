@@ -15,9 +15,18 @@ function getApiBase() {
 }
 
 function buildForwardHeaders(req: NextRequest): HeadersInit {
+  // Phase 3 keeps the token in the httpOnly sz_access cookie and sends an empty
+  // Authorization header, so forwarding only the header left this proxy
+  // unauthenticated and the procurement badge permanently blank. Prefer the
+  // cookie, exactly like the catch-all admin proxy does.
+  const cookieToken = req.cookies.get("sz_access")?.value || "";
+  const clientAuth = req.headers.get("authorization") || "";
+  const auth = cookieToken ? `Bearer ${cookieToken}` : clientAuth;
+  const sessionId = req.cookies.get("sz_session")?.value || req.headers.get("x-session-id") || "";
   return {
     Accept: req.headers.get("accept") || "application/json",
-    ...(req.headers.get("authorization") ? { Authorization: req.headers.get("authorization") as string } : {}),
+    ...(auth ? { Authorization: auth } : {}),
+    ...(sessionId ? { "X-Session-Id": sessionId } : {}),
     ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
     ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
     ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
