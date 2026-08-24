@@ -1,6 +1,37 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (DTR Sync: Patrick 8/20 stale shift — 2nd root cause found)
+Last updated: 2026-08-24 (Patrick 8/20・8/22 修正完了 — 真因は同期ブロック)
+
+---
+
+## ✅ Completed: Patrick 8/20・8/22 DTR 修正 — 真因は「同期がブロックされていた」 (2026-08-24)
+
+**本番で実データ確認した結果、下の「原因1(重複バージョン)」は Patrick には該当しなかった。**
+
+`/api/admin/attendance/shift-compliance` で確認したところ、8/18・8/20・8/22 いずれも
+公開シフトは **CUB 15.5–24.5 の1件のみ**。競合する古いバージョン行は存在しなかった。
+
+### 真因: Preview Sync のブロックにより同期が1行も実行されていなかった
+2026-08-2H (period_id=6) の Preview Sync 結果:
+- 🚫 `shift_data_missing` (2名): Anthony M. Tabios / Tricia Andrea Estrada
+- 🚫 `suspicious_sessions` (2件): Gessa Gregorio 8/23 21.3h / Mayorico C. Furio Jr. II 8/23 18.8h
+
+フロント(dtr-upload/page.tsx:842-849)は `hasShiftMissing || hasSuspicious` で
+**「Sync to DTR」ボタンを `disabled`** にする。実DOMでも `disabled:true`,
+title="Fix blocking issues above before syncing" を確認。
+→ スタッフは Confirm Sync を完了できておらず、DTR には何も書き込まれていなかった。
+
+### 対応: 該当2行を Schedule 列のインライン編集で直接修正
+| 日付 | 修正前 | 修正後 |
+|---|---|---|
+| 2026-08-20 (id=91280) | 09:00-18:00 / late 365m | **15:30-00:30 / late 0** ✅ |
+| 2026-08-22 (id=91281) | 09:00-18:00 / late 368m | **15:30-00:30 / late 0** ✅ |
+
+本番画面で確認済み。approval_status は全行 pending だったため approved スキップは無関係。
+
+### 未対応(担当者判断が必要)
+上記4件のブロッカーは実データ(実際の退勤時刻・シフト公開)がないと直せないため未対応。
+解消すれば以後の Sync は正常に通る。
 
 ---
 
