@@ -5,7 +5,7 @@ import {
   GLASS_CARD, PRIMARY_BUTTON, KPI_CARD, T_PAGE_TITLE,
   BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR,
 } from "@/lib/ui-tokens";
-import { getAuth } from "@/lib/auth";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -179,6 +179,8 @@ export default function ArPayoutsPage() {
   const [noonSaving, setNoonSaving] = useState(false);
   const [noonResult, setNoonResult] = useState<string | null>(null);
   const [noonError, setNoonError] = useState<string | null>(null);
+  const [deletingZeros, setDeletingZeros] = useState(false);
+  const [deleteZeroResult, setDeleteZeroResult] = useState<string | null>(null);
 
   const auth = getAuth();
   const confirmerName = auth?.staffName || "Unknown";
@@ -215,6 +217,29 @@ export default function ArPayoutsPage() {
     setPlatformFilter("all");
     setStoreFilter("all");
     setBrandFilter("all");
+  };
+
+  const handleDeleteTalabatZeros = async () => {
+    if (!confirm("Delete all unconfirmed Talabat rows with AED 0.00 expected amount? This cannot be undone.")) return;
+    setDeletingZeros(true);
+    setDeleteZeroResult(null);
+    try {
+      const res = await fetch("/api/admin/ar-payouts/talabat-zeros", {
+        method: "DELETE",
+        headers: await getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteZeroResult(`Error: ${data.detail || res.statusText}`);
+      } else {
+        setDeleteZeroResult(`Deleted ${data.deleted} zero-amount Talabat rows.`);
+        fetchPayouts();
+      }
+    } catch (err) {
+      setDeleteZeroResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeletingZeros(false);
+    }
   };
 
   const handleSync = async () => {
@@ -361,6 +386,14 @@ export default function ArPayoutsPage() {
                 </a>
               )}
               <button
+                onClick={handleDeleteTalabatZeros}
+                disabled={deletingZeros}
+                className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 transition disabled:opacity-40"
+                title="Delete all unconfirmed Talabat rows where Expected = AED 0.00"
+              >
+                {deletingZeros ? "Deleting…" : "🗑 Talabat Zero Rows"}
+              </button>
+              <button
                 onClick={handleSync}
                 disabled={syncing}
                 className={`${PRIMARY_BUTTON} flex items-center gap-2`}
@@ -378,6 +411,11 @@ export default function ArPayoutsPage() {
           </div>
         </div>
 
+        {deleteZeroResult && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${deleteZeroResult.startsWith("Error") ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-green-500/20 bg-green-500/10 text-green-300"}`}>
+            {deleteZeroResult}
+          </div>
+        )}
         {syncResult && (
           <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-300">
             {syncResult}
