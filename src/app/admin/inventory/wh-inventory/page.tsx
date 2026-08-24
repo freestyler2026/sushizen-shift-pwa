@@ -88,7 +88,7 @@ type HistoryRow = {
   total_abs_gap: number;
 };
 
-type Tab = "stock" | "autoorder" | "orders" | "count" | "history";
+type Tab = "stock" | "autoorder" | "orders" | "count" | "history" | "suppliers";
 
 type CountDraft = Record<string, string>; // key: item_id -> qty string
 
@@ -314,7 +314,17 @@ export default function WhInventoryPage() {
   const [stockCatFilter, setStockCatFilter] = useState("");
 
   // Suppliers list
-  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string; contact_name?: string; phone?: string; primary_email?: string; supplier_code?: string }[]>([]);
+
+  // Register Supplier modal
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierContact, setNewSupplierContact] = useState("");
+  const [newSupplierPhone, setNewSupplierPhone] = useState("");
+  const [newSupplierEmail, setNewSupplierEmail] = useState("");
+  const [newSupplierCode, setNewSupplierCode] = useState("");
+  const [addSupplierSaving, setAddSupplierSaving] = useState(false);
+  const [addSupplierError, setAddSupplierError] = useState("");
 
   // Add Item modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -489,7 +499,7 @@ export default function WhInventoryPage() {
 
   const loadSuppliers = useCallback(async (c: City) => {
     try {
-      const res = await inventoryGet<{ rows: { id: string; name: string }[] }>(
+      const res = await inventoryGet<{ rows: { id: string; name: string; contact_name?: string; phone?: string; primary_email?: string; supplier_code?: string }[] }>(
         `/api/admin/inventory/suppliers?city=${encodeURIComponent(c)}&tab=ALL&limit=200`,
       );
       setSuppliers(res.rows || []);
@@ -532,6 +542,7 @@ export default function WhInventoryPage() {
     }
     if (tab === "autoorder") { void loadStock(city); setGeneratedOrders(null); setSkippedNoSupplier([]); setGenerateError(""); }
     if (tab === "history") { setHistoryRows([]); void loadHistory(city); }
+    if (tab === "suppliers") void loadSuppliers(city);
     void loadSuppliers(city);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -761,6 +772,37 @@ export default function WhInventoryPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Supplier Registration
+  // ---------------------------------------------------------------------------
+
+  async function handleAddSupplier() {
+    if (!newSupplierName.trim()) { setAddSupplierError("Supplier name is required."); return; }
+    setAddSupplierSaving(true);
+    setAddSupplierError("");
+    try {
+      await inventoryPost("/api/admin/inventory/suppliers", {
+        city,
+        name: newSupplierName.trim(),
+        contact_name: newSupplierContact.trim(),
+        phone: newSupplierPhone.trim(),
+        primary_email: newSupplierEmail.trim(),
+        supplier_code: newSupplierCode.trim(),
+      });
+      setNewSupplierName("");
+      setNewSupplierContact("");
+      setNewSupplierPhone("");
+      setNewSupplierEmail("");
+      setNewSupplierCode("");
+      setShowAddSupplierModal(false);
+      await loadSuppliers(city);
+    } catch (e: unknown) {
+      setAddSupplierError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAddSupplierSaving(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Auto Order
   // ---------------------------------------------------------------------------
 
@@ -837,6 +879,7 @@ export default function WhInventoryPage() {
             { id: "orders", label: "Order From Branch" },
             { id: "count", label: "New Count" },
             { id: "history", label: "History" },
+            { id: "suppliers", label: "Suppliers" },
           ] as const
         ).map((t) => (
           <button
@@ -1982,6 +2025,143 @@ export default function WhInventoryPage() {
             </table>
           </div>
         </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Tab: Suppliers                                                       */}
+      {/* ------------------------------------------------------------------ */}
+      {tab === "suppliers" && (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-neutral-100">WH Inventory Suppliers</div>
+              <p className="text-xs text-neutral-400">
+                Suppliers registered here appear in the Primary Supplier dropdown when editing WH stock items.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setAddSupplierError(""); setShowAddSupplierModal(true); }}
+              className="rounded-xl border border-emerald-700 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-800/40 transition"
+            >
+              + Register Supplier
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-neutral-800">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-neutral-800 bg-neutral-900/60 text-xs uppercase tracking-wide text-neutral-500">
+                <tr>
+                  <th className="px-4 py-2.5">Supplier Name</th>
+                  <th className="px-4 py-2.5">Code</th>
+                  <th className="px-4 py-2.5">Contact</th>
+                  <th className="px-4 py-2.5">Phone</th>
+                  <th className="px-4 py-2.5">Email</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-500">
+                      No suppliers registered yet. Click &ldquo;+ Register Supplier&rdquo; to add one.
+                    </td>
+                  </tr>
+                ) : suppliers.map((s) => (
+                  <tr key={s.id} className="border-t border-neutral-800 text-neutral-200 hover:bg-neutral-900/30">
+                    <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-neutral-400">{s.supplier_code || "—"}</td>
+                    <td className="px-4 py-2.5 text-neutral-300">{s.contact_name || "—"}</td>
+                    <td className="px-4 py-2.5 text-neutral-300">{s.phone || "—"}</td>
+                    <td className="px-4 py-2.5 text-neutral-300">{s.primary_email || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Register Supplier Modal                                              */}
+      {/* ------------------------------------------------------------------ */}
+      {showAddSupplierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
+            <div className="border-b border-neutral-800 px-6 py-4">
+              <div className="text-base font-semibold text-neutral-100">Register New Supplier</div>
+              <div className="mt-0.5 text-xs text-neutral-400">This supplier will appear in the Primary Supplier dropdown on WH stock items.</div>
+            </div>
+            <div className="space-y-3 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-300">Supplier Name <span className="text-rose-400">*</span></label>
+                <input
+                  value={newSupplierName}
+                  onChange={(e) => setNewSupplierName(e.target.value)}
+                  placeholder="e.g. Fresh Farm Produce"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-300">Supplier Code</label>
+                <input
+                  value={newSupplierCode}
+                  onChange={(e) => setNewSupplierCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. FFP-001"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-300">Contact Person</label>
+                <input
+                  value={newSupplierContact}
+                  onChange={(e) => setNewSupplierContact(e.target.value)}
+                  placeholder="e.g. Juan Dela Cruz"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-300">Phone</label>
+                <input
+                  value={newSupplierPhone}
+                  onChange={(e) => setNewSupplierPhone(e.target.value)}
+                  placeholder="e.g. +63 917 123 4567"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-300">Email</label>
+                <input
+                  value={newSupplierEmail}
+                  onChange={(e) => setNewSupplierEmail(e.target.value)}
+                  placeholder="e.g. orders@freshfarm.com"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+              {addSupplierError && (
+                <div className="rounded-lg border border-rose-800/50 bg-rose-900/20 px-3 py-2 text-sm text-rose-300">
+                  {addSupplierError}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-neutral-800 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setShowAddSupplierModal(false)}
+                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:text-white transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={addSupplierSaving || !newSupplierName.trim()}
+                onClick={() => void handleAddSupplier()}
+                className="rounded-xl border border-emerald-700 bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+              >
+                {addSupplierSaving ? "Saving..." : "Register Supplier"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
