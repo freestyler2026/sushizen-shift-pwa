@@ -109,9 +109,32 @@ Staff ページの保存 (`upsert_staff_master`) は `staff_master` しか書か
 **この4-5名は Role Management で権限を外しても HQ のまま**。DB参照失敗時のロックアウト
 防止が目的の安全網だが、権限管理の一元化とは矛盾する。
 
+### ✅ 追加対応: /api/store/* もゲート化 (2026-08-24)
+42ルートが認証なしだった（CK在庫・生産計画・配送の **DELETE 含む**）。
+`/api/admin/*` と同じミドルウェアで `/api/store/*` も default-deny 化。
+
+**許可リスト（3件）** — いずれも body/query で承認者の名前+PINを検証する
+「承認者パターン」で、ログイン前の Create Staff Record から使われるため除外:
+`/api/store/staff/create`, `/setup/resend_code`, `/setup/pending`
+
+**手順**: log モード投入 → ログイン済みで店舗系8ページを巡回し**巻き込みゼロ**を確認
+→ enforce へ。遮断後も admin ゲートは維持、店舗ページは正常動作。
+
+> ⚠️ **Heroku の config vars が 64kB 上限に到達しており `STORE_AUTH_GATE` を設定できない。**
+> そのため store ゲートの既定値はコードに持たせている（`_AUTH_GATES`）。
+> キルスイッチは `ADMIN_AUTH_GATE=log` が**両ゲートを**降格させる形で担保。
+> config vars の整理をすれば独立制御に戻せる。
+
+**給与表PDF #5 の扱い**: 一旦 HQ+PIN ロックをかけたが、この文書は
+**8/31期限の要確認応答アナウンス**（Manila全スタッフ対象・Peter Villafuerte公開）
+だったため、ユーザー判断で**ロック解除**。匿名は401で塞がったまま、
+ログイン済みスタッフは閲覧・応答可能。ロック機構（`requires_hq_pin` + HQ承認ダイアログ +
+監査ログ）は今後のために実装済みのまま残置。
+
 ### ⚠️ 残課題
-- **`/api/store/*` に45ルートの認証なし** — policy-docs 以外は未対応。
-  `/api/admin/*` と同じ手順（log→enforce）でゲートを広げるのが次の一手
+- **`/api/store/staff/setup/pending` は PIN を query string で受け取る** —
+  アクセスログやブラウザ履歴にPINが残る。body 受け取りへの変更を推奨
+- **Heroku config vars が 64kB 上限** — 新しい環境変数を一切追加できない状態
 - ~~認証なしエンドポイント~~ → `admin_auth_gate` で解決済み（上記）
 - **PIN平文保存**: ログイン後 `localStorage["sushizen_shift_auth"].pin` に PIN が平文で残る
 - `tsconfig.json` は `strict: false` のため `strictNullChecks` が無効。今回追加した
