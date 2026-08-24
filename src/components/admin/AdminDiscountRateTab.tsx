@@ -153,7 +153,7 @@ export default function AdminDiscountRateTab() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-white/10">
-              <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Aggregator</th>
+              <th className={`text-left py-2 pl-3 pr-4 ${T_LABEL} font-medium`}>Aggregator</th>
               <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Discount %</th>
               <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Last Updated</th>
               <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Notes</th>
@@ -171,7 +171,7 @@ export default function AdminDiscountRateTab() {
 
               return (
                 <tr key={k} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="py-3 pr-4 font-medium">
+                  <td className="py-3 pl-3 pr-4 font-medium">
                     <span className={nonStandard ? "text-red-400 font-semibold" : ""}>{ag.label}</span>
                   </td>
                   <td className="py-3 pr-4">
@@ -217,7 +217,7 @@ export default function AdminDiscountRateTab() {
                       type="text"
                       value={e.notes}
                       onChange={(ev) => setEdit(k, { notes: ev.target.value })}
-                      placeholder="備考"
+                      placeholder="Notes"
                       className="w-full px-2 py-1 rounded border border-white/20 text-sm bg-transparent focus:outline-none focus:ring-1 focus:ring-white/30"
                     />
                   </td>
