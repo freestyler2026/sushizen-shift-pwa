@@ -307,7 +307,7 @@ export default function ArPayoutsPage() {
   };
 
   const handleUpload = async (files: FileList | File[], city: "manila" | "dubai" = "manila") => {
-    const exts = city === "dubai" ? [".pdf", ".xlsx"] : [".csv"];
+    const exts = city === "dubai" ? [".pdf", ".xlsx", ".csv"] : [".csv"];
     const arr = Array.from(files).filter((f) => exts.some((ext) => f.name.toLowerCase().endsWith(ext)));
     if (!arr.length) { setUploadError(`Please select ${exts.join(" or ")} files.`); return; }
     setUploading(true);
@@ -320,13 +320,23 @@ export default function ArPayoutsPage() {
       const data = await res.json();
       if (!res.ok) {
         setUploadError(`Upload failed: ${data.detail || res.statusText}`);
-      } else if (data.total_inserted === 0 && !data.errors?.length) {
-        setUploadResult("All records already imported (duplicates skipped).");
       } else {
-        const parts = (data.files as { file: string; rows: number; drive_folder: string | null }[])
-          .map((f) => `${f.file}: ${f.rows} records${f.drive_folder ? ` → Drive/${f.drive_folder}` : ""}`)
-          .join(", ");
-        setUploadResult(`Imported ${data.total_inserted} record(s). ${parts}`);
+        type FileResult = { file: string; rows: number; drive_folder: string | null; skipped?: boolean };
+        const fileResults = data.files as FileResult[];
+        const newFiles = fileResults.filter((f) => !f.skipped && f.rows > 0);
+        const skippedFiles = fileResults.filter((f) => f.skipped);
+        const parts: string[] = [];
+        if (newFiles.length) {
+          parts.push(newFiles.map((f) => `${f.file}: ${f.rows} records${f.drive_folder ? ` → Drive/${f.drive_folder}` : ""}`).join(", "));
+        }
+        if (skippedFiles.length) {
+          parts.push(`Already imported (skipped): ${skippedFiles.map((f) => f.file).join(", ")}`);
+        }
+        if (data.total_inserted === 0 && skippedFiles.length === fileResults.length) {
+          setUploadResult("⚠ Already imported — no new records added.");
+        } else {
+          setUploadResult(`Imported ${data.total_inserted} record(s). ${parts.join(" | ")}`);
+        }
       }
       const driveErrors = (data.errors as { file: string; error: string }[] | undefined)
         ?.filter((e) => e.error.includes("Drive upload failed")) ?? [];
