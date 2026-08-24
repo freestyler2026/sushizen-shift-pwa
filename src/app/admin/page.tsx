@@ -39,6 +39,7 @@ import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancell
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import RequestAlertsTab from "@/components/admin/RequestAlertsTab";
+import AdminDiscountRateTab from "@/components/admin/AdminDiscountRateTab";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
@@ -78,7 +79,8 @@ type AdminDashView =
   | "dailyInventory"
   | "cancellationInput"
   | "dubaiCancellationInput"
-  | "rankingInput";
+  | "rankingInput"
+  | "discountRates";
 
 type OrderEntrySub = "dubai" | "manila";
 
@@ -96,6 +98,7 @@ const ADMIN_DASH_TABS = [
   { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
   { view: "rankingInput" as const, label: "Search Rankings Input", icon: "🔍", tabQuery: "ranking-input" },
+  { view: "discountRates" as const, label: "Discount Rates", icon: "🏷️", tabQuery: "discount-rates" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -1438,6 +1441,8 @@ function AdminPageInner() {
             </button>
           </div>
         </div>
+      ) : dashView === "discountRates" ? (
+        <AdminDiscountRateTab />
       ) : (
         <>
       <div className={`${GLASS_CARD} p-4`}>
