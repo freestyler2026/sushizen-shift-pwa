@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (Store Supplier Orders: TAFT stock fix + add/delete items UI)
+Last updated: 2026-08-24 (DTR Sync: Patrick 8/20 stale shift — 2nd root cause found)
+
+---
+
+## ✅ Completed: DTR Sync — Patrick 8/20 が再同期しても 9:00-18:00 のまま (2026-08-24)
+
+**症状**: 前回の `DISTINCT ON` 修正(a1a7d4e)をデプロイ後も、Confirm Sync を実行して
+Patrick Danel Santiago 2026-08-20 の DTR が 9:00-18:00 のまま変わらなかった。
+
+**根本原因は2つあった — 前回の修正は片方も直せていなかった**
+
+### 原因1: `ORDER BY v.published_at` は誤ったタイムスタンプ (main.py ~39010)
+- Manual Shift の編集(main.py:11166)は **既存の** `shift_published_versions` 行
+  (city, branch_code, week) に行を追加するだけで、**`published_at` を更新しない**。
+- そのため「修正したばかりの行」が「たまたま後から publish された別ブランチの古い行」に負ける。
+- `shift_published_rows.updated_at` は両方の書き込み経路(週次publish / Manual Shift)で
+  `NOW()` にセットされるので、これが正しい latest-write-wins の判定材料。
+- **修正**: `ORDER BY r.staff_name, r.work_date::text, r.updated_at DESC, v.published_at DESC`
+
+### 原因2: approved 行は無言でスキップされ、しかも成功としてカウントされていた (main.py ~39346)
+- UPSERT に `WHERE manila_attendance_daily.approval_status != 'approved'` があるため、
+  approved 行は**0行更新**になる。にもかかわらず `written += 1` していたので
+  「Sync complete — N rows written」と表示され、実際には何も変わっていなかった。
+- **修正**: `cur.rowcount == 0` の行を `skipped_approved` に集めてレスポンスで返す。
+  フロント(dtr-upload/page.tsx)に「Not updated — already approved」警告パネルを追加。
+
+**デプロイ**: backend `38a7fbb` (Heroku) / frontend `0b7adae` (Vercel) / Payroll Manual 更新済み
+
+**Patrick の対応手順**: DTR Upload → Manila → Preview Sync →
+「Not updated — already approved」に Patrick 8/20 が出たら、DTR Records でその行を
+un-approve するか Edit Scheduled Shift で直接 15:30-0:30 を入力 → 再 Sync。
+
+**未対応(別件)**: Dubai 側 `main.py:43528` に同種のバグあり —
+`shift_published_rows` を複数バージョン跨ぎで取得し「keep first if multiple versions」で
+先頭を採用しているだけなので、Dubai でも同じ stale shift 問題が起きうる。
 
 ---
 
