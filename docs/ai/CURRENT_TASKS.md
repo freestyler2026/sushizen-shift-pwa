@@ -1,6 +1,27 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (Klikit data purge + code removal 完了)
+Last updated: 2026-08-24 (Store Supplier Orders: TAFT stock fix + add/delete items UI)
+
+---
+
+## ✅ Completed: Store Supplier Order — TAFT Stock Double-Count Fix + Add/Delete Items (2026-08-24)
+
+**問題1: TAFT在庫が2倍表示**
+- 根本原因: TAFTは同一日に2つのdaily_inv_reportを作成(AM=WH items, PM=Kitchen items)
+- `SUM(e.qty)`でGROUP BYすると両レポートの値が合算され2倍になる
+- **修正**: `DISTINCT ON (e.item_code) ORDER BY e.item_code, r.id DESC` に変更 — 最新reportの値のみ使用
+- 適用箇所: `db_store_supplier.py` の `generate_store_supplier_orders` と `get_store_supplier_order` の両サブクエリ
+
+**問題2: 承認フロー中に発注アイテムを追加・削除できない**
+- **実装内容**:
+  - `db_store_supplier.py`: `add_store_supplier_order_item()` (ON CONFLICT DO UPDATE) + `delete_store_supplier_order_item()` 追加
+  - `store_supplier_api.py`: `POST /api/admin/store-supplier/orders/{id}/items` + `DELETE .../items/{item_id}` 追加
+    - draft/confirmed → isManager、approved → HQ/ADMIN のみ操作可能
+  - Frontend: "Add Item" ボタン（カタログからselectで選ぶモーダル）+ 各行にゴミ箱アイコン（inline confirm）
+
+**デプロイ**: Backend Heroku `3fbccf5`、Frontend Vercel commit `131a337`
+
+---
 
 ---
 

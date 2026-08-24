@@ -110,6 +110,8 @@ type SyncApiResult = {
   unmatched?: { employee_id?: string; staff_name?: string; name_raw?: string; work_date: string; reason?: string }[];
   shift_data_missing?: string[];
   suspicious_sessions?: SuspiciousSession[];
+  skipped_approved?: { staff_name: string; work_date: string; reason: string }[];
+  note_skipped_approved?: string;
   errors?: { employee_id?: string; staff_name?: string; work_date: string; message: string }[];
   preview?: SyncPreviewRow[];
   // Blocking error responses from the backend
@@ -696,6 +698,28 @@ export default function DtrUploadPage() {
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {[...new Set(syncResult.unmatched!.map(u => u.name_raw || u.staff_name || u.employee_id || "?"))].map(name => (
                             <span key={name} className="rounded bg-amber-900/40 px-2 py-0.5 text-xs text-amber-200">{name}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rows the sync could not overwrite because they are already approved.
+                        Without this panel the sync reports "complete" while these rows keep
+                        their old scheduled times. */}
+                    {(syncResult.skipped_approved?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-orange-500/40 bg-orange-900/15 p-3 space-y-1">
+                        <p className="text-xs font-bold text-orange-300">
+                          Not updated — already approved ({syncResult.skipped_approved!.length})
+                        </p>
+                        <p className="text-xs text-orange-200/80">
+                          These rows keep their existing scheduled times. Un-approve the row in
+                          DTR Records (or use Edit Scheduled Shift), then re-sync.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {syncResult.skipped_approved!.map((r, i) => (
+                            <span key={i} className="rounded bg-orange-900/40 px-2 py-0.5 text-xs text-orange-200">
+                              {r.staff_name} — {r.work_date}
+                            </span>
                           ))}
                         </div>
                       </div>
