@@ -7,6 +7,7 @@ import {
   PRIMARY_BUTTON, TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER,
 } from "@/lib/ui-tokens";
 import { getAuth } from "@/lib/auth";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 interface FoodDetail {
   year_month: string;
@@ -20,8 +21,9 @@ interface FoodDetail {
 interface LaborDetail {
   year_month: string;
   city: string;
-  by_department: { department: string; office: string; staff_count: number; gross_pay: number; net_pay: number }[];
-  totals: { staff_count: number; total_gross: number; total_net: number };
+  // Pay figures come back null when the viewer is not HQ (backend masking).
+  by_department: { department: string; office: string; staff_count: number; gross_pay: number | null; net_pay: number | null }[];
+  totals: { staff_count: number; total_gross: number | null; total_net: number | null };
 }
 
 const DUBAI_STORES = ["", "AM", "AB", "JLT", "BB", "ARJ"];
@@ -29,6 +31,10 @@ const MANILA_STORES = ["", "CUB", "BER", "MOA", "MKT", "QC"];
 
 function fmtAmt(v: number, cur = "AED") {
   return `${cur} ${v.toLocaleString("en", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+/** fmtAmt for a pay figure that may be masked. */
+function fmtPay(v: number | null | undefined, cur = "AED") {
+  return isSalaryHidden(v) ? SALARY_HIDDEN : fmtAmt(v as number, cur);
 }
 function thisMonth() {
   const d = new Date();
@@ -260,8 +266,8 @@ export default function CostDetailPage() {
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: "Total Staff", value: String(laborDetail.totals.staff_count) },
-              { label: "Gross Pay", value: fmtAmt(laborDetail.totals.total_gross, cur) },
-              { label: "Net Pay", value: fmtAmt(laborDetail.totals.total_net, cur) },
+              { label: "Gross Pay", value: fmtPay(laborDetail.totals.total_gross, cur) },
+              { label: "Net Pay", value: fmtPay(laborDetail.totals.total_net, cur) },
             ].map(k => (
               <div key={k.label} className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{k.label}</p>
@@ -293,8 +299,8 @@ export default function CostDetailPage() {
                         <td className="py-2.5 text-zinc-200">{d.department || "—"}</td>
                         <td className="py-2.5 text-zinc-400">{d.office || "—"}</td>
                         <td className="py-2.5 text-right text-zinc-300">{d.staff_count}</td>
-                        <td className="py-2.5 text-right font-mono text-blue-300">{fmtAmt(d.gross_pay, cur)}</td>
-                        <td className="py-2.5 text-right font-mono text-zinc-300">{fmtAmt(d.net_pay, cur)}</td>
+                        <td className="py-2.5 text-right font-mono text-blue-300">{fmtPay(d.gross_pay, cur)}</td>
+                        <td className="py-2.5 text-right font-mono text-zinc-300">{fmtPay(d.net_pay, cur)}</td>
                       </tr>
                     ))}
                   </tbody>

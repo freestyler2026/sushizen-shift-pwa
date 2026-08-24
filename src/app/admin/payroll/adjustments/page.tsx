@@ -14,6 +14,7 @@ import {
   SECONDARY_BUTTON, SELECT_CLASS, SMALL_BUTTON,
   T_PAGE_TITLE, TAB_ACTIVE, TAB_INACTIVE, TABLE_CELL, TABLE_HEADER, TABLE_ROW,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import SelectDark from "@/components/SelectDark";
 
 const API = "/api/admin/payroll";
@@ -52,7 +53,8 @@ type Adjustment = {
   staff_name: string;
   adj_type: "addition" | "deduction" | "recurring_deduction";
   subtype: string;
-  amount: number;
+  // Amount is null for every role except HQ (backend masking).
+  amount: number | null;
   vat: number;
   incurred_at: string | null;
   reference_no: string;
@@ -646,7 +648,7 @@ export default function AdjustmentsPage() {
     const header = ["Staff Name","Type","Sub-type","Amount","VAT","Date Incurred","Reference","Note","Source"];
     const csvRows = adjustments.map(a => [
       a.staff_name, ADJ_LABELS[a.adj_type], a.subtype,
-      a.amount, a.vat, a.incurred_at ?? "", a.reference_no, a.note, a.source,
+      a.amount ?? "", a.vat, a.incurred_at ?? "", a.reference_no, a.note, a.source,
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const csv = [header.join(","), ...csvRows].join("\r\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
@@ -825,7 +827,9 @@ export default function AdjustmentsPage() {
                       {adj.subtype && <p className="text-xs text-zinc-500 mt-0.5">{adj.subtype}</p>}
                     </td>
                     <td className={`${TABLE_CELL} px-3 text-right tabular-nums font-medium ${adj.adj_type === "addition" ? "text-emerald-400" : "text-red-400"}`}>
-                      {adj.adj_type === "addition" ? "+" : "-"}{adj.amount.toFixed(2)}
+                      {isSalaryHidden(adj.amount)
+                        ? SALARY_HIDDEN
+                        : `${adj.adj_type === "addition" ? "+" : "-"}${adj.amount!.toFixed(2)}`}
                     </td>
                     <td className={`${TABLE_CELL} px-3 text-center text-xs text-zinc-400`}>
                       {adj.incurred_at?.slice(0, 10) ?? "—"}

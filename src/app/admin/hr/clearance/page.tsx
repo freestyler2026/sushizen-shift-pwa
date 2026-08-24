@@ -32,6 +32,7 @@ import {
   T_CAPTION,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,18 +58,19 @@ type ClearanceCase = {
   hr_signoff_by: string;
   hr_signoff_at: string | null;
   hr_signoff_notes: string;
-  fp_basic_pay: number;
-  fp_prorated_13th: number;
-  fp_leave_conversion: number;
-  fp_separation_pay: number;
-  fp_allowance: number;
-  fp_other_earnings: number;
+  // Final-pay amounts are null for every role except HQ (backend masking).
+  fp_basic_pay: number | null;
+  fp_prorated_13th: number | null;
+  fp_leave_conversion: number | null;
+  fp_separation_pay: number | null;
+  fp_allowance: number | null;
+  fp_other_earnings: number | null;
   fp_other_earnings_label: string;
-  fp_deduction_statutory: number;
-  fp_deduction_loans: number;
-  fp_deduction_other: number;
+  fp_deduction_statutory: number | null;
+  fp_deduction_loans: number | null;
+  fp_deduction_other: number | null;
   fp_deduction_other_label: string;
-  fp_total: number;
+  fp_total: number | null;
   fp_currency: string;
   fp_notes: string;
   current_stage: number;
@@ -127,8 +129,9 @@ function stageColor(stage: number, current: number): string {
   return "bg-white/10 text-white/40";
 }
 
-function fmt(n: number, currency: string) {
-  return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmt(n: number | null | undefined, currency: string) {
+  if (isSalaryHidden(n)) return SALARY_HIDDEN;
+  return `${currency} ${(n as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtDate(iso: string | null) {
@@ -588,18 +591,12 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const totalEarnings =
-    (fp.fp_basic_pay || 0) +
-    (fp.fp_prorated_13th || 0) +
-    (fp.fp_leave_conversion || 0) +
-    (fp.fp_separation_pay || 0) +
-    (fp.fp_allowance || 0) +
-    (fp.fp_other_earnings || 0);
-  const totalDeductions =
-    (fp.fp_deduction_statutory || 0) +
-    (fp.fp_deduction_loans || 0) +
-    (fp.fp_deduction_other || 0);
-  const netPay = totalEarnings - totalDeductions;
+  // Every component null ⇒ the figure is masked, not zero.
+  const earningParts = [fp.fp_basic_pay, fp.fp_prorated_13th, fp.fp_leave_conversion, fp.fp_separation_pay, fp.fp_allowance, fp.fp_other_earnings];
+  const deductionParts = [fp.fp_deduction_statutory, fp.fp_deduction_loans, fp.fp_deduction_other];
+  const totalEarnings = earningParts.every(isSalaryHidden) ? null : earningParts.reduce((s, v) => s + (v || 0), 0);
+  const totalDeductions = deductionParts.every(isSalaryHidden) ? null : deductionParts.reduce((s, v) => s + (v || 0), 0);
+  const netPay = totalEarnings === null && totalDeductions === null ? null : (totalEarnings || 0) - (totalDeductions || 0);
 
   function numSet(k: string, v: string) {
     const n = parseFloat(v) || 0;
@@ -654,7 +651,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
                     min="0"
                     step="0.01"
                     className={INPUT_CLASS}
-                    value={(fp as Record<string, number | string>)[k] as number}
+                    value={(fp as Record<string, number | string | null>)[k] ?? ""}
                     onChange={e => numSet(k, e.target.value)}
                     disabled={readOnly}
                   />
@@ -663,7 +660,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
               <div>
                 <label className={T_LABEL}>Other Earnings</label>
                 <input type="number" min="0" step="0.01" className={INPUT_CLASS}
-                  value={fp.fp_other_earnings} onChange={e => numSet("fp_other_earnings", e.target.value)} disabled={readOnly} />
+                  value={fp.fp_other_earnings ?? ""} onChange={e => numSet("fp_other_earnings", e.target.value)} disabled={readOnly} />
               </div>
               <div>
                 <label className={T_LABEL}>Other Label</label>
@@ -686,14 +683,14 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
                 <div key={k}>
                   <label className={T_LABEL}>{label}</label>
                   <input type="number" min="0" step="0.01" className={INPUT_CLASS}
-                    value={(fp as Record<string, number | string>)[k] as number}
+                    value={(fp as Record<string, number | string | null>)[k] ?? ""}
                     onChange={e => numSet(k, e.target.value)} disabled={readOnly} />
                 </div>
               ))}
               <div>
                 <label className={T_LABEL}>Other Deductions</label>
                 <input type="number" min="0" step="0.01" className={INPUT_CLASS}
-                  value={fp.fp_deduction_other} onChange={e => numSet("fp_deduction_other", e.target.value)} disabled={readOnly} />
+                  value={fp.fp_deduction_other ?? ""} onChange={e => numSet("fp_deduction_other", e.target.value)} disabled={readOnly} />
               </div>
               <div>
                 <label className={T_LABEL}>Other Label</label>
@@ -717,7 +714,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
             </div>
             <div>
               <p className={T_CAPTION}>Net Pay</p>
-              <p className={`font-bold text-lg ${netPay >= 0 ? "text-white" : "text-red-400"}`}>
+              <p className={`font-bold text-lg ${(netPay ?? 0) >= 0 ? "text-white" : "text-red-400"}`}>
                 {fmt(netPay, c.fp_currency)}
               </p>
             </div>

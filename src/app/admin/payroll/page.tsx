@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 const API = "/api/admin/payroll";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -30,6 +31,17 @@ async function extractApiError(r: Response, fallback: string): Promise<string> {
   } catch { return fallback; }
 }
 
+// Salary amounts arrive as null for every role except HQ (backend masking).
+/** Plain 2-decimal amount, or the masked marker. */
+function fx(v: number | null | undefined): string {
+  return isSalaryHidden(v) ? SALARY_HIDDEN : (v as number).toFixed(2);
+}
+/** Column total — null (masked) only when every contributing row was masked. */
+function sumCol<T>(list: T[], pick: (r: T) => number | null | undefined): number | null {
+  if (list.length > 0 && list.every(r => isSalaryHidden(pick(r)))) return null;
+  return list.reduce((s, r) => s + (pick(r) ?? 0), 0);
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Cycle = {
@@ -48,15 +60,15 @@ type PayrollRow = {
   role_title: string;
   currency: string;
   paid_via: string;
-  basic_salary: number;
-  accommodation: number;
-  transportation: number;
-  other_allowances: number;
-  allowances: number;
-  net_additions: number;
-  net_deductions: number;
-  gross_pay: number;
-  net_pay: number;
+  basic_salary: number | null;
+  accommodation: number | null;
+  transportation: number | null;
+  other_allowances: number | null;
+  allowances: number | null;
+  net_additions: number | null;
+  net_deductions: number | null;
+  gross_pay: number | null;
+  net_pay: number | null;
 };
 
 type SalaryConfig = {
@@ -66,10 +78,10 @@ type SalaryConfig = {
   bayzat_id: string;
   branch_code: string;
   role_title: string;
-  basic_salary: number;
-  accommodation: number;
-  transportation: number;
-  other_allowances: number;
+  basic_salary: number | null;
+  accommodation: number | null;
+  transportation: number | null;
+  other_allowances: number | null;
   currency: string;
   paid_via: string;
   bank_name: string;
@@ -285,8 +297,9 @@ function EmployeeDetailPanel({
     { label: "Net Pay", value: row.net_pay, section: "Total", bold: true },
   ];
   const sections = ["Base", "Subtotal", "Adjustments", "Total"];
-  function fmtVal(v: number) {
-    return `${row.currency} ${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  function fmtVal(v: number | null) {
+    if (isSalaryHidden(v)) return SALARY_HIDDEN;
+    return `${row.currency} ${(v as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   return (
@@ -367,7 +380,7 @@ export default function PayrollPage() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
   const [rows, setRows] = useState<PayrollRow[]>([]);
-  const [totalNetPay, setTotalNetPay] = useState(0);
+  const [totalNetPay, setTotalNetPay] = useState<number | null>(0);
   const [configs, setConfigs] = useState<SalaryConfig[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -411,9 +424,9 @@ export default function PayrollPage() {
         setRows([]); setTotalNetPay(0);
         setErr(await extractApiError(r, "Failed to load payroll table")); return;
       }
-      const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number };
+      const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number | null };
       setRows(Array.isArray(data.rows) ? data.rows : []);
-      setTotalNetPay(data.total_net_pay ?? 0);
+      setTotalNetPay(data.total_net_pay ?? null);
     } catch {
       if (id === tableLoadRef.current) setErr("Network error — please try again");
     } finally {
@@ -547,7 +560,7 @@ export default function PayrollPage() {
       r.staff_name, r.branch_code, r.role_title, r.currency,
       r.basic_salary, r.allowances, r.gross_pay,
       r.net_additions, r.net_deductions, r.net_pay, r.paid_via,
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     const csv = [header.join(","), ...csvRows].join("\r\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -601,19 +614,19 @@ export default function PayrollPage() {
   const missingRows     = rows.filter(r => r.basic_salary === 0);
   const displayRows     = filterMissing ? missingRows : rows;
   // Totals are computed from displayRows so they stay in sync with the filter
-  const totalBasic      = displayRows.reduce((s, r) => s + r.basic_salary, 0);
-  const totalAllowances = displayRows.reduce((s, r) => s + (r.allowances ?? 0), 0);
-  const totalGross      = displayRows.reduce((s, r) => s + r.gross_pay, 0);
-  const totalNetAdd     = displayRows.reduce((s, r) => s + r.net_additions, 0);
-  const totalNetDed     = displayRows.reduce((s, r) => s + r.net_deductions, 0);
+  const totalBasic      = sumCol(displayRows, r => r.basic_salary);
+  const totalAllowances = sumCol(displayRows, r => r.allowances);
+  const totalGross      = sumCol(displayRows, r => r.gross_pay);
+  const totalNetAdd     = sumCol(displayRows, r => r.net_additions);
+  const totalNetDed     = sumCol(displayRows, r => r.net_deductions);
 
   const cycleName = selectedCycle
     ? `${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year}`
     : "—";
 
-  function n(v: number) { return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function n(v: number | null) { return isSalaryHidden(v) ? SALARY_HIDDEN : (v as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-  const COL_DEFS: { key: ColKey; label: string; total: number }[] = [
+  const COL_DEFS: { key: ColKey; label: string; total: number | null }[] = [
     { key: "basic",      label: "Basic Salary",               total: totalBasic },
     { key: "allowances", label: "Allowances",                 total: totalAllowances },
     { key: "gross",      label: "Gross Pay",                  total: totalGross },
@@ -924,27 +937,31 @@ export default function PayrollPage() {
                                 <p className="text-xs text-red-400 mt-0.5">Missing Basic Salary and Allowances</p>
                               )}
                             </td>
-                            {visibleCols.basic      && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{row.basic_salary.toFixed(2)}</td>}
-                            {visibleCols.allowances && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{(row.allowances ?? 0).toFixed(2)}</td>}
-                            {visibleCols.gross      && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{row.gross_pay.toFixed(2)}</td>}
+                            {visibleCols.basic      && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{fx(row.basic_salary)}</td>}
+                            {visibleCols.allowances && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{fx(row.allowances)}</td>}
+                            {visibleCols.gross      && <td className="px-3 py-3 text-right tabular-nums text-slate-300">{fx(row.gross_pay)}</td>}
                             {visibleCols.workExp    && <td className="px-3 py-3 text-right tabular-nums text-slate-600">0.00</td>}
                             {visibleCols.netAdd     && (
                               <td className="px-3 py-3 text-right tabular-nums">
-                                {row.net_additions > 0
-                                  ? <span className="text-green-400">{row.net_additions.toFixed(2)}</span>
+                                {isSalaryHidden(row.net_additions)
+                                  ? <span className="text-slate-700">{SALARY_HIDDEN}</span>
+                                  : row.net_additions! > 0
+                                  ? <span className="text-green-400">{row.net_additions!.toFixed(2)}</span>
                                   : <span className="text-slate-700">0.00</span>}
                               </td>
                             )}
                             {visibleCols.netDed     && (
                               <td className="px-3 py-3 text-right tabular-nums">
-                                {row.net_deductions > 0
-                                  ? <span className="text-red-400">-{row.net_deductions.toFixed(2)}</span>
+                                {isSalaryHidden(row.net_deductions)
+                                  ? <span className="text-slate-700">{SALARY_HIDDEN}</span>
+                                  : row.net_deductions! > 0
+                                  ? <span className="text-red-400">-{row.net_deductions!.toFixed(2)}</span>
                                   : <span className="text-slate-700">0.00</span>}
                               </td>
                             )}
                             {visibleCols.arrears    && <td className="px-3 py-3 text-right tabular-nums text-slate-700">0.00</td>}
                             <td className="px-3 py-3 text-right tabular-nums font-bold text-white">
-                              {row.net_pay.toFixed(2)}
+                              {fx(row.net_pay)}
                             </td>
                             <td className="px-3 py-3">
                               <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${
@@ -1023,10 +1040,10 @@ export default function PayrollPage() {
                           <p className="font-medium text-white">{cfg.staff_name}</p>
                           <p className="text-xs text-slate-500">{cfg.bayzat_id || ""}{cfg.bayzat_id && cfg.role_title ? " · " : ""}{cfg.role_title || ""}</p>
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{cfg.basic_salary.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{cfg.accommodation.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{cfg.transportation.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{cfg.other_allowances.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{fx(cfg.basic_salary)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{fx(cfg.accommodation)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{fx(cfg.transportation)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{fx(cfg.other_allowances)}</td>
                         <td className="px-4 py-3 text-center text-xs text-slate-400">{cfg.currency}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${

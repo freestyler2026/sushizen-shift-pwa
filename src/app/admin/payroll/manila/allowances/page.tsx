@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 const API = "/api/admin/manila-payroll";
 
@@ -19,7 +20,7 @@ interface AllowanceItem {
   cutoff1_flag_no_notice: boolean;
   cutoff1_eligible: boolean;
   cutoff1_disqualify_reasons: string;
-  cutoff1_amount: number;
+  cutoff1_amount: number | null;
   cutoff2_start: string;
   cutoff2_end: string;
   cutoff2_working_days: number;
@@ -30,14 +31,14 @@ interface AllowanceItem {
   cutoff2_flag_no_notice: boolean;
   cutoff2_eligible: boolean;
   cutoff2_disqualify_reasons: string;
-  cutoff2_amount: number;
+  cutoff2_amount: number | null;
   pa_late_count: number;
   pa_late_minutes: number;
   pa_awol_days: number;
   pa_eligible: boolean;
   pa_disqualify_reasons: string;
-  pa_amount: number;
-  total_amount: number;
+  pa_amount: number | null;
+  total_amount: number | null;
   override_note: string;
   computed_at: string;
 }
@@ -122,9 +123,15 @@ export default function ManilaAllowancesPage() {
     finally { setPatchingStaff(null); }
   }
 
-  const totalMeal = items.reduce((s, it) => s + Number(it.cutoff1_amount) + Number(it.cutoff2_amount), 0);
-  const totalPA = items.reduce((s, it) => s + Number(it.pa_amount), 0);
-  const totalAll = items.reduce((s, it) => s + Number(it.total_amount), 0);
+  // Allowance amounts are null for every role except HQ (backend masking).
+  const sumAllow = (pick: (it: AllowanceItem) => number | null): number | null =>
+    items.length > 0 && items.every(it => isSalaryHidden(pick(it)))
+      ? null
+      : items.reduce((s, it) => s + Number(pick(it) ?? 0), 0);
+  const fmtTotal = (v: number | null) => isSalaryHidden(v) ? SALARY_HIDDEN : `₱${(v as number).toLocaleString()}`;
+  const totalMeal = sumAllow(it => it.cutoff1_amount === null && it.cutoff2_amount === null ? null : Number(it.cutoff1_amount ?? 0) + Number(it.cutoff2_amount ?? 0));
+  const totalPA = sumAllow(it => it.pa_amount);
+  const totalAll = sumAllow(it => it.total_amount);
   const paCount = items.filter(it => it.pa_eligible).length;
   const fullEligCount = items.filter(it => it.cutoff1_eligible && it.cutoff2_eligible).length;
 
@@ -180,9 +187,9 @@ export default function ManilaAllowancesPage() {
       {items.length > 0 && (
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: "Total Meal Allowance", value: `₱${totalMeal.toLocaleString()}`, color: "text-violet-300" },
-            { label: "Total Perfect Att.", value: `₱${totalPA.toLocaleString()}`, color: "text-amber-300" },
-            { label: "Grand Total", value: `₱${totalAll.toLocaleString()}`, color: "text-white" },
+            { label: "Total Meal Allowance", value: fmtTotal(totalMeal), color: "text-violet-300" },
+            { label: "Total Perfect Att.", value: fmtTotal(totalPA), color: "text-amber-300" },
+            { label: "Grand Total", value: fmtTotal(totalAll), color: "text-white" },
             { label: "Perfect Att. Recipients", value: `${paCount} / ${items.length}`, color: "text-emerald-300" },
           ].map(k => (
             <div key={k.label} className="rounded-xl border border-white/8 bg-white/4 p-3">
@@ -232,7 +239,7 @@ export default function ManilaAllowancesPage() {
                       {/* Cutoff 1 */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <Badge ok={it.cutoff1_eligible} label={it.cutoff1_eligible ? `✓ ₱${Number(it.cutoff1_amount).toLocaleString()}` : "✗ ₱0"} />
+                          <Badge ok={it.cutoff1_eligible} label={it.cutoff1_eligible ? `✓ ${fmtTotal(it.cutoff1_amount)}` : "✗ ₱0"} />
                           {!it.cutoff1_eligible && it.cutoff1_disqualify_reasons && (
                             <span className="text-[10px] text-red-400">{it.cutoff1_disqualify_reasons}</span>
                           )}
@@ -245,7 +252,7 @@ export default function ManilaAllowancesPage() {
                       {/* Cutoff 2 */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <Badge ok={it.cutoff2_eligible} label={it.cutoff2_eligible ? `✓ ₱${Number(it.cutoff2_amount).toLocaleString()}` : "✗ ₱0"} />
+                          <Badge ok={it.cutoff2_eligible} label={it.cutoff2_eligible ? `✓ ${fmtTotal(it.cutoff2_amount)}` : "✗ ₱0"} />
                           {!it.cutoff2_eligible && it.cutoff2_disqualify_reasons && (
                             <span className="text-[10px] text-red-400">{it.cutoff2_disqualify_reasons}</span>
                           )}
@@ -266,7 +273,7 @@ export default function ManilaAllowancesPage() {
                       </td>
 
                       <td className="px-4 py-3 text-right font-semibold text-zinc-100">
-                        ₱{Number(it.total_amount).toLocaleString()}
+                        {fmtTotal(it.total_amount)}
                       </td>
                       <td className="px-3 py-3 text-zinc-500 text-xs">{isExpanded ? "▲" : "▼"}</td>
                     </tr>

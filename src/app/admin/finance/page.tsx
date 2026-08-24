@@ -30,6 +30,7 @@ import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import SelectDark from "@/components/SelectDark";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import { FlashValue } from "@/components/ui/FlashValue";
 import { Spinner } from "@/components/ui/Spinner";
 import {
@@ -124,18 +125,19 @@ type PayrollStaffRow = {
   department: string;
   office: string;
   currency: string;
-  basic_salary: number;
-  accommodation: number;
-  food_allowance: number;
-  other_allowance: number;
-  transportation: number;
-  gross_pay: number;
+  // Compensation fields are null for every role except HQ (backend masking).
+  basic_salary: number | null;
+  accommodation: number | null;
+  food_allowance: number | null;
+  other_allowance: number | null;
+  transportation: number | null;
+  gross_pay: number | null;
   work_expenses: number;
-  net_additions: number;
-  net_deductions: number;
+  net_additions: number | null;
+  net_deductions: number | null;
   arrears_addition: number;
   arrears_deduction: number;
-  total_net_pay: number;
+  total_net_pay: number | null;
   pending: number;
   unpaid: number;
   processed: number;
@@ -316,6 +318,15 @@ const integerFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits:
 function formatMoney(value: number) {
   if (!Number.isFinite(value)) return "—";
   return moneyFormatter.format(value);
+}
+/** formatMoney for a possibly-masked salary amount. */
+function formatSalary(value: number | null | undefined) {
+  return isSalaryHidden(value) ? SALARY_HIDDEN : formatMoney(Number(value) || 0);
+}
+/** Sum a masked-capable payroll column — null only when every row was masked. */
+function sumSalary<T>(list: T[], pick: (r: T) => number | null | undefined): number | null {
+  if (list.length > 0 && list.every((r) => isSalaryHidden(pick(r)))) return null;
+  return list.reduce((s, r) => s + Number(pick(r) || 0), 0);
 }
 function formatCount(value: number) {
   if (!Number.isFinite(value)) return "—";
@@ -575,15 +586,15 @@ export default function FinancePage() {
   }, [payrollRowsInRange, payrollStaffName]);
 
   const payrollSummary = useMemo(() => {
-    const totalNetPay = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.total_net_pay || 0), 0);
-    const grossPay = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.gross_pay || 0), 0);
-    const basicSalary = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.basic_salary || 0), 0);
-    const accommodation = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.accommodation || 0), 0);
-    const foodAllowance = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.food_allowance || 0), 0);
-    const otherAllowance = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.other_allowance || 0), 0);
-    const transportation = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.transportation || 0), 0);
-    const netAdditions = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.net_additions || 0), 0);
-    const netDeductions = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.net_deductions || 0), 0);
+    const totalNetPay = sumSalary(payrollRowsFiltered, (r) => r.total_net_pay);
+    const grossPay = sumSalary(payrollRowsFiltered, (r) => r.gross_pay);
+    const basicSalary = sumSalary(payrollRowsFiltered, (r) => r.basic_salary);
+    const accommodation = sumSalary(payrollRowsFiltered, (r) => r.accommodation);
+    const foodAllowance = sumSalary(payrollRowsFiltered, (r) => r.food_allowance);
+    const otherAllowance = sumSalary(payrollRowsFiltered, (r) => r.other_allowance);
+    const transportation = sumSalary(payrollRowsFiltered, (r) => r.transportation);
+    const netAdditions = sumSalary(payrollRowsFiltered, (r) => r.net_additions);
+    const netDeductions = sumSalary(payrollRowsFiltered, (r) => r.net_deductions);
     const arrearsAddition = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.arrears_addition || 0), 0);
     const arrearsDeduction = payrollRowsFiltered.reduce((sum, r) => sum + Number(r.arrears_deduction || 0), 0);
     return {
@@ -1403,10 +1414,10 @@ export default function FinancePage() {
                 {payrollSyncMessage && <div className="mt-3 rounded-xl border border-neutral-700 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-300">{payrollSyncMessage}</div>}
                 <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
                   {[
-                    { label: "Payroll Total (Net Pay)", value: payrollSummary.totalNetPay },
-                    { label: "Basic Salary",            value: payrollSummary.basicSalary },
-                    { label: "Accommodation",           value: payrollSummary.accommodation },
-                    { label: "Transportation",          value: payrollSummary.transportation },
+                    { label: "Payroll Total (Net Pay)", value: payrollSummary.totalNetPay ?? SALARY_HIDDEN },
+                    { label: "Basic Salary",            value: payrollSummary.basicSalary ?? SALARY_HIDDEN },
+                    { label: "Accommodation",           value: payrollSummary.accommodation ?? SALARY_HIDDEN },
+                    { label: "Transportation",          value: payrollSummary.transportation ?? SALARY_HIDDEN },
                     { label: "Staff Rows",              value: payrollSummary.rowCount },
                   ].map(({ label, value }) => (
                     <div key={label} className={KPI_CARD}>
@@ -1417,11 +1428,11 @@ export default function FinancePage() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
                   {[
-                    { label: "Gross Pay (total)",  value: payrollSummary.grossPay },
-                    { label: "Food allowance",     value: payrollSummary.foodAllowance },
-                    { label: "Other allowance",    value: payrollSummary.otherAllowance },
-                    { label: "Net additions",      value: payrollSummary.netAdditions },
-                    { label: "Net deductions",     value: payrollSummary.netDeductions },
+                    { label: "Gross Pay (total)",  value: payrollSummary.grossPay ?? SALARY_HIDDEN },
+                    { label: "Food allowance",     value: payrollSummary.foodAllowance ?? SALARY_HIDDEN },
+                    { label: "Other allowance",    value: payrollSummary.otherAllowance ?? SALARY_HIDDEN },
+                    { label: "Net additions",      value: payrollSummary.netAdditions ?? SALARY_HIDDEN },
+                    { label: "Net deductions",     value: payrollSummary.netDeductions ?? SALARY_HIDDEN },
                   ].map(({ label, value }) => (
                     <div key={label} className={KPI_CARD}>
                       <div className="text-xs text-neutral-500">{label}</div>
@@ -1433,13 +1444,13 @@ export default function FinancePage() {
                     <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.arrearsAddition - payrollSummary.arrearsDeduction)}</div>
                   </div>
                 </div>
-                {payrollSummary.grossPay > 0 && (() => {
+                {(payrollSummary.grossPay ?? 0) > 0 && (() => {
                   const pieData = [
-                    { name: "Basic",     value: payrollSummary.basicSalary,    fill: "#3b82f6" },
-                    { name: "Housing",   value: payrollSummary.accommodation,  fill: "#8b5cf6" },
-                    { name: "Food",      value: payrollSummary.foodAllowance,  fill: "#f59e0b" },
-                    { name: "Transport", value: payrollSummary.transportation, fill: "#10b981" },
-                    { name: "Other",     value: payrollSummary.otherAllowance, fill: "#6b7280" },
+                    { name: "Basic",     value: payrollSummary.basicSalary ?? 0,    fill: "#3b82f6" },
+                    { name: "Housing",   value: payrollSummary.accommodation ?? 0,  fill: "#8b5cf6" },
+                    { name: "Food",      value: payrollSummary.foodAllowance ?? 0,  fill: "#f59e0b" },
+                    { name: "Transport", value: payrollSummary.transportation ?? 0, fill: "#10b981" },
+                    { name: "Other",     value: payrollSummary.otherAllowance ?? 0, fill: "#6b7280" },
                   ].filter(d => d.value > 0);
                   const deptMap: Record<string, number> = {};
                   payrollRowsFiltered.forEach(r => { const d = r.department || "Other"; deptMap[d] = (deptMap[d] || 0) + Number(r.total_net_pay || 0); });
@@ -1498,14 +1509,14 @@ export default function FinancePage() {
                             <td className="sticky left-0 bg-neutral-950/95 px-3 py-2">{row.month_key}</td>
                             <td className="sticky left-14 max-w-[200px] truncate bg-neutral-950/95 px-3 py-2">{row.staff_name}</td>
                             <td className="px-3 py-2">{row.department || "-"}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.basic_salary || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.accommodation || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.food_allowance || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.other_allowance || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.transportation || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_pay || 0))}</td>
-                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_additions || 0) - Number(row.net_deductions || 0))}</td>
-                            <td className="px-3 py-2 font-medium tabular-nums text-sky-200">{formatMoney(Number(row.total_net_pay || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.basic_salary)}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.accommodation)}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.food_allowance)}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.other_allowance)}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.transportation)}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatSalary(row.gross_pay)}</td>
+                            <td className="px-3 py-2 tabular-nums">{isSalaryHidden(row.net_additions) && isSalaryHidden(row.net_deductions) ? SALARY_HIDDEN : formatMoney(Number(row.net_additions || 0) - Number(row.net_deductions || 0))}</td>
+                            <td className="px-3 py-2 font-medium tabular-nums text-sky-200">{formatSalary(row.total_net_pay)}</td>
                           </tr>
                         ))}
                         {!payrollRowsFiltered.length && (

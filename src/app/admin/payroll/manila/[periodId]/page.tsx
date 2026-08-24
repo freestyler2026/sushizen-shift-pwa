@@ -10,6 +10,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin, hasPayrollViewSalary } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN } from "@/lib/salary";
 
 const API = "/api/admin/manila-payroll";
 
@@ -39,13 +40,14 @@ type Run = {
   period_id: number;
   staff_name: string;
   salary_type: string;
-  daily_rate: number;
+  // Compensation fields are null for every role except HQ (backend masking).
+  daily_rate: number | null;
   monthly_rate: number | null;
   salary_divisor: number | null;
   days_worked: number | null;
-  gross_pay: number;
-  total_deductions: number;
-  net_pay: number;
+  gross_pay: number | null;
+  total_deductions: number | null;
+  net_pay: number | null;
   minimum_wage_compliant: boolean | null;
   status: string;
   computed_at: string | null;
@@ -1087,6 +1089,9 @@ function PayslipDetail({
     );
   } else if (run.daily_rate && run.days_worked != null) {
     basisParts.push(`₱${run.daily_rate.toLocaleString("en-PH")}/day × ${run.days_worked} day(s)`);
+  } else if (!canSeeSalary && run.salary_divisor != null && run.days_worked != null) {
+    // Rate is masked for non-HQ viewers — show the shape of the formula, never NaN.
+    basisParts.push(`${SALARY_HIDDEN} ÷ ${run.salary_divisor} × ${run.days_worked} day(s) = ${SALARY_HIDDEN}`);
   }
 
   return (
@@ -1668,8 +1673,8 @@ export default function ManilaPayrollPeriodPage() {
 
   // Sort runs
   const sortedRuns = [...runs].sort((a, b) => {
-    const va: string|number = sortBy === "name" ? a.staff_name : a.net_pay;
-    const vb: string|number = sortBy === "name" ? b.staff_name : b.net_pay;
+    const va: string|number = sortBy === "name" ? a.staff_name : (a.net_pay ?? 0);
+    const vb: string|number = sortBy === "name" ? b.staff_name : (b.net_pay ?? 0);
     if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(String(vb)) : String(vb).localeCompare(va);
     return sortDir === "asc" ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
@@ -1681,9 +1686,9 @@ export default function ManilaPayrollPeriodPage() {
 
   // Summary totals
   const totals = runs.reduce((acc, r) => ({
-    gross: acc.gross + r.gross_pay,
-    ded:   acc.ded   + r.total_deductions,
-    net:   acc.net   + r.net_pay,
+    gross: acc.gross + (r.gross_pay ?? 0),
+    ded:   acc.ded   + (r.total_deductions ?? 0),
+    net:   acc.net   + (r.net_pay ?? 0),
   }), { gross: 0, ded: 0, net: 0 });
 
   const nonCompliant = runs.filter(r => r.minimum_wage_compliant === false);

@@ -17,13 +17,15 @@ import {
   T_PAGE_TITLE, T_SECTION, T_LABEL, T_BODY, T_CAPTION,
   BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO, BADGE_ACCENT,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import SelectDark from "@/components/SelectDark";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Loan = {
   id: string; city: string; staff_name: string;
-  amount: number; installment_amount: number;
+  // Amounts are null for every role except HQ (backend masking).
+  amount: number | null; installment_amount: number | null;
   total_installments: number; remaining_installments: number;
   status: string; purpose: string;
   requested_by: string; requested_at: string;
@@ -43,7 +45,8 @@ type Cycle = { id: number; city: string; year: number; month: number; status: st
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n: number | null | undefined) =>
+  isSalaryHidden(n) ? SALARY_HIDDEN : (n as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 async function extractApiError(r: Response, fallback: string) {
   try { const j = await r.json(); return j?.detail || j?.message || fallback; } catch { return fallback; }
@@ -229,8 +232,9 @@ function LoanDetailPanel({
 
   const paidInstallments = loan.total_installments - loan.remaining_installments;
   const progressPct = loan.total_installments > 0 ? (paidInstallments / loan.total_installments) * 100 : 0;
-  const amountRepaid = paidInstallments * loan.installment_amount;
-  const amountRemaining = loan.amount - amountRepaid;
+  // Masked installment/amount ⇒ the derived figures stay masked instead of showing 0.
+  const amountRepaid = isSalaryHidden(loan.installment_amount) ? null : paidInstallments * loan.installment_amount!;
+  const amountRemaining = isSalaryHidden(loan.amount) || amountRepaid === null ? null : loan.amount! - amountRepaid;
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -278,7 +282,7 @@ function LoanDetailPanel({
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-emerald-400">Repaid: {fmt(amountRepaid)}</span>
-                <span className="text-zinc-400">Remaining: {fmt(Math.max(0, amountRemaining))}</span>
+                <span className="text-zinc-400">Remaining: {amountRemaining === null ? SALARY_HIDDEN : fmt(Math.max(0, amountRemaining))}</span>
               </div>
             </div>
           )}
@@ -531,7 +535,10 @@ export default function LoansPage() {
   const activeLoanCount = loans.filter(l => l.status === "active").length;
   const pendingCount = loans.filter(l => l.status === "pending").length;
   // Remaining balance: remaining_installments × installment_amount (not original amount)
-  const totalActive = loans.filter(l => l.status === "active").reduce((s, l) => s + l.remaining_installments * l.installment_amount, 0);
+  const activeLoans = loans.filter(l => l.status === "active");
+  const totalActive = activeLoans.length > 0 && activeLoans.every(l => isSalaryHidden(l.installment_amount))
+    ? null
+    : activeLoans.reduce((s, l) => s + l.remaining_installments * (l.installment_amount ?? 0), 0);
 
   const filtered = statusFilter === "all" ? loans : loans.filter(l => l.status === statusFilter);
 

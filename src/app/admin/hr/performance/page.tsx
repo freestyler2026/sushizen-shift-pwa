@@ -33,6 +33,7 @@ import {
   BADGE_INFO,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ type PerformanceReview = {
   total_score: number;
   grade: string;
   salary_increase_recommended: boolean;
-  salary_increase_amount: number;
+  salary_increase_amount: number | null;
   strengths: string;
   areas_for_improvement: string;
   notes: string;
@@ -269,7 +270,9 @@ function ReviewDetailPanel({
             <div className={`${GLASS_CARD} p-4`}>
               <p className={`${T_LABEL} mb-1`}>Salary Increase Recommended</p>
               <p className="text-sm text-emerald-400 font-semibold">
-                PHP {review.salary_increase_amount.toLocaleString()}
+                {isSalaryHidden(review.salary_increase_amount)
+                  ? SALARY_HIDDEN
+                  : `PHP ${review.salary_increase_amount!.toLocaleString()}`}
               </p>
             </div>
           )}

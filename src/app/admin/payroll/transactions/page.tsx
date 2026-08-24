@@ -18,6 +18,7 @@ import {
   T_PAGE_TITLE, T_SECTION, T_LABEL, T_BODY, T_CAPTION,
   BADGE_SUCCESS, BADGE_WARNING, BADGE_INFO,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,13 +27,14 @@ type RunRecord = {
   id: number; run_id: number; cycle_id: number; city: string; staff_name: string;
   bayzat_id: string; branch_code: string; role_title: string;
   currency: string; paid_via: string; bank_name: string;
-  basic_salary: number; accommodation: number; transportation: number;
-  other_allowances: number; net_additions: number; net_deductions: number;
-  gross_pay: number; net_pay: number;
+  // Compensation is null for every role except HQ (backend masking).
+  basic_salary: number | null; accommodation: number | null; transportation: number | null;
+  other_allowances: number | null; net_additions: number | null; net_deductions: number | null;
+  gross_pay: number | null; net_pay: number | null;
 };
 type PayrollRun = {
   id: number; cycle_id: number; city: string; status: string;
-  employee_count: number; total_gross: number; total_net: number;
+  employee_count: number; total_gross: number | null; total_net: number | null;
   generated_at: string; generated_by: string;
   finalized_at: string | null; finalized_by: string;
 };
@@ -52,8 +54,13 @@ type PayslipData = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const fmt = (n: number, currency = "AED") =>
-  `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (n: number | null | undefined, currency = "AED") =>
+  isSalaryHidden(n)
+    ? SALARY_HIDDEN
+    : `${currency} ${(n as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Bare amount (no currency prefix), masked-safe. */
+const num = (n: number | null | undefined) =>
+  isSalaryHidden(n) ? SALARY_HIDDEN : (n as number).toLocaleString("en-US", { minimumFractionDigits: 2 });
 
 async function extractApiError(r: Response, fallback: string): Promise<string> {
   try { const j = await r.json(); return j?.detail || j?.message || fallback; } catch { return fallback; }
@@ -74,7 +81,8 @@ function PaymentModal({
   const [paidAt, setPaidAt] = useState(existingPayment?.paid_at?.slice(0, 10) || new Date().toISOString().slice(0, 10));
   const [refNo, setRefNo] = useState(existingPayment?.reference_no || "");
   const [note, setNote] = useState(existingPayment?.note || "");
-  const [amount, setAmount] = useState(String(existingPayment?.amount ?? record.net_pay));
+  // record.net_pay is null when masked — fall back to an empty field, never "null"
+  const [amount, setAmount] = useState(String(existingPayment?.amount ?? record.net_pay ?? ""));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -249,7 +257,7 @@ function PayslipModal({ data, onClose }: { data: PayslipData; onClose: () => voi
         ].map(([label, val]) => (
           <div key={String(label)} className={rowStyle}>
             <span className="text-zinc-600">{label}</span>
-            <span className="tabular-nums">{fmt(Number(val), r.currency)}</span>
+            <span className="tabular-nums">{fmt(val as number | null, r.currency)}</span>
           </div>
         ))}
         <div className="flex justify-between py-1.5 text-sm font-semibold">
@@ -269,7 +277,7 @@ function PayslipModal({ data, onClose }: { data: PayslipData; onClose: () => voi
             ))}
             <div className="flex justify-between py-1.5 text-sm font-semibold">
               <span>Total Additions</span>
-              <span className="tabular-nums text-emerald-700">+{fmt(r.net_additions, r.currency)}</span>
+              <span className="tabular-nums text-emerald-700">{isSalaryHidden(r.net_additions) ? SALARY_HIDDEN : `+${fmt(r.net_additions, r.currency)}`}</span>
             </div>
           </>
         )}
@@ -286,7 +294,7 @@ function PayslipModal({ data, onClose }: { data: PayslipData; onClose: () => voi
             ))}
             <div className="flex justify-between py-1.5 text-sm font-semibold">
               <span>Total Deductions</span>
-              <span className="tabular-nums text-red-700">−{fmt(r.net_deductions, r.currency)}</span>
+              <span className="tabular-nums text-red-700">{isSalaryHidden(r.net_deductions) ? SALARY_HIDDEN : `−${fmt(r.net_deductions, r.currency)}`}</span>
             </div>
           </>
         )}
@@ -490,7 +498,7 @@ function PayrollTransactionsInner() {
       const pmt = paymentByName[r.staff_name];
       return [
         csvField(r.staff_name), csvField(r.role_title), csvField(r.branch_code), csvField(r.currency),
-        r.gross_pay, r.net_additions, r.net_deductions, r.net_pay,
+        r.gross_pay ?? "", r.net_additions ?? "", r.net_deductions ?? "", r.net_pay ?? "",
         csvField(r.paid_via), csvField(pmt?.status || "pending"),
       ].join(",");
     });
@@ -663,10 +671,10 @@ function PayrollTransactionsInner() {
                                 <td className={`${TABLE_CELL} font-medium`}>{rec.staff_name}</td>
                                 <td className={`${TABLE_CELL} text-zinc-400`}>{rec.role_title || "—"}</td>
                                 <td className={`${TABLE_CELL} text-zinc-400`}>{rec.branch_code || "—"}</td>
-                                <td className={`${TABLE_CELL} tabular-nums`}>{rec.gross_pay.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                                <td className={`${TABLE_CELL} tabular-nums text-emerald-400`}>+{rec.net_additions.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                                <td className={`${TABLE_CELL} tabular-nums text-red-400`}>−{rec.net_deductions.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                                <td className={`${TABLE_CELL} tabular-nums font-semibold text-white`}>{rec.net_pay.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                                <td className={`${TABLE_CELL} tabular-nums`}>{num(rec.gross_pay)}</td>
+                                <td className={`${TABLE_CELL} tabular-nums text-emerald-400`}>{isSalaryHidden(rec.net_additions) ? SALARY_HIDDEN : `+${num(rec.net_additions)}`}</td>
+                                <td className={`${TABLE_CELL} tabular-nums text-red-400`}>{isSalaryHidden(rec.net_deductions) ? SALARY_HIDDEN : `−${num(rec.net_deductions)}`}</td>
+                                <td className={`${TABLE_CELL} tabular-nums font-semibold text-white`}>{num(rec.net_pay)}</td>
                                 <td className={`${TABLE_CELL} text-zinc-400 text-xs`}>{rec.paid_via.toUpperCase()}</td>
                               </tr>
                             ))}
@@ -674,9 +682,9 @@ function PayrollTransactionsInner() {
                           <tfoot>
                             <tr className="border-t-2 border-white/10">
                               <td colSpan={3} className="py-3 text-sm font-semibold text-zinc-400">Total ({records.length} employees)</td>
-                              <td className="py-3 text-sm tabular-nums font-semibold text-white">{run.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 text-sm tabular-nums font-semibold text-white">{num(run.total_gross)}</td>
                               <td colSpan={2} />
-                              <td className="py-3 text-sm tabular-nums font-bold text-violet-300">{run.total_net.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 text-sm tabular-nums font-bold text-violet-300">{num(run.total_net)}</td>
                               <td />
                             </tr>
                           </tfoot>

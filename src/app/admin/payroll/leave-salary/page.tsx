@@ -18,13 +18,15 @@ import {
   T_PAGE_TITLE, T_SECTION, T_LABEL, T_BODY, T_CAPTION,
   BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO,
 } from "@/lib/ui-tokens";
+import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type LeaveSalaryRequest = {
   id: string; city: string; staff_name: string;
   leave_start_date: string; leave_end_date: string; leave_days: number;
-  currency: string; daily_rate: number; advance_amount: number;
+  // Rate/amount are null for every role except HQ (backend masking).
+  currency: string; daily_rate: number | null; advance_amount: number | null;
   status: string; purpose: string;
   requested_by: string; requested_at: string;
   approved_by: string; approved_at: string | null;
@@ -37,8 +39,14 @@ type Cycle = { id: number; city: string; year: number; month: number; status: st
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n: number | null | undefined) =>
+  isSalaryHidden(n) ? SALARY_HIDDEN : (n as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) : "—";
+/** Advance total — null (masked) only when every request in the set was masked. */
+const sumAdvance = (list: LeaveSalaryRequest[]): number | null =>
+  list.length > 0 && list.every(r => isSalaryHidden(r.advance_amount))
+    ? null
+    : list.reduce((s, r) => s + (r.advance_amount ?? 0), 0);
 
 async function extractApiError(r: Response, fallback: string) {
   try { const j = await r.json(); return j?.detail || j?.message || fallback; } catch { return fallback; }
@@ -111,7 +119,7 @@ function CreateModal({
       if (!r.ok) { setRateErr(await extractApiError(r, "Failed to fetch rate")); return; }
       const j = await r.json();
       if (!j.found) { setRateErr("Salary config not found — enter rate manually"); return; }
-      setDailyRate(String(j.daily_rate));
+      setDailyRate(String(j.daily_rate ?? ""));
       setCurrency(j.currency || "AED");
       setRateErr(`Monthly total: ${j.currency} ${fmt(j.monthly_total)} → ${fmt(j.daily_rate)}/day`);
     } catch {
@@ -618,12 +626,12 @@ export default function LeaveSalaryPage() {
 
   const pendingCount  = requests.filter(r => r.status === "pending").length;
   const approvedCount = requests.filter(r => r.status === "approved").length;
-  const totalPaid     = requests.filter(r => r.status === "paid").reduce((s, r) => s + r.advance_amount, 0);
+  const totalPaid     = sumAdvance(requests.filter(r => r.status === "paid"));
   const currency      = city === "dubai" ? "AED" : "PHP";
 
   const filtered = statusFilter === "all" ? requests : requests.filter(r => r.status === statusFilter);
   // Reflect the currently-filtered view so Total KPI matches the visible rows
-  const totalRequested = filtered.reduce((s, r) => s + r.advance_amount, 0);
+  const totalRequested = sumAdvance(filtered);
 
   return (
     <div className="min-h-screen bg-[#0a0b0f] px-4 py-8">
