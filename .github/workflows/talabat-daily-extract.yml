@@ -1,9 +1,6 @@
 name: Talabat Dubai — Daily Gross Sales Extraction
 
 on:
-  schedule:
-    # Every day at 02:00 UTC = 06:00 Dubai time (after previous day closes)
-    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       date:

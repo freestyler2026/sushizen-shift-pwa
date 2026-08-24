@@ -171,6 +171,14 @@ export default function ArPayoutsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  // Noon manual entry
+  const [noonPeriodStart, setNoonPeriodStart] = useState("");
+  const [noonPeriodEnd, setNoonPeriodEnd] = useState("");
+  const [noonAmount, setNoonAmount] = useState("");
+  const [noonBrand, setNoonBrand] = useState<"sushi_zen" | "ramen_zen">("sushi_zen");
+  const [noonSaving, setNoonSaving] = useState(false);
+  const [noonResult, setNoonResult] = useState<string | null>(null);
+  const [noonError, setNoonError] = useState<string | null>(null);
 
   const auth = getAuth();
   const confirmerName = auth?.staffName || "Unknown";
@@ -255,9 +263,28 @@ export default function ArPayoutsPage() {
     await fetchPayouts();
   };
 
-  const handleUpload = async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".csv"));
-    if (!arr.length) { setUploadError("Please select .csv files."); return; }
+  const handleNoonEntry = async () => {
+    if (!noonPeriodStart || !noonPeriodEnd || !noonAmount) { setNoonError("All fields required."); return; }
+    setNoonSaving(true); setNoonResult(null); setNoonError(null);
+    try {
+      const res = await fetch("/api/admin/ar-payouts/manual-noon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period_start: noonPeriodStart, period_end: noonPeriodEnd, payout_aed: parseFloat(noonAmount), brand: noonBrand }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setNoonError(data.detail || "Failed"); return; }
+      setNoonResult(data.inserted ? `Saved: AED ${noonAmount} for ${noonBrand === "sushi_zen" ? "Sushi ZEN" : "Ramen ZEN"} (${noonPeriodStart} – ${noonPeriodEnd})` : "Already exists — updated.");
+      setNoonAmount(""); setNoonPeriodStart(""); setNoonPeriodEnd("");
+      await fetchPayouts();
+    } catch (e) { setNoonError(String(e)); }
+    finally { setNoonSaving(false); }
+  };
+
+  const handleUpload = async (files: FileList | File[], city: "manila" | "dubai" = "manila") => {
+    const exts = city === "dubai" ? [".pdf", ".xlsx"] : [".csv"];
+    const arr = Array.from(files).filter((f) => exts.some((ext) => f.name.toLowerCase().endsWith(ext)));
+    if (!arr.length) { setUploadError(`Please select ${exts.join(" or ")} files.`); return; }
     setUploading(true);
     setUploadResult(null);
     setUploadError(null);
@@ -374,12 +401,12 @@ export default function ArPayoutsPage() {
           ))}
         </div>
 
-        {/* Upload Zone — Manila only */}
+        {/* Upload Zone — Manila (CSV) */}
         {cityTab === "manila" && (<>
         <div
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUpload(e.dataTransfer.files); }}
+          onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUpload(e.dataTransfer.files, "manila"); }}
           className={`relative rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${isDragging ? "border-violet-400/60 bg-violet-500/10" : "border-white/10 bg-white/2 hover:border-white/20"}`}
         >
           <div className="flex flex-col items-center gap-3">
@@ -394,27 +421,90 @@ export default function ArPayoutsPage() {
             </div>
             <label className={`cursor-pointer ${PRIMARY_BUTTON} text-sm px-4 py-1.5 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
               {uploading ? "Uploading…" : "Select Files"}
-              <input
-                type="file"
-                accept=".csv"
-                multiple
-                className="sr-only"
-                onChange={(e) => e.target.files && handleUpload(e.target.files)}
-              />
+              <input type="file" accept=".csv" multiple className="sr-only"
+                onChange={(e) => e.target.files && handleUpload(e.target.files, "manila")} />
             </label>
           </div>
         </div>
+        {uploadResult && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">✓ {uploadResult}</div>}
+        {uploadError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">✗ {uploadError}</div>}
+        </>)}
 
-        {uploadResult && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-            ✓ {uploadResult}
+        {/* Upload Zone — Dubai (PDF + XLSX) + Noon manual entry */}
+        {cityTab === "dubai" && (<>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* File upload: Careem PDF / Keeta XLSX / Talabat XLSX */}
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Careem / Keeta / Talabat</p>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUpload(e.dataTransfer.files, "dubai"); }}
+              className={`relative rounded-xl border-2 border-dashed px-6 py-6 text-center transition-colors ${isDragging ? "border-violet-400/60 bg-violet-500/10" : "border-white/10 bg-white/2 hover:border-white/20"}`}
+            >
+              <div className="flex flex-col items-center gap-2">
+                <div className="text-3xl">📂</div>
+                <p className="text-sm font-medium text-white/70">
+                  {uploading ? "Uploading…" : "Drop PDF or XLSX files"}
+                </p>
+                <p className="text-xs text-white/30 space-y-0.5">
+                  Careem: any <span className="font-mono">.pdf</span> payout report<br />
+                  Keeta: <span className="font-mono">bill-[...].xlsx</span><br />
+                  Talabat: any <span className="font-mono">.xlsx</span> payout report
+                </p>
+                <label className={`cursor-pointer ${PRIMARY_BUTTON} text-sm px-4 py-1.5 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                  {uploading ? "Uploading…" : "Select Files"}
+                  <input type="file" accept=".pdf,.xlsx" multiple className="sr-only"
+                    onChange={(e) => e.target.files && handleUpload(e.target.files, "dubai")} />
+                </label>
+              </div>
+            </div>
           </div>
-        )}
-        {uploadError && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-            ✗ {uploadError}
+
+          {/* Noon manual entry */}
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Noon — Manual Entry</p>
+            <div className="rounded-xl border border-white/10 bg-white/3 px-5 py-5 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-white/40 block mb-1">Period Start</label>
+                  <input type="date" value={noonPeriodStart} onChange={(e) => setNoonPeriodStart(e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/40 block mb-1">Period End</label>
+                  <input type="date" value={noonPeriodEnd} onChange={(e) => setNoonPeriodEnd(e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-white/40 block mb-1">Amount (AED)</label>
+                  <input type="number" step="0.01" min="0" value={noonAmount} onChange={(e) => setNoonAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-violet-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/40 block mb-1">Brand</label>
+                  <select value={noonBrand} onChange={(e) => setNoonBrand(e.target.value as "sushi_zen" | "ramen_zen")}
+                    className="w-full rounded-lg border border-white/10 bg-zinc-800 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500/50">
+                    <option value="sushi_zen">Sushi ZEN</option>
+                    <option value="ramen_zen">Ramen ZEN</option>
+                  </select>
+                </div>
+              </div>
+              <button onClick={handleNoonEntry} disabled={noonSaving}
+                className={`${PRIMARY_BUTTON} w-full text-sm py-1.5 ${noonSaving ? "opacity-50" : ""}`}>
+                {noonSaving ? "Saving…" : "Save Noon Payout"}
+              </button>
+              {noonResult && <p className="text-xs text-emerald-400">✓ {noonResult}</p>}
+              {noonError && <p className="text-xs text-red-400">✗ {noonError}</p>}
+            </div>
           </div>
-        )}
+        </div>
+
+        {uploadResult && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">✓ {uploadResult}</div>}
+        {uploadError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">✗ {uploadError}</div>}
         </>)}
 
         {/* KPI Cards */}
@@ -441,7 +531,7 @@ export default function ArPayoutsPage() {
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
           {/* Platform — options differ by city */}
-          {(cityTab === "dubai" ? ["all", "careem"] : ["all", "grab", "foodpanda"]).map((p) => (
+          {(cityTab === "dubai" ? ["all", "careem", "keeta", "talabat", "noon"] : ["all", "grab", "foodpanda"]).map((p) => (
             <button
               key={p}
               onClick={() => setPlatformFilter(p)}

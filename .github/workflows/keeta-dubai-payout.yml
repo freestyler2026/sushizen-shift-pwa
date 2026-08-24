@@ -1,9 +1,6 @@
 name: Keeta Dubai — Settlement Payout Extract
 
 on:
-  schedule:
-    # Every day at 03:00 UTC = 07:00 GST (Dubai)
-    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
