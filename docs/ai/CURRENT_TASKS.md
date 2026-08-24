@@ -1,6 +1,56 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (Patrick 8/20・8/22 修正完了 — 真因は同期ブロック)
+Last updated: 2026-08-24 (DTR Sync 根本改善: 行単位スキップ + 矛盾ガード)
+
+---
+
+## ✅ Completed: DTR Sync 根本改善 — 全体ブロック廃止 + スケジュール矛盾ガード (2026-08-24)
+
+**背景**: 「シフトを直したのにDTRが変わらない」の真因は、他人のデータ不備で同期が全停止していたこと。
+行単位で対処すれば安全性を保ったまま解消できる。
+
+### 改善1: 全体ブロック → 行単位スキップ (main.py sync-dtr-os)
+`shift_data_missing` / `suspicious_sessions` は `return {"error": ...}` で**全員分を書かずに中断**していた。
+ゲートの目的は「シフト不明の人の day_type を推測して書かない」ことなので、
+**該当行だけ `continue` でスキップ**すれば目的は完全に満たせる（既存DTR行はそのまま残る＝推測は一切しない）。
+レスポンスに `skipped_no_shift` / `skipped_suspicious` を追加。フロントの Sync ボタンの `disabled` も撤廃。
+
+### 改善2: 打刻と矛盾する公開シフトは適用しない
+公開シフトは常に正しいとは限らない。実測: 正しいDTR×誤った公開シフト = 35行、その逆 = 9行。
+無条件上書きは前者を破壊する（1行あたり約7時間の幻のundertime）。
+**打刻を判定基準にする** — 公開シフト開始が実打刻から2時間以内なら適用、それ以上離れていて既存DTRがあれば既存を維持し
+`schedule_conflicts` で報告。定数 `_SCHEDULE_CONFLICT_H = 2.0`。
+本当に遅刻した人は既存スケジュール＝公開シフトなので変化せず、遅刻はそのまま残る（本番で検証済み）。
+
+### 改善3: Preview が影響範囲を出す
+`schedule_changes`（書き換わる全スケジュール）と `preview_truncated` を追加。
+従来は先頭200行しか見えず、44件のスケジュール書き換えが不可視だった。
+
+### 本番検証結果 (period_id=6, preview)
+| 項目 | 結果 |
+|---|---|
+| error | **null**（全体ブロックなし）✅ |
+| would_sync | 724 / 745 |
+| skipped_no_shift | 19行（Anthony M. Tabios / Tricia Andrea Estrada のみ） |
+| skipped_suspicious | 2行（Gessa Gregorio / Mayorico C. Furio Jr. Ⅱ） |
+| schedule_conflicts | 10行（Rachelle Ann Caubat ×5 等を保護）✅ |
+| schedule_changes | 102行 |
+
+誤遅刻の自動修正を確認: Nicko 8/21・Cherish 8/19・Reymar 8/18・Camilla 8/20・Alex 8/19 → late 0。
+真の遅刻は保持: Camilla 8/18 late 10m / 8/19 late 9m、Cherish 8/18 late 43m / 8/20 late 19m。
+
+**デプロイ**: backend `33b83e2` / frontend `9ed85af` / Payroll Manual 更新済み
+
+### 手動修正済み（同期前に個別対応した4行）
+Patrick 8/20・8/22、Angelika Valbarez 8/11、Francis Ibana 8/18 → 全て 15:30-00:30 系に修正、late 0/26m。
+
+### 残作業
+- Anthony M. Tabios / Tricia Andrea Estrada のシフト公開
+- Gessa Gregorio 8/23、Mayorico C. Furio Jr. Ⅱ 8/13 の打刻修正
+- `schedule_conflicts` 10行はシフト表とDTRのどちらが正しいか要判断
+
+---
+
 
 ---
 

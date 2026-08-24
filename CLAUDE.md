@@ -187,6 +187,8 @@ npx tsc --noEmit
 14. **公開シフトの「最新」判定は `shift_published_rows.updated_at` を使う — `shift_published_versions.published_at` 禁止** → Manual Shift の編集は `(city, branch_code, week)` の **既存** version 行に行を追加するだけで `published_at` を更新しない。そのため `published_at` で並べると「今直した行」が「後から publish された別ブランチの古い行」に負ける。`shift_published_rows` を複数バージョン跨ぎで読む箇所は必ず `DISTINCT ON (staff_name, work_date) ... ORDER BY r.updated_at DESC, v.published_at DESC` にする。（2026-08 発見。※Patrick 8/20 の実際の原因はこれではなく下記16だった — これは予防的ハードニング）
 15. **`WHERE ... != 'approved'` 付き UPSERT の成功件数は `cur.rowcount` で数える** → `manila_attendance_daily` の UPSERT は approved 行を更新しない。それを無条件に `written += 1` していたため「Sync complete — N rows written」と出るのに実データは1行も変わらない、という最悪の沈黙バグになった。ガード付き UPSERT は必ず `cur.rowcount == 0` を検知し、スキップした行をレスポンス＋UIに出す。（2026-08 DTR Sync で発生）
 16. **DTR Sync が「効かない」ときは、まず Preview Sync のブロック表示を見る** → `shift_data_missing` / `suspicious_sessions` が1件でもあると「Sync to DTR」ボタンが `disabled` になり、**1行も書き込まれない**。他人（例：Anthony/Tricia のシフト未公開、Gessa/Mayorico の打刻漏れ）が原因でも全員分の同期が止まる。「シフトを直したのに DTR が変わらない」の実際の原因はほぼこれ。個別に急ぐ場合は DTR Records の Schedule 列（鉛筆アイコン）をクリックして `HH:MM-HH:MM` を直接入力すれば、その行だけ late/undertime が再計算される。（2026-08 Patrick 8/20・8/22 で発生）
+17. **給与系の一括処理で「1件でも不備があれば全体を中断」は作ってはいけない** → DTR Sync は `shift_data_missing` / `suspicious_sessions` があると全員分を書かずに `return {"error": ...}` していた。結果、他人の不備で数ヶ月間シフト修正がDTRに届かず、しかも画面上は原因が分かりにくかった。**不備のある行だけスキップして残りは処理し、スキップした行を必ずレスポンスとUIに出す**こと。安全ゲートの目的（誤った値を書かない）は行単位スキップで完全に満たせる。（2026-08-24 改善済み）
+18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 ---
 
