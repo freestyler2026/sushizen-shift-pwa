@@ -3,7 +3,7 @@
 import {
   AlertCircle, Archive, BookOpen, Calendar, CheckCircle2,
   ChevronDown, ChevronRight, Clock, Download, FileText,
-  Loader2, Lock, Plus, RefreshCw, Trash2, Upload, Users, X,
+  Loader2, Plus, RefreshCw, Trash2, Upload, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAuth } from "@/lib/auth";
@@ -40,111 +40,7 @@ type PolicyDoc = {
   is_active: boolean;
   created_at: string;
   acknowledged_count: number;
-  /** Locked: the file only opens after an HQ member re-enters their PIN. */
-  requires_hq_pin?: boolean;
 };
-
-/** Collects an HQ member's name + PIN to open a locked document. */
-function HQUnlockModal({
-  doc,
-  onClose,
-  onUnlocked,
-}: {
-  doc: PolicyDoc;
-  onClose: () => void;
-  onUnlocked: (blob: Blob) => void;
-}) {
-  const [approvers, setApprovers] = useState<string[]>([]);
-  const [approver, setApprover] = useState("");
-  const [pin, setPin] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  useEffect(() => {
-    apiFetch(`${API}/hq-approvers`)
-      .then(r => (r.ok ? r.json() : { approvers: [] }))
-      .then((d: { approvers?: string[] }) => setApprovers(d.approvers ?? []))
-      .catch(() => setApprovers([]));
-  }, []);
-
-  async function submit() {
-    if (!approver || !pin) { setErr("Select an HQ member and enter their PIN."); return; }
-    setBusy(true); setErr("");
-    try {
-      const r = await apiFetch(`${API}/${doc.id}/file`, {
-        method: "POST",
-        body: JSON.stringify({ approver_name: approver, pin }),
-      });
-      if (!r.ok) {
-        const detail = await r.text();
-        setErr(detail.includes("HQ approval")
-          ? "That account is not HQ. An HQ member must approve."
-          : "Incorrect PIN.");
-        return;
-      }
-      onUnlocked(await r.blob());
-      onClose();
-    } catch {
-      setErr("Could not open the document. Try again.");
-    } finally {
-      setBusy(false);
-      setPin("");
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className={GLASS_CARD + " w-full max-w-md p-6"}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-base font-semibold text-white">HQ approval required</h3>
-            <p className="mt-1 text-xs text-slate-400">{doc.title}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={18} /></button>
-        </div>
-
-        <p className="mt-4 text-xs text-slate-400">
-          This document contains salary information. An HQ member must enter their PIN to open it.
-        </p>
-
-        <label className="mt-4 block text-xs font-medium text-slate-400">HQ member</label>
-        <select
-          value={approver}
-          onChange={e => setApprover(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
-        >
-          <option value="">— Select —</option>
-          {approvers.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
-
-        <label className="mt-3 block text-xs font-medium text-slate-400">PIN</label>
-        <input
-          type="password"
-          value={pin}
-          onChange={e => setPin(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") void submit(); }}
-          placeholder="••••"
-          autoComplete="off"
-          className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
-        />
-
-        {err && <p className="mt-3 text-xs text-rose-400">{err}</p>}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} disabled={busy}
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400 hover:text-white disabled:opacity-50">
-            Cancel
-          </button>
-          <button onClick={() => { void submit(); }} disabled={busy}
-            className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}>
-            {busy ? <Loader2 size={14} className="animate-spin" /> : null}
-            Open document
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 type AckEntry = { staff_name: string; acknowledged_at: string };
 type AckReport = {
@@ -370,7 +266,6 @@ export default function PolicyDocsAdminPage() {
   const [catFilter, setCatFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [ackDoc, setAckDoc] = useState<PolicyDoc | null>(null);
-  const [unlockDoc, setUnlockDoc] = useState<PolicyDoc | null>(null);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -408,14 +303,8 @@ export default function PolicyDocsAdminPage() {
   }
 
   async function downloadFile(doc: PolicyDoc) {
-    // Locked documents (e.g. the salary table) need an HQ member's PIN, which
-    // the server checks — the dialog below just collects it.
-    if (doc.requires_hq_pin) { setUnlockDoc(doc); return; }
     const r = await apiFetch(`${API}/${doc.id}/file`);
-    if (!r.ok) {
-      if (r.status === 403) { setUnlockDoc(doc); return; }
-      return;
-    }
+    if (!r.ok) return;
     saveBlob(await r.blob(), doc.file_name);
   }
 
@@ -571,8 +460,7 @@ export default function PolicyDocsAdminPage() {
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => { void downloadFile(doc); }}
                       className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:border-violet-400/30 hover:text-violet-200 transition-colors">
-                      {doc.requires_hq_pin ? <Lock size={12} className="text-amber-400" /> : <Download size={12} />}
-                      {doc.requires_hq_pin ? "Download PDF (HQ PIN)" : "Download PDF"}
+                      <Download size={12} /> Download PDF
                     </button>
                     {doc.requires_acknowledgement && (
                       <button onClick={() => setAckDoc(ackDoc?.id === doc.id ? null : doc)}
@@ -601,13 +489,6 @@ export default function PolicyDocsAdminPage() {
         })}
       </div>
 
-      {unlockDoc && (
-        <HQUnlockModal
-          doc={unlockDoc}
-          onClose={() => setUnlockDoc(null)}
-          onUnlocked={blob => saveBlob(blob, unlockDoc.file_name)}
-        />
-      )}
     </div>
   );
 }

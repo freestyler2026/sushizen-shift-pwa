@@ -37,8 +37,6 @@ type PolicyDoc = {
   created_at: string;
   acknowledged: boolean;
   acknowledged_at: string | null;
-  /** Locked: the file only opens after an HQ member enters their PIN. */
-  requires_hq_pin?: boolean;
 };
 
 function fmtSize(bytes: number) {
@@ -198,7 +196,7 @@ export default function StaffPolicyDocsPage() {
   const [ackingDoc, setAckingDoc] = useState<PolicyDoc | null>(null);
   const [previewDoc, setPreviewDoc] = useState<PolicyDoc | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [lockedMsg, setLockedMsg] = useState("");
+  const [loadErr, setLoadErr] = useState("");
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -222,30 +220,28 @@ export default function StaffPolicyDocsPage() {
     }
   }, [previewDoc, previewUrl]);
 
-  // Some documents are HQ-locked: the API refuses them with 403 hq_pin_required.
-  // Say so plainly instead of leaving an empty preview or a silent no-op.
-  const LOCKED_MSG = "This document is restricted to HQ. Please ask an HQ member to open it for you.";
-
   async function openPreview(doc: PolicyDoc) {
     setPreviewDoc(doc);
-    setLockedMsg("");
+    setLoadErr("");
     try {
       const r = await apiFetch(`${API}/${doc.id}/file`);
       if (!r.ok) {
         setPreviewUrl(null);
-        if (r.status === 403) setLockedMsg(LOCKED_MSG);
+        setLoadErr("Could not open this document. Please refresh and try again.");
         return;
       }
       setPreviewUrl(URL.createObjectURL(await r.blob()));
     } catch {
       setPreviewUrl(null);
+      setLoadErr("Could not open this document. Please refresh and try again.");
     }
   }
 
   async function downloadFile(doc: PolicyDoc) {
     const r = await apiFetch(`${API}/${doc.id}/file`);
     if (!r.ok) {
-      if (r.status === 403) { setPreviewDoc(doc); setPreviewUrl(null); setLockedMsg(LOCKED_MSG); }
+      setPreviewDoc(doc); setPreviewUrl(null);
+      setLoadErr("Could not open this document. Please refresh and try again.");
       return;
     }
     const blob = await r.blob();
@@ -283,9 +279,9 @@ export default function StaffPolicyDocsPage() {
           <div className="flex-1 overflow-hidden">
             {previewUrl ? (
               <iframe src={previewUrl} className="w-full h-full border-0" title={previewDoc.title} />
-            ) : lockedMsg ? (
+            ) : loadErr ? (
               <div className="flex h-full items-center justify-center px-8 text-center text-sm text-amber-200">
-                {lockedMsg}
+                {loadErr}
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-zinc-400">
