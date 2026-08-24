@@ -817,7 +817,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     const effectivePar = getEffectivePar(item);
                     const isLow = item.min_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.min_level);
                     const isWarn = !isLow && effectivePar !== null && entry.qty !== null && Number(entry.qty) < effectivePar;
-                    const unitCost = item.unit_cost ?? 0;
+                    const unitCost = Number(item.unit_cost ?? 0);
                     const lineValue = (unitCost > 0 && entry.qty !== null) ? Number(entry.qty) * unitCost : null;
                     return (
                       <tr key={item.item_code} className={[TABLE_ROW, isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""].join(" ")}>
