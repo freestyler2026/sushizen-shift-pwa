@@ -27,9 +27,23 @@ DevTools はフロントのマスクを完全に回避できた。
 `compliance/minimum-wage` 196件 / 0件。匿名→401、署名偽造トークン→401。
 書き込み保護も実証（ADMIN が null で保存 → ₱30,000 が無傷）。
 
+**非HQブラウザ検証済み** (`Test Account` / ADMIN ロール / PIN 1111 / Manila):
+Staff Profiles の Monthly Rate 列 `—`、給与グリッド・期間詳細・給与明細すべて `****`、
+編集モーダルの給与入力は空、**APIレスポンス本体（Networkタブ）も全て `null`**。
+本物のゼロは `0.00` のまま表示され、マスクと区別できる。
+
+### 🔴 検証中に見つけて直した2つの重大な穴
+
+1. **非HQがプロフィールを一切保存できなくなっていた** — 「Either monthly rate or daily
+   rate is required」バリデーションが、マスクで空になったレート欄に対して発火。政府ID・
+   MDR・銀行情報など**本来担当者が編集すべき項目まで保存不能**だった。非HQでは当該
+   チェックをスキップし、レート・手当欄は readOnly + `••••` 表示 + 説明文に変更。
+2. **`hasPayrollViewSalary()` が権限ベースで判定していた** — ADMIN は `*` ワイルドカードを
+   持つため `hasPermission("payroll.view_salary")` が **true** を返し、フロントのマスクが
+   バイパスされていた。サーバー側マスクがあったため実害はなかったが、**フロント判定だけに
+   頼っていたら全額漏れていた**。`role === "HQ"` のロール基準に変更（サーバーと同一基準）。
+
 ### ⚠️ 残課題
-- **非HQブラウザ確認が未完了** — `Test Admin Account` の PIN が不明（`1111` / `1230851`
-  ともに API 直叩きで `Invalid PIN`）。HQ側の回帰確認は完了済み
 - **認証なしエンドポイント**: `/api/admin/mgmt/cost-trend` と
   `/api/admin/mgmt/labor-cost-detail` は `request` 引数すら取らず認証チェックが皆無。
   個人別給与は含まないためマスク対象外だが、店舗別人件費・売上・原価率が誰でも取得可能
