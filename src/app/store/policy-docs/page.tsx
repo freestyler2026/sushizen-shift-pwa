@@ -37,6 +37,8 @@ type PolicyDoc = {
   created_at: string;
   acknowledged: boolean;
   acknowledged_at: string | null;
+  /** Locked: the file only opens after an HQ member enters their PIN. */
+  requires_hq_pin?: boolean;
 };
 
 function fmtSize(bytes: number) {
@@ -196,6 +198,7 @@ export default function StaffPolicyDocsPage() {
   const [ackingDoc, setAckingDoc] = useState<PolicyDoc | null>(null);
   const [previewDoc, setPreviewDoc] = useState<PolicyDoc | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lockedMsg, setLockedMsg] = useState("");
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -219,25 +222,37 @@ export default function StaffPolicyDocsPage() {
     }
   }, [previewDoc, previewUrl]);
 
+  // Some documents are HQ-locked: the API refuses them with 403 hq_pin_required.
+  // Say so plainly instead of leaving an empty preview or a silent no-op.
+  const LOCKED_MSG = "This document is restricted to HQ. Please ask an HQ member to open it for you.";
+
   async function openPreview(doc: PolicyDoc) {
     setPreviewDoc(doc);
+    setLockedMsg("");
     try {
       const r = await apiFetch(`${API}/${doc.id}/file`);
-      const blob = await r.blob();
-      setPreviewUrl(URL.createObjectURL(blob));
+      if (!r.ok) {
+        setPreviewUrl(null);
+        if (r.status === 403) setLockedMsg(LOCKED_MSG);
+        return;
+      }
+      setPreviewUrl(URL.createObjectURL(await r.blob()));
     } catch {
       setPreviewUrl(null);
     }
   }
 
-  function downloadFile(doc: PolicyDoc) {
-    apiFetch(`${API}/${doc.id}/file`).then(async r => {
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = doc.file_name; a.click();
-      URL.revokeObjectURL(url);
-    });
+  async function downloadFile(doc: PolicyDoc) {
+    const r = await apiFetch(`${API}/${doc.id}/file`);
+    if (!r.ok) {
+      if (r.status === 403) { setPreviewDoc(doc); setPreviewUrl(null); setLockedMsg(LOCKED_MSG); }
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = doc.file_name; a.click();
+    URL.revokeObjectURL(url);
   }
 
   const total = docs.length;
@@ -268,6 +283,10 @@ export default function StaffPolicyDocsPage() {
           <div className="flex-1 overflow-hidden">
             {previewUrl ? (
               <iframe src={previewUrl} className="w-full h-full border-0" title={previewDoc.title} />
+            ) : lockedMsg ? (
+              <div className="flex h-full items-center justify-center px-8 text-center text-sm text-amber-200">
+                {lockedMsg}
+              </div>
             ) : (
               <div className="flex items-center justify-center h-full text-zinc-400">
                 <Loader2 size={24} className="animate-spin" />
