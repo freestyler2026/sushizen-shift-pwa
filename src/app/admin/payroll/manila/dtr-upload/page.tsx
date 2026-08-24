@@ -112,6 +112,11 @@ type SyncApiResult = {
   suspicious_sessions?: SuspiciousSession[];
   skipped_approved?: { staff_name: string; work_date: string; reason: string }[];
   note_skipped_approved?: string;
+  skipped_no_shift?: { staff_name: string; work_date: string; reason: string }[];
+  skipped_suspicious?: { staff_name: string; work_date: string; check_in: string; check_out: string; duration_hours: number }[];
+  schedule_conflicts?: { staff_name: string; work_date: string; clock_in: string; published_shift: string; kept_dtr_shift: string; gap_hours: number; reason: string }[];
+  schedule_changes?: { staff_name: string; work_date: string; from: string; to: string }[];
+  preview_truncated?: number;
   errors?: { employee_id?: string; staff_name?: string; work_date: string; message: string }[];
   preview?: SyncPreviewRow[];
   // Blocking error responses from the backend
@@ -703,6 +708,57 @@ export default function DtrUploadPage() {
                       </div>
                     )}
 
+                    {/* Published shift contradicts the actual clock-in — existing DTR kept.
+                        Without this, a wrong published shift silently invents hours of
+                        phantom late/undertime (2026-08: 35 rows would have been corrupted). */}
+                    {(syncResult.schedule_conflicts?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-red-500/40 bg-red-900/15 p-3 space-y-2">
+                        <p className="text-xs font-bold text-red-300">
+                          Schedule conflict — published shift far from actual clock-in ({syncResult.schedule_conflicts!.length})
+                        </p>
+                        <p className="text-xs text-red-300/80">
+                          The existing DTR schedule was KEPT for these rows, because applying the published
+                          shift would create hours of false late/undertime. Fix whichever side is wrong.
+                        </p>
+                        <div className="space-y-1 mt-1 max-h-56 overflow-y-auto">
+                          {syncResult.schedule_conflicts!.map((c, i) => (
+                            <div key={i} className="flex flex-wrap items-center gap-2 rounded bg-red-900/25 px-2 py-1">
+                              <span className="text-xs font-medium text-red-200">{c.staff_name}</span>
+                              <span className="text-xs text-red-400">{c.work_date}</span>
+                              <span className="text-xs text-red-300 tabular-nums">clock-in {c.clock_in}</span>
+                              <span className="text-xs text-red-400">shift {c.published_shift}</span>
+                              <span className="text-xs text-slate-400">kept {c.kept_dtr_shift}</span>
+                              <span className="text-xs font-bold text-red-200">{c.gap_hours}h apart</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Blast radius: every schedule this sync would change. */}
+                    {(syncResult.schedule_changes?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-blue-500/30 bg-blue-900/10 p-3 space-y-2">
+                        <p className="text-xs font-bold text-blue-300">
+                          Scheduled shift changes ({syncResult.schedule_changes!.length})
+                        </p>
+                        <p className="text-xs text-blue-300/80">
+                          {syncResult.preview_only ? "These rows would have" : "These rows had"} their scheduled
+                          shift replaced by the published shift.
+                        </p>
+                        <div className="space-y-1 mt-1 max-h-56 overflow-y-auto">
+                          {syncResult.schedule_changes!.map((c, i) => (
+                            <div key={i} className="flex flex-wrap items-center gap-2 rounded bg-blue-900/20 px-2 py-1">
+                              <span className="text-xs font-medium text-blue-200">{c.staff_name}</span>
+                              <span className="text-xs text-blue-400">{c.work_date}</span>
+                              <span className="text-xs text-slate-400 tabular-nums">{c.from}</span>
+                              <span className="text-xs text-blue-300">→</span>
+                              <span className="text-xs text-blue-200 tabular-nums font-medium">{c.to}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Rows the sync could not overwrite because they are already approved.
                         Without this panel the sync reports "complete" while these rows keep
                         their old scheduled times. */}
@@ -725,7 +781,7 @@ export default function DtrUploadPage() {
                       </div>
                     )}
 
-                    {/* Backend blocking error (shift_data_missing_blocked or suspicious_sessions_blocked) */}
+                    {/* Unexpected server error (the sync no longer blocks globally) */}
                     {syncResult.error && (
                       <div className="rounded-xl border border-red-500/50 bg-red-900/20 p-3 space-y-1">
                         <p className="text-xs font-bold text-red-300">🚫 Sync blocked by the server</p>
@@ -733,15 +789,15 @@ export default function DtrUploadPage() {
                       </div>
                     )}
 
-                    {/* Shift data missing — BLOCKS sync */}
+                    {/* Shift data missing — those rows are skipped, sync still proceeds */}
                     {(syncResult.shift_data_missing?.length ?? 0) > 0 && (
                       <div className="rounded-xl border border-red-500/50 bg-red-900/20 p-3 space-y-1">
                         <p className="text-xs font-bold text-red-300">
-                          🚫 Sync blocked — no published shift found ({syncResult.shift_data_missing!.length} staff)
+                          ⚠️ Skipped — no published shift ({syncResult.shift_data_missing!.length} staff)
                         </p>
                         <p className="text-xs text-red-300">
-                          The system cannot determine the day type without shift data. Publishing rest days arbitrarily is what caused the July–Aug 2026 payroll corruption.
-                          Fix the shift schedule or correct the staff name in the shift system, then re-run Preview.
+                          These staff have attendance but no published shift, so their day type cannot be determined.
+                          Only their own rows are skipped — everyone else still syncs. Publish the shift (or fix the name), then re-sync to include them.
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {syncResult.shift_data_missing!.map(name => (
@@ -751,15 +807,15 @@ export default function DtrUploadPage() {
                       </div>
                     )}
 
-                    {/* Suspicious sessions (>13h) — BLOCKS sync */}
+                    {/* Suspicious sessions — those rows are skipped, sync still proceeds */}
                     {(syncResult.suspicious_sessions?.length ?? 0) > 0 && (
                       <div className="rounded-xl border border-orange-500/50 bg-orange-900/20 p-3 space-y-2">
                         <p className="text-xs font-bold text-orange-300">
-                          🚫 Sync blocked — suspicious sessions detected ({syncResult.suspicious_sessions!.length})
+                          ⚠️ Skipped — suspicious sessions ({syncResult.suspicious_sessions!.length})
                         </p>
                         <p className="text-xs text-orange-300">
-                          The following sessions exceed 13 hours — almost certainly a forgotten clock-out.
-                          Fix the clock-out in OS Attendance first, then re-run Preview.
+                          These sessions exceed the plausible limit — almost certainly a forgotten clock-out, so these rows are skipped.
+                          Everyone else still syncs. Fix the clock-out in OS Attendance, then re-sync to include them.
                         </p>
                         <div className="space-y-1 mt-1">
                           {syncResult.suspicious_sessions!.map((s, i) => (
@@ -840,21 +896,24 @@ export default function DtrUploadPage() {
                         {syncResult.preview_only ? "Back" : "Done"}
                       </button>
                       {syncResult.preview_only && (() => {
-                        const hasShiftMissing = (syncResult.shift_data_missing?.length ?? 0) > 0;
-                        const hasSuspicious   = (syncResult.suspicious_sessions?.length ?? 0) > 0;
-                        const blocked         = hasShiftMissing || hasSuspicious;
+                        // Problem rows are skipped individually by the backend, so the sync is
+                        // never blocked as a whole any more — one staff member's missing shift
+                        // must not stop payroll for everyone (2026-08 Patrick incident).
+                        const skipped = (syncResult.skipped_no_shift?.length ?? 0)
+                                      + (syncResult.skipped_suspicious?.length ?? 0);
                         return (
                           <div className="flex flex-col gap-1">
                             <button
                               onClick={() => handleSync(false)}
-                              disabled={syncLoading || blocked}
-                              title={blocked ? "Fix blocking issues above before syncing" : undefined}
+                              disabled={syncLoading}
                               className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed">
                               {syncLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
                               {syncLoading ? "Syncing…" : "Sync to DTR"}
                             </button>
-                            {blocked && (
-                              <p className="text-xs text-red-400 text-center">Fix issues above first</p>
+                            {skipped > 0 && (
+                              <p className="text-xs text-amber-400 text-center">
+                                {skipped} row(s) will be skipped — everything else syncs
+                              </p>
                             )}
                           </div>
                         );
