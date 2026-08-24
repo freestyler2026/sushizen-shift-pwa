@@ -151,6 +151,45 @@ td.muted{color:var(--muted);font-size:12px}
     </div>
   </div>
 
+  <div class="card red-border">
+    <div class="card-title" data-en="Salary Visibility — HQ Role Only" data-ja="給与額の表示 — HQロールのみ">Salary Visibility — HQ Role Only</div>
+    <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:8px" data-en="Per-staff salary and compensation amounts are visible only to users with the HQ role. Every other role — including ADMIN, MANAGEMENT, MANILA_MANAGEMENT, MANILA_MANAGER and HR_MANAGER — sees a masked marker (••••) instead of the amount, everywhere in the system." data-ja="スタッフ個別の給与・報酬額はHQロールのユーザーのみ閲覧できます。ADMIN・MANAGEMENT・MANILA_MANAGEMENT・MANILA_MANAGER・HR_MANAGERを含むその他すべてのロールでは、システム内のあらゆる画面で金額の代わりにマスク表示（••••）が出ます。">Per-staff salary and compensation amounts are visible only to the HQ role. All other roles see •••• instead of the amount, everywhere in the system.</p>
+    <div class="chip-row" style="margin-bottom:10px">
+      <span class="chip green" data-en="HQ — amounts visible" data-ja="HQ — 金額を表示">HQ — amounts visible</span>
+      <span class="chip red">ADMIN — ••••</span>
+      <span class="chip red">MANAGEMENT — ••••</span>
+      <span class="chip red">MANILA_MANAGEMENT — ••••</span>
+      <span class="chip red">MANILA_MANAGER — ••••</span>
+      <span class="chip red">HR_MANAGER — ••••</span>
+    </div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Rule" data-ja="ルール">Rule</th><th data-en="Detail" data-ja="詳細">Detail</th></tr>
+      <tr><td data-en="Enforced on the server" data-ja="サーバー側で制御">Enforced on the server</td><td class="muted" data-en="The API itself returns no amount to a non-HQ user, so the rule applies equally to on-screen tables, side panels, payslip views, and every CSV export." data-ja="APIがHQ以外のユーザーには金額自体を返しません。そのため画面上のテーブル・サイドパネル・給与明細ビュー・全CSVエクスポートに同じように適用されます。">API returns no amount to non-HQ users — applies to tables, side panels, payslip views, and every CSV export.</td></tr>
+      <tr><td data-en="Non-HQ users can still work" data-ja="HQ以外でも業務は可能">Non-HQ users can still work</td><td class="muted" data-en="They can still open and save a profile and edit government IDs, MDR, bank details, allowance flags, and all non-salary fields. Saving does NOT erase the hidden salary — the server keeps the stored amount. They simply cannot read the amounts." data-ja="プロファイルを開いて保存でき、政府ID・MDR・銀行情報・手当フラグなど給与額以外の全フィールドを編集できます。保存しても非表示の給与額は消えません（サーバーが保存済みの金額を保持）。金額を読めないだけです。">Can still open and save profiles and edit gov IDs, MDR, bank details, allowance flags. Saving does NOT erase the hidden salary.</td></tr>
+      <tr><td data-en="My Pay is unaffected" data-ja="My Payは対象外">My Pay is unaffected</td><td class="muted" data-en="Every employee still sees their own salary and payslip in full on the My Pay page. The masking only hides OTHER people's pay." data-ja="各従業員はMy Payページで自分自身の給与・給与明細を全額そのまま確認できます。マスクされるのは他人の給与のみです。">Every employee still sees their own salary and payslip in full. Masking only hides OTHER people's pay.</td></tr>
+      <tr><td data-en="Column totals" data-ja="列の合計">Column totals</td><td class="muted" data-en="A column total shows •••• only when every row feeding it is masked. Where a real zero exists it still shows 0.00." data-ja="列の合計は、その合計を構成する全行がマスクされている場合のみ••••と表示されます。実際に0の値がある場合は0.00と表示されます。">Shows •••• only when every row feeding it is masked; a real zero still shows 0.00.</td></tr>
+    </table></div>
+    <div style="margin-top:10px">
+      <div class="formula-label" data-en="Where masking applies" data-ja="マスクが適用される画面">Where masking applies</div>
+      <div class="chip-row">
+        <span class="chip" data-en="Manila Payroll — Staff Profiles, period/run detail, Allowances, Adjustments, minimum-wage compliance" data-ja="マニラ給与 — スタッフプロファイル、期間・ラン詳細、手当、調整額、最低賃金コンプライアンス">Manila Payroll (Staff Profiles, period/run detail, Allowances, Adjustments, min-wage compliance)</span>
+        <span class="chip" data-en="Dubai Payroll — Staff Profiles" data-ja="ドバイ給与 — スタッフプロファイル">Dubai Payroll (Staff Profiles)</span>
+        <span class="chip" data-en="Payroll grid & Salary Configs" data-ja="給与グリッド・給与設定">Payroll grid & Salary Configs</span>
+        <span class="chip" data-en="Transactions / payslips" data-ja="取引・給与明細">Transactions / payslips</span>
+        <span class="chip">Loans</span>
+        <span class="chip" data-en="Leave Salary" data-ja="年次有給前払い">Leave Salary</span>
+        <span class="chip" data-en="Finance — per-staff payroll table" data-ja="ファイナンス — スタッフ別給与テーブル">Finance per-staff payroll table</span>
+        <span class="chip" data-en="HR Clearance — final pay" data-ja="HRクリアランス — 最終給与">HR Clearance final pay</span>
+        <span class="chip" data-en="HR Performance — salary increase" data-ja="HRパフォーマンス — 昇給">HR Performance salary increase</span>
+        <span class="chip" data-en="Meal Allowance" data-ja="食事手当">Meal Allowance</span>
+      </div>
+    </div>
+    <div class="tip danger" style="margin-top:12px;margin-bottom:0">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="If a payroll task genuinely needs the amounts — for example verifying a bank transfer file before payout — it has to be done by an HQ user." data-ja="銀行振込ファイルの確認など、金額そのものが必要な給与業務は、HQロールのユーザーが実施する必要があります。">Any task that genuinely needs the amounts — e.g. verifying a bank transfer file — must be done by an HQ user.</span>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title" data-en="Manila vs Dubai — Key Differences" data-ja="マニラ vs ドバイ — 主な違い">Manila vs Dubai — Key Differences</div>
     <div class="table-wrap"><table>
@@ -396,6 +435,11 @@ td.muted{color:var(--muted);font-size:12px}
       <tr><td><code>tin</code></td><td class="muted">BIR Tax ID</td><td class="muted">WHT, 1601-C report</td></tr>
       <tr><td><code>bank_account_no</code> or <code>gcash_number</code></td><td class="muted" data-en="Payment account" data-ja="支払口座">Payment account</td><td class="muted" data-en="Mark Paid flow" data-ja="支払済みフロー">Mark Paid flow</td></tr>
     </table></div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Only HQ users see the rate. For every other role the monthly_rate column and the profile panel show •••• instead of the amount. Saving is safe — you can still edit government IDs, MDR, bank details, allowance flags, and all other fields, and the stored salary is kept by the server even though it is hidden from you." data-ja="レートを閲覧できるのはHQユーザーのみです。その他のロールではmonthly_rate列とプロファイルパネルに金額の代わりに••••が表示されます。保存しても問題ありません — 政府ID・MDR・銀行情報・手当フラグなど他のフィールドは通常どおり編集でき、非表示の給与額もサーバー側でそのまま保持されます。">Only HQ sees the rate — other roles get •••• in the monthly_rate column and profile panel. Saving is safe: other fields stay editable and the hidden salary is preserved.</span>
   </div>
 
   <div class="two-col">
@@ -913,6 +957,10 @@ td.muted{color:var(--muted);font-size:12px}
       <tr><td><code>visa_expiry</code></td><td class="muted" data-en="UAE visa expiry date" data-ja="UAE ビザ有効期限">UAE visa expiry date</td><td class="muted" data-en="Used for Leave Salary Advance eligibility check" data-ja="年次有給前払い資格確認に使用">Used for Leave Salary eligibility</td></tr>
       <tr><td><code>contract_end_date</code></td><td class="muted" data-en="Contract end date (for gratuity calc)" data-ja="契約終了日（退職金計算用）">Contract end date</td><td class="muted" data-en="Reference for end-of-service gratuity" data-ja="勤続退職金の参考">Reference for end-of-service</td></tr>
     </table></div>
+    <div class="tip danger" style="margin-top:10px;margin-bottom:0">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Only HQ users see the amounts in basic_salary and the allowance fields — every other role sees ••••. All non-salary fields stay editable, and saving does not erase the hidden amounts." data-ja="basic_salaryおよび手当フィールドの金額を閲覧できるのはHQユーザーのみで、その他のロールでは••••と表示されます。給与額以外のフィールドは通常どおり編集でき、保存しても非表示の金額は消えません。">Only HQ sees basic_salary and allowance amounts — other roles see ••••. Non-salary fields stay editable and saving does not erase the hidden amounts.</span>
+    </div>
   </div>
 
   <div class="card">
@@ -1316,6 +1364,10 @@ td.muted{color:var(--muted);font-size:12px}
     <div class="chip-row">
       <span class="lc-path">/admin/payroll/manila/[periodId] → staff row → View Payslip</span>
       <span class="lc-path">/admin/payroll/transactions → run → staff row → View Payslip</span>
+    </div>
+    <div class="tip danger" style="margin-top:10px;margin-bottom:0">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Amounts on another staff member's payslip are visible only to HQ users — every other role sees ••••, including in CSV exports. Staff themselves are never affected: My Pay always shows their own figures in full." data-ja="他のスタッフの給与明細の金額を閲覧できるのはHQユーザーのみで、その他のロールではCSVエクスポートを含め••••と表示されます。スタッフ本人には影響しません — My Payでは常に自分の金額が全額表示されます。">Amounts on another staff's payslip are HQ-only — other roles see ••••, CSV exports included. Staff always see their own figures in full on My Pay.</span>
     </div>
   </div>
 </div>
