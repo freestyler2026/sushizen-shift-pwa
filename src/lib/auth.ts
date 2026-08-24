@@ -777,9 +777,18 @@ export function canAccessPayrollAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.payroll.view", "channel.admin.payroll.manage"], a);
 }
 
-/** Can view actual salary amounts (Gross/Net/Rate). HQ has wildcard so always true; others need explicit grant. */
+/**
+ * Can view actual salary amounts (Gross/Net/Rate) — HQ role only.
+ *
+ * Must stay role-based, NOT permission-based: ADMIN carries the "*" wildcard,
+ * which grants every named permission and so would unlock salary for a role
+ * that must not see it. This mirrors the backend's salary_masking_guard, which
+ * also gates on role == "HQ" alone. Presentation only — the server is the
+ * boundary and already returns null amounts to everyone else.
+ */
 export function hasPayrollViewSalary(a?: Auth | null): boolean {
-  return hasPermission("payroll.view_salary", a);
+  const auth = a ?? getAuth();
+  return (auth?.role ?? "").toUpperCase() === "HQ";
 }
 
 /** Store Evaluations admin — matches `admin.store_evaluations` channel in `app/access_control.py`. */
