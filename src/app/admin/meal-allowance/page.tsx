@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SALARY_HIDDEN } from "@/lib/salary";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -18,7 +19,8 @@ import { RefreshCw, Banknote, CheckCircle, AlertCircle } from "lucide-react";
 type SummaryRow = {
   staff_name: string;
   city: string;
-  pending_total: number;
+  /** null when the viewer is not HQ — the API masks compensation. */
+  pending_total: number | null;
   pending_days: number;
   paid_out_total: number;
   latest_earned_date: string | null;
@@ -88,7 +90,9 @@ export default function MealAllowancePage() {
   }, [allowed, load]);
 
   const totalPending = useMemo(
-    () => rows.reduce((s, r) => s + Number(r.pending_total || 0), 0),
+    () => (rows.length > 0 && rows.every(r => r.pending_total == null)
+      ? null
+      : rows.reduce((s, r) => s + Number(r.pending_total ?? 0), 0)),
     [rows],
   );
 
@@ -105,7 +109,13 @@ export default function MealAllowancePage() {
 
   const handlePayout = async () => {
     if ((!auth?.hasSession && !auth?.accessToken) || selected.size === 0) return;
-    if (!window.confirm(`Pay out ${fmtPHP(rows.filter(r => selected.has(r.staff_name)).reduce((s, r) => s + Number(r.pending_total), 0))} to ${selected.size} staff?`)) return;
+    // A masked total would read as a confident PHP 0.00 and the approver would be
+    // paying blind, so say the amount is hidden rather than inventing a zero.
+    const chosen = rows.filter(r => selected.has(r.staff_name));
+    const totalLabel = chosen.every(r => r.pending_total == null)
+      ? SALARY_HIDDEN
+      : fmtPHP(chosen.reduce((s, r) => s + Number(r.pending_total ?? 0), 0));
+    if (!window.confirm(`Pay out ${totalLabel} to ${selected.size} staff?`)) return;
     setPayingOut(true);
     setError("");
     setSuccessMsg("");
@@ -182,7 +192,7 @@ export default function MealAllowancePage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className={`${GLASS_CARD} p-4`}>
           <p className={`${T_LABEL} mb-1`}>Total Pending</p>
-          <p className="text-2xl font-bold text-yellow-300">{fmtPHP(totalPending)}</p>
+          <p className="text-2xl font-bold text-yellow-300">{totalPending == null ? SALARY_HIDDEN : fmtPHP(totalPending)}</p>
         </div>
         <div className={`${GLASS_CARD} p-4`}>
           <p className={`${T_LABEL} mb-1`}>Staff with Balance</p>
@@ -278,7 +288,9 @@ export default function MealAllowancePage() {
 
                 {/* Balance */}
                 <div className="shrink-0 text-right">
-                  <div className="text-lg font-bold text-yellow-300">{fmtPHP(Number(row.pending_total))}</div>
+                  <div className="text-lg font-bold text-yellow-300">
+                    {row.pending_total == null ? SALARY_HIDDEN : fmtPHP(Number(row.pending_total))}
+                  </div>
                   <div className="text-[11px] text-zinc-500">pending</div>
                 </div>
               </div>
