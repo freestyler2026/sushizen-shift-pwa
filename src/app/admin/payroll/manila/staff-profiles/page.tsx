@@ -757,8 +757,10 @@ export default function StaffProfilesPage() {
   }
 
   function getReadiness(p: StaffProfile) {
+    // The rate is masked to null for non-HQ, so this check cannot be evaluated —
+    // counting it as missing flagged every single employee as not payroll-ready.
     const checks = [
-      { label: "Rate",       ok: !!(p.monthly_rate || p.daily_rate) },
+      ...(isHQ ? [{ label: "Rate", ok: !!(p.monthly_rate || p.daily_rate) }] : []),
       { label: "SSS No.",    ok: !!p.sss_number },
       { label: "PhilHealth", ok: !!p.philhealth_id },
       { label: "Pag-IBIG",   ok: !!p.pagibig_mid },

@@ -92,6 +92,10 @@ function AdjModal({
   onSave: (a: Adjustment) => void;
   onClose: () => void;
 }) {
+  // The amount is masked to null for non-HQ, so it arrives as "" — validating or
+  // sending it would either block the save or write NaN over a real figure.
+  const canSeeSalary = getAuth()?.role === "HQ";
+  const amountMasked = !canSeeSalary && adj != null && adj.amount == null;
   const [form, setForm] = useState({
     staff_name: adj?.staff_name ?? "",
     adj_type: adj?.adj_type ?? defaultType,
@@ -121,7 +125,7 @@ function AdjModal({
 
   async function save() {
     if (!form.staff_name.trim()) { setErr("Staff name is required"); return; }
-    if (!form.amount || parseFloat(form.amount) <= 0) { setErr("Amount must be greater than 0"); return; }
+    if (!amountMasked && (!form.amount || parseFloat(form.amount) <= 0)) { setErr("Amount must be greater than 0"); return; }
     setBusy(true); setErr("");
     try {
       let r: Response;
@@ -130,8 +134,9 @@ function AdjModal({
           method: "PATCH",
           body: JSON.stringify({
             subtype: form.subtype,
-            amount: parseFloat(form.amount),
-            vat: parseFloat(form.vat) || 0,
+            // Omitted when masked: the PATCH only writes fields it receives, so
+            // the stored amount survives an edit to the note or subtype.
+            ...(amountMasked ? {} : { amount: parseFloat(form.amount), vat: parseFloat(form.vat) || 0 }),
             incurred_at: form.incurred_at || null,
             note: form.note,
           }),
