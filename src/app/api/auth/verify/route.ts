@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     headers: {
       Accept: "application/json",
       ...(authHeader ? { Authorization: authHeader } : {}),
+      ...(req.headers.get("x-approver-pin") ? { "X-Approver-Pin": req.headers.get("x-approver-pin") as string } : {}),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
       ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
