@@ -1,6 +1,77 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-23 (is_confidential 実装完了 + 管理・BO Staff Profiles 全データ投入完了)
+Last updated: 2026-08-24 (Klikit data purge + code removal 完了)
+
+---
+
+## ✅ Completed: Manila July 2026 P&L Revenue 修正 (2026-08-24)
+
+**問題:** Manila 2026-07 `mgmt_revenue_manual` = PHP 4,626,658.11（正しい値の約2倍）
+
+**根本原因（3段階）:**
+1. **Klikit export 異常**: July 2026 のKlikit報告書が約1.9×多い注文数を報告（GrabFood+GrabMart混在、またはitem数/order数取り違えの可能性）
+2. **`manila_daily_sales` 汚染**: その異常なKlklit ExcelがDBにインポートされ、全3店舗×全チャンネルのorder countが約1.9×膨張。total_amountも膨張
+3. **PL App Excel → mgmt_revenue_manual 連鎖**: 店舗マネージャーが膨張したKlklit数値でPLアプリ用Excelを作成 → 2026-08-23の一括インポートでmgmt_revenue_manualに誤値(PHP 4,626,658)が書き込まれた
+
+**修正済み（2026-08-24）:**
+- `mgmt_revenue_manual` Manila 2026-07: PHP 4,626,658.11 → **PHP 2,340,135.19** (NET: Grab 1,691,839 + Panda 479,449 + Dine-in 168,848)
+- P&Lの revenue_source = "manual"、revenue = PHP 2,340,135 で表示される
+
+**後続対応（2026-08-24完了）:**
+- `manila_daily_sales` July 2026 全件削除済み（Klikit purge migration）
+- `mgmt_revenue_manual` に正しい値 PHP 2,340,135.19 が設定済みのため P&L 表示は正常
+- July 2026 の正確な日次内訳が必要な場合、Grab/FoodPandaポータルから再エクスポートして手動インポートが必要（Klikitは廃止済み）
+
+---
+
+---
+
+## ✅ Completed: Klikit Data Purge + Code Removal (2026-08-24)
+
+**作業内容**: Klikit (旧POSアグリゲーター) の全データ・コード完全削除
+
+**削除したデータ:**
+- `manila_daily_sales` 2026-07 全件（ensure関数のDELETE migration → Heroku再起動時に自動実行）
+- `sales_record_klikit` 列を `manila_cashier_evaluations` からDROP（ALTER TABLE migration）
+
+**削除したコード（バックエンド）:**
+- `app/db_manila_daily_ops.py`: `sales_record_klikit` 列をDDL・全クエリ・関数シグネチャから削除
+- `app/main.py`: `sales_record_klikit` をペイロードクラスと関数呼び出しから削除
+- `app/services/manila_sales_sync.py`: `"klikit": "Offline"` チャンネルマッピング削除、`sync_klickit_sales_from_drive` を no-op stub に置換
+- `app/db.py`: Klikit言及コメント削除
+- `scripts/import_manila_daily_excel.py`: Klkitフォーマット Excel インポートスクリプトを完全削除
+
+**削除したコード（フロントエンド）:**
+- `AdminCashierEvalInputTab.tsx`: `sales_record_klikit` インターフェース・フォームフィールド・バッジ・ペイロード削除
+- `ManilaCashierEvaluationTab.tsx`: `sales_record_klikit` インターフェース・"Klikit log" テーブル列削除
+
+**デプロイ:** Backend Heroku v2130、Frontend Vercel (commit 2578162)
+
+---
+
+## ✅ Completed: 管理職日給の P&L Labor 加算 (2026-08-24)
+
+**作業内容**: Yamada/Ayako/Yusuke の Manila monthly_rate を P&L の労働コストに反映
+
+**実装内容** (`db.py`):
+- `get_mgmt_daily_pl`: `is_confidential=TRUE AND is_active=TRUE` の monthly_rate 合計を取得し、`monthly_rate / days_in_month` を各日の `day_total['labor']` に加算 (profit も同額減算)
+- `get_mgmt_cost_summary`: 同様に月次労働コストへ加算 (Excelオーバーライドより前に適用)
+- 管理職合計: 47,500 + 36,500 + 67,500 = **151,500 PHP/月 = 約4,887 PHP/日** (31日月)
+
+**テスト結果**: 2026-08 Manila 日次P&L で labor 列に管理職コスト反映済み ✅
+**デプロイ**: Heroku `0addda6`
+
+---
+
+## ✅ Completed: 2H Payroll Period 再計算 + テスト (2026-08-24)
+
+**作業内容**: 2026-08-2H period の Compute All 実行、全テスト完了
+
+**テスト結果**:
+- 2026-08-1H: 58 runs, confidential=[], Francis/Richard/Mariano 正常 ✅
+- 2026-08-2H: 58 runs, confidential=[], Francis/Richard/Mariano 正常 ✅
+- Yamada/Ayako/Yusuke: payroll runs に含まれない ✅
+- is_confidential masking: HQ以外は `****` 表示、Confidential バッジ ✅
 
 ---
 
