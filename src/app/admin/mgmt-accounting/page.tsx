@@ -227,7 +227,9 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
                 ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>AR Payouts</span>
                 : summary.revenue_source === "manual"
                   ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>Manual</span>
-                  : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>
+                  : (summary.revenue_source as string) === "sales_data_input"
+                    ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>Daily Sales</span>
+                    : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>
             )}
           </div>
           <p className={KPI_VALUE}>{summary ? fmtAmt(summary.revenue, cur) : "—"}</p>
@@ -236,7 +238,9 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
               ? "Auto from delivery platforms"
               : summary?.revenue_source === "manual"
                 ? "Manually entered"
-                : "Enter in Settings or sync AR Payouts"}
+                : (summary?.revenue_source as string) === "sales_data_input"
+                  ? "Auto from daily sales data"
+                  : "Enter in Settings or sync AR Payouts"}
           </p>
         </div>
         <div className={KPI_CARD}>
@@ -675,7 +679,9 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                         ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>AR Payouts</span>
                         : data.native.revenue_source === "manual"
                           ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>Manual</span>
-                          : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>}
+                          : (data.native.revenue_source as string) === "sales_data_input"
+                            ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>Daily Sales</span>
+                            : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>}
                     </td>
                   </tr>
                 ))}
