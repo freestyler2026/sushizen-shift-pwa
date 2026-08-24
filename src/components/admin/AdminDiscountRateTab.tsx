@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAuthHeaders } from "@/lib/auth";
-import { GLASS_CARD, T_CAPTION, T_LABEL, PRIMARY_BUTTON } from "@/lib/ui-tokens";
+import { GLASS_CARD, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
 
 const STANDARD_PCT = 50;
 
@@ -54,13 +54,48 @@ function formatUpdatedAt(ts: string | undefined) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+type HistoryRow = {
+  id: number;
+  city: string;
+  platform: string;
+  discount_pct: number;
+  effective_date: string;
+  notes: string;
+  updated_at: string;
+};
+
+const PLATFORM_LABEL: Record<string, string> = {
+  careem: "Careem", noon: "Noon", talabat: "Talabat",
+  keeta: "Keeta", smiles: "Smiles", grabfood: "Grab Food", foodpanda: "Food Panda",
+};
+
 export default function AdminDiscountRateTab() {
   const [rows, setRows] = useState<Record<string, RateRow>>({});
   const [edits, setEdits] = useState<Record<string, EditState>>({});
   const [loading, setLoading] = useState(true);
   const [effectiveDate, setEffectiveDate] = useState(todayISO());
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("");
 
   const key = (city: string, platform: string) => `${city}:${platform}`;
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/admin/aggregator-discount-rates/history?city=all&limit=200", {
+        headers: await getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setHistory(data.history ?? []);
+    } catch {
+      // leave empty on error
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +129,7 @@ export default function AdminDiscountRateTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (showHistory) loadHistory(); }, [showHistory, loadHistory]);
 
   const setEdit = (k: string, patch: Partial<EditState>) =>
     setEdits((prev) => ({ ...prev, [k]: { ...prev[k], ...patch } }));
@@ -122,6 +158,7 @@ export default function AdminDiscountRateTab() {
       }));
       setEdit(k, { saving: false, saved: true, discount_pct: String(data.discount_pct) });
       setTimeout(() => setEdit(k, { saved: false }), 2000);
+      if (showHistory) loadHistory();
     } catch (err) {
       setEdit(k, { saving: false, error: String(err) });
     }
@@ -289,7 +326,92 @@ export default function AdminDiscountRateTab() {
       {renderSection("dubai", dubaiRows)}
       {renderSection("manila", manilaRows)}
 
-      <p className={`${T_CAPTION} opacity-60 text-xs mt-2`}>
+      {/* Change History */}
+      <div className="mt-2">
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className="flex items-center gap-2 text-sm text-white/60 hover:text-white/90 transition-colors"
+        >
+          <span>{showHistory ? "▾" : "▸"}</span>
+          <span>Change History</span>
+          {history.length > 0 && (
+            <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded">{history.length}</span>
+          )}
+        </button>
+
+        {showHistory && (
+          <div className={`${GLASS_CARD} mt-3`}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="font-semibold text-sm">All Entries</h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={historyFilter}
+                  onChange={(e) => setHistoryFilter(e.target.value)}
+                  placeholder="Filter by aggregator…"
+                  className="px-2 py-1 rounded border border-white/20 text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-white/30 w-44"
+                />
+                <button
+                  onClick={loadHistory}
+                  disabled={historyLoading}
+                  className="px-2 py-1 rounded border border-white/20 text-xs hover:bg-white/10 transition disabled:opacity-40"
+                >
+                  {historyLoading ? "…" : "↺"}
+                </button>
+              </div>
+            </div>
+
+            {historyLoading ? (
+              <p className={`${T_CAPTION} py-4 text-center`}>Loading…</p>
+            ) : history.length === 0 ? (
+              <p className={`${T_CAPTION} py-4 text-center opacity-50`}>No history yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className={`text-left py-2 pl-2 pr-3 ${T_LABEL} font-medium`}>Date</th>
+                      <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>City</th>
+                      <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>Aggregator</th>
+                      <th className={`text-right py-2 pr-3 ${T_LABEL} font-medium`}>Rate</th>
+                      <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>Notes</th>
+                      <th className={`text-left py-2 ${T_LABEL} font-medium`}>Recorded at</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history
+                      .filter((h) => {
+                        if (!historyFilter.trim()) return true;
+                        const q = historyFilter.toLowerCase();
+                        const label = (PLATFORM_LABEL[h.platform] ?? h.platform).toLowerCase();
+                        return label.includes(q) || h.city.includes(q) || h.platform.includes(q);
+                      })
+                      .map((h) => {
+                        const nonStd = h.discount_pct !== STANDARD_PCT;
+                        return (
+                          <tr key={h.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="py-2 pl-2 pr-3 tabular-nums">{formatDate(h.effective_date)}</td>
+                            <td className="py-2 pr-3">
+                              <span>{CITY_FLAGS[h.city] ?? ""} {CITY_LABEL[h.city] ?? h.city}</span>
+                            </td>
+                            <td className="py-2 pr-3 font-medium">{PLATFORM_LABEL[h.platform] ?? h.platform}</td>
+                            <td className={`py-2 pr-3 text-right font-semibold tabular-nums ${nonStd ? "text-red-400" : "text-green-400"}`}>
+                              {h.discount_pct}%
+                            </td>
+                            <td className={`py-2 pr-3 ${T_CAPTION} opacity-70`}>{h.notes || "—"}</td>
+                            <td className={`py-2 ${T_CAPTION} opacity-50`}>{formatUpdatedAt(h.updated_at)}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <p className={`${T_CAPTION} opacity-60 text-xs mt-3`}>
         Standard is 50% off. Values other than 50% are shown in red.
         Each save records a new entry for the selected effective date.
       </p>
