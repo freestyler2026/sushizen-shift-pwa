@@ -435,6 +435,33 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <!-- ── WEEKDAY / WEEKEND SCHEDULE LOGIC ── -->
+  <div class="card violet-border">
+    <div class="card-title" data-en="Weekday vs Weekend Par Level — Schedule Logic" data-ja="平日 vs 週末 Par Level — スケジュール判定ロジック">Weekday vs Weekend Par Level — Schedule Logic</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px" data-en="Generate Now automatically selects the correct par level type based on the delivery date you set — not the day you place the order." data-ja="Generate Nowは、発注日ではなく設定した「配送日」を基準にPar Levelの種類を自動選択します。">Generate Now automatically selects the correct par level type based on the delivery date — not the day you click Generate.</p>
+
+    <div class="table-wrap" style="margin-bottom:12px"><table>
+      <tr><th data-en="Delivery Date" data-ja="配送日">Delivery Date</th><th data-en="Schedule used" data-ja="使用スケジュール">Schedule used</th><th data-en="Par Level field" data-ja="Par Levelフィールド">Par Level field</th></tr>
+      <tr><td data-en="Friday" data-ja="金曜日">Friday</td><td><span class="chip amber" data-en="Weekend" data-ja="週末">Weekend</span></td><td class="muted"><code>Par Level (Weekend)</code></td></tr>
+      <tr><td data-en="Mon / Tue / Wed / Thu / Sat / Sun" data-ja="月・火・水・木・土・日">Mon / Tue / Wed / Thu / Sat / Sun</td><td><span class="chip blue" data-en="Weekday" data-ja="平日">Weekday</span></td><td class="muted"><code>Par Level (Weekday)</code></td></tr>
+    </table></div>
+
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="The schedule type is shown in brackets after the generation result message, e.g.: 'Created 3 order(s) [weekday schedule, 175 inv items]'. If an item's Weekday Par Level is not set (NULL), the system falls back to the default Par Level." data-ja="スケジュールタイプは生成結果メッセージの後ろに括弧書きで表示されます。例：「Created 3 order(s) [weekday schedule, 175 inv items]」。アイテムのWeekday Par Levelが未設定（NULL）の場合、デフォルトのPar Levelにフォールバックします。">The schedule type shows in brackets after the result, e.g. [weekday schedule, 175 inv items]. If Weekday Par Level is not set for an item, the system falls back to the default Par Level.</p>
+
+    <div class="card-title" style="margin-top:10px;margin-bottom:8px" data-en="Debug Panel — per-item breakdown" data-ja="Debugパネル — アイテムごとの内訳">Debug Panel — per-item breakdown</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="After clicking Generate Now, a Debug button appears below the result message. Click it to expand a table showing every item and how the order quantity was calculated." data-ja="Generate Nowをクリックした後、結果メッセージの下に「Debug」ボタンが表示されます。クリックすると、全アイテムと発注数量の計算内訳を示す表が展開されます。">After Generate Now, a Debug button appears below the result. Click it to expand a table showing each item's calculation.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Column" data-ja="カラム">Column</th><th data-en="Meaning" data-ja="意味">Meaning</th></tr>
+      <tr><td><strong>Item</strong></td><td class="muted" data-en="Catalog item name" data-ja="カタログアイテム名">Catalog item name</td></tr>
+      <tr><td><strong>Stock found</strong></td><td class="muted" data-en="✓ = current stock was found in Daily Inventory · ✗ = not found (full par level used)" data-ja="✓ = Daily Inventoryで在庫が見つかった · ✗ = 見つからず（全パーレベルを使用）">✓ = found in Daily Inv · ✗ = not found (full par used)</td></tr>
+      <tr><td><strong>Stock</strong></td><td class="muted" data-en="Current stock quantity at the store" data-ja="店舗の現在庫数量">Current store stock</td></tr>
+      <tr><td><strong>Par</strong></td><td class="muted" data-en="Par level value applied to this order" data-ja="この発注に適用されたパーレベル値">Par level value used</td></tr>
+      <tr><td><strong>Par src</strong></td><td class="muted" data-en="'weekday' / 'weekend' / 'default' — which par level field was used. 'default' means Weekday Par Level was not set for this item." data-ja="'weekday' / 'weekend' / 'default' — どのPar Levelフィールドが使用されたか。'default'はアイテムのWeekday Par Levelが未設定であることを意味します。">'weekday' / 'weekend' / 'default'. 'default' = Weekday Par Level not set → go to Catalog to add it.</td></tr>
+      <tr><td><strong>Order qty</strong></td><td class="muted" data-en="Calculated order quantity (= par − stock)" data-ja="計算された発注数量（= par − 現在庫）">Calculated qty (par − stock)</td></tr>
+    </table></div>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="If an item shows Par src = 'default', it means the Weekday Par Level is not set in the Catalog. The order will use the default par level instead. To fix: Catalog tab → click the Par cell for that item → set a Weekday Par Level value." data-ja="アイテムのPar srcが'default'と表示される場合、CatalogでWeekday Par Levelが未設定であることを意味します。代わりにデフォルトのPar Levelが使用されます。修正方法：Catalogタブ → そのアイテムのParセルをクリック → Weekday Par Levelの値を設定。">Par src = 'default' means Weekday Par Level is not set in Catalog. Fix: Catalog tab → click Par cell → set Weekday Par Level.</span></div>
+  </div>
+
   <!-- ── NEW FEATURE: STOCK COLUMN ── -->
   <div class="card green-border">
     <div class="card-title" data-en="🆕 Stock Column — Current Inventory in Order Detail" data-ja="🆕 Stockカラム — 発注詳細に在庫数値を表示">🆕 Stock Column — Current Inventory in Order Detail</div>
@@ -537,8 +564,24 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <!-- ① PO PDF Download -->
+  <div class="card green-border">
+    <div class="card-title">① Download PO as PDF</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px">After an order is approved or sent, a <strong>Download PO PDF</strong> button appears in the order detail panel. Click it to download a formatted A4 PDF of the Purchase Order — includes company header, PO number (e.g. SSO-57), supplier info, ordered items with unit prices, grand total, and signature lines.</p>
+    <div class="chip-row" style="margin-bottom:8px">
+      <span class="chip violet">approved</span>
+      <span class="chip amber">sent</span>
+      <span class="chip green">received</span>
+      <span style="color:var(--muted);font-size:12px;align-self:center"> — PDF button visible at these statuses</span>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span>The PDF button is not available on <span class="chip" style="font-size:10px;padding:1px 5px">draft</span> or <span class="chip blue" style="font-size:10px;padding:1px 5px">confirmed</span> orders. Wait until HQ approves.</span>
+    </div>
+  </div>
+
   <div class="card">
-    <div class="card-title" data-en="Post-Order Flow — After Mark as Sent" data-ja="送信後フロー — Mark as Sent後">Post-Order Flow — After Mark as Sent</div>
+    <div class="card-title" data-en="② Post-Order Flow — Receipt &amp; Invoice" data-ja="②送信後フロー — 受取・請求書">② Post-Order Flow — Receipt &amp; Invoice</div>
     <p style="color:var(--muted);font-size:12px;margin-bottom:12px">All receiving and invoice matching is done directly within the <strong>Store Supplier Orders</strong> page — no separate receiving page needed.</p>
 
     <ol class="steps">
@@ -547,17 +590,22 @@ td.muted { color:var(--muted); font-size:12px; }
         <p style="color:var(--muted);font-size:12px">On a <span class="chip blue" style="font-size:10px;padding:1px 6px">sent</span> order, managers can click the pencil icon next to "Delivery Date" to enter the expected delivery date. An alert banner appears on this page if the date passes midnight with no receipt confirmation.</p>
       </div></li>
       <li class="step"><span class="step-num">2</span><div class="step-body">
-        <strong>Confirm Receipt</strong>
-        <p style="color:var(--muted);font-size:12px">Click <strong>Confirm Receipt</strong> on any <span class="chip blue" style="font-size:10px;padding:1px 6px">sent</span> order to open the receipt modal. Enter:</p>
-        <ul style="color:var(--muted);font-size:12px;margin-top:4px;padding-left:16px">
+        <strong>Confirm Receipt <span class="chip red" style="font-size:10px;padding:1px 5px">Invoice Photo Required</span></strong>
+        <p style="color:var(--muted);font-size:12px">Click <strong>Confirm Receipt</strong> on any <span class="chip blue" style="font-size:10px;padding:1px 6px">sent</span> order to open the receipt modal. Fill in all fields:</p>
+        <ul style="color:var(--muted);font-size:12px;margin-top:6px;padding-left:16px;line-height:1.9">
+          <li><strong style="color:var(--red)">Invoice Photo (required)</strong> — tap or click the dashed upload area and select a photo of the physical invoice. The photo uploads immediately to Google Drive. The <strong>Confirm</strong> button stays disabled until upload is complete.</li>
           <li>Invoice number (optional)</li>
           <li>Qty received per item</li>
           <li>Receipt status: <span class="chip green" style="font-size:10px;padding:1px 6px">Received</span>, <span class="chip amber" style="font-size:10px;padding:1px 6px">Partial</span>, or <span class="chip red" style="font-size:10px;padding:1px 6px">Issue</span></li>
         </ul>
-        <p style="color:var(--muted);font-size:12px;margin-top:4px">Partial → status becomes <span class="chip amber" style="font-size:10px;padding:1px 6px">partial</span> with remaining qty open. All items received → <span class="chip green" style="font-size:10px;padding:1px 6px">received</span>.</p>
+        <p style="color:var(--muted);font-size:12px;margin-top:6px">Partial → status becomes <span class="chip amber" style="font-size:10px;padding:1px 6px">partial</span> with remaining qty open. All items received → <span class="chip green" style="font-size:10px;padding:1px 6px">received</span>. After confirmation, a <strong>View Invoice Photo</strong> link appears in the order detail panel linking directly to the Drive file.</p>
+        <div class="tip danger" style="margin-top:8px">
+          <span class="tip-icon">🚫</span>
+          <span>Receipt cannot be confirmed without uploading an invoice photo. This is enforced both in the UI (button disabled) and by the server (400 error). Always photograph the physical invoice before clicking Confirm.</span>
+        </div>
       </div></li>
       <li class="step"><span class="step-num">3</span><div class="step-body">
-        <strong>Invoice Matching (Back Office)</strong>
+        <strong>Invoice Matching — Back Office</strong>
         <p style="color:var(--muted);font-size:12px">On received/partial orders, an <strong>Invoice Matching</strong> section appears in the order detail. Managers enter the actual invoice price per item. The system auto-computes variance:</p>
         <div class="table-wrap"><table style="font-size:12px;margin-top:6px">
           <tr><th>Variance</th><th>Display</th><th>Action</th></tr>
@@ -567,6 +615,25 @@ td.muted { color:var(--muted); font-size:12px; }
         <p style="color:var(--muted);font-size:12px;margin-top:6px">Once prices are reviewed, click <strong>Mark Invoice Checked</strong> to clear the alert and record who verified the invoice.</p>
       </div></li>
     </ol>
+
+    <!-- ③ PO Match Linkage -->
+    <div style="margin-top:14px;padding:12px 14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">③ Auto PO Match — What happens after Confirm Receipt</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px">When a store supplier order is confirmed as received, the system <strong>automatically creates a PENDING record</strong> in <strong>Procurement → PO Match (Manila)</strong>. Back Office staff can then enter the invoice amount and finalize the match.</p>
+      <div class="table-wrap"><table style="font-size:12px">
+        <tr><th>Field in PO Match</th><th>Value auto-filled</th></tr>
+        <tr><td style="color:var(--muted)">Vendor</td><td style="color:var(--muted)">Supplier name from the order</td></tr>
+        <tr><td style="color:var(--muted)">PO Number</td><td style="color:var(--muted)"><code>SSO-{order_id}</code> (e.g. SSO-57)</td></tr>
+        <tr><td style="color:var(--muted)">PO Amount</td><td style="color:var(--muted)">Sum of (unit_price × qty_ordered) from ordered items</td></tr>
+        <tr><td style="color:var(--muted)">Invoice Photo</td><td style="color:var(--muted)">Google Drive link from the uploaded invoice photo</td></tr>
+        <tr><td style="color:var(--muted)">Status</td><td style="color:var(--muted)"><span class="chip amber" style="font-size:10px;padding:1px 5px">PENDING</span> — awaiting invoice amount from Back Office</td></tr>
+      </table></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">In the PO Match pending queue, store supplier orders are marked with a green <span class="chip green" style="font-size:10px;padding:1px 5px">Store Order</span> badge and include a <strong>View Invoice Photo</strong> link so Back Office can open the invoice image while entering the amount.</p>
+      <div class="tip info" style="margin-top:8px">
+        <span class="tip-icon">💡</span>
+        <span>Navigate to <strong>Procurement → PO Match</strong>, select <strong>Manila (PHP)</strong>, and look in the <strong>Pending Back Office Review</strong> section. Store Supplier Orders appear with the green <span class="chip green" style="font-size:10px;padding:1px 5px">Store Order</span> badge alongside regular procurement PO match items.</span>
+      </div>
+    </div>
 
     <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--amber)">
       <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:6px">⚠ Alert Banners</div>

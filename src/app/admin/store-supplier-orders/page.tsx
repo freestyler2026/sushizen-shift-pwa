@@ -195,6 +195,16 @@ export default function StoreSupplierOrdersPage() {
   const [editQty, setEditQty] = useState<string>("");
   const [qtyUpdating, setQtyUpdating] = useState(false);
 
+  const [deleteItemConfirm, setDeleteItemConfirm] = useState<number | null>(null);
+  const [deleteItemSaving, setDeleteItemSaving] = useState(false);
+
+  const [addItemModal, setAddItemModal] = useState<{ orderId: number; store: Store } | null>(null);
+  const [addItemCatalog, setAddItemCatalog] = useState<CatalogItem[]>([]);
+  const [addItemCatalogLoading, setAddItemCatalogLoading] = useState(false);
+  const [addItemSelectedCode, setAddItemSelectedCode] = useState("");
+  const [addItemQty, setAddItemQty] = useState("");
+  const [addItemSaving, setAddItemSaving] = useState(false);
+
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const [perf, setPerf] = useState<PerformanceRow[]>([]);
@@ -532,6 +542,82 @@ export default function StoreSupplierOrdersPage() {
       setError("Failed to update quantity.");
     } finally {
       setQtyUpdating(false);
+    }
+  }
+
+  async function openAddItemModal(orderId: number, orderStore: Store) {
+    setAddItemModal({ orderId, store: orderStore });
+    setAddItemSelectedCode("");
+    setAddItemQty("");
+    setAddItemCatalogLoading(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/catalog/${orderStore}`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      setAddItemCatalog(((data.items ?? []) as CatalogItem[]).filter((i) => i.is_active));
+    } catch {
+      setAddItemCatalog([]);
+    } finally {
+      setAddItemCatalogLoading(false);
+    }
+  }
+
+  async function handleAddOrderItem() {
+    if (!addItemModal) return;
+    const selected = addItemCatalog.find((c) => c.item_code === addItemSelectedCode);
+    if (!selected) { setError("Select a catalog item."); return; }
+    const qty = parseFloat(addItemQty);
+    if (isNaN(qty) || qty <= 0) { setError("Enter a valid quantity > 0."); return; }
+    setAddItemSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${addItemModal.orderId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          item_code: selected.item_code,
+          item_name: selected.item_name,
+          unit: selected.unit,
+          qty_ordered: qty,
+          unit_price: selected.unit_price ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        setError((e as { detail?: string }).detail ?? "Failed to add item.");
+        return;
+      }
+      setAddItemModal(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${addItemModal.orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadOrders();
+    } catch {
+      setError("Failed to add item.");
+    } finally {
+      setAddItemSaving(false);
+    }
+  }
+
+  async function handleDeleteOrderItem(orderId: number, itemId: number) {
+    setDeleteItemSaving(true);
+    try {
+      const res = await fetch(`/api/admin/store-supplier/orders/${orderId}/items/${itemId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        setError((e as { detail?: string }).detail ?? "Failed to delete item.");
+        return;
+      }
+      setDeleteItemConfirm(null);
+      const detailRes = await fetch(`/api/admin/store-supplier/orders/${orderId}`, { headers: getAuthHeaders() });
+      const detailData = await detailRes.json();
+      setDetail(detailData.order);
+      await loadOrders();
+    } catch {
+      setError("Failed to delete item.");
+    } finally {
+      setDeleteItemSaving(false);
     }
   }
 
@@ -1148,6 +1234,7 @@ export default function StoreSupplierOrdersPage() {
                                 : detail.status === "approved" ? canApprove
                                 : false;
                               return (
+                                <div className="space-y-2">
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-sm">
                                     <thead>
@@ -1159,6 +1246,7 @@ export default function StoreSupplierOrdersPage() {
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Total</th>
                                         <th className="px-3 py-2 text-right text-xs text-zinc-500">Received</th>
                                         <th className="px-3 py-2 text-left text-xs text-zinc-500">Note</th>
+                                        {canEditQty && <th className="px-2 py-2 text-xs text-zinc-500" />}
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1234,6 +1322,35 @@ export default function StoreSupplierOrdersPage() {
                                               : <span className="text-zinc-600">—</span>}
                                           </td>
                                           <td className="px-3 py-2 text-xs text-zinc-400">{item.receive_note ?? "—"}</td>
+                                          {canEditQty && (
+                                            <td className="px-2 py-2 text-right">
+                                              {deleteItemConfirm === item.id ? (
+                                                <span className="flex items-center gap-1 justify-end">
+                                                  <button
+                                                    onClick={() => handleDeleteOrderItem(detail.id, item.id)}
+                                                    disabled={deleteItemSaving}
+                                                    className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                                                  >
+                                                    {deleteItemSaving ? "…" : "Confirm"}
+                                                  </button>
+                                                  <button
+                                                    onClick={() => setDeleteItemConfirm(null)}
+                                                    className="text-xs text-zinc-500 hover:text-zinc-400"
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                </span>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setDeleteItemConfirm(item.id)}
+                                                  className="text-zinc-600 hover:text-red-400 transition-colors"
+                                                  title="Remove item"
+                                                >
+                                                  <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                              )}
+                                            </td>
+                                          )}
                                         </tr>
                                       ))}
                                       {(() => {
@@ -1243,12 +1360,23 @@ export default function StoreSupplierOrdersPage() {
                                           <tr className="border-t border-white/10 bg-white/3">
                                             <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold text-zinc-400">Grand Total</td>
                                             <td className="px-3 py-2 text-right tabular-nums font-bold text-amber-300">₱{grandTotal.toFixed(2)}</td>
-                                            <td colSpan={2} />
+                                            <td colSpan={canEditQty ? 3 : 2} />
                                           </tr>
                                         ) : null;
                                       })()}
                                     </tbody>
                                   </table>
+                                </div>
+                                {canEditQty && (
+                                  <div className="flex justify-end">
+                                    <button
+                                      onClick={() => openAddItemModal(detail.id, detail.store as Store)}
+                                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-medium py-1.5 px-3 transition-colors"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" /> Add Item
+                                    </button>
+                                  </div>
+                                )}
                                 </div>
                               );
                             })()}
@@ -2186,6 +2314,72 @@ export default function StoreSupplierOrdersPage() {
           </>
         )}
       </div>
+
+      {/* ── Add Item Modal ──────────────────────────────────────────────────── */}
+      {addItemModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+              <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                <Plus className="h-5 w-5 text-emerald-400" /> Add Item to Order
+              </h2>
+              <button onClick={() => setAddItemModal(null)} className="text-zinc-500 hover:text-zinc-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-xs text-zinc-400 font-medium mb-1">Item</label>
+                {addItemCatalogLoading ? (
+                  <div className="text-xs text-zinc-500">Loading catalog…</div>
+                ) : (
+                  <select
+                    className={SELECT_CLASS + " w-full"}
+                    value={addItemSelectedCode}
+                    onChange={(e) => setAddItemSelectedCode(e.target.value)}
+                  >
+                    <option value="">— Select item —</option>
+                    {addItemCatalog.map((c) => (
+                      <option key={c.item_code} value={c.item_code}>
+                        {c.item_name} ({c.item_code}) · {c.unit}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 font-medium mb-1">Quantity</label>
+                <input
+                  type="number"
+                  className={INPUT_CLASS + " w-full"}
+                  value={addItemQty}
+                  onChange={(e) => setAddItemQty(e.target.value)}
+                  min="0.001"
+                  step="0.001"
+                  placeholder="0"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleAddOrderItem(); }}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/10">
+              <button
+                onClick={() => setAddItemModal(null)}
+                className={SECONDARY_BUTTON}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleAddOrderItem()}
+                disabled={addItemSaving || !addItemSelectedCode || !addItemQty}
+                className={PRIMARY_BUTTON}
+              >
+                {addItemSaving ? "Adding…" : "Add Item"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Receive Confirmation Modal ──────────────────────────────────────── */}
       {receiveModal && (
