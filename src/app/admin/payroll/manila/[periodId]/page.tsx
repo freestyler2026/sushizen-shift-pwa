@@ -1022,6 +1022,14 @@ function PayslipDetail({
   const [deletingId, setDeletingId]   = useState<number | null>(null);
 
   async function deleteManualItem(item: PayrollItem) {
+    // The matching adjustment is identified by its amount. When salary is masked
+    // both sides are null, Math.abs(null - 0) is 0, and the lookup below would
+    // match the FIRST adjustment of that type instead of this one — deleting the
+    // wrong row and then recomputing the run. Refuse rather than guess.
+    if (!canSeeSalary) {
+      alert("Deleting an adjustment needs the amounts, which are visible to HQ only. Please ask an HQ user.");
+      return;
+    }
     if (!confirm(`Delete manual ${item.item_type === "earning" ? "addition" : "deduction"}: "${item.label}" (₱${Math.abs(item.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })})?`)) return;
     setDeletingId(item.id);
     try {
@@ -1074,12 +1082,14 @@ function PayslipDetail({
   // incomplete DTR — include them regardless of amount.
   const ND_CODES = new Set(["NIGHT_DIFF_REGULAR", "NIGHT_DIFF_OT"]);
   const warnings      = items.filter(i => i.item_type === "warning");
-  const earnings      = items.filter(i => i.item_type === "earning" && i.item_code !== "13TH_MONTH_ACCRUAL" && (i.amount > 0 || ND_CODES.has(i.item_code)));
+  // A masked amount is null, and `null > 0` is false — without the null check every
+  // earning line would disappear for a non-HQ viewer instead of just its figure.
+  const earnings      = items.filter(i => i.item_type === "earning" && i.item_code !== "13TH_MONTH_ACCRUAL" && (i.amount == null || i.amount > 0 || ND_CODES.has(i.item_code)));
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
 
-  const earningsTotal   = earnings.reduce((s, i) => s + i.amount, 0);
-  const deductionsTotal = deductions.reduce((s, i) => s + Math.abs(i.amount), 0);
+  const earningsTotal   = earnings.reduce((s, i) => s + (i.amount ?? 0), 0);
+  const deductionsTotal = deductions.reduce((s, i) => s + Math.abs(i.amount ?? 0), 0);
 
   // Computation basis string
   const basisParts: string[] = [];
