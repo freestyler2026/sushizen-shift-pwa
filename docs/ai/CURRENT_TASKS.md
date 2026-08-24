@@ -72,14 +72,42 @@ staff_master 97名、資産台帳、未公表の新店計画(SM Southmall)、そ
 ゲート投入後も `/api/store/policy-docs/5/file` が**匿名で給与表PDFを配信していた**
 （`/api/admin/*` ゲートの対象外、かつ元々認証チェック皆無）。両ルートに認証+ロック判定を追加。
 
-### 🔴 未解決 — ロール付与の問題（技術ではなく運用）
-`_effective_staff_role` で **HQ** に解決される人物に以下が含まれる:
-- **Marithel Queri** — 2026-08-15 に Yuri Yamada が HQ を付与(active)
-- **Peter Villafuerte** — 2026-05-08 に Yuri Yamada が HQ を付与(active)
+### ✅ 解決済み — 「非primaryのHQ割当」による隠れた全権 (2026-08-24)
 
-つまり**今回マスク対象にした本人(Peter)と、マスクを依頼された相手(Marithel)が
-HQとして全員の給与を閲覧できる**。マスク機構は正しく動作しているが、
-ロール付与を見直さない限り当初の目的は達成されない。Role Management で要確認。
+**症状**: Role Management も Staff ページも ADMIN / HR_MANAGER と表示しているのに、
+2名が `*`（全権）を保持していた。
+
+**原因**: `resolve_role_permissions("HQ")` は `["*"]` を返す（`db.py:779`）。
+`resolve_staff_access_profile` は**有効な全ロールの権限を合算**するため、
+primary でない HQ 割当が1行でも残っていると `*` になる。primary ではないので
+**どの画面にも表示されない**まま権限だけが生きていた。
+
+| | primary（表示） | 残存していた割当 | 旧: 実権限 |
+|---|---|---|---|
+| Marithel Queri | ADMIN | HQ (2026-08-15 Yuri Yamada) | `*` 全権 |
+| Peter Villafuerte | HR_MANAGER | HQ (2026-05-08 Yuri Yamada) | `*` 全権 |
+
+**対処**:
+1. 両名の HQ 割当を `is_active=FALSE` に（バックアップ: scratchpad/hq_revoke_backup.json）
+2. `db.py:1359` — **HQ が primary のときだけ `*` を付与**するようガード追加。
+   副ロールは従来どおり個別権限を合算するが、ワイルドカードは表示ロールと一致する
+
+**検証**: Marithel=ADMIN(162権限/`*`なし)、Peter=HR_MANAGER(142権限/`*`なし)、
+Yukihiro=HQ(`*`あり)。給与閲覧数は Marithel 0 / Peter 0 / Yukihiro 60。
+payroll.view/manage・hr_clearance・staff.manage 等の業務権限は両名とも保持済みで業務影響なし。
+
+### ℹ️ 確認済み — Role Management は既に最優先（設計どおり）
+`resolve_staff_access_profile` の順序は staff_role_assignments → staff_master → staff_auth。
+Staff ページの保存 (`upsert_staff_master`) は `staff_master` しか書かないため、
+**Role Management を上書きすることは構造上できない**。逆に Role Management 側の変更は
+`staff_master.role` へ上書き同期される（Staff ページは表示用の写し）。
+
+### ⚠️ 名前ハードコードによる HQ 上書き（未変更・要認識）
+`main.py:1647 _hq_name_overrides()` は DB を見ずに以下を常に HQ 扱いする:
+`yuri yamada / ayako nishimura / yukihiro nishimura / yusuke uejima`
+＋ 環境変数 `HQ_APPROVER_NAMES`（現在 `Yukihiro Nishimura, Yusuke Uejima, Ayako Sakurai, Yuri Yamada`）。
+**この4-5名は Role Management で権限を外しても HQ のまま**。DB参照失敗時のロックアウト
+防止が目的の安全網だが、権限管理の一元化とは矛盾する。
 
 ### ⚠️ 残課題
 - **`/api/store/*` に45ルートの認証なし** — policy-docs 以外は未対応。
