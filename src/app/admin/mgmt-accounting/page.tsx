@@ -246,7 +246,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
                     : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>未設定</span>
             )}
           </div>
-          <p className={KPI_VALUE}>{summary ? fmtAmt(summary.revenue, cur) : "—"}</p>
+          <p className={KPI_NUM}>{summary ? fmtAmt(summary.revenue, cur) : "—"}</p>
           <p className="text-xs text-zinc-600 mt-1">
             {summary?.revenue_source === "ar_payouts"
               ? "Auto from delivery platforms"
@@ -260,7 +260,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>食材費</p>
           <div className="flex items-center gap-2">
-            <p className={`${KPI_VALUE} text-amber-300`}>{summary ? fmtAmt(summary.food_cost, cur) : "—"}</p>
+            <p className={`${KPI_NUM} text-amber-300`}>{summary ? fmtAmt(summary.food_cost, cur) : "—"}</p>
             {summary?.food_source === "manual_excel" && (
               <span className="text-xs bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded px-1.5 py-0.5">Excel</span>
             )}
@@ -270,7 +270,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>人件費</p>
           <div className="flex items-center gap-2">
-            <p className={`${KPI_VALUE} text-blue-300`}>{summary ? fmtAmt(summary.labor_cost, cur) : "—"}</p>
+            <p className={`${KPI_NUM} text-blue-300`}>{summary ? fmtAmt(summary.labor_cost, cur) : "—"}</p>
             {summary?.labor_source === "estimated_shifts" && (
               <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">推定</span>
             )}
@@ -281,18 +281,18 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
           </p>
         </div>
         <div className={`${KPI_CARD} border-violet-500/20`}>
-          <p className={KPI_LABEL}>プライムコスト</p>
-          <p className={`${KPI_VALUE} text-violet-300`}>{summary ? fmtAmt(summary.prime_cost, cur) : "—"}</p>
+          <p className={KPI_LABEL}>プライム計</p>
+          <p className={`${KPI_NUM} text-violet-300`}>{summary ? fmtAmt(summary.prime_cost, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.prime_cost_rate ?? null)}</p>
         </div>
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>経費</p>
-          <p className={`${KPI_VALUE} text-zinc-300`}>{summary ? fmtAmt(summary.overhead_total, cur) : "—"}</p>
+          <p className={`${KPI_NUM} text-zinc-300`}>{summary ? fmtAmt(summary.overhead_total, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rent, utilities, etc.</p>
         </div>
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>総コスト</p>
-          <p className={`${KPI_VALUE} text-rose-300`}>{summary ? fmtAmt(summary.total_cost, cur) : "—"}</p>
+          <p className={`${KPI_NUM} text-rose-300`}>{summary ? fmtAmt(summary.total_cost, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.total_cost_rate ?? null)}</p>
         </div>
       </div>
@@ -348,7 +348,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
                   <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">売上</th>
                   <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">食材費</th>
                   <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">人件費</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">プライムコスト</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">プライム計</th>
                   <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">プライム率</th>
                 </tr>
               </thead>
@@ -706,13 +706,13 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>全社売上</p>
-            <p className={KPI_VALUE}>{fmtJpy(g.revenue)}</p>
+            <p className={KPI_NUM}>{fmtJpy(g.revenue)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">Manila + Dubai</p>
           </div>
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>食材費</p>
             <div className="flex items-center gap-2">
-              <p className={`${KPI_VALUE} ${foodRateCls(g.food_cost_rate)}`}>{fmtJpy(g.food_cost)}</p>
+              <p className={`${KPI_NUM} ${foodRateCls(g.food_cost_rate)}`}>{fmtJpy(g.food_cost)}</p>
               {(summary?.dubai.native.food_source === "manual_excel" || summary?.manila.native.food_source === "manual_excel") && (
                 <span className="text-xs bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded px-1.5 py-0.5">Excel</span>
               )}
@@ -722,7 +722,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>人件費</p>
             <div className="flex items-center gap-2">
-              <p className={KPI_VALUE}>{fmtJpy(g.labor_cost)}</p>
+              <p className={KPI_NUM}>{fmtJpy(g.labor_cost)}</p>
               {(summary?.dubai.native.labor_source === "estimated_shifts" || summary?.manila.native.labor_source === "estimated_shifts") && (
                 <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">推定</span>
               )}
@@ -730,15 +730,15 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.labor_cost_rate)}</p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>プライムコスト</p>
-            <p className={`${KPI_VALUE} ${primeRateCls(g.prime_cost_rate)}`}>{fmtJpy(g.prime_cost)}</p>
+            <p className={KPI_LABEL}>プライム計</p>
+            <p className={`${KPI_NUM} ${primeRateCls(g.prime_cost_rate)}`}>{fmtJpy(g.prime_cost)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.prime_cost_rate)}</p>
           </div>
           {/* Without these two the page stopped at prime cost, and 81% prime
               read as 19% profit — the months shown here are losses. */}
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>経費</p>
-            <p className={KPI_VALUE}>{fmtJpy(g.overhead_total)}</p>
+            <p className={KPI_NUM}>{fmtJpy(g.overhead_total)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">
               {summary?.dubai.overhead_carried_from || summary?.manila.overhead_carried_from
                 ? `${summary?.dubai.overhead_carried_from ?? summary?.manila.overhead_carried_from} から引き継ぎ`
@@ -751,12 +751,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                 it is a guess. Better to say so than to print a number. */}
             {summary && (summary.dubai.revenue_incomplete || summary.manila.revenue_incomplete) ? (
               <>
-                <p className={`${KPI_VALUE} text-zinc-500`}>算出不可</p>
+                <p className={`${KPI_NUM} text-zinc-500`}>算出不可</p>
                 <p className="text-xs text-rose-300/80 mt-0.5">売上データが不足しています</p>
               </>
             ) : (
               <>
-                <p className={`${KPI_VALUE} ${g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                <p className={`${KPI_NUM} ${g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                   {fmtJpy(g.revenue - g.total_cost)}
                 </p>
                 <p className="text-xs text-zinc-500 mt-0.5">
@@ -781,10 +781,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                   <th className="text-right py-2 pr-4">食材費</th>
                   <th className="text-right py-2 pr-4">食材費率</th>
                   <th className="text-right py-2 pr-4">人件費</th>
-                  <th className="text-right py-2 pr-4">プライムコスト</th>
-                  <th className="text-right py-2 pr-4">プライム率</th>
                   <th className="text-right py-2 pr-4">経費</th>
                   <th className="text-right py-2 pr-4">営業利益</th>
+                  {/* Prime is food + labour — a subtotal. Sitting between labour
+                      and overhead it read as a running total that overhead then
+                      added to. Moved past the profit line, as the indicator it is. */}
+                  <th className="text-right py-2 pr-4 text-zinc-600">プライム率<span className="block text-[9px] normal-case">食材+人件費</span></th>
                   <th className="text-right py-2">売上の出所</th>
                 </tr>
               </thead>
@@ -819,10 +821,6 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                         )}
                       </div>
                     </td>
-                    <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.prime_cost)}</td>
-                    <td className={`text-right py-2.5 pr-4 font-semibold ${primeRateCls(data.prime_cost_rate)}`}>
-                      {fmtRate(data.prime_cost_rate)}
-                    </td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.overhead_total)}</td>
                     {data.revenue_incomplete ? (
                       <td className="text-right py-2.5 pr-4 text-zinc-500 text-xs">算出不可</td>
@@ -837,6 +835,9 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                         </div>
                       </td>
                     )}
+                    <td className={`text-right py-2.5 pr-4 ${primeRateCls(data.prime_cost_rate)}`}>
+                      {fmtRate(data.prime_cost_rate)}
+                    </td>
                     <td className="text-right py-2.5">
                       {data.native.revenue_source === "ar_payouts"
                         ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>入金データ</span>
@@ -855,8 +856,6 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.food_cost)}</td>
                     <td className={`text-right py-2.5 pr-4 ${foodRateCls(g.food_cost_rate)}`}>{fmtRate(g.food_cost_rate)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.labor_cost)}</td>
-                    <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.prime_cost)}</td>
-                    <td className={`text-right py-2.5 pr-4 ${primeRateCls(g.prime_cost_rate)}`}>{fmtRate(g.prime_cost_rate)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.overhead_total)}</td>
                     {summary && (summary.dubai.revenue_incomplete || summary.manila.revenue_incomplete) ? (
                       <td className="text-right py-2.5 pr-4 text-zinc-500 text-xs">算出不可</td>
@@ -869,6 +868,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                         </div>
                       </td>
                     )}
+                    <td className={`text-right py-2.5 pr-4 ${primeRateCls(g.prime_cost_rate)}`}>{fmtRate(g.prime_cost_rate)}</td>
                     <td />
                   </tr>
                 )}
@@ -1212,7 +1212,7 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                       <th className="text-right py-2 pr-4">食材費</th>
                       <th className="text-right py-2 pr-4">食材費率</th>
                       <th className="text-right py-2 pr-4">人件費</th>
-                      <th className="text-right py-2 pr-4">プライムコスト</th>
+                      <th className="text-right py-2 pr-4">プライム計</th>
                       <th className="text-right py-2">プライム率</th>
                     </tr>
                   </thead>
@@ -1356,6 +1356,10 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type Tab = "group" | "cost" | "report";
+
+// Six figures in a row at KPI_VALUE's size wrap mid-number — ¥26,521,9 / 28 —
+// and overflow the card. Same weight, sized to fit the column it lives in.
+const KPI_NUM = "mt-1 text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums whitespace-nowrap";
 
 const MONTH_OPTIONS = prevMonths(12);
 
