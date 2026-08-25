@@ -53,6 +53,12 @@ interface CityData {
   days_in_month?: number;
   revenue_days?: number;
   revenue_incomplete?: boolean;
+  revenue_estimated?: number;
+  estimate_detail?: {
+    through?: string; days_elapsed?: number; days_in_month?: number;
+    by_platform?: { platform: string; missing_days: number; daily_avg: number;
+                    estimated: number; basis: string }[];
+  };
   native: NativeCity;
 }
 interface GroupData {
@@ -608,6 +614,42 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           use this page for the month, and Daily P&amp;L for day-to-day movement.
         </p>
       </div>
+
+      {/* Payouts lag, so part of a running month is inferred rather than banked.
+          The figure is usable for a decision only if that is said plainly. */}
+      {summary && (["dubai", "manila"] as const)
+        .filter((k) => (summary[k].revenue_estimated ?? 0) > 0)
+        .map((k) => {
+          const d = summary[k];
+          const ed = d.estimate_detail ?? {};
+          const name = k === "dubai" ? "ドバイ" : "マニラ";
+          const cur = d.native.currency;
+          return (
+            <div key={`est-${k}`} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-sky-300">
+                {name} — 売上に未入金分の推定を含みます（{ed.through} まで）
+              </p>
+              <p className="text-xs text-sky-200/85 mt-1 leading-relaxed">
+                実績 {fmtNat(d.native.revenue - (d.revenue_estimated ?? 0), cur)} ＋
+                推定 {fmtNat(d.revenue_estimated ?? 0, cur)}。
+                各社の入金サイクルは遅れて着金するため、未着日はその社の実績日平均で補っています。
+                家賃・人件費も同じ日数に合わせています。
+              </p>
+              {(ed.by_platform?.length ?? 0) > 0 && (
+                <div className="mt-2 pt-2 border-t border-sky-500/20 space-y-0.5">
+                  {ed.by_platform!.map((b) => (
+                    <div key={b.platform} className="flex items-baseline gap-2 text-xs text-sky-100/85">
+                      <span className="w-20">{b.platform}</span>
+                      <span className="text-sky-300/70">未着 {b.missing_days}日</span>
+                      <span className="text-sky-300/70">日平均 {fmtNat(b.daily_avg, cur)}</span>
+                      <span className="flex-1 text-right tabular-nums">{fmtNat(b.estimated, cur)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
       {/* A month short of sales days is a data gap, not a bad month — but the
           profit line cannot tell the two apart, so it has to be said here. */}
