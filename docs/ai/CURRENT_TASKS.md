@@ -14290,3 +14290,37 @@ heroku pg:psql -a sushizen-shift-app
 # Reset attendance sync duplicate hash
 UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;
 ```
+
+## 2026-08-25 管理会計 — 食材費と経費の欠落を修正
+
+**ドバイが黒字に見えた原因**: `mgmt_overhead` が全期間ゼロ件。家賃・光熱費が一切
+計上されず、プライムコストまでの残額が利益として表示されていた。→ `overhead_missing`
+を返し画面に警告。日次PLは直近の登録月から最大12ヶ月さかのぼって固定費を引き継ぐ
+（`overhead_carried_from` で明示）。**まだ1ヶ月分も登録が無いため最初の入力が必要。**
+
+**日次PLの食材費が全日ゼロだった**: `mgmt_food_cost_rate` が空でレート0.0。さらに
+算出方式が「売上×メニューマスタの単純平均レート」で販売構成を反映せず。
+→ `compute_daily_food_cost_rates()` を新設し「販売数×原価」に変更。
+
+**原価の定義を間違えた（自分のミス）**: `menu_item_master.cost_unit_price` はほぼ空。
+正しくは `_compute_cost_master_item_totals()` の再帰計算値（構成品を再帰解決＋歩留まり・
+バッファ・固定原価優先）。ボックス商品は `menu_item_ingredients` ではなく
+`menu_item_components` で登録されており、材料テーブルだけ見ると売れ筋が全て原価0になる。
+**Cost Calculation 系の原価は必ず `_compute_cost_master_item_totals()` を呼ぶこと。**
+
+**POS名 → 商品マスタのマッピング**: `pos_item_cost_map` を新設。
+`sum`=セット商品の合算 / `avg`=サイズ違いでPOS名から判別できないもの / `exclude`=Package Fee等。
+デリバリーの上乗せがあるため実売単価ではサイズを特定できない（マニラの餃子は実売193〜225
+vs マスタ99/155）。名称は空白の連続と大小文字を無視して照合、`[Lunch] ` 接頭辞は外して再照合。
+シードはIDではなく**名称で解決**（ID直書きは誤って別商品を原価にしうる）。
+
+**結果**: カバー率 ドバイ 0%→97.8% / マニラ 0%→86.8%。食材費率 ドバイ15.7% / マニラ39.9%。
+
+**Smiles がドバイ月次売上のクエリから欠落**（累計68,646 AED）。修正済み。
+
+### 残タスク
+- `mgmt_overhead` に最低1ヶ月分の固定費入力（これが無いと利益が出せない）
+- マニラ未マッピング: Classic Shoyu Tonkotsu Ramen (Rich & Creamy) 568 /
+  Ramen + Sushi Roll Combo (4pcs) 427（California Roll 4pcs がマスタに無い）/
+  Ramen + Side Dish & Rice 209 / Gyudon Beef Bowl 192 / Black Tonkotsu Ramen (Garlic) 164
+- ドバイ未マッピング: 2 Onigiri of Your Choice 68 ほか少量
