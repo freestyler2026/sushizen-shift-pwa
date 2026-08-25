@@ -56,6 +56,7 @@ interface CityData {
   revenue_estimated?: number;
   estimate_detail?: {
     through?: string; days_elapsed?: number; days_in_month?: number;
+    ok?: boolean; payouts?: number; payout_ratio?: number; basis?: string[];
     by_platform?: { platform: string; missing_days: number; daily_avg: number;
                     estimated: number; basis: string }[];
   };
@@ -627,13 +628,27 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           return (
             <div key={`est-${k}`} className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3">
               <p className="text-sm font-semibold text-sky-300">
-                {name} — 売上に未入金分の推定を含みます（{ed.through} まで）
+                {name} — 売上に推定を含みます{ed.through ? `（${ed.through} まで）` : ""}
               </p>
               <p className="text-xs text-sky-200/85 mt-1 leading-relaxed">
-                実績 {fmtNat(d.native.revenue - (d.revenue_estimated ?? 0), cur)} ＋
-                推定 {fmtNat(d.revenue_estimated ?? 0, cur)}。
-                各社の入金サイクルは遅れて着金するため、未着日はその社の実績日平均で補っています。
-                家賃・人件費も同じ日数に合わせています。
+                {ed.by_platform?.length ? (
+                  <>
+                    実績 {fmtNat(d.native.revenue - (d.revenue_estimated ?? 0), cur)} ＋
+                    推定 {fmtNat(d.revenue_estimated ?? 0, cur)}。
+                    各社の入金サイクルは遅れて着金するため、未着日はその社の実績日平均で補っています。
+                    家賃・人件費も同じ日数に合わせています。
+                  </>
+                ) : (
+                  <>
+                    記録された売上（{fmtNat(d.native.revenue - (d.revenue_estimated ?? 0), cur)}）が、
+                    この月に実際に入金された {fmtNat(ed.payouts ?? 0, cur)} を下回っていました。
+                    入金は受取実績なので売上がそれを下回ることはあり得ず、記録側の欠測と判断しています。
+                    直近{ed.basis?.length ?? 0}ヶ月の「入金÷売上」の中央値
+                    {((ed.payout_ratio ?? 0) * 100).toFixed(1)}% から
+                    {fmtNat(d.native.revenue, cur)} と推定しました。
+                    {ed.basis?.length ? `（基準月: ${ed.basis.join(" / ")}）` : ""}
+                  </>
+                )}
               </p>
               {(ed.by_platform?.length ?? 0) > 0 && (
                 <div className="mt-2 pt-2 border-t border-sky-500/20 space-y-0.5">
