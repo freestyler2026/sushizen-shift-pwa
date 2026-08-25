@@ -205,9 +205,19 @@ async function postCycles(cycles, extractedAt) {
   const payload = { extracted_at: extractedAt, cycles: [] };
   let unmapped = 0;
 
+  const unmappedIds = new Map();   // billableId → {type, count, total}
+
   for (const c of cycles) {
     const info = MERCHANT_MAP[c.billableId];
-    if (!info) { unmapped++; continue; }
+    if (!info) {
+      unmapped++;
+      const k = `${c.billableId}|${c.billableType}`;
+      const e = unmappedIds.get(k) || { count: 0, total: 0 };
+      e.count += 1;
+      e.total += c.cycleBalance || 0;
+      unmappedIds.set(k, e);
+      continue;
+    }
     payload.cycles.push({
       outlet_id:   String(c.billableId),
       store_code:  info.code,
@@ -243,7 +253,17 @@ async function postCycles(cycles, extractedAt) {
   } catch (err) {
     console.error(`  ❌ Cycle webhook error: ${err.message}`);
   }
-  if (unmapped > 0) console.log(`  ${unmapped} cycles for merchants not in MERCHANT_MAP (skipped)`);
+  if (unmapped > 0) {
+    // Never let dropped rows be silent: a historical backfill can turn up
+    // outlets that closed before MERCHANT_MAP was written.
+    console.log(`\n  ⚠ ${unmapped} cycles skipped — billable not in MERCHANT_MAP:`);
+    for (const [k, e] of [...unmappedIds.entries()].sort((a, b) => b[1].total - a[1].total)) {
+      const [id, type] = k.split('|');
+      console.log(`      ${id} (${type})`.padEnd(34) +
+                  `${e.count} cycles`.padEnd(12) +
+                  e.total.toFixed(2).padStart(12));
+    }
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
