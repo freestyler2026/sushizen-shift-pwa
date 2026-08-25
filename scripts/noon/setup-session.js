@@ -9,6 +9,12 @@
  *   - First time setup
  *   - GitHub Actions reports 401 (session expired)
  *
+ * Two ways to sign in:
+ *   - Interactive (default): a browser window opens and you log in yourself.
+ *     Nothing has to hold your password.
+ *   - Automated: set NOON_USERNAME and NOON_PASSWORD. Useful for a headless
+ *     machine, at the cost of putting the password in the environment.
+ *
  * Usage:
  *   node scripts/noon/setup-session.js
  *   node scripts/noon/setup-session.js --upload   # also sets GitHub secret
@@ -22,16 +28,17 @@ const { execSync } = require('child_process');
 
 const USERNAME = process.env.NOON_USERNAME;
 const PASSWORD = process.env.NOON_PASSWORD;
-if (!USERNAME || !PASSWORD) {
-  console.error('❌ Set NOON_USERNAME and NOON_PASSWORD env vars before running.');
-  process.exit(1);
-}
+const INTERACTIVE = !USERNAME || !PASSWORD;
 const OUT_PATH = path.join(__dirname, 'noon-session.json');
 const UPLOAD = process.argv.includes('--upload');
 
 (async () => {
   console.log('Logging in to restaurant.noon.partners...');
-  const browser = await firefox.launch({ headless: true });
+  if (INTERACTIVE) {
+    console.log('\n  No NOON_USERNAME / NOON_PASSWORD set — opening a browser.');
+    console.log('  Sign in there; this waits up to 5 minutes and saves the session itself.\n');
+  }
+  const browser = await firefox.launch({ headless: !INTERACTIVE });
   const ctx  = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0',
   });
@@ -40,20 +47,28 @@ const UPLOAD = process.argv.includes('--upload');
   await page.goto('https://restaurant.noon.partners/public/login/', { waitUntil: 'load', timeout: 30_000 });
   await page.waitForTimeout(3000);
 
-  const loginFrame = page.frames().find(f => f.url().includes('login-webview-embed'));
-  if (!loginFrame) throw new Error('Login iframe not found');
+  if (INTERACTIVE) {
+    // Landing on /restaurant/ is what the automated path waits for too, so the
+    // same signal tells us the person has finished — including any step this
+    // script does not know about, such as an emailed code.
+    await page.waitForURL(/\/restaurant\//, { timeout: 300_000 });
+    console.log('✓ Signed in');
+  } else {
+    const loginFrame = page.frames().find(f => f.url().includes('login-webview-embed'));
+    if (!loginFrame) throw new Error('Login iframe not found');
 
-  await loginFrame.waitForSelector('input[name="channelIdentifier"]', { timeout: 10_000 });
-  await loginFrame.fill('input[name="channelIdentifier"]', USERNAME);
-  await loginFrame.click('button[type="submit"]');
-  await page.waitForTimeout(6000);
+    await loginFrame.waitForSelector('input[name="channelIdentifier"]', { timeout: 10_000 });
+    await loginFrame.fill('input[name="channelIdentifier"]', USERNAME);
+    await loginFrame.click('button[type="submit"]');
+    await page.waitForTimeout(6000);
 
-  const pwdInput = await loginFrame.$('input[type="password"]');
-  if (!pwdInput) throw new Error('Password step not reached');
+    const pwdInput = await loginFrame.$('input[type="password"]');
+    if (!pwdInput) throw new Error('Password step not reached');
 
-  await loginFrame.fill('input[type="password"]', PASSWORD);
-  await loginFrame.click('button[type="submit"]');
-  await page.waitForURL(/\/restaurant\//, { timeout: 30_000 });
+    await loginFrame.fill('input[type="password"]', PASSWORD);
+    await loginFrame.click('button[type="submit"]');
+    await page.waitForURL(/\/restaurant\//, { timeout: 30_000 });
+  }
   await page.waitForTimeout(3000);
 
   const cookies = await ctx.cookies();
