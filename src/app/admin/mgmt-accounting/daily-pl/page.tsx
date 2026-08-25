@@ -71,6 +71,11 @@ interface PLData {
   currency: string;
   food_cost_rate: number;
   food_cost_rate_pct: number;
+  food_cost_source?: "item_sales" | "flat_rate" | "none";
+  food_cost_missing?: boolean;
+  food_cost_coverage_pct?: number;
+  food_cost_items_matched?: number;
+  food_cost_items_total?: number;
   days: DayRow[];
   summary: Summary;
   error?: string;
@@ -295,13 +300,47 @@ export default function DailyPLPage() {
                   {fmtPct(data.summary.margin_pct)} margin
                 </div>
               )}
-              {card.label === "COGS" && data.food_cost_rate > 0 && (
-                <div className="text-xs text-slate-500 mt-0.5">
-                  {data.food_cost_rate_pct}% food cost
+              {card.label === "COGS" && (
+                <div className="text-xs mt-0.5">
+                  {data.food_cost_source === "item_sales" ? (
+                    <span className="text-slate-500">
+                      From items sold · {data.food_cost_coverage_pct}% of sales costed
+                    </span>
+                  ) : data.food_cost_source === "flat_rate" ? (
+                    <span className="text-amber-400">
+                      Flat {data.food_cost_rate_pct}% — menu average, not items sold
+                    </span>
+                  ) : (
+                    <span className="text-rose-400">Not calculated</span>
+                  )}
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* A rate of zero produced a COGS of zero on every row, in silence.
+          Say it instead of booking sales against no food cost. */}
+      {data?.ok && data.food_cost_missing && (
+        <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 mb-4">
+          <p className="text-sm font-semibold text-rose-300">Food cost not calculated</p>
+          <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
+            Only {data.food_cost_items_matched} of {data.food_cost_items_total} items sold have a
+            cost in Cost Calculation — {data.food_cost_coverage_pct}% of quantity sold. COGS is
+            shown as zero because it cannot be computed, not because there was none. Enter
+            recipe costs under Cost Calculation › Products.
+          </p>
+        </div>
+      )}
+      {data?.ok && !data.food_cost_missing && data.food_cost_source === "item_sales"
+        && (data.food_cost_coverage_pct ?? 0) < 80 && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4">
+          <p className="text-xs text-amber-200/90 leading-relaxed">
+            Food cost covers {data.food_cost_coverage_pct}% of quantity sold
+            ({data.food_cost_items_matched} of {data.food_cost_items_total} items costed).
+            The uncosted items are assumed to run at the same rate.
+          </p>
         </div>
       )}
 

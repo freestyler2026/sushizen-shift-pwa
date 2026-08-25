@@ -45,6 +45,7 @@ interface CityData {
   revenue: number; food_cost: number; labor_cost: number; overhead_total: number;
   prime_cost: number; total_cost: number;
   food_cost_rate: number | null; prime_cost_rate: number | null;
+  overhead_missing?: boolean;
   native: NativeCity;
 }
 interface GroupData {
@@ -582,6 +583,24 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Rent, utilities and licences have no rows at all for these cities, so the
+          margin below is prime cost only. Left unsaid it reads as profit. */}
+      {summary && (summary.dubai.overhead_missing || summary.manila.overhead_missing) && (
+        <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3">
+          <p className="text-sm font-semibold text-rose-300">
+            Operating costs not entered
+            {summary.dubai.overhead_missing && summary.manila.overhead_missing
+              ? " — Dubai and Manila"
+              : summary.dubai.overhead_missing ? " — Dubai" : " — Manila"}
+          </p>
+          <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
+            No rent, utilities, licences or other operating costs are recorded for this month,
+            so everything below prime cost is missing. The figures here are food and labour only —
+            they are not profit. Enter costs under Settings › Overhead.
+          </p>
         </div>
       )}
 
