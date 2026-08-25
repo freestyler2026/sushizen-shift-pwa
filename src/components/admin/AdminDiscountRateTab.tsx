@@ -10,6 +10,7 @@ type RateRow = {
   id?: number;
   city: string;
   platform: string;
+  brand: string;
   discount_pct: number | null;
   effective_date: string;
   notes: string;
@@ -33,6 +34,26 @@ const AGGREGATORS: { city: "dubai" | "manila"; platform: string; label: string }
   { city: "manila", platform: "grabfood",  label: "Grab Food"  },
   { city: "manila", platform: "foodpanda", label: "Food Panda" },
 ];
+
+// Dubai negotiates each aggregator's discount per brand, so a rate is keyed by
+// (city, platform, brand). Manila is not split and uses the empty brand.
+const DUBAI_BRANDS = [
+  { brand: "sushi_zen",  label: "Sushi ZEN"        },
+  { brand: "ramen_zen",  label: "Ramen ZEN"        },
+  { brand: "all_veggie", label: "All Veggie Sushi" },
+];
+const NO_BRAND = [{ brand: "", label: "" }];
+
+const brandsFor = (city: string) => (city === "dubai" ? DUBAI_BRANDS : NO_BRAND);
+
+const BRAND_LABEL: Record<string, string> = Object.fromEntries(
+  DUBAI_BRANDS.map((b) => [b.brand, b.label]),
+);
+
+// Every editable cell on the page: one per aggregator per brand.
+const CELLS = AGGREGATORS.flatMap((ag) =>
+  brandsFor(ag.city).map((b) => ({ ...ag, brand: b.brand })),
+);
 
 const CITY_FLAGS: Record<string, string> = { dubai: "🇦🇪", manila: "🇵🇭" };
 const CITY_LABEL: Record<string, string> = { dubai: "Dubai", manila: "Manila" };
@@ -58,6 +79,7 @@ type HistoryRow = {
   id: number;
   city: string;
   platform: string;
+  brand: string;
   discount_pct: number;
   effective_date: string;
   notes: string;
@@ -79,7 +101,10 @@ export default function AdminDiscountRateTab() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("");
 
-  const key = (city: string, platform: string) => `${city}:${platform}`;
+  // Brand is part of the key — without it Dubai's three brands would share one
+  // row of state and overwrite each other.
+  const key = (city: string, platform: string, brand: string) =>
+    `${city}:${platform}:${brand ?? ""}`;
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -106,11 +131,11 @@ export default function AdminDiscountRateTab() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const map: Record<string, RateRow> = {};
-      for (const r of data.rates ?? []) map[key(r.city, r.platform)] = r;
+      for (const r of data.rates ?? []) map[key(r.city, r.platform, r.brand ?? "")] = r;
       setRows(map);
       const initEdits: Record<string, EditState> = {};
-      for (const ag of AGGREGATORS) {
-        const k = key(ag.city, ag.platform);
+      for (const cell of CELLS) {
+        const k = key(cell.city, cell.platform, cell.brand);
         const existing = map[k];
         initEdits[k] = {
           discount_pct: existing?.discount_pct != null ? String(existing.discount_pct) : "",
@@ -134,13 +159,13 @@ export default function AdminDiscountRateTab() {
   const setEdit = (k: string, patch: Partial<EditState>) =>
     setEdits((prev) => ({ ...prev, [k]: { ...prev[k], ...patch } }));
 
-  const save = async (city: string, platform: string) => {
-    const k = key(city, platform);
+  const save = async (city: string, platform: string, brand: string) => {
+    const k = key(city, platform, brand);
     const e = edits[k];
     if (!e) return;
     const pct = parseFloat(e.discount_pct.trim());
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      setEdit(k, { error: "0〜100の数値を入力してください" });
+      setEdit(k, { error: "Enter a number between 0 and 100" });
       return;
     }
     setEdit(k, { saving: true, error: null, saved: false });
@@ -148,13 +173,20 @@ export default function AdminDiscountRateTab() {
       const res = await fetch("/api/admin/aggregator-discount-rates", {
         method: "POST",
         headers: { ...(await getAuthHeaders()), "Content-Type": "application/json" },
-        body: JSON.stringify({ city, platform, discount_pct: pct, effective_date: effectiveDate, notes: e.notes }),
+        body: JSON.stringify({
+          city, platform, brand, discount_pct: pct, effective_date: effectiveDate, notes: e.notes,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setRows((prev) => ({
         ...prev,
-        [k]: { city, platform, discount_pct: data.discount_pct, effective_date: data.effective_date, notes: e.notes },
+        [k]: {
+          city, platform, brand,
+          discount_pct: data.discount_pct,
+          effective_date: data.effective_date,
+          notes: e.notes,
+        },
       }));
       setEdit(k, { saving: false, saved: true, discount_pct: String(data.discount_pct) });
       setTimeout(() => setEdit(k, { saved: false }), 2000);
@@ -169,9 +201,6 @@ export default function AdminDiscountRateTab() {
     return Number(pct) !== STANDARD_PCT;
   };
 
-  const dubaiRows = AGGREGATORS.filter((a) => a.city === "dubai");
-  const manilaRows = AGGREGATORS.filter((a) => a.city === "manila");
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400">
@@ -180,108 +209,122 @@ export default function AdminDiscountRateTab() {
     );
   }
 
-  const renderSection = (city: "dubai" | "manila", list: typeof AGGREGATORS) => (
-    <div className={`${GLASS_CARD} mb-6`}>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xl">{CITY_FLAGS[city]}</span>
-        <h3 className="font-semibold text-base">{CITY_LABEL[city]}</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-white/10">
-              <th className={`text-left py-2 pl-3 pr-4 ${T_LABEL} font-medium`}>Aggregator</th>
-              <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Discount %</th>
-              <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Last Updated</th>
-              <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Notes</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((ag) => {
-              const k = key(ag.city, ag.platform);
-              const e = edits[k] ?? { discount_pct: "", notes: "", saving: false, saved: false, error: null };
-              const existing = rows[k];
-              const savedPct = existing?.discount_pct;
-              const nonStandard = isNonStandard(savedPct);
-              const inputNonStandard = isNonStandard(e.discount_pct);
+  const renderTable = (city: "dubai" | "manila", brand: string) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-white/10">
+            <th className={`text-left py-2 pl-3 pr-4 ${T_LABEL} font-medium`}>Aggregator</th>
+            <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Discount %</th>
+            <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Last Updated</th>
+            <th className={`text-left py-2 pr-4 ${T_LABEL} font-medium`}>Notes</th>
+            <th className="py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {AGGREGATORS.filter((a) => a.city === city).map((ag) => {
+            const k = key(ag.city, ag.platform, brand);
+            const e = edits[k] ?? { discount_pct: "", notes: "", saving: false, saved: false, error: null };
+            const existing = rows[k];
+            const savedPct = existing?.discount_pct;
+            const nonStandard = isNonStandard(savedPct);
+            const inputNonStandard = isNonStandard(e.discount_pct);
 
-              return (
-                <tr key={k} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="py-3 pl-3 pr-4 font-medium">
-                    <span className={nonStandard ? "text-red-400 font-semibold" : ""}>{ag.label}</span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.5"
-                        value={e.discount_pct}
-                        onChange={(ev) => setEdit(k, { discount_pct: ev.target.value, saved: false, error: null })}
-                        placeholder="50"
-                        className={[
-                          "w-20 px-2 py-1 rounded border text-sm bg-transparent focus:outline-none focus:ring-1",
-                          inputNonStandard && e.discount_pct !== ""
-                            ? "border-red-500 text-red-400 focus:ring-red-500"
-                            : "border-white/20 focus:ring-white/30",
-                        ].join(" ")}
-                      />
-                      <span className={`${T_CAPTION} ${inputNonStandard && e.discount_pct !== "" ? "text-red-400" : ""}`}>%</span>
-                      {savedPct != null && (
-                        <span
-                          className={`ml-1 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            nonStandard ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"
-                          }`}
-                        >
-                          {nonStandard ? `${savedPct}% ⚠` : `${savedPct}% ✓`}
-                        </span>
-                      )}
-                    </div>
-                    {e.error && <p className="text-red-400 text-xs mt-1">{e.error}</p>}
-                  </td>
-                  <td className={`py-3 pr-4 ${T_CAPTION}`}>
-                    {existing?.updated_at
-                      ? formatUpdatedAt(existing.updated_at)
-                      : <span className="opacity-40">—</span>}
-                    {existing?.effective_date && (
-                      <div className="opacity-60">{formatDate(existing.effective_date)}</div>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
+            return (
+              <tr key={k} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <td className="py-3 pl-3 pr-4 font-medium">
+                  <span className={nonStandard ? "text-red-400 font-semibold" : ""}>{ag.label}</span>
+                </td>
+                <td className="py-3 pr-4">
+                  <div className="flex items-center gap-1.5">
                     <input
-                      type="text"
-                      value={e.notes}
-                      onChange={(ev) => setEdit(k, { notes: ev.target.value })}
-                      placeholder="Notes"
-                      className="w-full px-2 py-1 rounded border border-white/20 text-sm bg-transparent focus:outline-none focus:ring-1 focus:ring-white/30"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={e.discount_pct}
+                      onChange={(ev) => setEdit(k, { discount_pct: ev.target.value, saved: false, error: null })}
+                      placeholder="50"
+                      className={[
+                        "w-20 px-2 py-1 rounded border text-sm bg-transparent focus:outline-none focus:ring-1",
+                        inputNonStandard && e.discount_pct !== ""
+                          ? "border-red-500 text-red-400 focus:ring-red-500"
+                          : "border-white/20 focus:ring-white/30",
+                      ].join(" ")}
                     />
-                  </td>
-                  <td className="py-3">
-                    <button
-                      onClick={() => save(ag.city, ag.platform)}
-                      disabled={e.saving || e.discount_pct.trim() === ""}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-all ${
-                        e.saved
-                          ? "bg-green-500/20 text-green-400"
-                          : "bg-white/10 hover:bg-white/20 disabled:opacity-40"
-                      }`}
-                    >
-                      {e.saving ? "…" : e.saved ? "Saved ✓" : "Save"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    <span className={`${T_CAPTION} ${inputNonStandard && e.discount_pct !== "" ? "text-red-400" : ""}`}>%</span>
+                    {savedPct != null && (
+                      <span
+                        className={`ml-1 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                          nonStandard ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"
+                        }`}
+                      >
+                        {nonStandard ? `${savedPct}% ⚠` : `${savedPct}% ✓`}
+                      </span>
+                    )}
+                  </div>
+                  {e.error && <p className="text-red-400 text-xs mt-1">{e.error}</p>}
+                </td>
+                <td className={`py-3 pr-4 ${T_CAPTION}`}>
+                  {existing?.updated_at
+                    ? formatUpdatedAt(existing.updated_at)
+                    : <span className="opacity-40">—</span>}
+                  {existing?.effective_date && (
+                    <div className="opacity-60">{formatDate(existing.effective_date)}</div>
+                  )}
+                </td>
+                <td className="py-3 pr-4">
+                  <input
+                    type="text"
+                    value={e.notes}
+                    onChange={(ev) => setEdit(k, { notes: ev.target.value })}
+                    placeholder="Notes"
+                    className="w-full px-2 py-1 rounded border border-white/20 text-sm bg-transparent focus:outline-none focus:ring-1 focus:ring-white/30"
+                  />
+                </td>
+                <td className="py-3">
+                  <button
+                    onClick={() => save(ag.city, ag.platform, brand)}
+                    disabled={e.saving || e.discount_pct.trim() === ""}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                      e.saved
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-white/10 hover:bg-white/20 disabled:opacity-40"
+                    }`}
+                  >
+                    {e.saving ? "…" : e.saved ? "Saved ✓" : "Save"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 
-  const alertCount = AGGREGATORS.filter((ag) => {
-    const existing = rows[key(ag.city, ag.platform)];
+  const renderSection = (city: "dubai" | "manila") => {
+    const brands = brandsFor(city);
+    return (
+      <div className={`${GLASS_CARD} mb-6`}>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xl">{CITY_FLAGS[city]}</span>
+          <h3 className="font-semibold text-base">{CITY_LABEL[city]}</h3>
+        </div>
+        {brands.map((b, i) => (
+          <div key={b.brand} className={i > 0 ? "mt-6" : ""}>
+            {b.label && (
+              <h4 className={`${T_LABEL} font-semibold mb-2 pl-3`}>{b.label}</h4>
+            )}
+            {renderTable(city, b.brand)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const alertCount = CELLS.filter((cell) => {
+    const existing = rows[key(cell.city, cell.platform, cell.brand)];
     return existing?.discount_pct != null && isNonStandard(existing.discount_pct);
   }).length;
 
@@ -323,8 +366,8 @@ export default function AdminDiscountRateTab() {
         </div>
       )}
 
-      {renderSection("dubai", dubaiRows)}
-      {renderSection("manila", manilaRows)}
+      {renderSection("dubai")}
+      {renderSection("manila")}
 
       {/* Change History */}
       <div className="mt-2">
@@ -372,6 +415,7 @@ export default function AdminDiscountRateTab() {
                     <tr className="border-b border-white/10">
                       <th className={`text-left py-2 pl-2 pr-3 ${T_LABEL} font-medium`}>Date</th>
                       <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>City</th>
+                      <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>Brand</th>
                       <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>Aggregator</th>
                       <th className={`text-right py-2 pr-3 ${T_LABEL} font-medium`}>Rate</th>
                       <th className={`text-left py-2 pr-3 ${T_LABEL} font-medium`}>Notes</th>
@@ -384,7 +428,8 @@ export default function AdminDiscountRateTab() {
                         if (!historyFilter.trim()) return true;
                         const q = historyFilter.toLowerCase();
                         const label = (PLATFORM_LABEL[h.platform] ?? h.platform).toLowerCase();
-                        return label.includes(q) || h.city.includes(q) || h.platform.includes(q);
+                        const brand = (BRAND_LABEL[h.brand] ?? h.brand ?? "").toLowerCase();
+                        return label.includes(q) || h.city.includes(q) || h.platform.includes(q) || brand.includes(q);
                       })
                       .map((h) => {
                         const nonStd = h.discount_pct !== STANDARD_PCT;
@@ -393,6 +438,9 @@ export default function AdminDiscountRateTab() {
                             <td className="py-2 pl-2 pr-3 tabular-nums">{formatDate(h.effective_date)}</td>
                             <td className="py-2 pr-3">
                               <span>{CITY_FLAGS[h.city] ?? ""} {CITY_LABEL[h.city] ?? h.city}</span>
+                            </td>
+                            <td className={`py-2 pr-3 ${h.brand ? "" : "opacity-40"}`}>
+                              {BRAND_LABEL[h.brand] ?? (h.brand || "—")}
                             </td>
                             <td className="py-2 pr-3 font-medium">{PLATFORM_LABEL[h.platform] ?? h.platform}</td>
                             <td className={`py-2 pr-3 text-right font-semibold tabular-nums ${nonStd ? "text-red-400" : "text-green-400"}`}>
@@ -413,7 +461,7 @@ export default function AdminDiscountRateTab() {
 
       <p className={`${T_CAPTION} opacity-60 text-xs mt-3`}>
         Standard is 50% off. Values other than 50% are shown in red.
-        Each save records a new entry for the selected effective date.
+        Dubai rates are set per brand; each save records a new entry for the selected effective date.
       </p>
     </div>
   );
