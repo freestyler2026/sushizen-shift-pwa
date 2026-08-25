@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { MgmtTabBar, DashboardLink } from "./MgmtTabs";
 import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, KPI_VALUE,
@@ -47,6 +47,7 @@ interface CityData {
   prime_cost: number; total_cost: number;
   food_cost_rate: number | null; prime_cost_rate: number | null;
   overhead_missing?: boolean;
+  overhead_carried_from?: string | null;
   native: NativeCity;
 }
 interface GroupData {
@@ -623,7 +624,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
 
       {/* Group KPI Cards */}
       {g && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>全社売上</p>
             <p className={KPI_VALUE}>{fmtJpy(g.revenue)}</p>
@@ -654,6 +655,26 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             <p className={`${KPI_VALUE} ${primeRateCls(g.prime_cost_rate)}`}>{fmtJpy(g.prime_cost)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.prime_cost_rate)}</p>
           </div>
+          {/* Without these two the page stopped at prime cost, and 81% prime
+              read as 19% profit — the months shown here are losses. */}
+          <div className={KPI_CARD}>
+            <p className={KPI_LABEL}>経費</p>
+            <p className={KPI_VALUE}>{fmtJpy(g.overhead_total)}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {summary?.dubai.overhead_carried_from || summary?.manila.overhead_carried_from
+                ? `${summary?.dubai.overhead_carried_from ?? summary?.manila.overhead_carried_from} から引き継ぎ`
+                : `Rate: ${fmtRate(g.revenue > 0 ? (g.overhead_total / g.revenue) * 100 : null)}`}
+            </p>
+          </div>
+          <div className={KPI_CARD}>
+            <p className={KPI_LABEL}>営業利益</p>
+            <p className={`${KPI_VALUE} ${g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {fmtJpy(g.revenue - g.total_cost)}
+            </p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}% 利益率` : "—"}
+            </p>
+          </div>
         </div>
       )}
 
@@ -672,6 +693,8 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                   <th className="text-right py-2 pr-4">人件費</th>
                   <th className="text-right py-2 pr-4">プライムコスト</th>
                   <th className="text-right py-2 pr-4">プライム率</th>
+                  <th className="text-right py-2 pr-4">経費</th>
+                  <th className="text-right py-2 pr-4">営業利益</th>
                   <th className="text-right py-2">売上の出所</th>
                 </tr>
               </thead>
@@ -710,6 +733,16 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     <td className={`text-right py-2.5 pr-4 font-semibold ${primeRateCls(data.prime_cost_rate)}`}>
                       {fmtRate(data.prime_cost_rate)}
                     </td>
+                    <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.overhead_total)}</td>
+                    <td className={`text-right py-2.5 pr-4 font-mono font-semibold ${
+                      data.revenue - data.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      <div>{fmtJpy(data.revenue - data.total_cost)}</div>
+                      <div className="text-xs font-normal opacity-70">
+                        {data.revenue > 0
+                          ? `${(((data.revenue - data.total_cost) / data.revenue) * 100).toFixed(1)}%`
+                          : "—"}
+                      </div>
+                    </td>
                     <td className="text-right py-2.5">
                       {data.native.revenue_source === "ar_payouts"
                         ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>入金データ</span>
@@ -723,13 +756,21 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                 ))}
                 {g && (
                   <tr className="bg-zinc-800/30 font-semibold">
-                    <td className="py-2.5 pr-4">🌐 Group Total</td>
+                    <td className="py-2.5 pr-4">🌐 全社合計</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.revenue)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.food_cost)}</td>
                     <td className={`text-right py-2.5 pr-4 ${foodRateCls(g.food_cost_rate)}`}>{fmtRate(g.food_cost_rate)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.labor_cost)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.prime_cost)}</td>
                     <td className={`text-right py-2.5 pr-4 ${primeRateCls(g.prime_cost_rate)}`}>{fmtRate(g.prime_cost_rate)}</td>
+                    <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.overhead_total)}</td>
+                    <td className={`text-right py-2.5 pr-4 font-mono ${
+                      g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      <div>{fmtJpy(g.revenue - g.total_cost)}</div>
+                      <div className="text-xs font-normal opacity-70">
+                        {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}%` : "—"}
+                      </div>
+                    </td>
                     <td />
                   </tr>
                 )}
@@ -1222,15 +1263,16 @@ const MONTH_OPTIONS = prevMonths(12);
 
 export default function MgmtAccountingPage() {
   const router = useRouter();
-  const params = useSearchParams();
   const [tab, setTab] = useState<Tab>("group");
   const [yearMonth, setYearMonth] = useState(thisMonth());
 
-  // Arriving from the Daily P&L tab bar carries the view you were on.
+  // Arriving from the Daily P&L tab bar carries the view you were on. Read from
+  // the URL directly rather than useSearchParams, which forces the whole page
+  // into a Suspense boundary and fails the prerender without one.
   useEffect(() => {
-    const t = params.get("tab");
+    const t = new URLSearchParams(window.location.search).get("tab");
     if (t === "group" || t === "cost" || t === "report") setTab(t);
-  }, [params]);
+  }, []);
 
   useEffect(() => {
     const auth = getAuth();
