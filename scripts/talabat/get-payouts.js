@@ -171,13 +171,13 @@ async function refreshAndCaptureHeaders(state) {
     process.exit(0);
   }
 
-  await browser.close();
 
   if (!analyticsHeaders['x-px-cookies']) {
     console.log('⚠ PX cookies not captured — analytics calls may be rejected');
   }
 
-  return { bearerToken, analyticsHeaders };
+  // Keep the browser: the GraphQL calls have to go through the page.
+  return { bearerToken, analyticsHeaders, browser, page };
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ async function getVendorName(vendorId, bearerToken) {
   }
 }
 
-async function getSalesOverview(vendorId, token, analyticsHeaders) {
+async function getSalesOverview(vendorId, page, token, analyticsHeaders) {
   const vendorIdB64 = Buffer.from(`TB_AE-${vendorId}`).toString('base64');
   const body = JSON.stringify({
     operationName: 'SalesOverviewByTime',
@@ -219,24 +219,35 @@ async function getSalesOverview(vendorId, token, analyticsHeaders) {
     query: SALES_OVERVIEW_QUERY,
   });
 
-  const resp = await fetch(VAGW_URL, {
-    method:  'POST',
+  // Talabat is currently refusing this operation outright: loading the portal in
+  // a real browser and letting its own SPA ask produces 403 for
+  // SalesOverviewByTime, TodayIssues and OpsHealth alike, while ListPayouts on
+  // the same host and session still answers. So the 403 is not about how the
+  // request is made — Node fetch, page.evaluate and this all fail the same way —
+  // and gross sales per outlet cannot be read with this account until that
+  // changes. Sent through the browser context regardless, as the closest thing
+  // to what the portal does.  Verified 2026-08-25.
+  const resp = await page.context().request.post(VAGW_URL, {
     headers: {
-      Authorization:              `Bearer ${token}`,
-      'x-global-entity-id':       'TB_AE',
-      'x-vendor-id':              vendorIdB64,
-      'x-country':                'AE',
-      'Content-Type':             'application/json',
-      Origin:                     PORTAL,
-      Referer:                    `${PORTAL}/`,
-      'User-Agent':               'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
-      Accept:                     '*/*',
+      Authorization:        `Bearer ${token}`,
+      'x-global-entity-id': 'TB_AE',
+      'x-vendor-id':        vendorIdB64,
+      'x-country':          'AE',
+      'Content-Type':       'application/json',
+      Origin:               PORTAL,
+      Referer:              `${PORTAL}/`,
+      Accept:               '*/*',
       ...analyticsHeaders,
     },
-    body,
+    data:    body,
+    timeout: 30_000,
   });
 
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  if (!resp.ok()) {
+    const text = await resp.text().catch(() => '');
+    const hint = /perimeterx|PX\d/i.test(text) ? ' (PerimeterX challenge)' : '';
+    throw new Error(`HTTP ${resp.status()}${hint} ${text.slice(0, 160)}`);
+  }
   const d = await resp.json();
   const sb = d?.data?.salesOverview?.salesByTime;
   if (!sb) throw new Error('Unexpected response shape');
@@ -271,7 +282,7 @@ async function main() {
 
   // Step 1: refresh token + capture PX cookies via Playwright (single browser session)
   console.log('Refreshing session via portal dashboard...');
-  const { bearerToken, analyticsHeaders } = await refreshAndCaptureHeaders(state);
+  const { bearerToken, analyticsHeaders, browser, page } = await refreshAndCaptureHeaders(state);
   if (!bearerToken) {
     console.error('❌ Could not obtain a Bearer token — session expired');
     process.exit(0);
@@ -296,7 +307,7 @@ async function main() {
 
     try {
       vendorName  = await getVendorName(vendorId, bearerToken);
-      const sales = await getSalesOverview(vendorId, bearerToken, analyticsHeaders);
+      const sales = await getSalesOverview(vendorId, page, bearerToken, analyticsHeaders);
       orders       = sales.orders;
       grossRevenue = sales.gross_revenue;
     } catch (err) {
@@ -339,6 +350,7 @@ async function main() {
   console.log('\n⚠️  "Revenue AED" = GROSS sales (before Talabat commission deduction).');
   console.log('   Net payout ≈ gross × (1 − commission_rate). Exact rate per outlet');
   console.log('   is in the brand-level xlsx (Gross Sales vs Total Payout columns).');
+  await browser.close();
   console.log('\nDone.');
 }
 

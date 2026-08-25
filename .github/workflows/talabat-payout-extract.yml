@@ -78,7 +78,11 @@ jobs:
           WEBHOOK_URL: https://sushizen-shift-app-038d846023bc.herokuapp.com/api/talabat/portal-payout-record
         timeout-minutes: 10
 
+      # Steps 1 and 2 carry the payout data; this only splits chain totals across
+      # outlets and needs gross sales, which Talabat is answering 403 for. Let it
+      # report and move on rather than failing a run that already did its job.
       - name: Run per-outlet net payout allocation
+        continue-on-error: true
         run: |
           echo "Calling allocation endpoint for $DATE_FROM → $DATE_TO"
           RESULT=$(curl -sf -X POST \
