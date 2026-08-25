@@ -109,22 +109,35 @@ const monthStart = () => {
 };
 
 /**
- * ordered_at_str comes off the aggregator screenshots in 12-hour form —
- * "7:59 PM", "12:41 PM", occasionally "23:00 PM". Reading only the digits before
- * the colon put every afternoon order 12 hours early: the real 19:00 dinner rush
- * showed up as a 07:00 spike, and the closed 01:00–11:00 hours filled with data.
+ * ordered_at_str is whatever OCR read off the aggregator screenshot, and the shape
+ * varies by platform. Across the 46 distinct formats in prep_time_records it is
+ * sometimes a bare 12-hour time ("7:59 PM"), often a full datetime
+ * ("2024/07/11 07:13:51 PM", "24/07/2025 19:52"), and occasionally garbled
+ * ("07:04 2025 20:00" — a broken date followed by the real 20:00 order time).
+ *
+ * Anchoring to the FIRST time in the string got both of those wrong: a leading date
+ * meant no match at all, so 1,406 of Dubai's 4,461 records (32%) were dropped from
+ * this chart entirely, and "07:04 2025 20:00" was read as an 07:00 order when the
+ * store was shut — that single row is the phantom Cubao 07:00 bar.
+ *
+ * Reading the LAST time instead handles all of them: a date always precedes its
+ * time, and the trailing token is the real order time in the garbled case. Only two
+ * records in the table stay unparseable, both genuine entry errors
+ * ("10:02 18 PM", "1 pm for Mar, Juncton Co").
  */
 function parseOrderHour(raw: string): number | null {
-  const m = /^\s*(\d{1,2}):(\d{2})/.exec(raw);
+  // Lazy prefix + a tail that admits no digits or colons, so the capture lands on
+  // the last clock time — with the meridiem that belongs to it, not one from a
+  // different token earlier in the string.
+  const m = /^.*?(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?[^0-9:]*$/.exec(raw);
   if (!m) return null;
   let h = parseInt(m[1], 10);
   if (Number.isNaN(h)) return null;
-  const isPM = /pm/i.test(raw);
-  const isAM = /am/i.test(raw);
+  const mer = (m[3] || "").toLowerCase();
   // An hour above 12 is already 24-hour form; a stray "PM" on it is noise.
   if (h <= 12) {
-    if (isPM && h !== 12) h += 12;
-    else if (isAM && h === 12) h = 0;
+    if (mer === "pm" && h !== 12) h += 12;
+    else if (mer === "am" && h === 12) h = 0;
   }
   return h >= 0 && h <= 23 ? h : null;
 }
@@ -237,7 +250,9 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
 
   // Hourly pattern derived from records in memory (real-time, before saving)
   const hourlyPattern = useMemo(() => {
-    const validRecs = records.filter(r => r.ordered_at_str && /^\d{1,2}:\d{2}/.test(r.ordered_at_str));
+    // parseOrderHour is the single authority on what is parseable — pre-filtering on
+    // "starts with a time" here is what dropped every leading-date record.
+    const validRecs = records.filter(r => r.ordered_at_str && parseOrderHour(r.ordered_at_str) != null);
     if (validRecs.length === 0) return [];
     const byHour: Record<number, { total_min: number; count: number; slow: number; fast: number }> = {};
     for (const r of validRecs) {
