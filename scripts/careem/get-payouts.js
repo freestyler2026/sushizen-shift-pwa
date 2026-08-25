@@ -50,6 +50,21 @@ const MERCHANT_MAP = {
   1076301: { code: 'CAREEM_AVS_AB3', name: 'All Veggie Sushi Al Barsha 3', brand: 'all_veggie_sushi' },
 };
 
+// Billable accounts that legitimately have no store: cycles against these are
+// expected and must not be reported as unmapped, or a real gap would be lost in
+// the noise every week.
+const EXCLUDED_BILLABLES = {
+  1054426: 'store that was planned but never opened — carried a flat -1,000 AED ' +
+           'weekly charge Nov 2025 to Apr 2026, then stopped. Confirmed not ours to book.',
+  1069991: 'Sushi ZEN Al Mizhar — closed; cycles are zero',
+  1073117: 'Ninja Chicken Business Bay — brand not reconciled',
+  1073252: 'Ninja Chicken Al Barsha South — brand not reconciled',
+  1073255: 'Ninja Chicken JLT — brand not reconciled',
+  1074758: 'Ninja Chicken Al Jaffiliya — brand not reconciled',
+  1073589: 'J - Japanese Authentic Business Bay — brand not reconciled',
+  1073593: 'J - Japanese Authentic Al Barsha South — brand not reconciled',
+};
+
 // ── Session loading ─────────────────────────────────────────────────────────
 
 function loadSession() {
@@ -204,12 +219,14 @@ async function fetchCycles(context, req, fromDate, toDate) {
 async function postCycles(cycles, extractedAt) {
   const payload = { extracted_at: extractedAt, cycles: [] };
   let unmapped = 0;
+  let excluded = 0;
 
   const unmappedIds = new Map();   // billableId → {type, count, total}
 
   for (const c of cycles) {
     const info = MERCHANT_MAP[c.billableId];
     if (!info) {
+      if (EXCLUDED_BILLABLES[c.billableId]) { excluded++; continue; }
       unmapped++;
       const k = `${c.billableId}|${c.billableType}`;
       const e = unmappedIds.get(k) || { count: 0, total: 0 };
@@ -252,6 +269,9 @@ async function postCycles(cycles, extractedAt) {
                 (res.skipped ? `, ${res.skipped} skipped` : ''));
   } catch (err) {
     console.error(`  ❌ Cycle webhook error: ${err.message}`);
+  }
+  if (excluded > 0) {
+    console.log(`  ${excluded} cycles for known non-store billables (see EXCLUDED_BILLABLES)`);
   }
   if (unmapped > 0) {
     // Never let dropped rows be silent: a historical backfill can turn up
