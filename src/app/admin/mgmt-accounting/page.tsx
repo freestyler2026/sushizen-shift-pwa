@@ -48,6 +48,11 @@ interface CityData {
   food_cost_rate: number | null; prime_cost_rate: number | null;
   overhead_missing?: boolean;
   overhead_carried_from?: string | null;
+  partial_month?: boolean;
+  days_covered?: number;
+  days_in_month?: number;
+  revenue_days?: number;
+  revenue_incomplete?: boolean;
   native: NativeCity;
 }
 interface GroupData {
@@ -603,6 +608,38 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           use this page for the month, and Daily P&amp;L for day-to-day movement.
         </p>
       </div>
+
+      {/* A month short of sales days is a data gap, not a bad month — but the
+          profit line cannot tell the two apart, so it has to be said here. */}
+      {summary && (["dubai", "manila"] as const)
+        .filter((k) => summary[k].revenue_incomplete || summary[k].partial_month)
+        .map((k) => {
+          const d = summary[k];
+          const name = k === "dubai" ? "ドバイ" : "マニラ";
+          const gap = d.revenue_incomplete;
+          return (
+            <div key={k} className={`rounded-xl border px-4 py-3 ${
+              gap ? "border-rose-500/40 bg-rose-500/10" : "border-amber-500/40 bg-amber-500/10"}`}>
+              <p className={`text-sm font-semibold ${gap ? "text-rose-300" : "text-amber-300"}`}>
+                {name} — {gap ? "売上データが不足しています" : "集計途中の月です"}
+              </p>
+              <p className={`text-xs mt-1 leading-relaxed ${gap ? "text-rose-200/80" : "text-amber-200/85"}`}>
+                {gap ? (
+                  <>
+                    {d.days_in_month}日のうち売上が登録されているのは{d.revenue_days}日分のみです。
+                    不足分は入金データで補っており、店内飲食が含まれていません。
+                    利益が実態より低く出ます。日次売上入力をご確認ください。
+                  </>
+                ) : (
+                  <>
+                    売上は{d.days_covered}日分（{d.days_in_month}日中）です。
+                    家賃・人件費などの固定費も同じ日数に合わせて計算しています。
+                  </>
+                )}
+              </p>
+            </div>
+          );
+        })}
 
       {/* Rent, utilities and licences have no rows at all for these cities, so the
           margin below is prime cost only. Left unsaid it reads as profit. */}
