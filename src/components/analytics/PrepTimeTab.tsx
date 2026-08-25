@@ -108,6 +108,27 @@ const monthStart = () => {
   return d.toISOString().slice(0, 10);
 };
 
+/**
+ * ordered_at_str comes off the aggregator screenshots in 12-hour form —
+ * "7:59 PM", "12:41 PM", occasionally "23:00 PM". Reading only the digits before
+ * the colon put every afternoon order 12 hours early: the real 19:00 dinner rush
+ * showed up as a 07:00 spike, and the closed 01:00–11:00 hours filled with data.
+ */
+function parseOrderHour(raw: string): number | null {
+  const m = /^\s*(\d{1,2}):(\d{2})/.exec(raw);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  if (Number.isNaN(h)) return null;
+  const isPM = /pm/i.test(raw);
+  const isAM = /am/i.test(raw);
+  // An hour above 12 is already 24-hour form; a stray "PM" on it is noise.
+  if (h <= 12) {
+    if (isPM && h !== 12) h += 12;
+    else if (isAM && h === 12) h = 0;
+  }
+  return h >= 0 && h <= 23 ? h : null;
+}
+
 export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
   const [branchFilter, setBranchFilter] = useState("");
@@ -220,8 +241,8 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     if (validRecs.length === 0) return [];
     const byHour: Record<number, { total_min: number; count: number; slow: number; fast: number }> = {};
     for (const r of validRecs) {
-      const h = parseInt(r.ordered_at_str!.split(":")[0], 10);
-      if (h < 0 || h > 23) continue;
+      const h = parseOrderHour(r.ordered_at_str!);
+      if (h == null) continue;
       if (!byHour[h]) byHour[h] = { total_min: 0, count: 0, slow: 0, fast: 0 };
       byHour[h].total_min += r.prep_minutes;
       byHour[h].count++;
