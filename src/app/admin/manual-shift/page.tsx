@@ -1291,12 +1291,34 @@ export default function ManualShiftPage() {
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Week (Monday)</label>
-              <input
-                type="date"
-                className={W_INPUT}
-                value={weekStart}
-                onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
-              />
+              <div className="flex items-stretch gap-1.5">
+                {/* Stepping a week at a time is the common move; the picker stays for
+                    jumping somewhere distant. addDays keeps it on a Monday. */}
+                <button
+                  type="button"
+                  title="Previous week"
+                  aria-label="Previous week"
+                  onClick={() => setWeekStart(addDays(weekStart, -7))}
+                  className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 text-gray-600 transition hover:border-indigo-300 hover:text-indigo-600"
+                >
+                  ‹
+                </button>
+                <input
+                  type="date"
+                  className={W_INPUT}
+                  value={weekStart}
+                  onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
+                />
+                <button
+                  type="button"
+                  title="Next week"
+                  aria-label="Next week"
+                  onClick={() => setWeekStart(addDays(weekStart, 7))}
+                  className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 text-gray-600 transition hover:border-indigo-300 hover:text-indigo-600"
+                >
+                  ›
+                </button>
+              </div>
             </div>
             <div className="flex items-end gap-2 flex-wrap">
               <button
@@ -1529,7 +1551,13 @@ export default function ManualShiftPage() {
             </div>
 
             <div className={`${W_CARD} overflow-hidden p-0`} style={paintMode ? { cursor: "cell" } : {}}>
-              <div className="overflow-x-auto">
+              {/* The header was already `sticky top-0`, but sticky resolves against the
+                  nearest scrollport — here the horizontal-scroll wrapper, which grew to
+                  fit its rows and so never scrolled vertically. Nothing ever stuck and
+                  the day/date row scrolled away behind the staff list. Giving the
+                  wrapper a viewport-bound height makes it the element that scrolls in
+                  both directions, so the header can hold its place. */}
+              <div className="max-h-[calc(100vh-19rem)] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-20">
                     <tr className="border-b border-gray-200 bg-gray-50">
