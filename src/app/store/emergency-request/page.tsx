@@ -96,6 +96,37 @@ const ROOT_CAUSE_OPTIONS = [
 const UNIT_OPTIONS = ["pc", "kg", "g", "L", "mL", "pack", "box", "bag", "bottle", "tray"];
 const MANILA_STORES = ["Taft", "Paranaque", "Cubao"];
 
+// The catalog writes units in its own casing ("KG", "PCS", "Tray"). Fold the ones that
+// are the same unit as a UNIT_OPTIONS entry onto that entry, so picking a catalog item
+// leaves the Unit dropdown showing a value instead of falling back to "— Select —".
+const UNIT_ALIASES: Record<string, string> = {
+  kg: "kg", kgs: "kg", kilo: "kg", kilogram: "kg",
+  g: "g", gram: "g", grams: "g",
+  l: "L", liter: "L", litre: "L", liters: "L", litres: "L",
+  ml: "mL",
+  pc: "pc", pcs: "pc", piece: "pc", pieces: "pc",
+  pack: "pack", packs: "pack", pkt: "pack", pkts: "pack",
+  box: "box", boxes: "box",
+  bag: "bag", bags: "bag",
+  bottle: "bottle", bottles: "bottle", btl: "bottle",
+  tray: "tray", trays: "tray",
+};
+
+/** Canonical UNIT_OPTIONS entry for a catalog unit, or the unit unchanged when it has no
+ *  equivalent (SACK, TIN, PTN, BNDL, ROLL, Batch… are real units — keep them as-is). */
+function normalizeUnit(raw: string): string {
+  const u = (raw || "").trim();
+  if (!u) return "";
+  return UNIT_ALIASES[u.toLowerCase()] ?? u;
+}
+
+/** UNIT_OPTIONS plus the current unit when the catalog uses one that isn't in the list,
+ *  so the dropdown can actually display it. */
+function unitOptionsFor(unit: string): string[] {
+  const u = (unit || "").trim();
+  return u && !UNIT_OPTIONS.includes(u) ? [u, ...UNIT_OPTIONS] : UNIT_OPTIONS;
+}
+
 function urgencyBadge(u: string) {
   if (u === "emergency_immediate") return <span className={BADGE_ERROR}><AlertTriangle className="h-3 w-3" />Emergency</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Urgent 24h</span>;
@@ -289,7 +320,7 @@ export default function EmergencyRequestPage() {
       const next = [...prev];
       const item = { ...next[idx] };
       item.item_name = cat.item_name;
-      item.unit = cat.unit || item.unit;
+      item.unit = normalizeUnit(cat.unit) || item.unit;
       item.estimated_unit_price = cat.unit_price;
       item.estimated_total = Math.round(Number(item.qty) * cat.unit_price * 100) / 100;
       next[idx] = item;
@@ -576,7 +607,7 @@ export default function EmergencyRequestPage() {
                         className={`mt-0.5 ${SELECT_CLASS}`}
                         value={item.unit}
                         onChange={(v) => updateItem(idx, "unit", v)}
-                        options={UNIT_OPTIONS}
+                        options={unitOptionsFor(item.unit)}
                       />
                     </div>
                     <div>
