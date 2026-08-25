@@ -1,12 +1,25 @@
 name: Keeta Dubai — Settlement Payout Extract
 
 on:
+  # Keeta's session cookie runs to 2027-02, so unlike Careem this needs no
+  # weekly login and can simply be scheduled. Cycles close Sunday and settle a
+  # few days later, so Wednesday picks up a fully settled week.
+  schedule:
+    - cron: '0 3 * * 3'
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Set to "true" to skip posting to backend (no WEBHOOK_URL)'
         required: false
         default: 'false'
+      generate_from:
+        description: 'Backfill: generate reports from (YYYY-MM-DD). Default: last 35 days.'
+        required: false
+        default: ''
+      generate_to:
+        description: 'Backfill: generate reports to (YYYY-MM-DD). Default: today.'
+        required: false
+        default: ''
 
 jobs:
   extract-payouts:
@@ -31,8 +44,10 @@ jobs:
       - name: Extract Keeta settlement payouts
         run: node scripts/keeta/get-payouts.js
         env:
-          KEETA_SESSION: ${{ secrets.KEETA_SESSION }}
-          WEBHOOK_URL:   ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          KEETA_SESSION:  ${{ secrets.KEETA_SESSION }}
+          WEBHOOK_URL:    ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          GENERATE_FROM:  ${{ github.event.inputs.generate_from }}
+          GENERATE_TO:    ${{ github.event.inputs.generate_to }}
         timeout-minutes: 12
 
       - name: Refresh Daily P&L cache

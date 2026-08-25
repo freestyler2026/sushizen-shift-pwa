@@ -1,8 +1,53 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-25 (Careem Payment Summary API 取り込み / Dubai Discount Rates ブランド別入力)
+Last updated: 2026-08-25 (Keeta 桁区切りバグ修正+バックフィル / Careem Payment Summary API 取り込み / Dubai Discount Rates ブランド別入力)
 
 ---
+
+## ✅ Completed: Keeta の入金データを Careem 同様に整備 (2026-08-25)
+
+**発端**: 「Keeta も Careem 同様に取れないか」。
+
+### 🔴 見つけた重大バグ: 桁区切りカンマで金額が壊れていた（以前から）
+
+`parseInvoiceDetails` の `parseFloat(row[7])` は `"1,056.22"` を **`1`** と解釈する。
+Keeta は日次の支払額をカンマ区切りで出力しており（7月のレポートは31行中12行）、
+**1,000 AED を超える入金がすべて1桁の数字として保存されていた**。
+エラーにならず小さいがもっともらしい数字になるため気づかれなかった。
+例: 7/22〜31 は 25,240.58 と記録されていたが実際は 41,031.94。
+`String(...).replace(/,/g,'')` を挟んで修正し、全220件を再取り込みして修復。
+
+### レポート生成の自動化
+
+`ar_payouts` の欠落（2026-03〜04が全欠、2025-11〜2026-01が1店舗のみ）は
+スクリプトの不具合ではなく、**Keeta 側で誰も Submit していなかった**ため。
+生成済みレポート一覧と DB の欠落が完全一致していた。
+
+捕捉した API:
+```
+POST /api/settlement/statement/v2/w/download/task/create
+{"periodStartDateStamp":…,"periodEndDateStamp":…,"type":2,
+ "inputIds":[297253],"downloadTaskType":3}
+```
+`inputIds` はブランドID。「All restaurants」を選ぶと **1レポートで全5店舗**を
+カバーでき、Excel の Restaurant ID 列で店舗を判別できる（従来はタスク名の
+`[shopId]` に依存していたので、行単位の解決に変更）。
+
+**結果**: 44週 / 全5店舗 / 空白ゼロ（2025-10-01〜2026-08-31、220件・2,031,294.33 AED）。
+
+### ⚠️ Keeta ポータルの制約と Careem との違い
+
+| | Careem | **Keeta** |
+|---|---|---|
+| セッション | 72時間（延長不可） | **2027-02まで有効** |
+| 運用 | 週1回の手動ログイン必須 | **週次 cron で完全自動**（水 03:00 UTC） |
+| 画面 | 通常のSPA | **本体が iframe**（`/web/app/finance`）。親フレームの DOM 操作では届かない |
+| 生成 | 不要（APIが直接返す） | レポート生成→完了待ち→ダウンロードの3段階 |
+
+その他ハマりどころ:
+- 起動直後の「Yes/No」ダイアログを閉じないと本文が描画されない
+- レストラン未選択だと Submit がバリデーションで止まり、リクエストが飛ばない
+- 「Select restaurant」はプレースホルダなので文字列では掴めない
 
 ## ✅ Completed: Careem の入金データを Payment Summary API から取得 (2026-08-25)
 
