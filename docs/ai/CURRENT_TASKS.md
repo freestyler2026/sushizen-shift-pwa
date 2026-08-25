@@ -1,8 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-24 (給与額マスク HQ限定 / Noon Food CSV parser + AR Payouts アップロード対応)
+Last updated: 2026-08-25 (Dubai Discount Rates ブランド別入力)
 
 ---
+
+## ✅ Completed: Dubai Aggregator Discount Rates をブランド別に (2026-08-25)
+
+Dubai は同じ5店舗で **Sushi ZEN / Ramen ZEN / All Veggie Sushi** の3ブランドを運営し、
+アグリゲーターとの割引率はブランドごとに交渉する。しかし `aggregator_discount_rate` の
+`UNIQUE (city, platform, effective_date)` により **1アグリゲーター1日1行**しか持てず、
+3ブランドが1つの数字に潰れていた。
+
+**実装**
+- `app/db.py` `_ensure_aggregator_discount_rate_table()` — `brand` カラム追加、旧UNIQUE
+  制約を落として `UNIQUE (city, platform, brand, effective_date)` に張り替え、既存Dubai
+  行を3ブランドへ**冪等にバックフィル**、`brand=''` のDubai行を削除
+- `list_` / `upsert_` / `list_..._history` を brand 対応（`DISTINCT ON (city, platform, brand)`）
+- `app/main.py` POST/history エンドポイントで `brand` を受け渡し
+- `AdminDiscountRateTab.tsx` — Dubai を3ブランドの小見出しで描画（5行 → 3×5行）、
+  Change History に Brand 列、履歴フィルタもブランド名にマッチ
+- **Manila は分割しない**（`brand=''`）ため従来どおり2行
+
+**バックフィルの方針**: 現場は今の1つの値を「3ブランド共通」の意味で運用しているため、
+既存値を3ブランドへ**コピー**した。1ブランドに割り当てて他を空にすると入力済みデータの
+意味が黙って変わる。
+
+### ⚠️ 教訓: state のキーは分割の次元を必ず含める
+
+`key()` が `${city}:${platform}` のままだと3ブランドが**同じ state を共有**し、
+入力が互いを上書きする。`${city}:${platform}:${brand}` へ変更が必須だった。
+`alertCount` も `AGGREGATORS`（7件）ではなく全セル（17件）を走査する必要がある。
+
+**本番検証済み**: マイグレーション 5行 → 15行、`brand=''` のDubai行 0件、全て50.00%。
+UIから **Ramen ZEN の Careem だけ** 45% に変更 → DBで該当1行のみ 45%、Sushi ZEN と
+All Veggie の Careem は 50% のまま。警告カウントも「1 aggregator non-standard」。
+Change History に Brand 列表示を確認。検証後 50% に復元済み（総16行・50%以外0件）。
 
 ## ✅ Completed: 給与額をHQロール限定に (2026-08-24)
 
