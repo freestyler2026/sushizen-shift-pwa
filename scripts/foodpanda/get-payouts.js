@@ -42,6 +42,48 @@ function decodeSession(b64) {
   return JSON.parse(raw);
 }
 
+/**
+ * One page of ListPayouts, run inside the browser so the session cookies apply.
+ * pageSize is the portal's own 20; nextPageToken walks the rest.
+ */
+async function fetchPayoutsPage(page, { accounts, startDate, endDate, globalEntityId, pageToken }) {
+  return page.evaluate(async ({ accounts, startDate, endDate, globalEntityId, pageToken }) => {
+    const pagination = pageToken ? { pageSize: 20, pageToken } : { pageSize: 20 };
+    try {
+      const resp = await fetch('https://vagw-api.ap.prd.portal.restaurant/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          operationName: 'ListPayouts',
+          variables: { params: { startDate, endDate, filter: {}, pagination, globalEntityId, accounts } },
+          query: `query ListPayouts($params: ListPayoutsRequest!) {
+  finances {
+    listPayouts(input: $params) {
+      nextPageToken
+      payouts {
+        payoutId payoutAmount payoutCurrency payoutOrders at status
+        payoutAccount { grid billingParentId chainId __typename }
+        invoices {
+          invoiceId invoiceAmount invoiceCurrency invoiceOrders processedDate
+          period { from to __typename }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+  }
+}`,
+        }),
+      });
+      return { status: resp.status, text: await resp.text() };
+    } catch (e) {
+      return { status: 0, text: e.message };
+    }
+  }, { accounts, startDate, endDate, globalEntityId, pageToken });
+}
+
 const LOCATION = process.argv[2] || 'paranaque';
 
 const ACCOUNTS = {
@@ -209,54 +251,44 @@ async function main() {
 
   // Fallback: if portal didn't auto-trigger ListPayouts (e.g. PerimeterX blocked JS on CI),
   // call the GraphQL API directly from within the browser context (cookies are already set).
+  // The portal issues ListPayouts itself with its own default window, so what is
+  // intercepted is whatever that view covers — five payouts here, regardless of
+  // DATE_FROM/DATE_TO. Calling the endpoint directly would let us page through a
+  // chosen range, but it is cross-origin from partner.foodpanda.com and the
+  // browser refuses it ("Failed to fetch"), so it only runs as a last resort.
+  // Widening the range properly means driving the page's own date picker.
   if (allPayouts.length === 0) {
-    console.log('  [Fallback] Portal did not auto-call ListPayouts. Trying direct GraphQL fetch...');
+    console.log('  Nothing intercepted — trying GraphQL directly (paginated)...');
     const fallbackAccounts = acct.grids.map(g => ({ grid: g, billingParentId: '', chainId: '' }));
-    const result = await page.evaluate(async ({ accounts, startDate, endDate, globalEntityId }) => {
-      try {
-        const resp = await fetch('https://vagw-api.ap.prd.portal.restaurant/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            operationName: 'ListPayouts',
-            variables: {
-              params: { startDate, endDate, filter: {}, pagination: { pageSize: 20 }, globalEntityId, accounts },
-            },
-            query: `query ListPayouts($params: ListPayoutsRequest!) {
-  finances {
-    listPayouts(input: $params) {
-      nextPageToken
-      payouts {
-        payoutId payoutAmount payoutCurrency payoutOrders at status
-        payoutAccount { grid billingParentId chainId __typename }
-        invoices {
-          invoiceId invoiceAmount invoiceCurrency invoiceOrders processedDate
-          period { from to __typename }
-          __typename
-        }
-        __typename
-      }
-      __typename
-    }
-  }
-}`,
-          }),
-        });
-        return { status: resp.status, text: await resp.text() };
-      } catch (e) {
-        return { status: 0, text: e.message };
-      }
-    }, { accounts: fallbackAccounts, startDate: DATE_FROM, endDate: DATE_TO, globalEntityId: acct.globalEntityId });
+    const fetched = [];
+    let pageToken = '';
 
-    console.log(`  [Fallback] HTTP ${result.status}`);
-    if (result.status === 200) {
-      const json = JSON.parse(result.text);
-      const payouts = json?.data?.finances?.listPayouts?.payouts || [];
-      console.log(`  [Fallback] Got ${payouts.length} payout(s)`);
-      allPayouts.push(...payouts);
-    } else {
-      console.log(`  [Fallback] Response: ${result.text.slice(0, 300)}`);
+    for (let pageNo = 0; pageNo < 50; pageNo++) {
+      const result = await fetchPayoutsPage(page, {
+        accounts: fallbackAccounts,
+        startDate: DATE_FROM,
+        endDate: DATE_TO,
+        globalEntityId: acct.globalEntityId,
+        pageToken,
+      });
+
+      if (result.status !== 200) {
+        console.log(`  [API] HTTP ${result.status}: ${String(result.text).slice(0, 200)}`);
+        break;
+      }
+      let json;
+      try { json = JSON.parse(result.text); } catch { break; }
+      const lp = json?.data?.finances?.listPayouts;
+      const payouts = lp?.payouts || [];
+      fetched.push(...payouts);
+      pageToken = lp?.nextPageToken || '';
+      console.log(`  [API] page ${pageNo + 1}: +${payouts.length} → ${fetched.length}`);
+      if (!pageToken || payouts.length === 0) break;
+    }
+
+    if (fetched.length > 0) {
+      allPayouts.length = 0;
+      allPayouts.push(...fetched);
     }
   }
 

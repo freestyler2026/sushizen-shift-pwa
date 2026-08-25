@@ -129,6 +129,13 @@ async function fetchDailySummary(cookieStr, day) {
     console.error('\n❌ SESSION_EXPIRED — run: node scripts/grab/setup-session.js <store>');
     process.exit(0);   // exit 0 so CI does not flag the whole workflow
   }
+  if (status === 400 && /Min from/.test(text)) {
+    // Grab only serves roughly the last six months; asking for anything older
+    // returns this rather than an empty result.
+    const e = new Error('BEFORE_RETENTION');
+    e.beforeRetention = true;
+    throw e;
+  }
   if (status !== 200) throw new Error(`HTTP ${status}: ${text.slice(0, 160)}`);
 
   const d = (JSON.parse(text).data) || {};
@@ -195,12 +202,18 @@ async function main() {
   console.log(`\nFetching daily settlement summaries (${days.length} day(s))...`);
 
   const rows = [];
+  let skippedOld = 0;
   for (const day of days) {
     try {
       rows.push(await fetchDailySummary(cookieStr, day));
     } catch (err) {
+      if (err.beforeRetention) { skippedOld++; continue; }
       console.error(`  ✗ ${day}: ${err.message}`);
     }
+  }
+  if (skippedOld > 0) {
+    // Say it once, and say how many — a silent gap reads as "no sales".
+    console.log(`  (${skippedOld} day(s) predate Grab's retention window and cannot be fetched)`);
   }
 
   const withMoney = rows.filter(r => r.netEarning !== 0);
