@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { MgmtTabBar, DashboardLink } from "./MgmtTabs";
 import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, KPI_VALUE,
   T_PAGE_TITLE, T_SECTION, SMALL_BUTTON, PRIMARY_BUTTON,
@@ -184,18 +185,18 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       {/* Filters */}
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3 items-end`}>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">City</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">都市</label>
           <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
+            <option value="dubai">ドバイ</option>
+            <option value="manila">マニラ</option>
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Store</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">店舗</label>
           <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="">All Stores</option>
+            <option value="">全店舗</option>
             {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -222,15 +223,15 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className={KPI_CARD}>
           <div className="flex items-center justify-between mb-0.5">
-            <p className={KPI_LABEL}>Revenue</p>
+            <p className={KPI_LABEL}>売上</p>
             {summary && (
               summary.revenue_source === "ar_payouts"
-                ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>AR Payouts</span>
+                ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>入金データ</span>
                 : summary.revenue_source === "manual"
-                  ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>Manual</span>
+                  ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>手入力</span>
                   : (summary.revenue_source as string) === "sales_data_input"
-                    ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>Daily Sales</span>
-                    : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>
+                    ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>日次売上入力</span>
+                    : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>未設定</span>
             )}
           </div>
           <p className={KPI_VALUE}>{summary ? fmtAmt(summary.revenue, cur) : "—"}</p>
@@ -245,7 +246,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
           </p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Food Cost</p>
+          <p className={KPI_LABEL}>食材費</p>
           <div className="flex items-center gap-2">
             <p className={`${KPI_VALUE} text-amber-300`}>{summary ? fmtAmt(summary.food_cost, cur) : "—"}</p>
             {summary?.food_source === "manual_excel" && (
@@ -255,11 +256,11 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
           <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.food_cost_rate ?? null)}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Labor Cost</p>
+          <p className={KPI_LABEL}>人件費</p>
           <div className="flex items-center gap-2">
             <p className={`${KPI_VALUE} text-blue-300`}>{summary ? fmtAmt(summary.labor_cost, cur) : "—"}</p>
             {summary?.labor_source === "estimated_shifts" && (
-              <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">Est.</span>
+              <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">推定</span>
             )}
           </div>
           <p className="text-xs text-zinc-500 mt-1">
@@ -268,17 +269,17 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
           </p>
         </div>
         <div className={`${KPI_CARD} border-violet-500/20`}>
-          <p className={KPI_LABEL}>Prime Cost</p>
+          <p className={KPI_LABEL}>プライムコスト</p>
           <p className={`${KPI_VALUE} text-violet-300`}>{summary ? fmtAmt(summary.prime_cost, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.prime_cost_rate ?? null)}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Overhead</p>
+          <p className={KPI_LABEL}>経費</p>
           <p className={`${KPI_VALUE} text-zinc-300`}>{summary ? fmtAmt(summary.overhead_total, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rent, utilities, etc.</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Total Cost</p>
+          <p className={KPI_LABEL}>総コスト</p>
           <p className={`${KPI_VALUE} text-rose-300`}>{summary ? fmtAmt(summary.total_cost, cur) : "—"}</p>
           <p className="text-xs text-zinc-500 mt-1">Rate: {fmtRate(summary?.total_cost_rate ?? null)}</p>
         </div>
@@ -287,15 +288,15 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       {/* Budget vs Actual */}
       {summary && (
         <div className={`${GLASS_CARD} p-5`}>
-          <h2 className={`${T_SECTION} mb-4`}>Budget vs Actual</h2>
+          <h2 className={`${T_SECTION} mb-4`}>予算 対 実績</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b border-white/8">
-                  <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Category</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Budget</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Actual</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Variance</th>
+                  <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">費目</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">予算</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">実績</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">差異</th>
                 </tr>
               </thead>
               <tbody>
@@ -331,12 +332,12 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b border-white/8">
-                  <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Month</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Revenue</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Food Cost</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Labor</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Prime Cost</th>
-                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Prime %</th>
+                  <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">対象月</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">売上</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">食材費</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">人件費</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">プライムコスト</th>
+                  <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">プライム率</th>
                 </tr>
               </thead>
               <tbody>
@@ -359,7 +360,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       {/* Overhead by Category */}
       {summary && summary.overhead_by_category.length > 0 && (
         <div className={`${GLASS_CARD} p-5`}>
-          <h2 className={`${T_SECTION} mb-4`}>Overhead Breakdown</h2>
+          <h2 className={`${T_SECTION} mb-4`}>経費内訳</h2>
           <div className="space-y-2">
             {summary.overhead_by_category.map(o => (
               <div key={o.category} className="flex items-center justify-between py-2 border-b border-white/5">
@@ -374,7 +375,7 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       {/* Food by Store */}
       {summary && summary.food_by_store.length > 1 && (
         <div className={`${GLASS_CARD} p-5`}>
-          <h2 className={`${T_SECTION} mb-4`}>Food Cost by Store</h2>
+          <h2 className={`${T_SECTION} mb-4`}>店舗別 食材費</h2>
           <div className="space-y-2">
             {summary.food_by_store.map(s => (
               <div key={s.store_code} className="flex items-center justify-between py-2 border-b border-white/5">
@@ -590,9 +591,9 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           label their columns "Revenue" and "Food Cost", so without saying which
           is which a reader cannot tell why the two disagree. */}
       <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-3">
-        <p className="text-xs font-semibold text-slate-200 mb-1">What this page counts</p>
+        <p className="text-xs font-semibold text-slate-200 mb-1">このページが集計しているもの</p>
         <p className="text-xs text-slate-400 leading-relaxed">
-          <b className="text-slate-300">Revenue</b> is money received — aggregator payouts after
+          <b className="text-slate-300">売上</b> is money received — aggregator payouts after
           their commission, attributed to the period earned. <b className="text-slate-300">Food
           cost</b> is what was purchased in the month, not what was consumed.
           <br />
@@ -624,12 +625,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {g && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Group Revenue</p>
+            <p className={KPI_LABEL}>全社売上</p>
             <p className={KPI_VALUE}>{fmtJpy(g.revenue)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">Manila + Dubai</p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Food Cost</p>
+            <p className={KPI_LABEL}>食材費</p>
             <div className="flex items-center gap-2">
               <p className={`${KPI_VALUE} ${foodRateCls(g.food_cost_rate)}`}>{fmtJpy(g.food_cost)}</p>
               {(summary?.dubai.native.food_source === "manual_excel" || summary?.manila.native.food_source === "manual_excel") && (
@@ -639,17 +640,17 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.food_cost_rate)}</p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Labor Cost</p>
+            <p className={KPI_LABEL}>人件費</p>
             <div className="flex items-center gap-2">
               <p className={KPI_VALUE}>{fmtJpy(g.labor_cost)}</p>
               {(summary?.dubai.native.labor_source === "estimated_shifts" || summary?.manila.native.labor_source === "estimated_shifts") && (
-                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">Est.</span>
+                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5">推定</span>
               )}
             </div>
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.labor_cost_rate)}</p>
           </div>
           <div className={KPI_CARD}>
-            <p className={KPI_LABEL}>Prime Cost</p>
+            <p className={KPI_LABEL}>プライムコスト</p>
             <p className={`${KPI_VALUE} ${primeRateCls(g.prime_cost_rate)}`}>{fmtJpy(g.prime_cost)}</p>
             <p className="text-xs text-zinc-500 mt-0.5">Rate: {fmtRate(g.prime_cost_rate)}</p>
           </div>
@@ -659,25 +660,25 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {/* City Breakdown */}
       {summary && (
         <div className={`${GLASS_CARD} p-4`}>
-          <h2 className={`${T_SECTION} mb-3`}>City Breakdown</h2>
+          <h2 className={`${T_SECTION} mb-3`}>都市別内訳</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-zinc-500 text-xs uppercase border-b border-zinc-800">
-                  <th className="text-left py-2 pr-4">City</th>
-                  <th className="text-right py-2 pr-4">Revenue</th>
-                  <th className="text-right py-2 pr-4">Food Cost</th>
-                  <th className="text-right py-2 pr-4">Food %</th>
-                  <th className="text-right py-2 pr-4">Labor</th>
-                  <th className="text-right py-2 pr-4">Prime Cost</th>
-                  <th className="text-right py-2 pr-4">Prime %</th>
-                  <th className="text-right py-2">Rev. Source</th>
+                  <th className="text-left py-2 pr-4">都市</th>
+                  <th className="text-right py-2 pr-4">売上</th>
+                  <th className="text-right py-2 pr-4">食材費</th>
+                  <th className="text-right py-2 pr-4">食材費率</th>
+                  <th className="text-right py-2 pr-4">人件費</th>
+                  <th className="text-right py-2 pr-4">プライムコスト</th>
+                  <th className="text-right py-2 pr-4">プライム率</th>
+                  <th className="text-right py-2">売上の出所</th>
                 </tr>
               </thead>
               <tbody>
                 {([
-                  { label: "Dubai",  flag: "🇦🇪", data: summary.dubai },
-                  { label: "Manila", flag: "🇵🇭", data: summary.manila },
+                  { label: "ドバイ",  flag: "🇦🇪", data: summary.dubai },
+                  { label: "マニラ", flag: "🇵🇭", data: summary.manila },
                 ] as const).map(({ label, flag, data }) => (
                   <tr key={label} className="border-b border-zinc-800/50">
                     <td className="py-2.5 pr-4 font-medium">{flag} {label}</td>
@@ -701,7 +702,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                       <div className="font-mono inline-flex items-center gap-1">
                         {fmtJpy(data.labor_cost)}
                         {data.native.labor_source === "estimated_shifts" && (
-                          <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1 py-0">Est.</span>
+                          <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1 py-0">推定</span>
                         )}
                       </div>
                     </td>
@@ -711,12 +712,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     </td>
                     <td className="text-right py-2.5">
                       {data.native.revenue_source === "ar_payouts"
-                        ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>AR Payouts</span>
+                        ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>入金データ</span>
                         : data.native.revenue_source === "manual"
-                          ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>Manual</span>
+                          ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>手入力</span>
                           : (data.native.revenue_source as string) === "sales_data_input"
-                            ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>Daily Sales</span>
-                            : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>Not set</span>}
+                            ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>日次売上入力</span>
+                            : <span className={BADGE_WARNING} style={{ fontSize: "9px", padding: "1px 6px" }}>未設定</span>}
                     </td>
                   </tr>
                 ))}
@@ -741,19 +742,19 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {/* Store Ranking */}
       {ranking && ranking.stores.length > 0 && (
         <div className={`${GLASS_CARD} p-4`}>
-          <h2 className={`${T_SECTION} mb-1`}>Store Food Cost Ranking</h2>
-          <p className="text-xs text-zinc-500 mb-3">Sorted by food cost (highest first)</p>
+          <h2 className={`${T_SECTION} mb-1`}>店舗別 食材費ランキング</h2>
+          <p className="text-xs text-zinc-500 mb-3">食材費の高い順</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-zinc-500 text-xs uppercase border-b border-zinc-800">
                   <th className="text-left py-2 w-8">#</th>
-                  <th className="text-left py-2 pr-4">Store</th>
-                  <th className="text-left py-2 pr-4">City</th>
-                  <th className="text-right py-2 pr-4">Food Cost</th>
-                  <th className="text-right py-2 pr-4">Revenue</th>
-                  <th className="text-right py-2 pr-4">Food %</th>
-                  <th className="text-right py-2">Rev. Source</th>
+                  <th className="text-left py-2 pr-4">店舗</th>
+                  <th className="text-left py-2 pr-4">都市</th>
+                  <th className="text-right py-2 pr-4">食材費</th>
+                  <th className="text-right py-2 pr-4">売上</th>
+                  <th className="text-right py-2 pr-4">食材費率</th>
+                  <th className="text-right py-2">売上の出所</th>
                 </tr>
               </thead>
               <tbody>
@@ -762,7 +763,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     <td className="py-2 text-zinc-600 text-xs">{i + 1}</td>
                     <td className="py-2 pr-4 font-semibold">{s.store_code}</td>
                     <td className="py-2 pr-4 text-xs text-zinc-400">
-                      {s.city === "dubai" ? "🇦🇪" : "🇵🇭"} {s.city}
+                      {s.city === "dubai" ? "🇦🇪 ドバイ" : "🇵🇭 マニラ"}
                     </td>
                     <td className="text-right py-2 pr-4 font-mono">
                       {s.currency} {Math.round(s.food_cost).toLocaleString("en")}
@@ -777,7 +778,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                       {s.revenue_source === "ar_payouts"
                         ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>AR</span>
                         : s.revenue_source === "manual"
-                          ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>Manual</span>
+                          ? <span className={BADGE_INFO} style={{ fontSize: "9px", padding: "1px 6px" }}>手入力</span>
                           : <span className="text-zinc-600 text-xs">—</span>}
                     </td>
                   </tr>
@@ -791,12 +792,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {/* Trend Predictions */}
       {(dubaiPred?.predictions || manilaPred?.predictions) && (
         <div className={`${GLASS_CARD} p-4`}>
-          <h2 className={`${T_SECTION} mb-1`}>Trend Predictions</h2>
+          <h2 className={`${T_SECTION} mb-1`}>トレンド予測</h2>
           <p className="text-xs text-zinc-500 mb-3">Linear regression on last 6 months. Revenue forecast requires manual entries.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {([
-              { label: "Dubai",  flag: "🇦🇪", pred: dubaiPred,  cur: "AED" },
-              { label: "Manila", flag: "🇵🇭", pred: manilaPred, cur: "PHP" },
+              { label: "ドバイ",  flag: "🇦🇪", pred: dubaiPred,  cur: "AED" },
+              { label: "マニラ", flag: "🇵🇭", pred: manilaPred, cur: "PHP" },
             ] as const).map(({ label, flag, pred, cur }) => (
               <div key={label} className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
                 <div className="flex items-center gap-2 mb-3">
@@ -809,7 +810,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                 {pred?.predictions ? (
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-zinc-500">Food Cost (next mo.)</span>
+                      <span className="text-xs text-zinc-500">食材費（翌月）</span>
                       <span className={`text-sm font-mono font-semibold ${
                         pred.predictions.food_cost_trend === "up" ? "text-rose-400"
                           : pred.predictions.food_cost_trend === "down" ? "text-emerald-400"
@@ -823,7 +824,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     </div>
                     {pred.predictions.revenue != null && pred.predictions.revenue > 0 && (
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-zinc-500">Revenue (next mo.)</span>
+                        <span className="text-xs text-zinc-500">売上（翌月）</span>
                         <span className="text-sm font-mono text-zinc-400">
                           {cur} {Math.round(pred.predictions.revenue).toLocaleString("en")}
                         </span>
@@ -843,20 +844,20 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {/* Group Budget Targets */}
       {summary && (
         <div className={`${GLASS_CARD} p-4`}>
-          <h2 className={`${T_SECTION} mb-1`}>Group Budget Targets</h2>
+          <h2 className={`${T_SECTION} mb-1`}>全社目標</h2>
           <p className="text-xs text-zinc-500 mb-4">
             Food cost rate targets per city for <span className="text-zinc-300">{yearMonth}</span>.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {([
               {
-                label: "Dubai", flag: "🇦🇪", target: dubaiTarget,
+                label: "ドバイ", flag: "🇦🇪", target: dubaiTarget,
                 actual: summary.dubai.food_cost_rate, primeActual: summary.dubai.prime_cost_rate,
                 foodVal: dubaiFoodTarget, primeVal: dubaiPrimeTarget,
                 setFood: setDubaiFoodTarget, setPrime: setDubaiPrimeTarget,
               },
               {
-                label: "Manila", flag: "🇵🇭", target: manilaTarget,
+                label: "マニラ", flag: "🇵🇭", target: manilaTarget,
                 actual: summary.manila.food_cost_rate, primeActual: summary.manila.prime_cost_rate,
                 foodVal: manilaFoodTarget, primeVal: manilaPrimeTarget,
                 setFood: setManilaFoodTarget, setPrime: setManilaPrimeTarget,
@@ -882,7 +883,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     </div>
                     {foodVar != null && (
                       <div className="flex justify-between">
-                        <span className="text-zinc-500">Variance</span>
+                        <span className="text-zinc-500">差異</span>
                         <span className={`font-mono font-semibold ${vCls(foodVar)}`}>
                           {foodVar > 0 ? "+" : ""}{foodVar.toFixed(1)}%
                         </span>
@@ -890,7 +891,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     )}
                     {primeVar != null && (
                       <div className="flex justify-between">
-                        <span className="text-zinc-500">Prime Cost Variance</span>
+                        <span className="text-zinc-500">プライムコスト差異</span>
                         <span className={`font-mono font-semibold ${vCls(primeVar)}`}>
                           {primeVar > 0 ? "+" : ""}{primeVar.toFixed(1)}%
                         </span>
@@ -899,13 +900,13 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <div>
-                      <label className="text-xs text-zinc-500 block mb-1">Food % Target</label>
+                      <label className="text-xs text-zinc-500 block mb-1">食材費率 目標</label>
                       <input type="number" step="0.1" min="0" max="100" value={foodVal}
                         onChange={e => setFood(e.target.value)} placeholder="e.g. 28"
                         className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 w-20 tabular-nums" />
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-500 block mb-1">Prime % Target</label>
+                      <label className="text-xs text-zinc-500 block mb-1">プライム率 目標</label>
                       <input type="number" step="0.1" min="0" max="100" value={primeVal}
                         onChange={e => setPrime(e.target.value)} placeholder="e.g. 60"
                         className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-100 w-20 tabular-nums" />
@@ -930,7 +931,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
 
       {/* FX Rate Settings */}
       <div className={`${GLASS_CARD} p-4`}>
-        <h2 className={`${T_SECTION} mb-1`}>Exchange Rate Settings</h2>
+        <h2 className={`${T_SECTION} mb-1`}>為替レート設定</h2>
         <p className="text-xs text-zinc-500 mb-4">
           Monthly FX rates for JPY consolidation. Applies to <span className="text-zinc-300">{yearMonth}</span> only.
         </p>
@@ -1067,19 +1068,19 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-zinc-500 text-xs uppercase border-b border-zinc-800">
-                      <th className="text-left py-2 pr-4">City</th>
-                      <th className="text-right py-2 pr-4">Revenue</th>
-                      <th className="text-right py-2 pr-4">Food Cost</th>
-                      <th className="text-right py-2 pr-4">Food %</th>
-                      <th className="text-right py-2 pr-4">Labor</th>
-                      <th className="text-right py-2 pr-4">Prime Cost</th>
-                      <th className="text-right py-2">Prime %</th>
+                      <th className="text-left py-2 pr-4">都市</th>
+                      <th className="text-right py-2 pr-4">売上</th>
+                      <th className="text-right py-2 pr-4">食材費</th>
+                      <th className="text-right py-2 pr-4">食材費率</th>
+                      <th className="text-right py-2 pr-4">人件費</th>
+                      <th className="text-right py-2 pr-4">プライムコスト</th>
+                      <th className="text-right py-2">プライム率</th>
                     </tr>
                   </thead>
                   <tbody>
                     {([
-                      { label: "Dubai",  flag: "🇦🇪", d: report.group.dubai  },
-                      { label: "Manila", flag: "🇵🇭", d: report.group.manila },
+                      { label: "ドバイ",  flag: "🇦🇪", d: report.group.dubai  },
+                      { label: "マニラ", flag: "🇵🇭", d: report.group.manila },
                     ] as const).map(({ label, flag, d }) => (
                       <tr key={label} className="border-b border-zinc-800/50">
                         <td className="py-2.5 pr-4 font-medium">
@@ -1112,18 +1113,18 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
           {/* Store Ranking */}
           {report.store_ranking.stores.length > 0 && (
             <div className={`${GLASS_CARD} p-4`}>
-              <h2 className={`${T_SECTION} mb-1`}>Store Food Cost Ranking</h2>
-              <p className="text-xs text-zinc-500 mb-3">Sorted by food cost (highest first)</p>
+              <h2 className={`${T_SECTION} mb-1`}>店舗別 食材費ランキング</h2>
+              <p className="text-xs text-zinc-500 mb-3">食材費の高い順</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-zinc-500 text-xs uppercase border-b border-zinc-800">
                       <th className="text-left py-2 w-8">#</th>
-                      <th className="text-left py-2 pr-4">Store</th>
-                      <th className="text-left py-2 pr-4">City</th>
-                      <th className="text-right py-2 pr-4">Food Cost</th>
-                      <th className="text-right py-2 pr-4">Revenue</th>
-                      <th className="text-right py-2">Food %</th>
+                      <th className="text-left py-2 pr-4">店舗</th>
+                      <th className="text-left py-2 pr-4">都市</th>
+                      <th className="text-right py-2 pr-4">食材費</th>
+                      <th className="text-right py-2 pr-4">売上</th>
+                      <th className="text-right py-2">食材費率</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1132,7 +1133,7 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                         <td className="py-2 text-zinc-600 text-xs">{i + 1}</td>
                         <td className="py-2 pr-4 font-semibold">{s.store_code}</td>
                         <td className="py-2 pr-4 text-xs text-zinc-400">
-                          {s.city === "dubai" ? "🇦🇪" : "🇵🇭"} {s.city}
+                          {s.city === "dubai" ? "🇦🇪 ドバイ" : "🇵🇭 マニラ"}
                         </td>
                         <td className="text-right py-2 pr-4 font-mono">
                           {s.currency} {Math.round(s.food_cost).toLocaleString("en")}
@@ -1154,12 +1155,12 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
           {/* Trend Predictions */}
           {(report.predictions.dubai.predictions || report.predictions.manila.predictions) && (
             <div className={`${GLASS_CARD} p-4`}>
-              <h2 className={`${T_SECTION} mb-1`}>Trend Predictions</h2>
+              <h2 className={`${T_SECTION} mb-1`}>トレンド予測</h2>
               <p className="text-xs text-zinc-500 mb-3">Linear regression based on last 6 months of data</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {([
-                  { label: "Dubai",  flag: "🇦🇪", pred: report.predictions.dubai,  cur: "AED" },
-                  { label: "Manila", flag: "🇵🇭", pred: report.predictions.manila, cur: "PHP" },
+                  { label: "ドバイ",  flag: "🇦🇪", pred: report.predictions.dubai,  cur: "AED" },
+                  { label: "マニラ", flag: "🇵🇭", pred: report.predictions.manila, cur: "PHP" },
                 ] as const).map(({ label, flag, pred, cur }) => (
                   <div key={label} className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -1172,7 +1173,7 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                     {pred.predictions ? (
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-zinc-500">Food Cost (next mo.)</span>
+                          <span className="text-xs text-zinc-500">食材費（翌月）</span>
                           <span className={`text-sm font-mono font-semibold ${
                             pred.predictions.food_cost_trend === "up" ? "text-rose-400"
                               : pred.predictions.food_cost_trend === "down" ? "text-emerald-400"
@@ -1186,7 +1187,7 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                         </div>
                         {pred.predictions.revenue != null && pred.predictions.revenue > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-zinc-500">Revenue (next mo.)</span>
+                            <span className="text-xs text-zinc-500">売上（翌月）</span>
                             <span className="text-sm font-mono text-zinc-400">
                               {cur} {Math.round(pred.predictions.revenue).toLocaleString("en")}
                             </span>
@@ -1217,18 +1218,19 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
 
 type Tab = "group" | "cost" | "report";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "group",  label: "Group Management" },
-  { key: "cost",   label: "Cost Intelligence" },
-  { key: "report", label: "Monthly Report" },
-];
-
 const MONTH_OPTIONS = prevMonths(12);
 
 export default function MgmtAccountingPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const [tab, setTab] = useState<Tab>("group");
   const [yearMonth, setYearMonth] = useState(thisMonth());
+
+  // Arriving from the Daily P&L tab bar carries the view you were on.
+  useEffect(() => {
+    const t = params.get("tab");
+    if (t === "group" || t === "cost" || t === "report") setTab(t);
+  }, [params]);
 
   useEffect(() => {
     const auth = getAuth();
@@ -1241,23 +1243,19 @@ export default function MgmtAccountingPage() {
     <div className="min-h-screen p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
       {/* Header */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-violet-400 mb-1">Management Accounting</p>
-        <h1 className={T_PAGE_TITLE}>Management Accounting</h1>
-        <p className="text-sm text-zinc-500 mt-1">Cost Intelligence · Group P&L · Monthly Report</p>
+        <div className="flex items-center gap-3 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-widest text-violet-400">Management Accounting</p>
+          <DashboardLink />
+        </div>
+        <h1 className={T_PAGE_TITLE}>管理会計</h1>
+        <p className="text-sm text-zinc-500 mt-1">コスト分析 ・ 全社損益 ・ 月次レポート</p>
       </div>
 
       {/* Tab bar + Month selector */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
-        <div className={TAB_CONTAINER}>
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={tab === t.key ? TAB_ACTIVE : TAB_INACTIVE}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <MgmtTabBar active={tab} onSelect={(k) => setTab(k as Tab)} />
         <div className="flex items-center gap-2">
-          <label className="text-xs text-zinc-500 uppercase tracking-widest">Month</label>
+          <label className="text-xs text-zinc-500 uppercase tracking-widest">対象月</label>
           <select value={yearMonth} onChange={e => setYearMonth(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100">
             {MONTH_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}

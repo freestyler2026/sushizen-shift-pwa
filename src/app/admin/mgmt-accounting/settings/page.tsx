@@ -262,7 +262,7 @@ export default function MgmtSettingsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-violet-400 mb-1">Management Accounting</p>
-          <h1 className={T_PAGE_TITLE}>Settings</h1>
+          <h1 className={T_PAGE_TITLE}>設定</h1>
           <p className="text-sm text-zinc-500 mt-1">Manual revenue · Overhead (fixed costs) · Monthly budgets</p>
         </div>
         <button onClick={() => router.push("/admin/mgmt-accounting")} className={SMALL_BUTTON}>
@@ -273,15 +273,15 @@ export default function MgmtSettingsPage() {
       {/* Filters */}
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3`}>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">City</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">都市</label>
           <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
+            <option value="dubai">ドバイ</option>
+            <option value="manila">マニラ</option>
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Store</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">店舗</label>
           <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
             {storeOptions.map(s => (
@@ -292,7 +292,7 @@ export default function MgmtSettingsPage() {
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Month</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">対象月</label>
           <select value={yearMonth} onChange={e => setYearMonth(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
             {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
@@ -311,12 +311,8 @@ export default function MgmtSettingsPage() {
         <button onClick={() => setTab("revenue")} className={tab === "revenue" ? TAB_ACTIVE : TAB_INACTIVE}>
           Revenue
         </button>
-        <button onClick={() => setTab("overhead")} className={tab === "overhead" ? TAB_ACTIVE : TAB_INACTIVE}>
-          Overhead
-        </button>
-        <button onClick={() => setTab("budget")} className={tab === "budget" ? TAB_ACTIVE : TAB_INACTIVE}>
-          Budget
-        </button>
+        <button onClick={() => setTab("overhead")} className={tab === "overhead" ? TAB_ACTIVE : TAB_INACTIVE}>経費</button>
+        <button onClick={() => setTab("budget")} className={tab === "budget" ? TAB_ACTIVE : TAB_INACTIVE}>予算</button>
         <button onClick={() => setTab("dailypl")} className={tab === "dailypl" ? TAB_ACTIVE : TAB_INACTIVE}>
           Daily P&amp;L
         </button>
@@ -414,11 +410,11 @@ export default function MgmtSettingsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b border-white/8">
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Store</th>
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Month</th>
-                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Amount</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">店舗</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">対象月</th>
+                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">金額</th>
                     <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Entered By</th>
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Notes</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">備考</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -450,7 +446,7 @@ export default function MgmtSettingsPage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-400">Category</label>
+                <label className="text-xs font-medium text-zinc-400">費目</label>
                 <select value={ohCategory} onChange={e => setOhCategory(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white">
                   {OVERHEAD_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -491,9 +487,9 @@ export default function MgmtSettingsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b border-white/8">
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Category</th>
-                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Amount</th>
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Notes</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">費目</th>
+                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">金額</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">備考</th>
                     <th className="pb-2"></th>
                   </tr>
                 </thead>
@@ -507,14 +503,12 @@ export default function MgmtSettingsPage() {
                       <td className="py-2.5 text-zinc-500 text-xs">{o.notes || "—"}</td>
                       <td className="py-2.5 text-right">
                         <button onClick={() => deleteOverhead(o.id)}
-                          className="text-xs text-rose-400 hover:text-rose-300 transition-colors">
-                          Delete
-                        </button>
+                          className="text-xs text-rose-400 hover:text-rose-300 transition-colors">削除</button>
                       </td>
                     </tr>
                   ))}
                   <tr className="border-t border-white/10">
-                    <td className="py-2.5 font-semibold text-zinc-200">Total</td>
+                    <td className="py-2.5 font-semibold text-zinc-200">合計</td>
                     <td className="py-2.5 text-right font-mono font-bold text-white">
                       {cur} {ohList.reduce((s, o) => s + o.amount, 0).toLocaleString("en")}
                     </td>
@@ -537,7 +531,7 @@ export default function MgmtSettingsPage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-400">Category</label>
+                <label className="text-xs font-medium text-zinc-400">費目</label>
                 <select value={budCategory} onChange={e => setBudCategory(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white">
                   {BUDGET_CATEGORIES.map(c => (
@@ -564,8 +558,8 @@ export default function MgmtSettingsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b border-white/8">
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Category</th>
-                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Budget</th>
+                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">費目</th>
+                    <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">予算</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -678,7 +672,7 @@ function DailyPLSettingsTab({
       <div className={`${GLASS_CARD} p-5`}>
         <div className="flex items-start justify-between gap-4 mb-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Food Cost Rate</h2>
+            <h2 className="text-sm font-semibold text-slate-200 mb-0.5">食材費レート</h2>
             <p className="text-xs text-slate-500">
               Computed from Cost Calculation master (menu_item_master).
               Used for COGS = Gross Revenue × food_cost_rate in the Daily P&amp;L.
@@ -747,9 +741,9 @@ function DailyPLSettingsTab({
               <thead>
                 <tr className="border-b border-[var(--border)] text-slate-500">
                   <th className="text-left py-1.5 pr-3">Platform</th>
-                  <th className="text-left py-1.5 pr-3">Store</th>
+                  <th className="text-left py-1.5 pr-3">店舗</th>
                   <th className="text-left py-1.5 pr-3">Brand</th>
-                  <th className="text-right py-1.5">Rate</th>
+                  <th className="text-right py-1.5">レート</th>
                 </tr>
               </thead>
               <tbody>
@@ -791,7 +785,7 @@ function DailyPLSettingsTab({
             className="w-32 bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1 text-sm"
           />
           <span className="text-xs text-slate-400">{city === "dubai" ? "AED" : "PHP"} / day</span>
-          <button onClick={saveLaborDefault} className={PRIMARY_BUTTON}>Save</button>
+          <button onClick={saveLaborDefault} className={PRIMARY_BUTTON}>保存</button>
         </div>
 
         {laborDefaults.length > 0 && (

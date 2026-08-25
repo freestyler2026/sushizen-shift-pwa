@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { MgmtTabBar, DashboardLink } from "../MgmtTabs";
 import { useRouter } from "next/navigation";
 import {
   GLASS_CARD, KPI_CARD, KPI_LABEL, KPI_VALUE,
@@ -155,7 +156,7 @@ export default function DailyPLPage() {
       const json = await res.json();
       setData(json);
     } catch {
-      setData({ ok: false, error: "Fetch failed" } as PLData);
+      setData({ ok: false, error: "取得に失敗しました" } as PLData);
     } finally {
       setLoading(false);
     }
@@ -176,7 +177,7 @@ export default function DailyPLPage() {
       setRefreshMsg(
         json.ok
           ? `✓ Refreshed: ${json.payouts_processed} payouts → ${json.records_written} day records`
-          : `✗ ${json.error || "Refresh failed"}`
+          : `✗ ${json.error || "更新に失敗しました"}`
       );
       if (json.ok) await fetchPL();
     } finally {
@@ -203,9 +204,18 @@ export default function DailyPLPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] p-4 md:p-6 max-w-[1400px] mx-auto">
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <h1 className={T_PAGE_TITLE}>Daily P&amp;L</h1>
-        <span className="text-slate-500 text-sm mt-1">Delivery Revenue · COGS · Overhead · Profit</span>
+      <div className="mb-4">
+        <div className="flex items-center gap-3 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-widest text-violet-400">Management Accounting</p>
+          <DashboardLink />
+        </div>
+        <h1 className={T_PAGE_TITLE}>日次P&amp;L</h1>
+        <p className="text-sm text-slate-500 mt-1">売上 ・ 原価 ・ 経費 ・ 利益</p>
+      </div>
+
+      {/* Same bar as the monthly views — this page is one of them, not a detour. */}
+      <div className="mb-5">
+        <MgmtTabBar active="daily" />
       </div>
 
       {/* ── Controls ── */}
@@ -227,14 +237,14 @@ export default function DailyPLPage() {
 
         {/* Date range */}
         <div>
-          <label className={KPI_LABEL}>From</label>
+          <label className={KPI_LABEL}>開始日</label>
           <input type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)}
             className="mt-1 block bg-[var(--bg-card)] border border-[var(--border)] rounded px-2 py-1 text-sm"
           />
         </div>
         <div>
-          <label className={KPI_LABEL}>To</label>
+          <label className={KPI_LABEL}>終了日</label>
           <input type="date" value={dateTo}
             max={today()}
             onChange={e => setDateTo(e.target.value)}
@@ -270,13 +280,14 @@ export default function DailyPLPage() {
         </div>
       )}
 
-      {/* ── Food cost rate notice ── */}
-      {data?.ok && data.food_cost_rate === 0 && (
+      {/* The flat-rate setting is only a fallback now — food cost comes from what
+          sold. Warning on a zero rate fired even when COGS was computed fine. */}
+      {data?.ok && data.food_cost_missing && data.food_cost_rate === 0 && (
         <div className="mb-4 bg-amber-900/30 border border-amber-700 rounded p-3 text-sm text-amber-300">
-          ⚠ Food cost rate not computed. Go to{" "}
-          <a href="/admin/mgmt-accounting/settings" className="underline">Settings</a>{" "}
-          → &ldquo;Compute Food Cost Rate&rdquo; to auto-calculate from Cost Calculation master.
-          COGS is shown as 0 until this is set.
+          ⚠ 一律レートが未設定です。{" "}
+          <a href="/admin/mgmt-accounting/settings" className="underline">設定</a>{" "}
+          → 「Compute Food Cost Rate」で登録できます。販売数×原価で算出できない場合の
+          予備として使われます。
         </div>
       )}
 
@@ -284,36 +295,36 @@ export default function DailyPLPage() {
       {data?.ok && data.summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
           {[
-            { label: "Gross Revenue", value: data.summary.gross_sales },
-            { label: "Commission", value: data.summary.commission },
-            { label: "Net Revenue", value: data.summary.net_revenue },
-            { label: "COGS", value: data.summary.cogs },
-            { label: "Labor", value: data.summary.labor },
-            { label: "Overhead", value: data.summary.overhead },
-            { label: "Operating Profit", value: data.summary.profit, highlight: true },
+            { key: "gross",  label: "総売上",   value: data.summary.gross_sales },
+            { key: "comm",   label: "手数料",   value: data.summary.commission },
+            { key: "net",    label: "純売上",   value: data.summary.net_revenue },
+            { key: "cogs",   label: "食材費",   value: data.summary.cogs },
+            { key: "labor",  label: "人件費",   value: data.summary.labor },
+            { key: "oh",     label: "経費",     value: data.summary.overhead },
+            { key: "profit", label: "営業利益", value: data.summary.profit, highlight: true },
           ].map(card => (
-            <div key={card.label} className={KPI_CARD}>
+            <div key={card.key} className={KPI_CARD}>
               <div className={KPI_LABEL}>{card.label}</div>
               <div className={`${KPI_VALUE} ${card.highlight ? profitColor(card.value) : ""}`}>
                 {fmt(card.value, cur)}
               </div>
-              {card.label === "Operating Profit" && data.summary.margin_pct !== null && (
+              {card.key === "profit" && data.summary.margin_pct !== null && (
                 <div className={`text-xs mt-0.5 ${profitColor(data.summary.profit)}`}>
-                  {fmtPct(data.summary.margin_pct)} margin
+                  {fmtPct(data.summary.margin_pct)} 利益率
                 </div>
               )}
-              {card.label === "COGS" && (
+              {card.key === "cogs" && (
                 <div className="text-xs mt-0.5">
                   {data.food_cost_source === "item_sales" ? (
                     <span className="text-slate-500">
-                      From items sold · {data.food_cost_coverage_pct}% of sales costed
+                      販売数×原価 ・ 売上の{data.food_cost_coverage_pct}%を計上
                     </span>
                   ) : data.food_cost_source === "flat_rate" ? (
                     <span className="text-amber-400">
-                      Flat {data.food_cost_rate_pct}% — menu average, not items sold
+                      一律{data.food_cost_rate_pct}% ― メニュー平均（販売実績ではありません）
                     </span>
                   ) : (
-                    <span className="text-rose-400">Not calculated</span>
+                    <span className="text-rose-400">未算出</span>
                   )}
                 </div>
               )}
@@ -324,15 +335,14 @@ export default function DailyPLPage() {
 
       {/* Counted differently from the monthly page, on purpose — say so. */}
       <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-3 mb-4">
-        <p className="text-xs font-semibold text-slate-200 mb-1">What this page counts</p>
+        <p className="text-xs font-semibold text-slate-200 mb-1">このページが集計しているもの</p>
         <p className="text-xs text-slate-400 leading-relaxed">
-          <b className="text-slate-300">Revenue</b> is POS sales as rung up, before the
-          aggregators take their commission — which is shown on its own line.
-          <b className="text-slate-300"> COGS</b> is what was consumed: items sold × recipe
-          cost, plus 3% for waste.
+          <b className="text-slate-300">売上</b>はPOSの計上額です。アグリゲーターの手数料を引く前の
+          金額で、手数料は別行に表示しています。
+          <b className="text-slate-300">食材費</b>は消費額で、販売数×レシピ原価に廃棄3%を加えたものです。
           <br />
-          Management Accounting counts the month differently — money received, and food
-          purchased rather than consumed — so its totals will not match. Neither is wrong.
+          <b className="text-slate-300">全社管理</b>タブは別の基準で集計しています（入金額と、消費ではなく
+          仕入額）。そのため合計は一致しませんが、どちらも誤りではありません。
         </p>
       </div>
 
@@ -340,21 +350,21 @@ export default function DailyPLPage() {
           Say it instead of booking sales against no food cost. */}
       {data?.ok && data.food_cost_missing && (
         <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 mb-4">
-          <p className="text-sm font-semibold text-rose-300">Food cost not calculated</p>
+          <p className="text-sm font-semibold text-rose-300">食材費が算出できません</p>
           <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
-            Only {data.food_cost_items_matched} of {data.food_cost_items_total} items sold have a
-            cost in Cost Calculation — {data.food_cost_coverage_pct}% of quantity sold. COGS is
-            shown as zero because it cannot be computed, not because there was none. Enter
-            recipe costs under Cost Calculation › Products.
+            販売された{data.food_cost_items_total}商品のうち、Cost Calculation に原価があるのは
+            {data.food_cost_items_matched}商品のみです（販売数の{data.food_cost_coverage_pct}%）。
+            食材費が0なのは実際に0だったからではなく、算出できないためです。
+            Cost Calculation › Products で原価を登録してください。
           </p>
         </div>
       )}
       {data?.ok && !data.food_cost_missing && (data.food_cost_coverage_pct ?? 100) < 95 && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4">
           <p className="text-xs text-amber-200/90 leading-relaxed">
-            Food cost covers {data.food_cost_coverage_pct}% of quantity sold
-            ({data.food_cost_items_matched} of {data.food_cost_items_total} items priced).
-            The rest is assumed to run at the same rate.
+            食材費は販売数の{data.food_cost_coverage_pct}%をカバーしています
+            （{data.food_cost_items_total}商品中{data.food_cost_items_matched}商品に原価あり）。
+            残りは同じ原価率で運営されているものとして計算しています。
           </p>
           {(data.food_cost_blockers?.length ?? 0) > 0 && (
             <div className="mt-2 pt-2 border-t border-amber-500/20">
@@ -370,8 +380,8 @@ export default function DailyPLPage() {
                     <span className="flex-1 truncate">{b.item}</span>
                     <span className="text-[11px] text-amber-300/70 whitespace-nowrap">
                       {b.reason === "name_not_in_master"
-                        ? "name not in Cost Calculation"
-                        : "no cost set"}
+                        ? "Cost Calculation に該当名なし"
+                        : "原価未設定"}
                     </span>
                   </div>
                 ))}
@@ -384,9 +394,9 @@ export default function DailyPLPage() {
         && Object.keys(data.overhead_carried_from).length > 0 && (
         <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-2.5 mb-4">
           <p className="text-xs text-slate-300">
-            Fixed costs carried forward from{" "}
+            固定費は{" "}
             {Array.from(new Set(Object.values(data.overhead_carried_from))).join(", ")} —
-            the current month has no entries yet.
+            から引き継いでいます（当月分は未登録）。
           </p>
         </div>
       )}
@@ -395,9 +405,9 @@ export default function DailyPLPage() {
       {data?.ok && (
         <div className={`${TAB_CONTAINER} mb-4 w-fit`}>
           <button className={viewMode === "summary" ? TAB_ACTIVE : TAB_INACTIVE}
-            onClick={() => setViewMode("summary")}>Summary</button>
+            onClick={() => setViewMode("summary")}>サマリー</button>
           <button className={viewMode === "detail" ? TAB_ACTIVE : TAB_INACTIVE}
-            onClick={() => setViewMode("detail")}>Daily Detail</button>
+            onClick={() => setViewMode("detail")}>日別明細</button>
         </div>
       )}
 
@@ -407,7 +417,7 @@ export default function DailyPLPage() {
       )}
       {!loading && data && !data.ok && (
         <div className="text-center py-12 text-red-400">
-          {data.error ?? "Failed to load P&L"}
+          {data.error ?? "日次P&Lの読み込みに失敗しました"}
         </div>
       )}
       {!loading && data?.ok && data.days.length === 0 && (
@@ -478,15 +488,15 @@ function StoreSummaryTable({ data, cur }: { data: PLData; cur: string }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)] text-slate-400 text-xs">
-              <th className="text-left py-2 pr-3">Store</th>
-              <th className="text-right py-2 px-3">Gross Revenue</th>
-              <th className="text-right py-2 px-3">Commission</th>
-              <th className="text-right py-2 px-3">Net Revenue</th>
-              <th className="text-right py-2 px-3">COGS</th>
-              <th className="text-right py-2 px-3">Labor</th>
-              <th className="text-right py-2 px-3">Overhead</th>
-              <th className="text-right py-2 px-3 font-semibold">Profit</th>
-              <th className="text-right py-2 pl-3">Margin</th>
+              <th className="text-left py-2 pr-3">店舗</th>
+              <th className="text-right py-2 px-3">総売上</th>
+              <th className="text-right py-2 px-3">手数料</th>
+              <th className="text-right py-2 px-3">純売上</th>
+              <th className="text-right py-2 px-3">食材費</th>
+              <th className="text-right py-2 px-3">人件費</th>
+              <th className="text-right py-2 px-3">経費</th>
+              <th className="text-right py-2 px-3 font-semibold">利益</th>
+              <th className="text-right py-2 pl-3">利益率</th>
             </tr>
           </thead>
           <tbody>
@@ -569,7 +579,7 @@ function DayCard({
           <span className="font-semibold text-slate-200">{day.date}</span>
           <span className="text-slate-500 text-sm">{dayLabel}</span>
           {!hasRevenue && (
-            <span className="text-xs text-slate-600 italic">No data in cache</span>
+            <span className="text-xs text-slate-600 italic">キャッシュにデータがありません</span>
           )}
         </div>
         {hasRevenue && (
@@ -600,7 +610,7 @@ function DayCard({
                 >
                   <span className="font-medium w-36 shrink-0">{store.store_code}</span>
                   {!hasData ? (
-                    <span className="text-slate-600 italic text-xs">No revenue</span>
+                    <span className="text-slate-600 italic text-xs">売上なし</span>
                   ) : (
                     <>
                       <div className="flex gap-4 flex-wrap text-xs text-slate-400">
@@ -628,7 +638,7 @@ function DayCard({
                   <div className="px-3 pb-3 border-t border-[var(--border)]/50">
                     {/* Platform breakdown */}
                     <div className="mt-2">
-                      <p className="text-xs text-slate-500 mb-1">Platform breakdown</p>
+                      <p className="text-xs text-slate-500 mb-1">プラットフォーム内訳</p>
                       <div className="space-y-1">
                         {store.platforms.map(plat => (
                           <div key={plat.platform}
