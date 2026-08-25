@@ -253,8 +253,20 @@ export default function CKInventoryPage() {
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
     apiFetch("/api/store/ck-inventory/sessions/merge-migrate", { method: "POST" })
-      .then(() => { /* silent */ })
-      .catch(() => { /* silent */ });
+      .then((res) => {
+        // The merge moves entries between sessions, so anything already on screen is
+        // now out of date. Without this the first view of the day showed the
+        // pre-merge state and the numbers only appeared after opening another
+        // session and coming back — which is exactly how staff described it.
+        // Only re-read when something actually moved, to avoid a pointless refetch.
+        const moved = Number(res?.entries_moved ?? 0) > 0 || Number(res?.merged_groups ?? 0) > 0;
+        if (!moved) return;
+        void loadSessions();
+        const sid = activeSessionIdRef.current;
+        if (sid) void loadSession(sid, true);
+      })
+      .catch(() => { /* silent — the merge is best-effort */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage, city]);
 
   // ── Manage items ─────────────────────────────────────────────────────────
