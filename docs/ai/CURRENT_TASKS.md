@@ -4,6 +4,52 @@ Last updated: 2026-08-25 (Noon二重計上を発見(未解決) / Talabat欠落�
 
 ---
 
+## ✅ Completed: Manila（Grab / Foodpanda）を Dubai と同方式に (2026-08-25)
+
+### Grab — 2つのバグを修正
+
+1. **95%のデータを捨てていた** — `transaction_status` を `completed` のみに絞っていたが、
+   実データは `settled` 1,259件 / `completed` 41件。`settled` が確定状態。
+2. **金額が売上で入金ではなかった** — 注文単位の `net_total` 合計は `net_sales`（控除前）。
+   日次サマリAPIの **`net_earning`** に変更。CSV送金額と1円単位で一致することを検証:
+   `8/18 の net_earning 25,234.09` = `8/19 入金の CSV 25,234.09`。
+   Grab PH は**日次決済・翌日入金**、控除率30〜40%。
+
+**1セッション=1店舗**（Paranaqueのセッションで1,320件すべてParanaque）。店舗ごとにログインが必要。
+`GRAB_STORE_CODE`（PAR/TAFT/CUB）で指定して3回実行する。
+
+**API保持期間は約6ヶ月**（`Min from 1771632000` = 2026-02-21）。それ以前は取得不可。
+
+### Foodpanda — 期間指定が効いていなかった
+
+ポータルが自前の既定期間で ListPayouts を呼ぶため、`DATE_FROM/DATE_TO` が無視され
+**店舗あたり5件**しか取れていなかった。`page.evaluate` からの直接呼び出しは
+クロスオリジンで拒否される（`Failed to fetch`）ため、**ページのリクエストを捕捉して
+Playwright の request API で再送**（CORSの対象外）+ `nextPageToken` でページング。
+
+2〜8月で **5件 → 105/112/107件**に改善。
+
+### 整理したこと
+
+- CSV由来の重複を削除（PAR 8/18+8/19 = 46,279.07 が新データと完全一致することを確認）。
+  退避先 `ar_payouts_manila_csv_pre_switch`
+- 店舗コード正規化: `GRAB_PAR`→`PAR`、`SUSHIZ`→`CUB`
+- Foodpanda ワークフローを有効化（`disabled_manually` だった）
+
+---
+
+## 🔴 要対応（ユーザー作業）: 平文パスワードの露出
+
+`scripts/smiles/get-payouts.js` の `ACCOUNTS_DEFAULT` に4アカウントのユーザー名と
+パスワードが平文で入っており、git 管理下だった。**HEADからは削除済み**
+（`SMILES_ACCOUNTS` 未設定なら起動しない形に変更）。
+
+**ただし git 履歴には残っている**（コミット `804c8c7f`）。
+**Smiles の4アカウントのパスワードは露出したものとして変更すること。**
+
+また 2026-08-25 の会話で Grab 3店舗（Paranaque / Taft / QC）の認証情報が平文で
+共有された。こちらも変更を推奨。
+
 ## ✅ Completed: Smiles (EatEasily) 調査と修正 (2026-08-25)
 
 これで Dubai 5社（Careem / Keeta / Noon / Talabat / Smiles）が揃った。
