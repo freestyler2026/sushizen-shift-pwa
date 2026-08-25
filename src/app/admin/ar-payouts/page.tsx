@@ -153,6 +153,35 @@ function ConfirmModal({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Payouts run back to early 2024, so scanning by hand is the common case these
+// shortcuts remove. Each returns [from, to].
+const PERIOD_PRESETS: { label: string; range: () => [string, string] }[] = [
+  {
+    label: "This month",
+    range: () => {
+      const n = new Date();
+      return [isoDay(new Date(n.getFullYear(), n.getMonth(), 1)), isoDay(n)];
+    },
+  },
+  {
+    label: "Last 3 months",
+    range: () => {
+      const n = new Date();
+      return [isoDay(new Date(n.getFullYear(), n.getMonth() - 2, 1)), isoDay(n)];
+    },
+  },
+  {
+    label: "Last 12 months",
+    range: () => {
+      const n = new Date();
+      return [isoDay(new Date(n.getFullYear(), n.getMonth() - 11, 1)), isoDay(n)];
+    },
+  },
+];
+
 export default function ArPayoutsPage() {
   const [payouts, setPayouts] = useState<ArPayout[]>([]);
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
@@ -166,6 +195,9 @@ export default function ArPayoutsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeFilter, setStoreFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
+  // Empty means no bound, so the default view stays "everything".
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [confirmTarget, setConfirmTarget] = useState<ArPayout | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
@@ -201,6 +233,8 @@ export default function ArPayoutsPage() {
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (storeFilter !== "all") params.set("store_code", storeFilter);
     if (cityTab === "dubai" && brandFilter !== "all") params.set("brand", brandFilter);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     const res = await fetch(`/api/admin/ar-payouts?${params}`);
     if (res.ok) {
       const data = await res.json();
@@ -209,7 +243,7 @@ export default function ArPayoutsPage() {
       setTruncated(Boolean(data.truncated));
     }
     setLoading(false);
-  }, [cityTab, platformFilter, statusFilter, storeFilter, brandFilter]);
+  }, [cityTab, platformFilter, statusFilter, storeFilter, brandFilter, dateFrom, dateTo]);
 
   useEffect(() => { fetchPayouts(); }, [fetchPayouts]);
 
@@ -625,6 +659,45 @@ export default function ArPayoutsPage() {
               </select>
             </>
           )}
+          {/* Period — filters on payout date, the column shown in the table */}
+          <div className="w-px bg-white/10" />
+          <div className="flex flex-wrap items-center gap-2">
+            {PERIOD_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                onClick={() => { const r = preset.range(); setDateFrom(r[0]); setDateTo(r[1]); }}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/8"
+              >
+                {preset.label}
+              </button>
+            ))}
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+              aria-label="Payouts from"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none"
+            />
+            <span className="text-sm text-white/30">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              aria-label="Payouts to"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/8"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           {storeCodes.length > 1 && (
             <>
               <div className="w-px bg-white/10" />
