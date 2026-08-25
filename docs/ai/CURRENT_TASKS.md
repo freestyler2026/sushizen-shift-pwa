@@ -1,8 +1,58 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-25 (Dubai Discount Rates ブランド別入力)
+Last updated: 2026-08-25 (Careem Payment Summary API 取り込み / Dubai Discount Rates ブランド別入力)
 
 ---
+
+## ✅ Completed: Careem の入金データを Payment Summary API から取得 (2026-08-25)
+
+**発端**: Payment Summary の PDF が AR Payouts のデータになるか、という確認依頼。
+
+**判明したこと**
+- Careem の Payment Summary PDF は **ブラウザ側で画像化**されており（2560×2768px の画像1枚、
+  テキスト層ゼロ）、`careem_parser.py` では**原理的に読めない**。本番の careem 行は全て
+  balance extract 由来で、**PDFパーサーの成功実績は0件**だった
+- Invoices タブの Tax Invoice は**手数料請求書**で、入金額も入金日も無い。AR Payouts には使えない
+- Earnings and Payout タブは空（この会社は cashout 方式で payoutRequests が0件）
+- **`POST /api/saturn-ext/v1/billing/cycleSummaries/list` が Payment Summary の実体**。
+  `cycleBalance` が PDF の Net Payout と完全一致（outlet 1061197 / 7月27-31日 / 7016.93）
+
+**実装**
+- `get-payouts.js` に cycle 取得を追加。リクエストは**自前で組めない**（bearer token と
+  billingAccounts 一覧が必要で、素の POST は 403）ため、ページが出すリクエストを捕捉して
+  日付だけ差し替えて再送する。捕捉には Payment Summary タブのクリックが必要
+- `POST /api/careem/portal-cycle-payouts`（`app/main.py`）— `payout_id = careem_cycle_*`
+- `careem_outlet_mapping` を Careem のマスタ準拠に再構築（20店舗、`CAREEM_{ブランド}_{地区}`）
+- `careem_parser.py` は画像PDFを明示的に検出して原因を示すエラーに変更（削除はしていない）
+
+**実測**: 7月+8月で **80サイクル / 392,508.58 AED** を取り込み。PDF と1円単位で一致。
+
+### 🔴 併せて修正: Dubai P&L の careem 売上が過大計上だった
+
+月次売上が `SUM(expected_amount)` で日次の**累積残高**を合計していた。
+`CAREEM_SZ_JLT` の8月が `9099.64 + 10988.11 = 20087.75` と、同じ金額を2回足していた。
+by_platform の集計だけ `payout_id NOT LIKE 'careem_balance_%'` で除外済みだったので、
+残り2箇所（合計・店舗別P&L）にも同じ除外を適用。修正後の Dubai は
+7月 careem 229,751.53 / 8月 162,757.05（実際の入金額ベース）。
+
+### ⚠️ Careem ポータルの制約（試して判明したもの）
+
+| 制約 | 挙動 |
+|---|---|
+| セッション | `SESSION` は発行から**72時間で固定失効**。使っても延びない（8/21発行→8/22再取得でも期限は8/24のまま） |
+| GitHub Actions | 更新後セッションを使い捨てランナー上のファイルに書くだけで Secret に戻らない |
+| 日付範囲 | 1ヶ月を超えると HTTP 400 → 31日ずつに分割 |
+| pageSize | 100 は可、500 は HTTP 400 |
+| `totalRecords` | **信用できない**。pageSize=20 だと 21 と返すが pageSize=100 では 60 件返る → 短いページが来たら終了、で判定 |
+
+**運用**: 72時間制限があるため無人での日次実行は不可能。**週1回、ログイン直後に
+ワークフローを手動起動**する運用にする（支払サイクルは週次なのでこれで足りる）。
+
+```
+node scripts/careem/setup-session.js     # ログイン（本人が実施）
+# → GitHub Actions "Careem Dubai — Payout Extract" を手動実行
+#    または CYCLE_FROM/CYCLE_TO を指定してローカル実行
+```
 
 ## ✅ Completed: Dubai Aggregator Discount Rates をブランド別に (2026-08-25)
 
