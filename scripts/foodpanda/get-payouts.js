@@ -205,13 +205,20 @@ async function main() {
   });
 
   const allPayouts = [];
+  // The page's own ListPayouts request, kept so we can re-issue it over the
+  // period we want. It cannot be rebuilt from scratch — it carries auth headers
+  // the portal adds — and calling the endpoint from page.evaluate is refused as
+  // cross-origin. Playwright's request API is not subject to that.
+  let listReq = null;
 
   // Capture ListPayouts response via network-level interception (bypasses PX)
   context.on('response', async resp => {
     const url = resp.url();
     if (!url.includes('vagw-api')) return;
-    const postData = resp.request().postData() || '';
+    const req = resp.request();
+    const postData = req.postData() || '';
     if (!postData.includes('ListPayouts')) return;
+    listReq = { url, headers: req.headers(), postData };
     try {
       const body = await resp.text();
       const json = JSON.parse(body);
@@ -251,44 +258,61 @@ async function main() {
 
   // Fallback: if portal didn't auto-trigger ListPayouts (e.g. PerimeterX blocked JS on CI),
   // call the GraphQL API directly from within the browser context (cookies are already set).
-  // The portal issues ListPayouts itself with its own default window, so what is
-  // intercepted is whatever that view covers — five payouts here, regardless of
-  // DATE_FROM/DATE_TO. Calling the endpoint directly would let us page through a
-  // chosen range, but it is cross-origin from partner.foodpanda.com and the
-  // browser refuses it ("Failed to fetch"), so it only runs as a last resort.
-  // Widening the range properly means driving the page's own date picker.
-  if (allPayouts.length === 0) {
-    console.log('  Nothing intercepted — trying GraphQL directly (paginated)...');
-    const fallbackAccounts = acct.grids.map(g => ({ grid: g, billingParentId: '', chainId: '' }));
-    const fetched = [];
-    let pageToken = '';
-
-    for (let pageNo = 0; pageNo < 50; pageNo++) {
-      const result = await fetchPayoutsPage(page, {
-        accounts: fallbackAccounts,
-        startDate: DATE_FROM,
-        endDate: DATE_TO,
-        globalEntityId: acct.globalEntityId,
-        pageToken,
-      });
-
-      if (result.status !== 200) {
-        console.log(`  [API] HTTP ${result.status}: ${String(result.text).slice(0, 200)}`);
-        break;
-      }
-      let json;
-      try { json = JSON.parse(result.text); } catch { break; }
-      const lp = json?.data?.finances?.listPayouts;
-      const payouts = lp?.payouts || [];
-      fetched.push(...payouts);
-      pageToken = lp?.nextPageToken || '';
-      console.log(`  [API] page ${pageNo + 1}: +${payouts.length} → ${fetched.length}`);
-      if (!pageToken || payouts.length === 0) break;
+  // The portal asks for its own default window, so what it fetches ignores
+  // DATE_FROM/DATE_TO — five payouts per store whatever range is requested.
+  // Re-issue its request over the period we want. Playwright's request API
+  // sends it outside the page, so the cross-origin refusal that blocks
+  // page.evaluate does not apply, and nextPageToken walks the rest.
+  if (listReq) {
+    console.log(`  Re-requesting payouts for ${DATE_FROM} → ${DATE_TO}...`);
+    let body;
+    try {
+      body = JSON.parse(listReq.postData);
+    } catch (err) {
+      console.warn(`  ⚠ Could not read the captured request: ${err.message}`);
+      body = null;
     }
 
-    if (fetched.length > 0) {
-      allPayouts.length = 0;
-      allPayouts.push(...fetched);
+    if (body?.variables?.params) {
+      const fetched = [];
+      let pageToken = '';
+
+      for (let pageNo = 0; pageNo < 60; pageNo++) {
+        body.variables.params.startDate = DATE_FROM;
+        body.variables.params.endDate   = DATE_TO;
+        body.variables.params.pagination = pageToken
+          ? { pageSize: 50, pageToken }
+          : { pageSize: 50 };
+
+        let json;
+        try {
+          const resp = await context.request.post(listReq.url, {
+            headers: listReq.headers,
+            data:    JSON.stringify(body),
+            timeout: 30_000,
+          });
+          if (!resp.ok()) {
+            console.warn(`  ⚠ page ${pageNo + 1}: HTTP ${resp.status()}`);
+            break;
+          }
+          json = await resp.json();
+        } catch (err) {
+          console.warn(`  ⚠ page ${pageNo + 1}: ${err.message}`);
+          break;
+        }
+
+        const lp = json?.data?.finances?.listPayouts;
+        const payouts = lp?.payouts || [];
+        fetched.push(...payouts);
+        pageToken = lp?.nextPageToken || '';
+        console.log(`  [API] page ${pageNo + 1}: +${payouts.length} → ${fetched.length}`);
+        if (!pageToken || payouts.length === 0) break;
+      }
+
+      if (fetched.length > 0) {
+        allPayouts.length = 0;
+        allPayouts.push(...fetched);
+      }
     }
   }
 
