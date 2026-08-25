@@ -11,13 +11,18 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
    painted near-black text on the near-black shell (contrast ~1.1:1). Any element
    without an explicit text-colour class — a bare <h2>, a table cell, a
    `bg-transparent` input — became invisible for anyone whose OS was in light
-   mode, while elements using ui-tokens stayed readable. `color-scheme: dark`
-   likewise keeps native controls (date pickers, number spinners, select popups,
-   scrollbars) dark instead of light-on-light. */
+   mode, while elements using ui-tokens stayed readable.
+
+   Deliberately NO `color-scheme` here. Setting it to dark did make native controls
+   on the dark pages behave, but it is inherited by every light-themed admin screen
+   too — Manual Shift, Draft, Cash Management and a dozen others are white cards —
+   and there the browser paints the date field's calendar button for a dark
+   background, leaving it invisible on white. Manual Shift's week picker looked
+   like it had simply stopped working. Pages that genuinely need dark controls
+   already opt in per-field with `[color-scheme:dark]`. */
 :root {
   --background: #0a0b14;
   --foreground: #ededed;
-  color-scheme: dark;
 }
 
 @theme inline {
