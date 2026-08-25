@@ -705,12 +705,23 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           </div>
           <div className={KPI_CARD}>
             <p className={KPI_LABEL}>営業利益</p>
-            <p className={`${KPI_VALUE} ${g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-              {fmtJpy(g.revenue - g.total_cost)}
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}% 利益率` : "—"}
-            </p>
+            {/* A loss computed from revenue we know is missing is not a loss,
+                it is a guess. Better to say so than to print a number. */}
+            {summary && (summary.dubai.revenue_incomplete || summary.manila.revenue_incomplete) ? (
+              <>
+                <p className={`${KPI_VALUE} text-zinc-500`}>算出不可</p>
+                <p className="text-xs text-rose-300/80 mt-0.5">売上データが不足しています</p>
+              </>
+            ) : (
+              <>
+                <p className={`${KPI_VALUE} ${g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {fmtJpy(g.revenue - g.total_cost)}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}% 利益率` : "—"}
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -771,15 +782,19 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                       {fmtRate(data.prime_cost_rate)}
                     </td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(data.overhead_total)}</td>
-                    <td className={`text-right py-2.5 pr-4 font-mono font-semibold ${
-                      data.revenue - data.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      <div>{fmtJpy(data.revenue - data.total_cost)}</div>
-                      <div className="text-xs font-normal opacity-70">
-                        {data.revenue > 0
-                          ? `${(((data.revenue - data.total_cost) / data.revenue) * 100).toFixed(1)}%`
-                          : "—"}
-                      </div>
-                    </td>
+                    {data.revenue_incomplete ? (
+                      <td className="text-right py-2.5 pr-4 text-zinc-500 text-xs">算出不可</td>
+                    ) : (
+                      <td className={`text-right py-2.5 pr-4 font-mono font-semibold ${
+                        data.revenue - data.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        <div>{fmtJpy(data.revenue - data.total_cost)}</div>
+                        <div className="text-xs font-normal opacity-70">
+                          {data.revenue > 0
+                            ? `${(((data.revenue - data.total_cost) / data.revenue) * 100).toFixed(1)}%`
+                            : "—"}
+                        </div>
+                      </td>
+                    )}
                     <td className="text-right py-2.5">
                       {data.native.revenue_source === "ar_payouts"
                         ? <span className={BADGE_SUCCESS} style={{ fontSize: "9px", padding: "1px 6px" }}>入金データ</span>
@@ -801,13 +816,17 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.prime_cost)}</td>
                     <td className={`text-right py-2.5 pr-4 ${primeRateCls(g.prime_cost_rate)}`}>{fmtRate(g.prime_cost_rate)}</td>
                     <td className="text-right py-2.5 pr-4 font-mono">{fmtJpy(g.overhead_total)}</td>
-                    <td className={`text-right py-2.5 pr-4 font-mono ${
-                      g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      <div>{fmtJpy(g.revenue - g.total_cost)}</div>
-                      <div className="text-xs font-normal opacity-70">
-                        {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}%` : "—"}
-                      </div>
-                    </td>
+                    {summary && (summary.dubai.revenue_incomplete || summary.manila.revenue_incomplete) ? (
+                      <td className="text-right py-2.5 pr-4 text-zinc-500 text-xs">算出不可</td>
+                    ) : (
+                      <td className={`text-right py-2.5 pr-4 font-mono ${
+                        g.revenue - g.total_cost >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        <div>{fmtJpy(g.revenue - g.total_cost)}</div>
+                        <div className="text-xs font-normal opacity-70">
+                          {g.revenue > 0 ? `${(((g.revenue - g.total_cost) / g.revenue) * 100).toFixed(1)}%` : "—"}
+                        </div>
+                      </td>
+                    )}
                     <td />
                   </tr>
                 )}
