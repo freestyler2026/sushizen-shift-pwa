@@ -3,9 +3,21 @@
 
 html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 
+/* The app shell is unconditionally dark (see the body gradient below) and every
+   design token in src/lib/ui-tokens.ts is dark-only, so the foreground must stay
+   light no matter what the OS colour-scheme preference is.
+
+   Previously --foreground was #171717 under `prefers-color-scheme: light`, which
+   painted near-black text on the near-black shell (contrast ~1.1:1). Any element
+   without an explicit text-colour class — a bare <h2>, a table cell, a
+   `bg-transparent` input — became invisible for anyone whose OS was in light
+   mode, while elements using ui-tokens stayed readable. `color-scheme: dark`
+   likewise keeps native controls (date pickers, number spinners, select popups,
+   scrollbars) dark instead of light-on-light. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0b14;
+  --foreground: #ededed;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -13,13 +25,6 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #2b2927;
-    --foreground: #ededed;
-  }
 }
 
 body {
