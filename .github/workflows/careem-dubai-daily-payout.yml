@@ -1,10 +1,18 @@
-name: Careem Dubai — Daily Balance Snapshot
+name: Careem Dubai — Payout Extract (cycles + balances)
 
 on:
   workflow_dispatch:
     inputs:
       snapshot_date:
         description: 'Snapshot date (YYYY-MM-DD). Default: today (GST).'
+        required: false
+        default: ''
+      cycle_from:
+        description: 'Payment Summary cycles from (YYYY-MM-DD). Default: 60 days back.'
+        required: false
+        default: ''
+      cycle_to:
+        description: 'Payment Summary cycles to (YYYY-MM-DD). Default: snapshot date.'
         required: false
         default: ''
 
@@ -42,6 +50,8 @@ jobs:
         run: node scripts/careem/get-payouts.js
         env:
           SNAPSHOT_DATE:  ${{ env.SNAPSHOT_DATE }}
+          CYCLE_FROM:     ${{ github.event.inputs.cycle_from }}
+          CYCLE_TO:       ${{ github.event.inputs.cycle_to }}
           WEBHOOK_URL:    https://sushizen-shift-app-038d846023bc.herokuapp.com
           CAREEM_SESSION: ${{ secrets.CAREEM_SESSION }}
         timeout-minutes: 8

@@ -81,8 +81,8 @@ function loadSession() {
 
 // ── Webhook ─────────────────────────────────────────────────────────────────
 
-async function postWebhook(payload) {
-  const endpoint = `${WEBHOOK_URL}/api/careem/portal-balance-snapshot`;
+async function postWebhook(payload, route = '/api/careem/portal-balance-snapshot') {
+  const endpoint = `${WEBHOOK_URL}${route}`;
   if (!WEBHOOK_URL) {
     console.log('  (dry run — no WEBHOOK_URL)', JSON.stringify(payload, null, 2));
     return { ok: true, dry_run: true };
@@ -123,15 +123,144 @@ async function saveRefreshedSession(context) {
   }
 }
 
+// ── Cycle summaries (Payment Summary data) ──────────────────────────────────
+
+function mergeCycles(into, rows) {
+  const seen = new Set(into.map(c => c.id));
+  for (const r of rows) if (!seen.has(r.id)) { into.push(r); seen.add(r.id); }
+}
+
+/**
+ * Re-issue the portal's own cycleSummaries request over the period we want.
+ *
+ * We cannot build this request from scratch: it needs the bearer token and the
+ * full billingAccounts list, and a bare POST is rejected with 403.  So we take
+ * the request the page just made — which defaults to the last 7 days and is
+ * therefore usually empty — and swap in our own dates and page size.
+ */
+function dateWindows(fromDate, toDate, maxDays) {
+  const out = [];
+  let cur = Date.parse(`${fromDate}T00:00:00Z`);
+  const end = Date.parse(`${toDate}T00:00:00Z`);
+  while (cur <= end) {
+    const stop = Math.min(cur + (maxDays - 1) * 86400_000, end);
+    out.push([new Date(cur).toISOString().slice(0, 10),
+              new Date(stop).toISOString().slice(0, 10)]);
+    cur = stop + 86400_000;
+  }
+  return out;
+}
+
+async function fetchCycles(context, req, fromDate, toDate) {
+  // Two limits, both found by trying: a page size over ~100 is rejected with
+  // HTTP 400, and paginationInfo.totalRecords disagrees with itself between
+  // page sizes (20 reports 21 records where 100 returns 60), so it cannot be
+  // trusted to say when to stop. Read pages until one comes back short.
+  const WINDOW_DAYS = 31;
+  const PAGE_SIZE   = 100;
+
+  let template;
+  try {
+    template = JSON.parse(req.postData || '{}');
+  } catch (_) {
+    console.warn('  ⚠ Could not read the captured request body — skipping cycles');
+    return [];
+  }
+
+  const all = [];
+  for (const [winFrom, winTo] of dateWindows(fromDate, toDate, WINDOW_DAYS)) {
+    const body = { ...template, pageSize: PAGE_SIZE,
+                   startDate: `${winFrom}T00:00:00`, endDate: `${winTo}T23:59:59` };
+    const before = all.length;
+
+    for (let pageNumber = 0; pageNumber < 20; pageNumber++) {
+      body.pageNumber = pageNumber;
+      let data;
+      try {
+        const resp = await context.request.fetch(req.url, {
+          method: req.method, headers: req.headers,
+          data: JSON.stringify(body), timeout: 30_000,
+        });
+        if (!resp.ok()) {
+          const detail = await resp.text().catch(() => '');
+          console.warn(`  ⚠ ${winFrom}~${winTo} page ${pageNumber}: HTTP ${resp.status()} ${detail.slice(0, 200)}`);
+          break;
+        }
+        data = await resp.json();
+      } catch (err) {
+        console.warn(`  ⚠ ${winFrom}~${winTo} page ${pageNumber}: ${err.message}`);
+        break;
+      }
+
+      const rows = data?.cycleSummaries || [];
+      mergeCycles(all, rows);
+      if (rows.length < PAGE_SIZE) break;   // short page — nothing left
+    }
+    console.log(`  ${winFrom} ~ ${winTo}: ${all.length - before} cycles`);
+  }
+  return all;
+}
+
+async function postCycles(cycles, extractedAt) {
+  const payload = { extracted_at: extractedAt, cycles: [] };
+  let unmapped = 0;
+
+  for (const c of cycles) {
+    const info = MERCHANT_MAP[c.billableId];
+    if (!info) { unmapped++; continue; }
+    payload.cycles.push({
+      outlet_id:   String(c.billableId),
+      store_code:  info.code,
+      brand:       info.brand,
+      cycle_start: String(c.startDate).slice(0, 10),
+      cycle_end:   String(c.endDate).slice(0, 10),
+      net_payout:  Math.round((c.cycleBalance || 0) * 100) / 100,
+      currency:    c.currency || 'AED',
+      status:      c.status,
+      cycle_id:    c.id,
+      settled_at:  c.updatedAt || null,
+    });
+  }
+
+  if (payload.cycles.length === 0) {
+    console.log('  (no mapped cycles to post)');
+    return;
+  }
+
+  console.log('\n' + 'Store'.padEnd(20) + 'Period'.padEnd(26) + 'Net Payout'.padStart(12));
+  console.log('-'.repeat(60));
+  for (const c of payload.cycles) {
+    console.log(c.store_code.padEnd(20) +
+                `${c.cycle_start}~${c.cycle_end}`.padEnd(26) +
+                c.net_payout.toFixed(2).padStart(12));
+  }
+  console.log('-'.repeat(60));
+
+  try {
+    const res = await postWebhook(payload, '/api/careem/portal-cycle-payouts');
+    console.log(`✓ ${res.written ?? payload.cycles.length} cycle payouts posted` +
+                (res.skipped ? `, ${res.skipped} skipped` : ''));
+  } catch (err) {
+    console.error(`  ❌ Cycle webhook error: ${err.message}`);
+  }
+  if (unmapped > 0) console.log(`  ${unmapped} cycles for merchants not in MERCHANT_MAP (skipped)`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('\nCareem Dubai balance snapshot extractor');
+  console.log('\nCareem Dubai payout extractor (cycle payouts + balance snapshots)');
   console.log('='.repeat(60));
 
   const sessionData  = loadSession();
   const snapshotDate = process.env.SNAPSHOT_DATE || gstDateToday();
   const extractedAt  = new Date().toISOString();
+
+  // Cycles close weekly, so a run only has to look back far enough to cover any
+  // it has not seen yet; the upsert makes re-reading old ones harmless.
+  const cycleTo   = process.env.CYCLE_TO   || snapshotDate;
+  const cycleFrom = process.env.CYCLE_FROM ||
+    new Date(Date.parse(`${cycleTo}T00:00:00Z`) - 60 * 86400_000).toISOString().slice(0, 10);
 
   // Write session to temp file for Playwright storageState
   const tmpSession = path.join(__dirname, 'careem-session-tmp.json');
@@ -145,17 +274,42 @@ async function main() {
 
   // Intercept the billingAccounts/earnings response that the page makes on load
   let earningsData = null;
+
+  // The Finances page also loads /billing/cycleSummaries/list on its own — the
+  // same data it renders as the "Payment Summary" PDF.  We keep the request
+  // itself so we can replay it for the remaining pages rather than guessing
+  // what its pagination parameters are called.
+  let cycleReq = null;
+
   context.on('response', async resp => {
-    if (!resp.url().includes('/billing/billingAccounts/earnings')) return;
-    try {
-      const body = await resp.text();
-      if (resp.status() === 200 && body) {
-        earningsData = JSON.parse(body);
-        console.log(`  ✓ Intercepted billingAccounts/earnings (HTTP ${resp.status()})`);
-      } else {
-        console.log(`  ⚠ billingAccounts/earnings returned HTTP ${resp.status()}`);
-      }
-    } catch (_) {}
+    const url = resp.url();
+
+    if (url.includes('/billing/billingAccounts/earnings')) {
+      try {
+        const body = await resp.text();
+        if (resp.status() === 200 && body) {
+          earningsData = JSON.parse(body);
+          console.log(`  ✓ Intercepted billingAccounts/earnings (HTTP ${resp.status()})`);
+        } else {
+          console.log(`  ⚠ billingAccounts/earnings returned HTTP ${resp.status()}`);
+        }
+      } catch (_) {}
+      return;
+    }
+
+    if (url.includes('/billing/cycleSummaries/list')) {
+      // Keep the request even when it returns nothing: the portal defaults to
+      // the last 7 days, which is usually empty, but the request carries the
+      // bearer token and the full billingAccounts list we need to ask again
+      // over the period we actually want.
+      try {
+        if (resp.status() !== 200) return;
+        const req = resp.request();
+        cycleReq = { url, method: req.method(), postData: req.postData(), headers: req.headers() };
+        const rows = (JSON.parse(await resp.text())?.cycleSummaries) || [];
+        console.log(`  ✓ Captured cycleSummaries request (page returned ${rows.length} rows)`);
+      } catch (_) {}
+    }
   });
 
   try {
@@ -208,8 +362,33 @@ async function main() {
     // ── 4. Save refreshed session before posting (in case post fails) ────────
     await saveRefreshedSession(context);
 
+    // ── 4b. Cycle payouts — the Payment Summary figures ──────────────────────
+    // Done before the balance early-exit below: a zero balance just means
+    // Careem has already paid out, which is exactly when cycles matter most.
+    console.log('\n' + '='.repeat(60));
+    console.log(`Payment Summary cycles  ${cycleFrom} → ${cycleTo}`);
+
+    if (!cycleReq) {
+      // The request only fires once the Payment Summary tab is selected.
+      try {
+        await page.locator('text=Payment Summary').first().click({ timeout: 10_000 });
+        await page.waitForTimeout(8000);
+      } catch (_) {
+        console.log('  (could not open the Payment Summary tab)');
+      }
+    }
+
+    if (!cycleReq) {
+      console.log('  ⚠ cycleSummaries request never fired — Payment Summary data unavailable this run');
+    } else {
+      const cycles = await fetchCycles(context, cycleReq, cycleFrom, cycleTo);
+      console.log(`  ${cycles.length} cycles retrieved`);
+      await postCycles(cycles, extractedAt);
+    }
+    console.log('='.repeat(60));
+
     if (merchantBalances.length === 0) {
-      console.log('\n⚠ No non-zero merchant balances. Nothing to post.');
+      console.log('\n⚠ No non-zero merchant balances — nothing further to post.');
       await browser.close();
       try { fs.unlinkSync(tmpSession); } catch (_) {}
       process.exit(0);
