@@ -588,7 +588,8 @@ export default function StoreProcurementReceivingPage() {
       if (typeof window !== "undefined") queryCity = String(new URLSearchParams(window.location.search).get("city") || "").toLowerCase();
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase();
       setCity(initialCity);
-      if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) setRequestedBy(String(refreshed.staffName).trim());
+      const refreshedName = (refreshed?.staffName || "").trim();
+      if (refreshedName && !requestedBy.trim()) setRequestedBy(refreshedName);
       // Scope the initial receiving load to the URL's request_id (if any) so it
       // doesn't load a global list that races with the per-request load below.
       const initialReq = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("request_id") || "") : "";

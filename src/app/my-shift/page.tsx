@@ -209,7 +209,8 @@ export default function MyShiftPage() {
         setData(res);
         const eligible = (res.eligible_staff_names || []).filter(Boolean);
         if (eligible.length && !eligible.includes(staffName)) {
-          setStaffName(eligible.includes(authed.staffName) ? authed.staffName : eligible[0]);
+          const me = authed?.staffName ?? "";
+          setStaffName(eligible.includes(me) ? me : eligible[0]);
           return;
         }
 

@@ -594,8 +594,8 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
   // Every component null ⇒ the figure is masked, not zero.
   const earningParts = [fp.fp_basic_pay, fp.fp_prorated_13th, fp.fp_leave_conversion, fp.fp_separation_pay, fp.fp_allowance, fp.fp_other_earnings];
   const deductionParts = [fp.fp_deduction_statutory, fp.fp_deduction_loans, fp.fp_deduction_other];
-  const totalEarnings = earningParts.every(isSalaryHidden) ? null : earningParts.reduce((s, v) => s + (v || 0), 0);
-  const totalDeductions = deductionParts.every(isSalaryHidden) ? null : deductionParts.reduce((s, v) => s + (v || 0), 0);
+  const totalEarnings = earningParts.every(isSalaryHidden) ? null : earningParts.reduce<number>((s, v) => s + (v || 0), 0);
+  const totalDeductions = deductionParts.every(isSalaryHidden) ? null : deductionParts.reduce<number>((s, v) => s + (v || 0), 0);
   const netPay = totalEarnings === null && totalDeductions === null ? null : (totalEarnings || 0) - (totalDeductions || 0);
 
   function numSet(k: string, v: string) {

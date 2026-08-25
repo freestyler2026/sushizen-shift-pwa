@@ -1085,13 +1085,13 @@ export default function FinancePage() {
                 {(breakEven?.completeness?.selected_reasons || []).length > 0 && (
                   <div className="mt-2 rounded-xl border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-100">
                     <div className="font-semibold text-rose-50">
-                      {breakEven.basis?.mode === "imported_pl_month" ? "Imported P&L month is incomplete:"
-                        : breakEven.basis?.mode === "previous_month_fallback" ? "Fallback month is still missing:"
+                      {breakEven?.basis?.mode === "imported_pl_month" ? "Imported P&L month is incomplete:"
+                        : breakEven?.basis?.mode === "previous_month_fallback" ? "Fallback month is still missing:"
                         : "Current window is still missing:"}
                     </div>
                     <div className="mt-2 space-y-1 text-[11px] text-rose-100/90">
-                      {(breakEven.completeness?.selected_reasons || []).map((r) => <div key={`sel-${r}`}>- {formatBreakEvenReasonLabel(r)}</div>)}
-                      {(breakEven.completeness?.missing_pl_months || []).length > 0 && <div>Missing P&amp;L months: {formatBreakEvenMissingDates(breakEven.completeness?.missing_pl_months)}</div>}
+                      {(breakEven?.completeness?.selected_reasons || []).map((r) => <div key={`sel-${r}`}>- {formatBreakEvenReasonLabel(r)}</div>)}
+                      {(breakEven?.completeness?.missing_pl_months || []).length > 0 && <div>Missing P&amp;L months: {formatBreakEvenMissingDates(breakEven?.completeness?.missing_pl_months)}</div>}
                     </div>
                   </div>
                 )}

@@ -1,0 +1,19 @@
+// Opt-in null-safety check. NOT used by `next build` — the production build still
+// uses tsconfig.json, so turning this on cannot break a deploy.
+//
+// Why it exists: tsconfig.json has "strict": false, so strictNullChecks is off and
+// the compiler cannot see a null dereference. That is exactly the bug class that
+// shipped when payroll amounts started arriving as null and pages called
+// .toFixed() on them — 17 call sites had to be found by hand.
+//
+//   npm run typecheck:strict
+//
+// The remaining errors are tracked down toward zero; when it reports none, move
+// "strictNullChecks": true into tsconfig.json and delete this file.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "incremental": false
+  }
+}

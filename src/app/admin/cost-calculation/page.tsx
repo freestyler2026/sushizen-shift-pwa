@@ -2500,7 +2500,7 @@ export default function CostCalculationPage() {
             }
           : null;
       })
-      .filter((row): row is { quantity: number; unit_price: number } => Boolean(row) && row.quantity > 0);
+      .filter((row): row is { quantity: number; unit_price: number } => row != null && row.quantity > 0);
     return computeMenuTotals(lines, sellingPrice, bufferRate);
   }, [allIngredientOptions, newItemBuffer, newItemIngredients, newItemPrice]);
 
@@ -4372,7 +4372,10 @@ export default function CostCalculationPage() {
                               onClick={() => {
                                 const rawCost = masterEditorPreview?.raw_cost ?? 0;
                                 if (rawCost <= 0) return;
-                                const yieldRate = normalizeRateValue(masterEditor.yield_rate);
+                                // normalizeRateValue returns null for a blank / zero yield, and the
+                                // formula below calls .toFixed() on it — a blank yield crashed here.
+                                // No yield entered means no yield division, i.e. a factor of 1.
+                                const yieldRate = normalizeRateValue(masterEditor.yield_rate) ?? 1;
                                 const bufferRate = normalizeMenuBufferRate(masterEditor.buffer_rate);
                                 const outputQty = Number(masterEditor.output_qty || 1) > 0 ? Number(masterEditor.output_qty) : 1;
                                 // When output_qty is 1 but output_unit is 'g' and we have total grams,
