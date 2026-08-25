@@ -63,4 +63,5 @@ jobs:
           DATE_TO=$(date -u +%Y-%m-%d)
           curl -s -X POST "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/admin/mgmt/daily-pl/refresh" \
             -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
             -d "{\"city\":\"dubai\",\"date_from\":\"${DATE_FROM}\",\"date_to\":\"${DATE_TO}\"}" || true
