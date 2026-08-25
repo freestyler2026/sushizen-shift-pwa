@@ -156,6 +156,7 @@ function ConfirmModal({
 export default function ArPayoutsPage() {
   const [payouts, setPayouts] = useState<ArPayout[]>([]);
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -205,6 +206,7 @@ export default function ArPayoutsPage() {
       const data = await res.json();
       setPayouts(data.payouts || []);
       setKpi(data.kpi || null);
+      setTruncated(Boolean(data.truncated));
     }
     setLoading(false);
   }, [cityTab, platformFilter, statusFilter, storeFilter, brandFilter]);
@@ -639,6 +641,13 @@ export default function ArPayoutsPage() {
             </>
           )}
         </div>
+
+        {truncated && (
+          <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+            Showing the most recent {payouts.length} payouts only — older ones are not listed.
+            Narrow the filters to see them.
+          </div>
+        )}
 
         {/* Table */}
         <div className={GLASS_CARD}>
