@@ -586,6 +586,22 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
         </div>
       )}
 
+      {/* The monthly and daily pages count different things on purpose. Both
+          label their columns "Revenue" and "Food Cost", so without saying which
+          is which a reader cannot tell why the two disagree. */}
+      <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-3">
+        <p className="text-xs font-semibold text-slate-200 mb-1">What this page counts</p>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <b className="text-slate-300">Revenue</b> is money received — aggregator payouts after
+          their commission, attributed to the period earned. <b className="text-slate-300">Food
+          cost</b> is what was purchased in the month, not what was consumed.
+          <br />
+          The Daily P&amp;L counts differently: POS sales as rung up, and food cost as items
+          sold × recipe cost. Its totals will not match this page, and neither is wrong —
+          use this page for the month, and Daily P&amp;L for day-to-day movement.
+        </p>
+      </div>
+
       {/* Rent, utilities and licences have no rows at all for these cities, so the
           margin below is prime cost only. Left unsaid it reads as profit. */}
       {summary && (summary.dubai.overhead_missing || summary.manila.overhead_missing) && (

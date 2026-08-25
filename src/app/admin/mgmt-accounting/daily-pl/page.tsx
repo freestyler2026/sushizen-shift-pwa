@@ -322,6 +322,20 @@ export default function DailyPLPage() {
         </div>
       )}
 
+      {/* Counted differently from the monthly page, on purpose — say so. */}
+      <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-3 mb-4">
+        <p className="text-xs font-semibold text-slate-200 mb-1">What this page counts</p>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <b className="text-slate-300">Revenue</b> is POS sales as rung up, before the
+          aggregators take their commission — which is shown on its own line.
+          <b className="text-slate-300"> COGS</b> is what was consumed: items sold × recipe
+          cost, plus 3% for waste.
+          <br />
+          Management Accounting counts the month differently — money received, and food
+          purchased rather than consumed — so its totals will not match. Neither is wrong.
+        </p>
+      </div>
+
       {/* A rate of zero produced a COGS of zero on every row, in silence.
           Say it instead of booking sales against no food cost. */}
       {data?.ok && data.food_cost_missing && (
