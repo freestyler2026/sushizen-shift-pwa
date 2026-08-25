@@ -54,9 +54,11 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
   async function remintAccessTokenWithPin(): Promise<string> {
     if (!requestedBy.trim() || !pin.trim()) return "";
     const authCity = String(refreshed?.city || auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+    // The PIN goes in a header, not the query string — a credential in the URL is
+    // copied verbatim into the Heroku router log, the Vercel access log and
+    // browser history. The backend shim moves the header back into the query.
     const qs = new URLSearchParams({
       staff_name: requestedBy.trim(),
-      pin: pin.trim(),
       city: authCity,
     }).toString();
     // Send the current (possibly just-expired) token so the backend can refuse
@@ -65,7 +67,10 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
     const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
       method: "POST",
       cache: "no-store",
-      headers: priorToken ? { Authorization: `Bearer ${priorToken}` } : {},
+      headers: {
+        "X-Approver-Pin": pin.trim(),
+        ...(priorToken ? { Authorization: `Bearer ${priorToken}` } : {}),
+      },
     });
     const verifyText = await verifyRes.text();
     if (!verifyRes.ok) throw new Error(verifyText || `Auth verify failed (${verifyRes.status})`);

@@ -53,9 +53,9 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
     const pin = String(refreshed?.pin || auth?.pin || "").trim();
     if (!staffName || !pin) return "";
     const authCity = String(refreshed?.city || auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
+    // The PIN goes in a header, not the query string — see procurementClient.
     const qs = new URLSearchParams({
       staff_name: staffName,
-      pin,
       city: authCity,
     }).toString();
     // Send the current (possibly just-expired) token so the backend can refuse
@@ -64,7 +64,10 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
     const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
       method: "POST",
       cache: "no-store",
-      headers: priorToken ? { Authorization: `Bearer ${priorToken}` } : {},
+      headers: {
+        "X-Approver-Pin": pin,
+        ...(priorToken ? { Authorization: `Bearer ${priorToken}` } : {}),
+      },
     });
     const verifyText = await verifyRes.text();
     if (!verifyRes.ok) {

@@ -35,6 +35,36 @@ export type Auth = {
 };
 
 const KEY = "sushizen_shift_auth";
+/**
+ * The approver PIN lives in sessionStorage, never localStorage.
+ *
+ * Roughly a dozen admin screens and the procurement / cost clients pre-fill an
+ * approver PIN from the session, so it still has to be readable during the
+ * session. Keeping it in localStorage meant it survived browser restarts and sat
+ * in plain text on shared back-office machines indefinitely; sessionStorage is
+ * per-tab and dies with the tab, which closes that window without changing any
+ * of the screens that depend on it.
+ */
+const PIN_KEY = "sushizen_shift_pin";
+
+function readStoredPin(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.sessionStorage.getItem(PIN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredPin(pin: string | undefined) {
+  if (typeof window === "undefined") return;
+  try {
+    if (pin) window.sessionStorage.setItem(PIN_KEY, pin);
+    else window.sessionStorage.removeItem(PIN_KEY);
+  } catch {
+    /* storage disabled — the PIN just will not pre-fill */
+  }
+}
 export const STEP_UP_FRESH_MS = 30 * 60 * 1000;
 
 function getAuthApiBase() {
@@ -99,6 +129,19 @@ export function getAuth(): Auth | null {
   const staffName = String(obj.staffName || obj.staff_name || "").trim();
   if (!staffName) return null;
 
+  // Migration: earlier builds persisted the PIN here in plain text. Move any
+  // leftover value into sessionStorage and strip it from localStorage, so an
+  // existing install stops carrying it across browser restarts.
+  if (obj.pin) {
+    if (!readStoredPin()) writeStoredPin(String(obj.pin));
+    try {
+      delete obj.pin;
+      window.localStorage.setItem(KEY, JSON.stringify(obj));
+    } catch {
+      /* best effort */
+    }
+  }
+
   const cityLockRaw = String(obj.cityLock ?? obj.city_lock ?? "").toLowerCase();
   // Phase 3 backward compat: old sessions store accessToken; new sessions store hasSession.
   const hasSession =
@@ -108,7 +151,7 @@ export function getAuth(): Auth | null {
     city: normalizeCity(obj.city),
     cityLock: cityLockRaw === "dubai" || cityLockRaw === "manila" ? cityLockRaw : "",
     role: normalizeRole(obj.role) || "STAFF",
-    pin: obj.pin ? String(obj.pin) : undefined,
+    pin: readStoredPin() || undefined,
     hasSession,
     accessToken: obj.accessToken ? String(obj.accessToken) : undefined,
     sessionId: obj.sessionId ? String(obj.sessionId) : undefined,
@@ -123,6 +166,8 @@ export function getAuth(): Auth | null {
 
 export function setAuth(a: Auth) {
   if (typeof window === "undefined") return;
+  // Deliberately kept out of the localStorage payload below.
+  writeStoredPin(a.pin);
   window.localStorage.setItem(
     KEY,
     JSON.stringify({
@@ -130,7 +175,6 @@ export function setAuth(a: Auth) {
       city: a.city,
       cityLock: a.cityLock ?? "",
       role: a.role || "STAFF",
-      pin: a.pin || "",
       // Phase 3: tokens live in httpOnly cookies, not localStorage.
       // hasSession: true signals that a cookie session exists.
       hasSession: true,
@@ -396,6 +440,7 @@ export async function refreshAuthFromApi(
 export function clearAuth() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);
+  writeStoredPin(undefined);
   // Reset badge dismissed counts so a fresh login shows all current alerts.
   window.localStorage.removeItem("sushizen_renewals_badge_dismissed_count");
   // Phase 3: clear httpOnly cookies via the auth proxy (fire-and-forget).
