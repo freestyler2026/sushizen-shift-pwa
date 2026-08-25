@@ -41,6 +41,17 @@ const DATE_TO          = process.env.DATE_TO;
 const WEBHOOK_URL      = process.env.WEBHOOK_URL;
 const MERCHANT_GROUP   = 'PHMG20250807052040017951';
 
+// Grab PH keeps each branch behind its own login, so one session sees one
+// store: a Paranaque manager session returned 1,320 of 1,320 transactions for
+// Paranaque and nothing for the others. Run this once per store with that
+// store's session, the way the FoodPanda extractor already does.
+const STORE_CODE = process.env.GRAB_STORE_CODE || 'PAR';
+const STORE_NAME = process.env.GRAB_STORE_NAME || {
+  PAR:  'Sushi Zen - Paranaque',
+  TAFT: 'Sushi Zen - Taft',
+  CUB:  'Sushi Zen - Cubao',
+}[STORE_CODE] || STORE_CODE;
+
 // ── Session loading ─────────────────────────────────────────────────────────
 
 function loadSession() {
@@ -93,76 +104,57 @@ async function grabGet(cookieStr, url) {
 // Finance/Transfers page calls this exact endpoint (discovered 2026-08-22).
 // store_name in each result identifies which of the 3 stores earned the order.
 
-async function fetchAllTransactions(cookieStr, dateFrom, dateTo) {
-  const BASE = 'https://merchant.grab.com/mex/finances/v2/transactions';
-  const LIMIT = 50;  // API max
-  let offset = 0;
-  const all = [];
+/**
+ * Daily settlement figures.
+ *
+ * The per-order transactions endpoint gives net_total, which sums to net_sales
+ * — the value of the orders, before Grab takes its cut. The summary endpoint
+ * also returns net_earning, and that is what actually reaches the bank:
+ * checked against the Transfers CSV, net_earning for 18 Aug is 25,234.09 and
+ * the transfer dated 19 Aug is 25,234.09 to the cent, likewise 19 Aug against
+ * the 20th. Grab PH settles daily, one day behind.
+ */
+async function fetchDailySummary(cookieStr, day) {
+  const params = new URLSearchParams({
+    merchant_group_id: MERCHANT_GROUP,
+    from:              day,
+    to:                day,
+    business_line:     'ALL',
+    currency:          'PHP',
+  });
+  const url = `https://merchant.grab.com/mex/finances/v1/transactions/summary?${params}`;
+  const { status, text } = await grabGet(cookieStr, url);
 
-  while (true) {
-    const params = new URLSearchParams({
-      merchant_group_id:        MERCHANT_GROUP,
-      from:                     dateFrom,
-      to:                       dateTo,
-      transaction_status:       '',  // empty = all; filter client-side for 'completed'
-      transaction_type:         '',
-      transaction_category:     '',
-      transaction_subcategory:  '',
-      transaction_paymethod:    '',
-      currency:                 'PHP',
-      limit:                    String(LIMIT),
-      offset:                   String(offset),
-    });
-    const url = `${BASE}?${params}`;
-    const { status, text } = await grabGet(cookieStr, url);
-
-    if (status === 401 || status === 403) {
-      console.error('\n❌ SESSION_EXPIRED — run: node scripts/grab/setup-session.js paranaque');
-      process.exit(0);  // exit 0 so CI doesn't mark as workflow failure
-    }
-
-    if (status !== 200) {
-      console.error(`  HTTP ${status} from transactions API: ${text.slice(0, 200)}`);
-      break;
-    }
-
-    let json;
-    try { json = JSON.parse(text); }
-    catch { console.error('  JSON parse error'); break; }
-
-    const results = json?.data?.results;
-    if (!Array.isArray(results) || results.length === 0) break;
-
-    all.push(...results);
-    console.log(`  page offset=${offset}: +${results.length} → total ${all.length}`);
-
-    if (results.length < LIMIT) break;
-    offset += LIMIT;
+  if (status === 401 || status === 403) {
+    console.error('\n❌ SESSION_EXPIRED — run: node scripts/grab/setup-session.js <store>');
+    process.exit(0);   // exit 0 so CI does not flag the whole workflow
   }
+  if (status !== 200) throw new Error(`HTTP ${status}: ${text.slice(0, 160)}`);
 
-  return all;
+  const d = (JSON.parse(text).data) || {};
+  return {
+    day,
+    netSales:   Number(d.net_sales    || 0),
+    netEarning: Number(d.net_earning  || 0),
+    orders:     Number(d.total_orders || 0),
+    inaccurate: Boolean(d.is_inaccurate_data),
+  };
 }
 
-// ── Store code mapping ──────────────────────────────────────────────────────
-
-function storeNameToCode(name) {
-  const n = (name || '').toLowerCase();
-  if (n.includes('paranaque') || n.includes('parañaque')) return 'GRAB_PAR';
-  if (n.includes('taft'))                                  return 'GRAB_TAFT';
-  if (n.includes('cubao') || n.includes('q.c') || n.includes('qc')) return 'GRAB_QC';
-  return `GRAB_${name.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8)}`;
+/** Every date from `from` to `to` inclusive, as YYYY-MM-DD. */
+function eachDay(from, to) {
+  const out = [];
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
-// ── Date conversion (UTC → PHT) ─────────────────────────────────────────────
-// GrabFood timestamps are UTC. Convert to PHT (UTC+8) for "business date" bucketing.
-
-function utcToPhtDate(iso) {
-  const d = new Date(iso);
-  d.setTime(d.getTime() + 8 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 10);
+/** Settlement lands the day after the business date. */
+function nextDay(day) {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + 86400_000).toISOString().slice(0, 10);
 }
 
-// ── Webhook ─────────────────────────────────────────────────────────────────
 
 async function postWebhook(payload) {
   const endpoint = `${WEBHOOK_URL}/api/grab/portal-payout-record`;
@@ -199,96 +191,80 @@ async function main() {
   const cookieStr    = buildCookieString(session);
   const extractedAt  = new Date().toISOString();
 
-  // Fetch all transactions (paginated)
-  console.log('\nFetching completed transactions...');
-  const txns = await fetchAllTransactions(cookieStr, DATE_FROM, DATE_TO);
-  console.log(`✓ ${txns.length} completed transaction(s) fetched`);
+  const days = eachDay(DATE_FROM, DATE_TO);
+  console.log(`\nFetching daily settlement summaries (${days.length} day(s))...`);
 
-  if (txns.length === 0) {
-    console.log('\n⚠ No completed transactions in range.');
+  const rows = [];
+  for (const day of days) {
+    try {
+      rows.push(await fetchDailySummary(cookieStr, day));
+    } catch (err) {
+      console.error(`  ✗ ${day}: ${err.message}`);
+    }
+  }
+
+  const withMoney = rows.filter(r => r.netEarning !== 0);
+  console.log(`✓ ${withMoney.length} day(s) with a settlement`);
+  if (withMoney.length === 0) {
+    console.log('\n⚠ Nothing to post for this range.');
     process.exit(0);
   }
 
-  // Aggregate by (PHT date × store), completed transactions only
-  // key = "YYYY-MM-DD|STORE_CODE"
-  const agg = new Map();
-  for (const t of txns) {
-    if (t.transaction_status && t.transaction_status !== 'completed') continue;
-    const phtDate  = utcToPhtDate(t.created_at || t.updated_at || '');
-    if (!phtDate || phtDate < DATE_FROM || phtDate > DATE_TO) continue;
+  console.log('\n' + 'SettlementID'.padEnd(26) + 'Store'.padStart(10)
+              + 'Orders'.padStart(8) + 'Net sales'.padStart(13) + 'Payout PHP'.padStart(13));
+  console.log('-'.repeat(70));
 
-    const storeName = t.store_name || '';
-    const storeCode = storeNameToCode(storeName);
-    const key = `${phtDate}|${storeCode}`;
+  let posted = 0, grandPayout = 0, grandOrders = 0, flagged = 0;
 
-    if (!agg.has(key)) {
-      agg.set(key, { phtDate, storeCode, storeName, netTotal: 0, orderCount: 0, txnIds: [] });
-    }
-    const entry = agg.get(key);
-    entry.netTotal   += parseFloat(t.net_total || 0);
-    entry.orderCount += 1;
-    entry.txnIds.push(t.transaction_id || t.short_order_number || '');
-  }
-
-  console.log(`\n✓ ${agg.size} store×date aggregate(s)`);
-  console.log('\n' + 'SettlementID'.padEnd(28) + 'Store'.padStart(10) + 'Orders'.padStart(8) + 'Net PHP'.padStart(12));
-  console.log('-'.repeat(62));
-
-  let posted      = 0;
-  let grandTotal  = 0;
-  let grandOrders = 0;
-
-  // Sort by date then store for readable output
-  const entries = [...agg.values()].sort((a, b) =>
-    a.phtDate.localeCompare(b.phtDate) || a.storeCode.localeCompare(b.storeCode)
-  );
-
-  for (const { phtDate, storeCode, storeName, netTotal, orderCount, txnIds } of entries) {
-    // settlement_id: backend prepends "GRAB_", so payout_id = "GRAB_{storeCode}_{date}"
-    // e.g. "PAR_2026-08-22" → payout_id = "GRAB_PAR_2026-08-22"
-    const settlementId = `${storeCode.replace(/^GRAB_/, '')}_${phtDate}`;
-
-    grandTotal  += netTotal;
-    grandOrders += orderCount;
+  for (const r of withMoney) {
+    const settlementId = `${STORE_CODE}_${r.day}`;
+    grandPayout += r.netEarning;
+    grandOrders += r.orders;
+    if (r.inaccurate) flagged++;
 
     console.log(
-      settlementId.padEnd(28) +
-      storeCode.padStart(10) +
-      String(orderCount).padStart(8) +
-      netTotal.toFixed(2).padStart(12),
+      settlementId.padEnd(26) + STORE_CODE.padStart(10) +
+      String(r.orders).padStart(8) + r.netSales.toFixed(2).padStart(13) +
+      r.netEarning.toFixed(2).padStart(13) + (r.inaccurate ? '  ⚠ flagged by Grab' : ''),
     );
 
     try {
-      const result = await postWebhook({
+      await postWebhook({
         settlement_id:     settlementId,
-        store_name:        storeName,
-        store_code:        storeCode,
+        store_name:        STORE_NAME,
+        store_code:        STORE_CODE,
         merchant_id:       null,
         merchant_group_id: MERCHANT_GROUP,
-        payout_date:       phtDate,
-        period_start:      phtDate,
-        period_end:        phtDate,
-        net_total:         Math.round(netTotal * 100) / 100,
-        status:            'completed',
-        raw:               { orderCount, txnIds: txnIds.slice(0, 20), date: phtDate },
+        payout_date:       nextDay(r.day),   // settles the following day
+        period_start:      r.day,
+        period_end:        r.day,
+        net_total:         Math.round(r.netEarning * 100) / 100,
+        status:            'settled',
+        raw: {
+          data_type:          'net_payout',
+          net_sales:          r.netSales,
+          orders:             r.orders,
+          business_date:      r.day,
+          is_inaccurate_data: r.inaccurate,
+        },
         extracted_at:      extractedAt,
       });
-      console.log(`  ✓ Posted → payout_id=GRAB_${settlementId}`);
       posted++;
     } catch (err) {
       console.error(`  ❌ Webhook error: ${err.message}`);
     }
   }
 
-  console.log('-'.repeat(62));
-  console.log(
-    'TOTAL'.padEnd(28) +
-    ''.padStart(10) +
-    String(grandOrders).padStart(8) +
-    grandTotal.toFixed(2).padStart(12),
-  );
-  console.log(`\n✓ ${posted}/${entries.length} daily aggregates posted to ar_payouts.`);
-  console.log('  Note: these are order-level totals (GrabFood PH has no settlement batch API).');
+  console.log('-'.repeat(70));
+  console.log('TOTAL'.padEnd(36) + String(grandOrders).padStart(8)
+              + ''.padStart(13) + grandPayout.toFixed(2).padStart(13));
+  console.log(`\n✓ ${posted}/${withMoney.length} daily settlements posted to ar_payouts.`);
+  console.log('  Amount = net_earning, i.e. what Grab actually transfers (verified');
+  console.log('  against the Transfers CSV to the cent). Settlement lands the next day.');
+  if (flagged > 0) {
+    // Never let Grab's own warning vanish into a total.
+    console.log(`  ⚠ ${flagged} day(s) marked is_inaccurate_data by Grab — re-run later.`);
+  }
   console.log('Done.');
 }
 
