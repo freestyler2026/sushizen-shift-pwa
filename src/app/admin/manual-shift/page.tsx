@@ -166,7 +166,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     let j: Record<string, unknown> = {};
     try { j = text ? (JSON.parse(text) as Record<string, unknown>) : {}; } catch { /* non-JSON body (e.g. 502 HTML) */ }
-    throw new Error((j?.detail as string) || (j?.message as string) || text || `HTTP ${res.status}`);
+    // FastAPI's detail can be an object (the stale-schedule 409 carries one). Reading
+    // it as a string would surface "[object Object]" to the user.
+    const detail = j?.detail;
+    const detailMsg = typeof detail === "string"
+      ? detail
+      : (detail && typeof detail === "object" ? String((detail as Record<string, unknown>).message ?? "") : "");
+    throw new Error(detailMsg || (j?.message as string) || text || `HTTP ${res.status}`);
   }
   try {
     return (text ? JSON.parse(text) : {}) as T;
@@ -532,15 +538,23 @@ export default function ManualShiftPage() {
     }
   }, [city, branchCode]);
 
+  // Fingerprint of the published week as loaded, sent back on publish so the server can
+  // reject a save built on a copy someone else has since changed.
+  const baseStateTokenRef = useRef<string>("");
+
   const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<{ rows?: any[] }>(
+      const data = await apiFetch<{ rows?: any[]; state_token?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
       if (cancelledRef?.current) return;
       const rows = (data.rows || []);
+      // Remember how this week looked when we loaded it. Publishing replaces the whole
+      // week, so the server uses this to refuse a save from a page that has gone stale
+      // rather than let it silently undo someone else's edit.
+      baseStateTokenRef.current = data.state_token ?? "";
 
       setGridData((prev) => {
         const nextGrid: GridData = {};
@@ -991,6 +1005,7 @@ export default function ManualShiftPage() {
             rows,
             auto_export: true,
             export_month: weekStart.slice(0, 7),
+            base_state_token: baseStateTokenRef.current,
           }),
         }
       );
