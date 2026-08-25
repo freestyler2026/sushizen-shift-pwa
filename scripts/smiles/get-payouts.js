@@ -32,21 +32,37 @@ const PORTAL = 'https://manage.eateasily.com';
 
 const WEBHOOK_URL = (process.env.WEBHOOK_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-const ACCOUNTS_DEFAULT = [
-  { username: 'ramenzen21016', password: 'ramenzen',      label: 'MCity',     restId: '21016', storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
-  { username: 'ramenzen21051', password: 'ramenzen',      label: 'BBay',      restId: '21051', storeCode: 'SMILES_SZ_BB',  storeName: 'Sushi ZEN Business Bay' },
-  { username: 'ramenzen21013', password: 'ramenzen',      label: 'JLT',       restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
-  { username: 'sushizen21315', password: 'sushizen21315', label: 'AlHudaiba', restId: '21315', storeCode: 'SMILES_SZ_AHD', storeName: 'Sushi ZEN Al Hudaiba' },
+// Store metadata only. Passwords used to sit here in plain text, in a file
+// tracked by git — the one place in this repo that held credentials rather
+// than a session or a secret. They come from SMILES_ACCOUNTS now, and the
+// script refuses to run without it instead of silently falling back.
+const ACCOUNT_META = [
+  { username: 'ramenzen21016', label: 'MCity', restId: '21016', storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
+  { username: 'ramenzen21051', label: 'BBay', restId: '21051', storeCode: 'SMILES_SZ_BB', storeName: 'Sushi ZEN Business Bay' },
+  { username: 'ramenzen21013', label: 'JLT', restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
+  { username: 'sushizen21315', label: 'AlHudaiba', restId: '21315', storeCode: 'SMILES_SZ_AHD', storeName: 'Sushi ZEN Al Hudaiba' },
 ];
 
 function loadAccounts() {
   const raw = process.env.SMILES_ACCOUNTS;
-  if (!raw) return ACCOUNTS_DEFAULT;
-  const parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
-  // Merge with defaults to fill in restId / storeCode / storeName if not in secret
+  if (!raw) {
+    console.error('❌ SMILES_ACCOUNTS is not set.');
+    console.error('   It holds base64 of [{username,password,label},...] — the credentials');
+    console.error('   are deliberately not in this file. Set it in the environment, or as');
+    console.error('   the GitHub Actions secret of the same name, and run again.');
+    process.exit(1);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  } catch (err) {
+    console.error(`❌ SMILES_ACCOUNTS is not valid base64 JSON: ${err.message}`);
+    process.exit(1);
+  }
   return parsed.map(p => {
-    const def = ACCOUNTS_DEFAULT.find(d => d.label === p.label || d.username === p.username);
-    return { ...def, ...p };
+    const meta = ACCOUNT_META.find(m => m.label === p.label || m.username === p.username);
+    if (!meta) console.warn(`  ⚠ ${p.label || p.username} is not in ACCOUNT_META — no store mapping`);
+    return { ...meta, ...p };
   });
 }
 
