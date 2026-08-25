@@ -1,6 +1,12 @@
 name: Smiles (EatEasily) Dubai — Monthly Payout Extract
 
 on:
+  # Unlike Careem and Noon, this signs in fresh on every run rather than
+  # replaying a stored session, so there is nothing to expire and it can simply
+  # be scheduled. Smiles reports monthly; the 5th leaves the previous month
+  # settled. An hour after Talabat so the two do not overlap.
+  schedule:
+    - cron: '0 3 5 * *'
   workflow_dispatch:
     inputs:
       target_month:
