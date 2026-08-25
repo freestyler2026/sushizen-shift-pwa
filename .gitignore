@@ -78,3 +78,6 @@ scripts/talabat/talabat-api-discovery.json
 scripts/foodpanda/*-session.json
 scripts/foodpanda/*-session.b64.txt
 scripts/foodpanda/*-api-discovery.json
+
+# Worktree-local Claude instructions (Session 2 rules etc.) — never shared with main
+CLAUDE.local.md
