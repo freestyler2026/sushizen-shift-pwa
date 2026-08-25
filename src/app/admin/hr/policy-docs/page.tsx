@@ -3,7 +3,7 @@
 import {
   AlertCircle, Archive, BookOpen, Calendar, CheckCircle2,
   ChevronDown, ChevronRight, Clock, Download, FileText,
-  Loader2, Plus, RefreshCw, Trash2, Upload, Users, X,
+  Loader2, Plus, RefreshCw, Send, Trash2, Upload, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAuth } from "@/lib/auth";
@@ -195,6 +195,69 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Send to Staff Inbox ────────────────────────────────────────────────────────
+/** Pushes the document to every active Manila staff member's Inbox.
+ *  The notification links staff to Company Policies rather than carrying the file,
+ *  so the PIN acknowledgement stays the single compliance record. Re-pressing only
+ *  reaches staff who have not been notified yet, so a later hire can be topped up
+ *  without spamming everyone again. */
+function SendToStaffButton({ doc }: { doc: PolicyDoc }) {
+  const [status, setStatus] = useState<{ sent_count: number; last_sent_at: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const loadStatus = useCallback(() => {
+    apiFetch(`${API}/${doc.id}/notify-status`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setStatus(d); })
+      .catch(() => {});
+  }, [doc.id]);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  async function send() {
+    const already = status?.sent_count ?? 0;
+    const warning = already > 0
+      ? `This document has already been sent to ${already} staff. Only staff who have not received it yet will get it. Continue?`
+      : "Send this document to every active Manila staff member's Inbox?";
+    if (!window.confirm(warning)) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await apiFetch(`${API}/${doc.id}/notify-staff`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail ?? "Send failed");
+      setMsg(
+        d.sent === 0
+          ? `Everyone has it already (${d.recipients} staff).`
+          : `Sent to ${d.sent} staff${d.skipped_already_sent ? ` — ${d.skipped_already_sent} already had it` : ""}.`
+      );
+      loadStatus();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Send failed");
+    } finally { setBusy(false); }
+  }
+
+  const sent = status?.sent_count ?? 0;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button onClick={() => void send()} disabled={busy || !doc.is_active}
+        title={!doc.is_active ? "Archived documents cannot be sent" : undefined}
+        className="flex items-center gap-1.5 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-500/20 transition-colors disabled:opacity-40">
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+        {busy ? "Sending…" : sent > 0 ? "Send to New Staff" : "Send to Staff Inbox"}
+      </button>
+      {sent > 0 && (
+        <span className={BADGE_SUCCESS}>
+          <CheckCircle2 size={11} /> Sent to {sent}
+          {status?.last_sent_at ? ` · ${fmtDate(status.last_sent_at)}` : ""}
+        </span>
+      )}
+      {msg && <span className="text-xs text-zinc-400">{msg}</span>}
     </div>
   );
 }
@@ -477,6 +540,9 @@ export default function PolicyDocsAdminPage() {
                       <Trash2 size={12} /> Delete
                     </button>
                   </div>
+
+                  {/* Send to staff Inbox */}
+                  <SendToStaffButton doc={doc} />
 
                   {/* Ack report inline */}
                   {ackDoc?.id === doc.id && (
