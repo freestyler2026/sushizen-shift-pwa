@@ -1,10 +1,11 @@
 name: Noon Food Dubai — Biweekly Payout Extract
 
 on:
-  schedule:
-    # Every Tuesday at 04:00 UTC = 08:00 GST (Dubai)
-    # Noon settles biweekly (every ~14 days); weekly runs ensure we never miss a cycle.
-    - cron: '0 4 * * 2'
+  # No schedule: Noon's session dies after about 2.6 days, so a weekly cron
+  # failed on every run it ever made — six failures out of eight, with the only
+  # successes coming from a manual run right after a fresh login. Run this by
+  # hand after `node scripts/noon/setup-session.js --upload`; the Tuesday
+  # reminder covers it alongside Careem.
   workflow_dispatch:
     inputs:
       backfill:
