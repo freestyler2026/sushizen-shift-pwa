@@ -76,6 +76,8 @@ interface PLData {
   food_cost_coverage_pct?: number;
   food_cost_items_matched?: number;
   food_cost_items_total?: number;
+  food_cost_blockers?: { item: string; qty: number; reason: "no_recipe_cost" | "name_not_in_master" }[];
+  overhead_carried_from?: Record<string, string>;
   days: DayRow[];
   summary: Summary;
   error?: string;
@@ -333,13 +335,44 @@ export default function DailyPLPage() {
           </p>
         </div>
       )}
-      {data?.ok && !data.food_cost_missing && data.food_cost_source === "item_sales"
-        && (data.food_cost_coverage_pct ?? 0) < 80 && (
+      {data?.ok && !data.food_cost_missing && (data.food_cost_coverage_pct ?? 100) < 95 && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4">
           <p className="text-xs text-amber-200/90 leading-relaxed">
             Food cost covers {data.food_cost_coverage_pct}% of quantity sold
-            ({data.food_cost_items_matched} of {data.food_cost_items_total} items costed).
-            The uncosted items are assumed to run at the same rate.
+            ({data.food_cost_items_matched} of {data.food_cost_items_total} items priced).
+            The rest is assumed to run at the same rate.
+          </p>
+          {(data.food_cost_blockers?.length ?? 0) > 0 && (
+            <div className="mt-2 pt-2 border-t border-amber-500/20">
+              <p className="text-[11px] uppercase tracking-wider text-amber-300/70 mb-1">
+                Biggest sellers not priced
+              </p>
+              <div className="space-y-0.5">
+                {data.food_cost_blockers!.slice(0, 6).map((b) => (
+                  <div key={b.item} className="flex items-baseline gap-2 text-xs text-amber-100/85">
+                    <span className="tabular-nums text-amber-300/80 w-14 text-right">
+                      {b.qty.toLocaleString()}
+                    </span>
+                    <span className="flex-1 truncate">{b.item}</span>
+                    <span className="text-[11px] text-amber-300/70 whitespace-nowrap">
+                      {b.reason === "name_not_in_master"
+                        ? "name not in Cost Calculation"
+                        : "no cost set"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {data?.ok && data.overhead_carried_from
+        && Object.keys(data.overhead_carried_from).length > 0 && (
+        <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-2.5 mb-4">
+          <p className="text-xs text-slate-300">
+            Fixed costs carried forward from{" "}
+            {Array.from(new Set(Object.values(data.overhead_carried_from))).join(", ")} —
+            the current month has no entries yet.
           </p>
         </div>
       )}
