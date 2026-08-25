@@ -44,6 +44,97 @@ const SHOP_MAP = {
   '1644184196': { code: 'KEETA_SZ_AM',  name: 'Sushi ZEN Al Mina',           brand: 'sushi_zen' },
 };
 
+// Brand id used by the portal's own "All restaurants" selection. One report per
+// period covers every shop — the Excel carries a Restaurant ID column, so the
+// parser splits them apart without needing a task per shop.
+const BRAND_INPUT_ID = 297253;
+
+// ── Report generation ────────────────────────────────────────────────────────
+
+/** Calendar months overlapping [from, to], as GST day boundaries in epoch ms. */
+function monthWindows(fromISO, toISO) {
+  const out = [];
+  const start = new Date(`${fromISO}T00:00:00+04:00`);
+  const end   = new Date(`${toISO}T00:00:00+04:00`);
+  let y = start.getUTCFullYear(), m = start.getUTCMonth();
+  while (true) {
+    const first = new Date(Date.UTC(y, m, 1));
+    const last  = new Date(Date.UTC(y, m + 1, 0));
+    if (first > end) break;
+    const iso = (d) => d.toISOString().slice(0, 10);
+    out.push({
+      label: iso(first).slice(0, 7),
+      startStamp: Date.parse(`${iso(first)}T00:00:00.000+04:00`),
+      endStamp:   Date.parse(`${iso(last)}T23:59:59.999+04:00`),
+    });
+    m += 1; if (m > 11) { m = 0; y += 1; }
+  }
+  return out;
+}
+
+/**
+ * Ask Keeta to build the billing reports we need.
+ *
+ * Nothing can be imported for a period the portal has never generated — the
+ * gaps in ar_payouts matched the months nobody had clicked Submit for. This
+ * does that clicking.
+ */
+async function generateReports(page, fromISO, toISO) {
+  const windows = monthWindows(fromISO, toISO);
+  console.log(`\nRequesting billing reports for ${windows.length} month(s): ${fromISO} → ${toISO}`);
+
+  let created = 0;
+  for (const w of windows) {
+    const res = await page.evaluate(async ([startStamp, endStamp, inputId]) => {
+      const resp = await fetch(
+        '/api/settlement/statement/v2/w/download/task/create?yodaReady=h5&csecplatform=4&csecversion=3.5.1',
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            periodStartDateStamp: startStamp,
+            periodEndDateStamp:   endStamp,
+            type:                 2,
+            inputIds:             [inputId],
+            downloadTaskType:     3,
+          }),
+        }
+      );
+      return resp.json();
+    }, [w.startStamp, w.endStamp, BRAND_INPUT_ID]).catch(e => ({ error: e.message }));
+
+    if (res && res.code === 0) { console.log(`  ✓ ${w.label}`); created++; }
+    else console.warn(`  ⚠ ${w.label}: ${JSON.stringify(res).slice(0, 160)}`);
+
+    // The portal builds these server-side; don't hammer it.
+    await page.waitForTimeout(2500);
+  }
+  return created;
+}
+
+/** Wait until nothing is still generating, so every file has a download URL. */
+async function waitForGeneration(page, timeoutMs = 240_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const r = await page.evaluate(async () => {
+      const resp = await fetch(
+        '/api/settlement/statement/v2/r/download/task/list?yodaReady=h5&csecplatform=4&csecversion=3.5.1',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pageNo: 1, pageSize: 50, taskTypeList: [3] }) }
+      );
+      return resp.json();
+    }).catch(() => null);
+
+    const tasks = (r && r.data && r.data.pageContent) || [];
+    const pending = tasks.filter(t => t.taskStatus !== 30).length;
+    if (pending === 0) return true;
+    console.log(`  ${pending} still generating…`);
+    await page.waitForTimeout(10_000);
+  }
+  console.warn('  ⚠ Gave up waiting; some reports may not be ready this run');
+  return false;
+}
+
 // ── Session ──────────────────────────────────────────────────────────────────
 
 function loadSession() {
@@ -131,7 +222,11 @@ function parseInvoiceDetails(wb) {
     const shopId       = String(row[3]).replace(/\.0$/, '').trim();
     const billingCycle = (row[9] || '').trim();     // col J
     const settlDate    = (row[10] || '').trim();    // col K
-    const payable      = parseFloat(row[7] || 0);   // col H
+    // The "All restaurants" export formats amounts with thousands separators
+    // ("1,056.22") while the per-shop one does not. parseFloat stops at the
+    // comma, so 1,056.22 silently became 1 — a plausible-looking number, not an
+    // error. Strip separators before parsing.
+    const payable      = parseFloat(String(row[7] ?? '').replace(/,/g, '')) || 0;   // col H
 
     if (!shopId || !billingCycle || isNaN(payable)) continue;
 
@@ -214,6 +309,24 @@ async function main() {
     process.exit(0);
   }
 
+  // ── 1b. Make sure the reports we want actually exist ────────────────────
+  // Default to the last ~5 weeks so a routine run picks up newly closed cycles;
+  // GENERATE_FROM/GENERATE_TO widen it for a backfill.
+  const gstToday = new Date(Date.now() + 4 * 3600_000).toISOString().slice(0, 10);
+  const genFrom  = process.env.GENERATE_FROM ||
+    new Date(Date.now() + 4 * 3600_000 - 35 * 86400_000).toISOString().slice(0, 10);
+  const genTo    = process.env.GENERATE_TO || gstToday;
+
+  if (process.env.SKIP_GENERATE === '1') {
+    console.log('\nSKIP_GENERATE=1 — using only reports that already exist');
+  } else {
+    const created = await generateReports(page, genFrom, genTo);
+    if (created > 0) {
+      console.log('  Waiting for Keeta to build them...');
+      await waitForGeneration(page);
+    }
+  }
+
   // Call download/task/list via page.evaluate() (inherits mtgsig from page context)
   console.log('  Fetching download task list...');
   const taskResult = await page.evaluate(async () => {
@@ -239,13 +352,12 @@ async function main() {
   const tasks = (taskResult.data && taskResult.data.pageContent) || [];
   console.log(`✓ ${tasks.length} settlement download tasks found`);
 
-  // ── 2. Filter to shop-specific tasks (skip "All restaurants" aggregates) ────
-  const shopTasks = tasks.filter(t =>
-    t.taskStatus === 30 &&
-    t.downloadUrl &&
-    t.taskName.match(/\[\d+\]/)   // has [shopId] in name
-  );
-  console.log(`  ${shopTasks.length} shop-specific completed tasks`);
+  // ── 2. Keep every finished report ───────────────────────────────────────
+  // "All restaurants" files used to be skipped, but the parser reads the
+  // Restaurant ID column out of each row, so one of those covers all five
+  // shops — and it is what generateReports() asks for.
+  const shopTasks = tasks.filter(t => t.taskStatus === 30 && t.downloadUrl);
+  console.log(`  ${shopTasks.length} completed tasks with a download URL`);
 
   // ── 3. Download each Excel and parse ─────────────────────────────────────
   let totalPosted  = 0;
@@ -256,16 +368,6 @@ async function main() {
   const seen = new Set();
 
   for (const task of shopTasks) {
-    const shopIdMatch = task.taskName.match(/\[(\d+)\]/);
-    if (!shopIdMatch) continue;
-    const shopId   = shopIdMatch[1];
-    const shopInfo = SHOP_MAP[shopId];
-
-    if (!shopInfo) {
-      console.log(`  (unmapped shop ${shopId}) → skipping`);
-      continue;
-    }
-
     // Download Excel from S3
     let xlsxBuf;
     try {
@@ -297,6 +399,14 @@ async function main() {
     console.log(`\n  ${task.taskName} → ${settlements.length} billing cycle(s):`);
 
     for (const s of settlements) {
+      // One report can now hold several shops, so the mapping is per row.
+      const shopInfo = SHOP_MAP[s.shop_id];
+      if (!shopInfo) {
+        console.log(`    (shop ${s.shop_id} not in SHOP_MAP) → skipped`);
+        totalSkipped++;
+        continue;
+      }
+
       const dedupeKey = `${s.shop_id}||${s.billing_cycle}`;
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
