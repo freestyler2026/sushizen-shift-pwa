@@ -4,7 +4,44 @@ Last updated: 2026-08-25 (Noon二重計上を発見(未解決) / Talabat欠落�
 
 ---
 
-## 🔴 未解決: Noon が二重〜三重計上されている (2026-08-25 発見)
+## ✅ Completed: Noon を店舗別APIに一本化、二重計上を解消 (2026-08-25)
+
+**方針A採用**（店舗別を本流に）。手動CSVアップロードは廃止。
+
+**特定したAPI**
+```
+① POST /_food-restaurant/finance/wallet {"entryType":"statement"} → 週次ステートメント一覧
+② POST /_food-restaurant/finance/statement/orders {"statementNrList":[…]} → CSV(outlet_code付き)
+```
+②用の Heroku プロキシ `/api/noon/proxy-statement-orders` を追加（NoonのWAFがGitHub ActionsのIPを弾くため）。
+
+**結果**: 962件（2023-12-28〜2026-08-22）を店舗別で取り込み。全月10店舗。
+Ramen ZEN も4店舗に分解できた（従来はブランド単位でしか取っていなかっただけ）。
+
+| ブランド | 店舗コード |
+|---|---|
+| Sushi ZEN | AM / ARJ / BB / JLT / AB（既存を踏襲） |
+| Ramen ZEN | NOON_RZ_AM / _BB / _JLT / _MC |
+| All Veggie | NOON_AVS_AB |
+
+**削除**: 旧データ307件（6,274,989 AED）。`ar_payouts_noon_pre_switch` に全件退避済み。
+Dubai 2025-11 は 1,345,258 → 900,101 に是正（noon 690,096 → 244,940）。
+
+**重複が復活する経路を2つ塞いだ**: `manual-noon` を410に、Drive同期の
+`statement_orders` 検出を無効化。AR Payouts 画面の CSV ドロップと手動入力も撤去。
+
+### ⚠️ Noon はセッションが約2.6日で失効する（Careemと同種）
+
+実測: 8/22 14:14 発行 → 8/25 04:00 に401。ワークフロー履歴も8回中6回失敗で、
+成功2回はいずれもログイン直後の手動実行だった。**週次cronを削除**し、
+週次リマインダー（火曜10時）を **Careem + Noon の2社対応**に拡張した。
+
+| | セッション | 運用 |
+|---|---|---|
+| Careem | 72時間 | 週1回ログイン→手動起動 |
+| Noon | 約2.6日 | 週1回ログイン→手動起動 |
+| Keeta | 2027-02まで | 完全自動（水曜cron） |
+| Talabat | 2027-09まで | 完全自動（毎月5日cron） |
 
 `ar_payouts` の noon に **同じ入金を別粒度で持つ3系統**が併存しており、合算すると
 **実額のおよそ2.3倍**になっている。管理会計の Dubai 売上がその分過大。
