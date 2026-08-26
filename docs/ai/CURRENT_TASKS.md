@@ -1,6 +1,159 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-25 (Noon二重計上を発見(未解決) / Talabat欠落解消 / Keeta 桁区切りバグ修正+バックフィル / Careem Payment Summary API 取り込み / Dubai Discount Rates ブランド別入力)
+Last updated: 2026-08-26 (Management Channel の設計監査 — 送信フローが機能していなかった件を含む10件を修正)
+
+---
+
+## ✅ Completed: Management Channel 設計監査 (2026-08-26)
+
+仕様書・マニュアルと実装を突き合わせた結果、**中核ループが production で一度も
+成立していなかった**ことが判明した。
+
+### 🔴 致命的（システムが設計通り動いていなかった）
+
+**1. `sent_at` が記録されていなかった** — BOダッシュボードの送信処理が
+`status='sent'` と `sent_message` は PATCH するが `sent_at` を送っていなかった。
+8/19の稼働開始以来 **172件すべて `sent_at` が NULL**。この列に依存する全機能
+（30分エスカレーション・SLA超過の見逃し記録・エリアマネージャー週次スコア）が
+構造的にゼロを返し続けていた。→ タイムスタンプはサーバ側で打つよう変更。
+
+**2. 自動実行が存在しなかった** — 検知もスイープも「Run Detection」ボタンからしか
+呼ばれない。8/22〜8/26 の4日間、検知は1件も走っていない。
+→ worker に15分周期のジョブを追加（各都市のローカル日付で実行）。
+
+**3. BO担当者が誰にも割り当てられていなかった** — `bo_assignments` に
+Camille Santos（bo_a）と担当例外タイプが登録済みなのに、検知が `bo_assignee` を
+一切セットしていない（1/172件）。マニュアルの「担当：BO Staff A」は文書のみだった。
+→ 全検知箇所で `_bo_assignee_for()` を通す。5分TTL付き。
+
+### 🟡 計算・表示の誤り
+
+**4. 週次スコアが二重減点** — on-time を `responded - missed` で算出していたが、
+`missed` には未返答のものも含まれる。sent=4 / responded=2 / missed=2 で
+**score 0（正しくは25）**。→ 直接カウントに変更。
+
+**5. 70%→50%昇格が色だけ変えていた** — type も message も context も
+`backup_below_70` のまま。「below 70%」と書かれた赤タスクが古い数値を表示し、
+さらに `backup_below_50` を数える `repeat_backup_shortfall` から見えなかった。
+
+**6. Run Detection がブラウザのUTC日付を送っていた** — マニラの午前中は前日を
+スキャンしていた。→ 店舗ローカル日付へ。
+
+**7. Run Detection が errors / skipped を捨てていた** — 検知が壊れても
+「Detection complete. 0 new tasks created.」と表示。せっかく作ったエラー経路が
+UIで握り潰されていた。
+
+**8. 支店ラベルが2箇所で二重管理** — BO側のマップに今週追加した型が全て欠落。
+
+**9. 「Manager: Unknown」** — 検知時点でマネージャーは決まらない。この列は
+「誰が返答したか」なので、未送信は "Not sent yet"、送信済みは
+"Awaiting the store's reply" に。
+
+**10. 4ページ間に導線がなかった** — Pattern Detection が「Par level review」を
+出しても Par Levels へ飛べない。→ 共通タブバー追加。
+
+### 仕様とマニュアルの不一致（マニュアル側を訂正）
+- PM Backup: マニュアルは 🔴 だが、承認済み文言は「🟠で発生し30分後にRed昇格」。
+  実装が正しく、マニュアルを訂正。
+- Disposal: マニュアルの 🔴 に実装を合わせた（yellow → red）。
+
+### 観測性
+worker はログを毎回1行出すが、**Postgresアドオンのログが大量で `heroku logs` からは
+実質見つけられない**。`management_job_runs` テーブルに実行結果を記録し、
+BOダッシュボード上部に「Automatic check ran N min ago」を表示。1時間無音で赤、
+検知失敗があれば赤。
+
+### 検証済み（本番）
+作成 → 送信（sent_at記録）→ 31分で赤へ自動昇格 → 95分で missed 記録 →
+返答（responded_at記録）→ 週次スコア反映、まで実データで通した。
+プローブタスクは作成の **2分57秒後に自動昇格**（人手介入なし）。テストデータは全削除済み。
+
+---
+
+## ✅ Completed: Management Channel 仕様書の残り全項目を実装 (2026-08-26)
+
+### 実装したもの
+| 仕様 | 内容 |
+|---|---|
+| Day 4 | `backup_par_levels` テーブル + 70%/50% 検知 + `/admin/management/par-levels` |
+| Week 5-6 | `rush_checks` + `/store/management/rush-check`（トラベルパス衛生含む）· `complaint_no_photo` · 低評価連携 |
+| Week 7-8 | `detect_repeat_patterns`（6種）+ `/admin/management/patterns` · 見逃し自動記録 · `/admin/management/area-review` |
+| ① の「→」 | PM Backup 30分未返答で赤へ昇格（`escalate_stale_management_tasks`） |
+| ④ の「→」 | 同一店舗×同一Issueの繰り返しを `recurring_issue` として検出 |
+
+例外タイプ 9種・テンプレート 9種・検知 7系統・パターン 6種。
+
+### 実データで見つけて直したバグ
+1. **テンプレートのプレースホルダが一切置換されていなかった** — マネージャーは
+   `{order_id}` `{staff_name}` をそのまま読んでいた。`management_tasks.context` を
+   追加し、既存27件をバックフィル。
+2. **バックアップ数量の単位が混在** — 同一アイテムが `500 g` と `1 kg` で記録され、
+   単純合計で「Crabstick Cut 5 / 500 kg (1%)」という無意味なアラートが出ていた。
+   g→kg / ml→l / pc→pcs の換算を seeder と detector で共有。換算後も混在するもの、
+   Par の単位と当日の単位が食い違うものは**判定せずスキップとして報告**する。
+3. **`repeat_product_score` が「最も多く投稿した人」を挙げていた** — `author_name` は
+   QC写真の投稿者で、各店6〜10名が2週間で800〜1500枚投稿する。件数最多の24件は
+   464枚中＝5%で店舗平均8%を下回っていた。件数（仕様の下限）に加えて
+   「店舗平均の1.5倍超の不良率」を条件に。Manila の検出は9件→1件に。
+4. **支店名の正規化漏れ** — `_BRANCH_NORMALIZE` が大文字小文字を手書き列挙して
+   いたため `Taft` と `TAFT` が別支店として週次スコアに並んでいた。大文字キー方式へ。
+5. **パターンの期間判定が「行の作成日」だった** — バックフィルは1分で1週間分を書くため
+   全パターンの期間が「today→today」に潰れていた。イベント日付を使うよう修正。
+6. **ラッシュスロットの期限判定が UTC** — Manila は +8 なので昼スロットが現地4時に
+   未提出扱いになり、夜スロットは永久に判定されなかった。店舗TZで判定。
+7. **`except Exception: pass` 4箇所** — 検知が壊れても「0件」と同じ見え方だった。
+   エラーをレスポンスに出すよう変更（実際にこの変更のおかげで SQL 構文エラーを検出）。
+
+### 運用上の注意
+- **Par Level 183件はすべて PROPOSED（中央値からの提案値）** — 中央値は「普段の量」で
+  あって「あるべき量」ではない。レビュー前でもアラートは発火するため、
+  `/admin/management/par-levels` で順次修正が必要。
+- テストで過去日の検知を回した結果できた110件は `closed_by='system (historical backfill)'`
+  でクローズ済み。
+
+### 未着手
+- Sprint 0 ② の「写真TTL 24h→32h」に該当するコードが見つからない。
+  `product_score_results.image_data BYTEA` で恒久保存する実装に変わっており
+  （Discord CDN URL は約24hで失効するため）、TTL延長は不要になった可能性が高い。
+  意図が別にあれば要確認。
+
+---
+
+## ✅ Completed: Management Channel テンプレート2段階化 (2026-08-26)
+
+### 経緯
+週次実装の続きを進めるにあたり現状調査。Week 1〜3 は稼働中で `management_tasks` に
+44件の実データ、`pm_backup_missing` は responded → closed まで到達していた。
+`message_ja` が NULL だったため一度「文言未登録」と報告したが、これは誤り
+（CLAUDE.md の英語のみルール通り `message_en` に入っていた）。
+
+### 実際に見つかった差分
+承認済み仕様は**2段階回答**（原因/状態 → Action Taken）だが、実装は単一選択の
+フラットリストだった。結果:
+- `backup_below_50/70` — Action Taken 4件が丸ごと欠落
+- `product_score_c` — Issue と Action が1リストに混在。`Feedback Given to Staff` が
+  原因の選択肢と並び、Standard Re-explained / Product Remade / Staff Retrained が無い
+- `attendance_unverified` — Action Taken 4件が欠落
+- `disposal_missing` — 「担当者が忘れた」でスタッフ名を取れない
+
+### 対応
+- `management_tasks.response_action` / `action_templates.action_options`・
+  `response_label`・`action_label` を追加（ALTER TABLE で既存テーブルにも適用）
+- respond エンドポイントは、テンプレートが Action Taken を定義しているのに
+  `response_action` が無い場合 400 を返す（原因だけ記録して閉じるのを防ぐ）
+- 選択肢単位の `require_note` — Disposal の「Staff Unavailable / Forgot」は
+  スタッフ名の入力が必須
+- Manager Inbox は2段階UI。両方選ぶまで Confirm Response が押せない
+
+### 🔥 危なかった点（教訓20に追記した内容）
+BO Dashboard の「Seed Default Templates」ボタンが `seed_management_templates()` の
+**古いフラット定義**を持ったままだった。誰かが1回押すだけで Action Taken が全消え、
+ラベルも巻き戻る状態。DBを直接シードしただけで終わっていたら気付けなかった。
+関数を承認済み仕様に置き換え、`heroku run` で実行して往復を検証済み。
+
+### 未実装（仕様に「→」で書かれていた挙動）
+- ① PM Backup: 30分後も未提出なら Red Alert として BO に再表示
+- ④ Product Score C: 同一 Menu / Issue の繰り返しを Recurring Issue として検出し BO へ
 
 ---
 
@@ -14324,3 +14477,41 @@ vs マスタ99/155）。名称は空白の連続と大小文字を無視して�
   Ramen + Sushi Roll Combo (4pcs) 427（California Roll 4pcs がマスタに無い）/
   Ramen + Side Dish & Rice 209 / Gyudon Beef Bowl 192 / Black Tonkotsu Ramen (Garlic) 164
 - ドバイ未マッピング: 2 Onigiri of Your Choice 68 ほか少量
+
+## 2026-08-26 管理会計 — 数値の全面監査と是正
+
+### 確定した計算方針
+- **食材費は仕入ベース**（両都市）。月次の仕入実績を日別売上比で按分する。
+  `_DAILY_FOOD_FROM_ITEMS_CITIES` に都市を入れれば「販売数×原価」に戻せる。
+  仕入ベースを選んだ理由は精度。月次と同じ数字を割り振るので原理的に乖離しない。
+  販売数×原価はレシピの網羅率に依存する（マニラ92.8%、ドバイは商品フィードが実売の5%）。
+- **発注は承認待ち（IN_REVIEW等）も計上**。現場では納品が先で承認が後追いのため。
+  除外すると消費実態より40%低く出た。
+- **倉庫・CK仕入の除外は品目単位**。発注単位だと1行のせいで他社仕入まで消えた（8月36件31万PHP）。
+- **店舗別売上**: マニラ=manila_daily_sales（店内飲食込み）、ドバイ=pos_revenue_location_daily を
+  都市合計に按分。入金(ar_payouts)は店舗識別子が社ごとにバラバラで使えない。
+- **ドバイ日次売上**は pos_revenue_location_daily（channel_daily は疎で7月15日分しかない）。
+  純額は月次の入金実績に較正（係数0.31〜0.35）。
+
+### Careem ゾーン → 店舗（careem_outlet_mapping.os_store_code に記録）
+    Al Jaffiliya → AM (Al Mina)   ※ALJをArjanと推測していたのは誤り
+    Al Barsha South → ARJ (Arjan) ※Al Barsha ではない
+    Al Barsha 3 → AB (Al Barsha)  ※All Veggie Sushi が1店のみで確定
+    Al Mizhar → 割当なし（Mirdif・閉店）
+    CAREEM_SZ_AM は Al Mizhar であって Al Mina ではない（コードが衝突している）
+
+### 見つけた重大バグ
+1. **7月マニラ日次売上を毎回削除**していた（db_manila_daily_ops.py のテーブル初期化に
+   一度きりのはずのKlikit purge が残存）。手入力データが起動のたびに消えていた。
+2. **GrabFoodの二重計上**（grab_export と storehub_api）。storehub側は純額が総額の3%で
+   手数料率55%に膨張、純売上が1/3過少になっていた。
+3. **cost-trend が独立実装**で人件費が全月ゼロ。get_mgmt_cost_summary を呼ぶ形に統一。
+4. **経費・食材費レートの未登録が「0」として黙って通っていた** → 警告表示に。
+5. Excel取込の異常値（2026-03 CK家賃が店舗セル311,444×3 vs 合計欄75,000）→ 合計欄で按分補正。
+
+### 残タスク
+- **Cubao向けCK出庫が記録されていない**（3ヶ月でTAFT219件に対しCUB15件、8月は0件）。
+  CKと同一敷地のため納品記録を作らずに持ち出している。運用の是正が必要。
+- 店舗別食材費にCK納品を全額載せると都市合計を78万PHP超過する。仕切り価格の扱いを要決定。
+- Talabatの入金は SZ/RZ/AVS のブランド単位で店舗配分不可（ユーザー了承済み）。
+- マニラ 2025-10〜2026-02 の経費が直近の3倍（按分補正では解消せず）。

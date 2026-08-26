@@ -33,6 +33,8 @@ import {
   TABLE_CELL,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
+import { MgmtChannelTabBar } from "../MgmtChannelTabs";
+import { fillTemplate, shortfallSummary, fmtExceptionType } from "@/lib/management";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -53,13 +55,27 @@ interface ManagementTask {
   sent_message: string | null;
   manager_name: string | null;
   response: string | null;
+  response_action: string | null;
   response_note: string | null;
+  context: Record<string, string | number | boolean | null> | null;
   missed_by_manager: boolean;
   created_at: string;
   sent_at: string | null;
   responded_at: string | null;
   closed_at: string | null;
   escalated_at: string | null;
+}
+
+interface JobRun {
+  job: string;
+  city: string;
+  ran_at: string;
+  seconds_ago: number;
+  created: number;
+  escalated: number;
+  missed: number;
+  skipped: number;
+  errors: { detector: string; error: string }[];
 }
 
 interface ActionTemplate {
@@ -70,6 +86,10 @@ interface ActionTemplate {
   message_en: string;
   message_ja: string;
   response_options: ResponseOption[];
+  /** Second stage — empty when the cause is the whole answer. */
+  action_options: ResponseOption[];
+  response_label: string | null;
+  action_label: string | null;
 }
 
 interface ResponseOption {
@@ -80,21 +100,76 @@ interface ResponseOption {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const EXCEPTION_LABELS: Record<string, string> = {
-  pm_backup_missing:    "PM Backup Report Missing",
-  am_backup_missing:    "AM Backup Report Missing",
-  backup_below_50:      "Backup Below 50%",
-  backup_below_70:      "Backup Below 70%",
-  disposal_missing:     "Disposal Report Missing",
-  complaint_no_photo:   "Complaint — No Photo",
-  attendance_unverified: "Attendance Unverified",
-  product_score_c:      "Product Score C",
-  product_score_d:      "Product Score D/F",
-  salmon_high_waste:    "Salmon High Waste",
-};
+
+/** Today's date in the store's own timezone — never the browser's. */
+function storeToday(city: string): string {
+  const tz = city === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+  // en-CA gives YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+}
+
+/**
+ * Whether the automatic sweep is still running, and when it last did.
+ *
+ * Everything in this channel — detection, the 30-minute escalation, the SLA
+ * miss log, the weekly score — depends on that job. If it stops, the dashboard
+ * goes quiet and looks exactly like a good day, which is how the channel sat
+ * dead from 2026-08-22 without anyone noticing.
+ */
+function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
+  const relevant = runs.filter(r => r.job === "detect" && (city === "all" || r.city === city));
+  if (relevant.length === 0) {
+    return (
+      <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5 text-sm text-amber-100/90 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-400" />
+        <span>
+          The automatic check has not reported yet. Until it does, tasks appear only
+          when someone presses Run Detection.
+        </span>
+      </div>
+    );
+  }
+
+  const stalest = relevant.reduce((a, b) => (a.seconds_ago > b.seconds_ago ? a : b));
+  const failing = relevant.filter(r => r.errors?.length > 0);
+  // The job runs every 15 minutes; an hour of silence means it stopped.
+  const stale = stalest.seconds_ago > 3600;
+  const mins = Math.round(stalest.seconds_ago / 60);
+  const ago = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+
+  if (stale || failing.length) {
+    return (
+      <div className="mb-4 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-2.5 text-sm text-red-100 flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-400" />
+        <div>
+          {stale ? (
+            <>Automatic checks have not run for {ago}. Exceptions are not being detected.</>
+          ) : (
+            <>
+              Automatic check ran {ago}, but {failing.length} detector(s) failed:{" "}
+              {failing.flatMap(r => r.errors.map(e => `${r.city}/${e.detector}`)).join(", ")}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex items-center gap-2 text-xs text-zinc-500">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+      <span>
+        Automatic check ran {ago}
+        {stalest.skipped > 0 && (
+          <span className="text-amber-400"> · {stalest.skipped} item(s) not judged</span>
+        )}
+      </span>
+    </div>
+  );
+}
 
 function fmtLabel(type: string) {
-  return EXCEPTION_LABELS[type] || type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  return fmtExceptionType(type);
 }
 
 function fmtTime(iso: string | null) {
@@ -162,26 +237,24 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
           <div className="mb-4">
             <div className={T_LABEL + " mb-2"}>Pre-written instruction (from template)</div>
             <div className="rounded-lg border border-violet-500/20 bg-violet-950/20 p-3 text-sm text-zinc-200 leading-relaxed italic">
-              {template.message_en}
+              {fillTemplate(template.message_en, task.context)}
             </div>
             {template.response_options.length > 0 && (
               <div className="mt-2">
-                <div className={T_LABEL + " mb-1.5"}>Manager will respond with:</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {template.response_options.map(opt => (
-                    <span
-                      key={opt.key}
-                      className={
-                        opt.type === "done"
-                          ? "text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                          : opt.type === "cannot"
-                          ? "text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                          : "text-xs px-2 py-0.5 rounded-full bg-white/8 text-zinc-300 border border-white/15"
-                      }
-                    >
-                      {opt.label_en}
-                    </span>
-                  ))}
+                <div className={T_LABEL + " mb-1.5"}>
+                  {template.response_label || "Manager will respond with"}
+                </div>
+                <OptionChips options={template.response_options} />
+              </div>
+            )}
+            {template.action_options && template.action_options.length > 0 && (
+              <div className="mt-3">
+                <div className={T_LABEL + " mb-1.5 text-sky-400/80"}>
+                  Then: {template.action_label || "Action Taken"}
+                </div>
+                <OptionChips options={template.action_options} />
+                <div className={T_CAPTION + " mt-1.5"}>
+                  The manager cannot submit until both stages are answered.
                 </div>
               </div>
             )}
@@ -348,6 +421,28 @@ function TaskThread({ taskId }: TaskThreadProps) {
   );
 }
 
+/** The response choices a manager will see, rendered as read-only chips. */
+function OptionChips({ options }: { options: ResponseOption[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map(opt => (
+        <span
+          key={opt.key}
+          className={
+            opt.type === "done"
+              ? "text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+              : opt.type === "cannot"
+              ? "text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
+              : "text-xs px-2 py-0.5 rounded-full bg-white/8 text-zinc-300 border border-white/15"
+          }
+        >
+          {opt.label_en}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 interface TaskRowProps {
@@ -359,6 +454,7 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
+  const shortfall = shortfallSummary(task.context);
   return (
     <div className={TABLE_ROW + " border-white/8"}>
       {/* Main row */}
@@ -368,10 +464,29 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-white truncate">{fmtLabel(task.type)}</span>
             <span className="text-xs text-zinc-500">{task.branch}</span>
+            {task.escalated_at && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-red-300 bg-red-500/15 border border-red-500/30 rounded px-1.5 py-0.5">
+                Escalated
+              </span>
+            )}
+            {task.missed_by_manager && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-orange-300 bg-orange-500/15 border border-orange-500/30 rounded px-1.5 py-0.5">
+                Missed
+              </span>
+            )}
           </div>
+          {shortfall && (
+            <div className="text-xs text-amber-300 mt-0.5 tabular-nums truncate">{shortfall}</div>
+          )}
           <div className="flex items-center gap-3 mt-0.5">
             <span className={T_CAPTION}>
-              Manager: <span className="text-zinc-300">{task.manager_name || "Unknown"}</span>
+              {task.manager_name ? (
+                <>Replied by: <span className="text-zinc-300">{task.manager_name}</span></>
+              ) : task.status === "open" ? (
+                <>Not sent yet</>
+              ) : (
+                <>Awaiting the store’s reply</>
+              )}
             </span>
             <span className={T_CAPTION}>{fmtTime(task.created_at)}</span>
           </div>
@@ -400,7 +515,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
             <div>
               <div className={T_LABEL + " mb-1"}>Sent Instruction</div>
               <div className="text-xs text-zinc-300 leading-relaxed bg-white/5 rounded-lg p-3 italic">
-                {task.sent_message}
+                {fillTemplate(task.sent_message, task.context)}
               </div>
               {task.sent_at && (
                 <div className={T_CAPTION + " mt-1"}>Sent: {fmtTime(task.sent_at)}</div>
@@ -414,6 +529,14 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
                 <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-2.5 py-0.5">
                   {task.response.replace(/_/g, " ")}
                 </span>
+                {task.response_action && (
+                  <>
+                    <span className="text-zinc-500 text-xs">→</span>
+                    <span className="text-xs font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/25 rounded-full px-2.5 py-0.5">
+                      {task.response_action.replace(/_/g, " ")}
+                    </span>
+                  </>
+                )}
                 {task.responded_at && (
                   <span className={T_CAPTION}>at {fmtTime(task.responded_at)}</span>
                 )}
@@ -448,6 +571,7 @@ export default function BODashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [seeding, setSeeding] = useState(false);
+  const [jobRuns, setJobRuns] = useState<JobRun[]>([]);
   const [detecting, setDetecting] = useState(false);
 
   // Filters
@@ -505,6 +629,8 @@ export default function BODashboardPage() {
 
   useEffect(() => {
     loadTasks();
+    loadJobRuns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTasks]);
 
   // KPI counts
@@ -525,6 +651,19 @@ export default function BODashboardPage() {
     if (so !== 0) return so;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  async function loadJobRuns() {
+    try {
+      const res = await fetch("/api/admin/management/job-runs", {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      setJobRuns(d.runs || []);
+    } catch {
+      /* the banner degrades to "unknown", which is the honest reading */
+    }
+  }
 
   async function handleSeedTemplates() {
     setSeeding(true);
@@ -551,20 +690,45 @@ export default function BODashboardPage() {
     setDetecting(true);
     try {
       const headers = getAuthHeaders(getAuth());
-      const today = new Date().toISOString().slice(0, 10);
       const res = await fetch("/api/admin/management/detect", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ city: cityFilter, date: today }),
+        // The date is the STORE's, not the browser's. toISOString() is UTC, so
+        // a Manila morning run would have scanned yesterday.
+        body: JSON.stringify({ city: cityFilter, date: storeToday(cityFilter) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.created > 0) {
-        await loadTasks(true);
+      await loadTasks(true);
+
+      // A failed detector must not read as a clean scan. The API reports which
+      // ones broke and which items it declined to judge; showing only the
+      // created count is how "0 new tasks" hides a dead rule.
+      const errs: { detector: string; error: string }[] = data.errors || [];
+      const skipped: { branch: string; item: string; reason: string }[] = data.skipped || [];
+      const lines = [
+        `Detection complete — ${data.created} new task${data.created !== 1 ? "s" : ""}.`,
+      ];
+      if (data.escalated) lines.push(`${data.escalated} task(s) escalated to red.`);
+      if (data.missed) lines.push(`${data.missed} task(s) past SLA marked as missed.`);
+      if (skipped.length) {
+        lines.push(
+          "",
+          `${skipped.length} item(s) could NOT be judged:`,
+          ...skipped.slice(0, 5).map(s => `  • ${s.branch} ${s.item} — ${s.reason}`),
+          ...(skipped.length > 5 ? [`  • …and ${skipped.length - 5} more`] : []),
+        );
       }
-      alert(`Detection complete. ${data.created} new task${data.created !== 1 ? "s" : ""} created.`);
-    } catch {
-      alert("Detection failed. Please try again.");
+      if (errs.length) {
+        lines.push(
+          "",
+          `⚠️ ${errs.length} detector(s) FAILED — those exceptions were not scanned:`,
+          ...errs.map(e => `  • ${e.detector}: ${e.error}`),
+        );
+      }
+      alert(lines.join("\n"));
+    } catch (e) {
+      alert(`Detection failed: ${e}`);
     } finally {
       setDetecting(false);
     }
@@ -572,7 +736,7 @@ export default function BODashboardPage() {
 
   function openSendModal(task: ManagementTask) {
     setSendingTask(task);
-    setCustomMessage(templates[task.type]?.message_en || "");
+    setCustomMessage(fillTemplate(templates[task.type]?.message_en || "", task.context));
   }
 
   async function handleSend() {
@@ -580,7 +744,11 @@ export default function BODashboardPage() {
     setSending(true);
     try {
       const template = templates[sendingTask.type];
-      const message = template ? template.message_en : customMessage.trim();
+      // Send the substituted text, not the raw template — the stored
+      // sent_message is what the manager and every later reader sees.
+      const message = template
+        ? fillTemplate(template.message_en, sendingTask?.context)
+        : customMessage.trim();
       const headers = getAuthHeaders(getAuth());
       const res = await fetch(`/api/admin/management/tasks/${sendingTask.id}`, {
         method: "PATCH",
@@ -613,6 +781,9 @@ export default function BODashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1e] via-[#0d1526] to-[#0a0f1e] pb-24">
       <div className="mx-auto max-w-5xl px-4 pt-6">
+        <MgmtChannelTabBar active="bo" />
+        <AutoCheckBanner runs={jobRuns} city={cityFilter} />
+
 
         {/* Header */}
         <div className="mb-6 flex items-start justify-between flex-wrap gap-3">

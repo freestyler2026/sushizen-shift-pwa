@@ -48,6 +48,7 @@
 | Procurement系ページ（**Store Supplier Orders** / Approval Inbox / CK Orders / POs / Invoices / Payments / Vendors / Scorecards / Risk Lab / KPI / Exceptions / Cold Chain / Delivery Schedule / Whitelist / Catalog / Receiving / Evaluation） | **Procurement Manual** | `docs/manuals/procurement-manual.html` |
 | Payroll系ページ（Manila Payroll / Dubai Payroll / Adjustments / Transactions / Loans / Leave Salary / Staff Profiles / Gov Tables / DTR Upload / Allowances / Remittances / My Pay / Inquiries） | **Payroll Manual** | `docs/manuals/payroll-manual.html` |
 | Store Operation Management Channel（BO Dashboard / Manager Inbox / Exception Templates / Pattern Detection / Area Manager Review） | **Management Channel Manual** | `docs/manuals/management-channel-manual.html` |
+| Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 
 **Republish 手順:**
 ```
@@ -72,6 +73,10 @@
    - file_path: docs/manuals/management-channel-manual.html
    - url: https://claude.ai/code/artifact/5dbc366b-bd8e-4aca-80bd-763f8ddbe9e3   ← Management Channel Manual
    - favicon: 🏪
+
+   - file_path: docs/manuals/management-accounting-manual.html
+   - url: https://claude.ai/code/artifact/7d9e43e9-7884-489a-9497-5eb08a960183   ← 管理会計マニュアル
+   - favicon: 📊
 ```
 
 **更新対象の判断基準:**
@@ -189,6 +194,8 @@ npx tsc --noEmit
 16. **DTR Sync が「効かない」ときは、まず Preview Sync のブロック表示を見る** → `shift_data_missing` / `suspicious_sessions` が1件でもあると「Sync to DTR」ボタンが `disabled` になり、**1行も書き込まれない**。他人（例：Anthony/Tricia のシフト未公開、Gessa/Mayorico の打刻漏れ）が原因でも全員分の同期が止まる。「シフトを直したのに DTR が変わらない」の実際の原因はほぼこれ。個別に急ぐ場合は DTR Records の Schedule 列（鉛筆アイコン）をクリックして `HH:MM-HH:MM` を直接入力すれば、その行だけ late/undertime が再計算される。（2026-08 Patrick 8/20・8/22 で発生）
 17. **給与系の一括処理で「1件でも不備があれば全体を中断」は作ってはいけない** → DTR Sync は `shift_data_missing` / `suspicious_sessions` があると全員分を書かずに `return {"error": ...}` していた。結果、他人の不備で数ヶ月間シフト修正がDTRに届かず、しかも画面上は原因が分かりにくかった。**不備のある行だけスキップして残りは処理し、スキップした行を必ずレスポンスとUIに出す**こと。安全ゲートの目的（誤った値を書かない）は行単位スキップで完全に満たせる。（2026-08-24 改善済み）
 19. **Nextのプロキシにヘッダーを追加するときは `[...slug]` だけを直してはいけない** → `src/app/api/auth/verify/route.ts` のような**個別ルートが catch-all より優先される**。catch-all にだけ転送を足すと、その個別ルートを通る経路（＝ログイン）でヘッダーが落ちて全員ログイン不能になる。`find src/app/api -name route.ts` で個別ルートを必ず列挙してから着手し、**デプロイ後は必ず実ブラウザでログインを検証する**。（2026-08-25 X-Approver-Pin 移行で実際に発生・即revertで復旧）
+
+20. **シード関数と実DBの二重管理をしない — 片方だけ直すと「巻き戻しボタン」が生まれる** → Management Channel のテンプレートをDBに直接投入して完了としたが、BO Dashboard の「Seed Default Templates」ボタンが呼ぶ `seed_management_templates()` は古い定義のままだった。`ON CONFLICT DO UPDATE` なので、誰かが1回押すだけで新しい設定が全消えする。**UIにシード/リセットボタンがある設定は、必ずそのシード関数を唯一の正とし、DBへの直接投入はしない。**直した後は実際にシードを実行して往復を検証する。（2026-08-26 発見・修正済み）
 
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
