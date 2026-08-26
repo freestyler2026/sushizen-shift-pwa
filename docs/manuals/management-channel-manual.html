@@ -2507,8 +2507,27 @@ ul.body-list strong { color: var(--text); }
       </div>
       <div class="tip warn" style="margin-top:8px;">
         <span class="tip-icon">⚠️</span>
-        <span class="ja">ジョブは正常時も毎回1行ログを出します（<code>[mgmt-channel] manila 2026-08-26: created=0 skipped=0 errors=0</code>）。「静かだから正常」と「止まっているから静か」を区別するためです。<strong>ログが出ていなければジョブが止まっています。</strong></span>
-        <span class="en">The job prints one line every run even when nothing happens (<code>[mgmt-channel] manila 2026-08-26: created=0 skipped=0 errors=0</code>), so a healthy quiet run cannot be mistaken for a stopped one. <strong>No line means the job is not running.</strong></span>
+        <span class="ja"><strong>BOダッシュボード上部の「Automatic check ran ◯ min ago」を見てください。</strong>ジョブが止まると例外は一切検知されず、画面は「今日は何も起きていない良い日」と全く同じ見え方になります。1時間以上更新がなければ赤いバナーに変わり、検知が失敗していれば失敗した検知名が出ます。<br>（Herokuのログにも毎回1行出ますが、Postgresアドオンのログが大量で <code>heroku logs</code> からは実質見つけられません。）</span>
+        <span class="en"><strong>Read the “Automatic check ran N min ago” line at the top of the BO dashboard.</strong> If the job stops, nothing is detected and the screen looks exactly like a quiet good day. The line turns into a red banner after an hour without a run, and names any detector that failed.<br>(The job also prints a line to Heroku's log every run, but the Postgres add-on floods that stream and the lines are not findable with <code>heroku logs</code> in practice.)</span>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-title"><span class="ja">検知が届く範囲（2026-08-26 時点）</span><span class="en">What the triggers can actually reach (as of 2026-08-26)</span></div>
+        <p class="ja" style="font-size:12px;">検知は<strong>元データが存在する支店にしか届きません</strong>。レポートを出していない支店は「問題なし」ではなく「対象外」です。</p>
+        <p class="en" style="font-size:12px;">A trigger only reaches branches whose source data exists. A branch that submits nothing is <strong>out of scope, not problem-free</strong>.</p>
+        <table class="status-table">
+          <tr><th>Trigger</th><th>Manila</th><th>Dubai</th></tr>
+          <tr><td>PM Backup / Backup 70% / 50%</td><td>CK · CUB · PAR · TAFT</td><td style="color:var(--orange);">BB のみ（他4支店は未提出）</td></tr>
+          <tr><td>Disposal Report</td><td>CUB · PAR · TAFT</td><td style="color:var(--red);">なし / none</td></tr>
+          <tr><td>Product Score C</td><td>3支店</td><td>5支店</td></tr>
+          <tr><td>Complaint — No Photo</td><td>全支店</td><td style="color:var(--red);">なし（Manila専用テーブル）</td></tr>
+          <tr><td>Rush Check / Travel Path</td><td colspan="2" style="color:var(--orange);">未展開 — 各支店で最初の1回を提出するまで発火しません</td></tr>
+        </table>
+        <div class="tip warn" style="margin-top:10px;">
+          <span class="tip-icon">⚠️</span>
+          <span class="ja">Dubaiはバックアップレポートと廃棄レポートをほぼ提出していないため、これらの例外は事実上Manila専用です。Dubaiでも機能させるには、まず店舗がレポートを出す運用を始める必要があります。</span>
+          <span class="en">Dubai barely submits backup or disposal reports, so those exceptions are effectively Manila-only today. Making them work in Dubai is an operations change first — the stores have to start submitting.</span>
+        </div>
       </div>
     </div>
     </div>
