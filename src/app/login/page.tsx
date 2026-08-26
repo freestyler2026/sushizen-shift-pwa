@@ -99,6 +99,31 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
   };
 }
 
+const CITY_MEMORY_KEY = "sushizen_login_city";
+
+/** The city this device used last. Falls back to the previous session's city. */
+function rememberedCity(): City {
+  if (typeof window === "undefined") return "dubai";
+  try {
+    const saved = String(localStorage.getItem(CITY_MEMORY_KEY) || "").toLowerCase();
+    if (saved === "manila" || saved === "dubai") return saved;
+    const prev = String(getAuth()?.city || "").toLowerCase();
+    if (prev === "manila" || prev === "dubai") return prev;
+  } catch {
+    /* private browsing or storage disabled — the default is still usable */
+  }
+  return "dubai";
+}
+
+function rememberCity(city: City) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CITY_MEMORY_KEY, city);
+  } catch {
+    /* not worth failing a login over */
+  }
+}
+
 async function fetchStaffNames(city: City): Promise<string[]> {
   const qs = new URLSearchParams({
     city,
@@ -138,7 +163,11 @@ function LoginInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const [city, setCity] = useState<City>("dubai");
+  // Dubai was hardcoded, and the name list is filtered by city — so a Manila
+  // staff member who left the default alone typed their name and got no
+  // suggestions at all, which reads as "login is broken" rather than "wrong
+  // city selected". Remember what this device used last instead.
+  const [city, setCity] = useState<City>(() => rememberedCity());
   const [staffName, setStaffName] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -215,6 +244,9 @@ function LoginInner() {
 
       // ✅ verify role from API
       const verified = await verifyAuth(matchedName || name, p, city);
+      // The server resolves the real city from the staff record, so this stores
+      // what the account actually is, not what was picked on the form.
+      rememberCity(verified.city);
 
       // ✅ store auth (localStorage)
       setAuth({
@@ -278,6 +310,7 @@ function LoginInner() {
                 value={city}
                 onChange={(v) => {
                   setCity(v as City);
+                  rememberCity(v as City);
                   setStaffName("");
                   setShowSuggestions(false);
                   setError("");
@@ -307,6 +340,17 @@ function LoginInner() {
                   autoComplete="off"
                   spellCheck={false}
                 />
+                {/* Typing a name that exists in the other city produced an empty
+                    list and no explanation — the commonest way this screen gets
+                    reported as broken. */}
+                {showSuggestions && staffName.trim().length >= 2
+                  && !nameLoading && !filteredNameOptions.length ? (
+                  <div className="absolute z-20 mt-1 w-full rounded-xl border border-amber-500/30 bg-neutral-950 p-3 text-xs text-amber-200/90 shadow-2xl">
+                    No match in <strong>{city === "manila" ? "Manila" : "Dubai"}</strong>.
+                    {" "}If you work in {city === "manila" ? "Dubai" : "Manila"}, change
+                    the City above and type your name again.
+                  </div>
+                ) : null}
                 {showSuggestions && filteredNameOptions.length ? (
                   <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-neutral-800 bg-neutral-950 p-1 shadow-2xl">
                     {filteredNameOptions.map((name) => (
