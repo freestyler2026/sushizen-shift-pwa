@@ -66,6 +66,18 @@ interface ManagementTask {
   escalated_at: string | null;
 }
 
+interface JobRun {
+  job: string;
+  city: string;
+  ran_at: string;
+  seconds_ago: number;
+  created: number;
+  escalated: number;
+  missed: number;
+  skipped: number;
+  errors: { detector: string; error: string }[];
+}
+
 interface ActionTemplate {
   exception_type: string;
   severity: Severity;
@@ -94,6 +106,66 @@ function storeToday(city: string): string {
   const tz = city === "dubai" ? "Asia/Dubai" : "Asia/Manila";
   // en-CA gives YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+}
+
+/**
+ * Whether the automatic sweep is still running, and when it last did.
+ *
+ * Everything in this channel — detection, the 30-minute escalation, the SLA
+ * miss log, the weekly score — depends on that job. If it stops, the dashboard
+ * goes quiet and looks exactly like a good day, which is how the channel sat
+ * dead from 2026-08-22 without anyone noticing.
+ */
+function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
+  const relevant = runs.filter(r => r.job === "detect" && (city === "all" || r.city === city));
+  if (relevant.length === 0) {
+    return (
+      <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2.5 text-sm text-amber-100/90 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-400" />
+        <span>
+          The automatic check has not reported yet. Until it does, tasks appear only
+          when someone presses Run Detection.
+        </span>
+      </div>
+    );
+  }
+
+  const stalest = relevant.reduce((a, b) => (a.seconds_ago > b.seconds_ago ? a : b));
+  const failing = relevant.filter(r => r.errors?.length > 0);
+  // The job runs every 15 minutes; an hour of silence means it stopped.
+  const stale = stalest.seconds_ago > 3600;
+  const mins = Math.round(stalest.seconds_ago / 60);
+  const ago = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+
+  if (stale || failing.length) {
+    return (
+      <div className="mb-4 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-2.5 text-sm text-red-100 flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-400" />
+        <div>
+          {stale ? (
+            <>Automatic checks have not run for {ago}. Exceptions are not being detected.</>
+          ) : (
+            <>
+              Automatic check ran {ago}, but {failing.length} detector(s) failed:{" "}
+              {failing.flatMap(r => r.errors.map(e => `${r.city}/${e.detector}`)).join(", ")}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex items-center gap-2 text-xs text-zinc-500">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+      <span>
+        Automatic check ran {ago}
+        {stalest.skipped > 0 && (
+          <span className="text-amber-400"> · {stalest.skipped} item(s) not judged</span>
+        )}
+      </span>
+    </div>
+  );
 }
 
 function fmtLabel(type: string) {
@@ -499,6 +571,7 @@ export default function BODashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [seeding, setSeeding] = useState(false);
+  const [jobRuns, setJobRuns] = useState<JobRun[]>([]);
   const [detecting, setDetecting] = useState(false);
 
   // Filters
@@ -556,6 +629,8 @@ export default function BODashboardPage() {
 
   useEffect(() => {
     loadTasks();
+    loadJobRuns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTasks]);
 
   // KPI counts
@@ -576,6 +651,19 @@ export default function BODashboardPage() {
     if (so !== 0) return so;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  async function loadJobRuns() {
+    try {
+      const res = await fetch("/api/admin/management/job-runs", {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      setJobRuns(d.runs || []);
+    } catch {
+      /* the banner degrades to "unknown", which is the honest reading */
+    }
+  }
 
   async function handleSeedTemplates() {
     setSeeding(true);
@@ -694,6 +782,7 @@ export default function BODashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1e] via-[#0d1526] to-[#0a0f1e] pb-24">
       <div className="mx-auto max-w-5xl px-4 pt-6">
         <MgmtChannelTabBar active="bo" />
+        <AutoCheckBanner runs={jobRuns} city={cityFilter} />
 
 
         {/* Header */}
