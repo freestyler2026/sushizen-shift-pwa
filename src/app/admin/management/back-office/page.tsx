@@ -53,6 +53,7 @@ interface ManagementTask {
   sent_message: string | null;
   manager_name: string | null;
   response: string | null;
+  response_action: string | null;
   response_note: string | null;
   missed_by_manager: boolean;
   created_at: string;
@@ -414,6 +415,14 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
                 <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-2.5 py-0.5">
                   {task.response.replace(/_/g, " ")}
                 </span>
+                {task.response_action && (
+                  <>
+                    <span className="text-zinc-500 text-xs">→</span>
+                    <span className="text-xs font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/25 rounded-full px-2.5 py-0.5">
+                      {task.response_action.replace(/_/g, " ")}
+                    </span>
+                  </>
+                )}
                 {task.responded_at && (
                   <span className={T_CAPTION}>at {fmtTime(task.responded_at)}</span>
                 )}

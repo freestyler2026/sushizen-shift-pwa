@@ -40,6 +40,7 @@ interface ManagementTask {
   sent_message: string | null;
   template_key: string | null;
   response: string | null;
+  response_action: string | null;
   response_note: string | null;
   created_at: string;
   sent_at: string | null;
@@ -50,6 +51,9 @@ interface ResponseOption {
   key: string;
   label_en: string;
   type: "done" | "cannot" | "neutral";
+  /** This option is meaningless without free text — e.g. which staff member forgot. */
+  require_note?: boolean;
+  note_placeholder?: string;
 }
 
 interface ActionTemplate {
@@ -57,6 +61,10 @@ interface ActionTemplate {
   title_en: string;
   message_en: string;
   response_options: ResponseOption[];
+  /** Second stage: what the store actually did. Empty when the cause is the whole answer. */
+  action_options: ResponseOption[];
+  response_label: string | null;
+  action_label: string | null;
 }
 
 // ─── Fallback response options by exception type ──────────────────────────────
@@ -307,23 +315,79 @@ function StoreTaskThread({ taskId, managerName }: StoreTaskThreadProps) {
   );
 }
 
+// ─── Option Group ─────────────────────────────────────────────────────────────
+
+/** One labelled row of choice chips. Used for both response stages. */
+function OptionGroup({
+  label,
+  options,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  options: ResponseOption[];
+  selected: string | null;
+  onSelect: (key: string) => void;
+}) {
+  return (
+    <>
+      <div className={T_LABEL + " mb-3"}>{label}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => {
+          const isSelected = selected === opt.key;
+          const baseColor =
+            opt.type === "done"
+              ? isSelected ? "bg-emerald-500 text-white border-emerald-500" : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/15"
+              : opt.type === "cannot"
+              ? isSelected ? "bg-amber-500 text-white border-amber-500" : "border-amber-500/40 text-amber-300 hover:bg-amber-500/15"
+              : isSelected ? "bg-white/20 text-white border-white/30" : "border-white/20 text-zinc-300 hover:bg-white/10";
+          return (
+            <button
+              key={opt.key}
+              onClick={() => onSelect(opt.key)}
+              className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${baseColor}`}
+            >
+              {opt.label_en}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 // ─── Task Card ────────────────────────────────────────────────────────────────
 
 interface TaskCardProps {
   task: ManagementTask;
   template: ActionTemplate | null;
   managerName: string;
-  onRespond: (task: ManagementTask, response: string, note: string) => Promise<void>;
+  onRespond: (task: ManagementTask, response: string, action: string | null, note: string) => Promise<void>;
 }
 
 function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
   const [responding, setResponding] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [actionKey, setActionKey] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const options = getOptions(task, template);
+  const actionOptions = template?.action_options ?? [];
   const isResponded = task.status === "responded" || task.status === "closed" || submitted;
+
+  // Free text is required when either stage's chosen option asks for it.
+  const pickedCause  = options.find(o => o.key === selectedKey);
+  const pickedAction = actionOptions.find(o => o.key === actionKey);
+  const needsNote =
+    !!pickedCause?.require_note || !!pickedAction?.require_note ||
+    selectedKey === "other" || selectedKey === "cannot_confirm";
+  const notePlaceholder =
+    pickedCause?.note_placeholder || pickedAction?.note_placeholder || "Please explain briefly…";
+  const canSubmit =
+    !!selectedKey &&
+    (actionOptions.length === 0 || !!actionKey) &&
+    (!needsNote || !!note.trim());
 
   const sevColor =
     task.severity === "red"    ? "border-red-500/40 bg-red-950/20" :
@@ -336,13 +400,10 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
     "bg-emerald-400";
 
   async function handleSubmit() {
-    if (!selectedKey || responding) return;
-    const needsNote = selectedKey === "other" || selectedKey === "cannot_confirm";
-    if (needsNote && !note.trim()) return;
-
+    if (!canSubmit || responding) return;
     setResponding(true);
     try {
-      await onRespond(task, selectedKey, note.trim());
+      await onRespond(task, selectedKey!, actionKey, note.trim());
       setSubmitted(true);
     } finally {
       setResponding(false);
@@ -386,40 +447,41 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
           <div className="font-medium text-emerald-300">
             {(task.response || selectedKey || "").replace(/_/g, " ")}
           </div>
+          {(task.response_action || actionKey) && (
+            <div className="text-xs text-emerald-400/80 mt-0.5">
+              → {(task.response_action || actionKey || "").replace(/_/g, " ")}
+            </div>
+          )}
           {(task.response_note || note) && (
             <div className="text-xs text-zinc-400 mt-1">{task.response_note || note}</div>
           )}
         </div>
       ) : (
         <div>
-          <div className={T_LABEL + " mb-3"}>Select your response:</div>
-          <div className="flex flex-wrap gap-2">
-            {options.map(opt => {
-              const isSelected = selectedKey === opt.key;
-              const baseColor =
-                opt.type === "done"
-                  ? isSelected ? "bg-emerald-500 text-white border-emerald-500" : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/15"
-                  : opt.type === "cannot"
-                  ? isSelected ? "bg-amber-500 text-white border-amber-500" : "border-amber-500/40 text-amber-300 hover:bg-amber-500/15"
-                  : isSelected ? "bg-white/20 text-white border-white/30" : "border-white/20 text-zinc-300 hover:bg-white/10";
-              return (
-                <button
-                  key={opt.key}
-                  onClick={() => { setSelectedKey(opt.key); if (opt.key !== "other") setNote(""); }}
-                  className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${baseColor}`}
-                >
-                  {opt.label_en}
-                </button>
-              );
-            })}
-          </div>
+          <OptionGroup
+            label={template?.response_label || "Select your response"}
+            options={options}
+            selected={selectedKey}
+            onSelect={key => { setSelectedKey(key); setNote(""); }}
+          />
 
-          {/* Note input for "Other" */}
-          {(selectedKey === "other" || selectedKey === "cannot_confirm") && (
+          {/* Second stage — only for exception types whose template defines one. */}
+          {actionOptions.length > 0 && selectedKey && (
+            <div className="mt-4">
+              <OptionGroup
+                label={template?.action_label || "Action Taken"}
+                options={actionOptions}
+                selected={actionKey}
+                onSelect={setActionKey}
+              />
+            </div>
+          )}
+
+          {needsNote && (
             <textarea
               className="mt-3 w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none"
               rows={2}
-              placeholder="Please explain briefly…"
+              placeholder={notePlaceholder}
               value={note}
               onChange={e => setNote(e.target.value)}
             />
@@ -428,8 +490,8 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
           {selectedKey && (
             <button
               onClick={handleSubmit}
-              disabled={responding || ((selectedKey === "other" || selectedKey === "cannot_confirm") && !note.trim())}
-              className={PRIMARY_BUTTON + " mt-3 w-full flex items-center justify-center gap-2"}
+              disabled={responding || !canSubmit}
+              className={PRIMARY_BUTTON + " mt-3 w-full flex items-center justify-center gap-2 disabled:opacity-40"}
             >
               {responding ? (
                 <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
@@ -437,6 +499,13 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
                 <><CheckCircle2 className="h-4 w-4" /> Confirm Response</>
               )}
             </button>
+          )}
+          {selectedKey && !canSubmit && !responding && (
+            <div className="text-xs text-amber-400/80 mt-2 text-center">
+              {actionOptions.length > 0 && !actionKey
+                ? `Select ${template?.action_label || "Action Taken"} to continue`
+                : "Please add a short note to continue"}
+            </div>
           )}
         </div>
       )}
@@ -527,9 +596,10 @@ export default function ManagerInboxPage() {
     loadTasks();
   }, [loadTasks, branch]);
 
-  async function handleRespond(task: ManagementTask, response: string, note: string) {
+  async function handleRespond(task: ManagementTask, response: string, action: string | null, note: string) {
     const headers = getAuthHeaders(getAuth());
     const body: Record<string, string> = { response };
+    if (action) body.response_action = action;
     if (note) body.response_note = note;
     const res = await fetch(`/api/store/management/tasks/${task.id}/respond`, {
       method: "POST",
