@@ -73,6 +73,10 @@ interface ActionTemplate {
   message_en: string;
   message_ja: string;
   response_options: ResponseOption[];
+  /** Second stage — empty when the cause is the whole answer. */
+  action_options: ResponseOption[];
+  response_label: string | null;
+  action_label: string | null;
 }
 
 interface ResponseOption {
@@ -169,22 +173,20 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
             </div>
             {template.response_options.length > 0 && (
               <div className="mt-2">
-                <div className={T_LABEL + " mb-1.5"}>Manager will respond with:</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {template.response_options.map(opt => (
-                    <span
-                      key={opt.key}
-                      className={
-                        opt.type === "done"
-                          ? "text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                          : opt.type === "cannot"
-                          ? "text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                          : "text-xs px-2 py-0.5 rounded-full bg-white/8 text-zinc-300 border border-white/15"
-                      }
-                    >
-                      {opt.label_en}
-                    </span>
-                  ))}
+                <div className={T_LABEL + " mb-1.5"}>
+                  {template.response_label || "Manager will respond with"}
+                </div>
+                <OptionChips options={template.response_options} />
+              </div>
+            )}
+            {template.action_options && template.action_options.length > 0 && (
+              <div className="mt-3">
+                <div className={T_LABEL + " mb-1.5 text-sky-400/80"}>
+                  Then: {template.action_label || "Action Taken"}
+                </div>
+                <OptionChips options={template.action_options} />
+                <div className={T_CAPTION + " mt-1.5"}>
+                  The manager cannot submit until both stages are answered.
                 </div>
               </div>
             )}
@@ -347,6 +349,28 @@ function TaskThread({ taskId }: TaskThreadProps) {
           <Send className="h-3.5 w-3.5" />
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The response choices a manager will see, rendered as read-only chips. */
+function OptionChips({ options }: { options: ResponseOption[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map(opt => (
+        <span
+          key={opt.key}
+          className={
+            opt.type === "done"
+              ? "text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+              : opt.type === "cannot"
+              ? "text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
+              : "text-xs px-2 py-0.5 rounded-full bg-white/8 text-zinc-300 border border-white/15"
+          }
+        >
+          {opt.label_en}
+        </span>
+      ))}
     </div>
   );
 }
