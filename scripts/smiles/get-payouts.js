@@ -36,11 +36,15 @@ const WEBHOOK_URL = (process.env.WEBHOOK_URL || 'http://localhost:8000').replace
 // tracked by git — the one place in this repo that held credentials rather
 // than a session or a secret. They come from SMILES_ACCOUNTS now, and the
 // script refuses to run without it instead of silently falling back.
+// One account per branch. Confirmed against the portal 2026-08-26: the JLT
+// login is sushizen21013, not ramenzen21013, and 21315 is Al Mina rather than
+// Al Hudaiba — under the old entries JLT would not have logged in at all and
+// Al Mina's takings would have landed on a branch that does not exist.
 const ACCOUNT_META = [
   { username: 'ramenzen21016', label: 'MCity', restId: '21016', storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
   { username: 'ramenzen21051', label: 'BBay', restId: '21051', storeCode: 'SMILES_SZ_BB', storeName: 'Sushi ZEN Business Bay' },
-  { username: 'ramenzen21013', label: 'JLT', restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
-  { username: 'sushizen21315', label: 'AlHudaiba', restId: '21315', storeCode: 'SMILES_SZ_AHD', storeName: 'Sushi ZEN Al Hudaiba' },
+  { username: 'sushizen21013', label: 'JLT', restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
+  { username: 'sushizen21315', label: 'AlMina', restId: '21315', storeCode: 'SMILES_SZ_AM', storeName: 'Sushi ZEN Al Mina' },
 ];
 
 function loadAccounts() {
