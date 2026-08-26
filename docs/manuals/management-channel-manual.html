@@ -441,6 +441,50 @@ ul.body-list strong { color: var(--text); }
     <p class="ja" style="font-size:12px;">✅ 緑ボタン = 「対応完了」の報告　　⚠️ オレンジボタン = 「できない理由」の報告　　📝 グレーボタン = 「特別な事情」をテキストで説明</p>
     <p class="en" style="font-size:12px;">✅ Green = "I handled it" 　　⚠️ Orange = "I couldn't — here's why" 　　📝 Grey = "Special circumstance" (type one line)</p>
 
+    <div class="card accent-border" style="margin:12px 0;">
+      <div class="card-title"><span class="ja">返答は2段階のタイプがあります</span><span class="en">Some responses have two stages</span></div>
+      <p class="ja" style="font-size:12px;margin-bottom:8px;">
+        例外タイプによって、返答が<strong>1段階</strong>のものと<strong>2段階</strong>のものがあります。
+      </p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
+          <th style="text-align:left;padding:5px 8px;color:#a1a1aa;font-weight:600;">Exception</th>
+          <th style="text-align:left;padding:5px 8px;color:#a1a1aa;font-weight:600;">Stage 1</th>
+          <th style="text-align:left;padding:5px 8px;color:#a1a1aa;font-weight:600;">Stage 2</th>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:5px 8px;color:#d4d4d8;">PM Backup Missing</td>
+          <td style="padding:5px 8px;color:#d4d4d8;">Select Result</td>
+          <td style="padding:5px 8px;color:#71717a;">—</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:5px 8px;color:#d4d4d8;">Disposal Report Missing</td>
+          <td style="padding:5px 8px;color:#d4d4d8;">Select Result</td>
+          <td style="padding:5px 8px;color:#71717a;">—</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:5px 8px;color:#d4d4d8;">Backup Below 50% / 70%</td>
+          <td style="padding:5px 8px;color:#d4d4d8;">Select Cause</td>
+          <td style="padding:5px 8px;color:#7dd3fc;">Select Action Taken</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:5px 8px;color:#d4d4d8;">Product Score C or Below</td>
+          <td style="padding:5px 8px;color:#d4d4d8;">Issue Identified</td>
+          <td style="padding:5px 8px;color:#7dd3fc;">Action Taken</td>
+        </tr>
+        <tr>
+          <td style="padding:5px 8px;color:#d4d4d8;">Attendance Unverified</td>
+          <td style="padding:5px 8px;color:#d4d4d8;">Attendance Status</td>
+          <td style="padding:5px 8px;color:#7dd3fc;">Action Taken</td>
+        </tr>
+      </table>
+      <div class="tip" style="margin-top:10px;">
+        <span class="tip-icon">💡</span>
+        <span class="ja">2段階のタイプは、<strong>両方を選ぶまで Confirm Response ボタンが押せません</strong>。原因だけ選んで送信することはできない仕組みです。「何が起きたか」と「何をしたか」の両方が記録されます。</span>
+        <span class="en">For two-stage types, <strong>Confirm Response stays disabled until both stages are answered.</strong> You cannot submit a cause without the action you took — both what happened and what you did are recorded.</span>
+      </div>
+    </div>
+
     <div class="resp-option done">
       <div class="resp-btn">✅ Report Submitted</div>
       <div class="resp-body">
@@ -451,30 +495,30 @@ ul.body-list strong { color: var(--text); }
       </div>
     </div>
     <div class="resp-option done">
-      <div class="resp-btn">✅ NIL — Confirmed</div>
+      <div class="resp-btn">✅ No Disposal Yesterday — NIL Disposal Submitted</div>
       <div class="resp-body">
-        <div class="resp-label ja">NIL確認（廃棄ゼロ確認）</div>
-        <div class="resp-label en">NIL — Confirmed (zero disposal)</div>
-        <div class="resp-desc ja"><strong>廃棄が本当にゼロの日のみ</strong>使います。「廃棄レポートを提出し忘れた」のではなく、「今日は廃棄が一切なかった」という積極的な確認です。廃棄があったのにこのボタンを押すと記録上の問題になります。</div>
-        <div class="resp-desc en"><strong>Only use when there was genuinely zero disposal.</strong> This is an active confirmation that "there was nothing to dispose of today" — not "I forgot to submit." Pressing this when you had disposal creates a record problem.</div>
+        <div class="resp-label ja">廃棄ゼロ確認（NIL提出済み）</div>
+        <div class="resp-label en">No Disposal Yesterday — NIL Disposal Submitted</div>
+        <div class="resp-desc ja"><strong>廃棄が本当にゼロの日のみ</strong>使います。「提出し忘れた」のではなく、「昨日は廃棄が一切なかった」という積極的な確認です。廃棄があったのにこのボタンを押すと記録上の問題になります。</div>
+        <div class="resp-desc en"><strong>Only use when there was genuinely zero disposal.</strong> This is an active confirmation that "there was nothing to dispose of yesterday" — not "I forgot to submit." Pressing this when you had disposal creates a record problem.</div>
       </div>
     </div>
     <div class="resp-option done">
-      <div class="resp-btn">✅ Submitting Now</div>
+      <div class="resp-btn">✅ Disposal Occurred — Report Submitted</div>
       <div class="resp-body">
-        <div class="resp-label ja">今すぐ提出します</div>
-        <div class="resp-label en">Submitting Now</div>
-        <div class="resp-desc ja">廃棄レポートを「これから提出する」という宣言。押した後すぐに提出してください。</div>
-        <div class="resp-desc en">A declaration that you are submitting right now. Press this, then submit immediately.</div>
+        <div class="resp-label ja">廃棄あり・レポート提出済み</div>
+        <div class="resp-label en">Disposal Occurred — Report Submitted</div>
+        <div class="resp-desc ja">廃棄があり、実際にレポートを提出した後に押します。押す前に必ず <strong>/admin/disposal</strong> で提出を完了してください。</div>
+        <div class="resp-desc en">Use after disposal occurred and you have actually submitted the report. Complete the submission at <strong>/admin/disposal</strong> before pressing.</div>
       </div>
     </div>
-    <div class="resp-option done">
-      <div class="resp-btn">✅ Staff feedback done</div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ Cannot Submit — Staff Unavailable / Forgot</div>
       <div class="resp-body">
-        <div class="resp-label ja">スタッフへフィードバック完了</div>
-        <div class="resp-label en">Staff feedback done</div>
-        <div class="resp-desc ja">製品スコアCの指示への返答。担当スタッフに口頭でフィードバックを伝えた後に押します。</div>
-        <div class="resp-desc en">Response to a product score C instruction. Press after you've given verbal feedback to the responsible staff member.</div>
+        <div class="resp-label ja">担当不在・提出忘れ（スタッフ名の入力が必要）</div>
+        <div class="resp-label en">Cannot Submit — Staff Unavailable / Forgot (staff name required)</div>
+        <div class="resp-desc ja">このボタンを選ぶと<strong>スタッフ名の入力欄が出ます</strong>。名前を入れないと送信できません。誰が提出できなかったかを記録することで、繰り返し発生しているスタッフを特定できます。</div>
+        <div class="resp-desc en">Selecting this <strong>opens a staff name field</strong>, and you cannot submit without filling it. Recording who missed the report is what lets BO spot a repeating pattern.</div>
       </div>
     </div>
     <div class="resp-option cannot">
@@ -523,6 +567,65 @@ ul.body-list strong { color: var(--text); }
       </div>
     </div>
 
+    <h3 style="margin-top:20px;"><span class="ja">Stage 2：Action Taken（2段階タイプのみ）</span><span class="en">Stage 2: Action Taken (two-stage types only)</span></h3>
+    <p class="ja" style="font-size:12px;margin-bottom:10px;">原因を選んだ後に表示されます。<strong>「何が起きたか」ではなく「あなたが何をしたか」</strong>を選びます。原因が同じでも取った行動が違えば結果は変わるため、BOはこの欄を見て店舗の対応力を判断します。</p>
+    <p class="en" style="font-size:12px;margin-bottom:10px;">Appears once you have selected the cause. This records <strong>what you did</strong>, not what happened. Two stores with the same cause but different actions get different outcomes — BO reads this field to judge how the store responded.</p>
+
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Additional Preparation Started</div>
+      <div class="resp-body">
+        <div class="resp-label ja">追加仕込みを開始した</div>
+        <div class="resp-label en">Additional Preparation Started</div>
+        <div class="resp-desc ja">バックアップ不足に対して、その場で追加の仕込みを始めた場合。もっとも望ましい対応です。</div>
+        <div class="resp-desc en">You started additional prep on the spot to cover the shortfall. This is the preferred action.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Staff Reassigned</div>
+      <div class="resp-body">
+        <div class="resp-label ja">スタッフを再配置した</div>
+        <div class="resp-label en">Staff Reassigned</div>
+        <div class="resp-desc ja">他の持ち場からスタッフを回して対応した場合。</div>
+        <div class="resp-desc en">You moved staff from another station to cover it.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Emergency Request Submitted</div>
+      <div class="resp-body">
+        <div class="resp-label ja">緊急発注をかけた</div>
+        <div class="resp-label en">Emergency Request Submitted</div>
+        <div class="resp-desc ja">CKまたはサプライヤーへ緊急の依頼を出した場合。</div>
+        <div class="resp-desc en">You raised an emergency request to CK or a supplier.</div>
+      </div>
+    </div>
+    <div class="resp-option cannot">
+      <div class="resp-btn">⚠️ No Action Possible</div>
+      <div class="resp-body">
+        <div class="resp-label ja">対応不可</div>
+        <div class="resp-label en">No Action Possible</div>
+        <div class="resp-desc ja">どの手も打てなかった場合。<strong>これを選ぶとBO側で赤く表示され、必ずフォローが入ります。</strong>正直に選んでください — 対応できなかった事実が記録されないほうが問題です。</div>
+        <div class="resp-desc en">Nothing could be done. <strong>This shows red on the BO side and always triggers follow-up.</strong> Select it honestly — an unrecorded failure is the bigger problem.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ Feedback Given to Staff / Standard Re-explained / Product Remade / Staff Retrained</div>
+      <div class="resp-body">
+        <div class="resp-label ja">製品スコアC以下の Action Taken（4択）</div>
+        <div class="resp-label en">Product Score C — Action Taken (four options)</div>
+        <div class="resp-desc ja">スコアC以下では、まず <strong>Issue Identified</strong>（Presentation / Portion / Cutting / Topping / Packaging / No Issue Found）で問題箇所を選び、次にこの4つから取った対応を選びます。同じアイテムで同じIssueが繰り返されているかをBOが追跡できるようになります。</div>
+        <div class="resp-desc en">For a score of C or below, first select the <strong>Issue Identified</strong> (Presentation / Portion / Cutting / Topping / Packaging / No Issue Found), then pick the action you took from these four. This lets BO track whether the same item keeps failing on the same issue.</div>
+      </div>
+    </div>
+    <div class="resp-option done">
+      <div class="resp-btn">✅ HR Adjusted the Shift / Manager Covering / No Replacement</div>
+      <div class="resp-body">
+        <div class="resp-label ja">打刻未確認の Action Taken（4択）</div>
+        <div class="resp-label en">Attendance Unverified — Action Taken (four options)</div>
+        <div class="resp-desc ja">まず <strong>Attendance Status</strong>（Present / Absent / Late / On Approved Leave / Left Early / Unable to Verify）を選び、次に取った対応を選びます。<strong>「No Replacement — HQ Support Required」</strong>を選ぶとHQに人員支援の要請が伝わります。</div>
+        <div class="resp-desc en">First select the <strong>Attendance Status</strong> (Present / Absent / Late / On Approved Leave / Left Early / Unable to Verify), then the action taken. Selecting <strong>"No Replacement — HQ Support Required"</strong> escalates a staffing request to HQ.</div>
+      </div>
+    </div>
+
     <!-- STEP 4: BY EXCEPTION TYPE -->
     <h2><span class="ja">④ 例外タイプ別：具体的な対応手順</span><span class="en">④ What to do — by exception type</span></h2>
 
@@ -548,8 +651,9 @@ ul.body-list strong { color: var(--text); }
       </div>
       <ul class="action-steps">
         <li><span class="action-step-n" style="background:var(--red);">1</span><span class="ja">今日廃棄したものがあったか確認する</span><span class="en">Check whether any disposal happened today</span></li>
-        <li><span class="action-step-n" style="background:var(--red);">2A</span><span class="ja"><strong>廃棄がゼロだった場合</strong> → <strong>「NIL — Confirmed」</strong>をタップ（廃棄ゼロを積極的に確認する行為です）</span><span class="en"><strong>If zero disposal today</strong> → tap <strong>"NIL — Confirmed"</strong> (actively confirming there was nothing to dispose of)</span></li>
-        <li><span class="action-step-n" style="background:var(--red);">2B</span><span class="ja"><strong>廃棄があった場合</strong> → <strong>/admin/disposal</strong> で今すぐ提出 → 完了したら<strong>「Submitting Now」</strong>をタップ</span><span class="en"><strong>If there was disposal</strong> → submit it now at <strong>/admin/disposal</strong> → then tap <strong>"Submitting Now"</strong></span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2A</span><span class="ja"><strong>廃棄がゼロだった場合</strong> → <strong>「No Disposal Yesterday — NIL Disposal Submitted」</strong>をタップ（廃棄ゼロを積極的に確認する行為です）</span><span class="en"><strong>If there was zero disposal yesterday</strong> → tap <strong>"No Disposal Yesterday — NIL Disposal Submitted"</strong> (actively confirming there was nothing to dispose of)</span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2B</span><span class="ja"><strong>廃棄があった場合</strong> → <strong>/admin/disposal</strong> で今すぐ提出 → 完了したら<strong>「Disposal Occurred — Report Submitted」</strong>をタップ</span><span class="en"><strong>If there was disposal</strong> → submit it now at <strong>/admin/disposal</strong> → then tap <strong>"Disposal Occurred — Report Submitted"</strong></span></li>
+        <li><span class="action-step-n" style="background:var(--red);">2C</span><span class="ja"><strong>提出できない場合</strong> → 該当する⚠️理由を選ぶ。「Staff Unavailable / Forgot」を選んだときは<strong>スタッフ名の入力が必須</strong>です</span><span class="en"><strong>If you cannot submit</strong> → select the matching ⚠️ reason. "Staff Unavailable / Forgot" <strong>requires the staff member's name</strong></span></li>
       </ul>
       <div class="tip warn" style="margin-top:10px;">
         <span class="tip-icon">⚠️</span>
@@ -568,7 +672,8 @@ ul.body-list strong { color: var(--text); }
         <li><span class="action-step-n" style="background:var(--orange);">1</span><span class="ja">指示文に含まれる製品情報（アイテム・時刻）を確認する</span><span class="en">Note the product info (item name, time) in the instruction</span></li>
         <li><span class="action-step-n" style="background:var(--orange);">2</span><span class="ja">その時間帯に担当していたスタッフを特定する</span><span class="en">Identify which staff member was responsible at that time</span></li>
         <li><span class="action-step-n" style="background:var(--orange);">3</span><span class="ja">口頭で問題点（盛り付け・分量・カットなど）を具体的にフィードバックする</span><span class="en">Give specific verbal feedback about the issue (presentation, portion, cutting, etc.)</span></li>
-        <li><span class="action-step-n" style="background:var(--orange);">4</span><span class="ja">フィードバックが完了したら<strong>「Staff feedback done」</strong>をタップ</span><span class="en">Once feedback is given, tap <strong>"Staff feedback done"</strong></span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">4</span><span class="ja"><strong>Issue Identified</strong> で問題箇所を選ぶ（Presentation / Portion / Cutting / Topping / Packaging / No Issue Found）</span><span class="en">Select the <strong>Issue Identified</strong> (Presentation / Portion / Cutting / Topping / Packaging / No Issue Found)</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">5</span><span class="ja">続けて <strong>Action Taken</strong> で取った対応を選ぶ（Feedback Given / Standard Re-explained / Product Remade / Staff Retrained）。<strong>両方選ぶまで送信できません。</strong></span><span class="en">Then select the <strong>Action Taken</strong> (Feedback Given / Standard Re-explained / Product Remade / Staff Retrained). <strong>You cannot submit until both are selected.</strong></span></li>
       </ul>
     </div>
 
@@ -581,8 +686,8 @@ ul.body-list strong { color: var(--text); }
       <ul class="action-steps">
         <li><span class="action-step-n" style="background:var(--orange);">1</span><span class="ja">指示文に書かれているスタッフ名を確認する</span><span class="en">Check the staff member's name in the instruction</span></li>
         <li><span class="action-step-n" style="background:var(--orange);">2</span><span class="ja">そのスタッフに連絡して今日出勤していたか確認する</span><span class="en">Contact that staff member and confirm whether they were at work today</span></li>
-        <li><span class="action-step-n" style="background:var(--orange);">3A</span><span class="ja">出勤していた場合 → OS/StoreHubの問題か打刻忘れかを判断して該当✅ボタンをタップ</span><span class="en">If they were present → decide if it's an OS/StoreHub issue or they forgot to clock in → tap the appropriate ✅ button</span></li>
-        <li><span class="action-step-n" style="background:var(--orange);">3B</span><span class="ja">欠勤だった場合 → <strong>「Was absent」</strong>をタップ</span><span class="en">If they were absent → tap <strong>"Was absent"</strong></span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">3</span><span class="ja"><strong>Attendance Status</strong> を選ぶ（Present / Absent / Late / On Approved Leave / Left Early / Unable to Verify）</span><span class="en">Select the <strong>Attendance Status</strong> (Present / Absent / Late / On Approved Leave / Left Early / Unable to Verify)</span></li>
+        <li><span class="action-step-n" style="background:var(--orange);">4</span><span class="ja">続けて <strong>Action Taken</strong> を選ぶ。人員の穴が埋まらない場合は<strong>「No Replacement — HQ Support Required」</strong>を選ぶとHQへ支援要請が届きます</span><span class="en">Then select the <strong>Action Taken</strong>. If the gap cannot be filled, <strong>"No Replacement — HQ Support Required"</strong> escalates a staffing request to HQ</span></li>
       </ul>
     </div>
 
@@ -1743,80 +1848,125 @@ ul.body-list strong { color: var(--text); }
 
     <div class="tip success">
       <span class="tip-icon">✅</span>
-      <span class="ja">Day 3実装済み。6テンプレートがDBにシード済み（pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_le70 · backup_le50）。BO Dashboardの「Seed Default Templates」ボタンで再投入可能。</span>
-      <span class="en">Live as of Day 3. 6 templates are seeded in the DB (pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_le70 · backup_le50). Can be re-seeded from the "Seed Default Templates" button in BO Dashboard.</span>
+      <span class="ja">稼働中。6テンプレートがDBに登録済み（pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_below_70 · backup_below_50）。2026-08-26に承認済み文言へ更新し、うち4種を<strong>2段階回答</strong>（原因 → Action Taken）に対応させました。以下はDBの実データから生成しています。BO Dashboardの「Seed Default Templates」ボタンで同じ内容を再投入できます。</span>
+      <span class="en">Live. 6 templates are registered in the DB (pm_backup_missing · disposal_missing · product_score_c · attendance_unverified · backup_below_70 · backup_below_50). Updated to the approved wording on 2026-08-26, with four of them now using a <strong>two-stage response</strong> (cause → Action Taken). The blocks below are generated from the live DB rows. The "Seed Default Templates" button in BO Dashboard re-applies exactly this content.</span>
     </div>
 
-    <h2><span class="ja">🔴 PMバックアップレポート未提出</span><span class="en">🔴 PM Backup Report Missing</span></h2>
+    <h2><span class="ja">🔴 バックアップ在庫 50%以下</span><span class="en">🔴 Backup Below 50% of Par Level</span></h2>
     <div class="template-block">
-      <div class="template-msg ja">「Backup Report が規定時刻までに提出されていません。現在のバックアップ状況を確認し、15分以内にBackup Reportを完了してください。」</div>
-      <div class="template-msg en">"Backup Report has not been submitted by the required time. Please check the current backup status and complete the Backup Report within 15 minutes."</div>
+      <div class="template-msg en">"{item} is below 50% of the required Par Level.<br>Please immediately check the current stock and take the necessary action."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Cause</div>
       <div class="template-options">
-        <div class="t-opt done">✅ <span class="ja">提出完了</span><span class="en">Report Submitted</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">スタッフ不足</span><span class="en">Staff Shortage</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">店舗多忙</span><span class="en">Store Too Busy</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">システム障害</span><span class="en">System Issue</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">担当スタッフ不在</span><span class="en">Assigned Staff Unavailable</span></div>
-        <div class="t-opt neutral">📝 <span class="ja">その他…</span><span class="en">Other…</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Insufficient Preparation</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Higher Sales Than Expected</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Ingredient Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">CK Delivery Shortage</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Incorrect Par Level</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Unexpected Large Order</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
       </div>
-    </div>
-
-    <h2><span class="ja">🔴 バックアップ在庫 50%以下</span><span class="en">🔴 Backup Below 50%</span></h2>
-    <div class="template-block">
-      <div class="template-msg ja">「[アイテム名] のバックアップ在庫が [X]% で、50%の危険閾値を下回っています。理由と即座の対策を選択して記録してください。」</div>
-      <div class="template-msg en">"[Item name] backup is at [X]%, below the 50% critical threshold. Select the reason and record the immediate action taken."</div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Select Action Taken</div>
       <div class="template-options">
-        <div class="t-opt cannot">⚠️ <span class="ja">仕込み不足</span><span class="en">Insufficient Prep</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">売上予測超え</span><span class="en">Higher Sales</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">スタッフ不足</span><span class="en">Staff Shortage</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">CK配送遅延</span><span class="en">CK Delivery</span></div>
-        <div class="t-opt neutral">📝 <span class="ja">パーレベル誤り</span><span class="en">Wrong Par Level</span></div>
-      </div>
-    </div>
-
-    <h2><span class="ja">🔴 廃棄レポート未提出</span><span class="en">🔴 Disposal Report Missing</span></h2>
-    <div class="template-block">
-      <div class="template-msg ja">「廃棄レポートが提出されていません。本日の廃棄がゼロであれば「NIL確認」を選択して積極的に記録してください。廃棄があった場合は今すぐ提出してください。」</div>
-      <div class="template-msg en">"Disposal Report has not been submitted. If there was truly zero disposal today, select 'NIL — Confirmed' to actively record that. If there was disposal, submit the report now."</div>
-      <div class="template-options">
-        <div class="t-opt done">✅ <span class="ja">NIL確認（廃棄ゼロ）</span><span class="en">NIL — Confirmed (zero disposal)</span></div>
-        <div class="t-opt done">✅ <span class="ja">今すぐ提出</span><span class="en">Submitting Now</span></div>
-      </div>
-    </div>
-
-    <h2><span class="ja">🔴 クレーム — 承認写真なし</span><span class="en">🔴 Complaint — No Approval Photo</span></h2>
-    <div class="template-block">
-      <div class="template-msg ja">「オーダー [#] に欠品/誤品クレームがありますが、承認写真の記録がありません。担当スタッフを特定し、Discordでキッチンへ連絡済みか確認してください。写真または担当者名が記録されるまでクローズしないでください。」</div>
-      <div class="template-msg en">"Order [#] has a missing/wrong item complaint with no approval photo on record. Identify the staff responsible for that order, confirm whether a Discord message was sent to the kitchen. Do not close until photo or name is recorded."</div>
-      <div class="template-options">
-        <div class="t-opt done">✅ <span class="ja">担当特定 + Discord送信済</span><span class="en">Staff identified + Discord sent</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">担当特定 — Discord未送信</span><span class="en">Staff identified — no Discord</span></div>
-        <div class="t-opt neutral">📝 <span class="ja">特定できない</span><span class="en">Cannot identify</span></div>
+        <div class="t-opt done">✅ <span class="en">Additional Preparation Started</span></div>
+        <div class="t-opt done">✅ <span class="en">Staff Reassigned</span></div>
+        <div class="t-opt done">✅ <span class="en">Emergency Request Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">No Action Possible</span></div>
       </div>
     </div>
 
     <h2><span class="ja">🟠 スタッフ打刻未確認</span><span class="en">🟠 Attendance Unverified</span></h2>
     <div class="template-block">
-      <div class="template-msg ja">「[スタッフ名] の本日の打刻が確認できません。OS打刻・StoreHub記録・Discordスクリーンショットのいずれもありません。本人に連絡し、出勤していたか確認してください。」</div>
-      <div class="template-msg en">"[Staff name]'s attendance cannot be verified for today — no OS time-in, no StoreHub record, no Discord screenshot. Contact the staff member and confirm whether they were present."</div>
+      <div class="template-msg en">"{staff_name}&#x27;s attendance cannot be verified in OS.<br>Please confirm the staff&#x27;s attendance and select the correct status."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Attendance Status</div>
       <div class="template-options">
-        <div class="t-opt done">✅ <span class="ja">出勤確認 — OSの問題</span><span class="en">Was present — OS issue</span></div>
-        <div class="t-opt done">✅ <span class="ja">出勤確認 — 打刻忘れ</span><span class="en">Was present — forgot</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">欠勤</span><span class="en">Was absent</span></div>
-        <div class="t-opt neutral">📝 <span class="ja">確認できない</span><span class="en">Cannot confirm</span></div>
+        <div class="t-opt done">✅ <span class="en">Present</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Absent</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Late</span></div>
+        <div class="t-opt done">✅ <span class="en">On Approved Leave</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Left Early</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Unable to Verify</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Action Taken</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">HR Adjusted the Shift — Resolved</span></div>
+        <div class="t-opt done">✅ <span class="en">Manager Covering the Shift</span></div>
+        <div class="t-opt neutral">📝 <span class="en">No Replacement — Minor Impact</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">No Replacement — HQ Support Required</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 バックアップ在庫 70%以下</span><span class="en">🟠 Backup Below 70% of Par Level</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"{item} is below 70% of the required Par Level.<br>Please check the current backup status and take preventive action."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Cause</div>
+      <div class="template-options">
+        <div class="t-opt cannot">⚠️ <span class="en">Insufficient Preparation</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Higher Sales Than Expected</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Ingredient Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">CK Delivery Shortage</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Incorrect Par Level</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Unexpected Large Order</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Select Action Taken</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Additional Preparation Started</span></div>
+        <div class="t-opt done">✅ <span class="en">Staff Reassigned</span></div>
+        <div class="t-opt done">✅ <span class="en">Emergency Request Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">No Action Possible</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 廃棄レポート未提出</span><span class="en">🟠 Disposal Report Not Submitted</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"Yesterday&#x27;s Disposal Report has not been submitted.<br>Please confirm whether there was any disposal yesterday and complete the report within 30 minutes."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Result</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Disposal Occurred — Report Submitted</span></div>
+        <div class="t-opt done">✅ <span class="en">No Disposal Yesterday — NIL Disposal Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Staff Unavailable / Forgot</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Store Operation Was Too Busy</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — System Issue</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Cannot Submit — Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 PMバックアップレポート未提出</span><span class="en">🟠 PM Backup Report Missing</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"Backup Report has not been submitted by the required time.<br>Please check the current backup status and complete the Backup Report within 15 minutes."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Result</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Report Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Store Operation Too Busy</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — System Issue</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Assigned Staff Unavailable</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Cannot Submit — Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
       </div>
     </div>
 
     <h2><span class="ja">🟠 製品スコア C以下</span><span class="en">🟠 Product Score C or Below</span></h2>
     <div class="template-block">
-      <div class="template-msg ja">「[時刻] にCグレードの製品が記録されました。写真を確認し、問題点を選択してください。担当スタッフへ本日中に口頭フィードバックを行ってください。」</div>
-      <div class="template-msg en">"A C-grade product was recorded at [time]. Review the photo and select what was wrong. Provide verbal feedback to the responsible staff today."</div>
+      <div class="template-msg en">"{order_id} received a Product Score of C or below.<br>Please check the product issue and take the required corrective action."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Issue Identified</div>
       <div class="template-options">
-        <div class="t-opt cannot">⚠️ <span class="ja">盛り付け</span><span class="en">Presentation</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">分量</span><span class="en">Portion</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">巻き/カット</span><span class="en">Rolling/Cutting</span></div>
-        <div class="t-opt cannot">⚠️ <span class="ja">ソース/トッピング</span><span class="en">Sauce/Topping</span></div>
-        <div class="t-opt done">✅ <span class="ja">スタッフへフィードバック完了</span><span class="en">Staff feedback done</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Presentation</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Portion</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cutting</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Topping</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Packaging</span></div>
+        <div class="t-opt neutral">📝 <span class="en">No Issue Found</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Action Taken</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Feedback Given to Staff</span></div>
+        <div class="t-opt done">✅ <span class="en">Standard Re-explained</span></div>
+        <div class="t-opt done">✅ <span class="en">Product Remade / Corrected</span></div>
+        <div class="t-opt done">✅ <span class="en">Staff Retrained</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
       </div>
     </div>
   </div>
@@ -1910,7 +2060,7 @@ ul.body-list strong { color: var(--text); }
           <span class="mock-sev">🟠</span>
           <div class="mock-row-body">
             <div class="mock-row-title">Disposal Report Missing — Paranaque</div>
-            <div class="mock-row-sub">Sent 22:06 · Manager responded: "NIL — Confirmed"</div>
+            <div class="mock-row-sub">Sent 22:06 · Manager responded: "No Disposal Yesterday — NIL Disposal Submitted"</div>
           </div>
           <span class="mock-tag done">Done</span>
           <button class="mock-btn view">View</button>
