@@ -95,11 +95,26 @@ export default function ManilaAllowancesPage() {
     if (!confirm(`Compute Meal Allowance & Perfect Attendance for ${month}?\n\nThis will recalculate from attendance data. Manual flags (No Prior Notice) will be preserved.`)) return;
     setComputing(true); setError(""); setSuccess("");
     try {
-      const res = await apiPost<{ staff_count: number; cutoff1: string; cutoff2: string }>(
+      const res = await apiPost<{
+        staff_count: number;
+        cutoff1: string;
+        cutoff2: string;
+        removed_stale?: { staff_name: string; total_amount: number }[];
+      }>(
         `${API}/allowances/compute?month=${month}`,
         {}
       );
-      setSuccess(`Computed for ${res.staff_count} staff members. Cutoff1: ${res.cutoff1} / Cutoff2: ${res.cutoff2}`);
+      // A row left under a name that was later corrected used to survive the recompute
+      // and still count toward the Grand Total. Say so when the run clears one.
+      const dropped = res.removed_stale ?? [];
+      const droppedNote = dropped.length
+        ? ` Removed ${dropped.length} stale row${dropped.length > 1 ? "s" : ""} with no attendance in this period: ${dropped
+            .map((d) => d.staff_name)
+            .join(", ")}.`
+        : "";
+      setSuccess(
+        `Computed for ${res.staff_count} staff members. Cutoff1: ${res.cutoff1} / Cutoff2: ${res.cutoff2}.${droppedNote}`,
+      );
       await load(month);
     } catch (e: any) { setError(e?.message || String(e)); }
     finally { setComputing(false); }
