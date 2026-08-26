@@ -1,0 +1,576 @@
+<title>評価の設計 — 管理チャンネル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --ground:      #F6F7F9;
+  --surface:     #FFFFFF;
+  --surface-2:   #EDF0F4;
+  --line:        #D6DCE5;
+  --line-soft:   #E6EAF0;
+  --ink:         #16202E;
+  --ink-2:       #3D4A5C;
+  --muted:       #66738A;
+
+  /* Two accents, because the whole document is about separating two things
+     the system currently cannot tell apart. */
+  --credit:      #0F9488;   /* 守る・評価する */
+  --credit-bg:   #E2F5F2;
+  --credit-line: #A5DDD6;
+  --detect:      #B45309;   /* 見つける・正す */
+  --detect-bg:   #FCF0DE;
+  --detect-line: #EBCB96;
+
+  --rule: 1px solid var(--line);
+  --measure: 34rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0E131C;
+    --surface:     #161D28;
+    --surface-2:   #1D2634;
+    --line:        #2B3646;
+    --line-soft:   #222C3A;
+    --ink:         #E5EAF2;
+    --ink-2:       #B9C4D3;
+    --muted:       #7C8AA0;
+    --credit:      #4FD6C4;
+    --credit-bg:   #0F2A2A;
+    --credit-line: #235F5A;
+    --detect:      #F0B03F;
+    --detect-bg:   #2C2110;
+    --detect-line: #6B5320;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:#0E131C; --surface:#161D28; --surface-2:#1D2634; --line:#2B3646;
+  --line-soft:#222C3A; --ink:#E5EAF2; --ink-2:#B9C4D3; --muted:#7C8AA0;
+  --credit:#4FD6C4; --credit-bg:#0F2A2A; --credit-line:#235F5A;
+  --detect:#F0B03F; --detect-bg:#2C2110; --detect-line:#6B5320;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Zen Kaku Gothic New", -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 62rem; margin: 0 auto; padding: 4rem 1.5rem 7rem; }
+
+/* ── Masthead ─────────────────────────────────────────── */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.75rem; margin-bottom: 3rem; }
+.eyebrow {
+  font-size: .72rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin-bottom: .9rem;
+}
+h1 {
+  font-family: "Zen Old Mincho", serif;
+  font-size: clamp(1.9rem, 4.5vw, 2.9rem);
+  line-height: 1.3; font-weight: 600; margin: 0 0 .9rem;
+  text-wrap: balance; letter-spacing: .01em;
+}
+.standfirst { font-size: 1.02rem; color: var(--ink-2); max-width: var(--measure); margin: 0; }
+.dateline { margin-top: 1.4rem; font-size: .8rem; color: var(--muted); }
+
+/* ── Sections ─────────────────────────────────────────── */
+section { margin-top: 3.5rem; }
+h2 {
+  font-family: "Zen Old Mincho", serif;
+  font-size: 1.45rem; font-weight: 600; margin: 0 0 .4rem;
+  display: flex; align-items: baseline; gap: .8rem; text-wrap: balance;
+}
+h2 .num {
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+  color: var(--muted); flex-shrink: 0;
+}
+.section-lede { color: var(--ink-2); max-width: var(--measure); margin: 0 0 1.75rem; }
+
+p { margin: 0 0 1rem; max-width: var(--measure); }
+p:last-child { margin-bottom: 0; }
+strong { font-weight: 700; color: var(--ink); }
+em { font-style: normal; color: var(--detect); font-weight: 500; }
+
+/* ── Data strip ───────────────────────────────────────── */
+.figures {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1px; background: var(--line); border: var(--rule); margin: 2rem 0;
+}
+.fig { background: var(--surface); padding: 1.4rem 1.25rem; }
+.fig-n {
+  font-family: "Zen Old Mincho", serif;
+  font-size: 2.1rem; line-height: 1.1; font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
+.fig-n small { font-size: .95rem; font-weight: 400; color: var(--muted); margin-left: .15rem; }
+.fig-label { font-size: .78rem; color: var(--muted); margin-top: .45rem; line-height: 1.6; }
+.fig.is-credit .fig-n { color: var(--credit); }
+.fig.is-detect .fig-n { color: var(--detect); }
+
+/* ── Finding blocks ───────────────────────────────────── */
+.finding {
+  border: var(--rule); background: var(--surface);
+  margin-bottom: 1.5rem; overflow: hidden;
+}
+.finding-head {
+  display: flex; align-items: baseline; gap: .85rem;
+  padding: 1.15rem 1.4rem; border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-2);
+}
+.finding-n {
+  font-family: "Zen Old Mincho", serif; font-size: 1.15rem; font-weight: 700;
+  color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+.finding-title { font-weight: 700; font-size: 1.05rem; line-height: 1.5; }
+.finding-body { padding: 1.4rem; }
+.finding-body p { max-width: 44rem; }
+
+.row { margin-bottom: 1.1rem; }
+.row:last-child { margin-bottom: 0; }
+.row-label {
+  font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 700; color: var(--muted); margin-bottom: .35rem;
+}
+.row.fix { border-left: 3px solid var(--credit); padding-left: 1rem; background: var(--credit-bg); padding-top: .9rem; padding-bottom: .9rem; padding-right: 1rem; border-radius: 0 4px 4px 0; }
+.row.fix .row-label { color: var(--credit); }
+.row.fix p { color: var(--ink); }
+
+/* ── Contrast pair ────────────────────────────────────── */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: var(--rule); margin: 1.2rem 0; }
+@media (max-width: 40rem) { .pair { grid-template-columns: 1fr; } }
+.pair > div { background: var(--surface); padding: 1.15rem 1.25rem; }
+.pair-label { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; margin-bottom: .5rem; }
+.pair .bad .pair-label { color: var(--detect); }
+.pair .good .pair-label { color: var(--credit); }
+.pair p { font-size: .92rem; margin: 0; }
+
+/* ── Tables ───────────────────────────────────────────── */
+.table-scroll { overflow-x: auto; margin: 1.4rem 0; border: var(--rule); }
+table { width: 100%; border-collapse: collapse; font-size: .88rem; min-width: 30rem; background: var(--surface); }
+th {
+  text-align: left; padding: .75rem 1rem; background: var(--surface-2);
+  font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; border-bottom: var(--rule); white-space: nowrap;
+}
+td { padding: .75rem 1rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag {
+  display: inline-block; font-size: .72rem; font-weight: 700; padding: .12rem .5rem;
+  border-radius: 3px; white-space: nowrap;
+}
+.tag.now { background: var(--detect-bg); color: var(--detect); border: 1px solid var(--detect-line); }
+.tag.then { background: var(--credit-bg); color: var(--credit); border: 1px solid var(--credit-line); }
+
+/* ── Priority list ────────────────────────────────────── */
+ol.priority { list-style: none; counter-reset: p; padding: 0; margin: 1.5rem 0 0; }
+ol.priority li {
+  counter-increment: p; position: relative; padding-left: 3.2rem;
+  padding-bottom: 1.4rem; margin-bottom: 1.4rem; border-bottom: 1px solid var(--line-soft);
+}
+ol.priority li:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+ol.priority li::before {
+  content: counter(p); position: absolute; left: 0; top: -.1rem;
+  font-family: "Zen Old Mincho", serif; font-size: 1.5rem; font-weight: 700;
+  color: var(--credit); font-variant-numeric: tabular-nums;
+}
+.p-title { font-weight: 700; margin-bottom: .3rem; }
+.p-body { color: var(--ink-2); font-size: .93rem; max-width: 40rem; }
+.p-cost { font-size: .78rem; color: var(--muted); margin-top: .45rem; }
+
+/* ── Caution ──────────────────────────────────────────── */
+.caution {
+  border: 1px solid var(--detect-line); background: var(--detect-bg);
+  padding: 1.35rem 1.5rem; margin-top: 1.5rem;
+}
+.caution .row-label { color: var(--detect); }
+.caution p { max-width: 44rem; }
+
+ul.plain { padding-left: 1.15rem; margin: .6rem 0 0; max-width: var(--measure); }
+ul.plain li { margin-bottom: .5rem; }
+
+footer {
+  margin-top: 4.5rem; padding-top: 1.5rem; border-top: var(--rule);
+  font-size: .8rem; color: var(--muted);
+}
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .86em; background: var(--surface-2); padding: .1em .38em;
+  border-radius: 3px; border: 1px solid var(--line-soft);
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">店舗運営 管理チャンネル — 設計提案</div>
+    <h1>評価される仕組みへ</h1>
+    <p class="standfirst">
+      いまの管理チャンネルは「できていないこと」だけを記録します。
+      頑張っている人を評価し、手を抜いている人を見つけ、ミスをした人を守り、
+      更生の道をつくるには、記録するものを変えなければなりません。
+    </p>
+    <div class="dateline">2026年8月26日 · 実データにもとづく診断と6つの変更提案</div>
+  </header>
+
+  <!-- ── 診断 ─────────────────────────────────────────── -->
+  <section>
+    <h2><span class="num">診断</span>いま何を測っているか</h2>
+    <p class="section-lede">
+      管理チャンネルに蓄積された172件は、10種類すべてが「欠落」「不良」「未提出」です。
+      一方で、同じデータベースには「できていること」の記録が桁違いに存在しています。
+    </p>
+
+    <div class="figures">
+      <div class="fig is-detect">
+        <div class="fig-n">172<small>件</small></div>
+        <div class="fig-label">チャンネルが記録した事象<br>（すべて失敗の記録）</div>
+      </div>
+      <div class="fig is-credit">
+        <div class="fig-n">19,291<small>件</small></div>
+        <div class="fig-label">直近30日の製品スコア<br>うち <strong>94%</strong> が A / S 評価</div>
+      </div>
+      <div class="fig is-detect">
+        <div class="fig-n">1,081<small>件</small></div>
+        <div class="fig-label">そのうちシステムが<br>見ている件数（5.6%）</div>
+      </div>
+      <div class="fig is-credit">
+        <div class="fig-n">0<small>件</small></div>
+        <div class="fig-label">「できていること」を<br>記録した行</div>
+      </div>
+    </div>
+
+    <p>
+      18,210件の良い仕事が、システムから見えていません。
+      これは記録漏れではなく<strong>設計の帰結</strong>です。例外検知は「無いこと」を探す仕組みなので、
+      きちんとやっている人は<strong>何も生成しません</strong>。
+    </p>
+    <p>
+      その結果、いまの週次スコアが答えられるのは「誰が失敗したか」だけです。
+      「誰が支えているか」には構造上答えられません。
+    </p>
+  </section>
+
+  <!-- ── 問題 ─────────────────────────────────────────── -->
+  <section>
+    <h2><span class="num">問題</span>6つの構造的な歪み</h2>
+    <p class="section-lede">
+      いずれもコードのバグではなく、設計上そうなっているものです。実データで確認しました。
+    </p>
+
+    <!-- 1 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">01</span>
+        <span class="finding-title">正直に答えると損をし、嘘をつくと得をする</span>
+      </div>
+      <div class="finding-body">
+        <div class="pair">
+          <div class="bad">
+            <div class="pair-label">正直なマネージャー</div>
+            <p>「人手が足りずできません」→ <code>cannot_count</code> に加算。週3回で<strong>エリアマネージャーへ「Manager performance flag」</strong>。</p>
+          </div>
+          <div class="bad">
+            <div class="pair-label">手を抜くマネージャー</div>
+            <p>「提出しました」→ <strong>誰も確認しません</strong>。実際に提出したかを突合する処理は存在せず、週次スコアは満点。</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">なぜ致命的か</div>
+          <p>
+            この2つが並存する限り、正直な申告は減っていきます。
+            そして正直な申告が減れば、システムは店舗の実態を見失います。
+            <em>いまの設計は、報告の質を下げる方向に働いています。</em>
+          </p>
+        </div>
+        <div class="row fix">
+          <div class="row-label">変更案</div>
+          <p>
+            <strong>① 申告の突合（verification loop）を入れる。</strong>
+            「Report Submitted」と答えた15分後に <code>backup_reports</code> に実在するか自動確認し、
+            無ければ <code>false_claim</code> として別種のフラグを立てる。
+            これが「手を抜いている人を見つける」の中核であり、いま完全に欠けている部分です。
+          </p>
+          <p>
+            <strong>② 「Cannot」をペナルティから外す。</strong>
+            「できません」は怠慢ではなく<strong>店舗が助けを求めた信号</strong>です。
+            回数ではなく<strong>理由</strong>を集計対象にし、
+            「Staff Shortage が続く店舗」は人員配置の問題としてHQへ回す。
+            マネージャー個人の減点にはしない。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">02</span>
+        <span class="finding-title">自分から問題を報告すると、自分の減点になる</span>
+      </div>
+      <div class="finding-body">
+        <p>
+          ラッシュチェックで「トラベルパスが汚れている」と報告すると、その支店に 🔴 タスクが立ちます。
+          報告しなければ何も起きません。
+          <em>気づいて申告した店舗が、見て見ぬふりをした店舗より悪く見えます。</em>
+        </p>
+        <div class="row fix">
+          <div class="row-label">変更案</div>
+          <p>
+            自己申告由来の例外は<strong>週次スコアの分母・分子から除外</strong>し、
+            別枠で<strong>加点</strong>する。「自ら見つけて、その場で直した」は
+            このシステムが最も増やしたい行動です。減点にしてはいけません。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">03</span>
+        <span class="finding-title">たくさん働く人ほど不利になる</span>
+      </div>
+      <div class="finding-body">
+        <p>
+          Manila の QC 写真投稿者を投稿量で二分すると、こうなります。
+        </p>
+        <div class="table-scroll">
+          <table>
+            <tr><th>投稿量</th><th class="num">中央値</th><th class="num">不良率の中央値</th></tr>
+            <tr><td>下位半分</td><td class="num">156 枚</td><td class="num">6.5%</td></tr>
+            <tr><td>上位半分</td><td class="num">502 枚</td><td class="num"><strong>8.4%</strong></td></tr>
+          </table>
+        </div>
+        <p>
+          件数で評価すれば、最も多く写真を出している人が必ず最上位の「問題人物」になります。
+          実際、件数で見たときの1位は464枚中24件＝<strong>5%</strong>で、
+          店舗平均8%を<strong>下回って</strong>いました。
+        </p>
+        <div class="row fix">
+          <div class="row-label">変更案（一部は対応済み）</div>
+          <p>
+            評価は必ず<strong>同一支店・同一期間の中央値との差</strong>で見る（実装済み）。
+            さらに<strong>投稿量そのものを加点要素にする</strong>。
+            952枚出している人は86枚の人より多く貢献しており、その事実が消えてはいけません。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">04</span>
+        <span class="finding-title">都市を跨いだ比較が成立しない</span>
+      </div>
+      <div class="finding-body">
+        <div class="table-scroll">
+          <table>
+            <tr><th>都市</th><th class="num">対象者</th><th class="num">不良率 中央値</th><th class="num">範囲</th></tr>
+            <tr><td>Manila</td><td class="num">17 名</td><td class="num">7.8%</td><td class="num">1.9 – 12.0%</td></tr>
+            <tr><td>Dubai</td><td class="num">51 名</td><td class="num">3.4%</td><td class="num">0.0 – 12.5%</td></tr>
+          </table>
+        </div>
+        <p>
+          倍以上の開きがあります。実力差なのか、撮影・採点の運用差なのかは、
+          このデータからは判別できません。
+          <em>判別できないものを同じ表に並べれば、Manila のスタッフが不当に低く見えます。</em>
+        </p>
+        <div class="row fix">
+          <div class="row-label">変更案</div>
+          <p>
+            個人ランキングは<strong>支店内でのみ</strong>表示する。
+            都市を跨ぐ表示は「支店中央値からの乖離」に限る。
+            そのうえで、この差が実力差か運用差かを別途調査する。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">05</span>
+        <span class="finding-title">更生の経路がなく、フラグが烙印になる</span>
+      </div>
+      <div class="finding-body">
+        <p>
+          パターン検出の状態は <code>open / acknowledged / closed</code> だけです。
+          「指導した → 改善した」を記録できません。
+          一度「NTE候補」と表示された人が、その後よくなったことを示す手段がありません。
+        </p>
+        <div class="row fix">
+          <div class="row-label">変更案</div>
+          <p>
+            パターンに <code>coaching</code> 状態と<strong>再測定</strong>を加える。
+            フラグ後30日の不良率を自動で再計算し、改善していれば <code>improved</code> として閉じ、
+            <strong>「改善した」という記録を残す</strong>。悪化していれば次の段階へ上げる。
+          </p>
+          <p>
+            重要なのは後半です。改善が記録されなければ、フラグは消えない烙印になり、
+            現場は「フラグを立てられないこと」を目的に行動しはじめます。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="finding">
+      <div class="finding-head">
+        <span class="finding-n">06</span>
+        <span class="finding-title">評価単位が「支店」で、「人」が見えない</span>
+      </div>
+      <div class="finding-body">
+        <p>
+          週次レビューは支店単位です。しかし「頑張っている人」は個人です。
+          個人が現れるのはパターン検出だけで、そこに載るのは<strong>問題のある人だけ</strong>です。
+        </p>
+        <p>
+          いま68名が、評価に足るだけのデータ（30日で30件以上）を持っています。
+          材料はすでにあります。
+        </p>
+        <div class="row fix">
+          <div class="row-label">変更案</div>
+          <p>
+            個人別ビュー <code>/admin/management/people</code> を追加。
+            品質（不良率と支店中央値との差）・提出率・SLA内返答率・自己申告件数・貢献量を1画面に。
+            <strong>上位も下位も同じ画面に出す</strong>ことが要点です。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 追加すべき記録 ───────────────────────────────── -->
+  <section>
+    <h2><span class="num">土台</span>「できていること」を記録する</h2>
+    <p class="section-lede">
+      上の6件はすべて、同じひとつの欠落に行き着きます。加点の記録がないことです。
+      日次で以下を <code>management_credits</code>（仮）に積むだけで、
+      減点だけの仕組みが評価の仕組みに変わります。
+    </p>
+    <div class="table-scroll">
+      <table>
+        <tr><th>記録する事実</th><th>元データ</th><th>いまの扱い</th><th>変更後</th></tr>
+        <tr>
+          <td>レポートを期限内に提出した</td><td><code>backup_reports</code> / <code>disposal_reports</code></td>
+          <td><span class="tag now">未提出のみ検知</span></td><td><span class="tag then">提出を加点</span></td>
+        </tr>
+        <tr>
+          <td>製品スコア A / S を出した</td><td><code>product_score_results</code></td>
+          <td><span class="tag now">C以下のみ検知</span></td><td><span class="tag then">A/S を加点</span></td>
+        </tr>
+        <tr>
+          <td>SLA内に返答した</td><td><code>management_tasks</code></td>
+          <td><span class="tag now">超過のみ記録</span></td><td><span class="tag then">速さを加点</span></td>
+        </tr>
+        <tr>
+          <td>自ら問題を申告し是正した</td><td><code>rush_checks</code></td>
+          <td><span class="tag now">減点になる</span></td><td><span class="tag then">加点にする</span></td>
+        </tr>
+        <tr>
+          <td>QC写真を継続的に出している</td><td><code>product_score_results</code></td>
+          <td><span class="tag now">不利に働く</span></td><td><span class="tag then">貢献量として加点</span></td>
+        </tr>
+      </table>
+    </div>
+    <p>
+      週次スコアも「SLA内返答率」の一本から、<strong>達成率と加点の二軸</strong>へ。
+      例外が多い週でも、全部に期限内で応え、自分で見つけて直した店舗は高く出るべきです。
+    </p>
+  </section>
+
+  <!-- ── 優先順位 ─────────────────────────────────────── -->
+  <section>
+    <h2><span class="num">順序</span>実装の優先順位</h2>
+    <p class="section-lede">影響の大きい順です。1と2だけでも、評価の向きが変わります。</p>
+    <ol class="priority">
+      <li>
+        <div class="p-title">申告の突合（verification loop）</div>
+        <div class="p-body">
+          「提出しました」を <code>backup_reports</code> / <code>disposal_reports</code> と突合。
+          不一致は <code>false_claim</code> として別扱い。これがないかぎり、手抜きは検出できません。
+        </div>
+        <div class="p-cost">既存テーブルのみで実装可能 · 新規テーブル不要</div>
+      </li>
+      <li>
+        <div class="p-title">「Cannot」をペナルティから外し、自己申告を加点に</div>
+        <div class="p-body">
+          週次スコアの計算式と <code>repeat_cannot_response</code> の扱いを変更。
+          正直に答えることが不利にならない状態にしてから、他の指標を積む。
+        </div>
+        <div class="p-cost">計算式の変更のみ</div>
+      </li>
+      <li>
+        <div class="p-title">加点記録テーブルと週次スコアの二軸化</div>
+        <div class="p-body">
+          <code>management_credits</code> を追加し、日次ジョブで積む。既存の15分ジョブに相乗り可能。
+        </div>
+        <div class="p-cost">新規テーブル1つ · 既存ジョブに追加</div>
+      </li>
+      <li>
+        <div class="p-title">個人別ビュー</div>
+        <div class="p-body">
+          上位も下位も同じ画面に。支店内比較のみ。都市横断は乖離幅でのみ表示。
+        </div>
+        <div class="p-cost">新規ページ1つ</div>
+      </li>
+      <li>
+        <div class="p-title">パターンに coaching 状態と再測定</div>
+        <div class="p-body">
+          30日後に自動で再計算し、改善を <code>improved</code> として記録する。
+        </div>
+        <div class="p-cost">既存テーブルへの列追加</div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ── 前提 ─────────────────────────────────────────── -->
+  <section>
+    <h2><span class="num">前提</span>システム外で必要なこと</h2>
+    <p class="section-lede">
+      仕組みを直しても、元データが無い支店は評価できません。以下は運用側の課題です。
+    </p>
+    <ul class="plain">
+      <li><strong>Dubai がバックアップ・廃棄レポートをほぼ提出していない。</strong>
+          これらの例外は事実上 Manila 専用のままです。評価の土台になる提出習慣から始める必要があります。</li>
+      <li><strong>ラッシュチェックが全支店で未展開。</strong>
+          各支店で最初の1回を提出するまで、未提出検知は発火しません。</li>
+      <li><strong>BO担当が1名（Camille Santos / bo_a）しか登録されていない。</strong>
+          B・C が未登録のため、そこへ振り分けられる例外は誰にも割り当てられません。</li>
+      <li><strong>パーレベル183件が全て未レビュー。</strong>
+          中央値からの提案値のままアラートが発火しています。誤った基準は誤った評価につながります。</li>
+    </ul>
+
+    <div class="caution">
+      <div class="row-label">評価に使う前に確認が必要なこと</div>
+      <p>
+        製品スコアの個人特定は <code>author_name</code>（Discord に写真を投稿した人）に依存しています。
+        <strong>これが「作った人」と同一である保証はありません。</strong>
+        撮影担当が固定されている店舗では、別人の成果物が特定の個人に紐づいている可能性があります。
+      </p>
+      <p>
+        NTE など人事上の措置にこの数値を使う前に、
+        「投稿者＝製造者」が運用上成立しているかを店舗ごとに確認してください。
+        成立していない場合、個人評価には使わず<strong>支店・時間帯の指標として扱う</strong>べきです。
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Sushi ZEN Workforce OS — 店舗運営 管理チャンネル 設計提案<br>
+    数値はすべて 2026年8月26日時点の本番データにもとづく（製品スコア19,291件／評価対象68名）。
+  </footer>
+
+</div>
