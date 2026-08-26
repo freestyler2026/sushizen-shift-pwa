@@ -1,17 +1,17 @@
-<title>会計データ層</title>
+<title>レシート仕訳の自動化</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 
 <style>
 *, *::before, *::after { box-sizing: border-box; }
-
 :root {
   --paper:#F7F8FA; --card:#FFFFFF; --card-2:#EEF1F6; --rule:#DBE1EA; --rule-2:#E9EDF3;
   --ink:#131A24; --ink-2:#3A4756; --muted:#6B7887;
   --keep:#0E7C66; --keep-bg:#E3F4EF; --keep-line:#A8DCCD;
   --stop:#B3261E; --stop-bg:#FBE9E7; --stop-line:#EFB9B4;
-  --new:#3A5CCC;  --new-bg:#E8EDFB;  --new-line:#B9C8F0;
+  --ask:#8A5A00; --ask-bg:#FBF1DC; --ask-line:#E5C88A;
+  --new:#3A5CCC; --new-bg:#E8EDFB; --new-line:#B9C8F0;
   --measure:36rem;
 }
 @media (prefers-color-scheme: dark) {
@@ -20,7 +20,8 @@
     --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
     --keep:#3FD1AE; --keep-bg:#0D2A25; --keep-line:#1F5A4C;
     --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
-    --new:#8AA6FF;  --new-bg:#161F3A;  --new-line:#2E3F6B;
+    --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
+    --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
   }
 }
 :root[data-theme="dark"] {
@@ -28,248 +29,214 @@
   --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
   --keep:#3FD1AE; --keep-bg:#0D2A25; --keep-line:#1F5A4C;
   --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+  --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
   --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
 }
-
 body { margin:0; background:var(--paper); color:var(--ink);
   font-family:"IBM Plex Sans JP",-apple-system,"Hiragino Sans",sans-serif;
-  font-size:15px; line-height:1.85; -webkit-font-smoothing:antialiased; }
+  font-size:15px; line-height:1.82; -webkit-font-smoothing:antialiased; }
 .wrap { max-width:64rem; margin:0 auto; padding:3.5rem 1.5rem 7rem; }
-
-.masthead { border-bottom:2px solid var(--ink); padding-bottom:1.5rem; margin-bottom:2.5rem; }
+.masthead { border-bottom:2px solid var(--ink); padding-bottom:1.4rem; margin-bottom:2.5rem; }
 .kicker { font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
   text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:.8rem; }
-h1 { font-size:clamp(1.75rem,4vw,2.5rem); line-height:1.3; font-weight:700; margin:0 0 .8rem; text-wrap:balance; }
+h1 { font-size:clamp(1.7rem,4vw,2.45rem); line-height:1.3; font-weight:700; margin:0 0 .8rem; text-wrap:balance; }
 .standfirst { font-size:1rem; color:var(--ink-2); max-width:var(--measure); margin:0; }
-.dateline { margin-top:1.2rem; font-size:.78rem; color:var(--muted); font-family:"IBM Plex Mono",monospace; }
-
-section { margin-top:3.25rem; }
-h2 { font-size:1.35rem; font-weight:700; margin:0 0 .35rem; display:flex; align-items:baseline;
-  gap:.75rem; text-wrap:balance; }
-h2 .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600;
-  letter-spacing:.1em; color:var(--muted); flex-shrink:0; padding-top:.15rem; }
-h3 { font-size:1rem; font-weight:700; margin:1.75rem 0 .6rem; }
-.lede { color:var(--ink-2); max-width:var(--measure); margin:0 0 1.5rem; }
-p { margin:0 0 .9rem; max-width:var(--measure); }
-p.wide { max-width:46rem; }
-p:last-child { margin-bottom:0; }
+.dateline { margin-top:1.1rem; font-size:.78rem; color:var(--muted); font-family:"IBM Plex Mono",monospace; }
+section { margin-top:3.1rem; }
+h2 { font-size:1.32rem; font-weight:700; margin:0 0 .35rem; display:flex; align-items:baseline; gap:.75rem; text-wrap:balance; }
+h2 .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.1em; color:var(--muted); flex-shrink:0; padding-top:.15rem; }
+h3 { font-size:1rem; font-weight:700; margin:1.7rem 0 .55rem; }
+.lede { color:var(--ink-2); max-width:var(--measure); margin:0 0 1.4rem; }
+p { margin:0 0 .85rem; max-width:var(--measure); } p.wide { max-width:46rem; } p:last-child { margin-bottom:0; }
 code { font-family:"IBM Plex Mono",monospace; font-size:.85em; background:var(--card-2);
   padding:.1em .4em; border-radius:3px; border:1px solid var(--rule-2); }
-
-.tw { overflow-x:auto; margin:1.3rem 0; border:1px solid var(--rule); }
-table { width:100%; border-collapse:collapse; font-size:.87rem; min-width:32rem; background:var(--card); }
-th { text-align:left; padding:.7rem .9rem; background:var(--card-2); font-family:"IBM Plex Mono",monospace;
-  font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+.tw { overflow-x:auto; margin:1.2rem 0; border:1px solid var(--rule); }
+table { width:100%; border-collapse:collapse; font-size:.86rem; min-width:34rem; background:var(--card); }
+th { text-align:left; padding:.65rem .85rem; background:var(--card-2); font-family:"IBM Plex Mono",monospace;
+  font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
   font-weight:600; border-bottom:1px solid var(--rule); white-space:nowrap; }
-td { padding:.7rem .9rem; border-bottom:1px solid var(--rule-2); vertical-align:top; }
+td { padding:.62rem .85rem; border-bottom:1px solid var(--rule-2); vertical-align:top; }
 tr:last-child td { border-bottom:none; }
 td.n { text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
-td.mono { font-family:"IBM Plex Mono",monospace; font-size:.82rem; }
-
-.box { border:1px solid var(--rule); background:var(--card); padding:1.15rem 1.3rem; margin:1.3rem 0; }
+td.mono { font-family:"IBM Plex Mono",monospace; font-size:.81rem; }
+.box { border:1px solid var(--rule); background:var(--card); padding:1.1rem 1.25rem; margin:1.2rem 0; }
 .box.keep { border-color:var(--keep-line); background:var(--keep-bg); }
 .box.stop { border-color:var(--stop-line); background:var(--stop-bg); }
-.box.new  { border-color:var(--new-line);  background:var(--new-bg); }
-.box-h { font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.1em;
-  text-transform:uppercase; font-weight:600; margin-bottom:.5rem; color:var(--muted); }
-.box.keep .box-h { color:var(--keep); }
-.box.stop .box-h { color:var(--stop); }
-.box.new .box-h  { color:var(--new); }
+.box.ask { border-color:var(--ask-line); background:var(--ask-bg); }
+.box.new { border-color:var(--new-line); background:var(--new-bg); }
+.box-h { font-family:"IBM Plex Mono",monospace; font-size:.67rem; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:600; margin-bottom:.45rem; color:var(--muted); }
+.box.keep .box-h{color:var(--keep)} .box.stop .box-h{color:var(--stop)}
+.box.ask .box-h{color:var(--ask)} .box.new .box-h{color:var(--new)}
 .box p { max-width:46rem; }
-
-/* ── Architecture diagram ── */
-.arch { border:1px solid var(--rule); background:var(--card); padding:1.5rem 1.3rem; margin:1.5rem 0; }
-.layer-l { font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.1em;
-  text-transform:uppercase; font-weight:600; margin-bottom:.65rem; }
-.sources { display:grid; grid-template-columns:repeat(auto-fit,minmax(9rem,1fr)); gap:.5rem; }
-.src { border:1px solid var(--keep-line); background:var(--keep-bg); padding:.7rem .8rem; border-radius:3px; }
-.src-n { font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:600; line-height:1.4; word-break:break-all; }
-.src-m { font-size:.7rem; color:var(--muted); margin-top:.25rem; font-family:"IBM Plex Mono",monospace; }
-.flow { text-align:center; color:var(--muted); font-family:"IBM Plex Mono",monospace;
-  font-size:.72rem; padding:.9rem 0 .5rem; }
-.flow strong { color:var(--new); }
-.overlay { border:1px solid var(--new-line); background:var(--new-bg); padding:1rem 1.1rem; border-radius:3px; }
-.overlay-t { font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.82rem; color:var(--new); }
-.overlay-d { font-size:.82rem; color:var(--ink-2); margin-top:.35rem; }
-
-.phase { border:1px solid var(--rule); background:var(--card); margin-bottom:1.1rem; }
-.phase-h { display:flex; align-items:baseline; gap:.9rem; flex-wrap:wrap; padding:1rem 1.3rem;
+pre { font-family:"IBM Plex Mono",monospace; font-size:.79rem; line-height:1.7; background:var(--card-2);
+  border:1px solid var(--rule); padding:.95rem 1.05rem; overflow-x:auto; margin:.9rem 0; border-radius:3px; }
+pre .c { color:var(--muted); } pre .k { color:var(--new); font-weight:600; }
+pre .x { color:var(--stop); font-weight:600; }
+.phase { border:1px solid var(--rule); background:var(--card); margin-bottom:1.05rem; }
+.phase-h { display:flex; align-items:baseline; gap:.9rem; flex-wrap:wrap; padding:.95rem 1.25rem;
   border-bottom:1px solid var(--rule-2); background:var(--card-2); }
-.phase-n { font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.78rem; letter-spacing:.06em;
+.phase-n { font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.77rem; letter-spacing:.06em;
   color:var(--new); background:var(--new-bg); border:1px solid var(--new-line);
   padding:.1rem .5rem; border-radius:3px; flex-shrink:0; }
 .phase-t { font-weight:700; font-size:1rem; }
-.phase-w { margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.74rem; color:var(--muted); }
-.phase-b { padding:1.2rem 1.3rem; }
-.phase-b p { max-width:46rem; }
-
-ul.plain { padding-left:1.1rem; margin:.5rem 0 0; max-width:46rem; }
-ul.plain li { margin-bottom:.45rem; }
-ul.plain li::marker { color:var(--muted); }
-
-pre { font-family:"IBM Plex Mono",monospace; font-size:.8rem; line-height:1.7; background:var(--card-2);
-  border:1px solid var(--rule); padding:1rem 1.1rem; overflow-x:auto; margin:1rem 0; border-radius:3px; }
-pre .c { color:var(--muted); }
-pre .k { color:var(--new); font-weight:600; }
-
-footer { margin-top:4rem; padding-top:1.4rem; border-top:1px solid var(--rule);
-  font-size:.78rem; color:var(--muted); }
+.phase-w { margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.73rem; color:var(--muted); }
+.phase-b { padding:1.15rem 1.25rem; } .phase-b p { max-width:46rem; }
+ul.plain { padding-left:1.1rem; margin:.45rem 0 0; max-width:46rem; }
+ul.plain li { margin-bottom:.42rem; } ul.plain li::marker { color:var(--muted); }
+.steps { list-style:none; counter-reset:s; padding:0; margin:1.2rem 0; }
+.steps li { counter-increment:s; position:relative; padding-left:2.6rem; padding-bottom:.9rem;
+  margin-bottom:.9rem; border-bottom:1px solid var(--rule-2); max-width:46rem; }
+.steps li:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+.steps li::before { content:counter(s); position:absolute; left:0; top:.1rem;
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:600;
+  width:1.6rem; height:1.6rem; line-height:1.6rem; text-align:center; border-radius:50%;
+  background:var(--card-2); border:1px solid var(--rule); color:var(--muted); }
+.steps li.auto::before { background:var(--keep-bg); border-color:var(--keep-line); color:var(--keep); }
+.steps li.auto { }
+.st { font-weight:700; }
+.sb { font-size:.9rem; color:var(--ink-2); }
+.pill { display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.66rem; font-weight:600;
+  letter-spacing:.06em; padding:.1rem .45rem; border-radius:3px; margin-left:.5rem; vertical-align:middle; }
+.pill.auto { background:var(--keep-bg); color:var(--keep); border:1px solid var(--keep-line); }
+.pill.man { background:var(--card-2); color:var(--muted); border:1px solid var(--rule); }
+footer { margin-top:3.8rem; padding-top:1.3rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--muted); }
 </style>
 
 <div class="wrap">
 
 <header class="masthead">
-  <div class="kicker">Sushi ZEN OS — 実装案 rev.2</div>
-  <h1>既存を触らずに、上へ載せる</h1>
+  <div class="kicker">Sushi ZEN OS — 実装案 rev.3（税務申告向け）</div>
+  <h1>経理担当の仕訳作業を、確認作業に変える</h1>
   <p class="standfirst">
-    レシートの入り口は5つあり、すでに動いています。それらを統合するのではなく、
-    <strong>参照するだけの層</strong>を上に足します。スタッフの画面は1つも変わりません。
+    月に約600枚の請求書とレシートが、すでにシステムに入っています。
+    読んで、科目を決めて、記帳して、ファイルする——この4工程を置き換える設計です。
   </p>
-  <div class="dateline">2026-08-26 rev.2 · 既存構造を変更しない前提で再設計</div>
+  <div class="dateline">2026-08-26 rev.3 · 前版（管理会計向け）から目的を修正</div>
 </header>
 
-<!-- ══ 方針 ══ -->
+<!-- ══ 置き換える作業 ══ -->
 <section>
-  <h2><span class="tag">方針</span>統合しない。参照する。</h2>
+  <h2><span class="tag">対象</span>経理担当は今、何をしているか</h2>
   <p class="lede">
-    前案は5系統を1つに統合する設計でした。これはスタッフの操作が変わり、既存フローが止まるリスクを伴います。
-    <strong>入り口はそのまま残し、会計データ層だけを新設します。</strong>
+    税務申告のためのレシート処理を工程に分けると、置き換えられる範囲がはっきりします。
   </p>
-
-  <div class="arch">
-    <div class="layer-l" style="color:var(--keep)">既存 — 一切変更しない</div>
-    <div class="sources">
-      <div class="src"><div class="src-n">drive_invoices</div><div class="src-m">209件 · 抽出済</div></div>
-      <div class="src"><div class="src-n">petty_cash_requests</div><div class="src-m">148件 · 画像138</div></div>
-      <div class="src"><div class="src-n">transport_expenses</div><div class="src-m">18件 · 画像なし</div></div>
-      <div class="src"><div class="src-n">receipt_log</div><div class="src-m">16件 · 画像8</div></div>
-      <div class="src"><div class="src-n">expense_reimbursement<br>_requests</div><div class="src-m">13件 · 画像9</div></div>
-    </div>
-
-    <div class="flow">↓ &nbsp; <strong>読むだけ</strong>（書き戻しゼロ・列追加ゼロ） &nbsp; ↓</div>
-
-    <div class="overlay">
-      <div class="overlay-t">fin_documents ＋ vendor_master ＋ account_master ＋ cost_center_master</div>
-      <div class="overlay-d">
-        <code>(source_table, source_id)</code> で元行を指すだけ。抽出・分類・出力はこの層で完結します。
-        この層を丸ごと削除しても、既存システムは何も変わりません。
-      </div>
-    </div>
-  </div>
-
-  <div class="box keep">
-    <div class="box-h">既存に対して行わないこと</div>
-    <ul class="plain" style="margin-top:0">
-      <li>既存5テーブルへの <strong>列追加をしない</strong>（変更検知は内容ハッシュで行う）</li>
-      <li>既存5テーブルへの <strong>書き戻しをしない</strong></li>
-      <li>スタッフ側の <strong>画面を変えない</strong>（Phase 1 まで）</li>
-      <li>base64画像の <strong>強制移行をしない</strong>（層は保存場所を問わず参照できる）</li>
-    </ul>
-  </div>
-</section>
-
-<!-- ══ データ ══ -->
-<section>
-  <h2><span class="tag">実データ</span>すでに何が溜まっているか</h2>
-  <div class="tw">
-    <table>
-      <tr><th>入り口</th><th class="n">件数</th><th class="n">頻度</th><th>抽出状態</th><th>層での扱い</th></tr>
-      <tr>
-        <td class="mono">drive_invoices</td><td class="n">209</td><td class="n">26.1/日</td>
-        <td style="color:var(--keep)"><strong>取引先・明細とも抽出済</strong></td><td>列を写すだけ・<strong>再OCR不要</strong></td>
-      </tr>
-      <tr>
-        <td class="mono">petty_cash_requests</td><td class="n">148</td><td class="n">2.2/日</td>
-        <td>画像のみ（138件）</td><td>OCR対象</td>
-      </tr>
-      <tr>
-        <td class="mono">transport_expenses</td><td class="n">18</td><td class="n">—</td>
-        <td style="color:var(--muted)">画像なし</td><td>金額のみ登録</td>
-      </tr>
-      <tr>
-        <td class="mono">receipt_log</td><td class="n">16</td><td class="n">—</td>
-        <td>取引先・明細あり（手入力）</td><td>そのまま利用</td>
-      </tr>
-      <tr>
-        <td class="mono">expense_reimbursement_requests</td><td class="n">13</td><td class="n">0.33/日</td>
-        <td>画像のみ（9件）</td><td>OCR対象</td>
-      </tr>
-    </table>
-  </div>
-  <p class="wide">
-    <strong>新規にOCRが必要なのは155件だけ</strong>です。最大の <code>drive_invoices</code> 209件は
-    <code>vendor_name</code>・<code>line_items</code>・<code>total_amount</code> が抽出済みなので、
-    列を写すだけで層に載ります。OCR費用はほぼ発生しません。
-  </p>
-
+  <ol class="steps">
+    <li><span class="st">収集</span><span class="pill man">人</span>
+      <div class="sb">スタッフからレシートを集める。<strong>ここは置き換えられません。</strong>紙で回ってくるものは、誰かが撮る必要があります</div></li>
+    <li class="auto"><span class="st">読取</span><span class="pill auto">自動</span>
+      <div class="sb">日付・取引先・TIN/TRN・税抜額・税額・税込額・明細を読み取る</div></li>
+    <li class="auto"><span class="st">科目判断</span><span class="pill auto">自動 + 確認</span>
+      <div class="sb">取引先マスタに当たれば即決定。新規のときだけAIが候補を出し、人が承認</div></li>
+    <li class="auto"><span class="st">記帳</span><span class="pill auto">自動</span>
+      <div class="sb">台帳に1行として確定。手入力は発生しない</div></li>
+    <li class="auto"><span class="st">ファイリング</span><span class="pill auto">自動</span>
+      <div class="sb">画像を恒久保存し、台帳の行から必ず開ける状態にする</div></li>
+    <li><span class="st">申告</span><span class="pill man">人・会計事務所</span>
+      <div class="sb">科目別集計と仕入税額を出力して渡す。<strong>申告そのものは行いません</strong></div></li>
+  </ol>
   <div class="box new">
-    <div class="box-h">取引先マスタは数日で埋まる</div>
+    <div class="box-h">量の実態</div>
     <p>
-      <code>drive_invoices</code> 209件の取引先は <strong>25社のみ</strong>。
-      うち184件が外部仕入、23件が Sushi ZEN 名義の社内振替です。
-      <strong>20社ほど登録すれば207件をカバー</strong>します。「マスタが空のまま」にはなりません。
+      仕入請求書 <strong>26.1件/日</strong>（Dubai・8日で209件）＋ スタッフのレシート <strong>約3件/日</strong>。
+      合わせて<strong>月およそ600枚</strong>。1枚2分の手作業なら月20時間です。
     </p>
   </div>
 </section>
 
-<!-- ══ 二重計上 ══ -->
+<!-- ══ 管理会計との違い ══ -->
 <section>
-  <h2><span class="tag">要件</span>社内振替を費用にしてはいけない</h2>
+  <h2><span class="tag">前提</span>管理会計とは別の3つの軸が要る</h2>
   <p class="lede">
-    取引先マスタの設計で、これだけは初日から必要です。抜けると二重計上が発生します。
-  </p>
-  <pre><span class="c">-- drive_invoices の実データ（Dubai）</span>
-Sushi ZEN Centrak Kitchen   8件   <span class="c">← typo。Central の綴り違い</span>
-Sushi ZEN Central Kitchen   8件
-Sushi ZEN Warehouse         7件
-SUNBERRY ... TRADING -     11件   <span class="c">← 名称が途中で切れている</span>
-SUNBERRY ... TRADING L      7件</pre>
-  <p class="wide">
-    <code>Sushi ZEN Central Kitchen</code> を「食材費」に分類すると、
-    <strong>CKが外部から仕入れた時点で既に食材費を計上している</strong>ため二重になります。
-  </p>
-  <pre><span class="k">vendor_master</span>
-  vendor_id, canonical_name, name_variants[],
-  <span class="k">is_internal</span>          <span class="c">-- Sushi ZEN CK / Warehouse</span>
-  default_account_code  <span class="c">-- 社内なら費用科目ではなく振替科目</span>
-  default_cost_center, tax_status, tin_or_trn,
-  hit_count, last_used_at</pre>
-  <p class="wide">
-    <code>name_variants</code> も「将来必要になる」機能ではありません。
-    <strong>typoと切れが、25社しかない段階で既に発生しています。</strong>
-  </p>
-</section>
-
-<!-- ══ 3次元 ══ -->
-<section>
-  <h2><span class="tag">構造</span>科目・原価センター・配賦先は別の軸</h2>
-  <p class="lede">
-    <code>mgmt_overhead</code> の実データを見ると、<code>store_code</code> は
-    「発生場所」ではなく<strong>「どの店が負担するか」</strong>として既に使われています。
-  </p>
-  <pre><span class="c">-- manila 2026-07</span>
-「家賃」    CUB  18,145 / PAR 167,333 / TAFT 278,850   <span class="c">← 各店の実額</span>
-「CK家賃」  CUB  25,000 / PAR  25,000 / TAFT  25,000   <span class="c">← 25,000×3の均等配賦</span></pre>
-  <p class="wide">
-    <code>store_code</code> に CK・WH・HQ は<strong>一度も登場しません</strong>。
-    ここで <code>store_code='CK'</code> にすると<strong>配賦情報が消え、月次PLが壊れます</strong>。
-    必要なのは3軸です。
+    先に作った月次PLの科目マスタは、この用途には<strong>そのままでは使えません</strong>。
+    税務申告には、経営管理では不要な次元が3つあります。
   </p>
   <div class="tw">
     <table>
-      <tr><th>軸</th><th>例</th><th>意味</th><th>既存との関係</th></tr>
-      <tr><td class="mono">account_code</td><td>RENT</td><td>何の費用か</td><td>59種を統合して新設</td></tr>
-      <tr><td class="mono">cost_center</td><td>CK / WH / KD / STAFF_ROOM</td><td>どこで発生したか</td><td><strong>新設・CK振替と共有</strong></td></tr>
-      <tr><td class="mono">store_code</td><td>CUB / PAR / TAFT</td><td>どの店が負担するか</td><td><strong>既存の意味のまま</strong></td></tr>
+      <tr><th>軸</th><th>管理会計（既存）</th><th>税務申告（必要）</th></tr>
+      <tr>
+        <td class="mono">単位</td><td>店舗別（CUB / PAR / TAFT …）</td>
+        <td><strong>法人別</strong>。申告は法人ごと。店舗別では申告書が作れません</td>
+      </tr>
+      <tr>
+        <td class="mono">期間</td><td>暦月</td>
+        <td><strong>税務期間</strong>。VAT は四半期など、暦月と一致しません</td>
+      </tr>
+      <tr>
+        <td class="mono">証憑</td><td>不要</td>
+        <td><strong>原本が出せること</strong>。台帳の行から必ず画像へ辿れる必要があります</td>
+      </tr>
     </table>
   </div>
-  <div class="box new">
-    <div class="box-h">CK振替との合流点</div>
+  <p class="wide">
+    さらに、税務では<strong>税抜額と税額を分けて</strong>持つ必要があります。仕入税額控除は税額の側で計算するためです。
+    月次PLは税込の総額しか見ていません。
+  </p>
+  <div class="box keep">
+    <div class="box-h">先に作った22科目は無駄になりません</div>
     <p>
-      合流するのは <code>cost_center_master</code> です。<code>drive_invoices</code> ではありません。<br>
-      Manila のCK納品は <code>ck_deliveries</code>（110件・明細3,490行）に<strong>既に構造化されており</strong>、
-      請求書PDFもOCRも介在しません。Manila 側の課題はデータ形式ではなく出庫記録の運用です。<br>
-      <strong>原価センターの定義だけを共通化すれば足ります。別々に作ると必ずずれます。</strong>
+      <code>account_master.tax_account_code</code> の列を用意してあります。
+      レシートを<strong>1回分類すれば、税務申告にも月次PLにも使えます</strong>。
+      ただし主従は逆で、<strong>税務側の体系が主</strong>、月次PLの科目が従です。
+    </p>
+  </div>
+</section>
+
+<!-- ══ OCRの不足 ══ -->
+<section>
+  <h2><span class="tag">訂正</span>既存OCRは税務項目を1つも取っていません</h2>
+  <p class="lede">
+    前版で「209件は抽出済みなので再OCR不要」と書きましたが、<strong>税務目的では成立しません</strong>。
+  </p>
+  <pre><span class="c">// invoice_ocr_service.py が現在取っている項目</span>
+vendor_name, invoice_number, invoice_date, due_date,
+total_amount, currency, line_items, confidence_notes
+
+<span class="c">// 税務申告に必要で、取れていない項目</span>
+<span class="x">tin_or_trn</span>        <span class="c">209件中 0件</span>
+<span class="x">tax_amount</span>       <span class="c">209件中 1件のみ言及</span>
+<span class="x">amount_excl_tax</span>  <span class="c">なし（total_amount のみ）</span>
+<span class="x">receipt_type</span>     <span class="c">なし（OR / SI / 手書き の別）</span></pre>
+  <p class="wide">
+    現在の抽出は<strong>発注照合のための項目</strong>で、税務のための項目ではありません。
+    最も価値のある TIN/TRN が、まったく取れていません。
+  </p>
+  <div class="box stop">
+    <div class="box-h">結果として</div>
+    <p>
+      209件は<strong>再抽出が必要</strong>です。画像は Drive に残っているので実行可能で、
+      プロンプトを拡張して1回流すだけです。ただし「タダで使える207件」ではありませんでした。
+      前版の見積もりを訂正します。
+    </p>
+  </div>
+</section>
+
+<!-- ══ 設計 ══ -->
+<section>
+  <h2><span class="tag">設計</span>既存を触らない方針は維持</h2>
+  <p class="lede">
+    5つの入力口はそのまま。参照するだけの台帳を上に載せる構造は前版と同じです。
+    変わるのは<strong>台帳が持つ項目</strong>です。
+  </p>
+  <pre><span class="k">fin_documents</span>  <span class="c">-- 経費台帳。1行 = 1証憑</span>
+  source_table, source_id      <span class="c">-- 元行を指すだけ。書き戻さない</span>
+  <span class="k">legal_entity</span>                 <span class="c">-- 申告単位。店舗ではない</span>
+  <span class="k">tax_period</span>                   <span class="c">-- 暦月とは別</span>
+  doc_date, vendor_id,
+  <span class="k">tin_or_trn, receipt_type</span>     <span class="c">-- 事実として保存。判断はしない</span>
+  amount_excl_tax, <span class="k">tax_amount</span>, amount_incl_tax, currency,
+  tax_account_code, mgmt_account_code, cost_center,
+  <span class="k">evidence_url, evidence_hash</span>   <span class="c">-- 原本への恒久リンク</span>
+  confidence, review_status,
+  <span class="k">locked_at</span>                    <span class="c">-- 申告後は変更不可</span>
+  UNIQUE (source_table, source_id)</pre>
+  <div class="box new">
+    <div class="box-h">判断ではなく事実を保存する</div>
+    <p>
+      <code>tin_or_trn</code> と <code>receipt_type</code> は<strong>事実</strong>です。
+      「経費になるか」は<strong>判断</strong>であり、会計・税務の領域です。
+      事実だけ保存しておけば、基準が確定した時点で<strong>過去分も遡って再判定できます</strong>。
+      基準が変わっても再抽出は不要です。
     </p>
   </div>
 </section>
@@ -279,179 +246,137 @@ SUNBERRY ... TRADING L      7件</pre>
   <h2><span class="tag">段階</span>実装の順序</h2>
 
   <div class="phase">
-    <div class="phase-h">
-      <span class="phase-n">PHASE 0</span><span class="phase-t">マスタ整備と登録層</span>
-      <span class="phase-w">AIなし · 既存変更ゼロ</span>
-    </div>
+    <div class="phase-h"><span class="phase-n">PHASE 1</span>
+      <span class="phase-t">拡張抽出と台帳</span>
+      <span class="phase-w">会計事務所を待たない</span></div>
     <div class="phase-b">
-      <pre><span class="k">account_master</span>
-  account_code, label_en, label_ja, pl_group,
-  <span class="k">external_code</span>   <span class="c">-- 会計事務所の体系。後から埋める1列</span>
-
-<span class="k">cost_center_master</span>
-  code, name, type ('STORE'|'CK'|'WAREHOUSE'|'HQ'|'OTHER'), country
-
-<span class="k">fin_documents</span>
-  id, <span class="k">source_table, source_id</span>,   <span class="c">-- 元行を指すだけ</span>
-  content_hash,                    <span class="c">-- 元行の変更検知（列追加なし）</span>
-  city, doc_date, vendor_id, account_code, cost_center,
-  amount_excl_tax, tax_amount, amount_incl_tax, currency,
-  tin_present, receipt_type, confidence, review_status,
-  UNIQUE (source_table, source_id)</pre>
       <ul class="plain">
-        <li>59種の費目を統合（家賃8通り → <code>RENT</code>、原価センターは別軸へ）</li>
-        <li><code>支出合計</code> のような合計行を費目から除去</li>
-        <li>25社の名寄せ（<code>is_internal</code> を<strong>同時に</strong>判定。後回しにすると全件見直し）</li>
-        <li>登録ジョブ：5テーブルを走査して <code>fin_documents</code> に登録。冪等</li>
+        <li>OCRプロンプトに税務項目を追加（<code>tin_or_trn</code> / <code>tax_amount</code> / <code>amount_excl_tax</code> / <code>receipt_type</code>）</li>
+        <li>既存209件を再抽出。以後は自動</li>
+        <li>スタッフのレシート155件を新規OCR</li>
+        <li><code>fin_documents</code> に登録。画像への恒久リンクを張る</li>
+        <li>台帳の一覧・検索・画像表示（<strong>科目分類はまだしない</strong>）</li>
       </ul>
       <div class="box keep" style="margin-top:1rem">
-        <div class="box-h">この段階だけで効く</div>
-        <p>AIなしでも、費目統一だけで月次PLの精度が上がります。現在は家賃が8行に散っています。日次P&amp;Lの改修とも重なります。</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="phase">
-    <div class="phase-h">
-      <span class="phase-n">PHASE 1</span><span class="phase-t">抽出と事実の保存</span>
-      <span class="phase-w">判断はしない</span>
-    </div>
-    <div class="phase-b">
-      <p class="wide">
-        <code>drive_invoices</code> は列を写すだけ。OCRは残り155件に対してのみ、既存の
-        <code>invoice_ocr_service</code> を流用します。
-      </p>
-      <div class="box stop">
-        <div class="box-h">判断ではなく事実を保存する</div>
-        <pre style="margin:.4rem 0 0"><span class="c">保存する（事実）</span>          <span class="c">保存しない（判断）</span>
-tin_present: true/false      claimable: 可/不可
-receipt_type: OR / SI /
-              手書き / 不明</pre>
-        <p style="margin-top:.8rem">
-          経費性の基準（TIN無しの少額扱い、手書き領収書、Dubai の Simplified Tax Invoice 閾値）は
-          <strong>会計・税務の判断であり、システムが決めるべきではありません</strong>。
-          事実だけ保存しておけば、基準確定後に <code>claimable_rule_version</code> を付けて
-          <strong>過去分も遡って再判定できます</strong>。
+        <div class="box-h">この段階だけで得られるもの</div>
+        <p>
+          科目が付いていなくても、<strong>「日付・取引先・金額・税額・画像」が一覧で検索できる</strong>状態になります。
+          経理担当の「探す」「読む」「打ち込む」がここで消えます。残るのは科目を決める作業だけです。
         </p>
       </div>
-      <p class="wide">
-        画面表示も事実だけにします。<code>No TIN found on this receipt.</code> とは書きますが、
-        <code>This is not claimable.</code> とは書きません。
-        誤った基準で「経費にならない」と表示すると、<strong>スタッフが正しい領収書を捨てかねません</strong>。
-      </p>
     </div>
   </div>
 
   <div class="phase">
-    <div class="phase-h">
-      <span class="phase-n">PHASE 2</span><span class="phase-t">自動分類と承認画面</span>
-      <span class="phase-w">新規ページ1つだけ</span>
-    </div>
+    <div class="phase-h"><span class="phase-n">PHASE 2</span>
+      <span class="phase-t">科目の自動分類</span>
+      <span class="phase-w">会計事務所の体系が要る</span></div>
     <div class="phase-b">
       <p class="wide">
-        <strong>2回目以降はAIを呼びません。</strong>正規化した名前がマスタに当たれば即決定です。
-        新規取引先のときだけ Claude を使います。
+        <strong>ここだけは事務所が決まるまで着手できません。</strong>
+        分類先が存在しないためです。体系が届いたら <code>account_master.tax_account_code</code> に入れます。
       </p>
-      <div class="tw">
-        <table>
-          <tr><th>確信度</th><th>根拠</th><th>扱い</th></tr>
-          <tr><td class="mono">0.95</td><td>マスタヒット</td><td>自動確定・一括承認可</td></tr>
-          <tr><td class="mono">0.85</td><td>明細から特定（<code>Salmon 2kg</code>）</td><td>候補提示・1クリック</td></tr>
-          <tr><td class="mono">0.50</td><td>取引先名だけの推測</td><td>手動入力</td></tr>
-        </table>
-      </div>
+      <pre><span class="k">vendor_master</span>
+  canonical_name, name_variants[],
+  is_internal,              <span class="c">-- Sushi ZEN CK / Warehouse は振替であって費用ではない</span>
+  default_tax_account,
+  tin_or_trn, tax_status</pre>
       <p class="wide">
-        既存の <code>/admin/expense-requests</code> は<strong>そのまま残します</strong>。
-        会計データ層の承認は新規ページで行い、既存の承認フローと競合させません。
+        <strong>2回目以降はAIを呼びません。</strong>取引先は <code>drive_invoices</code> で
+        <strong>25社のみ</strong>。20社ほど登録すれば207件を覆います。数日で埋まります。
       </p>
+      <div class="box ask">
+        <div class="box-h">社内振替を費用にしない</div>
+        <p>
+          <code>Sushi ZEN Central Kitchen</code> を食材費に分類すると、
+          CKが外部から仕入れた時点で計上済みのため<strong>二重計上</strong>になります。
+          名寄せの際に <code>is_internal</code> を<strong>同時に</strong>判定してください。
+          表記揺れも既に発生しています（<code>Centrak</code> という綴り違いが8件）。
+        </p>
+      </div>
     </div>
   </div>
 
   <div class="phase">
-    <div class="phase-h">
-      <span class="phase-n">PHASE 3</span><span class="phase-t">学習ループ・重複検知・出力</span>
-      <span class="phase-w">運用しながら精度が上がる</span>
-    </div>
+    <div class="phase-h"><span class="phase-n">PHASE 3</span>
+      <span class="phase-t">申告用出力と監査対応</span>
+      <span class="phase-w">運用が回ってから</span></div>
     <div class="phase-b">
       <ul class="plain">
-        <li>同じ取引先で<strong>2回同じ修正</strong>が入ったら既定科目を自動更新</li>
-        <li>重複検知は<strong>入り口を跨いで</strong>効く（同じレシートが小口と立替の両方に出る等）</li>
-        <li>会計事務所向けCSV：日付・取引先・TIN/TRN・科目・税抜・税額・税込・原価センター・店舗・画像URL</li>
+        <li><strong>期間ロック</strong>：申告済み期間は変更不可にする。後から数字が動くと申告と帳簿が食い違います</li>
+        <li><strong>仕入税額の集計</strong>：TIN/TRN あり・なしで分けて出す</li>
+        <li><strong>重複検知</strong>：画像ハッシュと <code>(取引先, 日付, 金額)</code>。入力口を跨いで効きます</li>
+        <li><strong>監査対応</strong>：科目・期間・取引先から絞り込み、その場で原本画像を表示</li>
+        <li><strong>学習</strong>：同じ取引先で2回同じ修正が入ったら既定科目を更新</li>
       </ul>
-      <div class="box new">
-        <div class="box-h">統合しなかったからこそ効く</div>
-        <p>5つの入り口を残したまま層で束ねるので、重複検知が<strong>入り口を跨いで</strong>機能します。統合していたら「同じ表の中の重複」しか見えません。</p>
-      </div>
     </div>
   </div>
 </section>
 
 <!-- ══ 画面 ══ -->
 <section>
-  <h2><span class="tag">画面</span>変えるもの／変えないもの</h2>
-  <div class="tw">
-    <table>
-      <tr><th>画面</th><th>Phase 0–1</th><th>Phase 2 以降</th></tr>
-      <tr><td class="mono">/store/expense-request</td><td style="color:var(--keep)"><strong>変更なし</strong></td><td>TIN注意の表示を<strong>追加のみ</strong>（操作は不変）</td></tr>
-      <tr><td class="mono">/store/petty-cash</td><td style="color:var(--keep)"><strong>変更なし</strong></td><td>同上</td></tr>
-      <tr><td class="mono">/store/receipt-log</td><td style="color:var(--keep)"><strong>変更なし</strong></td><td>同上</td></tr>
-      <tr><td class="mono">/admin/expense-requests</td><td style="color:var(--keep)"><strong>変更なし</strong></td><td style="color:var(--keep)"><strong>変更なし</strong></td></tr>
-      <tr><td class="mono">/admin/finance/documents</td><td style="color:var(--new)"><strong>新規</strong></td><td>承認・修正・CSV出力</td></tr>
-      <tr><td class="mono">/admin/finance/vendors</td><td style="color:var(--new)"><strong>新規</strong></td><td>名寄せ・既定科目の編集</td></tr>
-    </table>
-  </div>
-  <p class="wide">
-    スタッフの操作は<strong>Phase 2 まで一切変わりません</strong>。
-    Phase 2 で足すTIN注意も表示のみで、入力手順は変えません。
+  <h2><span class="tag">画面</span>経理担当のための1画面</h2>
+  <p class="lede">
+    使う人は店舗マネージャーではなく<strong>経理担当</strong>です。
+    1件を丁寧に承認する画面ではなく、<strong>100件を一気に流す画面</strong>を作ります。
   </p>
-</section>
-
-<!-- ══ リスク ══ -->
-<section>
-  <h2><span class="tag">正直に</span>この設計でも残るもの</h2>
+  <ul class="plain">
+    <li>左に<strong>証憑画像</strong>、右に<strong>抽出結果</strong>。目線を動かさずに数字を照合できる配置</li>
+    <li>キーボードだけで次へ進める（承認 → 次、修正 → 次）</li>
+    <li>マスタヒットは<strong>一括承認</strong>。1件ずつ開かない</li>
+    <li>TIN/TRN なしを<strong>絞り込める</strong>。申告前にまとめて確認するため</li>
+    <li>期間指定でCSV出力</li>
+  </ul>
   <div class="tw">
     <table>
-      <tr><th>残る問題</th><th>この設計での扱い</th></tr>
-      <tr>
-        <td>base64画像がDBに直入り（1枚440KB）</td>
-        <td>層は保存場所を問わないので<strong>移行は不要</strong>。ただし問題は残る。対象は立替13件（0.33/日）に限られ、緊急性は低い</td>
-      </tr>
-      <tr>
-        <td>元行が後から編集・削除される</td>
-        <td><code>content_hash</code> で検知し<strong>差異を表示</strong>する。黙って古いまま残さない</td>
-      </tr>
-      <tr>
-        <td>どちらが正か</td>
-        <td><strong>取引の事実は元テーブルが正</strong>。<strong>会計上の分類は層が正</strong>。書き戻さないので競合しない</td>
-      </tr>
-      <tr>
-        <td>立替経費の未定着（93名中3名）</td>
-        <td>この設計では<strong>解決しない</strong>。UIを変えないため。定着は別課題として扱う</td>
-      </tr>
+      <tr><th>画面</th><th>変更</th></tr>
+      <tr><td class="mono">/store/expense-request · petty-cash · receipt-log</td><td style="color:var(--keep)"><strong>変更なし</strong></td></tr>
+      <tr><td class="mono">/admin/expense-requests</td><td style="color:var(--keep)"><strong>変更なし</strong></td></tr>
+      <tr><td class="mono">/admin/finance/documents</td><td style="color:var(--new)"><strong>新規</strong>：台帳・確認・出力</td></tr>
+      <tr><td class="mono">/admin/finance/vendors</td><td style="color:var(--new)"><strong>新規</strong>：名寄せ・既定科目</td></tr>
     </table>
   </div>
 </section>
 
-<!-- ══ やらない ══ -->
+<!-- ══ 確認 ══ -->
 <section>
-  <h2><span class="tag">方針</span>やらないこと</h2>
+  <h2><span class="tag">確認</span>会計事務所に聞くこと</h2>
+  <p class="lede">前版から質問の中身が変わります。「体系を共有してほしい」ではなく、実務の受け渡し条件を詰めます。</p>
+  <ul class="plain">
+    <li><strong>下処理済みのデータをどの形式で渡せば、そのまま記帳に使えますか。</strong>
+        勘定科目コード・列構成・ファイル形式。<strong>記帳工数が下がる分の値引き交渉に直結します</strong></li>
+    <li><strong>経費性の判定基準。</strong>TIN記載なしの少額の扱い、手書き領収書、
+        Dubai の Simplified Tax Invoice の閾値。<strong>これはシステムが決めるべきではありません</strong></li>
+    <li><strong>証憑の保存要件。</strong>電子データで足りるか、紙の原本保管が必要か。保存年数</li>
+    <li><strong>申告単位。</strong>PH法人・UAE法人それぞれの税務期間と申告サイクル</li>
+  </ul>
+  <div class="box ask">
+    <div class="box-h">回答を待たずに進められること</div>
+    <p>
+      Phase 1（拡張抽出・台帳・画像リンク）は<strong>全て事務所の回答なしで完了できます</strong>。
+      待つ必要があるのは Phase 2 の分類だけです。
+    </p>
+  </div>
+</section>
+
+<!-- ══ できないこと ══ -->
+<section>
+  <h2><span class="tag">限界</span>これでは解決しないこと</h2>
   <div class="tw">
     <table>
-      <tr><th>やらない</th><th>理由</th></tr>
-      <tr><td>5系統のテーブル統合</td><td>スタッフの操作が変わり、既存フローが止まるリスクがある</td></tr>
-      <tr><td>既存テーブルへの書き戻し・列追加</td><td>層を消せば元に戻せる状態を保つ</td></tr>
-      <tr><td>AIが確定データを作る</td><td>必ず人の承認を挟む</td></tr>
-      <tr><td>科目を自由記述で持つ</td><td>いま59種で起きている表記揺れを繰り返すだけ</td></tr>
-      <tr><td>会計事務所の体系を主キーにする</td><td>自社の月次PLが従属してしまう。<code>external_code</code> で対応</td></tr>
-      <tr><td>2回目以降もAIを呼ぶ</td><td>マスタ参照で決まる。一貫性が保て費用も下がる</td></tr>
-      <tr><td>複数店舗の按分を層で持つ</td><td>例外として扱い、按分は会計側で処理する</td></tr>
+      <tr><th>できないこと</th><th>理由</th></tr>
+      <tr><td>紙で回ってくるレシートの収集</td><td>誰かが撮る必要があります。撮られないものは存在しないのと同じです</td></tr>
+      <tr><td>経費性の判定基準を決めること</td><td>会計・税務の判断。事実だけ保存し、判断層は基準確定後に載せます</td></tr>
+      <tr><td>紙の原本の代替</td><td>税務当局が紙を求める場合、システムは所在を示せても原本にはなりません</td></tr>
+      <tr><td>立替経費の未定着（93名中3名）</td><td>UIを変えない方針のため。定着は別課題です</td></tr>
+      <tr><td>申告書の作成</td><td>集計して渡すところまでです</td></tr>
     </table>
   </div>
 </section>
 
 <footer>
-  Sushi ZEN Workforce OS — 会計データ層 実装案 rev.2<br>
-  数値は 2026-08-26 時点の本番データ（5テーブル計404件、費目59種、取引先25社）にもとづく。
+  Sushi ZEN Workforce OS — レシート仕訳の自動化 実装案 rev.3<br>
+  仕入請求書 209件/8日（取引先25社・税務項目の抽出 0件）· スタッフレシート 195件/4テーブル · 2026-08-26 時点
 </footer>
 
 </div>
