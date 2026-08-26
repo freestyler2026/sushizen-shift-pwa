@@ -1241,13 +1241,12 @@ export default function CKInventoryPage() {
         document.body
       )}
 
-      {/* ── Finalize Confirm Modal ─────────────────────────────────────────── */}
       {/* ── Stage 1: not finished yet ───────────────────────────────────────
           Shown only when items are still blank. Nobody on the CK floor can
           unlock a session — every one of the 25 CK/WH/BO accounts is role
-          STAFF, and only HQ can reopen — so this must send them back to Save
-          rather than tell them a manager will sort it out. Tagalog alongside
-          English because this is the screen that has to be understood. */}
+          STAFF, and only HQ can reopen — so this has to send them back to Save
+          rather than tell them a manager will sort it out. Kept short and in
+          plain words: this is the screen that has to be understood. */}
       {finalizeStage === 1 && kpi && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -1273,31 +1272,15 @@ export default function CKInventoryPage() {
               </div>
             </div>
 
-            <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                English
-              </div>
-              <p className="text-sm text-zinc-200 leading-relaxed">
-                If you have <strong>not finished</strong>, go back and press{" "}
-                <strong className="text-violet-300">Save</strong> (the purple button).
-                <br />
-                Once you lock this session, <strong>you cannot unlock it yourself</strong>.
-                Only the office can reopen it.
+            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-sm text-zinc-100 leading-relaxed">
+                If you have <strong>not finished counting</strong>, go back and press{" "}
+                <strong className="text-violet-300">Save</strong> — the purple button.
+                Your entries are kept and you can carry on later.
               </p>
-            </div>
-
-            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                Tagalog
-              </div>
-              <p className="text-sm text-zinc-200 leading-relaxed">
-                Kung <strong>hindi ka pa tapos</strong>, bumalik at pindutin ang{" "}
-                <strong className="text-violet-300">Save</strong> (ang kulay-violet na
-                button).
-                <br />
-                Kapag na-lock mo na ito,{" "}
-                <strong>hindi mo na ito mabubuksan nang mag-isa</strong>. Ang opisina lang
-                ang makakapagbukas nito muli.
+              <p className="mt-3 text-sm text-amber-200/90 leading-relaxed">
+                If you lock this session, <strong>you cannot unlock it yourself</strong>,
+                and the day cannot be counted again. Only the office can reopen it.
               </p>
             </div>
 
@@ -1307,13 +1290,13 @@ export default function CKInventoryPage() {
                 className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2 py-3 text-sm`}
               >
                 <Save className="h-4 w-4" />
-                Go back and keep counting · Bumalik at magpatuloy
+                Go back and keep counting
               </button>
               <button
                 onClick={() => setFinalizeStage(2)}
                 className="w-full rounded-xl border border-white/10 bg-transparent px-4 py-2 text-xs text-zinc-400 transition hover:border-amber-500/30 hover:text-amber-300"
               >
-                I have finished counting · Tapos na akong magbilang
+                I have finished counting
               </button>
             </div>
           </div>
@@ -1321,6 +1304,7 @@ export default function CKInventoryPage() {
         document.body
       )}
 
+      {/* ── Stage 2: final confirmation ─────────────────────────────────── */}
       {finalizeStage === 2 && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
@@ -1352,18 +1336,12 @@ export default function CKInventoryPage() {
                 All {kpi.totalItems} items have been counted.
               </div>
             )}
-            <p className="mb-2 text-sm text-zinc-400">
+            <p className="mb-6 text-sm text-zinc-400">
               This saves every entry and locks the session.{" "}
               <strong className="text-zinc-300">Only the office can reopen it.</strong>{" "}
               Do not start a second session for the same day.
             </p>
-            <p className="mb-6 text-sm text-zinc-400">
-              Ise-save nito ang lahat at ila-lock ang session.{" "}
-              <strong className="text-zinc-300">
-                Ang opisina lang ang makakapagbukas nito muli.
-              </strong>{" "}
-              Huwag gumawa ng pangalawang session para sa parehong araw.
-            </p>
+
             <div className="flex gap-3">
               <button onClick={() => setFinalizeStage(0)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>
                 Cancel
