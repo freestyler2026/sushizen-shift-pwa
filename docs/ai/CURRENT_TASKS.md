@@ -1,6 +1,72 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (Management Channel 仕様書を全実装 — Day 4 / Week 5-6 / Week 7-8 完了)
+Last updated: 2026-08-26 (Management Channel の設計監査 — 送信フローが機能していなかった件を含む10件を修正)
+
+---
+
+## ✅ Completed: Management Channel 設計監査 (2026-08-26)
+
+仕様書・マニュアルと実装を突き合わせた結果、**中核ループが production で一度も
+成立していなかった**ことが判明した。
+
+### 🔴 致命的（システムが設計通り動いていなかった）
+
+**1. `sent_at` が記録されていなかった** — BOダッシュボードの送信処理が
+`status='sent'` と `sent_message` は PATCH するが `sent_at` を送っていなかった。
+8/19の稼働開始以来 **172件すべて `sent_at` が NULL**。この列に依存する全機能
+（30分エスカレーション・SLA超過の見逃し記録・エリアマネージャー週次スコア）が
+構造的にゼロを返し続けていた。→ タイムスタンプはサーバ側で打つよう変更。
+
+**2. 自動実行が存在しなかった** — 検知もスイープも「Run Detection」ボタンからしか
+呼ばれない。8/22〜8/26 の4日間、検知は1件も走っていない。
+→ worker に15分周期のジョブを追加（各都市のローカル日付で実行）。
+
+**3. BO担当者が誰にも割り当てられていなかった** — `bo_assignments` に
+Camille Santos（bo_a）と担当例外タイプが登録済みなのに、検知が `bo_assignee` を
+一切セットしていない（1/172件）。マニュアルの「担当：BO Staff A」は文書のみだった。
+→ 全検知箇所で `_bo_assignee_for()` を通す。5分TTL付き。
+
+### 🟡 計算・表示の誤り
+
+**4. 週次スコアが二重減点** — on-time を `responded - missed` で算出していたが、
+`missed` には未返答のものも含まれる。sent=4 / responded=2 / missed=2 で
+**score 0（正しくは25）**。→ 直接カウントに変更。
+
+**5. 70%→50%昇格が色だけ変えていた** — type も message も context も
+`backup_below_70` のまま。「below 70%」と書かれた赤タスクが古い数値を表示し、
+さらに `backup_below_50` を数える `repeat_backup_shortfall` から見えなかった。
+
+**6. Run Detection がブラウザのUTC日付を送っていた** — マニラの午前中は前日を
+スキャンしていた。→ 店舗ローカル日付へ。
+
+**7. Run Detection が errors / skipped を捨てていた** — 検知が壊れても
+「Detection complete. 0 new tasks created.」と表示。せっかく作ったエラー経路が
+UIで握り潰されていた。
+
+**8. 支店ラベルが2箇所で二重管理** — BO側のマップに今週追加した型が全て欠落。
+
+**9. 「Manager: Unknown」** — 検知時点でマネージャーは決まらない。この列は
+「誰が返答したか」なので、未送信は "Not sent yet"、送信済みは
+"Awaiting the store's reply" に。
+
+**10. 4ページ間に導線がなかった** — Pattern Detection が「Par level review」を
+出しても Par Levels へ飛べない。→ 共通タブバー追加。
+
+### 仕様とマニュアルの不一致（マニュアル側を訂正）
+- PM Backup: マニュアルは 🔴 だが、承認済み文言は「🟠で発生し30分後にRed昇格」。
+  実装が正しく、マニュアルを訂正。
+- Disposal: マニュアルの 🔴 に実装を合わせた（yellow → red）。
+
+### 観測性
+worker はログを毎回1行出すが、**Postgresアドオンのログが大量で `heroku logs` からは
+実質見つけられない**。`management_job_runs` テーブルに実行結果を記録し、
+BOダッシュボード上部に「Automatic check ran N min ago」を表示。1時間無音で赤、
+検知失敗があれば赤。
+
+### 検証済み（本番）
+作成 → 送信（sent_at記録）→ 31分で赤へ自動昇格 → 95分で missed 記録 →
+返答（responded_at記録）→ 週次スコア反映、まで実データで通した。
+プローブタスクは作成の **2分57秒後に自動昇格**（人手介入なし）。テストデータは全削除済み。
 
 ---
 
