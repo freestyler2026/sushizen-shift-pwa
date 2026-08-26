@@ -27,6 +27,7 @@ import {
   TABLE_ROW,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
+import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import SelectDark from "@/components/SelectDark";
 
 interface ParLevel {
@@ -185,6 +186,7 @@ export default function ParLevelsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <MgmtChannelTabBar active="par" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Backup Par Levels</h1>

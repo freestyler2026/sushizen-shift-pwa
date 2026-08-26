@@ -33,7 +33,8 @@ import {
   TABLE_CELL,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
-import { fillTemplate, shortfallSummary } from "@/lib/management";
+import { MgmtChannelTabBar } from "../MgmtChannelTabs";
+import { fillTemplate, shortfallSummary, fmtExceptionType } from "@/lib/management";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -87,21 +88,16 @@ interface ResponseOption {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const EXCEPTION_LABELS: Record<string, string> = {
-  pm_backup_missing:    "PM Backup Report Missing",
-  am_backup_missing:    "AM Backup Report Missing",
-  backup_below_50:      "Backup Below 50%",
-  backup_below_70:      "Backup Below 70%",
-  disposal_missing:     "Disposal Report Missing",
-  complaint_no_photo:   "Complaint — No Photo",
-  attendance_unverified: "Attendance Unverified",
-  product_score_c:      "Product Score C",
-  product_score_d:      "Product Score D/F",
-  salmon_high_waste:    "Salmon High Waste",
-};
+
+/** Today's date in the store's own timezone — never the browser's. */
+function storeToday(city: string): string {
+  const tz = city === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+  // en-CA gives YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+}
 
 function fmtLabel(type: string) {
-  return EXCEPTION_LABELS[type] || type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  return fmtExceptionType(type);
 }
 
 function fmtTime(iso: string | null) {
@@ -412,7 +408,13 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
           )}
           <div className="flex items-center gap-3 mt-0.5">
             <span className={T_CAPTION}>
-              Manager: <span className="text-zinc-300">{task.manager_name || "Unknown"}</span>
+              {task.manager_name ? (
+                <>Replied by: <span className="text-zinc-300">{task.manager_name}</span></>
+              ) : task.status === "open" ? (
+                <>Not sent yet</>
+              ) : (
+                <>Awaiting the store’s reply</>
+              )}
             </span>
             <span className={T_CAPTION}>{fmtTime(task.created_at)}</span>
           </div>
@@ -600,20 +602,45 @@ export default function BODashboardPage() {
     setDetecting(true);
     try {
       const headers = getAuthHeaders(getAuth());
-      const today = new Date().toISOString().slice(0, 10);
       const res = await fetch("/api/admin/management/detect", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ city: cityFilter, date: today }),
+        // The date is the STORE's, not the browser's. toISOString() is UTC, so
+        // a Manila morning run would have scanned yesterday.
+        body: JSON.stringify({ city: cityFilter, date: storeToday(cityFilter) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.created > 0) {
-        await loadTasks(true);
+      await loadTasks(true);
+
+      // A failed detector must not read as a clean scan. The API reports which
+      // ones broke and which items it declined to judge; showing only the
+      // created count is how "0 new tasks" hides a dead rule.
+      const errs: { detector: string; error: string }[] = data.errors || [];
+      const skipped: { branch: string; item: string; reason: string }[] = data.skipped || [];
+      const lines = [
+        `Detection complete — ${data.created} new task${data.created !== 1 ? "s" : ""}.`,
+      ];
+      if (data.escalated) lines.push(`${data.escalated} task(s) escalated to red.`);
+      if (data.missed) lines.push(`${data.missed} task(s) past SLA marked as missed.`);
+      if (skipped.length) {
+        lines.push(
+          "",
+          `${skipped.length} item(s) could NOT be judged:`,
+          ...skipped.slice(0, 5).map(s => `  • ${s.branch} ${s.item} — ${s.reason}`),
+          ...(skipped.length > 5 ? [`  • …and ${skipped.length - 5} more`] : []),
+        );
       }
-      alert(`Detection complete. ${data.created} new task${data.created !== 1 ? "s" : ""} created.`);
-    } catch {
-      alert("Detection failed. Please try again.");
+      if (errs.length) {
+        lines.push(
+          "",
+          `⚠️ ${errs.length} detector(s) FAILED — those exceptions were not scanned:`,
+          ...errs.map(e => `  • ${e.detector}: ${e.error}`),
+        );
+      }
+      alert(lines.join("\n"));
+    } catch (e) {
+      alert(`Detection failed: ${e}`);
     } finally {
       setDetecting(false);
     }
@@ -666,6 +693,8 @@ export default function BODashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1e] via-[#0d1526] to-[#0a0f1e] pb-24">
       <div className="mx-auto max-w-5xl px-4 pt-6">
+        <MgmtChannelTabBar active="bo" />
+
 
         {/* Header */}
         <div className="mb-6 flex items-start justify-between flex-wrap gap-3">

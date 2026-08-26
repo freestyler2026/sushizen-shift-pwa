@@ -65,15 +65,24 @@ export function shortfallSummary(context?: TaskContext | null): string | null {
   return `${item} — ${qty} / ${par_qty} ${unit ?? ""} (${pct}% of par)`.replace(/\s+/g, " ");
 }
 
+/** The one label map. Both the BO dashboard and the manager inbox read it. */
 export const EXCEPTION_LABELS: Record<string, string> = {
   pm_backup_missing: "PM Backup Report Missing",
+  am_backup_missing: "AM Backup Report Missing",
   disposal_missing: "Disposal Report Missing",
   product_score_c: "Product Score C or Below",
+  product_score_d: "Product Score D/F",
   attendance_unverified: "Attendance Unverified",
   backup_below_50: "Backup Below 50% of Par",
   backup_below_70: "Backup Below 70% of Par",
+  complaint_no_photo: "Complaint — No Approval Photo",
   rush_check_missing: "Rush Hour Check Missing",
   travel_path_hygiene: "Travel Path Hygiene Issue",
+  // Raised by other subsystems that post into the same inbox.
+  salmon_high_waste: "Salmon High Waste",
+  salmon_yield_alert: "Salmon Yield Alert",
+  kpi_food_cost_critical: "Food Cost — Critical",
+  kpi_prime_cost_critical: "Prime Cost — Critical",
 };
 
 export function fmtExceptionType(type: string): string {

@@ -17,6 +17,7 @@ import {
   TABLE_ROW,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
+import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import SelectDark from "@/components/SelectDark";
 
 interface BranchScore {
@@ -112,6 +113,7 @@ export default function AreaReviewPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <MgmtChannelTabBar active="area" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Area Manager Weekly Review</h1>

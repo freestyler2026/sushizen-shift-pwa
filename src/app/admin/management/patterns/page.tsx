@@ -16,6 +16,7 @@ import {
   KPI_LABEL,
   KPI_VALUE,
 } from "@/lib/ui-tokens";
+import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import SelectDark from "@/components/SelectDark";
 
 interface Pattern {
@@ -180,6 +181,7 @@ export default function PatternsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <MgmtChannelTabBar active="patterns" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Pattern Detection</h1>
