@@ -1,6 +1,44 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-25 (Noon二重計上を発見(未解決) / Talabat欠落解消 / Keeta 桁区切りバグ修正+バックフィル / Careem Payment Summary API 取り込み / Dubai Discount Rates ブランド別入力)
+Last updated: 2026-08-26 (Management Channel: 承認済みテンプレート文言を登録 / 回答を2段階化 / Seed関数の巻き戻しバグを修正 / マニュアル再生成)
+
+---
+
+## ✅ Completed: Management Channel テンプレート2段階化 (2026-08-26)
+
+### 経緯
+週次実装の続きを進めるにあたり現状調査。Week 1〜3 は稼働中で `management_tasks` に
+44件の実データ、`pm_backup_missing` は responded → closed まで到達していた。
+`message_ja` が NULL だったため一度「文言未登録」と報告したが、これは誤り
+（CLAUDE.md の英語のみルール通り `message_en` に入っていた）。
+
+### 実際に見つかった差分
+承認済み仕様は**2段階回答**（原因/状態 → Action Taken）だが、実装は単一選択の
+フラットリストだった。結果:
+- `backup_below_50/70` — Action Taken 4件が丸ごと欠落
+- `product_score_c` — Issue と Action が1リストに混在。`Feedback Given to Staff` が
+  原因の選択肢と並び、Standard Re-explained / Product Remade / Staff Retrained が無い
+- `attendance_unverified` — Action Taken 4件が欠落
+- `disposal_missing` — 「担当者が忘れた」でスタッフ名を取れない
+
+### 対応
+- `management_tasks.response_action` / `action_templates.action_options`・
+  `response_label`・`action_label` を追加（ALTER TABLE で既存テーブルにも適用）
+- respond エンドポイントは、テンプレートが Action Taken を定義しているのに
+  `response_action` が無い場合 400 を返す（原因だけ記録して閉じるのを防ぐ）
+- 選択肢単位の `require_note` — Disposal の「Staff Unavailable / Forgot」は
+  スタッフ名の入力が必須
+- Manager Inbox は2段階UI。両方選ぶまで Confirm Response が押せない
+
+### 🔥 危なかった点（教訓20に追記した内容）
+BO Dashboard の「Seed Default Templates」ボタンが `seed_management_templates()` の
+**古いフラット定義**を持ったままだった。誰かが1回押すだけで Action Taken が全消え、
+ラベルも巻き戻る状態。DBを直接シードしただけで終わっていたら気付けなかった。
+関数を承認済み仕様に置き換え、`heroku run` で実行して往復を検証済み。
+
+### 未実装（仕様に「→」で書かれていた挙動）
+- ① PM Backup: 30分後も未提出なら Red Alert として BO に再表示
+- ④ Product Score C: 同一 Menu / Issue の繰り返しを Recurring Issue として検出し BO へ
 
 ---
 
