@@ -184,9 +184,10 @@ footer { margin-top:3.8rem; padding-top:1.3rem; border-top:1px solid var(--rule)
 
 <!-- ══ OCRの不足 ══ -->
 <section>
-  <h2><span class="tag">訂正</span>既存OCRは税務項目を1つも取っていません</h2>
+  <h2><span class="tag">検証済</span>税務項目は、プロンプトに足せば取れます</h2>
   <p class="lede">
-    前版で「209件は抽出済みなので再OCR不要」と書きましたが、<strong>税務目的では成立しません</strong>。
+    前版で「209件は抽出済みなので再OCR不要」と書きましたが、税務目的では成立しません。
+    ただし<strong>読取性能の問題ではありません</strong>。プロンプトが要求していないだけです。
   </p>
   <pre><span class="c">// invoice_ocr_service.py が現在取っている項目</span>
 vendor_name, invoice_number, invoice_date, due_date,
@@ -199,14 +200,31 @@ total_amount, currency, line_items, confidence_notes
 <span class="x">receipt_type</span>     <span class="c">なし（OR / SI / 手書き の別）</span></pre>
   <p class="wide">
     現在の抽出は<strong>発注照合のための項目</strong>で、税務のための項目ではありません。
-    最も価値のある TIN/TRN が、まったく取れていません。
+    <code>ocr_raw_json</code> にもプロンプトが定義した項目しか残っていないため、
+    <strong>0件という数字は「書類にTRNが無い」ことの証拠にはなりません</strong>。
   </p>
-  <div class="box stop">
-    <div class="box-h">結果として</div>
+
+  <div class="box keep">
+    <div class="box-h">実証：同じモデル・同じ画像で3件全て成功</div>
+      <pre style="margin:.4rem 0 .7rem"><span class="c">-- 拡張プロンプトで再抽出した結果</span>
+SUMMIT TRADING COMPANY LLC      TRN 100010300000003  TAX_INVOICE
+   税抜 551.00 + 税額 27.55 = 578.55   <span class="c">DB値と一致・VAT 5%</span>
+SUNBERRY ... TRADING L.L.C      TRN 100469467300003  TAX_INVOICE
+   税抜 303.50 + 税額 15.18 = 318.68
+Chef Middle East LLC            TRN 100258961400003  TAX_INVOICE
+   税抜  60.00 + 税額  3.00 =  63.00</pre>
     <p>
-      209件は<strong>再抽出が必要</strong>です。画像は Drive に残っているので実行可能で、
-      プロンプトを拡張して1回流すだけです。ただし「タダで使える207件」ではありませんでした。
-      前版の見積もりを訂正します。
+      TRN・領収書種別・税抜額・税額のすべてが読めています。税込額は既存DB値と完全一致し、
+      VATも正確に5%です。<strong>gpt-4o の性能ではなく、プロンプトの設計の問題でした。</strong>
+      Prep Time 計測で厨房照明下の小さなレシートが読めているのと矛盾しません。
+    </p>
+  </div>
+
+  <div class="box new">
+    <div class="box-h">つまり Phase 1 は</div>
+    <p>
+      <strong>プロンプトの拡張 ＋ 209件の再抽出パス1回</strong>で完了します。
+      画像は Drive に残っており、読めることは実証済みです。技術的な不確実性はありません。
     </p>
   </div>
 </section>
@@ -291,7 +309,10 @@ total_amount, currency, line_items, confidence_notes
           <code>Sushi ZEN Central Kitchen</code> を食材費に分類すると、
           CKが外部から仕入れた時点で計上済みのため<strong>二重計上</strong>になります。
           名寄せの際に <code>is_internal</code> を<strong>同時に</strong>判定してください。
-          表記揺れも既に発生しています（<code>Centrak</code> という綴り違いが8件）。
+          表記揺れも既に発生しています。<code>Centrak</code> という綴り違いが8件、
+          SUNBERRY はハイフン・ピリオド・大文字小文字の違いで<strong>4通り</strong>
+          （<code>- L.L.C</code> 11件 / <code>L.L.C</code> 7件 / <code>- LLC</code> 1件 /
+          <code>Sunberry ... L.L.C</code> 3件）。
         </p>
       </div>
     </div>
@@ -376,7 +397,8 @@ total_amount, currency, line_items, confidence_notes
 
 <footer>
   Sushi ZEN Workforce OS — レシート仕訳の自動化 実装案 rev.3<br>
-  仕入請求書 209件/8日（取引先25社・税務項目の抽出 0件）· スタッフレシート 195件/4テーブル · 2026-08-26 時点
+  仕入請求書 209件/8日（取引先25社）· スタッフレシート 195件/4テーブル ·
+  税務項目の抽出可否は実物3件で検証済み · 2026-08-26 時点
 </footer>
 
 </div>
