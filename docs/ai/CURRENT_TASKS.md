@@ -1,6 +1,64 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (Management Channel を「減点だけの仕組み」から「評価の仕組み」へ — 5項目実装)
+Last updated: 2026-08-26 (CK Inventory ロック解除不能・Management Inbox 都市固定 の2件を修正)
+
+---
+
+## ✅ Completed: 現場からの問い合わせ2件 (2026-08-26)
+
+### ⚠️ 訂正：ログイン画面の City は原因ではなかった
+当初「ログイン画面の City が Dubai 既定 → auth.city が dubai になる」と報告したが**誤り**。
+`/api/auth/verify` の `_staff_city()` が **staff_master の登録都市を優先**し、
+全スタッフ（約170名）に `manila` / `dubai` が正しく入っているため、
+**ドロップダウンの値は auth.city に影響しない**（フォールバックに落ちる人は0名）。
+報告者に「Manilaで入り直す」を案内しても直らない。
+
+ただしログイン画面には別の実害がある：**名前一覧は都市で絞られる**ため、
+Manila のスタッフが既定の Dubai のまま名前を打つと候補が0件になり、
+「ログインが壊れている」ように見える。
+→ 前回使用した都市を localStorage に記憶（成功時はサーバが解決した都市を保存）。
+   候補0件のときは「No match in Dubai. If you work in Manila, change the City above」と案内。
+
+### ① Management Inbox に Dubai の支店しか出ない
+**Role設定は無関係だった。**[inbox/page.tsx](src/app/store/management/inbox/page.tsx) が
+`auth.city` だけで支店リストを決めており、**ページ上に都市の切り替えが無かった**。
+さらに `cityLock`（''=全都市）を無視していた。
+
+決定的だったのは**ログイン画面の City が Dubai 既定**であること。`auth.city` はここで
+決まるため、Manila のスタッフが既定のまま入ると Dubai しか見えず、権限をどう直しても
+変わらない。
+
+→ `cityLock` が空のアカウントには都市セレクタを表示、特定都市固定のアカウントは
+固定のまま「あなたのアカウントはこの都市です」と明示。同じ欠陥があった
+Rush Check ページも同時に修正。
+
+### ② CK Inventory に入力できない
+原因は「保存」ではなく **Finalize**。セッション329（2026-08-26）が
+**206件中13件しか入力されていない状態で確定**され、**解除する手段がシステムに
+存在しなかった**（reopen エンドポイント未実装）。
+
+`get_or_create_ck_inventory_session` は既に「確定済みでも同じセッションを返す」よう
+修正済みだったため、新規作成での回避もできず**完全に詰んでいた**。
+
+**過去の被害**: 直近30日で138セッション（本来約30）。14日間で同日複数作成、最大9件/日。
+入力1〜2件で確定されたセッションが6件以上。UI で Finalize が紫の主ボタン、
+Save Draft が控えめなセカンダリだったため、**取り消せない操作の方が主要動作に見えていた**。
+
+**対応**
+1. セッション329を解除（ユーザー承認のうえ実施。入力13件は全て保全）
+2. `reopen_ck_inventory_session` + `POST .../reopen` — マネージャー/HQ ロール限定、理由必須
+3. `finalized_by` / `reopened_by` / `reopened_at` / `reopen_count` +
+   `ck_inventory_session_audit`（確定・解除を件数付きで全件記録）。
+   **従来は誰が確定したかすら記録されていなかった**
+4. Save を主ボタン、Finalize を控えめなボタンへ入れ替え
+5. 確定ダイアログに実数を表示（「206件中13件しか入力されていません」）
+6. New Session モーダルで**押す前に**同日セッションの存在を警告、
+   ボタンを「Open Existing Session」に変更
+
+### 教訓
+- 取り消せない操作を主ボタンにしない
+- 取り消せない操作には必ず取り消し経路を用意する（権限制限＋記録つき）
+- 誰が実行したかを記録しない状態遷移を作らない
 
 ---
 

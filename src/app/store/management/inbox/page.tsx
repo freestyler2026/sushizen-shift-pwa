@@ -543,9 +543,25 @@ export default function ManagerInboxPage() {
   const [error, setError] = useState("");
   const [showDone, setShowDone] = useState(false);
 
-  const city = auth?.city || "manila";
+  // cityLock is the account's real constraint: '' means this person works across
+  // cities. auth.city is only whatever was picked on the login screen, which
+  // defaults to Dubai — so a Manila manager who left it alone saw nothing but
+  // Dubai branches here, with no control on the page to correct it.
+  const cityLock = (auth?.cityLock || "").toLowerCase();
+  const canSwitchCity = cityLock === "";
+  const [city, setCity] = useState<string>(
+    cityLock || (auth?.city as string) || "manila",
+  );
   const branchOptions = BRANCHES[city] || BRANCHES.manila;
   const [branch, setBranch] = useState(branchOptions[0].value);
+
+  // Moving city must move the branch with it, or the page asks the API for a
+  // Dubai branch while showing Manila.
+  useEffect(() => {
+    const opts = BRANCHES[city] || BRANCHES.manila;
+    if (!opts.some(o => o.value === branch)) setBranch(opts[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city]);
 
   useEffect(() => {
     if (!auth) {
@@ -642,8 +658,23 @@ export default function ManagerInboxPage() {
           </button>
         </div>
 
-        {/* Branch selector */}
-        <div className="mb-5 flex items-center gap-3">
+        {/* City + branch. The city control only appears for accounts that work
+            across cities; a manager tied to one city still cannot wander. */}
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          {canSwitchCity && (
+            <>
+              <span className={T_LABEL}>City</span>
+              <SelectDark
+                value={city}
+                onChange={v => setCity(v)}
+                options={[
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+                className="w-32 text-sm"
+              />
+            </>
+          )}
           <span className={T_LABEL}>Branch</span>
           <SelectDark
             value={branch}
@@ -651,6 +682,11 @@ export default function ManagerInboxPage() {
             options={branchOptions}
             className="w-40 text-sm"
           />
+          {!canSwitchCity && (
+            <span className={T_CAPTION}>
+              {city === "dubai" ? "Dubai" : "Manila"} — your account is set to this city
+            </span>
+          )}
         </div>
 
         {/* KPI */}
