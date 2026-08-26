@@ -1,0 +1,504 @@
+<title>立替経費の勘定科目自動化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --paper:    #F7F8FA;
+  --card:     #FFFFFF;
+  --card-2:   #EEF1F6;
+  --rule:     #DBE1EA;
+  --rule-2:   #E9EDF3;
+  --ink:      #131A24;
+  --ink-2:    #3A4756;
+  --muted:    #6B7887;
+
+  --ok:       #0E7C66;
+  --ok-bg:    #E3F4EF;
+  --ok-line:  #A8DCCD;
+  --stop:     #B3261E;
+  --stop-bg:  #FBE9E7;
+  --stop-line:#EFB9B4;
+  --idx:      #3A5CCC;
+  --idx-bg:   #E8EDFB;
+  --idx-line: #B9C8F0;
+
+  --measure: 36rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+    --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+    --ok:#3FD1AE; --ok-bg:#0D2A25; --ok-line:#1F5A4C;
+    --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+    --idx:#8AA6FF; --idx-bg:#161F3A; --idx-line:#2E3F6B;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+  --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+  --ok:#3FD1AE; --ok-bg:#0D2A25; --ok-line:#1F5A4C;
+  --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+  --idx:#8AA6FF; --idx-bg:#161F3A; --idx-line:#2E3F6B;
+}
+
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: "IBM Plex Sans JP", -apple-system, "Hiragino Sans", sans-serif;
+  font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 64rem; margin: 0 auto; padding: 3.5rem 1.5rem 7rem; }
+
+/* ── Head ─────────────────────────────────────────── */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+.kicker {
+  font-family: "IBM Plex Mono", monospace; font-size: .7rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: .8rem;
+}
+h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); line-height: 1.3; font-weight: 700; margin: 0 0 .8rem; text-wrap: balance; }
+.standfirst { font-size: 1rem; color: var(--ink-2); max-width: var(--measure); margin: 0; }
+.dateline { margin-top: 1.2rem; font-size: .78rem; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+
+section { margin-top: 3.25rem; }
+h2 {
+  font-size: 1.35rem; font-weight: 700; margin: 0 0 .35rem;
+  display: flex; align-items: baseline; gap: .75rem; text-wrap: balance;
+}
+h2 .tag {
+  font-family: "IBM Plex Mono", monospace; font-size: .68rem; font-weight: 600;
+  letter-spacing: .1em; color: var(--muted); flex-shrink: 0; padding-top: .15rem;
+}
+h3 { font-size: 1rem; font-weight: 700; margin: 1.75rem 0 .6rem; }
+.lede { color: var(--ink-2); max-width: var(--measure); margin: 0 0 1.5rem; }
+p { margin: 0 0 .9rem; max-width: var(--measure); }
+p.wide { max-width: 46rem; }
+p:last-child { margin-bottom: 0; }
+strong { font-weight: 700; }
+code {
+  font-family: "IBM Plex Mono", monospace; font-size: .85em;
+  background: var(--card-2); padding: .1em .4em; border-radius: 3px;
+  border: 1px solid var(--rule-2);
+}
+
+/* ── Figures ──────────────────────────────────────── */
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.75rem 0; }
+.fig { background: var(--card); padding: 1.2rem 1.1rem; }
+.fig-n { font-family: "IBM Plex Mono", monospace; font-size: 1.85rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fig-n small { font-size: .8rem; font-weight: 400; color: var(--muted); margin-left: .2rem; }
+.fig-l { font-size: .76rem; color: var(--muted); margin-top: .4rem; line-height: 1.55; }
+.fig.stop .fig-n { color: var(--stop); }
+.fig.ok .fig-n { color: var(--ok); }
+
+/* ── Tables ───────────────────────────────────────── */
+.tw { overflow-x: auto; margin: 1.3rem 0; border: 1px solid var(--rule); }
+table { width: 100%; border-collapse: collapse; font-size: .87rem; min-width: 32rem; background: var(--card); }
+th {
+  text-align: left; padding: .7rem .9rem; background: var(--card-2);
+  font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+td { padding: .7rem .9rem; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.n { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono { font-family: "IBM Plex Mono", monospace; font-size: .82rem; }
+
+/* ── Callouts ─────────────────────────────────────── */
+.box { border: 1px solid var(--rule); background: var(--card); padding: 1.15rem 1.3rem; margin: 1.3rem 0; }
+.box.stop { border-color: var(--stop-line); background: var(--stop-bg); }
+.box.ok { border-color: var(--ok-line); background: var(--ok-bg); }
+.box.idx { border-color: var(--idx-line); background: var(--idx-bg); }
+.box-h {
+  font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 600; margin-bottom: .5rem; color: var(--muted);
+}
+.box.stop .box-h { color: var(--stop); }
+.box.ok .box-h { color: var(--ok); }
+.box.idx .box-h { color: var(--idx); }
+.box p { max-width: 46rem; }
+
+/* ── Phase ────────────────────────────────────────── */
+.phase { border: 1px solid var(--rule); background: var(--card); margin-bottom: 1.1rem; }
+.phase-h {
+  display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap;
+  padding: 1rem 1.3rem; border-bottom: 1px solid var(--rule-2); background: var(--card-2);
+}
+.phase-n {
+  font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: .78rem;
+  letter-spacing: .06em; color: var(--idx); background: var(--idx-bg);
+  border: 1px solid var(--idx-line); padding: .1rem .5rem; border-radius: 3px; flex-shrink: 0;
+}
+.phase-t { font-weight: 700; font-size: 1rem; }
+.phase-w { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: .74rem; color: var(--muted); }
+.phase-b { padding: 1.2rem 1.3rem; }
+.phase-b p { max-width: 46rem; }
+
+ul.plain { padding-left: 1.1rem; margin: .5rem 0 0; max-width: 46rem; }
+ul.plain li { margin-bottom: .45rem; }
+ul.plain li::marker { color: var(--muted); }
+
+pre {
+  font-family: "IBM Plex Mono", monospace; font-size: .8rem; line-height: 1.7;
+  background: var(--card-2); border: 1px solid var(--rule); padding: 1rem 1.1rem;
+  overflow-x: auto; margin: 1rem 0; border-radius: 3px;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--idx); font-weight: 600; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.3rem 0; }
+@media (max-width: 44rem) { .split { grid-template-columns: 1fr; } }
+.split > div { background: var(--card); padding: 1.1rem 1.2rem; }
+.split-h { font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; margin-bottom: .55rem; }
+.split .now .split-h { color: var(--stop); }
+.split .then .split-h { color: var(--ok); }
+.split p { font-size: .9rem; margin: 0; }
+
+footer { margin-top: 4rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); font-size: .78rem; color: var(--muted); }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="kicker">Expense Reimbursement — 実装案</div>
+  <h1>レシートを、会計事務所がそのまま使えるデータにする</h1>
+  <p class="standfirst">
+    OCRと分類の前に、片づけておかなければ機能しないものが3つあります。
+    現在のコードとデータを調べたうえでの実装案です。
+  </p>
+  <div class="dateline">2026-08-26 · 本番データにもとづく</div>
+</header>
+
+<!-- ══ 現状 ══ -->
+<section>
+  <h2><span class="tag">現状</span>レシートは4つの場所に分かれて入っている</h2>
+  <p class="lede">
+    Expense Reimbursement だけを見ていると全体を見誤ります。同じ「スタッフがレシートを上げる」行為が、
+    4つの別テーブルに、別の形式で入っています。
+  </p>
+
+  <div class="tw">
+    <table>
+      <tr><th>テーブル</th><th class="n">件数</th><th>画像</th><th>費目</th><th>取引先</th></tr>
+      <tr>
+        <td class="mono">expense_reimbursement_requests</td><td class="n">13</td>
+        <td>base64 直入れ</td><td>6種の英語</td><td style="color:var(--stop)">なし</td>
+      </tr>
+      <tr>
+        <td class="mono">petty_cash_requests</td><td class="n">148</td>
+        <td><code>photo_url</code></td><td>4種（別語彙）</td><td style="color:var(--stop)">なし</td>
+      </tr>
+      <tr>
+        <td class="mono">transport_expenses</td><td class="n">18</td>
+        <td style="color:var(--stop)">なし</td><td style="color:var(--stop)">なし</td><td style="color:var(--stop)">なし</td>
+      </tr>
+      <tr>
+        <td class="mono">receipt_log</td><td class="n">16</td>
+        <td><code>receipt_url</code></td><td>department</td>
+        <td style="color:var(--ok)"><strong>あり</strong> + items</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="box idx">
+    <div class="box-h">ここが分岐点</div>
+    <p>
+      Expense Reimbursement だけを改修すると、<strong>取引先マスタは13件からしか育ちません</strong>。
+      残り182件のレシートは無関係のまま溜まり続けます。
+      「数か月で8〜9割がマスタヒット」に到達するには、<strong>4系統の取り込み口を1つにする</strong>のが先です。
+    </p>
+    <p style="margin-top:.7rem">
+      逆に言えば、統合さえすれば <code>receipt_log</code> が既に持っている
+      <code>supplier_name</code> と <code>items</code> がそのまま種になります。ゼロからではありません。
+    </p>
+  </div>
+</section>
+
+<!-- ══ 発見 ══ -->
+<section>
+  <h2><span class="tag">前提</span>先に片づけないと機能しない3つ</h2>
+  <p class="lede">
+    いずれも「AIの精度」以前の問題です。この3つを飛ばすと、AIが正しく分類しても出力が使えません。
+  </p>
+
+  <h3>1. 勘定科目マスタが存在しない</h3>
+  <p class="wide">
+    「PLの科目をそのまま使えばよい」という方針は正しいのですが、<strong>その体系がまだ科目マスタの体を成していません</strong>。
+    <code>mgmt_overhead</code> の費目は59種の自由記述で、既に表記揺れが起きています。
+  </p>
+  <pre><span class="c"># 家賃だけで8通り</span>
+家賃 / 家賃Rent / CK家賃 / CK家賃Rent / Warehouse 家賃
+KD 家賃 / スタッフルーム家賃 / その他家賃など
+
+<span class="c"># 同義の重複</span>
+ライセンス関係 / ライセンス関係 (Business Permit)
+キッチン機器 / CKキッチン機器 / キッチン機器等初期投資
+その他 / その他 (PH事業関連） / その他光熱費
+
+<span class="c"># 合計行が費目として混入している</span>
+支出合計</pre>
+  <p class="wide">
+    さらに、Expense 側は <code>Ingredients / Transport / Uniform / Equipment / Mobile / Other</code> の6種、
+    Petty Cash 側は <code>Transportation / Cleaning Supplies / Food &amp; Beverages / Other</code> の4種。
+    <strong>語彙が3つ並立しています。</strong>
+  </p>
+  <div class="box stop">
+    <div class="box-h">これを放置するとどうなるか</div>
+    <p>
+      AIが「食材費」と正しく判定しても、書き込み先が自由記述なら「食材費」「Ingredients」「Food &amp; Beverages」に
+      分かれて集計できません。<strong>科目マスタの整備は、AI導入の前提条件であって、後回しにできる項目ではありません。</strong>
+    </p>
+  </div>
+
+  <h3>2. レシート画像がPostgresに直接入っている</h3>
+  <div class="figs">
+    <div class="fig stop"><div class="fig-n">440<small>KB</small></div><div class="fig-l">1枚あたりのbase64サイズ</div></div>
+    <div class="fig"><div class="fig-n">13<small>件</small></div><div class="fig-l">現在の保存枚数</div></div>
+    <div class="fig stop"><div class="fig-n">22<small>MB/日</small></div><div class="fig-l">1日50枚に増えた場合</div></div>
+    <div class="fig ok"><div class="fig-n">既存</div><div class="fig-l">Google Drive連携は実装済み</div></div>
+  </div>
+  <p class="wide">
+    <code>data:image/jpeg;base64,...</code> がそのまま列に入っています。件数が少ない今は動きますが、
+    一覧取得のたびに数百KBが乗ってきます。<strong>OCRを入れて投稿が増える前に</strong>、
+    既存の Drive 連携（<code>ar_drive.py</code>）へ移してください。順序が逆になると移行が重くなります。
+  </p>
+
+  <h3>3. 取引先の表記揺れは、16件の時点で既に発生している</h3>
+  <div class="split">
+    <div class="now">
+      <div class="split-h">receipt_log の実データ</div>
+      <p><code>Richcath's Vegetables Stall</code> — 3件<br>
+         <code>Richcath vegetables</code> — 1件</p>
+    </div>
+    <div class="then">
+      <div class="split-h">つまり</div>
+      <p>16件しかない段階で同一取引先が2通り。<code>name_variants</code> は「将来必要になる」機能ではなく、初日から必要です。</p>
+    </div>
+  </div>
+  <p class="wide" style="color:var(--muted);font-size:.9rem">
+    なお <code>receipt_log</code> の16件中3件はテストデータ（<code>SM Supermarket (Test)</code>、
+    <code>Test QA Fix</code>、<code>Test Supplier QA</code>）です。マスタを育て始める前に除外が必要です。
+  </p>
+</section>
+
+<!-- ══ 使える資産 ══ -->
+<section>
+  <h2><span class="tag">資産</span>すでにあるもの</h2>
+  <div class="tw">
+    <table>
+      <tr><th>資産</th><th>場所</th><th>この案での役割</th></tr>
+      <tr><td>OCR（GPT-4o Vision）</td><td class="mono">services/invoice_ocr_service.py</td><td>抽出処理。<strong>作り直さず流用</strong></td></tr>
+      <tr><td>Claude API</td><td class="mono">haiku-4-5 / sonnet-4-6</td><td>科目分類。構造化出力が安く速い</td></tr>
+      <tr><td>Google Drive連携</td><td class="mono">services/ar_drive.py</td><td>レシート画像の保存先</td></tr>
+      <tr><td>取引先名＋明細</td><td class="mono">receipt_log</td><td>取引先マスタの初期データ</td></tr>
+      <tr><td>承認フロー</td><td class="mono">/admin/expense-requests</td><td>確信度による振り分けの受け皿</td></tr>
+    </table>
+  </div>
+  <p class="wide">
+    新規に作る必要があるのは<strong>科目マスタ・取引先マスタ・分類ロジック・学習ループ</strong>の4つだけです。
+  </p>
+</section>
+
+<!-- ══ Phase ══ -->
+<section>
+  <h2><span class="tag">段階</span>実装の順序</h2>
+  <p class="lede">
+    Phase 1 から価値が出ます。分類（Phase 2）は蓄積が要るので、先に経費性判定を出してください。
+  </p>
+
+  <div class="phase">
+    <div class="phase-h">
+      <span class="phase-n">PHASE 0</span>
+      <span class="phase-t">土台 — 科目マスタと画像の置き場</span>
+      <span class="phase-w">AIなし</span>
+    </div>
+    <div class="phase-b">
+      <p>この段階だけはAIを使いません。使えるようにするための整地です。</p>
+      <pre><span class="k">account_master</span>
+  account_code      <span class="c">-- 'FOOD', 'UTIL', 'RENT'（固定コード）</span>
+  label_en          <span class="c">-- UI表示は英語（CLAUDE.md準拠）</span>
+  label_ja          <span class="c">-- 会計事務所への出力用</span>
+  pl_group          <span class="c">-- 原価 / 販管費 / 資産計上</span>
+  is_active, sort_order</pre>
+      <ul class="plain">
+        <li>59種の自由記述を、実際に使われている費目へ<strong>統合</strong>する（家賃8通り → <code>RENT</code> 1つ、店舗は別列）</li>
+        <li><code>支出合計</code> のような合計行を費目から除去</li>
+        <li>Expense / Petty Cash / Overhead の3語彙をこのマスタに寄せる</li>
+        <li>レシート画像を Drive へ。DBは <code>receipt_url</code> のみ保持</li>
+      </ul>
+      <div class="box ok" style="margin-top:1rem">
+        <div class="box-h">この段階だけでも効く</div>
+        <p>AIを入れなくても、費目が統一されるだけで月次PLの集計精度が上がります。現在は家賃が8行に散っています。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h">
+      <span class="phase-n">PHASE 1</span>
+      <span class="phase-t">抽出と経費性判定</span>
+      <span class="phase-w">OCRのみ・分類なし</span>
+    </div>
+    <div class="phase-b">
+      <p class="wide">
+        科目を当てにいかず、まず<strong>構造化して取り出す</strong>ことと、
+        <strong>経費にならないレシートをその場で弾く</strong>ことに集中します。
+        金銭的インパクトが最も大きいのはこちらです。
+      </p>
+      <pre><span class="c">// 抽出する項目</span>
+vendor_name, receipt_date, currency,
+amount_excl_tax, tax_amount, amount_incl_tax,
+tin_or_trn, receipt_type, payment_method,
+line_items[] { name, qty, amount }</pre>
+      <div class="box stop">
+        <div class="box-h">アップロード時点で出す警告</div>
+        <p style="font-family:'IBM Plex Mono',monospace;font-size:.87rem">
+          ⚠ No TIN on this receipt.<br>
+          This may not be claimable as a business expense.<br>
+          Ask the shop for an Official Receipt.
+        </p>
+        <p style="margin-top:.8rem">
+          フィリピンは BIR登録の Official Receipt / Sales Invoice で TIN 記載がなければ損金算入も仕入VAT控除もできません。
+          ドバイも 5%VAT 控除には TRN 記載の Tax Invoice が必要です。<br>
+          <strong>その場で言えば店に戻れます。月末に指摘されても手遅れです。</strong>
+        </p>
+      </div>
+      <p class="wide">
+        判定結果は <code>claimable</code>（可 / 不可 / 要確認）として保存し、承認画面で色分けします。
+        <strong>弾くのではなく警告に留めます</strong> — 立替の事実は残す必要があるためです。
+      </p>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h">
+      <span class="phase-n">PHASE 2</span>
+      <span class="phase-t">取引先マスタと自動分類</span>
+      <span class="phase-w">中核はAIではない</span>
+    </div>
+    <div class="phase-b">
+      <pre><span class="k">vendor_master</span>
+  vendor_id, canonical_name, name_variants[],
+  default_account_code, default_store_code,
+  tax_status, tin_or_trn, country,
+  hit_count, last_used_at</pre>
+      <p class="wide">
+        <strong>2回目以降はAIを呼びません。</strong>正規化した名前がマスタに当たれば即決定です。
+        同じ取引先が常に同じ科目になり、AI費用が下がり、間違いを1回直せば以後ずっと正しくなります。
+      </p>
+      <div class="tw">
+        <table>
+          <tr><th>確信度</th><th>扱い</th><th>画面</th></tr>
+          <tr><td class="mono">≥ 0.90</td><td>自動確定</td><td>承認待ちに緑で並ぶ</td></tr>
+          <tr><td class="mono">0.60 – 0.90</td><td>候補提示</td><td>1クリックで承認、変更も可</td></tr>
+          <tr><td class="mono">&lt; 0.60</td><td>手動入力</td><td>科目未設定で表示</td></tr>
+        </table>
+      </div>
+      <p class="wide">
+        マスタヒットは <code>0.95</code>、明細から特定できた場合は <code>0.85</code>、
+        取引先名だけの推測は <code>0.5</code> 前後を返させます。
+        「SM Supermarket」だけでは食材か消耗品か決まりませんが、明細に <code>Salmon 2kg</code> があれば食材費で確定します。
+      </p>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h">
+      <span class="phase-n">PHASE 3</span>
+      <span class="phase-t">学習ループ・重複検知・出力</span>
+      <span class="phase-w">運用しながら精度が上がる</span>
+    </div>
+    <div class="phase-b">
+      <pre><span class="k">classification_feedback</span>
+  receipt_id, ai_account_code, corrected_account_code,
+  corrected_by, corrected_at</pre>
+      <ul class="plain">
+        <li>同じ取引先で<strong>2回同じ修正</strong>が入ったら <code>vendor_master.default_account_code</code> を自動更新</li>
+        <li>重複検知：画像ハッシュ、および <code>(取引先, 日付, 金額)</code> の完全一致</li>
+        <li>会計事務所向けCSV出力</li>
+      </ul>
+      <pre><span class="c">-- 出力列</span>
+日付, 取引先, TIN/TRN, 科目コード, 科目名,
+税抜額, 税額, 税込額, 通貨, 店舗, 支払方法,
+経費性フラグ, レシート画像URL</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 画面 ══ -->
+<section>
+  <h2><span class="tag">画面</span>2ページの具体的な変更</h2>
+
+  <h3>スタッフ側 — /store/expense-request</h3>
+  <div class="split">
+    <div class="now">
+      <div class="split-h">現在</div>
+      <p>カテゴリを自分で選ぶ → 金額を打つ → 日付を打つ → レシートは<strong>任意</strong></p>
+    </div>
+    <div class="then">
+      <div class="split-h">変更後</div>
+      <p><strong>レシートを撮る</strong> → 抽出結果が埋まる → 違うところだけ直す → 送信</p>
+    </div>
+  </div>
+  <ul class="plain">
+    <li>レシートを<strong>必須</strong>に。ただし「レシートなし」を理由付きで選べる逃げ道は残す（現金チップ等）</li>
+    <li>撮影直後にTIN/TRN警告。<strong>店を出る前に気づける位置</strong>に出すことが要点</li>
+    <li>カテゴリ選択は残すが<strong>初期値をAIが埋める</strong>。スタッフに科目判断をさせない</li>
+    <li>店舗は<strong>本人の所属店舗を初期値</strong>に。変更が必要なときだけ選ばせる</li>
+    <li>同じレシートの二重申請をその場で検知して知らせる</li>
+  </ul>
+
+  <h3>管理側 — /admin/expense-requests</h3>
+  <ul class="plain">
+    <li>確信度で3つに分ける。<strong>0.90以上は一括承認</strong>できるようにする</li>
+    <li>抽出結果とレシート画像を<strong>並べて</strong>表示。数字の確認が承認作業の実体です</li>
+    <li>科目を変更したら <code>classification_feedback</code> に記録（承認者は意識しない）</li>
+    <li>経費不可のレシートを一覧で抽出できるフィルタ</li>
+    <li>会計事務所向けCSVを月次で出力</li>
+    <li>取引先マスタの編集画面（別ページ）— 統合・別名追加・既定科目の変更</li>
+  </ul>
+
+  <div class="box idx">
+    <div class="box-h">承認者の作業を減らすのが目的</div>
+    <p>
+      100%自動化は目指しません。<strong>AIが直接、確定データを作らない</strong>のが原則です。
+      狙いは「1件ずつ科目を考える」から「提示された科目を確認する」への移行です。
+    </p>
+  </div>
+</section>
+
+<!-- ══ 確認事項 ══ -->
+<section>
+  <h2><span class="tag">交渉</span>会計事務所に聞くこと</h2>
+  <p class="lede">選定中であれば、この3点は相見積もりの質問項目に入れる価値があります。</p>
+  <ul class="plain">
+    <li><strong>この列構成のCSVで受け取れるか。</strong>受け取れるなら記帳工数が下がるので、その分の値引き交渉ができます</li>
+    <li><strong>使用してほしい勘定科目コード体系はあるか。</strong>先方の体系に合わせられるなら Phase 0 でそれを採用します</li>
+    <li><strong>経費性の判定基準に相違はないか。</strong>TIN記載の扱い、金額しきい値など</li>
+  </ul>
+</section>
+
+<!-- ══ やらない ══ -->
+<section>
+  <h2><span class="tag">方針</span>やらないこと</h2>
+  <div class="tw">
+    <table>
+      <tr><th>やらない</th><th>理由</th></tr>
+      <tr><td>AIが確定データを作る</td><td>必ず人の承認を挟む。誤りが会計データに直接入る経路を作らない</td></tr>
+      <tr><td>科目を自由記述で持つ</td><td>いま59種で起きている表記揺れを繰り返すだけ</td></tr>
+      <tr><td>新しい科目体系を作る</td><td>PLに実在する体系を統合して使う。二重管理にしない</td></tr>
+      <tr><td>複数店舗の按分をシステムで持つ</td><td>例外として扱い、按分は会計側で処理するほうが確実</td></tr>
+      <tr><td>2回目以降もAIを呼ぶ</td><td>マスタ参照で決まる。一貫性が保て、費用も下がる</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Sushi ZEN Workforce OS — 立替経費の勘定科目自動化 実装案<br>
+  数値は 2026-08-26 時点の本番データ（4テーブル計195件のレシート、費目59種）にもとづく。
+</footer>
+
+</div>
