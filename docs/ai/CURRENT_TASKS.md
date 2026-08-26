@@ -1,6 +1,55 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (Management Channel: 承認済みテンプレート文言を登録 / 回答を2段階化 / Seed関数の巻き戻しバグを修正 / マニュアル再生成)
+Last updated: 2026-08-26 (Management Channel 仕様書を全実装 — Day 4 / Week 5-6 / Week 7-8 完了)
+
+---
+
+## ✅ Completed: Management Channel 仕様書の残り全項目を実装 (2026-08-26)
+
+### 実装したもの
+| 仕様 | 内容 |
+|---|---|
+| Day 4 | `backup_par_levels` テーブル + 70%/50% 検知 + `/admin/management/par-levels` |
+| Week 5-6 | `rush_checks` + `/store/management/rush-check`（トラベルパス衛生含む）· `complaint_no_photo` · 低評価連携 |
+| Week 7-8 | `detect_repeat_patterns`（6種）+ `/admin/management/patterns` · 見逃し自動記録 · `/admin/management/area-review` |
+| ① の「→」 | PM Backup 30分未返答で赤へ昇格（`escalate_stale_management_tasks`） |
+| ④ の「→」 | 同一店舗×同一Issueの繰り返しを `recurring_issue` として検出 |
+
+例外タイプ 9種・テンプレート 9種・検知 7系統・パターン 6種。
+
+### 実データで見つけて直したバグ
+1. **テンプレートのプレースホルダが一切置換されていなかった** — マネージャーは
+   `{order_id}` `{staff_name}` をそのまま読んでいた。`management_tasks.context` を
+   追加し、既存27件をバックフィル。
+2. **バックアップ数量の単位が混在** — 同一アイテムが `500 g` と `1 kg` で記録され、
+   単純合計で「Crabstick Cut 5 / 500 kg (1%)」という無意味なアラートが出ていた。
+   g→kg / ml→l / pc→pcs の換算を seeder と detector で共有。換算後も混在するもの、
+   Par の単位と当日の単位が食い違うものは**判定せずスキップとして報告**する。
+3. **`repeat_product_score` が「最も多く投稿した人」を挙げていた** — `author_name` は
+   QC写真の投稿者で、各店6〜10名が2週間で800〜1500枚投稿する。件数最多の24件は
+   464枚中＝5%で店舗平均8%を下回っていた。件数（仕様の下限）に加えて
+   「店舗平均の1.5倍超の不良率」を条件に。Manila の検出は9件→1件に。
+4. **支店名の正規化漏れ** — `_BRANCH_NORMALIZE` が大文字小文字を手書き列挙して
+   いたため `Taft` と `TAFT` が別支店として週次スコアに並んでいた。大文字キー方式へ。
+5. **パターンの期間判定が「行の作成日」だった** — バックフィルは1分で1週間分を書くため
+   全パターンの期間が「today→today」に潰れていた。イベント日付を使うよう修正。
+6. **ラッシュスロットの期限判定が UTC** — Manila は +8 なので昼スロットが現地4時に
+   未提出扱いになり、夜スロットは永久に判定されなかった。店舗TZで判定。
+7. **`except Exception: pass` 4箇所** — 検知が壊れても「0件」と同じ見え方だった。
+   エラーをレスポンスに出すよう変更（実際にこの変更のおかげで SQL 構文エラーを検出）。
+
+### 運用上の注意
+- **Par Level 183件はすべて PROPOSED（中央値からの提案値）** — 中央値は「普段の量」で
+  あって「あるべき量」ではない。レビュー前でもアラートは発火するため、
+  `/admin/management/par-levels` で順次修正が必要。
+- テストで過去日の検知を回した結果できた110件は `closed_by='system (historical backfill)'`
+  でクローズ済み。
+
+### 未着手
+- Sprint 0 ② の「写真TTL 24h→32h」に該当するコードが見つからない。
+  `product_score_results.image_data BYTEA` で恒久保存する実装に変わっており
+  （Discord CDN URL は約24hで失効するため）、TTL延長は不要になった可能性が高い。
+  意図が別にあれば要確認。
 
 ---
 
