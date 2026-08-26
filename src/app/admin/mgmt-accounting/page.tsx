@@ -606,13 +606,13 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       <div className="rounded-xl border border-slate-600/50 bg-slate-700/20 px-4 py-3">
         <p className="text-xs font-semibold text-slate-200 mb-1">このページが集計しているもの</p>
         <p className="text-xs text-slate-400 leading-relaxed">
-          <b className="text-slate-300">売上</b> is money received — aggregator payouts after
-          their commission, attributed to the period earned. <b className="text-slate-300">Food
-          cost</b> is what was purchased in the month, not what was consumed.
+          <b className="text-slate-300">売上</b>は入金額です。アグリゲーターが手数料を差し引いた後の金額で、
+          稼得した期間に帰属させています。
+          <b className="text-slate-300">食材費</b>はその月に<b className="text-slate-300">仕入れた</b>額であり、
+          消費した額ではありません。
           <br />
-          The Daily P&amp;L counts differently: POS sales as rung up, and food cost as items
-          sold × recipe cost. Its totals will not match this page, and neither is wrong —
-          use this page for the month, and Daily P&amp;L for day-to-day movement.
+          <b className="text-slate-300">日次P&amp;L</b>タブは別の基準で集計しています（POSの計上額と、販売数×レシピ原価）。
+          合計は一致しませんが、どちらも誤りではありません。月単位の把握はこのページ、日々の動きは日次P&amp;Lをご覧ください。
         </p>
       </div>
 
