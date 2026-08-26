@@ -897,7 +897,14 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {ranking && ranking.stores.length > 0 && (
         <div className={`${GLASS_CARD} p-4`}>
           <h2 className={`${T_SECTION} mb-1`}>店舗別 食材費ランキング</h2>
-          <p className="text-xs text-zinc-500 mb-3">食材費の高い順（店舗のみ）</p>
+          {/* Two different measures sit on this page and they do not add up to
+              each other on purpose. Left unsaid, the mismatch reads as an error. */}
+          <p className="text-xs text-zinc-500 mb-3">
+            食材費の高い順。店舗の食材費は<b className="text-zinc-400">その店が消費した分</b>で、
+            直接仕入に CK・倉庫からの納品を加えたものです。
+            上の都市別内訳は<b className="text-zinc-400">グループが外部に支払った額</b>なので、
+            店舗の合計とは一致しません（社内の受け渡しを含むかどうかの違いです）。
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -945,7 +952,9 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
               food cost against a blank revenue column. */}
           {(ranking.hubs?.length ?? 0) > 0 && (
             <div className="mt-4 pt-3 border-t border-zinc-800">
-              <p className="text-xs font-semibold text-zinc-400 mb-1">仕入拠点（売上を持たないため店舗とは分けています）</p>
+              <p className="text-xs font-semibold text-zinc-400 mb-1">
+                仕入拠点 — 外部への支払額（各店舗への納品分は上の店舗側に計上しています）
+              </p>
               <div className="space-y-1">
                 {ranking.hubs!.map((h) => (
                   <div key={`${h.city}-${h.store_code}`} className="flex items-baseline gap-3 text-xs text-zinc-400">
