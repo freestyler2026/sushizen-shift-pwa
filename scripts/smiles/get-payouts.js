@@ -36,15 +36,26 @@ const WEBHOOK_URL = (process.env.WEBHOOK_URL || 'http://localhost:8000').replace
 // tracked by git — the one place in this repo that held credentials rather
 // than a session or a secret. They come from SMILES_ACCOUNTS now, and the
 // script refuses to run without it instead of silently falling back.
-// One account per branch. Confirmed against the portal 2026-08-26: the JLT
-// login is sushizen21013, not ramenzen21013, and 21315 is Al Mina rather than
-// Al Hudaiba — under the old entries JLT would not have logged in at all and
-// Al Mina's takings would have landed on a branch that does not exist.
+// Every branch the portal serves, by its own restaurant id. Read from the master
+// account's report form on 2026-08-26 — the per-branch logins between them do
+// not cover Al Barsha 3 at all, and its takings were simply never collected.
+//
+// The report endpoint takes rest_id, so one login that can see every branch
+// fetches all five. A per-branch login still works and is used when that is
+// what SMILES_ACCOUNTS holds.
+const BRANCHES = [
+  { restId: '21877', label: 'AlBarsha', storeCode: 'SMILES_SZ_AB',  storeName: 'Sushi ZEN Al Barsha 3' },
+  { restId: '21315', label: 'AlMina',   storeCode: 'SMILES_SZ_AM',  storeName: 'Sushi ZEN Al Mina' },
+  { restId: '21016', label: 'MCity',    storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
+  { restId: '21051', label: 'BBay',     storeCode: 'SMILES_SZ_BB',  storeName: 'Sushi ZEN Business Bay' },
+  { restId: '21013', label: 'JLT',      storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
+];
+
 const ACCOUNT_META = [
-  { username: 'ramenzen21016', label: 'MCity', restId: '21016', storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
-  { username: 'ramenzen21051', label: 'BBay', restId: '21051', storeCode: 'SMILES_SZ_BB', storeName: 'Sushi ZEN Business Bay' },
-  { username: 'sushizen21013', label: 'JLT', restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
-  { username: 'sushizen21315', label: 'AlMina', restId: '21315', storeCode: 'SMILES_SZ_AM', storeName: 'Sushi ZEN Al Mina' },
+  { username: 'ramenzen21016', label: 'MCity',    restId: '21016', storeCode: 'SMILES_SZ_ARJ', storeName: 'Sushi ZEN Arjan' },
+  { username: 'ramenzen21051', label: 'BBay',     restId: '21051', storeCode: 'SMILES_SZ_BB',  storeName: 'Sushi ZEN Business Bay' },
+  { username: 'sushizen21013', label: 'JLT',      restId: '21013', storeCode: 'SMILES_SZ_JLT', storeName: 'Sushi ZEN JLT' },
+  { username: 'sushizen21315', label: 'AlMina',   restId: '21315', storeCode: 'SMILES_SZ_AM',  storeName: 'Sushi ZEN Al Mina' },
 ];
 
 function loadAccounts() {
@@ -64,6 +75,9 @@ function loadAccounts() {
     process.exit(1);
   }
   return parsed.map(p => {
+    // An account marked master pulls every branch through one login rather than
+    // standing for a single shop.
+    if (p.master) return { ...p, branches: BRANCHES, label: p.label || 'master' };
     const meta = ACCOUNT_META.find(m => m.label === p.label || m.username === p.username);
     if (!meta) console.warn(`  ⚠ ${p.label || p.username} is not in ACCOUNT_META — no store mapping`);
     return { ...meta, ...p };
@@ -248,32 +262,39 @@ async function postPayout(payload) {
 
     console.log(`  ✓ Logged in as ${account.username}`);
 
-    for (const { year, month } of targetMonths) {
+    // One login, one branch — unless it is the master, which covers all of them.
+    const targets = account.branches && account.branches.length
+      ? account.branches
+      : [{ restId: account.restId, label: account.label,
+           storeCode: account.storeCode, storeName: account.storeName }];
+
+    for (const br of targets) {
+     for (const { year, month } of targetMonths) {
       const ml = monthLabel(year, month);
       try {
-        const dl = await downloadMonthExcel(page, account.restId, year, month);
+        const dl = await downloadMonthExcel(page, br.restId, year, month);
         if (!dl.b64 || dl.size < 500) {
-          console.log(`  [${account.label}] ${ml}: no data (${dl.size} bytes)`);
+          console.log(`  [${br.label}] ${ml}: no data (${dl.size} bytes)`);
           totalSkipped++;
           continue;
         }
 
-        const { orderCount, totalSales, totalCommission, totalUndiscounted } = parseExcel(dl.b64, account.label, ml);
+        const { orderCount, totalSales, totalCommission, totalUndiscounted } = parseExcel(dl.b64, br.label, ml);
 
         if (orderCount === 0) {
-          console.log(`  [${account.label}] ${ml}: 0 orders — skipping`);
+          console.log(`  [${br.label}] ${ml}: 0 orders — skipping`);
           totalSkipped++;
           continue;
         }
 
         const netPayout = totalSales - totalCommission;
-        const payoutId  = `smiles_${account.restId}_${ml.replace('-', '_')}`;
+        const payoutId  = `smiles_${br.restId}_${ml.replace('-', '_')}`;
 
         const payload = {
           payout_id:           payoutId,
-          shop_id:             account.restId,
-          store_code:          account.storeCode,
-          store_name:          account.storeName,
+          shop_id:             br.restId,
+          store_code:          br.storeCode,
+          store_name:          br.storeName,
           brand:               'sushi_zen',
           period_month:        ml,
           period_start:        `${year}-${String(month).padStart(2,'0')}-01`,
@@ -296,9 +317,10 @@ async function postPayout(payload) {
         }
 
       } catch (err) {
-        console.error(`  ✗ ${account.label} ${ml}: ${err.message}`);
+        console.error(`  ✗ ${br.label} ${ml}: ${err.message}`);
         totalErrors++;
       }
+     }
     }
 
     await browser.close();
