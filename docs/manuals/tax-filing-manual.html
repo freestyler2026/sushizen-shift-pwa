@@ -323,20 +323,32 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="card">
     <div class="card-title">OSの22科目 → BIRの行</div>
     <p class="section-desc" style="margin-bottom:8px">
-      迷う余地のない<strong>14科目は自動で紐付け済み</strong>です。残る8科目は
-      <strong>意図的に空</strong>にしてあります。ここで勝手に決めると、判断したことが
-      見えなくなるからです。
+      <strong>22科目すべて紐付け済み</strong>です。未確定はありません。
     </p>
     <div class="table-wrap"><table>
-      <thead><tr><th>OSの科目</th><th>状態</th></tr></thead>
+      <thead><tr><th>BIRの行</th><th>OSの科目</th></tr></thead>
       <tbody>
-        <tr><td>Advertising / Communication / Utilities / Professional Fees / Rent / Licences / Staff Transport / Driver Wages / Other Labour / Statutory Contributions / Other / Equipment (Capitalised)</td><td><span class="chip green">確定</span></td></tr>
-        <tr><td>Food Cost / Packaging</td><td><span class="chip green">Schedule 2（売上原価）</span></td></tr>
-        <tr><td>Common Area Charge / Storage / Equipment / Maintenance / Delivery / Vehicle / Systems &amp; POS / Outsourcing</td><td><span class="chip amber">要判断（8件）</span></td></tr>
+        <tr><td>1 Advertising and Promotions</td><td>Advertising</td></tr>
+        <tr><td>8 Communication, Light and Water</td><td>Communication ／ Utilities</td></tr>
+        <tr><td>10 Depreciation</td><td>Equipment (Capitalised)</td></tr>
+        <tr><td>13 Fuel and Oil</td><td>Vehicle <span class="chip amber">分割あり</span></td></tr>
+        <tr><td>19 Miscellaneous</td><td>Other</td></tr>
+        <tr><td>20 Office Supplies</td><td>Equipment（非資産計上）</td></tr>
+        <tr><td>21 Other Services</td><td>Delivery ／ Systems &amp; POS ／ Outsourcing</td></tr>
+        <tr><td>22 Professional Fees</td><td>Professional Fees</td></tr>
+        <tr><td>23 Rental</td><td>Rent ／ Common Area Charge ／ Storage</td></tr>
+        <tr><td>24 Repairs and Maintenance（労務）</td><td>Maintenance <span class="chip amber">分割あり</span></td></tr>
+        <tr><td>29 Salaries and Allowances</td><td>Driver Wages ／ Other Labour</td></tr>
+        <tr><td>31 SSS・PhilHealth・HDMF 等</td><td>Statutory Contributions</td></tr>
+        <tr><td>32 Taxes and Licenses</td><td>Licences &amp; Permits</td></tr>
+        <tr><td>35 Transportation and Travel</td><td>Staff Transport</td></tr>
+        <tr><td>Schedule 2（売上原価）</td><td>Food Cost ／ Packaging</td></tr>
       </tbody>
     </table></div>
     <div class="tip"><span class="tip-icon">💡</span>
-      <div>Maintenance と Vehicle は<strong>1科目が2行に割れます</strong>（修繕は労務／材料、車両は燃料／修繕）。領収書の中身で振り分けられるので、AIが効く箇所です。</div>
+      <div><strong>分割あり</strong>の2科目は、伝票の中身で行が変わります。既定値のまま置いておいて構いませんが、該当すれば移します。
+      <br>・<strong>Maintenance</strong>：既定は 24（労務・労務＋材料）。<strong>材料・部品だけの購入</strong>なら 25 へ。
+      <br>・<strong>Vehicle</strong>：既定は 13（燃料）。<strong>車両の修理作業</strong>なら 24 へ。</div>
     </div>
   </div>
 
@@ -383,7 +395,7 @@ td.muted{color:var(--muted);font-size:12px}
         <tr><td>Vendors（取引先マスタ）</td><td><span class="chip green">完了</span> — 11社の税番号入力待ち</td></tr>
         <tr><td>証憑台帳（1枚＝1行の一覧）</td><td><span class="chip amber">未着手</span></td></tr>
         <tr><td>スタッフ立替レシート155件のOCR</td><td><span class="chip amber">未着手</span></td></tr>
-        <tr><td>仕訳先の科目リスト（マニラ）</td><td><span class="chip green">確定</span> — BIR様式の35行を登録済み</td></tr>
+        <tr><td>仕訳先の科目リスト（マニラ）</td><td><span class="chip green">確定</span> — BIR様式35行を登録、22科目すべて紐付け済み</td></tr>
         <tr><td>勘定科目への自動仕分け</td><td><span class="chip amber">未着手</span></td></tr>
       </tbody>
     </table></div>

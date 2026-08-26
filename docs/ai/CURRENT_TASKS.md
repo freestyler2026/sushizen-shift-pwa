@@ -63,9 +63,14 @@ amount_excl_tax / tax_amount / tax_rate_pct
 
 **「会計事務所の科目表待ち」は誤り。** マニラは BIR Form 1702-RT の Schedule 4 に
 控除科目が**35行、名前入りで印刷済み**。こちらが決めるものではなく申告書が決めている。
-`tax_line_master` に35行を登録し、OSの22科目のうち**判断の余地がない14件を紐付け**。
-残り8件（CUSA / STORAGE / EQUIP / MAINT / DELIVERY / VEHICLE / SYSTEM / OUTSOURCE）は
-**意図的に空**。決めると判断が見えなくなるため、ユーザー判断待ち。
+`tax_line_master` に35行を登録し、**OSの22科目すべてを紐付け完了**（未確定0件）。
+
+うち2科目は伝票の中身で行が変わるため `tax_alt_code` + `tax_split_note` を持つ:
+- `MAINT` 既定 24（労務）→ 材料・部品のみなら 25
+- `VEHICLE` 既定 13（燃料）→ 修理作業なら 24
+
+その他: CUSA/STORAGE→23 Rental、EQUIP→20 Office Supplies、
+DELIVERY/SYSTEM/OUTSOURCE→21 Other Services、FOOD/PACK→Schedule 2。
 
 **ドバイは逆に科目リストが存在しない。** FTAは勘定科目表を定めておらず、法人税はIFRSの
 財務諸表から計算。VAT申告書にも費目内訳欄がない。ドバイで固定なのは*名前*ではなく*扱い*:
