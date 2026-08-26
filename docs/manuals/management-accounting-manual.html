@@ -113,6 +113,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('report')"><span class="nav-icon">📄</span><span>月次レポート</span></div>
   <div class="nav-item" onclick="show('daily')"><span class="nav-icon">📅</span><span>日次P&amp;L</span></div>
   <div class="nav-item" onclick="show('settings')"><span class="nav-icon">⚙️</span><span>設定</span></div>
+  <div class="nav-item" onclick="show('vendors')"><span class="nav-icon">🧾</span><span>Vendors（取引先マスタ）</span></div>
   <div class="sidebar-label">読み解き方</div>
   <div class="nav-item" onclick="show('judge')"><span class="nav-icon">🧭</span><span>経営判断の手順</span></div>
   <div class="nav-item" onclick="show('estimate')"><span class="nav-icon">📐</span><span>推定値の仕組み</span></div>
@@ -543,6 +544,76 @@ td.muted{color:var(--muted);font-size:12px}
         <tr><td>手数料率</td><td>Talabatの純額換算</td><td>既定値 30.1%</td></tr>
       </tbody>
     </table></div>
+  </div>
+
+</section>
+<section class="section" id="sec-vendors">
+  <div class="section-hero">
+    <div class="hero-icon">🧾</div>
+    <div>
+      <div class="section-title">Vendors（取引先マスタ）</div>
+      <div class="section-path">/admin/finance/vendors</div>
+      <div class="section-desc">仕入先ごとの正しい税番号（TRN）を1回だけ登録する画面。税務申告用のレシート自動仕分けの土台になります。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">画面が出す「候補番号」は信用しない</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      Suggested 列は AI がレシートから読み取った番号を多数決したものです。
+      実測では <strong>Chef Middle East 1社で54枚から40通りの番号</strong>が返り、
+      上位3社の一致率は 22% / 15% / 32% でした。桁数違いも 180枚中8枚あります。
+      <strong>必ず実物の請求書を開いて確認してください。</strong>
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>一致率が 60% 未満の行は赤字で「likely wrong」と表示されます。60% 以上でも正解の保証はありません。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">入力の手順</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>操作</th><th>補足</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Invoice to check の紫リンクを開く</td><td>その仕入先の実物の請求書（Google Drive）が開きます</td></tr>
+        <tr><td>2</td><td>請求書に印字された TRN を読む</td><td>ドバイの TRN は15桁です</td></tr>
+        <tr><td>3</td><td>Tax number 欄に入力して保存</td><td>桁数が違うと保存が拒否されます</td></tr>
+        <tr><td>4</td><td>綴り違いの同一社は Merge</td><td>吸収した行は削除ではなく非表示になります</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Own company（自社）とは</div>
+    <p style="font-size:12px;color:var(--muted)">
+      Sushi ZEN 自身のセントラルキッチン・倉庫・店舗のことです。ここからの納品は仕入ではなく
+      <strong>社内移動</strong>なので、コストに数えると二重計上になります（キッチンが仕入れた時点で既に計上済み）。
+      自社の伝票に税番号が無いのは正常です。初期登録では5社が自動で自社判定されています。
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>判定が違っていれば Own company の Yes / No をその場で切り替えられます。1クリックで直ります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">上部の4つの数字</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>指標</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td>Tax numbers entered</td><td>税番号を入力済みの仕入先数 ÷ 仕入先総数</td></tr>
+        <tr><td>Suppliers</td><td>自社を除いた外部仕入先の数</td></tr>
+        <tr><td>Own companies</td><td>自社として登録された数</td></tr>
+        <tr><td>Invoices covered</td><td><strong>請求書の枚数ベースの進捗</strong>。上位7社で大半を占めるため、社数より実態に近い</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Refresh from invoices</div>
+    <p style="font-size:12px;color:var(--muted)">
+      新しい仕入先が請求書に現れた時に押します。<strong>入力済みの税番号は上書きされません</strong>。
+      新規行の追加と、候補番号・請求書枚数の更新だけを行います。
+    </p>
   </div>
 
 </section>
