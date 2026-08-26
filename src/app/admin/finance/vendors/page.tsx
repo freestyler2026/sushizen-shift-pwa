@@ -47,6 +47,17 @@ interface Vendor {
   notes: string;
 }
 
+/**
+ * Some invoice numbers were stored as the string "null" by the reader.
+ * Showing that to someone told to "open the sample invoice" reads as a
+ * broken page; "Open" says what the link does.
+ */
+function invoiceLabel(no: string): string {
+  const t = (no || "").trim();
+  if (!t || ["null", "none", "n/a", "na", "-"].includes(t.toLowerCase())) return "Open";
+  return t;
+}
+
 export default function VendorMasterPage() {
   const router = useRouter();
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -304,7 +315,7 @@ export default function VendorMasterPage() {
                             className="inline-flex items-center gap-1 text-xs text-violet-300 hover:text-violet-200 underline underline-offset-2"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            {v.sample_invoice_no || "Open"}
+                            {invoiceLabel(v.sample_invoice_no)}
                           </a>
                         ) : (
                           <span className={T_CAPTION}>—</span>
