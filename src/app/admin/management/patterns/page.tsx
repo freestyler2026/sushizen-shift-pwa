@@ -51,17 +51,22 @@ const PATTERN_META: Record<
   repeat_product_score: {
     label: "Repeat low product score",
     icon: UtensilsCrossed,
-    means: "The same person posted three C-or-below products in a week. Verbal feedback per incident is evidently not landing.",
+    means: "This person's C-or-below rate is more than 1.5× their branch's, on at least three products this week. The rate matters because the busiest photographer would otherwise always top a raw count.",
   },
   recurring_issue: {
     label: "Recurring product issue",
     icon: RefreshCw,
-    means: "The same branch failed on the same issue twice in a week. This points at a standard or a station, not at one shift.",
+    means: "The same branch failed on the same issue twice in a week, by the manager's own Issue Identified answer. This points at a standard or a station, not at one shift.",
   },
   repeat_backup_shortfall: {
     label: "Repeat backup shortfall",
     icon: Package,
     means: "The branch dropped below 50% of par twice in five days. Either prep is short or the par level is wrong — both need a decision, not another alert.",
+  },
+  repeat_low_rating: {
+    label: "Repeat low rating on one menu item",
+    icon: UtensilsCrossed,
+    means: "The same dish drew a 1–3 star rating twice in a week at this branch. Two customers independently saying the same thing about the same item is a recipe or execution problem, not bad luck.",
   },
   repeat_cannot_response: {
     label: "Repeat “cannot” response",
