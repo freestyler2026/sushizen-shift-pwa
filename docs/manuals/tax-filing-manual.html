@@ -108,6 +108,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="sidebar-label">前提</div>
   <div class="nav-item" onclick="show('scope')"><span class="nav-icon">🧭</span><span>管理会計との違い</span></div>
   <div class="nav-item" onclick="show('why')"><span class="nav-icon">🎯</span><span>この仕組みの目的</span></div>
+  <div class="nav-item" onclick="show('accounts')"><span class="nav-icon">📒</span><span>仕訳先の科目</span></div>
   <div class="nav-item" onclick="show('roadmap')"><span class="nav-icon">🚧</span><span>まだ無いもの</span></div>
 </nav>
 
@@ -279,6 +280,91 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 </section>
 
+<section class="section" id="sec-accounts">
+  <div class="section-hero">
+    <div class="hero-icon">📒</div>
+    <div>
+      <div class="section-title">仕訳先の科目</div>
+      <div class="section-desc">マニラは決まっています。ドバイは決まっていません — そして、それでいいのです。</div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title"><span class="city-badge manila">Manila</span> BIRが様式に印刷している</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      法人の確定申告書 <strong>BIR Form 1702-RT の Schedule 4「Ordinary Allowable
+      Itemized Deductions」</strong>に、控除科目が<strong>35行、名前入りで印刷済み</strong>です。
+      つまりマニラの勘定科目は、こちらが決めるものではなく<strong>申告書が決めている</strong>ものです。
+      35行すべてを <code>tax_line_master</code> に登録しました。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>行</th><th>科目（様式の表記そのまま）</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Advertising and Promotions</td></tr>
+        <tr><td>2–4</td><td>Amortizations（自由記入）</td></tr>
+        <tr><td>5–7</td><td>Bad Debts / Charitable Contributions / Commissions</td></tr>
+        <tr><td>8</td><td>Communication, Light and Water</td></tr>
+        <tr><td>9–12</td><td>Depletion / Depreciation / Director's Fees / Fringe Benefits</td></tr>
+        <tr><td>13–17</td><td>Fuel and Oil / Insurance / Interest / Janitorial and Messengerial / Losses</td></tr>
+        <tr><td>18–22</td><td>Management and Consultancy Fee / Miscellaneous / Office Supplies / Other Services / Professional Fees</td></tr>
+        <tr><td>23</td><td>Rental</td></tr>
+        <tr><td>24–25</td><td>Repairs and Maintenance（労務／材料で<strong>2行に分かれる</strong>）</td></tr>
+        <tr><td>26–28</td><td>Representation and Entertainment / Research and Development / Royalties</td></tr>
+        <tr><td>29–32</td><td>Salaries and Allowances / Security Services / SSS・PhilHealth・HDMF等 / Taxes and Licenses</td></tr>
+        <tr><td>33–35</td><td>Tolling Fees / Training and Seminars / Transportation and Travel</td></tr>
+        <tr><td>36–39</td><td>Others（自由記入）</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>食材費・包材費はここに入りません。</strong>売上原価は Schedule 2 の別枠です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">OSの22科目 → BIRの行</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      迷う余地のない<strong>14科目は自動で紐付け済み</strong>です。残る8科目は
+      <strong>意図的に空</strong>にしてあります。ここで勝手に決めると、判断したことが
+      見えなくなるからです。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>OSの科目</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td>Advertising / Communication / Utilities / Professional Fees / Rent / Licences / Staff Transport / Driver Wages / Other Labour / Statutory Contributions / Other / Equipment (Capitalised)</td><td><span class="chip green">確定</span></td></tr>
+        <tr><td>Food Cost / Packaging</td><td><span class="chip green">Schedule 2（売上原価）</span></td></tr>
+        <tr><td>Common Area Charge / Storage / Equipment / Maintenance / Delivery / Vehicle / Systems &amp; POS / Outsourcing</td><td><span class="chip amber">要判断（8件）</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>Maintenance と Vehicle は<strong>1科目が2行に割れます</strong>（修繕は労務／材料、車両は燃料／修繕）。領収書の中身で振り分けられるので、AIが効く箇所です。</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title"><span class="city-badge dubai">Dubai</span> 科目リストは存在しない</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      UAEの税務当局(FTA)は<strong>勘定科目表を定めていません</strong>。法人税は
+      <strong>IFRSの財務諸表から計算</strong>します。VAT申告書(Form 201)にも費目の内訳欄はありません。
+      ですからドバイで「科目表を待つ」ことに意味はありません。<strong>代わりに決まっているのは扱いのルール</strong>です。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ルール</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>仕入VATが<strong>回収不可</strong></td><td>従業員以外への接待（取引先との会食等）、私用可能な社用車、法令・契約に基づかない従業員向け支出</td></tr>
+        <tr><td>法人税で<strong>50%のみ損金</strong></td><td>接待交際費（Federal Decree-Law No.47 第32条）</td></tr>
+        <tr><td>法人税で<strong>全額損金不算入</strong></td><td>罰金・過料、賄賂、適格でない寄付、法人税そのもの</td></tr>
+        <tr><td>そもそも控除の前提</td><td>仕入先のTRNが記載された<strong>有効なTax Invoice</strong>を保有していること</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip info"><span class="tip-icon">ℹ️</span>
+      <div>最後の行が、Vendors画面でTRNを登録している理由です。<strong>TRNの無い伝票は仕入VATを回収できません。</strong></div>
+    </div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>接待にあたるかは<strong>科目ではなく1枚ごと</strong>に決まります（同じ「飲食費」でも従業員向けか取引先向けかで扱いが変わる）。だからドバイは科目リストではなく、<strong>伝票ごとのフラグ</strong>で持ちます。</div>
+    </div>
+  </div>
+</section>
+
 <section class="section" id="sec-roadmap">
   <div class="section-hero">
     <div class="hero-icon">🚧</div>
@@ -297,11 +383,12 @@ td.muted{color:var(--muted);font-size:12px}
         <tr><td>Vendors（取引先マスタ）</td><td><span class="chip green">完了</span> — 11社の税番号入力待ち</td></tr>
         <tr><td>証憑台帳（1枚＝1行の一覧）</td><td><span class="chip amber">未着手</span></td></tr>
         <tr><td>スタッフ立替レシート155件のOCR</td><td><span class="chip amber">未着手</span></td></tr>
-        <tr><td>勘定科目への自動仕分け</td><td><span class="chip red">会計事務所の科目表待ち</span></td></tr>
+        <tr><td>仕訳先の科目リスト（マニラ）</td><td><span class="chip green">確定</span> — BIR様式の35行を登録済み</td></tr>
+        <tr><td>勘定科目への自動仕分け</td><td><span class="chip amber">未着手</span></td></tr>
       </tbody>
     </table></div>
     <div class="tip info"><span class="tip-icon">ℹ️</span>
-      <div>自動仕分けの科目は、こちらで決めるのではなく<strong>会計事務所が実際に使っている科目表に合わせます</strong>。先に作ると作り直しになるため、意図的に止めています。</div>
+      <div>会計事務所に確認が要るのは<strong>科目リストそのものではなく、過去の申告でどの行を使ってきたか</strong>です。新しいデータが過去の申告と整合するようにするためで、着手を止める理由にはなりません。</div>
     </div>
   </div>
 </section>
