@@ -1474,6 +1474,23 @@ export default function ManilaPayrollPeriodPage() {
 
   const [period, setPeriod]       = useState<Period | null>(null);
   const [runs, setRuns]           = useState<Run[]>([]);
+
+  // Compute All only writes rows for staff whose payroll profile is active, and it
+  // leaves every other row untouched -- so a person deactivated after a run keeps
+  // their old figures, and those figures still count toward the period totals.
+  // Cristella Marie C. Tayor carried a whole cut-off that way. Flag any row this
+  // period's newest compute did not refresh instead of letting it pass as current.
+  const staleRunIds = useMemo(() => {
+    const stamps = runs.map((r) => r.computed_at).filter(Boolean) as string[];
+    if (stamps.length < 2) return new Set<number>();
+    const newest = stamps.reduce((a, b) => (a > b ? a : b));
+    const newestDay = newest.slice(0, 10);
+    return new Set(
+      runs
+        .filter((r) => r.computed_at && r.computed_at.slice(0, 10) !== newestDay)
+        .map((r) => r.id),
+    );
+  }, [runs]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
   const [computing, setComputing] = useState(false);
@@ -2083,6 +2100,14 @@ export default function ManilaPayrollPeriodPage() {
                           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[run.status] ?? STATUS_BADGE.draft}`}>
                             {run.status}
                           </span>
+                          {staleRunIds.has(run.id) && (
+                            <span
+                              className="ml-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300"
+                              title="Compute All skipped this row, so the figures are from an earlier run but still count toward the period totals. Compute All only covers staff whose payroll profile is active."
+                            >
+                              stale
+                            </span>
+                          )}
                         </td>
                         <td className="py-2.5 text-center">
                           {run.published_at
