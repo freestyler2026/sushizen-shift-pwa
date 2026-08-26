@@ -270,7 +270,7 @@ ul.body-list strong { color: var(--text); }
   <div class="nav-item" onclick="show('area-manager-guide')" style="font-weight:700;">
     <span class="nav-icon">📊</span>
     <span class="ja">エリアマネージャー</span><span class="en">Area Manager</span>
-    <span class="nav-badge soon">Week 7</span>
+    <span class="nav-badge live">LIVE</span>
   </div>
 
   <div class="sidebar-label"><span class="ja">システム参照</span><span class="en">System Reference</span></div>
@@ -306,6 +306,16 @@ ul.body-list strong { color: var(--text); }
     <span class="ja">Manager Inbox 詳細</span><span class="en">Manager Inbox (detail)</span>
     <span class="nav-badge live">Live</span>
   </div>
+  <div class="nav-item" onclick="show('par-levels')">
+    <span class="nav-icon">📏</span>
+    <span class="ja">パーレベル管理</span><span class="en">Backup Par Levels</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
+  <div class="nav-item" onclick="show('rush-check')">
+    <span class="nav-icon">⏱️</span>
+    <span class="ja">ラッシュチェック</span><span class="en">Rush Hour Check</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
   <div class="nav-item" onclick="show('detection')">
     <span class="nav-icon">🎯</span>
     <span class="ja">自動検知システム</span><span class="en">Auto-Detection System</span>
@@ -314,14 +324,14 @@ ul.body-list strong { color: var(--text); }
   <div class="nav-item" onclick="show('area-manager')">
     <span class="nav-icon">📈</span>
     <span class="ja">エリアMgr 画面詳細</span><span class="en">Area Mgr Page (detail)</span>
-    <span class="nav-badge soon">Week 7</span>
+    <span class="nav-badge live">LIVE</span>
   </div>
 
   <div class="sidebar-label"><span class="ja">開発者参照</span><span class="en">Developer Reference</span></div>
   <div class="nav-item" onclick="show('pattern-detection')">
     <span class="nav-icon">🔍</span>
     <span class="ja">パターン検出</span><span class="en">Pattern Detection</span>
-    <span class="nav-badge soon">Week 7</span>
+    <span class="nav-badge live">LIVE</span>
   </div>
   <div class="nav-item" onclick="show('rollout')">
     <span class="nav-icon">🚀</span>
@@ -1565,7 +1575,7 @@ ul.body-list strong { color: var(--text); }
         <div class="layer-box">
           <div class="layer-name"><span class="ja">📊 エリアマネージャー — 週次評価</span><span class="en">📊 Area Manager — Weekly Evaluation</span></div>
           <div class="layer-role"><span class="ja">役割：週ごとの店舗別コンプライアンススコアを確認。個別インシデントではなく集計データを見る</span><span class="en">Role: View weekly per-store compliance scores. Sees aggregated data, not individual incidents.</span></div>
-          <div class="layer-desc ja">📊 Week 7–8 に実装予定。</div>
+          <div class="layer-desc ja">📊 /admin/management/area-review で稼働中。</div>
           <div class="layer-desc en">📊 Planned for Week 7–8.</div>
         </div>
       </div>
@@ -1794,8 +1804,8 @@ ul.body-list strong { color: var(--text); }
         <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">クレーム — 承認写真なし</span><span class="exc-title en">Complaint — No Approval Photo</span></div>
         <div class="exc-owner ja">担当：<strong>BO Staff C</strong></div>
         <div class="exc-owner en">Owner: <strong>BO Staff C</strong></div>
-        <div class="exc-body ja">間違い・欠品クレームで承認写真が記録されていない場合。オーダー番号と対応担当者の特定を指示する。</div>
-        <div class="exc-body en">Wrong/missing item complaint with no approval photo on record. Instructs manager to identify the responsible staff and confirm Discord message.</div>
+        <div class="exc-body ja">Incident/Refund カテゴリのクレームで承認写真が記録されていない場合に発火します。判定は <code>manila_cancellations.photo_status</code> の4つの固定文言（PIC found the photo / Kitchen has provided the photo / No need to look for photo / No replies from kitchen）で行い、前3つのいずれかであれば解決済みとして発火しません。</div>
+        <div class="exc-body en">Fires on an Incident/Refund complaint with no approval photo on record. Resolution is matched against the four fixed phrases in <code>manila_cancellations.photo_status</code> (PIC found the photo / Kitchen has provided the photo / No need to look for photo / No replies from kitchen); the first three count as resolved and do not fire.</div>
         <div class="exc-trigger">exception_type: complaint_no_photo</div>
       </div>
 
@@ -1824,6 +1834,33 @@ ul.body-list strong { color: var(--text); }
         <div class="exc-body ja">製品スコアリングでCグレード以下が記録された場合。写真確認と担当スタッフへの口頭フィードバックを指示する。</div>
         <div class="exc-body en">A C-grade or below product is recorded. Instructs manager to review the photo and provide verbal feedback to responsible staff today.</div>
         <div class="exc-trigger">exception_type: product_score_c</div>
+      </div>
+
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">🟠</span><span class="exc-title"><span class="ja">バックアップ在庫 70%以下</span><span class="en">Backup Stock Below 70%</span></span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">パーレベルの70%を下回った時点で予防的に発火します。50%を待たずに手を打つための注意喚起です。同じアイテムがその後50%を割った場合は新しいタスクを作らず、既存タスクを赤へ昇格させます。</div>
+        <div class="exc-body en">Fires preventively once an item drops below 70% of par — the point is to act before it reaches 50%. If the same item later falls below 50%, the existing task escalates to red rather than a second task being raised.</div>
+        <div class="exc-trigger">exception_type: backup_below_70</div>
+      </div>
+
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">🟠</span><span class="exc-title"><span class="ja">ラッシュアワーチェック未提出</span><span class="en">Rush Hour Check Missing</span></span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">ピーク時間のチェックが、その時刻を1時間過ぎても提出されていない場合に発火します。判定は<strong>店舗のローカル時刻</strong>で行われます。直近14日にこのフォームを使った支店のみが対象です — 未展開の支店に毎日アラートを出さないためです。</div>
+        <div class="exc-body en">Fires when a peak-time check is still missing an hour past its slot, judged in the <strong>store's local time</strong>. Only branches that have used the form in the last 14 days are held to it, so a branch not yet rolled out does not generate a daily alert.</div>
+        <div class="exc-trigger">exception_type: rush_check_missing</div>
+      </div>
+
+      <div class="exc-card sev-red">
+        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title"><span class="ja">トラベルパス衛生 異常</span><span class="en">Travel Path Hygiene Issue</span></span></div>
+        <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
+        <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
+        <div class="exc-body ja">ラッシュチェックでトラベルパスが「Not OK」と報告された時点で発火します。<strong>店舗が自ら申告した事実</strong>なので検知の確度は最も高く、内容の記述が必須になっています。</div>
+        <div class="exc-body en">Fires the moment a rush check reports the travel path as not clean. This is the store <strong>telling us directly</strong>, so it is the most reliable trigger in the system — and the form requires a description before it can be submitted.</div>
+        <div class="exc-trigger">exception_type: travel_path_hygiene</div>
       </div>
     </div>
 
@@ -1871,6 +1908,45 @@ ul.body-list strong { color: var(--text); }
         <div class="t-opt done">✅ <span class="en">Additional Preparation Started</span></div>
         <div class="t-opt done">✅ <span class="en">Staff Reassigned</span></div>
         <div class="t-opt done">✅ <span class="en">Emergency Request Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">No Action Possible</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🔴 クレーム — 承認写真なし</span><span class="en">🔴 Complaint — No Approval Photo</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"{order_id} has a missing / wrong item complaint with no approval photo on record.<br>Please identify the staff responsible for that order and confirm the kitchen was notified."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Result</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Staff Identified — Kitchen Notified</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Staff Identified — Kitchen Not Notified</span></div>
+        <div class="t-opt done">✅ <span class="en">Photo Found and Attached</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Cannot Identify — Explain…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Action Taken</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Feedback Given to Staff</span></div>
+        <div class="t-opt done">✅ <span class="en">Photo Process Re-explained</span></div>
+        <div class="t-opt done">✅ <span class="en">Refund Processed</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">No Action Possible</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🔴 トラベルパス衛生 異常</span><span class="en">🔴 Travel Path Hygiene Issue</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"The travel path was reported as not clean during the {slot} check.<br>Please clean the affected area immediately and confirm what was done."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Issue Identified</div>
+      <div class="template-options">
+        <div class="t-opt cannot">⚠️ <span class="en">Spillage on the Path</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Obstruction / Blocked Path</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Waste Left Out</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Floor Not Clean</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+      <div style="font-size:11px;color:#7dd3fc;margin:12px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 2 — Action Taken</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Cleaned Immediately</span></div>
+        <div class="t-opt done">✅ <span class="en">Staff Assigned to Clean</span></div>
+        <div class="t-opt done">✅ <span class="en">Path Temporarily Rerouted</span></div>
         <div class="t-opt cannot">⚠️ <span class="en">No Action Possible</span></div>
       </div>
     </div>
@@ -1967,6 +2043,19 @@ ul.body-list strong { color: var(--text); }
         <div class="t-opt done">✅ <span class="en">Product Remade / Corrected</span></div>
         <div class="t-opt done">✅ <span class="en">Staff Retrained</span></div>
         <div class="t-opt neutral">📝 <span class="en">Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
+      </div>
+    </div>
+
+    <h2><span class="ja">🟠 ラッシュアワーチェック未提出</span><span class="en">🟠 Rush Hour Check Missing</span></h2>
+    <div class="template-block">
+      <div class="template-msg en">"The {slot} rush hour check has not been submitted.<br>Please complete the 30-minute rush check now and report the result."</div>
+      <div style="font-size:11px;color:#a1a1aa;margin:10px 0 5px;font-weight:600;letter-spacing:.03em;">STAGE 1 — Select Result</div>
+      <div class="template-options">
+        <div class="t-opt done">✅ <span class="en">Check Completed and Submitted</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Store Operation Too Busy</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — Staff Shortage</span></div>
+        <div class="t-opt cannot">⚠️ <span class="en">Cannot Submit — System Issue</span></div>
+        <div class="t-opt neutral">📝 <span class="en">Cannot Submit — Other…</span> <span style="opacity:.65;font-size:10px;">(note required)</span></div>
       </div>
     </div>
   </div>
@@ -2367,16 +2456,16 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">エリアマネージャー 週次レビュー</div>
         <div class="section-title en">Area Manager Weekly Review</div>
-        <div class="section-path">/admin/management/area-review — Week 7–8 実装予定</div>
+        <div class="section-path">/admin/management/area-review — 稼働中</div>
         <div class="section-desc ja">エリアマネージャーは個別インシデントではなく、週ごとの店舗別コンプライアンススコアを確認します。</div>
         <div class="section-desc en">Area managers don't review individual incidents — they see weekly per-store compliance scores.</div>
       </div>
     </div>
 
-    <div class="tip warn">
-      <span class="tip-icon">🔧</span>
-      <span class="ja">Week 7–8 に実装予定です。</span>
-      <span class="en">Planned for Week 7–8.</span>
+    <div class="tip success">
+      <span class="tip-icon">✅</span>
+      <span class="ja">稼働中。<strong>/admin/management/area-review</strong> で週を切り替えて確認できます。スコアは「送信済み指示のうち SLA 内に返答された割合」です。BOがまだ送っていないタスクは母数から除外されます — 未送信はBO側の滞留であってマネージャーの見逃しではないためです。</span>
+      <span class="en">Live at <strong>/admin/management/area-review</strong>, with week-by-week navigation. The score is the share of <em>sent</em> instructions answered inside their SLA; tasks BO has not sent are excluded from the denominator, because an unsent task is BO's backlog rather than a manager's miss.</span>
     </div>
 
     <div class="card">
@@ -2576,16 +2665,22 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">パターン自動検出</div>
         <div class="section-title en">Automatic Pattern Detection</div>
-        <div class="section-path">detect_repeat_patterns() — Week 7 実装予定</div>
+        <div class="section-path">detect_repeat_patterns() — /admin/management/patterns で稼働中</div>
         <div class="section-desc ja">単発の例外ではなく、繰り返しパターンを検出してエスカレーションします。</div>
         <div class="section-desc en">Detects repeating patterns rather than one-off exceptions, and escalates accordingly.</div>
       </div>
     </div>
 
-    <div class="tip warn">
-      <span class="tip-icon">🔧</span>
-      <span class="ja">Week 7 に実装予定です。</span>
-      <span class="en">Planned for Week 7.</span>
+    <div class="tip success">
+      <span class="tip-icon">✅</span>
+      <span class="ja">稼働中。<strong>/admin/management/patterns</strong> の「Run Scan」で検出します。検出されたパターンは Acknowledge / Close で管理し、一度Closeしたものが再発すると自動でOpenに戻ります。</span>
+      <span class="en">Live. Run it from <strong>/admin/management/patterns</strong> with “Run Scan”. Patterns are worked with Acknowledge / Close, and a closed pattern reopens automatically if it recurs.</span>
+    </div>
+
+    <div class="tip warn" style="margin-top:8px;">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><strong>製品スコアのパターンは件数ではなく「不良率」で判定します。</strong>各店6〜10名が2週間で800〜1500枚のQC写真を投稿しており、単純な件数では「最も多く投稿した人」が常に上位に来てしまうためです（実際、件数最多の24件は464枚中＝5%で、店舗平均8%を下回っていました）。仕様の「1週間で3回」は下限として維持したうえで、店舗平均の1.5倍を超える不良率であることを追加条件としています。</span>
+      <span class="en"><strong>The product-score pattern is judged on rate, not count.</strong> Each branch has 6–10 people posting 800–1,500 QC photos a fortnight, so a raw count always ranks the busiest photographer first — the top “offender” by count had 24 bad scores out of 464 posts, a 5% rate against a branch average of 8%. The spec's “3× in a week” is kept as the floor, with the added condition that the person's bad rate exceeds 1.5× their branch's.</span>
     </div>
 
     <div class="card">
@@ -2602,7 +2697,7 @@ ul.body-list strong { color: var(--text); }
         </tr>
         <tr>
           <td><span class="ja">同一スタッフ + C/D製品スコア</span><span class="en">Same staff + C/D product score</span></td>
-          <td><span class="ja">1週間で3回</span><span class="en">3× in 1 week</span></td>
+          <td><span class="ja">1週間で3回 <strong>かつ</strong> 不良率が店舗平均の1.5倍超</span><span class="en">3× in 1 week <strong>and</strong> a bad rate above 1.5× the branch average</span></td>
           <td><span class="ja">NTE候補 → BO Staff C</span><span class="en">NTE candidate → BO Staff C</span></td>
         </tr>
         <tr>
@@ -2616,11 +2711,101 @@ ul.body-list strong { color: var(--text); }
           <td><span class="ja">パーレベル見直しフラグ → BO Staff A</span><span class="en">Par level review flag → BO Staff A</span></td>
         </tr>
         <tr>
+          <td><span class="ja">同一メニュー + 低評価（1〜3星）</span><span class="en">Same menu item + Low rating (1–3 stars)</span></td>
+          <td><span class="ja">7日間で2回</span><span class="en">2× in 7 days</span></td>
+          <td><span class="ja">メニュー見直しフラグ → BO Staff C + HQアラート</span><span class="en">Menu item review → BO Staff C + HQ alert</span></td>
+        </tr>
+        <tr>
           <td><span class="ja">マネージャー返答「できない」</span><span class="en">Manager response = "Cannot" (any reason)</span></td>
           <td><span class="ja">1週間で3回</span><span class="en">3× in 1 week</span></td>
           <td><span class="ja">マネージャーパフォーマンスフラグ → エリアマネージャー</span><span class="en">Manager performance flag → Area Manager</span></td>
         </tr>
       </table>
+    </div>
+  </div>
+
+  <!-- ===== PAR LEVELS ===== -->
+  <div class="section" id="section-par-levels">
+    <div class="hero-header">
+      <div class="hero-icon">📏</div>
+      <div>
+        <div class="section-title ja">パーレベル管理</div>
+        <div class="section-title en">Backup Par Levels</div>
+        <div class="section-path">/admin/management/par-levels</div>
+        <div class="section-desc ja">バックアップ在庫アラート（70% / 50%）が比較する基準値。この数字が間違っていれば、アラートも間違います。</div>
+        <div class="section-desc en">The thresholds the 70% / 50% backup alerts compare against. If this number is wrong, the alert is wrong.</div>
+      </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><strong>初期値は「提案値」であって目標値ではありません。</strong>「Propose from last 30 days」は直近30日の提出実績の<strong>中央値</strong>を入れます。中央値は「その支店が普段どれだけ持っているか」であって「どれだけ持つべきか」ではありません。PROPOSED（黄）の行は誰もレビューしていない状態で、レビュー前でもアラートは発火します。数字を修正すると REVIEWED（緑）に変わります。</span>
+      <span class="en"><strong>The initial numbers are proposals, not targets.</strong> “Propose from last 30 days” fills in the <strong>median</strong> of what was actually submitted. A median says what the branch <em>typically holds</em>, not what it <em>should</em> hold. Rows marked PROPOSED (amber) have not been reviewed by anyone, and alerts still fire on them. Editing the number marks it REVIEWED (green).</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="ja">単位の扱い</span><span class="en">How units are handled</span></div>
+      <p class="ja" style="font-size:12px;">同じアイテムが日によって <code>500 g</code> と <code>1 kg</code> の両方で記録される実例があります。そのまま合計すると 501 になってしまうため、システムは比較前に <code>g→kg</code> / <code>ml→l</code> / <code>pc→pcs</code> へ換算し、1日分を合算してからパーレベルと比較します。換算しても単位が混在するアイテム、およびパーレベルの単位と当日の単位が食い違うアイテムは<strong>判定せず「スキップ」として報告</strong>されます — 判定していないものが「問題なし」に見えるのが一番危険だからです。</p>
+      <p class="en" style="font-size:12px;">The same item is genuinely recorded as both <code>500 g</code> and <code>1 kg</code> on different days; summing those raw gives 501. Quantities are therefore converted (<code>g→kg</code>, <code>ml→l</code>, <code>pc→pcs</code>) and summed per day before being compared. An item still mixing units after conversion — or whose par unit disagrees with the day's reading — is <strong>not judged, and is reported as skipped</strong>. An unjudged item reading as a passing one is the failure mode worth avoiding.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="ja">運用の流れ</span><span class="en">How to work it</span></div>
+      <ol class="steps">
+        <li class="step"><div class="step-num">1</div><div class="step-body">
+          <div class="step-title ja">「Propose from last 30 days」で初期値を作る</div>
+          <div class="step-title en">Generate a starting set with “Propose from last 30 days”</div>
+          <div class="step-desc ja">既存の値は上書きされません。手で直した数字のほうが履歴より正しいためです。</div>
+          <div class="step-desc en">Existing values are left alone — a manual correction outranks the history it came from.</div>
+        </div></li>
+        <li class="step"><div class="step-num">2</div><div class="step-body">
+          <div class="step-title ja">PROPOSED の行を上から確認して実際の目標値に直す</div>
+          <div class="step-title en">Work down the PROPOSED rows and correct each to the real target</div>
+        </div></li>
+        <li class="step"><div class="step-num">3</div><div class="step-body">
+          <div class="step-title ja">パターン検出に「Par level review」が出たら、その支店の数字を疑う</div>
+          <div class="step-title en">When Pattern Detection raises “Par level review”, suspect that branch's numbers</div>
+          <div class="step-desc ja">5日で2回50%を割るのは、仕込み不足かパーレベル過大のどちらかです。</div>
+          <div class="step-desc en">Twice below 50% in five days means either prep is short or the par is too high.</div>
+        </div></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ===== RUSH CHECK ===== -->
+  <div class="section" id="section-rush-check">
+    <div class="hero-header">
+      <div class="hero-icon">⏱️</div>
+      <div>
+        <div class="section-title ja">ラッシュアワーチェック</div>
+        <div class="section-title en">Rush Hour Check</div>
+        <div class="section-path">/store/management/rush-check</div>
+        <div class="section-desc ja">ピーク時間帯にフロアを30秒歩いて5項目を確認するフォーム。マネージャーが提出します。</div>
+        <div class="section-desc en">A 30-second walk of the floor at each peak, five items, submitted by the manager.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="ja">確認する5項目</span><span class="en">The five checks</span></div>
+      <table class="status-table">
+        <tr><th>Item</th><th>What it asks</th></tr>
+        <tr><td>Queue moving</td><td>Are customers being served without a backlog?</td></tr>
+        <tr><td>Prep holding</td><td>Is there enough prepared stock to finish the peak?</td></tr>
+        <tr><td>Staffing adequate</td><td>Is every station covered right now?</td></tr>
+        <tr><td>Area clean</td><td>Is the work area clean and tidy?</td></tr>
+        <tr><td><strong>Travel path clear</strong></td><td>Is the path staff walk clear, dry, and unobstructed?</td></tr>
+      </table>
+      <div class="tip warn" style="margin-top:10px;">
+        <span class="tip-icon">⚠️</span>
+        <span class="ja"><strong>Travel path を「Not OK」にすると、その場で 🔴 のタスクがBOに上がります。</strong>内容の記述が必須で、書かないと送信できません。他の4項目と違い、これは店舗が自ら申告した衛生上の問題であり、最優先で処理されます。</span>
+        <span class="en"><strong>Marking Travel path “Not OK” raises a 🔴 task to Back Office immediately.</strong> A description is required — you cannot submit without one. Unlike the other four, this is a hygiene problem the store has reported itself, and it is worked first.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="ja">スロットと未提出の判定</span><span class="en">Slots and how “missing” is decided</span></div>
+      <p class="ja" style="font-size:12px;">1日4スロット（Lunch 12:00 / 12:30、Dinner 18:00 / 18:30）。そのスロットの時刻を<strong>店舗のローカル時刻で</strong>1時間過ぎても未提出なら 🟠 タスクが発生します。同じスロットを再提出すると前回の回答が置き換わります — 押し間違いを消してもらうために誰かに頼む必要はありません。</p>
+      <p class="en" style="font-size:12px;">Four slots a day (Lunch 12:00 / 12:30, Dinner 18:00 / 18:30). A slot still missing an hour past its time — measured in the <strong>store's local time</strong> — raises a 🟠 task. Re-submitting a slot replaces the earlier answers, so correcting a mis-tap does not require asking anyone to delete a row.</p>
     </div>
   </div>
 
@@ -2686,39 +2871,39 @@ ul.body-list strong { color: var(--text); }
       </div>
 
       <div class="rollout-item">
-        <span class="rollout-status">⏳</span>
+        <span class="rollout-status">✅</span>
         <span class="rollout-phase">Day 4</span>
         <div class="rollout-body">
           <div class="rollout-title ja">パーレベル編集 + バックアップ在庫アラート自動化</div>
           <div class="rollout-title en">Par Level Editing + Backup Stock Alert Automation</div>
-          <div class="rollout-items ja">backup_le70 / backup_le50 — パーレベルデータとの自動連携 · パーレベル編集UI（管理者）</div>
-          <div class="rollout-items en">backup_le70 / backup_le50 auto-detection from par level data · Par Level editing UI (admin)</div>
+          <div class="rollout-items ja">backup_below_70 / backup_below_50 の自動検知稼働 · <strong>/admin/management/par-levels</strong> でパーレベル編集 · 過去30日の中央値から初期値を提案</div>
+          <div class="rollout-items en">backup_below_70 / backup_below_50 auto-detection live · Par Levels editable at <strong>/admin/management/par-levels</strong> · initial values proposed from the 30-day median</div>
         </div>
-        <div><span class="chip">PLANNED</span></div>
+        <div><span class="chip green">LIVE</span></div>
       </div>
 
       <div class="rollout-item">
-        <span class="rollout-status">📅</span>
+        <span class="rollout-status">✅</span>
         <span class="rollout-phase">Week 5–6</span>
         <div class="rollout-body">
           <div class="rollout-title ja">追加フォーム + 既存機能統合</div>
           <div class="rollout-title en">Additional Forms + Integrations</div>
-          <div class="rollout-items ja">30分ラッシュアワーチェックフォーム · トラベルパス衛生チェック追加 · 店舗評価/CK配送/低評価との統合</div>
-          <div class="rollout-items en">30-min Rush Hour Check form · Travel Path hygiene random check · Store Evaluation / CK Delivery / Low Rating integrations</div>
+          <div class="rollout-items ja"><strong>/store/management/rush-check</strong> — 30分ラッシュチェック（トラベルパス衛生を含む） · クレーム承認写真なしの自動検知 · アグリゲーター低評価との統合</div>
+          <div class="rollout-items en"><strong>/store/management/rush-check</strong> — 30-min rush check incl. travel path hygiene · complaint-without-photo detection · aggregator low-rating integration</div>
         </div>
-        <div><span class="chip">PLANNED</span></div>
+        <div><span class="chip green">LIVE</span></div>
       </div>
 
       <div class="rollout-item">
-        <span class="rollout-status">📅</span>
+        <span class="rollout-status">✅</span>
         <span class="rollout-phase">Week 7–8</span>
         <div class="rollout-body">
           <div class="rollout-title ja">インテリジェンス層</div>
           <div class="rollout-title en">Intelligence Layer</div>
-          <div class="rollout-items ja">繰り返しパターン検出 · マネージャー見逃しログ · エリアマネージャー週次スコア</div>
-          <div class="rollout-items en">Repeat pattern detection · Manager missed exception logging · Area Manager weekly scores</div>
+          <div class="rollout-items ja">6種のパターン検出（<strong>/admin/management/patterns</strong>） · マネージャー見逃しの自動記録 · エリアマネージャー週次スコア（<strong>/admin/management/area-review</strong>）</div>
+          <div class="rollout-items en">Six repeat patterns at <strong>/admin/management/patterns</strong> · automatic missed-by-manager logging · Area Manager weekly scores at <strong>/admin/management/area-review</strong></div>
         </div>
-        <div><span class="chip">PLANNED</span></div>
+        <div><span class="chip green">LIVE</span></div>
       </div>
     </div>
   </div>
