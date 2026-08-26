@@ -1,0 +1,293 @@
+<title>勘定科目マスタ 統合案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --paper:#F7F8FA; --card:#FFFFFF; --card-2:#EEF1F6; --rule:#DBE1EA; --rule-2:#E9EDF3;
+  --ink:#131A24; --ink-2:#3A4756; --muted:#6B7887;
+  --ok:#0E7C66; --ok-bg:#E3F4EF; --ok-line:#A8DCCD;
+  --stop:#B3261E; --stop-bg:#FBE9E7; --stop-line:#EFB9B4;
+  --ask:#8A5A00; --ask-bg:#FBF1DC; --ask-line:#E5C88A;
+  --new:#3A5CCC; --new-bg:#E8EDFB; --new-line:#B9C8F0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+    --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+    --ok:#3FD1AE; --ok-bg:#0D2A25; --ok-line:#1F5A4C;
+    --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+    --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
+    --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+  --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+  --ok:#3FD1AE; --ok-bg:#0D2A25; --ok-line:#1F5A4C;
+  --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+  --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
+  --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
+}
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans JP",-apple-system,"Hiragino Sans",sans-serif;
+  font-size:15px; line-height:1.8; -webkit-font-smoothing:antialiased; }
+.wrap { max-width:66rem; margin:0 auto; padding:3.5rem 1.5rem 7rem; }
+.masthead { border-bottom:2px solid var(--ink); padding-bottom:1.4rem; margin-bottom:2.5rem; }
+.kicker { font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:.8rem; }
+h1 { font-size:clamp(1.7rem,4vw,2.4rem); line-height:1.3; font-weight:700; margin:0 0 .8rem; text-wrap:balance; }
+.standfirst { font-size:1rem; color:var(--ink-2); max-width:36rem; margin:0; }
+.dateline { margin-top:1.1rem; font-size:.78rem; color:var(--muted); font-family:"IBM Plex Mono",monospace; }
+section { margin-top:3rem; }
+h2 { font-size:1.3rem; font-weight:700; margin:0 0 .35rem; display:flex; align-items:baseline; gap:.75rem; text-wrap:balance; }
+h2 .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.1em; color:var(--muted); flex-shrink:0; padding-top:.15rem; }
+.lede { color:var(--ink-2); max-width:36rem; margin:0 0 1.4rem; }
+p { margin:0 0 .85rem; max-width:36rem; } p.wide { max-width:46rem; } p:last-child { margin-bottom:0; }
+code { font-family:"IBM Plex Mono",monospace; font-size:.85em; background:var(--card-2);
+  padding:.1em .4em; border-radius:3px; border:1px solid var(--rule-2); }
+.tw { overflow-x:auto; margin:1.2rem 0; border:1px solid var(--rule); }
+table { width:100%; border-collapse:collapse; font-size:.86rem; min-width:36rem; background:var(--card); }
+th { text-align:left; padding:.65rem .85rem; background:var(--card-2); font-family:"IBM Plex Mono",monospace;
+  font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; border-bottom:1px solid var(--rule); white-space:nowrap; }
+td { padding:.6rem .85rem; border-bottom:1px solid var(--rule-2); vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+td.n { text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+td.code { font-family:"IBM Plex Mono",monospace; font-size:.8rem; font-weight:600; color:var(--new); white-space:nowrap; }
+td.src { font-size:.82rem; color:var(--ink-2); }
+.grp td { background:var(--card-2); font-weight:700; font-size:.78rem; letter-spacing:.05em; }
+.box { border:1px solid var(--rule); background:var(--card); padding:1.1rem 1.25rem; margin:1.2rem 0; }
+.box.stop { border-color:var(--stop-line); background:var(--stop-bg); }
+.box.ok { border-color:var(--ok-line); background:var(--ok-bg); }
+.box.ask { border-color:var(--ask-line); background:var(--ask-bg); }
+.box-h { font-family:"IBM Plex Mono",monospace; font-size:.67rem; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:600; margin-bottom:.45rem; color:var(--muted); }
+.box.stop .box-h { color:var(--stop); } .box.ok .box-h { color:var(--ok); } .box.ask .box-h { color:var(--ask); }
+.box p { max-width:46rem; }
+pre { font-family:"IBM Plex Mono",monospace; font-size:.79rem; line-height:1.7; background:var(--card-2);
+  border:1px solid var(--rule); padding:.95rem 1.05rem; overflow-x:auto; margin:.9rem 0; border-radius:3px; }
+pre .c { color:var(--muted); }
+.q { border-left:3px solid var(--ask); padding-left:1rem; margin:1rem 0; }
+.q-n { font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:600; color:var(--ask); }
+.q-t { font-weight:700; margin:.15rem 0 .3rem; }
+.q-b { font-size:.9rem; color:var(--ink-2); max-width:44rem; }
+ul.plain { padding-left:1.1rem; margin:.45rem 0 0; max-width:44rem; }
+ul.plain li { margin-bottom:.4rem; }
+footer { margin-top:3.5rem; padding-top:1.3rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--muted); }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="kicker">Phase 0 — たたき台</div>
+  <h1>59種の費目を22科目に</h1>
+  <p class="standfirst">
+    <code>mgmt_overhead</code> の全費目を実額とともに調べ、統合案にしました。
+    そのうち1件は科目ではなく、月次PLを最大274%膨らませていました。
+  </p>
+  <div class="dateline">2026-08-26 · Dubai 30種 + Manila 40種（延べ70行）を精査</div>
+</header>
+
+<!-- ══ 支出合計 ══ -->
+<section>
+  <h2><span class="tag">先に1件</span>「支出合計」は科目ではありません</h2>
+  <p class="lede">
+    Manila の最大項目 <code>支出合計</code>（9,436,631 PHP）は合計行です。
+    これが個別費目と<strong>並べて合算</strong>されています。
+  </p>
+  <div class="tw">
+    <table>
+      <tr><th>月</th><th class="n">現在の計上額</th><th class="n">うち「支出合計」</th><th class="n">個別費目の合計</th><th class="n">過大</th></tr>
+      <tr><td>2025-10</td><td class="n">3,442,990</td><td class="n">1,019,296</td><td class="n">2,423,694</td><td class="n" style="color:var(--stop)">+42%</td></tr>
+      <tr><td>2025-11</td><td class="n">4,108,583</td><td class="n">1,409,907</td><td class="n">2,698,677</td><td class="n" style="color:var(--stop)">+52%</td></tr>
+      <tr><td>2025-12</td><td class="n">3,048,470</td><td class="n">1,785,192</td><td class="n">1,263,279</td><td class="n" style="color:var(--stop)">+141%</td></tr>
+      <tr><td>2026-01</td><td class="n">3,228,452</td><td class="n">2,327,881</td><td class="n">900,571</td><td class="n" style="color:var(--stop)">+258%</td></tr>
+      <tr><td>2026-02</td><td class="n">3,951,236</td><td class="n">2,894,356</td><td class="n">1,056,880</td><td class="n" style="color:var(--stop)">+274%</td></tr>
+      <tr><td>2026-03 以降</td><td class="n">1,181,444</td><td class="n" style="color:var(--ok)">なし</td><td class="n">1,181,444</td><td class="n">—</td></tr>
+    </table>
+  </div>
+  <div class="box stop">
+    <div class="box-h">個別費目のほうが正です</div>
+    <p>
+      2026-02 の個別費目は<strong>27種で 1,056,882</strong>。
+      翌月 2026-03 は26種で 1,181,443、2026-07 は27種で 1,280,808。
+      <strong>構成も規模も連続しています。</strong>
+      いっぽう <code>支出合計</code> が消える 2026-03 で計上額が3分の1に落ちるのは、
+      費用が減ったのではなく<strong>合計行の二重計上が止まったから</strong>です。
+    </p>
+    <p style="margin-top:.7rem">
+      これは以前から未解決だった「Manila の 2025-10〜2026-02 が直近月の約3倍」の正体です。
+      <strong>期間が完全に一致します。</strong>
+    </p>
+  </div>
+  <p class="wide">
+    対処は <code>支出合計</code> の5か月分を削除するだけです。科目マスタには<strong>載せません</strong>。
+  </p>
+</section>
+
+<!-- ══ 統合表 ══ -->
+<section>
+  <h2><span class="tag">統合案</span>59種 → 22科目</h2>
+  <p class="lede">
+    原則は3つ。<strong>原価センターは科目から外す</strong>（CK家賃 → <code>RENT</code> ＋ <code>cost_center=CK</code>）。
+    <strong>資産計上を分ける</strong>。<strong>同義の重複を畳む</strong>。
+  </p>
+
+  <div class="tw">
+    <table>
+      <tr><th>科目コード</th><th>English</th><th>日本語</th><th>統合元</th><th class="n">実額</th></tr>
+
+      <tr class="grp"><td colspan="5">原価</td></tr>
+      <tr><td class="code">FOOD</td><td>Food Cost</td><td>食材費</td><td class="src">食材費 <span style="color:var(--ask)">※要確認</span></td><td class="n">1,084,589 PHP</td></tr>
+      <tr><td class="code">PACK</td><td>Packaging</td><td>包材費</td><td class="src">包材関連 / 包材、備品（WH）</td><td class="n">107,848 PHP<br>66,386 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">人件費（給与本体は payroll から取得。ここは補助的なもの）</td></tr>
+      <tr><td class="code">LABOR_DRIVER</td><td>Driver Wages</td><td>ドライバー人件費</td><td class="src">Driver人件費 / CK+DRIVER人件費</td><td class="n">310,013 PHP</td></tr>
+      <tr><td class="code">LABOR_OTHER</td><td>Other Labour</td><td>その他人件費</td><td class="src">人件費（AM） / スタッフ支払い分 / Compensation</td><td class="n">110,249 PHP<br>21,659 AED</td></tr>
+      <tr><td class="code">STAT_CONTRIB</td><td>Statutory Contributions</td><td>法定福利費</td><td class="src">SSS / Philhealth / Pag-ibig / CKスタッフ Goverment Contribution / 従業員保険</td><td class="n">420,093 PHP<br>4,141 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">施設</td></tr>
+      <tr><td class="code">RENT</td><td>Rent</td><td>家賃</td><td class="src"><strong>家賃 / 家賃Rent / CK家賃 / CK家賃Rent / KD 家賃 / Warehouse 家賃 / スタッフルーム家賃 / その他家賃など</strong>（8種）</td><td class="n">4,267,459 PHP<br>1,849,946 AED</td></tr>
+      <tr><td class="code">UTIL</td><td>Utilities</td><td>光熱費・衛生費</td><td class="src">光熱費、衛生費 / CK光熱費 / その他光熱費</td><td class="n">1,943,621 PHP<br>448,588 AED</td></tr>
+      <tr><td class="code">CUSA</td><td>Common Area Charge</td><td>共益費</td><td class="src">CUSA</td><td class="n">201,600 PHP</td></tr>
+      <tr><td class="code">STORAGE</td><td>Storage</td><td>保管費</td><td class="src">ストレージ、冷凍庫</td><td class="n">35,091 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">設備・修繕</td></tr>
+      <tr><td class="code">EQUIP</td><td>Equipment</td><td>備品費</td><td class="src">キッチン機器 / CKキッチン機器</td><td class="n">255,431 PHP<br>42,353 AED</td></tr>
+      <tr><td class="code">CAPEX_EQUIP</td><td>Equipment (Capitalised)</td><td>設備投資</td><td class="src">キッチン機器等初期投資 <span style="color:var(--ask)">※資産計上</span></td><td class="n">3,114,447 PHP</td></tr>
+      <tr><td class="code">MAINT</td><td>Maintenance</td><td>修繕費</td><td class="src">メンテナンスサービス / CKメンテナンスサービス</td><td class="n">82,227 PHP<br>46,456 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">配送・車両</td></tr>
+      <tr><td class="code">DELIVERY</td><td>Delivery</td><td>配送費</td><td class="src">CKデリバリー / 配送費 (Lalamove) / Dispatch Fee <span style="color:var(--ask)">※要確認</span></td><td class="n">499,188 PHP<br>319,671 AED</td></tr>
+      <tr><td class="code">VEHICLE</td><td>Vehicle</td><td>車両費</td><td class="src">車 / ガソリン / RFID / パーキング</td><td class="n">192,379 PHP<br>94,972 AED</td></tr>
+      <tr><td class="code">TRANSPORT</td><td>Staff Transport</td><td>交通費</td><td class="src">交通費（Grab)</td><td class="n">97,124 PHP</td></tr>
+
+      <tr class="grp"><td colspan="5">販売・システム</td></tr>
+      <tr><td class="code">ADVERT</td><td>Advertising</td><td>広告宣伝費</td><td class="src">広告費</td><td class="n">1,255,561 PHP<br>492,715 AED</td></tr>
+      <tr><td class="code">SYSTEM</td><td>Systems &amp; POS</td><td>システム費</td><td class="src">POS / Qashier / Foodics / UP / クレカターミナル / Klikit / Bayzat</td><td class="n">149,198 PHP<br>109,365 AED</td></tr>
+      <tr><td class="code">COMM</td><td>Communication</td><td>通信費</td><td class="src">通信費用 / Glove - Internet</td><td class="n">49,905 PHP<br>3,015 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">管理・専門サービス</td></tr>
+      <tr><td class="code">PRO_FEE</td><td>Professional Fees</td><td>支払手数料</td><td class="src">アカウンタント / Al Forel（会計） / PROサービスフィー</td><td class="n">100,000 PHP<br>63,575 AED</td></tr>
+      <tr><td class="code">OUTSOURCE</td><td>Outsourcing</td><td>外注費</td><td class="src">フィリピン外注費 <span style="color:var(--ask)">※要確認</span></td><td class="n">257,591 AED</td></tr>
+      <tr><td class="code">LICENSE</td><td>Licences &amp; Permits</td><td>租税公課・許認可</td><td class="src">ライセンス関係 / ライセンス関係 (Business Permit) / VISA費用 / 名義貸し</td><td class="n">138,626 PHP<br>159,216 AED</td></tr>
+
+      <tr class="grp"><td colspan="5">その他</td></tr>
+      <tr><td class="code">OTHER</td><td>Other</td><td>雑費</td><td class="src">その他 / その他 (PH事業関連）</td><td class="n">184,544 PHP<br>199,116 AED</td></tr>
+
+      <tr class="grp"><td colspan="5" style="color:var(--stop)">科目にしない</td></tr>
+      <tr><td class="code" style="color:var(--stop)">—</td><td colspan="2" style="color:var(--stop)"><strong>削除</strong></td><td class="src">支出合計（合計行）</td><td class="n" style="color:var(--stop)">9,436,631 PHP</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 原価センター ══ -->
+<section>
+  <h2><span class="tag">分離</span>科目から外した原価センター</h2>
+  <p class="lede">
+    費目名に埋め込まれていた発生場所を、別の軸へ移します。
+    <strong><code>store_code</code>（配賦先）は現在の意味のまま変えません。</strong>
+  </p>
+  <pre><span class="c">-- 例：2026-07 Manila</span>
+「CK家賃」 CUB 25,000 / PAR 25,000 / TAFT 25,000
+   ↓
+account_code = 'RENT'
+cost_center  = 'CK'          <span class="c">← 新設。どこで発生したか</span>
+store_code   = CUB/PAR/TAFT  <span class="c">← 既存のまま。どの店が負担するか</span></pre>
+  <div class="tw">
+    <table>
+      <tr><th>cost_center</th><th>type</th><th>統合元の費目</th></tr>
+      <tr><td class="code">CK</td><td>CK</td><td class="src">CK家賃 / CK家賃Rent / CK光熱費 / CKキッチン機器 / CKメンテナンスサービス / CKデリバリー / CK+DRIVER人件費 / CKスタッフ Goverment Contribution</td></tr>
+      <tr><td class="code">WH</td><td>WAREHOUSE</td><td class="src">Warehouse 家賃 / 包材、備品（WH）</td></tr>
+      <tr><td class="code">KD</td><td style="color:var(--ask)">要確認</td><td class="src">KD 家賃（Manila・432,000 PHP・10か月継続）</td></tr>
+      <tr><td class="code">STAFF_ROOM</td><td>OTHER</td><td class="src">スタッフルーム家賃（288,000 PHP・10か月継続）</td></tr>
+      <tr><td class="code">（店舗自身）</td><td>STORE</td><td class="src">上記以外すべて。store_code がそのまま発生場所</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 確認事項 ══ -->
+<section>
+  <h2><span class="tag">確認</span>私では決められない5件</h2>
+  <p class="lede">いずれも会計・実務の判断です。ご回答いただければマスタに反映します。</p>
+
+  <div class="q">
+    <div class="q-n">Q1</div>
+    <div class="q-t">overhead の「食材費」1,084,589 PHP は何ですか</div>
+    <div class="q-b">
+      2025-10〜12 の3か月だけ計上され、以降ありません。食材費は通常 purchases から取るため、
+      <strong>二重計上の可能性</strong>があります。当時の暫定値であれば <code>FOOD</code> には入れず削除すべきです。
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-n">Q2</div>
+    <div class="q-t">「KD」とは何ですか</div>
+    <div class="q-b">
+      KD 家賃が Manila で10か月継続して計上され（432,000 PHP）、
+      <code>store_code</code> は CUB/PAR/TAFT の3店に配賦されています。
+      店舗ではなく共通拠点と見えますが、正体が分からないと <code>cost_center</code> の type を決められません。
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-n">Q3</div>
+    <div class="q-t">配送3種を1科目にまとめてよいですか</div>
+    <div class="q-b">
+      <code>CKデリバリー</code>（359,567 PHP・CKから店舗）、
+      <code>配送費 (Lalamove)</code>（139,621 PHP・外部業者）、
+      <code>Dispatch Fee</code>（319,671 AED・Dubai）。
+      性質が違うので<strong>分けたほうが分析しやすい</strong>かもしれません。
+      特に CKデリバリーは社内振替の性質があります。
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-n">Q4</div>
+    <div class="q-t">「フィリピン外注費」257,591 AED は Dubai 側の何ですか</div>
+    <div class="q-b">
+      Dubai の帳簿に PHP ではなく AED で計上されています。
+      フィリピン法人への業務委託であれば<strong>グループ間取引</strong>となり、
+      <code>OUTSOURCE</code> ではなく振替科目が適切かもしれません。
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-n">Q5</div>
+    <div class="q-t">「名義貸し」50,000 PHP の科目区分</div>
+    <div class="q-b">
+      現在は <code>LICENSE</code>（租税公課・許認可）に入れています。
+      現地資本要件に関わる費用であれば、<strong>会計事務所と扱いを確認</strong>したほうがよい項目です。
+    </div>
+  </div>
+</section>
+
+<!-- ══ 次 ══ -->
+<section>
+  <h2><span class="tag">次</span>この後の手順</h2>
+  <ul class="plain">
+    <li><strong>この22科目でよいかご確認ください。</strong>統合しすぎ／分けすぎがあれば調整します</li>
+    <li><strong>Q1〜Q5にご回答ください。</strong>特に Q1（食材費）は二重計上の可能性があり優先度が高いです</li>
+    <li><code>支出合計</code> 5か月分の削除をご承認いただければ、月次PLの Manila が正しくなります</li>
+    <li>確定後、<code>account_master</code> / <code>cost_center_master</code> を作成し、
+        既存70行を新コードへマッピングします（<code>mgmt_overhead</code> は残したまま、対応表を持つ形も可能）</li>
+    <li>会計事務所の科目コード体系が届いたら <code>external_code</code> に入れます</li>
+  </ul>
+  <div class="box ok">
+    <div class="box-h">この作業だけで得られるもの</div>
+    <p>
+      AIを使わずとも、家賃が8行に散っている状態が解消され、月次PLの費目比較が可能になります。
+      Manila の 2025-10〜2026-02 も正しい数字になります。日次P&amp;Lの改修とも重なる部分です。
+    </p>
+  </div>
+</section>
+
+<footer>
+  Sushi ZEN Workforce OS — 勘定科目マスタ 統合案（Phase 0 たたき台）<br>
+  <code>mgmt_overhead</code> 全70行（Dubai 30 / Manila 40）· 2025-02〜2026-07 · 2026-08-26 時点
+</footer>
+
+</div>
