@@ -6,6 +6,19 @@ Last updated: 2026-08-26 (CK Inventory ロック解除不能・Management Inbox 
 
 ## ✅ Completed: 現場からの問い合わせ2件 (2026-08-26)
 
+### ⚠️ 訂正：ログイン画面の City は原因ではなかった
+当初「ログイン画面の City が Dubai 既定 → auth.city が dubai になる」と報告したが**誤り**。
+`/api/auth/verify` の `_staff_city()` が **staff_master の登録都市を優先**し、
+全スタッフ（約170名）に `manila` / `dubai` が正しく入っているため、
+**ドロップダウンの値は auth.city に影響しない**（フォールバックに落ちる人は0名）。
+報告者に「Manilaで入り直す」を案内しても直らない。
+
+ただしログイン画面には別の実害がある：**名前一覧は都市で絞られる**ため、
+Manila のスタッフが既定の Dubai のまま名前を打つと候補が0件になり、
+「ログインが壊れている」ように見える。
+→ 前回使用した都市を localStorage に記憶（成功時はサーバが解決した都市を保存）。
+   候補0件のときは「No match in Dubai. If you work in Manila, change the City above」と案内。
+
 ### ① Management Inbox に Dubai の支店しか出ない
 **Role設定は無関係だった。**[inbox/page.tsx](src/app/store/management/inbox/page.tsx) が
 `auth.city` だけで支店リストを決めており、**ページ上に都市の切り替えが無かった**。
