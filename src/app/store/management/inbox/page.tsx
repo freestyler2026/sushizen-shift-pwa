@@ -24,6 +24,12 @@ import {
   KPI_LABEL,
   KPI_VALUE,
 } from "@/lib/ui-tokens";
+import {
+  fillTemplate,
+  shortfallSummary,
+  type ResponseOption as MgmtResponseOption,
+  type ActionTemplate as MgmtActionTemplate,
+} from "@/lib/management";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,30 +48,14 @@ interface ManagementTask {
   response: string | null;
   response_action: string | null;
   response_note: string | null;
+  context: Record<string, string | number | boolean | null> | null;
   created_at: string;
   sent_at: string | null;
   responded_at: string | null;
 }
 
-interface ResponseOption {
-  key: string;
-  label_en: string;
-  type: "done" | "cannot" | "neutral";
-  /** This option is meaningless without free text — e.g. which staff member forgot. */
-  require_note?: boolean;
-  note_placeholder?: string;
-}
-
-interface ActionTemplate {
-  exception_type: string;
-  title_en: string;
-  message_en: string;
-  response_options: ResponseOption[];
-  /** Second stage: what the store actually did. Empty when the cause is the whole answer. */
-  action_options: ResponseOption[];
-  response_label: string | null;
-  action_label: string | null;
-}
+type ResponseOption = MgmtResponseOption;
+type ActionTemplate = MgmtActionTemplate;
 
 // ─── Fallback response options by exception type ──────────────────────────────
 
@@ -374,6 +364,7 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
 
   const options = getOptions(task, template);
   const actionOptions = template?.action_options ?? [];
+  const shortfall = shortfallSummary(task.context);
   const isResponded = task.status === "responded" || task.status === "closed" || submitted;
 
   // Free text is required when either stage's chosen option asks for it.
@@ -436,7 +427,14 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
       {task.sent_message && (
         <div className="rounded-xl bg-white/5 border border-white/8 p-4 mb-4">
           <div className={T_LABEL + " mb-1.5"}>Instruction from Back Office</div>
-          <p className="text-sm text-zinc-200 leading-relaxed">{task.sent_message}</p>
+          <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-line">
+            {fillTemplate(task.sent_message, task.context)}
+          </p>
+          {shortfall && (
+            <div className="mt-2 text-xs font-semibold text-amber-300 tabular-nums">
+              {shortfall}
+            </div>
+          )}
         </div>
       )}
 

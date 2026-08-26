@@ -33,6 +33,7 @@ import {
   TABLE_CELL,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
+import { fillTemplate, shortfallSummary } from "@/lib/management";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ interface ManagementTask {
   response: string | null;
   response_action: string | null;
   response_note: string | null;
+  context: Record<string, string | number | boolean | null> | null;
   missed_by_manager: boolean;
   created_at: string;
   sent_at: string | null;
@@ -163,7 +165,7 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
           <div className="mb-4">
             <div className={T_LABEL + " mb-2"}>Pre-written instruction (from template)</div>
             <div className="rounded-lg border border-violet-500/20 bg-violet-950/20 p-3 text-sm text-zinc-200 leading-relaxed italic">
-              {template.message_en}
+              {fillTemplate(template.message_en, task.context)}
             </div>
             {template.response_options.length > 0 && (
               <div className="mt-2">
@@ -360,6 +362,7 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
+  const shortfall = shortfallSummary(task.context);
   return (
     <div className={TABLE_ROW + " border-white/8"}>
       {/* Main row */}
@@ -369,7 +372,20 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-white truncate">{fmtLabel(task.type)}</span>
             <span className="text-xs text-zinc-500">{task.branch}</span>
+            {task.escalated_at && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-red-300 bg-red-500/15 border border-red-500/30 rounded px-1.5 py-0.5">
+                Escalated
+              </span>
+            )}
+            {task.missed_by_manager && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-orange-300 bg-orange-500/15 border border-orange-500/30 rounded px-1.5 py-0.5">
+                Missed
+              </span>
+            )}
           </div>
+          {shortfall && (
+            <div className="text-xs text-amber-300 mt-0.5 tabular-nums truncate">{shortfall}</div>
+          )}
           <div className="flex items-center gap-3 mt-0.5">
             <span className={T_CAPTION}>
               Manager: <span className="text-zinc-300">{task.manager_name || "Unknown"}</span>
@@ -401,7 +417,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
             <div>
               <div className={T_LABEL + " mb-1"}>Sent Instruction</div>
               <div className="text-xs text-zinc-300 leading-relaxed bg-white/5 rounded-lg p-3 italic">
-                {task.sent_message}
+                {fillTemplate(task.sent_message, task.context)}
               </div>
               {task.sent_at && (
                 <div className={T_CAPTION + " mt-1"}>Sent: {fmtTime(task.sent_at)}</div>
@@ -581,7 +597,7 @@ export default function BODashboardPage() {
 
   function openSendModal(task: ManagementTask) {
     setSendingTask(task);
-    setCustomMessage(templates[task.type]?.message_en || "");
+    setCustomMessage(fillTemplate(templates[task.type]?.message_en || "", task.context));
   }
 
   async function handleSend() {
@@ -589,7 +605,11 @@ export default function BODashboardPage() {
     setSending(true);
     try {
       const template = templates[sendingTask.type];
-      const message = template ? template.message_en : customMessage.trim();
+      // Send the substituted text, not the raw template — the stored
+      // sent_message is what the manager and every later reader sees.
+      const message = template
+        ? fillTemplate(template.message_en, sendingTask?.context)
+        : customMessage.trim();
       const headers = getAuthHeaders(getAuth());
       const res = await fetch(`/api/admin/management/tasks/${sendingTask.id}`, {
         method: "PATCH",

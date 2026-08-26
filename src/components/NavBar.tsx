@@ -72,6 +72,9 @@ import {
   Bell,
   ShieldAlert,
   ChartLine,
+  Timer,
+  Gauge,
+  Radar,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -181,6 +184,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
   { href: "/store/management/inbox", label: "Management Inbox", icon: MessageSquare, match: "prefix" },
+  { href: "/store/management/rush-check", label: "Rush Hour Check", icon: Timer, match: "prefix" },
   { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
   { href: "/store/receipt-log", label: "Receipt Log", icon: Receipt, match: "prefix" },
   { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" },
@@ -249,6 +253,9 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
   { href: "/admin/management/back-office", label: "BO Dashboard", icon: ShieldAlert, adminOnly: true, match: "prefix" },
+  { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Gauge, adminOnly: true, match: "prefix" },
+  { href: "/admin/management/patterns", label: "Pattern Detection", icon: Radar, adminOnly: true, match: "prefix" },
+  { href: "/admin/management/area-review", label: "Area Manager Review", icon: TrendingUp, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },

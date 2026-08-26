@@ -1,0 +1,372 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  Check,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_LABEL,
+  T_CAPTION,
+  T_BODY,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  TABLE_ROW,
+  TABLE_HEADER,
+} from "@/lib/ui-tokens";
+import SelectDark from "@/components/SelectDark";
+
+interface ParLevel {
+  id: number;
+  city: string;
+  branch_code: string;
+  section: string;
+  item_name: string;
+  unit: string;
+  par_qty: number;
+  is_active: boolean;
+  /** 'seeded_median' means nobody has reviewed this number yet. */
+  source: string;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+const CITIES = [
+  { value: "manila", label: "Manila" },
+  { value: "dubai", label: "Dubai" },
+];
+
+export default function ParLevelsPage() {
+  const router = useRouter();
+  const [city, setCity] = useState("manila");
+  const [rows, setRows] = useState<ParLevel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<Record<number, string>>({});
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (!auth) {
+      router.replace("/login?next=%2Fadmin%2Fmanagement%2Fpar-levels");
+      return;
+    }
+    if (!canAccessAdminNav(auth) && auth.role !== "HQ") router.replace("/");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/management/par-levels?city=${city}`, {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRows(data.par_levels || []);
+    } catch (e) {
+      setBanner({ kind: "err", text: `Could not load par levels: ${e}` });
+    } finally {
+      setLoading(false);
+    }
+  }, [city]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleSeed() {
+    setSeeding(true);
+    setBanner(null);
+    try {
+      const res = await fetch("/api/admin/management/par-levels/seed", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, days: 30, overwrite: false }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      setBanner({
+        kind: "ok",
+        text:
+          `Proposed ${d.written} par levels from the last ${d.days} days ` +
+          `(${d.skipped_existing} left alone because a value already exists).`,
+      });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Seeding failed: ${e}` });
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  async function saveRow(row: ParLevel) {
+    const raw = editing[row.id];
+    const value = Number(raw);
+    if (!raw || !Number.isFinite(value) || value <= 0) {
+      setBanner({ kind: "err", text: "Par level must be a number greater than 0." });
+      return;
+    }
+    setSavingId(row.id);
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/admin/management/par-levels", {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: row.city,
+          branch_code: row.branch_code,
+          item_name: row.item_name,
+          section: row.section,
+          unit: row.unit,
+          par_qty: value,
+          updated_by: auth?.staffName || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setEditing((e) => {
+        const next = { ...e };
+        delete next[row.id];
+        return next;
+      });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Save failed: ${e}` });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function removeRow(row: ParLevel) {
+    if (!confirm(`Remove the par level for ${row.item_name} at ${row.branch_code}?\n\nNo alert will fire for this item until a new one is set.`)) return;
+    try {
+      const res = await fetch(`/api/admin/management/par-levels/${row.id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Delete failed: ${e}` });
+    }
+  }
+
+  const branches = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.branch_code))).sort(),
+    [rows],
+  );
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (branchFilter === "all" || r.branch_code === branchFilter) &&
+        (!q || r.item_name.toLowerCase().includes(q) || r.section.toLowerCase().includes(q)),
+    );
+  }, [rows, branchFilter, query]);
+
+  const unreviewed = rows.filter((r) => r.source === "seeded_median").length;
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Backup Par Levels</h1>
+          <p className={T_BODY + " mt-1 max-w-2xl"}>
+            The quantity each branch is expected to hold at closing. A submitted backup
+            report below 70% of this raises a caution for the manager; below 50% raises a
+            critical alert.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-36">
+            <SelectDark
+              value={city}
+              onChange={(v) => setCity(v)}
+              options={CITIES}
+            />
+          </div>
+          <button onClick={load} disabled={loading} className={SMALL_BUTTON}>
+            <RefreshCw className={`h-3.5 w-3.5 inline mr-1 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Items with a par</div>
+          <div className={KPI_VALUE}>{rows.length}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Branches</div>
+          <div className={KPI_VALUE}>{branches.length}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Not yet reviewed</div>
+          <div className={KPI_VALUE + (unreviewed ? " text-amber-300" : "")}>{unreviewed}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Reviewed</div>
+          <div className={KPI_VALUE}>{rows.length - unreviewed}</div>
+        </div>
+      </div>
+
+      {unreviewed > 0 && (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 flex gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-100/90 leading-relaxed">
+            <strong>{unreviewed}</strong> par levels were proposed from the median of the
+            last 30 days of reports. A median describes what the branch{" "}
+            <em>typically holds</em>, not what it <em>should</em> hold — review each one
+            and edit it to the real target. Alerts still fire on the proposed values in
+            the meantime, so a wrong number produces a wrong alert.
+          </div>
+        </div>
+      )}
+
+      {banner && (
+        <div
+          className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
+            banner.kind === "ok"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-red-500/30 bg-red-500/10 text-red-200"
+          }`}
+        >
+          {banner.kind === "ok" ? (
+            <Check className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          ) : (
+            <X className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          )}
+          <span className="flex-1">{banner.text}</span>
+          <button onClick={() => setBanner(null)} className="text-current opacity-60 hover:opacity-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className={GLASS_CARD + " p-4 space-y-4"}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-40">
+            <SelectDark
+              value={branchFilter}
+              onChange={setBranchFilter}
+              options={[
+                { value: "all", label: "All branches" },
+                ...branches.map((b) => ({ value: b, label: b })),
+              ]}
+            />
+          </div>
+          <input
+            className={INPUT_CLASS + " max-w-xs"}
+            placeholder="Search item or section…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="flex-1" />
+          <button onClick={handleSeed} disabled={seeding} className={PRIMARY_BUTTON + " text-sm"}>
+            <Sparkles className={`h-4 w-4 inline mr-1.5 ${seeding ? "animate-pulse" : ""}`} />
+            {seeding ? "Proposing…" : "Propose from last 30 days"}
+          </button>
+        </div>
+
+        {loading ? (
+          <div className={T_CAPTION + " py-8 text-center"}>Loading…</div>
+        ) : visible.length === 0 ? (
+          <div className="py-10 text-center space-y-2">
+            <div className={T_BODY}>No par levels yet for this selection.</div>
+            <div className={T_CAPTION}>
+              Use “Propose from last 30 days” to generate a starting set from submitted
+              backup reports, then correct the numbers.
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
+              <thead>
+                <tr className="text-left">
+                  <th className={TABLE_HEADER + " pl-2"}>Branch</th>
+                  <th className={TABLE_HEADER}>Section</th>
+                  <th className={TABLE_HEADER}>Item</th>
+                  <th className={TABLE_HEADER + " text-right"}>Par</th>
+                  <th className={TABLE_HEADER}>Unit</th>
+                  <th className={TABLE_HEADER}>Source</th>
+                  <th className={TABLE_HEADER + " text-right pr-2"}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((r) => {
+                  const dirty = editing[r.id] !== undefined;
+                  return (
+                    <tr key={r.id} className={TABLE_ROW}>
+                      <td className="py-2.5 pl-2 text-sm text-zinc-300">{r.branch_code}</td>
+                      <td className="py-2.5 text-xs text-zinc-500">{r.section || "—"}</td>
+                      <td className="py-2.5 text-sm text-zinc-100">{r.item_name}</td>
+                      <td className="py-2.5 text-right">
+                        <input
+                          className="w-24 rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-sm text-white text-right tabular-nums outline-none focus:border-violet-500/50"
+                          value={dirty ? editing[r.id] : String(r.par_qty)}
+                          onChange={(e) =>
+                            setEditing((s) => ({ ...s, [r.id]: e.target.value }))
+                          }
+                          inputMode="decimal"
+                        />
+                      </td>
+                      <td className="py-2.5 text-xs text-zinc-500">{r.unit}</td>
+                      <td className="py-2.5">
+                        {r.source === "seeded_median" ? (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300 bg-amber-500/12 border border-amber-500/25 rounded px-1.5 py-0.5">
+                            Proposed
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300 bg-emerald-500/12 border border-emerald-500/25 rounded px-1.5 py-0.5">
+                            Reviewed
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => saveRow(r)}
+                            disabled={!dirty || savingId === r.id}
+                            className={SMALL_BUTTON + " disabled:opacity-30"}
+                            title="Save"
+                          >
+                            <Save className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeRow(r)}
+                            className="rounded-lg border border-red-500/25 bg-red-500/10 px-2.5 py-1.5 text-red-300 hover:bg-red-500/20 transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
