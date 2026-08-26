@@ -1,6 +1,58 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (Management Channel の設計監査 — 送信フローが機能していなかった件を含む10件を修正)
+Last updated: 2026-08-26 (Management Channel を「減点だけの仕組み」から「評価の仕組み」へ — 5項目実装)
+
+---
+
+## ✅ Completed: 管理チャンネルの評価設計 5項目 (2026-08-26)
+
+「頑張っている人を評価し、手抜きを見つけ、ミスをした人を守り、更生させる」という
+要件に対し、既存設計では**構造的に不可能**だった点を修正。
+
+### 前提となっていた問題
+チャンネルの記録172件は10種すべてが失敗の記録。一方、同じDBには直近30日で
+製品スコアが19,291件（うち94%がA/S）。システムが見ていたのは残り5.6%だけで、
+**「できていること」を記録する行は0件**だった。
+
+### 実装した5項目
+
+**① 申告の突合（verify_management_claims）**
+「Report Submitted」を30分後に `backup_reports` / `disposal_reports` と自動突合。
+不一致は `claim_verified=FALSE` として記録し、2週間で2回なら
+`repeat_false_claim`（赤・エリアマネージャー）。**これがシステム唯一の個人単位の赤信号。**
+突合できない申告は NULL のまま — 確認できないことを不正の証拠にはしない。
+本番で偽申告・正当な申告の両方を検証済み。
+
+**② 「Cannot」をペナルティから外した**
+`repeat_cannot_response`（Manager performance flag）を廃止し、
+`repeat_blocked_reason`（理由別・HQへ・Resourcing review）に置換。
+また `travel_path_hygiene` に `self_reported` を立て、
+**週次スコアの分母・分子から除外**。自己申告は加点（3pt／最大）へ。
+
+**③ management_credits（加点記録）と週次スコアの二軸化**
+report_on_time / quality_high / sla_response / self_reported_fix / contribution_qc。
+冪等（同日再実行で二重加算なし）。週次は compliance + contribution の二軸に。
+**例外ゼロの支店も表示されるようになった**（従来は tasks 由来のため不可視だった）。
+30日分バックフィル済み（Manila 4,746pt / Dubai 9,717pt）。
+
+**④ 個人別ビュー `/admin/management/people`**
+貢献量と「自支店中央値との差」を**別列**で表示。都市横断ランキングはしない
+（Manila中央値7.8% vs Dubai 3.4%、実力差か採点運用差か判別不能なため）。
+採点30件未満は not ranked。上位も下位も同じ画面に出す。
+
+**⑤ コーチングと再測定**
+`start_pattern_coaching` でベースラインを凍結、30日後に自動再測定。
+20%改善で `improved`（緑・before→after を元のフラグの隣に残す）、
+10%悪化で open へ、データ不足は `insufficient_data`（「改善しなかった」とは記録しない）。
+
+### 実装中に見つけて直したバグ
+- 個人別クレジットが `staff_name` のみでキーされ、同一人物の合計が
+  在籍する全支店の行に重複表示されていた（911件の支店と11件の支店に同じ140pt）。
+  `(branch, staff_name)` キーに修正。
+
+### 注意（マニュアルにも明記）
+個人特定は `author_name`（QC写真のDiscord投稿者）依存で、製造者と同一の保証がない。
+撮影担当が固定の支店では個人評価に使わず、支店・時間帯の指標として扱うこと。
 
 ---
 
