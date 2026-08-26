@@ -256,6 +256,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Gauge, adminOnly: true, match: "prefix" },
   { href: "/admin/management/patterns", label: "Pattern Detection", icon: Radar, adminOnly: true, match: "prefix" },
   { href: "/admin/management/people", label: "People", icon: Users, adminOnly: true, match: "prefix" },
+  { href: "/admin/finance/vendors", label: "Vendors", icon: Building2, adminOnly: true, match: "prefix" },
   { href: "/admin/management/area-review", label: "Area Manager Review", icon: TrendingUp, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
