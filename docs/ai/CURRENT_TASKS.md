@@ -50,12 +50,47 @@ amount_excl_tax / tax_amount / tax_rate_pct
 - `税抜+税額=税込` の検算を実装（人が総額を目視するより確実）
 
 ### 次
-1. `vendor_master`（25社・`is_internal`・正のTRN）
+1. ~~`vendor_master`（25社・`is_internal`・正のTRN）~~ → 下記で完了
 2. `fin_documents` 台帳と登録ジョブ
 3. スタッフレシート155件のOCR
 
 ※ 「ZEN Sushi & Ramen」「ZEN」は自社店舗。社内判定を `sushi zen` の
 文字列一致だけでやると漏れるので、`vendor_master.is_internal` で持つこと。
+
+---
+
+## ✅ Completed: Vendors（取引先マスタ）ページ (2026-08-26)
+
+`/admin/finance/vendors` — スタッフが仕入先のTRNを1回だけ登録する画面。
+Excelではなく **OS内に作った**ので、入力がそのまま本番データになる。
+
+### 実装
+| 層 | 内容 |
+|---|---|
+| DB | `vendor_master`（`canonical_name` / `name_variants` / `is_internal` / `tin_or_trn` / 候補TRNと一致率 / 請求書枚数 / サンプル請求書URL） |
+| 関数 | `seed_vendor_master_from_invoices()` / `get_vendor_master()` / `update_vendor_master()`（桁数検証） / `merge_vendor_master()`（削除せず非活性化） |
+| API | `GET/POST /api/admin/finance/vendors`・`/seed`・`PATCH /{id}`・`/merge` |
+| 画面 | 候補TRN＋一致率（60%未満は赤）／請求書リンク／自社トグル／Merge |
+| 権限 | NavBar + `access_control.py` に3ロール登録済み |
+
+### 初期登録結果（ドバイ 16社）
+- 自社 5社（Centrak Kitchen / Central Kitchen / Warehouse / ZEN / ZEN Sushi & Ramen）を自動判定 — **誤りなし**
+- 外部 11社。TRN未入力（これがスタッフの作業）
+
+### 設計判断
+- **`is_internal` は両方向にデフォルトを入れた**。NULL のままだと11社全部に
+  「自社かどうか確認」という無意味なプロンプトが出る。推定は5社全部当たっており、
+  外れても1クリックで直る。人の時間はTRNに使わせる。
+- **KPIは社数ではなく請求書枚数ベース（Invoices covered）**。上位7社が大半を
+  占めるので「11社中5社」は進捗を過小に見せる。
+- 候補TRNは赤字警告つきで出すだけ。Chef Middle East が54枚から40通り返した実測を
+  画面上に明記し、実物確認を促している。
+
+### 残
+- スタッフによる 11社ぶんのTRN入力
+- 統合候補: `Chef Middle East LLC` / `Middle East LLC`、
+  `MUHAMMAD IMRAN YOUSAF` / `MIY FOODSTUFFS`、`Sushi ZEN Centrak` / `Central Kitchen`
+- `RAMENZEN RESTAURANT L.L.C`（1件）— 別法人なら外部扱いで正しい（現在は外部）
 
 ---
 
