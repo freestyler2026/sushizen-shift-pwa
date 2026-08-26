@@ -64,6 +64,12 @@ amount_excl_tax / tax_amount / tax_rate_pct
 `/admin/finance/vendors` — スタッフが仕入先のTRNを1回だけ登録する画面。
 Excelではなく **OS内に作った**ので、入力がそのまま本番データになる。
 
+> ⚠️ **これは管理会計ではない。** 目的（経営判断 vs 申告）も読者（経営者 vs 経理）も
+> 別。データも重なっていない — 管理会計のコストは `proc_requests` / POS / 給与 /
+> `mgmt_overhead` を読み、この仕組みは `drive_invoices` / `vendor_master` を読む。
+> マニュアルも別（`docs/manuals/tax-filing-manual.html`）。
+> 将来つなぐとすれば「証憑 → `mgmt_overhead` の自動補完」の一方向のみ。逆流させない。
+
 ### 実装
 | 層 | 内容 |
 |---|---|

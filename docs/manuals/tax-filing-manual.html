@@ -1,0 +1,322 @@
+<title>税務・証憑マニュアル</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;
+  --accent:#2DD4BF;--accent-dim:rgba(45,212,191,.12);
+  --text:#E2E8F0;--muted:#7A90AA;
+  --green:#34D399;--red:#F87171;--blue:#60A5FA;--violet:#A78BFA;--orange:#FB923C;
+  --manila:#60A5FA;--dubai:#FB923C;
+  --sidebar-w:248px;
+}
+@media(prefers-color-scheme:light){:root{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(45,212,191,.10)}}
+:root[data-theme="dark"]{--bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;--text:#E2E8F0;--muted:#7A90AA;--accent-dim:rgba(45,212,191,.12)}
+:root[data-theme="light"]{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(45,212,191,.10)}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;font-size:14px}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 calc(var(--sidebar-w)+20px)}
+.topbar-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.lang-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--surface2)}
+.lang-btn{padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:background .15s,color .15s}
+.lang-btn.active{background:var(--accent);color:#0F1623}
+.sidebar{position:fixed;top:52px;left:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:10px 0}
+.sidebar-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;padding:10px 16px 3px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:500;border-left:3px solid transparent;transition:color .15s,background .15s,border-color .15s}
+.nav-item:hover{color:var(--text);background:var(--accent-dim)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim)}
+.nav-icon{font-size:13px;flex-shrink:0}
+.main{margin-left:var(--sidebar-w);margin-top:52px;padding:32px 36px 80px;max-width:920px}
+.section{display:none}.section.active{display:block}
+.section-hero{display:flex;align-items:flex-start;gap:14px;margin-bottom:24px}
+.hero-icon{width:46px;height:46px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.section-title{font-size:20px;font-weight:700;color:var(--text)}
+.section-path{font-size:11px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;margin-top:3px}
+.section-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px}
+.card.blue-border{border-color:rgba(96,165,250,.4)}
+.card.orange-border{border-color:rgba(251,146,60,.4)}
+.card.red-border{border-color:rgba(248,113,113,.4)}
+.card.green-border{border-color:rgba(52,211,153,.4)}
+.card.violet-border{border-color:rgba(167,139,250,.4)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.steps{list-style:none}
+.step{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:20px;height:20px;border-radius:50%;flex-shrink:0;background:var(--accent);color:#0F1623;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body p{color:var(--muted);font-size:12px;margin-top:1px}
+.step-body code{font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--blue)}
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap}
+.chip.green{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3)}
+.chip.amber{background:var(--accent-dim);color:var(--accent);border-color:rgba(45,212,191,.3)}
+.chip.red{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3)}
+.chip.blue{background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3)}
+.chip.violet{background:rgba(167,139,250,.12);color:var(--violet);border-color:rgba(167,139,250,.3)}
+.chip.orange{background:rgba(251,146,60,.12);color:var(--orange);border-color:rgba(251,146,60,.3)}
+.tip{display:flex;gap:8px;background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.25);border-radius:8px;padding:11px 13px;margin-top:4px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.tip-icon{flex-shrink:0;color:var(--accent);font-size:14px}
+.tip.danger{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.3)}
+.tip.danger .tip-icon{color:var(--red)}
+.tip.info{background:rgba(96,165,250,.07);border-color:rgba(96,165,250,.3)}
+.tip.info .tip-icon{color:var(--blue)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.muted{color:var(--muted);font-size:12px}
+.lifecycle{position:relative;padding-left:28px;margin:4px 0 14px}
+.lifecycle::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--border)}
+.lc-step{position:relative;margin-bottom:12px}
+.lc-step:last-child{margin-bottom:0}
+.lc-dot{position:absolute;left:-23px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--border)}
+.lc-dot.green{background:var(--green);border-color:var(--green)}
+.lc-dot.blue{background:var(--blue);border-color:var(--blue)}
+.lc-dot.amber{background:var(--accent);border-color:var(--accent)}
+.lc-dot.violet{background:var(--violet);border-color:var(--violet)}
+.lc-dot.red{background:var(--red);border-color:var(--red)}
+.lc-dot.orange{background:var(--orange);border-color:var(--orange)}
+.lc-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lc-status{font-size:11px;font-weight:700;color:var(--text)}
+.lc-who{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px}
+.lc-who.admin{background:rgba(45,212,191,.15);color:var(--accent)}
+.lc-who.staff{background:rgba(167,139,250,.15);color:var(--violet)}
+.lc-who.system{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-who.manila{background:rgba(96,165,250,.15);color:var(--blue)}
+.lc-who.dubai{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-detail{font-size:12px;color:var(--muted);margin-top:2px}
+.lc-path{font-family:'SF Mono','Fira Code',monospace;font-size:10px;color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:3px;margin-top:2px;display:inline-block}
+.formula-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:8px 0;font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:var(--green)}
+.formula-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;font-family:system-ui}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+.status-flow .arrow{color:var(--muted);font-size:12px}
+.city-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.city-badge.manila{background:rgba(96,165,250,.15);color:var(--manila)}
+.city-badge.dubai{background:rgba(251,146,60,.15);color:var(--dubai)}
+.city-badge.both{background:rgba(52,211,153,.15);color:var(--green)}
+@media(max-width:700px){:root{--sidebar-w:0px}.sidebar{display:none}.topbar{padding:0 16px}.main{margin-left:0;padding:16px 14px 60px}}
+</style>
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — 税務・証憑マニュアル</span>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label">画面</div>
+  <div class="nav-item active" onclick="show('vendors')"><span class="nav-icon">🧾</span><span>Vendors（取引先マスタ）</span></div>
+  <div class="sidebar-label">前提</div>
+  <div class="nav-item" onclick="show('scope')"><span class="nav-icon">🧭</span><span>管理会計との違い</span></div>
+  <div class="nav-item" onclick="show('why')"><span class="nav-icon">🎯</span><span>この仕組みの目的</span></div>
+  <div class="nav-item" onclick="show('roadmap')"><span class="nav-icon">🚧</span><span>まだ無いもの</span></div>
+</nav>
+
+<main class="main">
+
+<section class="section active" id="sec-vendors">
+  <div class="section-hero">
+    <div class="hero-icon">🧾</div>
+    <div>
+      <div class="section-title">Vendors（取引先マスタ）</div>
+      <div class="section-path">/admin/finance/vendors</div>
+      <div class="section-desc">仕入先ごとの正しい税番号（TRN）を1回だけ登録する画面。税務申告用のレシート自動仕分けの土台になります。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">画面が出す「候補番号」は信用しない</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      Suggested 列は AI がレシートから読み取った番号を多数決したものです。
+      実測では <strong>Chef Middle East 1社で54枚から40通りの番号</strong>が返り、
+      上位3社の一致率は 22% / 15% / 32% でした。桁数違いも 180枚中8枚あります。
+      <strong>必ず実物の請求書を開いて確認してください。</strong>
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>一致率が 60% 未満の行は赤字で「likely wrong」と表示されます。60% 以上でも正解の保証はありません。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">入力の手順</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>操作</th><th>補足</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Invoice to check の紫リンクを開く</td><td>その仕入先の実物の請求書（Google Drive）が開きます</td></tr>
+        <tr><td>2</td><td>請求書に印字された TRN を読む</td><td>ドバイの TRN は15桁です</td></tr>
+        <tr><td>3</td><td>Tax number 欄に入力して保存</td><td>桁数が違うと保存が拒否されます</td></tr>
+        <tr><td>4</td><td>綴り違いの同一社は Merge</td><td>吸収した行は削除ではなく非表示になります</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Own company（自社）とは</div>
+    <p style="font-size:12px;color:var(--muted)">
+      Sushi ZEN 自身のセントラルキッチン・倉庫・店舗のことです。ここからの納品は仕入ではなく
+      <strong>社内移動</strong>なので、コストに数えると二重計上になります（キッチンが仕入れた時点で既に計上済み）。
+      自社の伝票に税番号が無いのは正常です。初期登録では5社が自動で自社判定されています。
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>判定が違っていれば Own company の Yes / No をその場で切り替えられます。1クリックで直ります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">上部の4つの数字</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>指標</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td>Tax numbers entered</td><td>税番号を入力済みの仕入先数 ÷ 仕入先総数</td></tr>
+        <tr><td>Suppliers</td><td>自社を除いた外部仕入先の数</td></tr>
+        <tr><td>Own companies</td><td>自社として登録された数</td></tr>
+        <tr><td>Invoices covered</td><td><strong>請求書の枚数ベースの進捗</strong>。上位7社で大半を占めるため、社数より実態に近い</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Refresh from invoices</div>
+    <p style="font-size:12px;color:var(--muted)">
+      新しい仕入先が請求書に現れた時に押します。<strong>入力済みの税番号は上書きされません</strong>。
+      新規行の追加と、候補番号・請求書枚数の更新だけを行います。
+    </p>
+  </div>
+
+</section>
+<section class="section" id="sec-scope">
+  <div class="section-hero">
+    <div class="hero-icon">🧭</div>
+    <div>
+      <div class="section-title">管理会計との違い</div>
+      <div class="section-desc">同じ「お金の話」ですが、別のシステムです。数字を共有していません。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">目的が違う</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>管理会計</th><th>税務・証憑（この画面）</th></tr></thead>
+      <tbody>
+        <tr><td><strong>誰のため</strong></td><td>経営者</td><td>経理担当・税理士</td></tr>
+        <tr><td><strong>問い</strong></td><td>今月は儲かっているか</td><td>この1枚をどの勘定科目に入れるか</td></tr>
+        <tr><td><strong>単位</strong></td><td>月・日</td><td>1枚の伝票</td></tr>
+        <tr><td><strong>推定値</strong></td><td>使ってよい（判断に足りればよい）</td><td>使えない（証憑が必要）</td></tr>
+        <tr><td><strong>締め</strong></td><td>翌日には見たい</td><td>申告期限</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">データも別（実測）</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      管理会計のコストが読んでいるテーブルと、この仕組みが読んでいるテーブルは
+      現時点で<strong>1つも重なっていません</strong>。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>システム</th><th>読んでいるもの</th></tr></thead>
+      <tbody>
+        <tr><td>管理会計</td><td><code>proc_requests</code>（発注）・POS売上・給与・<code>mgmt_overhead</code>（経費の手入力）</td></tr>
+        <tr><td>税務・証憑</td><td><code>drive_invoices</code>（請求書の実物）・<code>vendor_master</code></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>つまり<strong>ここで何を入力しても、管理会計の損益は1円も動きません</strong>。逆も同じです。安心して触れます。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">将来つながる可能性がある1点</div>
+    <p class="section-desc">
+      管理会計の「経費」は現在<strong>手入力</strong>です（<code>mgmt_overhead</code>）。
+      証憑側が揃えば、家賃・光熱費などを実物の請求書から自動で埋められます。
+      ただしこれは<strong>まだ実装していません</strong>。つなぐ場合は
+      「証憑 → 管理会計」の一方向にし、管理会計から証憑を書き換えることはしません。
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sec-why">
+  <div class="section-hero">
+    <div class="hero-icon">🎯</div>
+    <div>
+      <div class="section-title">この仕組みの目的</div>
+      <div class="section-desc">レシートを1枚ずつ手で仕訳している作業を減らすこと。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">やろうとしていること</div>
+    <div class="lifecycle">
+      <div class="lc-step"><div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status">レシート・請求書がOSに入る</span><span class="lc-who staff">既存</span></div>
+        <div class="lc-detail">Expense Reimbursement（スタッフの立替）と Drive の請求書。<strong>既存の入口はそのまま</strong>で、新しくアップロード先を増やしません。</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status">AIが読む</span><span class="lc-who system">実装済</span></div>
+        <div class="lc-detail">取引先・税番号の有無・税抜／税額・伝票の種類を抽出。208件で検算不一致0件。</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status">取引先を特定する</span><span class="lc-who admin">← いまここ</span></div>
+        <div class="lc-detail">正しい税番号は人が1回だけ登録する。ここが仕訳の土台になります。</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot"></div>
+        <div class="lc-header"><span class="lc-status">勘定科目に振り分ける</span><span class="lc-who system">未実装</span></div>
+        <div class="lc-detail">会計事務所の科目表が確定してから着手します。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">なぜ「税番号だけ人手」なのか</div>
+    <p class="section-desc">
+      208件で実測したところ、AIは<strong>「税番号が印字されているか」は100%正確</strong>でした
+      （社内振替23件を1件も誤らず判別）。しかし<strong>「番号そのもの」は信用できません</strong> —
+      Chef Middle East 1社で54枚から40通りの番号が返りました。
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>だから <strong>有無の判定はAI、値は人</strong>という分担にしています。人が入力するのは11社ぶんの番号だけで、以降は自動照合に使えます。</div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="sec-roadmap">
+  <div class="section-hero">
+    <div class="hero-icon">🚧</div>
+    <div>
+      <div class="section-title">まだ無いもの</div>
+      <div class="section-desc">現在この仕組みで完成しているのは Vendors 画面だけです。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">状況</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>項目</th><th>状況</th></tr></thead>
+      <tbody>
+        <tr><td>請求書208件の税務項目抽出</td><td><span class="chip green">完了</span></td></tr>
+        <tr><td>Vendors（取引先マスタ）</td><td><span class="chip green">完了</span> — 11社の税番号入力待ち</td></tr>
+        <tr><td>証憑台帳（1枚＝1行の一覧）</td><td><span class="chip amber">未着手</span></td></tr>
+        <tr><td>スタッフ立替レシート155件のOCR</td><td><span class="chip amber">未着手</span></td></tr>
+        <tr><td>勘定科目への自動仕分け</td><td><span class="chip red">会計事務所の科目表待ち</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip info"><span class="tip-icon">ℹ️</span>
+      <div>自動仕分けの科目は、こちらで決めるのではなく<strong>会計事務所が実際に使っている科目表に合わせます</strong>。先に作ると作り直しになるため、意図的に止めています。</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+function show(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const s=document.getElementById('sec-'+id);
+  if(s)s.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick')==="show('"+id+"')")n.classList.add('active');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
