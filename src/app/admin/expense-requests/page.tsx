@@ -480,20 +480,26 @@ export default function AdminExpenseRequestsPage() {
 
         {/* Review Modal */}
         {reviewing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          // The card had no height bound. Being centred, it overflowed off both ends of
+          // the viewport with nothing able to scroll, so Confirm Decision sat below the
+          // screen and an expense could not be approved at all — what staff hit on a
+          // request with a receipt photo. overflow-y-auto here is the last resort for
+          // very short windows; normally the card bounds itself and its body scrolls.
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4">
             <motion.div
-              className={`${GLASS_CARD} w-full max-w-md`}
+              className={`${GLASS_CARD} flex max-h-[90vh] w-full max-w-md flex-col`}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="p-5 border-b border-white/8">
+              <div className="shrink-0 p-5 border-b border-white/8">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-violet-400" />
                   <div className={T_SECTION}>Review Expense Request</div>
                 </div>
               </div>
-              <div className="p-5 space-y-4">
+              {/* Title stays put; everything else scrolls, buttons included. */}
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-4">
                 {/* Details */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className={`${GLASS_CARD} p-3`}>
