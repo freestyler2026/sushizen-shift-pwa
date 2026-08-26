@@ -119,6 +119,16 @@ function norm(s: any) {
   return String(s ?? "").trim();
 }
 
+/** Names are the key every other table joins on — shifts, attendance, payroll and
+ *  login all match on the exact string. A name pasted from a spreadsheet can carry a
+ *  double space that nobody can see, and it then reads as a different person: Junowel
+ *  and Mariano each ended up with their attendance split in half and payroll computed
+ *  on the wrong days. trim() alone never caught it because the extra space sits in the
+ *  middle. Collapse runs of whitespace so the same person cannot be stored twice. */
+function normName(s: any) {
+  return String(s ?? "").replace(/\s+/g, " ").trim();
+}
+
 function legacyPinOrEmpty(pin: string) {
   const p = norm(pin);
   if (!p) return "";
@@ -415,7 +425,7 @@ export default function AdminStaffPage() {
 
       const list = (res.rows || []).map((r) => ({
         ...r,
-        display_name: norm(r.display_name),
+        display_name: normName(r.display_name),
         home_branch: norm(r.home_branch),
         role: norm(r.role),
         status: norm(r.status),
@@ -505,7 +515,7 @@ export default function AdminStaffPage() {
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
       if (!p) throw new Error("PIN is required for Add New Staff.");
-      const display = norm(newStaffName);
+      const display = normName(newStaffName);
       const branch = norm(newStaffHomeBranch);
       if (!display) throw new Error("New staff name is required.");
       if (!branch) throw new Error("Home branch is required.");
@@ -687,7 +697,7 @@ export default function AdminStaffPage() {
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
       if (!p && !getAuth()?.accessToken) throw new Error("PIN is required for workforce push key save.");
-      const dn = norm(displayName);
+      const dn = normName(displayName);
       if (!dn) throw new Error("display_name is required.");
       const row = rows.find((x) => norm(x.display_name) === dn);
       if (!row) throw new Error("staff row not found.");
