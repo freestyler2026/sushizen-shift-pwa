@@ -72,7 +72,7 @@ interface PLData {
   currency: string;
   food_cost_rate: number;
   food_cost_rate_pct: number;
-  food_cost_source?: "item_sales" | "flat_rate" | "none";
+  food_cost_source?: "purchases" | "item_sales" | "flat_rate" | "none";
   food_cost_missing?: boolean;
   food_cost_coverage_pct?: number;
   food_cost_items_matched?: number;
@@ -318,7 +318,9 @@ export default function DailyPLPage() {
               )}
               {card.key === "cogs" && (
                 <div className="text-xs mt-0.5">
-                  {data.food_cost_source === "item_sales" ? (
+                  {data.food_cost_source === "purchases" ? (
+                    <span className="text-slate-500">仕入実績を日別売上で按分</span>
+                  ) : data.food_cost_source === "item_sales" ? (
                     <span className="text-slate-500">
                       販売数×原価 ・ 売上の{data.food_cost_coverage_pct}%を計上
                     </span>
@@ -360,16 +362,17 @@ export default function DailyPLPage() {
         <p className="text-xs text-slate-400 leading-relaxed">
           <b className="text-slate-300">売上</b>はPOSの計上額です。アグリゲーターの手数料を引く前の
           金額で、手数料は別行に表示しています。
-          <b className="text-slate-300">食材費</b>は消費額で、販売数×レシピ原価に廃棄3%を加えたものです。
+          <b className="text-slate-300">食材費</b>はその月の<b className="text-slate-300">仕入実績</b>を、
+          日ごとの売上比で按分したものです。月次と同じ数字を割り振るため、両ページで食い違いません。
           <br />
-          <b className="text-slate-300">全社管理</b>タブは別の基準で集計しています（入金額と、消費ではなく
-          仕入額）。そのため合計は一致しませんが、どちらも誤りではありません。
+          <b className="text-slate-300">全社管理</b>タブは売上を入金額ベースで集計するため、
+          売上と利益は完全には一致しません。食材費は同じ基準です。
         </p>
       </div>
 
       {/* A rate of zero produced a COGS of zero on every row, in silence.
           Say it instead of booking sales against no food cost. */}
-      {data?.ok && data.food_cost_missing && (
+      {data?.ok && data.food_cost_missing && data.food_cost_source !== "purchases" && (
         <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 mb-4">
           <p className="text-sm font-semibold text-rose-300">食材費が算出できません</p>
           <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
@@ -380,7 +383,7 @@ export default function DailyPLPage() {
           </p>
         </div>
       )}
-      {data?.ok && !data.food_cost_missing && (data.food_cost_coverage_pct ?? 100) < 95 && (
+      {data?.ok && data.food_cost_source === "item_sales" && (data.food_cost_coverage_pct ?? 100) < 95 && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4">
           <p className="text-xs text-amber-200/90 leading-relaxed">
             食材費は販売数の{data.food_cost_coverage_pct}%をカバーしています

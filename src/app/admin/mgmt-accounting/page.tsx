@@ -611,8 +611,8 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           <b className="text-slate-300">食材費</b>はその月に<b className="text-slate-300">仕入れた</b>額であり、
           消費した額ではありません。
           <br />
-          <b className="text-slate-300">日次P&amp;L</b>タブは別の基準で集計しています（POSの計上額と、販売数×レシピ原価）。
-          合計は一致しませんが、どちらも誤りではありません。月単位の把握はこのページ、日々の動きは日次P&amp;Lをご覧ください。
+          <b className="text-slate-300">日次P&amp;L</b>タブは食材費を同じ仕入実績から日割りするため、食材費は一致します。
+          売上はPOSの計上額を使うため差が出ます。月単位の把握はこのページ、日々の動きは日次P&amp;Lをご覧ください。
         </p>
       </div>
 
