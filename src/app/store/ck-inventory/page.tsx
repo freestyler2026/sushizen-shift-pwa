@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  Loader2, Lock, Package, Plus, RefreshCw, Save, X, Trash2, Settings2, Users,
+  Loader2, Lock, Unlock, Package, Plus, RefreshCw, Save, X, Trash2, Settings2, Users,
   AlertCircle,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
@@ -49,6 +49,11 @@ type Session = {
   created_by: string;
   contributors?: string;
   is_finalized: boolean;
+  finalized_by?: string;
+  finalized_at?: string | null;
+  reopened_by?: string;
+  reopened_at?: string | null;
+  reopen_count?: number;
   is_archived?: boolean;
   created_at: string;
   updated_at: string;
@@ -152,6 +157,19 @@ export default function CKInventoryPage() {
   // Finalize confirm
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+  // Anyone counting stock may close a day; undoing that is a supervisory act.
+  const canReopen = ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT",
+                     "MANILA_MANAGER", "MANAGER", "CK_MANILA"]
+                     .includes((getAuth()?.role || "").toUpperCase());
+
+  // The session that "New Session" would actually open, if any.
+  const existingForNew = useMemo(
+    () => sessions.find(s => s.session_date === newDate && s.session_type === newType) || null,
+    [sessions, newDate, newType],
+  );
 
   // Auto-refresh interval reference
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -398,9 +416,13 @@ export default function CKInventoryPage() {
       setNewNotes("");
       dirtyItemIdsRef.current = new Set();
       const joined: boolean = data?.joined === true;
-      setSuccessMsg(joined
-        ? `Joined existing ${sessionTypeLabel(newType)} session for ${fmtDate(newDate)}.`
-        : "New session created.");
+      const wasFinalized: boolean = data?.session?.is_finalized === true;
+      setSuccessMsg(
+        joined
+          ? wasFinalized
+            ? `Opened the existing ${sessionTypeLabel(newType)} session for ${fmtDate(newDate)} — it is locked. ${canReopen ? "Press Reopen to continue counting." : "Ask a manager to reopen it."}`
+            : `Opened the existing ${sessionTypeLabel(newType)} session for ${fmtDate(newDate)}.`
+          : "New session created.");
       await loadSessions();
       if (data?.session?.id) await loadSession(data.session.id);
     } catch (e: unknown) {
@@ -455,6 +477,30 @@ export default function CKInventoryPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally { setSaving(false); }
   }, [activeSession, processedItems, draftEntries, myName, loadSession, loadSessions]);
+
+  const reopenSession = async () => {
+    if (!activeSession) return;
+    setReopening(true);
+    try {
+      await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/reopen`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reopenReason.trim() }),
+      });
+      setShowReopenConfirm(false);
+      setReopenReason("");
+      setSuccessMsg("Session reopened. Continue entering the count.");
+      await loadSession(activeSession.id);
+      await loadSessions();
+    } catch (e) {
+      setError(
+        e instanceof Error && /403/.test(e.message)
+          ? "Only a manager or HQ can reopen a finalized session. Ask your manager rather than starting a second session for the same day."
+          : `Could not reopen: ${e instanceof Error ? e.message : String(e)}`
+      );
+    } finally {
+      setReopening(false);
+    }
+  };
 
   const finalizeSession = async () => {
     if (!activeSession) return;
@@ -642,6 +688,21 @@ export default function CKInventoryPage() {
                       {activeSession.created_by && (
                         <p className={T_CAPTION}>Created by: {activeSession.created_by}</p>
                       )}
+                      {/* Who closed it, and whether it has been opened again.
+                          Neither was recorded before, so a session found locked
+                          half-counted left nobody to ask. */}
+                      {activeSession.is_finalized && activeSession.finalized_by && (
+                        <p className={T_CAPTION}>
+                          Locked by: {activeSession.finalized_by}
+                          {activeSession.finalized_at ? ` · ${activeSession.finalized_at.slice(0, 16).replace("T", " ")}` : ""}
+                        </p>
+                      )}
+                      {(activeSession.reopen_count ?? 0) > 0 && (
+                        <p className="text-xs text-violet-300/80">
+                          Reopened {activeSession.reopen_count === 1 ? "once" : `${activeSession.reopen_count} times`}
+                          {activeSession.reopened_by ? ` · last by ${activeSession.reopened_by}` : ""}
+                        </p>
+                      )}
                       {/* Contributors list */}
                       {kpi && kpi.contributors.length > 0 && (
                         <div className="mt-1 flex items-center gap-1.5">
@@ -664,24 +725,38 @@ export default function CKInventoryPage() {
                           Refresh
                         </button>
                       )}
+                      {/* Save is the action people take all day; Finalize is the
+                          one they take once. The prominent button has to be the
+                          frequent one — it was the other way round, and a day was
+                          locked with 13 of 206 items counted. */}
                       {!activeSession.is_finalized && (
                         <button
                           onClick={() => void saveEntries()}
                           disabled={saving}
-                          className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50`}
+                          className={`${PRIMARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50`}
                         >
                           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                          Save Draft
+                          Save
                         </button>
                       )}
                       {!activeSession.is_finalized && (
                         <button
                           onClick={() => setShowFinalizeConfirm(true)}
                           disabled={saving}
-                          className={`${PRIMARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50`}
+                          className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-transparent px-4 py-2 text-sm font-medium text-amber-300/90 transition hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50"
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Finalize
+                          <Lock className="h-3.5 w-3.5" />
+                          Finalize &amp; Lock
+                        </button>
+                      )}
+                      {activeSession.is_finalized && canReopen && (
+                        <button
+                          onClick={() => setShowReopenConfirm(true)}
+                          disabled={reopening}
+                          className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50`}
+                        >
+                          {reopening ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
+                          Reopen
                         </button>
                       )}
                     </div>
@@ -1065,6 +1140,36 @@ export default function CKInventoryPage() {
               </div>
             </div>
 
+            {/* Say so BEFORE the button is pressed. The team was creating a second
+                session for a date that already had one — up to nine in a day —
+                because nothing told them until afterwards. */}
+            {existingForNew && (
+              <div className={`mt-5 rounded-xl border p-3 ${
+                existingForNew.is_finalized
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : "border-sky-500/30 bg-sky-500/10"
+              }`}>
+                <div className={`text-sm font-semibold ${
+                  existingForNew.is_finalized ? "text-amber-200" : "text-sky-200"
+                }`}>
+                  A {sessionTypeLabel(newType)} session already exists for {fmtDate(newDate)}.
+                </div>
+                <div className="mt-1 text-xs text-zinc-300/90">
+                  {existingForNew.is_finalized ? (
+                    <>
+                      It is locked
+                      {existingForNew.finalized_by ? ` (by ${existingForNew.finalized_by})` : ""}.
+                      Continuing opens that same session — {canReopen
+                        ? "you can then press Reopen to keep counting."
+                        : "ask a manager to reopen it. Do not start a second one for this date."}
+                    </>
+                  ) : (
+                    <>Continuing opens that same session so everyone&rsquo;s counts stay together.</>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 flex gap-3">
               <button onClick={() => setShowNewSession(false)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>
                 Cancel
@@ -1075,7 +1180,57 @@ export default function CKInventoryPage() {
                 className={`${PRIMARY_BUTTON} flex-1 flex items-center justify-center gap-2 py-2 text-sm disabled:opacity-50`}
               >
                 {creatingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Open / Create Session
+                {existingForNew ? "Open Existing Session" : "Create Session"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Reopen Confirm Modal ───────────────────────────────────────────── */}
+      {showReopenConfirm && activeSession && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          onClick={() => setShowReopenConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <Unlock className="h-5 w-5 text-violet-300 shrink-0" />
+              <h2 className={T_SECTION}>Reopen Session?</h2>
+            </div>
+            <p className="mb-3 text-sm text-zinc-400">
+              This unlocks {activeSession.session_date} so the count can be continued.
+              Nothing already entered is removed.
+            </p>
+            {activeSession.finalized_by && (
+              <p className="mb-3 text-xs text-zinc-500">
+                Locked by {activeSession.finalized_by}
+                {activeSession.finalized_at ? ` at ${activeSession.finalized_at.slice(11, 16)}` : ""}.
+              </p>
+            )}
+            <label className={`block ${T_CAPTION} mb-1`}>Reason (recorded)</label>
+            <input
+              type="text"
+              value={reopenReason}
+              onChange={e => setReopenReason(e.target.value)}
+              placeholder="e.g. Locked by mistake before the count was finished"
+              className="mb-5 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setShowReopenConfirm(false)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>
+                Cancel
+              </button>
+              <button
+                onClick={() => void reopenSession()}
+                disabled={reopening}
+                className={`${PRIMARY_BUTTON} flex-1 flex items-center justify-center gap-2 py-2 text-sm disabled:opacity-50`}
+              >
+                {reopening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlock className="h-4 w-4" />}
+                Reopen
               </button>
             </div>
           </div>
@@ -1097,8 +1252,27 @@ export default function CKInventoryPage() {
               <Lock className="h-5 w-5 text-amber-400 shrink-0" />
               <h2 className={T_SECTION}>Finalize Session?</h2>
             </div>
+            {/* State the actual numbers. "It cannot be edited" said nothing about
+                how much had been counted, and a day was locked at 13 of 206. */}
+            {kpi && kpi.filledCount < kpi.totalItems && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <div className="text-sm font-semibold text-amber-200">
+                  Only {kpi.filledCount} of {kpi.totalItems} items have been counted.
+                </div>
+                <div className="mt-1 text-xs text-amber-200/80">
+                  {kpi.totalItems - kpi.filledCount} items are still blank. If the count is
+                  not finished, press Cancel and keep using Save instead.
+                </div>
+              </div>
+            )}
+            {kpi && kpi.filledCount >= kpi.totalItems && (
+              <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                All {kpi.totalItems} items have been counted.
+              </div>
+            )}
             <p className="mb-6 text-sm text-zinc-400">
-              This will save all entries and lock the session. It cannot be edited after finalization.
+              This saves every entry and locks the session. After this only a manager or HQ
+              can reopen it — nobody needs to start a second session for the same day.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowFinalizeConfirm(false)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>

@@ -88,13 +88,19 @@ export default function RushCheckPage() {
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
+  const [canSwitchCity, setCanSwitchCity] = useState(false);
+
   useEffect(() => {
     const auth = getAuth();
     if (!auth) {
       router.replace("/login?next=%2Fstore%2Fmanagement%2Frush-check");
       return;
     }
-    const c = (auth.city === "dubai" ? "dubai" : "manila") as "manila" | "dubai";
+    // cityLock is the account's real constraint; auth.city is only what was
+    // picked on the login screen, which defaults to Dubai.
+    const lock = (auth.cityLock || "").toLowerCase();
+    setCanSwitchCity(lock === "");
+    const c = ((lock || auth.city) === "dubai" ? "dubai" : "manila") as "manila" | "dubai";
     setCity(c);
     setBranch(BRANCHES[c][0].value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,6 +191,20 @@ export default function RushCheckPage() {
         </p>
       </div>
 
+      {canSwitchCity && (
+        <SelectDark
+          value={city}
+          onChange={(v) => {
+            const c = v as "manila" | "dubai";
+            setCity(c);
+            setBranch(BRANCHES[c][0].value);
+          }}
+          options={[
+            { value: "manila", label: "Manila" },
+            { value: "dubai", label: "Dubai" },
+          ]}
+        />
+      )}
       <div className="grid grid-cols-2 gap-2">
         <SelectDark value={branch} onChange={setBranch} options={BRANCHES[city]} />
         <SelectDark
