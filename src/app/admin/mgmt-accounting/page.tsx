@@ -77,7 +77,13 @@ interface StoreRow {
   revenue: number; food_cost: number; food_cost_rate: number | null;
   revenue_source: "manual" | "ar_payouts" | "none";
 }
-interface StoreRanking { year_month: string; stores: StoreRow[]; hubs?: StoreRow[]; }
+interface ReconRow {
+  city: string; currency: string;
+  stores_total: number; city_total: number; not_yet_delivered: number;
+}
+interface StoreRanking {
+  year_month: string; stores: StoreRow[]; hubs?: StoreRow[]; reconciliation?: ReconRow[];
+}
 interface KpiAlert {
   city: string; severity: "warning" | "critical"; type: string; title: string; message: string;
 }
@@ -950,10 +956,51 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           {/* CK and the warehouse buy for the branches they feed, so they carry
               cost and no sales. Ranked with the stores, CK took first place on
               food cost against a blank revenue column. */}
+          {/* Branch food cost and the city total are the same money counted to
+              different points, and the page has to show where the rest sits or
+              the two figures read as a contradiction. */}
+          {(ranking.reconciliation?.length ?? 0) > 0 && (
+            <div className="mt-4 pt-3 border-t border-zinc-800">
+              <p className="text-xs font-semibold text-zinc-400 mb-2">都市合計との照合</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-zinc-600 border-b border-zinc-800">
+                      <th className="text-left py-1.5 pr-4">都市</th>
+                      <th className="text-right py-1.5 pr-4">店舗の食材費 合計</th>
+                      <th className="text-right py-1.5 pr-4">CK・倉庫に残っている分</th>
+                      <th className="text-right py-1.5">都市合計（外部支払）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ranking.reconciliation!.map((r) => (
+                      <tr key={r.city} className="border-b border-zinc-800/50">
+                        <td className="py-1.5 pr-4">{r.city === "dubai" ? "🇦🇪 ドバイ" : "🇵🇭 マニラ"}</td>
+                        <td className="text-right py-1.5 pr-4 font-mono tabular-nums">
+                          {fmtNat(r.stores_total, r.currency)}
+                        </td>
+                        <td className="text-right py-1.5 pr-4 font-mono tabular-nums text-zinc-400">
+                          ＋{fmtNat(r.not_yet_delivered, r.currency)}
+                        </td>
+                        <td className="text-right py-1.5 font-mono tabular-nums">
+                          {fmtNat(r.city_total, r.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-zinc-600 mt-2 leading-relaxed">
+                CK・倉庫が仕入れて、まだ店舗へ出していない分です。仕入と消費のタイミング差なので
+                差が出ること自体は正常ですが、大きい月は納品記録の漏れも疑ってください。
+              </p>
+            </div>
+          )}
+
           {(ranking.hubs?.length ?? 0) > 0 && (
             <div className="mt-4 pt-3 border-t border-zinc-800">
               <p className="text-xs font-semibold text-zinc-400 mb-1">
-                仕入拠点 — 外部への支払額（各店舗への納品分は上の店舗側に計上しています）
+                仕入拠点の外部支払額（再掲）— 店舗へ納品した分は上の店舗側に原価で計上済みです
               </p>
               <div className="space-y-1">
                 {ranking.hubs!.map((h) => (
