@@ -156,7 +156,16 @@ export default function VendorMasterPage() {
   const external = useMemo(() => vendors.filter((v) => !v.is_internal), [vendors]);
   const done = external.filter((v) => v.tin_or_trn).length;
   const internalCount = vendors.filter((v) => v.is_internal).length;
-  const unconfirmed = vendors.filter((v) => v.is_internal === null).length;
+  // What fraction of actual invoice volume the entered numbers cover — the
+  // seven busiest suppliers carry most of it, so "5 of 11 done" understates
+  // how far the work has got.
+  const extInvoices = external.reduce((a, v) => a + v.invoice_count, 0);
+  const coveredPct = extInvoices
+    ? Math.round(
+        (external.filter((v) => v.tin_or_trn).reduce((a, v) => a + v.invoice_count, 0) /
+          extInvoices) * 100,
+      )
+    : 0;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -230,8 +239,11 @@ export default function VendorMasterPage() {
           <div className={KPI_VALUE + " text-sky-300"}>{internalCount}</div>
         </div>
         <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Not yet confirmed</div>
-          <div className={KPI_VALUE + (unconfirmed ? " text-amber-300" : "")}>{unconfirmed}</div>
+          <div className={KPI_LABEL}>Invoices covered</div>
+          <div className={KPI_VALUE + (coveredPct >= 80 ? " text-emerald-300" : "")}>
+            {coveredPct}
+            <span className="text-base text-zinc-500">%</span>
+          </div>
         </div>
       </div>
 
