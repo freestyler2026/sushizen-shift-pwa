@@ -33,7 +33,14 @@ interface Pattern {
   route_to: string;
   action_label: string;
   detail: Record<string, unknown>;
-  status: "open" | "acknowledged" | "closed";
+  status: "open" | "acknowledged" | "coaching" | "improved" | "closed";
+  coaching_started_at: string | null;
+  coaching_by: string | null;
+  remeasure_after: string | null;
+  baseline: Record<string, unknown> | null;
+  /** Set once the coaching window closes and the number is recomputed. */
+  outcome: "improved" | "unchanged" | "worse" | "insufficient_data" | null;
+  outcome_at: string | null;
   first_seen: string | null;
   last_seen: string | null;
   acknowledged_by: string | null;
@@ -69,10 +76,15 @@ const PATTERN_META: Record<
     icon: UtensilsCrossed,
     means: "The same dish drew a 1–3 star rating twice in a week at this branch. Two customers independently saying the same thing about the same item is a recipe or execution problem, not bad luck.",
   },
-  repeat_cannot_response: {
-    label: "Repeat “cannot” response",
+  repeat_blocked_reason: {
+    label: "Same blocker, three times",
     icon: ShieldAlert,
-    means: "The manager answered “cannot” three times in a week. The instruction loop is running but nothing is changing on the floor.",
+    means: "The store gave the same reason for not being able to act three times in a week. This is a resourcing question for HQ, not a mark against the manager — they told us what was wrong.",
+  },
+  repeat_false_claim: {
+    label: "Claim not supported by the record",
+    icon: ShieldAlert,
+    means: "Answered “submitted” twice in a fortnight where the report never appeared. This is the one signal here that points at effort not actually made, rather than at effort that fell short.",
   },
 };
 
@@ -155,6 +167,26 @@ export default function PatternsPage() {
     }
   }
 
+  async function startCoaching(p: Pattern) {
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/admin/management/patterns/${p.id}/coach`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({ coached_by: auth?.staffName || null }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      setBanner({
+        kind: "ok",
+        text: `Coaching started. The number will be recomputed on ${d.remeasure_after} — an improvement is recorded, not just the original flag.`,
+      });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Could not start coaching: ${e}` });
+    }
+  }
+
   async function setStatus(p: Pattern, status: "acknowledged" | "closed" | "open") {
     try {
       const auth = getAuth();
@@ -209,6 +241,8 @@ export default function PatternsPage() {
               options={[
                 { value: "open", label: "Open" },
                 { value: "acknowledged", label: "Acknowledged" },
+                { value: "coaching", label: "Coaching" },
+                { value: "improved", label: "Improved" },
                 { value: "closed", label: "Closed" },
                 { value: "all", label: "All" },
               ]}
@@ -271,10 +305,12 @@ export default function PatternsPage() {
               <div
                 key={p.id}
                 className={`rounded-2xl border p-5 ${
-                  critical
+                  p.status === "improved"
+                    ? "border-emerald-500/35 bg-emerald-950/15"
+                    : critical
                     ? "border-red-500/35 bg-red-950/20"
                     : "border-amber-500/30 bg-amber-950/15"
-                } ${p.status !== "open" ? "opacity-60" : ""}`}
+                } ${p.status === "closed" || p.status === "acknowledged" ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start gap-3">
                   <div
@@ -338,15 +374,60 @@ export default function PatternsPage() {
                         Acknowledged by {p.acknowledged_by}
                       </div>
                     )}
+
+                    {p.status === "coaching" && (
+                      <div className="mt-2.5 rounded-lg border border-sky-500/25 bg-sky-500/8 px-3 py-2 text-xs text-sky-100/90">
+                        Coaching since {p.coaching_started_at?.slice(0, 10)}
+                        {p.coaching_by ? ` · ${p.coaching_by}` : ""} — the number is
+                        recomputed on {p.remeasure_after}. Nothing is decided until then.
+                        {p.outcome === "insufficient_data" && (
+                          <div className="mt-1 text-amber-300">
+                            Last check had too few items to judge. Re-checking rather than
+                            recording a failure to improve.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {p.status === "improved" && (
+                      <div className="mt-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                        <strong>Improved.</strong>{" "}
+                        {typeof p.detail?.baseline_pct === "number" &&
+                        typeof p.detail?.remeasured_pct === "number" ? (
+                          <>
+                            {String(p.detail.baseline_pct)}% → {String(p.detail.remeasured_pct)}%
+                            after coaching.
+                          </>
+                        ) : (
+                          <>Recomputed after coaching and no longer above threshold.</>
+                        )}{" "}
+                        This stays on the record beside the original flag.
+                      </div>
+                    )}
+
+                    {p.outcome === "worse" && p.status === "open" && (
+                      <div className="mt-2.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        Recomputed after coaching and got worse
+                        {typeof p.detail?.remeasured_pct === "number"
+                          ? ` (${String(p.detail.baseline_pct)}% → ${String(p.detail.remeasured_pct)}%)`
+                          : ""}
+                        . Reopened.
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    {(p.status === "open" || p.status === "acknowledged") && (
+                      <button onClick={() => startCoaching(p)} className={SMALL_BUTTON}>
+                        Start coaching
+                      </button>
+                    )}
                     {p.status === "open" && (
                       <button onClick={() => setStatus(p, "acknowledged")} className={SMALL_BUTTON}>
                         Acknowledge
                       </button>
                     )}
-                    {p.status !== "closed" ? (
+                    {p.status !== "closed" && p.status !== "improved" ? (
                       <button onClick={() => setStatus(p, "closed")} className={SMALL_BUTTON}>
                         <Check className="h-3.5 w-3.5 inline mr-1" />
                         Close

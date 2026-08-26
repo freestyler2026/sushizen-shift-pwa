@@ -25,16 +25,25 @@ interface BranchScore {
   sent: number;
   responded: number;
   missed: number;
+  on_time: number;
+  self_reported: number;
+  false_claims: number;
   red_total: number;
   yellow_total: number;
   exceptions: number;
   escalated: number;
   avg_response_min: number | null;
-  cannot_count: number;
+  /** Reported, never subtracted — "cannot" is the store asking for help. */
+  blocked_count: number;
   response_rate: number | null;
   on_time_rate: number | null;
   score: number | null;
   grade: "A" | "B" | "C" | "D" | null;
+  contribution: number;
+  quality_high: number;
+  reports_filed: number;
+  self_fixes: number;
+  qc_photos: number;
 }
 
 interface WeekResult {
@@ -110,6 +119,8 @@ export default function AreaReviewPage() {
     : null;
   const totalMissed = branches.reduce((a, b) => a + b.missed, 0);
   const totalExceptions = branches.reduce((a, b) => a + b.exceptions, 0);
+  const totalContribution = branches.reduce((a, b) => a + (b.contribution || 0), 0);
+  const totalFalseClaims = branches.reduce((a, b) => a + (b.false_claims || 0), 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -118,9 +129,11 @@ export default function AreaReviewPage() {
         <div>
           <h1 className={T_PAGE_TITLE}>Area Manager Weekly Review</h1>
           <p className={T_BODY + " mt-1 max-w-2xl"}>
-            The score measures the <strong className="text-zinc-200">manager</strong>, not
-            the store: it is the share of sent instructions answered inside their SLA. A
-            branch can have a hard week operationally and still score 100.
+            Two axes kept apart. <strong className="text-zinc-200">Compliance</strong> is
+            the share of sent instructions answered inside their SLA — it measures the
+            manager, so a hard operational week can still score 100.{" "}
+            <strong className="text-zinc-200">Contribution</strong> is what the branch did
+            well: reports filed, A/S scores, problems it found and fixed itself.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -180,8 +193,10 @@ export default function AreaReviewPage() {
           <div className={KPI_VALUE + (totalMissed ? " text-red-300" : "")}>{totalMissed}</div>
         </div>
         <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Branches scored</div>
-          <div className={KPI_VALUE}>{scored.length}</div>
+          <div className={KPI_LABEL}>Contribution</div>
+          <div className={KPI_VALUE + " text-violet-300"}>
+            {Math.round(totalContribution).toLocaleString()}
+          </div>
         </div>
       </div>
 
@@ -206,9 +221,11 @@ export default function AreaReviewPage() {
                   <th className={TABLE_HEADER + " text-right"}>Sent</th>
                   <th className={TABLE_HEADER + " text-right"}>Responded</th>
                   <th className={TABLE_HEADER + " text-right"}>Missed</th>
-                  <th className={TABLE_HEADER + " text-right"}>“Cannot”</th>
-                  <th className={TABLE_HEADER + " text-right"}>Avg reply</th>
-                  <th className={TABLE_HEADER + " text-right pr-2"}>🔴 / 🟠</th>
+                  <th className={TABLE_HEADER + " text-right"}>Contribution</th>
+                  <th className={TABLE_HEADER + " text-right"}>A / S</th>
+                  <th className={TABLE_HEADER + " text-right"}>Self-fixes</th>
+                  <th className={TABLE_HEADER + " text-right"}>Help asked</th>
+                  <th className={TABLE_HEADER + " text-right pr-2"}>Unverified claims</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,18 +257,28 @@ export default function AreaReviewPage() {
                     >
                       {b.missed}
                     </td>
+                    <td className="py-3 text-right text-sm font-semibold text-violet-300 tabular-nums">
+                      {Math.round(b.contribution || 0).toLocaleString()}
+                    </td>
+                    <td className="py-3 text-right text-sm text-emerald-300 tabular-nums">
+                      {(b.quality_high || 0).toLocaleString()}
+                    </td>
                     <td
                       className={`py-3 text-right text-sm tabular-nums ${
-                        b.cannot_count ? "text-amber-300" : "text-zinc-500"
+                        b.self_fixes ? "text-emerald-300 font-semibold" : "text-zinc-600"
                       }`}
                     >
-                      {b.cannot_count}
+                      {b.self_fixes || "—"}
                     </td>
-                    <td className="py-3 text-right text-sm text-zinc-400 tabular-nums">
-                      {b.avg_response_min !== null ? `${b.avg_response_min}m` : "—"}
+                    <td className="py-3 text-right text-sm text-sky-300 tabular-nums">
+                      {b.blocked_count || "—"}
                     </td>
-                    <td className="py-3 text-right text-sm text-zinc-400 tabular-nums pr-2">
-                      {b.red_total} / {b.yellow_total}
+                    <td
+                      className={`py-3 text-right text-sm tabular-nums pr-2 ${
+                        b.false_claims ? "text-red-300 font-semibold" : "text-zinc-600"
+                      }`}
+                    >
+                      {b.false_claims || "—"}
                     </td>
                   </tr>
                 ))}
@@ -262,8 +289,18 @@ export default function AreaReviewPage() {
 
         <div className={T_CAPTION + " mt-4 leading-relaxed"}>
           <strong className="text-zinc-400">Score</strong> = instructions answered inside
-          their SLA ÷ instructions sent. 🔴 allows 90 minutes, 🟠 allows 4 hours. Tasks BO
-          never sent are excluded — an unsent task is BO’s backlog, not a manager’s miss.
+          their SLA ÷ instructions sent. 🔴 allows 90 minutes, 🟠 allows 4 hours. Excluded
+          from both sides: tasks BO never sent (that is BO’s backlog, not a manager’s
+          miss) and problems the store reported itself (a branch that raises its own
+          issues must not score below one that stays quiet).
+          <br />
+          <strong className="text-zinc-400">Help asked</strong> counts “Cannot” answers.
+          It is reported, never subtracted — it is the store asking for help, and
+          penalising it only stops people using it.
+          <br />
+          <strong className="text-zinc-400">Unverified claims</strong> are answers of
+          “submitted” where the report never appeared. This is the one column that points
+          at effort not actually made.
           <br />
           <strong className="text-zinc-400">Grades</strong>: A ≥ 95 · B ≥ 85 · C ≥ 70 · D below 70.
         </div>

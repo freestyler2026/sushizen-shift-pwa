@@ -306,6 +306,11 @@ ul.body-list strong { color: var(--text); }
     <span class="ja">Manager Inbox 詳細</span><span class="en">Manager Inbox (detail)</span>
     <span class="nav-badge live">Live</span>
   </div>
+  <div class="nav-item" onclick="show('evaluation')">
+    <span class="nav-icon">⚖️</span>
+    <span class="ja">評価の仕組み</span><span class="en">How people are evaluated</span>
+    <span class="nav-badge live">LIVE</span>
+  </div>
   <div class="nav-item" onclick="show('par-levels')">
     <span class="nav-icon">📏</span>
     <span class="ja">パーレベル管理</span><span class="en">Backup Par Levels</span>
@@ -2759,6 +2764,95 @@ ul.body-list strong { color: var(--text); }
           <td><span class="ja">マネージャーパフォーマンスフラグ → エリアマネージャー</span><span class="en">Manager performance flag → Area Manager</span></td>
         </tr>
       </table>
+    </div>
+  </div>
+
+  <!-- ===== EVALUATION ===== -->
+  <div class="section" id="section-evaluation">
+    <div class="hero-header">
+      <div class="hero-icon">⚖️</div>
+      <div>
+        <div class="section-title ja">評価の仕組み</div>
+        <div class="section-title en">How people are evaluated</div>
+        <div class="section-path">/admin/management/people · /admin/management/area-review</div>
+        <div class="section-desc ja">このチャンネルは減点だけの仕組みではありません。何ができているかも記録し、正直な申告が損にならないように作られています。</div>
+        <div class="section-desc en">This channel is not only a record of failures. It records what went right too, and it is built so that answering honestly never costs you.</div>
+      </div>
+    </div>
+
+    <h2><span class="ja">① 二軸で見る</span><span class="en">① Two axes, kept apart</span></h2>
+    <div class="exc-grid">
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">📋</span><span class="exc-title ja">Compliance（遵守）</span><span class="exc-title en">Compliance</span></div>
+        <div class="exc-body ja">BOが送った指示のうち、SLA内に返答できた割合。<strong>マネージャーを測る指標</strong>で、店舗が忙しかったかどうかとは切り離されています。全部に期限内で答えれば、例外が多い週でも100点です。</div>
+        <div class="exc-body en">Of the instructions BO sent, how many were answered inside their SLA. It measures the <strong>manager</strong>, not the week: answer everything on time and a heavy week still scores 100.</div>
+      </div>
+      <div class="exc-card sev-orange" style="border-color:rgba(139,92,246,.35);background:rgba(139,92,246,.08);">
+        <div class="exc-header"><span class="exc-sev">🎖️</span><span class="exc-title ja">Contribution（貢献）</span><span class="exc-title en">Contribution</span></div>
+        <div class="exc-body ja">レポート提出・A/S評価・SLA内返答・<strong>自分で見つけて直した件数</strong>・QC写真の提出量。「どれだけやったか」であって「どれだけうまいか」ではありません。品質は別列で見ます。</div>
+        <div class="exc-body en">Reports filed, A/S product scores, replies inside SLA, <strong>problems found and fixed by the store itself</strong>, and QC photos submitted. It measures how much someone did, not how well — quality is a separate column.</div>
+      </div>
+    </div>
+
+    <h2><span class="ja">② 正直に答えることは損になりません</span><span class="en">② Answering honestly never costs you</span></h2>
+    <div class="card accent-border">
+      <table class="status-table">
+        <tr><th>あなたの答え / Your answer</th><th>どう扱われるか / What happens</th></tr>
+        <tr>
+          <td class="ja">「できません — 人手不足」</td>
+          <td class="ja"><strong>減点されません。</strong>「Help asked」として記録され、同じ理由が週3回続けば<strong>人員配置の問題としてHQへ</strong>上がります。マネージャー個人の評価には使いません。</td>
+        </tr>
+        <tr>
+          <td class="ja">「トラベルパスが汚れている」（自己申告）</td>
+          <td class="ja"><strong>スコアの分母から外れ、別枠で加点</strong>されます（1件3ポイント、最大の加点）。自分で見つけて直したことは、このシステムが最も増やしたい行動です。</td>
+        </tr>
+        <tr>
+          <td class="ja">「提出しました」（実際に提出した）</td>
+          <td class="ja">30分後に自動で突合され、<strong>裏付けが取れます</strong>。</td>
+        </tr>
+        <tr>
+          <td class="ja">「提出しました」（実際は未提出）</td>
+          <td class="ja"><strong>突合で食い違いが記録されます。</strong>2週間で2回で「Claim not supported by the record」としてエリアマネージャーへ。<strong>このシステムで唯一の個人単位の赤信号です。</strong></td>
+        </tr>
+      </table>
+      <div class="tip warn" style="margin-top:10px;">
+        <span class="tip-icon">⚠️</span>
+        <span class="ja">突合できるのは、レポートの実在で確かめられる申告だけです（PMバックアップ・廃棄）。確かめようのない申告は<strong>白紙のまま</strong>にします — 確認できないことを不正の証拠として扱うのは、確認しないことより悪いためです。</span>
+        <span class="en">Only claims a second source can settle are checked (PM Backup and Disposal). Anything else is left <strong>blank rather than guessed at</strong> — treating an unverifiable claim as dishonesty would be worse than not checking.</span>
+      </div>
+    </div>
+
+    <h2><span class="ja">③ たくさんやる人が不利にならないように</span><span class="en">③ Doing more must not make you look worse</span></h2>
+    <div class="card">
+      <p class="ja" style="font-size:12px;">Manilaの投稿量上位半分は不良率の中央値が8.4%、下位半分は6.5%です。<strong>件数で並べれば、最も多く働いている人が必ず問題リストの1位になります。</strong>そのため:</p>
+      <ul class="body-list">
+        <li class="ja"><strong>品質は必ず「自分の支店の中央値との差」で見ます。</strong>Manila中央値7.8%／Dubai 3.4%と都市差が大きく、実力差か採点運用の差か判別できないため、都市を跨いだ個人ランキングは表示しません。</li>
+        <li class="ja"><strong>投稿量は貢献として加点します。</strong>952枚出している人は86枚の人より多く働いており、その事実は消えません。</li>
+        <li class="ja"><strong>採点30件未満は「not ranked」</strong>と表示し、順位をつけません。少ないデータで人を判断するのは、判断しないことより悪いためです。</li>
+      </ul>
+    </div>
+
+    <h2><span class="ja">④ フラグは烙印ではありません</span><span class="en">④ A flag is not a permanent mark</span></h2>
+    <div class="card">
+      <p class="ja" style="font-size:12px;">パターン検出で挙がった人には <strong>「Start coaching」</strong> があります。押した時点の数値がベースラインとして固定され、<strong>30日後に自動で再測定</strong>されます。</p>
+      <table class="status-table">
+        <tr><th>再測定の結果</th><th>扱い</th></tr>
+        <tr><td class="ja">20%以上改善</td><td class="ja"><strong>improved</strong> として緑で表示し、「10.9% → 7.2%」のように<strong>改善した事実が元のフラグの隣に残ります</strong>。</td></tr>
+        <tr><td class="ja">ほぼ変わらず</td><td class="ja">coaching のまま、さらに30日後に再測定。</td></tr>
+        <tr><td class="ja">10%以上悪化</td><td class="ja">open に戻り、次の段階へ。</td></tr>
+        <tr><td class="ja">判定に足るデータがない</td><td class="ja"><strong>insufficient_data</strong>。「改善しなかった」とは記録せず、再測定を延長します。</td></tr>
+      </table>
+      <div class="tip" style="margin-top:10px;">
+        <span class="tip-icon">💡</span>
+        <span class="ja">改善が記録に残ることが要点です。戻り道のないフラグは烙印になり、現場は「フラグを立てられないこと」を目的に行動しはじめます。それはこのシステムが最も避けたい状態です。</span>
+        <span class="en">The point is that the improvement stays on the record. A flag with no way back becomes a permanent mark, and people start working to avoid the flag rather than to do better — the one outcome this system must not produce.</span>
+      </div>
+    </div>
+
+    <div class="tip warn" style="margin-top:14px;">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><strong>人事措置に使う前に必ず確認してください。</strong>個人の特定は <code>author_name</code>（QC写真をDiscordに投稿した人）に依存しており、「作った人」と同一である保証はありません。撮影担当が固定されている支店では、別人の成果物が特定個人に紐づいている可能性があります。成立していない支店では、個人評価に使わず<strong>支店・時間帯の指標として扱ってください。</strong></span>
+      <span class="en"><strong>Confirm this before using it for anything personal.</strong> The identity here is <code>author_name</code> — whoever posted the QC photo to Discord — which is not guaranteed to be whoever made the product. Where a branch has a fixed photographer, one person's name carries other people's work. In that case use it as a branch/time-of-day signal, <strong>not as a measure of a person.</strong></span>
     </div>
   </div>
 
