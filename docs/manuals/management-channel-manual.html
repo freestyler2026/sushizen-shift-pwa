@@ -1776,18 +1776,18 @@ ul.body-list strong { color: var(--text); }
       <div>
         <div class="section-title ja">例外タイプ一覧</div>
         <div class="section-title en">All Exception Types</div>
-        <div class="section-desc ja">システムが検知する全ての例外タイプ。🔴=緊急（90分SLA）、🟠=注意（4時間SLA）。</div>
-        <div class="section-desc en">All exception types the system detects. 🔴 = Critical (90-min SLA), 🟠 = Caution (4-hour SLA).</div>
+        <div class="section-desc ja">システムが検知する全ての例外タイプ。🔴=緊急（90分SLA）、🟠=注意（4時間SLA）。<strong>SLAは重大度に紐づく</strong>ため、🟠のタスクが🔴へ昇格した時点で締切も90分に切り替わります。SLAを過ぎても未返答のタスクは <code>missed_by_manager</code> として記録され、エリアマネージャー週次スコアに反映されます。</div>
+        <div class="section-desc en">All exception types the system detects. 🔴 = Critical (90-min SLA), 🟠 = Caution (4-hour SLA). <strong>The SLA follows the severity</strong>, so a 🟠 task that escalates to 🔴 picks up the 90-minute deadline at that moment. A task still unanswered past its SLA is recorded as <code>missed_by_manager</code> and feeds the Area Manager weekly score.</div>
       </div>
     </div>
 
     <div class="exc-grid">
-      <div class="exc-card sev-red">
-        <div class="exc-header"><span class="exc-sev">🔴</span><span class="exc-title ja">PMバックアップレポート未提出</span><span class="exc-title en">PM Backup Report Missing</span></div>
+      <div class="exc-card sev-orange">
+        <div class="exc-header"><span class="exc-sev">🟠→🔴</span><span class="exc-title ja">PMバックアップレポート未提出</span><span class="exc-title en">PM Backup Report Missing</span></div>
         <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
         <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
-        <div class="exc-body ja">17:15以降、PMバックアップレポートが提出されていない場合に発火。BO Aが即座にマネージャーへ指示を送る。</div>
-        <div class="exc-body en">Fires when PM Backup Report is not submitted after 17:15. BO A immediately sends instruction to manager.</div>
+        <div class="exc-body ja">PMバックアップレポートが規定時刻までに提出されていない場合に発火します。<strong>🟠 で発生し、送信から30分返答がなければ自動で 🔴 に昇格</strong>します（承認済み文言の「30分後も未提出の場合はRed Alert」に対応）。昇格すると SLA も4時間から90分に切り替わります。</div>
+        <div class="exc-body en">Fires when the PM Backup Report is not submitted by the required time. It <strong>starts 🟠 and escalates itself to 🔴 after 30 minutes without a reply</strong>, per the approved wording. Escalating also switches its SLA from 4 hours to 90 minutes.</div>
         <div class="exc-trigger">exception_type: pm_backup_missing</div>
       </div>
 
@@ -2492,6 +2492,25 @@ ul.body-list strong { color: var(--text); }
         <div class="section-desc ja">BOスタッフが「Run Detection」を押すと、既存データページを横断して4種類の例外を自動スキャンし、未処理の例外のみタスクを生成します。</div>
         <div class="section-desc en">When BO staff clicks "Run Detection", the system scans across existing data pages for 4 exception types and creates tasks only for unhandled exceptions.</div>
       </div>
+
+    <div class="card accent-border">
+      <div class="card-title"><span class="ja">いつ動くのか</span><span class="en">When it runs</span></div>
+      <table class="status-table">
+        <tr><th>Job</th><th>Frequency</th><th>What it does</th></tr>
+        <tr><td>Detection + sweep</td><td>15分ごと / every 15 min</td><td>例外検知 · 30分エスカレーション · SLA超過の見逃し記録<br>Detect exceptions · escalate at 30 min · record SLA misses</td></tr>
+        <tr><td>Pattern scan</td><td>1日1回 20:00 UTC</td><td>6種の繰り返しパターン検出<br>Scan the six repeat patterns</td></tr>
+      </table>
+      <div class="tip" style="margin-top:10px;">
+        <span class="tip-icon">💡</span>
+        <span class="ja">検知は<strong>各都市のローカル日付</strong>で走ります。UTCで走らせると、マニラ（+8）の午前中はまだ前日として扱われ、前日分を二重に検知してしまうためです。BOダッシュボードの「Run Detection」は手動の追い実行で、押さなくても自動で動きます。</span>
+        <span class="en">Detection runs on <strong>each city's own local date</strong>. On UTC, a Manila (+8) morning would still be the previous day and would re-raise yesterday's exceptions. The “Run Detection” button on the BO dashboard is a manual top-up; it is not required for the channel to work.</span>
+      </div>
+      <div class="tip warn" style="margin-top:8px;">
+        <span class="tip-icon">⚠️</span>
+        <span class="ja">ジョブは正常時も毎回1行ログを出します（<code>[mgmt-channel] manila 2026-08-26: created=0 skipped=0 errors=0</code>）。「静かだから正常」と「止まっているから静か」を区別するためです。<strong>ログが出ていなければジョブが止まっています。</strong></span>
+        <span class="en">The job prints one line every run even when nothing happens (<code>[mgmt-channel] manila 2026-08-26: created=0 skipped=0 errors=0</code>), so a healthy quiet run cannot be mistaken for a stopped one. <strong>No line means the job is not running.</strong></span>
+      </div>
+    </div>
     </div>
 
     <div class="tip success">
@@ -2800,6 +2819,12 @@ ul.body-list strong { color: var(--text); }
         <span class="ja"><strong>Travel path を「Not OK」にすると、その場で 🔴 のタスクがBOに上がります。</strong>内容の記述が必須で、書かないと送信できません。他の4項目と違い、これは店舗が自ら申告した衛生上の問題であり、最優先で処理されます。</span>
         <span class="en"><strong>Marking Travel path “Not OK” raises a 🔴 task to Back Office immediately.</strong> A description is required — you cannot submit without one. Unlike the other four, this is a hygiene problem the store has reported itself, and it is worked first.</span>
       </div>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><strong>未提出アラートは「直近14日にこのフォームを使った支店」だけが対象です。</strong>まだ一度も提出していない支店には発火しません — 展開前の支店に毎日アラートを出さないための仕様です。裏を返すと、<strong>導入時は各支店で最初の1回を手で提出しないと、その支店の未提出検知は永久に始まりません。</strong></span>
+      <span class="en"><strong>The missing-check alert only applies to branches that have used the form in the last 14 days.</strong> A branch that has never submitted is never chased, so a branch not yet rolled out does not generate a daily alert. The flip side: <strong>at rollout, each branch must submit once by hand or its missing-check detection never starts.</strong></span>
     </div>
 
     <div class="card">
