@@ -80,7 +80,10 @@ interface PLData {
   food_cost_blockers?: { item: string; qty: number; reason: "no_recipe_cost" | "name_not_in_master" }[];
   overhead_carried_from?: Record<string, string>;
   days: DayRow[];
-  summary: Summary;
+  summary: Summary & {
+    revenue_filled?: number; filled_days?: number;
+    revenue_day_coverage?: number; range_days?: number;
+  };
   error?: string;
 }
 
@@ -330,6 +333,24 @@ export default function DailyPLPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* The absolute profit here runs below the monthly page whenever revenue
+          covers fewer days than cost. Say it rather than let them disagree. */}
+      {data?.ok && (data.summary.revenue_day_coverage ?? 0) > 0
+        && (data.summary.revenue_day_coverage ?? 0) < (data.summary.range_days ?? 0) && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4">
+          <p className="text-sm font-semibold text-amber-300">売上データが期間の一部しかありません</p>
+          <p className="text-xs text-amber-200/85 mt-1 leading-relaxed">
+            {data.summary.range_days}日のうち、売上が記録されているのは
+            {data.summary.revenue_day_coverage}日分です。人件費・家賃は全日分を計上しているため、
+            <b className="text-amber-100">利益は実態より低く出ます</b>。
+            {(data.summary.filled_days ?? 0) > 0 && (
+              <> うち{data.summary.filled_days}日分は各店舗の日平均で補完しています。</>
+            )}
+            月単位の損益は「全社管理」タブをご覧ください。
+          </p>
         </div>
       )}
 

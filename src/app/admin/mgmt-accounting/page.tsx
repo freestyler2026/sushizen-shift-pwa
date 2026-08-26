@@ -77,7 +77,7 @@ interface StoreRow {
   revenue: number; food_cost: number; food_cost_rate: number | null;
   revenue_source: "manual" | "ar_payouts" | "none";
 }
-interface StoreRanking { year_month: string; stores: StoreRow[]; }
+interface StoreRanking { year_month: string; stores: StoreRow[]; hubs?: StoreRow[]; }
 interface KpiAlert {
   city: string; severity: "warning" | "critical"; type: string; title: string; message: string;
 }
@@ -897,7 +897,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {ranking && ranking.stores.length > 0 && (
         <div className={`${GLASS_CARD} p-4`}>
           <h2 className={`${T_SECTION} mb-1`}>店舗別 食材費ランキング</h2>
-          <p className="text-xs text-zinc-500 mb-3">食材費の高い順</p>
+          <p className="text-xs text-zinc-500 mb-3">食材費の高い順（店舗のみ）</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -940,6 +940,25 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
               </tbody>
             </table>
           </div>
+          {/* CK and the warehouse buy for the branches they feed, so they carry
+              cost and no sales. Ranked with the stores, CK took first place on
+              food cost against a blank revenue column. */}
+          {(ranking.hubs?.length ?? 0) > 0 && (
+            <div className="mt-4 pt-3 border-t border-zinc-800">
+              <p className="text-xs font-semibold text-zinc-400 mb-1">仕入拠点（売上を持たないため店舗とは分けています）</p>
+              <div className="space-y-1">
+                {ranking.hubs!.map((h) => (
+                  <div key={`${h.city}-${h.store_code}`} className="flex items-baseline gap-3 text-xs text-zinc-400">
+                    <span className="w-10 font-medium text-zinc-300">{h.store_code}</span>
+                    <span className="w-16">{h.city === "dubai" ? "🇦🇪 ドバイ" : "🇵🇭 マニラ"}</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">
+                      {fmtNat(h.food_cost, h.currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -947,7 +966,7 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       {(dubaiPred?.predictions || manilaPred?.predictions) && (
         <div className={`${GLASS_CARD} p-4`}>
           <h2 className={`${T_SECTION} mb-1`}>トレンド予測</h2>
-          <p className="text-xs text-zinc-500 mb-3">Linear regression on last 6 months. Revenue forecast requires manual entries.</p>
+          <p className="text-xs text-zinc-500 mb-3">直近6ヶ月の線形回帰による予測です。</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {([
               { label: "ドバイ",  flag: "🇦🇪", pred: dubaiPred,  cur: "AED" },
