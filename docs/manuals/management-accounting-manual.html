@@ -1,0 +1,764 @@
+<title>管理会計マニュアル</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;
+  --accent:#F59E0B;--accent-dim:rgba(245,158,11,.12);
+  --text:#E2E8F0;--muted:#7A90AA;
+  --green:#34D399;--red:#F87171;--blue:#60A5FA;--violet:#A78BFA;--orange:#FB923C;
+  --manila:#60A5FA;--dubai:#FB923C;
+  --sidebar-w:248px;
+}
+@media(prefers-color-scheme:light){:root{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(245,158,11,.10)}}
+:root[data-theme="dark"]{--bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;--text:#E2E8F0;--muted:#7A90AA;--accent-dim:rgba(245,158,11,.12)}
+:root[data-theme="light"]{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(245,158,11,.10)}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;font-size:14px}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 calc(var(--sidebar-w)+20px)}
+.topbar-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.lang-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--surface2)}
+.lang-btn{padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:background .15s,color .15s}
+.lang-btn.active{background:var(--accent);color:#0F1623}
+.sidebar{position:fixed;top:52px;left:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:10px 0}
+.sidebar-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;padding:10px 16px 3px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:500;border-left:3px solid transparent;transition:color .15s,background .15s,border-color .15s}
+.nav-item:hover{color:var(--text);background:var(--accent-dim)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim)}
+.nav-icon{font-size:13px;flex-shrink:0}
+.main{margin-left:var(--sidebar-w);margin-top:52px;padding:32px 36px 80px;max-width:920px}
+.section{display:none}.section.active{display:block}
+.section-hero{display:flex;align-items:flex-start;gap:14px;margin-bottom:24px}
+.hero-icon{width:46px;height:46px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.section-title{font-size:20px;font-weight:700;color:var(--text)}
+.section-path{font-size:11px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;margin-top:3px}
+.section-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px}
+.card.blue-border{border-color:rgba(96,165,250,.4)}
+.card.orange-border{border-color:rgba(251,146,60,.4)}
+.card.red-border{border-color:rgba(248,113,113,.4)}
+.card.green-border{border-color:rgba(52,211,153,.4)}
+.card.violet-border{border-color:rgba(167,139,250,.4)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.steps{list-style:none}
+.step{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:20px;height:20px;border-radius:50%;flex-shrink:0;background:var(--accent);color:#0F1623;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body p{color:var(--muted);font-size:12px;margin-top:1px}
+.step-body code{font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--blue)}
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap}
+.chip.green{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3)}
+.chip.amber{background:var(--accent-dim);color:var(--accent);border-color:rgba(245,158,11,.3)}
+.chip.red{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3)}
+.chip.blue{background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3)}
+.chip.violet{background:rgba(167,139,250,.12);color:var(--violet);border-color:rgba(167,139,250,.3)}
+.chip.orange{background:rgba(251,146,60,.12);color:var(--orange);border-color:rgba(251,146,60,.3)}
+.tip{display:flex;gap:8px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:11px 13px;margin-top:4px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.tip-icon{flex-shrink:0;color:var(--accent);font-size:14px}
+.tip.danger{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.3)}
+.tip.danger .tip-icon{color:var(--red)}
+.tip.info{background:rgba(96,165,250,.07);border-color:rgba(96,165,250,.3)}
+.tip.info .tip-icon{color:var(--blue)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.muted{color:var(--muted);font-size:12px}
+.lifecycle{position:relative;padding-left:28px;margin:4px 0 14px}
+.lifecycle::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--border)}
+.lc-step{position:relative;margin-bottom:12px}
+.lc-step:last-child{margin-bottom:0}
+.lc-dot{position:absolute;left:-23px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--border)}
+.lc-dot.green{background:var(--green);border-color:var(--green)}
+.lc-dot.blue{background:var(--blue);border-color:var(--blue)}
+.lc-dot.amber{background:var(--accent);border-color:var(--accent)}
+.lc-dot.violet{background:var(--violet);border-color:var(--violet)}
+.lc-dot.red{background:var(--red);border-color:var(--red)}
+.lc-dot.orange{background:var(--orange);border-color:var(--orange)}
+.lc-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lc-status{font-size:11px;font-weight:700;color:var(--text)}
+.lc-who{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px}
+.lc-who.admin{background:rgba(245,158,11,.15);color:var(--accent)}
+.lc-who.staff{background:rgba(167,139,250,.15);color:var(--violet)}
+.lc-who.system{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-who.manila{background:rgba(96,165,250,.15);color:var(--blue)}
+.lc-who.dubai{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-detail{font-size:12px;color:var(--muted);margin-top:2px}
+.lc-path{font-family:'SF Mono','Fira Code',monospace;font-size:10px;color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:3px;margin-top:2px;display:inline-block}
+.formula-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:8px 0;font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:var(--green)}
+.formula-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;font-family:system-ui}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+.status-flow .arrow{color:var(--muted);font-size:12px}
+.city-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.city-badge.manila{background:rgba(96,165,250,.15);color:var(--manila)}
+.city-badge.dubai{background:rgba(251,146,60,.15);color:var(--dubai)}
+.city-badge.both{background:rgba(52,211,153,.15);color:var(--green)}
+@media(max-width:700px){:root{--sidebar-w:0px}.sidebar{display:none}.topbar{padding:0 16px}.main{margin-left:0;padding:16px 14px 60px}}
+</style>
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — 管理会計マニュアル</span>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label">概要</div>
+  <div class="nav-item active" onclick="show('overview')"><span class="nav-icon">🗺️</span><span>このシステムでできること</span></div>
+  <div class="nav-item" onclick="show('sources')"><span class="nav-icon">🔌</span><span>データの取得元</span></div>
+  <div class="sidebar-label">画面ごとの見方</div>
+  <div class="nav-item" onclick="show('group')"><span class="nav-icon">🏢</span><span>全社管理</span></div>
+  <div class="nav-item" onclick="show('stores')"><span class="nav-icon">🏪</span><span>店舗別ランキング</span></div>
+  <div class="nav-item" onclick="show('cost')"><span class="nav-icon">📉</span><span>コスト分析</span></div>
+  <div class="nav-item" onclick="show('report')"><span class="nav-icon">📄</span><span>月次レポート</span></div>
+  <div class="nav-item" onclick="show('daily')"><span class="nav-icon">📅</span><span>日次P&amp;L</span></div>
+  <div class="nav-item" onclick="show('settings')"><span class="nav-icon">⚙️</span><span>設定</span></div>
+  <div class="sidebar-label">読み解き方</div>
+  <div class="nav-item" onclick="show('judge')"><span class="nav-icon">🧭</span><span>経営判断の手順</span></div>
+  <div class="nav-item" onclick="show('estimate')"><span class="nav-icon">📐</span><span>推定値の仕組み</span></div>
+  <div class="nav-item" onclick="show('trust')"><span class="nav-icon">🔍</span><span>数字を疑うべき時</span></div>
+  <div class="nav-item" onclick="show('faq')"><span class="nav-icon">❓</span><span>よくある疑問</span></div>
+</nav>
+
+<main class="main">
+
+<section class="section active" id="sec-overview">
+  <div class="section-hero">
+    <div class="hero-icon">🗺️</div>
+    <div>
+      <div class="section-title">このシステムでできること</div>
+      <div class="section-path">/admin/mgmt-accounting</div>
+      <div class="section-desc">ドバイとマニラの損益を、売上・食材費・人件費・経費の4項目で毎月・毎日追う画面です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">扱っている損益の形</div>
+    <div class="formula-box">
+      <div class="formula-label" style="color:var(--muted)">営業利益の算出</div>
+      売上 − 食材費 − 人件費 − 経費 ＝ 営業利益
+    </div>
+    <p class="section-desc" style="margin-top:8px">
+      プライムコスト（食材費＋人件費）は飲食業の基本指標として併記しますが、
+      <strong>小計であって費用の全部ではありません</strong>。家賃・光熱費は経費に入ります。
+    </p>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title">月次で見るもの</div>
+      <p style="font-size:12px;color:var(--muted)">
+        都市ごとの損益、店舗別の食材費率、6ヶ月の推移、翌月予測。
+        会計事務所への提出や、月次の経営会議で使う数字です。
+      </p>
+    </div>
+    <div class="card violet-border">
+      <div class="card-title">日次で見るもの</div>
+      <p style="font-size:12px;color:var(--muted)">
+        日ごと・店舗ごとの売上と利益。
+        異常な日を見つける、キャンペーンの効果を測る、といった用途です。
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">4つのタブ</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>タブ</th><th>主な内容</th><th>使う場面</th></tr></thead>
+      <tbody>
+        <tr><td><strong>全社管理</strong></td><td>KPI・都市別内訳・店舗別ランキング・予測・目標</td><td>月次の全体把握</td></tr>
+        <tr><td><strong>コスト分析</strong></td><td>6ヶ月推移・経費内訳・予算対比</td><td>コスト構造の変化を追う</td></tr>
+        <tr><td><strong>月次レポート</strong></td><td>1ページにまとめた月次サマリー</td><td>報告・共有</td></tr>
+        <tr><td><strong>日次P&amp;L</strong></td><td>日別・店舗別の損益明細</td><td>日々の監視</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="tip info"><span class="tip-icon">ℹ</span>
+    <div>対象月は右上のセレクタで切り替えます。過去12ヶ月分を遡って見られます。</div>
+  </div>
+
+</section>
+<section class="section" id="sec-sources">
+  <div class="section-hero">
+    <div class="hero-icon">🔌</div>
+    <div>
+      <div class="section-title">データの取得元</div>
+      <div class="section-path">4項目それぞれ別の経路</div>
+      <div class="section-desc">どの数字がどこから来ているかを把握しておくと、おかしな値の原因を自分で追えます。</div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">売上</div>
+    <div class="lifecycle">
+      <div class="lc-step"><div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status">ドバイ</span><span class="lc-who dubai">自動</span></div>
+        <div class="lc-detail">Careem・Noon・Talabat・Keeta・Smiles の5社から<strong>入金明細を自動取得</strong>。
+          手数料が引かれた後の入金額を、稼いだ期間に帰属させます。</div>
+        <div class="lc-path">ar_payouts ← scripts/{careem,noon,talabat,keeta,smiles}/get-payouts.js</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status">マニラ</span><span class="lc-who manila">手入力</span></div>
+        <div class="lc-detail">Admin Dashboard → <strong>Sales Data Input</strong> で日次入力。
+          店内飲食・Grab・Foodpanda・Beep をチャネル別に記録します。</div>
+        <div class="lc-path">manila_daily_sales</div>
+      </div>
+    </div>
+    <div class="tip danger"><span class="tip-icon">⚠</span>
+      <div>マニラは<strong>毎日の入力が前提</strong>です。入力が止まるとその月の売上が過少になり、
+        利益が実態より低く出ます。未入力の日があると画面に警告が出ます。</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">食材費</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      Procurement の<strong>発注実績</strong>から集計します。販売数×レシピ原価ではありません。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>扱い</th><th>対象</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip green">計上</span></td><td>承認済み・承認待ちの発注</td><td>現場では納品が先、承認が後追いのため</td></tr>
+        <tr><td><span class="chip red">除外</span></td><td>下書き・却下・キャンセル・返品</td><td>発生していない</td></tr>
+        <tr><td><span class="chip amber">除外</span></td><td>CK・倉庫から店舗への納品</td><td>社内の受け渡し。CKの外部仕入で計上済み</td></tr>
+        <tr><td><span class="chip blue">加算</span></td><td>廃棄ロス 3%</td><td>暫定値。実績データが貯まり次第見直し</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip info"><span class="tip-icon">ℹ</span>
+      <div>都市合計は<strong>グループが外部に支払った額</strong>です。CKや倉庫が仕入れた分も含みます。</div>
+    </div>
+  </div>
+
+  <div class="card violet-border">
+    <div class="card-title">人件費</div>
+    <div class="lifecycle">
+      <div class="lc-step"><div class="lc-dot blue"></div>
+        <div class="lc-header"><span class="lc-status">マニラ</span><span class="lc-who manila">給与実績</span></div>
+        <div class="lc-detail">給与計算エンジンの確定値。深夜・残業・祝日手当、13ヶ月目引当まで含みます。
+          給与期間は<strong>前月26日〜当月25日</strong>です。</div>
+        <div class="lc-path">manila_payroll_items</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status">ドバイ</span><span class="lc-who dubai">給与シート</span></div>
+        <div class="lc-detail">Excel の Salary Computation から店舗別に取り込み、日数で割って日割り計上。
+          未登録の月は直近の登録月から引き継ぎます。</div>
+        <div class="lc-path">dubai_monthly_labor</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot violet"></div>
+        <div class="lc-header"><span class="lc-status">バックオフィス</span><span class="lc-who system">折半</span></div>
+        <div class="lc-detail">全員マニラの給与に載っていますが、両都市を見ているため
+          <strong>50%ずつ</strong>を各都市に配賦します。ドバイ側はBO行として表示されます。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title">経費</div>
+    <p style="font-size:12px;color:var(--muted)">
+      家賃・CK家賃・光熱費・広告費・ライセンス・車・会計事務所費用など。
+      手計算P&amp;Lから費目別・店舗別に取り込んであり、<strong>設定画面で編集できます</strong>。
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>当月の請求書は月末以降に届くため、<strong>未登録の月は直近の登録月から自動で引き継ぎ</strong>ます。
+        引き継いだ場合は画面に「2026-07 から引き継ぎ」と表示されます。</div>
+    </div>
+    <div class="lc-path">mgmt_overhead ／ 設定 → 経費</div>
+  </div>
+
+</section>
+<section class="section" id="sec-group">
+  <div class="section-hero">
+    <div class="hero-icon">🏢</div>
+    <div>
+      <div class="section-title">全社管理タブ</div>
+      <div class="section-path">/admin/mgmt-accounting?tab=group</div>
+      <div class="section-desc">月次の全体像。ここだけ見れば、その月が黒字か赤字か、どこに問題があるかが分かります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">画面の並び順</div>
+    <ol class="steps">
+      <li class="step"><div class="step-num">1</div><div class="step-body">
+        <strong>アラート</strong><p>食材費率・プライムコスト率が基準を超えた都市を赤・橙で表示。
+        Push to Manager Inbox で店長へ送れます。</p></div></li>
+      <li class="step"><div class="step-num">2</div><div class="step-body">
+        <strong>このページが集計しているもの</strong><p>売上・食材費の定義。日次P&amp;Lとの違いもここに書いてあります。</p></div></li>
+      <li class="step"><div class="step-num">3</div><div class="step-body">
+        <strong>推定・欠落の警告</strong><p>推定を含む月、売上が不足している月、集計途中の月をここで知らせます。</p></div></li>
+      <li class="step"><div class="step-num">4</div><div class="step-body">
+        <strong>KPIカード（6枚）</strong><p>全社売上・食材費・人件費・プライム計・経費・営業利益。すべて円換算。</p></div></li>
+      <li class="step"><div class="step-num">5</div><div class="step-body">
+        <strong>都市別内訳</strong><p>ドバイ・マニラ・全社合計。円と現地通貨を併記します。</p></div></li>
+      <li class="step"><div class="step-num">6</div><div class="step-body">
+        <strong>店舗別 食材費ランキング</strong><p>別項で詳しく説明します。</p></div></li>
+      <li class="step"><div class="step-num">7</div><div class="step-body">
+        <strong>トレンド予測・全社目標・為替レート</strong><p>翌月の予測、目標との差異、円換算レートの設定。</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">都市別内訳の列</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>列</th><th>中身</th><th>見るポイント</th></tr></thead>
+      <tbody>
+        <tr><td>売上</td><td>ドバイ=入金額 / マニラ=日次入力の合計</td><td>前月比。ただし集計途中の月は日数を確認</td></tr>
+        <tr><td>食材費・率</td><td>発注実績 ×1.03</td><td class="muted">ドバイ 30〜38% / マニラ 38〜48% が近年の水準</td></tr>
+        <tr><td>人件費</td><td>給与実績（マニラ）/ 給与シート（ドバイ）</td><td class="muted">20〜38%</td></tr>
+        <tr><td>経費</td><td>家賃・光熱費など</td><td>「引き継ぎ」表示があれば前月の値</td></tr>
+        <tr><td><strong>営業利益</strong></td><td>売上 − 上記3つ</td><td>赤字は赤色。下に利益率</td></tr>
+        <tr><td>プライム率</td><td>（食材費＋人件費）÷ 売上</td><td class="muted">参考指標。65%超で警告</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="tip danger"><span class="tip-icon">⚠</span>
+    <div><strong>営業利益が「算出不可」と出る場合</strong>があります。
+      その月の売上データが不足していて、利益を計算しても意味がない状態です。
+      数字を出さずに理由を表示します。売上入力を確認してください。</div>
+  </div>
+
+</section>
+<section class="section" id="sec-stores">
+  <div class="section-hero">
+    <div class="hero-icon">🏪</div>
+    <div>
+      <div class="section-title">店舗別ランキング</div>
+      <div class="section-path">全社管理タブの下部</div>
+      <div class="section-desc">店舗の食材費を比べる表。都市合計とは別の基準なので、読み方に注意が必要です。</div>
+    </div>
+  </div>
+
+  <div class="card amber" style="border-color:rgba(245,158,11,.4)">
+    <div class="card-title">2つの数字は別のものを測っています</div>
+    <div class="two-col">
+      <div>
+        <span class="chip blue">都市合計</span>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">
+          グループが<strong>外部に支払った額</strong>。店舗の直接仕入＋CK・倉庫の外部仕入。
+          社内の受け渡しは含みません。</p>
+      </div>
+      <div>
+        <span class="chip green">店舗別</span>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">
+          その店が<strong>消費した食材</strong>。直接仕入＋CK・倉庫から受け取った分。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">CK納品は原価に換算しています</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      CKは仕入額より高い価格で店舗に納品します。差額はCKの加工賃・人件費です。
+      これを店舗の食材費にそのまま載せると、<strong>CKの人件費が食材費として二重に計上</strong>されます。</p>
+    <div class="formula-box">
+      <div class="formula-label" style="color:var(--muted)">実例（2026年8月・マニラ）</div>
+      CK  外部仕入 953,200 → 店舗納品 1,637,022   原価率 58.2%<br>
+      倉庫 外部仕入 178,587 → 店舗納品   423,021   原価率 42.2%
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      店舗の食材費に計上する際、この原価率を掛けて<strong>拠点が実際に払った額に戻し</strong>ます。
+      これにより店舗の合計が都市合計と整合します。</p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">照合表の読み方</div>
+    <div class="formula-box">
+      店舗の食材費 合計 ＋ CK・倉庫に残っている分 ＝ 都市合計
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      「CK・倉庫に残っている分」は、仕入れたがまだ店舗に出していない在庫です。
+      仕入と消費のタイミング差なので、差が出ること自体は正常です。</p>
+    <div class="tip danger"><span class="tip-icon">⚠</span>
+      <div><strong>この数字が全体の10%を超える月は、店舗別の比較に使わないでください。</strong>
+        納品記録が追いついていない可能性が高く、店舗の食材費が実態より低く出ます。</div>
+    </div>
+    <div class="table-wrap" style="margin-top:10px"><table>
+      <thead><tr><th>月（マニラ）</th><th>店舗計</th><th>拠点残</th><th>割合</th><th>使えるか</th></tr></thead>
+      <tbody>
+        <tr><td>2026-05</td><td>159,302</td><td>955,448</td><td>86%</td><td><span class="chip red">不可</span></td></tr>
+        <tr><td>2026-06</td><td>700,475</td><td>1,003,517</td><td>59%</td><td><span class="chip red">不可</span></td></tr>
+        <tr><td>2026-07</td><td>2,223,754</td><td>−3,058</td><td>0%</td><td><span class="chip green">使える</span></td></tr>
+        <tr><td>2026-08</td><td>2,160,970</td><td>97,703</td><td>4%</td><td><span class="chip green">使える</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">仕入拠点の行</div>
+    <p style="font-size:12px;color:var(--muted)">
+      CK・倉庫・本部は売上を持たないため、店舗とは分けて表示します。
+      金額は<strong>外部への支払額の再掲</strong>で、店舗へ納品した分は既に店舗側に原価で計上済みです。
+      店舗の合計に足さないでください。</p>
+  </div>
+
+</section>
+<section class="section" id="sec-cost">
+  <div class="section-hero">
+    <div class="hero-icon">📉</div>
+    <div>
+      <div class="section-title">コスト分析タブ</div>
+      <div class="section-path">/admin/mgmt-accounting?tab=cost</div>
+      <div class="section-desc">6ヶ月の推移と経費の内訳。構造の変化を追う画面です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">6ヶ月推移</div>
+    <p style="font-size:12px;color:var(--muted)">
+      売上・食材費・人件費・経費・利益率を月ごとに並べます。
+      全社管理タブと<strong>同じ集計を月ごとに呼んでいる</strong>ので、数字は必ず一致します。</p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>単月の良し悪しより、<strong>比率の傾き</strong>を見てください。
+        食材費率が3ヶ月連続で上がっていれば、仕入価格か販売構成が変わっています。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">経費内訳</div>
+    <p style="font-size:12px;color:var(--muted)">
+      費目別の金額。家賃・CK家賃・光熱費・広告費など。
+      前月から引き継いでいる月は、実際の請求額と差が出ます。月末に設定画面で更新してください。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">予算対比</div>
+    <p style="font-size:12px;color:var(--muted)">
+      設定画面で入力した予算と実績の差異。予算が未入力の費目は表示されません。</p>
+  </div>
+
+</section>
+<section class="section" id="sec-report">
+  <div class="section-hero">
+    <div class="hero-icon">📄</div>
+    <div>
+      <div class="section-title">月次レポートタブ</div>
+      <div class="section-path">/admin/mgmt-accounting?tab=report</div>
+      <div class="section-desc">1ページにまとめた月次サマリー。共有・報告用です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">含まれる内容</div>
+    <ul class="steps">
+      <li class="step"><div class="step-num">1</div><div class="step-body"><strong>全社サマリー</strong><p>都市別の売上・コスト・利益</p></div></li>
+      <li class="step"><div class="step-num">2</div><div class="step-body"><strong>店舗ランキング</strong><p>食材費の高い順</p></div></li>
+      <li class="step"><div class="step-num">3</div><div class="step-body"><strong>アラート</strong><p>その月に発生した警告の一覧</p></div></li>
+      <li class="step"><div class="step-num">4</div><div class="step-body"><strong>翌月予測</strong><p>直近6ヶ月の線形回帰</p></div></li>
+    </ul>
+    <div class="tip info"><span class="tip-icon">ℹ</span>
+      <div>他タブと同じ集計を使うため、数字が食い違うことはありません。</div>
+    </div>
+  </div>
+
+</section>
+<section class="section" id="sec-daily">
+  <div class="section-hero">
+    <div class="hero-icon">📅</div>
+    <div>
+      <div class="section-title">日次P&amp;Lタブ</div>
+      <div class="section-path">/admin/mgmt-accounting/daily-pl</div>
+      <div class="section-desc">日ごと・店舗ごとの損益。異常な日を見つけるための画面です。</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">月次との違い</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>項目</th><th>全社管理（月次）</th><th>日次P&amp;L</th></tr></thead>
+      <tbody>
+        <tr><td>売上</td><td>入金額（手数料控除後）</td><td>POSの計上額（手数料は別行）</td></tr>
+        <tr><td>食材費</td><td>その月の仕入実績</td><td><strong>同じ仕入実績</strong>を日別売上比で按分</td></tr>
+        <tr><td>人件費</td><td>月額</td><td>日割り</td></tr>
+        <tr><td>経費</td><td>月額</td><td>日割り（CK分は全店に均等配分）</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip info"><span class="tip-icon">ℹ</span>
+      <div><strong>食材費は両ページで一致します。</strong>売上の基準が違うため、利益額には差が出ます。
+        月単位の判断は全社管理、日々の動きは日次P&amp;Lを使ってください。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">KPIカード（7枚）</div>
+    <div class="status-flow">
+      <span class="chip blue">総売上</span><span class="arrow">−</span>
+      <span class="chip orange">手数料</span><span class="arrow">=</span>
+      <span class="chip">純売上</span><span class="arrow">−</span>
+      <span class="chip amber">食材費</span><span class="arrow">−</span>
+      <span class="chip violet">人件費</span><span class="arrow">−</span>
+      <span class="chip">経費</span><span class="arrow">=</span>
+      <span class="chip green">営業利益</span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:10px">
+      食材費カードの下に算出方法（「仕入実績を日別売上で按分」）が表示されます。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">表示の切り替え</div>
+    <ul class="steps">
+      <li class="step"><div class="step-num">📊</div><div class="step-body"><strong>サマリー</strong><p>期間合計を店舗別に一覧</p></div></li>
+      <li class="step"><div class="step-num">📅</div><div class="step-body"><strong>日別明細</strong><p>1日ずつ、店舗ごとにプラットフォーム内訳まで展開</p></div></li>
+    </ul>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      期間は「昨日 / 7日間 / 14日間 / 30日間」のボタンか、日付指定で選びます。</p>
+  </div>
+
+  <div class="tip danger"><span class="tip-icon">⚠</span>
+    <div><strong>「売上データが期間の一部しかありません」</strong>と出た場合、
+      人件費・家賃は全日分を計上しているため<strong>利益が実態より低く出ます</strong>。
+      月単位の損益は全社管理タブを見てください。</div>
+  </div>
+
+</section>
+<section class="section" id="sec-settings">
+  <div class="section-hero">
+    <div class="hero-icon">⚙️</div>
+    <div>
+      <div class="section-title">設定画面</div>
+      <div class="section-path">/admin/mgmt-accounting/settings</div>
+      <div class="section-desc">経費・予算・目標・為替レートの入力。ここが空だと数字が出ません。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">経費（最重要）</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      家賃・光熱費・ライセンスなど。<strong>ここが空だと利益が出せません。</strong>
+      1件も登録がないと、プライムコストまでしか計算されず、残りが利益のように見えてしまいます。</p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>都市・店舗・費目・月ごとに1行で登録します。CK共通の費用は店舗を <code>CK</code> にすると全店に均等配分されます。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">その他の設定</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>項目</th><th>用途</th><th>未設定の場合</th></tr></thead>
+      <tbody>
+        <tr><td>売上の手入力</td><td>自動取得できない売上を補う</td><td>自動取得値を使用</td></tr>
+        <tr><td>予算</td><td>予算対比の表示</td><td>対比が表示されない</td></tr>
+        <tr><td>全社目標</td><td>食材費率・プライム率の目標</td><td>差異が計算されない</td></tr>
+        <tr><td>為替レート</td><td>円換算（AED→JPY / PHP→JPY）</td><td>既定値 40.50 / 2.55 を使用</td></tr>
+        <tr><td>手数料率</td><td>Talabatの純額換算</td><td>既定値 30.1%</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+</section>
+<section class="section" id="sec-judge">
+  <div class="section-hero">
+    <div class="hero-icon">🧭</div>
+    <div>
+      <div class="section-title">経営判断の手順</div>
+      <div class="section-path">読み方の型</div>
+      <div class="section-desc">毎月この順番で見れば、問題の所在が絞り込めます。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">月次の確認手順</div>
+    <ul class="steps">
+      <li class="step"><div class="step-num">1</div><div class="step-body">
+        <strong>まず警告バナーを読む</strong>
+        <p>推定を含む月か、売上が不足している月か。ここを読まずに数字を見ると判断を誤ります。</p></div></li>
+      <li class="step"><div class="step-num">2</div><div class="step-body">
+        <strong>営業利益と利益率</strong>
+        <p>黒字か赤字か。集計途中の月は日数（例「23/31日」）を必ず確認します。</p></div></li>
+      <li class="step"><div class="step-num">3</div><div class="step-body">
+        <strong>4項目のどれが動いたか</strong>
+        <p>前月と比べて、売上・食材費・人件費・経費のどれが変わったのかを特定します。</p></div></li>
+      <li class="step"><div class="step-num">4</div><div class="step-body">
+        <strong>コスト分析タブで傾向を確認</strong>
+        <p>単月の異常か、3ヶ月続く傾向か。傾向なら構造的な問題です。</p></div></li>
+      <li class="step"><div class="step-num">5</div><div class="step-body">
+        <strong>店舗別で犯人を絞る</strong>
+        <p>拠点残が10%未満の月に限ります。それ以外は店舗別の数字を信用しません。</p></div></li>
+    </ul>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">水準の目安</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>指標</th><th>ドバイ</th><th>マニラ</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td>食材費率</td><td>30〜38%</td><td>38〜48%</td><td>売上は手数料控除後なので一般的な飲食業より高く出ます</td></tr>
+        <tr><td>人件費率</td><td>27〜38%</td><td>20〜38%</td><td class="muted"></td></tr>
+        <tr><td>経費率</td><td>29〜49%</td><td>22〜52%</td><td>家賃の比重が大きい</td></tr>
+        <tr><td>店舗別食材費率</td><td>19〜24%</td><td>42〜70%</td><td>店舗の売上は総額基準なので都市より低く出ます</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>絶対値より<strong>店舗間の差</strong>と<strong>月次の変化</strong>を見てください。
+        1店だけ10ポイント高ければ、その店に原因があります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">アラートの意味</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>アラート</th><th>意味</th><th>最初にすること</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip red">食材費 危険水準</span></td><td>基準（マニラ40% / ドバイ30%）を大きく超過</td><td>店舗別で偏りを確認。仕入価格か廃棄を疑う</td></tr>
+        <tr><td><span class="chip amber">プライムコスト 高水準</span></td><td>食材費＋人件費が65%超</td><td>どちらが押し上げているかを分解</td></tr>
+        <tr><td><span class="chip amber">売上減少</span></td><td>前月比で大きく減少</td><td>集計途中の月なら日数を確認（同日数で比較しています）</td></tr>
+        <tr><td><span class="chip blue">売上が未設定</span></td><td>その月の売上データが無い</td><td>Sales Data Input を確認</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+</section>
+<section class="section" id="sec-estimate">
+  <div class="section-hero">
+    <div class="hero-icon">📐</div>
+    <div>
+      <div class="section-title">推定値の仕組み</div>
+      <div class="section-path">青いバナーが出た時</div>
+      <div class="section-desc">実測できない部分を過去の実績から補います。根拠は必ず画面に表示されます。</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">ドバイ：未入金分の推定</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      各社の入金サイクルは数日〜数週間遅れます。当月分がまだ着金していない日を、
+      <strong>その社自身の実績日平均</strong>で補います。</p>
+    <div class="formula-box">
+      推定額 ＝ 未着日数 × その社の当月実績日平均<br>
+      <span style="color:var(--muted)">※ 当月の実績が7日未満なら前月の日平均を使用</span><br>
+      <span style="color:var(--muted)">※ 推定額は前月実績を上限とする</span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      <strong>当月のみ</strong>に適用します。締まった月は全サイクルが着金済みなので推定しません。
+      未来の日も推定しません（それは予測であって欠損の補完ではないため）。</p>
+    <div class="tip info"><span class="tip-icon">ℹ</span>
+      <div>プラットフォーム別の未着日数・日平均・推定額が画面に一覧表示されます。
+        日平均が実感と合わない社があれば、その推定は疑ってください。</div>
+    </div>
+  </div>
+
+  <div class="card violet-border">
+    <div class="card-title">マニラ：売上が入金を下回る月の再構成</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      記録された売上が、その月に実際に入金された額を下回ることは<strong>ありえません</strong>。
+      入金は受取実績だからです。この状態を検出したら、記録側の欠測とみなして再計算します。</p>
+    <div class="formula-box">
+      推定売上 ＝ 当月の入金額 ÷ 直近4ヶ月の「入金÷売上」中央値
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      中央値を使うのは、入金データが揃っていない月に引きずられないためです。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">集計途中の月</div>
+    <p style="font-size:12px;color:var(--muted)">
+      売上が月の一部しかない場合、<strong>食材費・人件費・経費も同じ日数に揃え</strong>ます。
+      揃えないと、23日分の売上に31日分の費用がぶつかり、利益が大きく赤字に見えます。</p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>「売上は23日分（31日中）です」という表示が出ている月は、
+        月末には数字が変わります。確定値として扱わないでください。</div>
+    </div>
+  </div>
+
+</section>
+<section class="section" id="sec-trust">
+  <div class="section-hero">
+    <div class="hero-icon">🔍</div>
+    <div>
+      <div class="section-title">数字を疑うべき時</div>
+      <div class="section-path">信頼度の判断</div>
+      <div class="section-desc">システムは欠落を隠さず表示しますが、表示されない種類の問題もあります。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">画面が知らせてくれる問題</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>表示</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip red">営業利益 算出不可</span></td><td>売上データが不足。利益を計算しても意味がない</td></tr>
+        <tr><td><span class="chip red">売上データが不足しています</span></td><td>その月の日次入力が欠けている</td></tr>
+        <tr><td><span class="chip amber">集計途中の月です</span></td><td>まだ月末に達していない、または入力が追いついていない</td></tr>
+        <tr><td><span class="chip blue">売上に推定を含みます</span></td><td>未入金分を推定で補っている</td></tr>
+        <tr><td><span class="chip amber">経費は前月から引き継ぎ</span></td><td>当月の経費が未登録</td></tr>
+        <tr><td><span class="chip amber">CK・倉庫に残っている分</span></td><td>大きければ納品記録の遅れ</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">画面では分からない問題</div>
+    <ul class="steps">
+      <li class="step"><div class="step-num">!</div><div class="step-body">
+        <strong>給与処理の未完</strong>
+        <p>在籍数より処理人数が少ない月は、人件費が過少です。Payroll 画面で処理済み人数を確認してください。</p></div></li>
+      <li class="step"><div class="step-num">!</div><div class="step-body">
+        <strong>納品記録を経ない持ち出し</strong>
+        <p>CKと同一敷地の店舗は、記録なしで食材を持ち出せてしまいます。その店の食材費は実態より低く出ます。</p></div></li>
+      <li class="step"><div class="step-num">!</div><div class="step-body">
+        <strong>発注の承認滞留</strong>
+        <p>承認待ちも計上する設計ですが、そもそも発注が入力されていなければ計上されません。</p></div></li>
+    </ul>
+    <div class="tip danger"><span class="tip-icon">⚠</span>
+      <div>いずれも<strong>現場の入力・運用に依存する問題</strong>で、システム側では検知できません。
+        数字が実感と大きく違う時は、まずこの3つを疑ってください。</div>
+    </div>
+  </div>
+
+</section>
+<section class="section" id="sec-faq">
+  <div class="section-hero">
+    <div class="hero-icon">❓</div>
+    <div>
+      <div class="section-title">よくある疑問</div>
+      <div class="section-path"></div>
+      <div class="section-desc"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">月次と日次で利益が違う</div>
+    <p style="font-size:12px;color:var(--muted)">
+      売上の基準が違うためです。月次は入金額（手数料控除後）、日次はPOSの計上額です。
+      <strong>食材費は両方で一致します。</strong>月単位の判断は月次を使ってください。</p>
+  </div>
+  <div class="card">
+    <div class="card-title">店舗の合計が都市合計と合わない</div>
+    <p style="font-size:12px;color:var(--muted)">
+      仕様です。店舗は「消費した分」、都市は「外部に支払った額」を測っています。
+      照合表で <strong>店舗計 ＋ 拠点残 ＝ 都市計</strong> になることを確認できます。</p>
+  </div>
+  <div class="card">
+    <div class="card-title">食材費率が飲食業の相場より高い</div>
+    <p style="font-size:12px;color:var(--muted)">
+      都市の売上が<strong>デリバリー手数料を引いた後の金額</strong>だからです。
+      手数料は売上の30〜50%あります。総額基準に直せば一般的な水準に収まります。
+      目標値もこの基準に合わせて設定してください。</p>
+  </div>
+  <div class="card">
+    <div class="card-title">前月から経費が引き継がれている</div>
+    <p style="font-size:12px;color:var(--muted)">
+      当月の請求書が届く前だからです。月末に設定画面で実額に更新してください。
+      更新すれば引き継ぎ表示は消えます。</p>
+  </div>
+  <div class="card">
+    <div class="card-title">数字を確定させたい</div>
+    <p style="font-size:12px;color:var(--muted)">
+      月末＋数日待ってください。売上の入力完了、入金の着金、経費の登録が揃った時点で確定します。
+      警告バナーが消えていれば確定値と考えて構いません。</p>
+  </div>
+
+</section>
+</main>
+<script>
+function show(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const s=document.getElementById('sec-'+id);
+  if(s)s.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick')==="show('"+id+"')")n.classList.add('active');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
