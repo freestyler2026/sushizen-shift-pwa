@@ -14324,3 +14324,41 @@ vs マスタ99/155）。名称は空白の連続と大小文字を無視して�
   Ramen + Sushi Roll Combo (4pcs) 427（California Roll 4pcs がマスタに無い）/
   Ramen + Side Dish & Rice 209 / Gyudon Beef Bowl 192 / Black Tonkotsu Ramen (Garlic) 164
 - ドバイ未マッピング: 2 Onigiri of Your Choice 68 ほか少量
+
+## 2026-08-26 管理会計 — 数値の全面監査と是正
+
+### 確定した計算方針
+- **食材費は仕入ベース**（両都市）。月次の仕入実績を日別売上比で按分する。
+  `_DAILY_FOOD_FROM_ITEMS_CITIES` に都市を入れれば「販売数×原価」に戻せる。
+  仕入ベースを選んだ理由は精度。月次と同じ数字を割り振るので原理的に乖離しない。
+  販売数×原価はレシピの網羅率に依存する（マニラ92.8%、ドバイは商品フィードが実売の5%）。
+- **発注は承認待ち（IN_REVIEW等）も計上**。現場では納品が先で承認が後追いのため。
+  除外すると消費実態より40%低く出た。
+- **倉庫・CK仕入の除外は品目単位**。発注単位だと1行のせいで他社仕入まで消えた（8月36件31万PHP）。
+- **店舗別売上**: マニラ=manila_daily_sales（店内飲食込み）、ドバイ=pos_revenue_location_daily を
+  都市合計に按分。入金(ar_payouts)は店舗識別子が社ごとにバラバラで使えない。
+- **ドバイ日次売上**は pos_revenue_location_daily（channel_daily は疎で7月15日分しかない）。
+  純額は月次の入金実績に較正（係数0.31〜0.35）。
+
+### Careem ゾーン → 店舗（careem_outlet_mapping.os_store_code に記録）
+    Al Jaffiliya → AM (Al Mina)   ※ALJをArjanと推測していたのは誤り
+    Al Barsha South → ARJ (Arjan) ※Al Barsha ではない
+    Al Barsha 3 → AB (Al Barsha)  ※All Veggie Sushi が1店のみで確定
+    Al Mizhar → 割当なし（Mirdif・閉店）
+    CAREEM_SZ_AM は Al Mizhar であって Al Mina ではない（コードが衝突している）
+
+### 見つけた重大バグ
+1. **7月マニラ日次売上を毎回削除**していた（db_manila_daily_ops.py のテーブル初期化に
+   一度きりのはずのKlikit purge が残存）。手入力データが起動のたびに消えていた。
+2. **GrabFoodの二重計上**（grab_export と storehub_api）。storehub側は純額が総額の3%で
+   手数料率55%に膨張、純売上が1/3過少になっていた。
+3. **cost-trend が独立実装**で人件費が全月ゼロ。get_mgmt_cost_summary を呼ぶ形に統一。
+4. **経費・食材費レートの未登録が「0」として黙って通っていた** → 警告表示に。
+5. Excel取込の異常値（2026-03 CK家賃が店舗セル311,444×3 vs 合計欄75,000）→ 合計欄で按分補正。
+
+### 残タスク
+- **Cubao向けCK出庫が記録されていない**（3ヶ月でTAFT219件に対しCUB15件、8月は0件）。
+  CKと同一敷地のため納品記録を作らずに持ち出している。運用の是正が必要。
+- 店舗別食材費にCK納品を全額載せると都市合計を78万PHP超過する。仕切り価格の扱いを要決定。
+- Talabatの入金は SZ/RZ/AVS のブランド単位で店舗配分不可（ユーザー了承済み）。
+- マニラ 2025-10〜2026-02 の経費が直近の3倍（按分補正では解消せず）。
