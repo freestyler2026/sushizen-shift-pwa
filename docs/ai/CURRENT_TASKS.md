@@ -170,8 +170,36 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
+### ✅ 認可欠落471件 — 計測層を導入（log モード稼働中）
+`app/api_authz.py` + `admin_auth_gate`。APIパスからチャンネルを導出し、拒否すべき要求を
+`api_authz_observations` に記録**するだけ**。挙動は不変（本番実測で確認済み）。
+
+```
+無権限STAFF  /api/admin/inventory/items  → 200（変化なし）
+無権限STAFF  /api/admin/assets           → 403（既に閉じた箇所は閉じたまま）
+HQ           全て 200
+```
+
+**稼働30分未満で、一括enforceが事故になる証拠が出た:**
+| HITS | PATH | ROLE / 誰 |
+|---:|---|---|
+| 5 | `/api/admin/payments/badge-count` | STAFF / Mary Jane Tegerero, Regine L. Pedernal |
+| 2 | `/api/admin/supplier-confirmations/badge` | MANILA_MANAGEMENT / Richard S. Gante |
+| 1 | `/api/admin/price-check/flagged-count` | MANILA_MANAGEMENT / Richard S. Gante |
+
+Richard S. Gante は Manila Management で、supplier-confirmations も price-check も
+本来使う業務。**一括で塞いでいたらこの人が止まっていた。**
+
+**有効化の手順（ユーザー判断）:**
+1. `GET /api/admin/authz-survey` を読む（`admin.security` 権限）
+2. その区画に「正当な利用者」が出ていないことを確認
+3. `ADMIN_AUTHZ_ENFORCE=/api/admin/xxx` + `ADMIN_AUTHZ_MODE=enforce` を設定
+4. 問題があれば config を消すだけで即戻る（デプロイ不要）
+
 ### 残課題
-- `/api/admin/*` の認可欠落471件（log モードでの計測から着手）
+- 上記の区画ごとの enforce 切り替え（データが溜まってから）
+- badge系エンドポイントは NavBar が全員分ポーリングしている。権限で隠すなら
+  クライアント側も同じ権限で判定しないと403ノイズになる
 - `renewals_api.py` / `discord_api.py` の `startswith("channel.admin.")` が過度に広い
   — admin権限を1つでも持てば通る（例: Disposal閲覧権限だけで Renewals に入れる）
 

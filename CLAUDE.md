@@ -212,6 +212,19 @@ npx tsc --noEmit
 
 25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
 
+28. **`/api/admin/*` の認可は「まず計測、次に区画ごとに有効化」** → 2026-08-27 導入。471件が認証のみで無防備だったが、一括で塞ぐと現に働いている人を止める。
+    - 実装: `app/api_authz.py` + `admin_auth_gate` 内のチェック。APIパス→チャンネルを導出し（`_EXPLICIT` に例外表）、拒否すべき要求を `api_authz_observations` に記録**するだけ**で通す。
+    - 環境変数:
+      ```bash
+      heroku config:get ADMIN_AUTHZ_MODE -a sushizen-shift-app     # 未設定=log（既定・無害）
+      heroku config:set ADMIN_AUTHZ_ENFORCE=/api/admin/inventory -a sushizen-shift-app  # 区画ごとに有効化
+      heroku config:set ADMIN_AUTHZ_MODE=enforce -a sushizen-shift-app
+      ```
+      **enforce は `ADMIN_AUTHZ_ENFORCE` に列挙したプレフィックスにしか効かない。** 戻すのは config を消すだけ（デプロイ不要）。
+    - 確認: `GET /api/admin/authz-survey`（`admin.security` 権限が必要）。**有効化する前に必ず読む** — その業務を実際にしている人の名前が出ている行は、有効化すればその人が止まる。
+    - マッピングできないサブツリーは**推測せず素通り**させる。誤った推測で締め出す方が有害。
+    - 計測は絶対にリクエストを壊してはいけない（全体を try で囲み、例外はログのみ）。
+
 27. **権限の検証は Impersonation（Login As）で行う — 合成トークンでは嘘の結果が出る** → 2026-08-27 に修正。
     - `/admin/staff/roles` の "Login As" → 対象者として本番を操作できる。終了は上部バナーの Exit。
     - トークンは **httpOnly Cookie `sz_imp`**（`/api/admin/impersonate` が発行）。JSからは読めない。プロキシは `sz_imp` → `sz_access` の順で採用する。
