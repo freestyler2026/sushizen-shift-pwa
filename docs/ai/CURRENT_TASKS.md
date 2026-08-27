@@ -170,7 +170,45 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
-## 🔴 本番停止 (2026-08-27 11:38–11:41 GST, 約3分)
+## ✅ 解決: 本番メモリ枯渇 (2026-08-27) — 原因特定・修正・安定確認
+
+### 結論
+**`list_pending_po_invoice_checks` が base64 画像列を最大500行ぶん SELECT していた。**
+
+| 列 | 件数 | 合計 | 最大/行 |
+|---|---:|---:|---:|
+| `proc_po_invoice_checks.photo_data` | 416 | **864 MB** | 5.8 MB |
+| `proc_receivings.invoice_photo_b64` | 379 | **839 MB** | 5.8 MB |
+
+web dyno は 1024MB・常時約295MB。100行読むだけで **one-off dyno が即死**（完全再現）。
+
+### 修正と実測
+一覧は真偽値のみ返し、画像は開いた1件だけ個別取得（`GET /api/admin/procurement/po-invoice-checks/{id}/photo`）。
+
+```
+修正前: limit=100 → プロセス死亡
+修正後: limit=200 / 148件 → +3MB
+本番:   295〜302MB で平坦、R14/R15 ゼロ、クラッシュ ゼロ
+```
+
+### 私の変更は原因ではなかった（証拠）
+2回目のクラッシュ時 `ADMIN_AUTHZ_MODE=off`（＝新規コードはホットパス外）。
+80並列バースト +25MB、給与エンドポイント +2MB、`my_month` +1MB と個別に実測して除外済み。
+
+### 恒久的な計測を残した
+`main.py` の `memory_watch` ミドルウェア。**落ちたリクエストはアクセスログに残らない**（uvicornは完了時にしか記録しない）ため、入口/出口でRSSを記録する。閾値はデプロイ不要で調整可:
+```bash
+heroku config:set RSS_ALARM_MB=650 RSS_DELTA_MB=15 -a sushizen-shift-app
+```
+⚠️ RSSはプロセス全体なので、重い処理と重なったリクエストが濡れ衣を着る（badge系が"+218MB"と誤表示）。必ず単独実測で裏を取る。
+
+### 残る同型リスク
+- 他の base64 列（`qc_reference_images.image_b64` 等）を一覧で引いていないか
+- **アップロード口12箇所以上のうち、クライアント圧縮があるのは Store Supplier Orders だけ**。写真1枚でRSSが38〜50MB増える（教訓24の `prepareUpload()` を展開する余地）
+
+---
+
+## 🔴 本番停止の記録 (2026-08-27 11:38–11:41 / 12:01–12:05 / 12:35 GST)
 
 **R15 — Memory quota vastly exceeded**: web dyno が `mem=2162M(211.2%)` で SIGKILL。
 `heroku ps:restart web` で復旧。**原因は未特定。**

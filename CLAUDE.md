@@ -212,6 +212,18 @@ npx tsc --noEmit
 
 25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
 
+29. **画像を base64 で DB に持つ列を、一覧クエリで SELECT しない** → 2026-08-27 に本番を3回落とした原因。
+    - `proc_po_invoice_checks.photo_data` = **416行で864MB**（最大5.8MB/行）、`proc_receivings.invoice_photo_b64` = **379行で839MB**。
+    - `list_pending_po_invoice_checks` がこの2列を **最大500行ぶん** SELECT していた。100行読むだけで one-off dyno が即死（＝完全再現）。web dyno は 1024MB、常時 約295MB。
+    - 修正: 一覧は `has_photo_data` / `has_store_invoice_photo` の真偽値だけ返し、画像は開いた1件だけ `GET /api/admin/procurement/po-invoice-checks/{id}/photo` で取る。**148行 +3MB**（修正前は死亡）。
+    - ⚠️ **同じ形の列がまだある**（`qc_reference_images.image_b64` 等）。一覧系で base64 列を引いていないか、新規クエリを書くたびに確認する。
+    - 調査手順: `heroku labs:enable log-runtime-metrics` → `sample#memory_total` を追う。**落ちたリクエストはアクセスログに残らない**（uvicornは完了時にしか記録しない）ので、`main.py` の `memory_watch` ミドルウェアが入口/出口でRSSを記録する。閾値は環境変数で**デプロイ不要**に調整可能:
+      ```bash
+      heroku config:set RSS_ALARM_MB=650 RSS_DELTA_MB=15 -a sushizen-shift-app
+      ```
+    - ⚠️ **RSSはプロセス全体なので、重い処理と重なっただけのリクエストが濡れ衣を着る**（badge系が "+218MB" と出た）。必ず one-off dyno で単独実測して裏を取ること。
+    - ⚠️ **アップロード口は12箇所以上あり、クライアント圧縮があるのは Store Supplier Orders だけ**。写真1枚で RSS が 38〜50MB 増える（教訓24の `prepareUpload()` を他にも展開する余地がある）。
+
 28. **`/api/admin/*` の認可は「まず計測、次に区画ごとに有効化」** → 2026-08-27 導入。471件が認証のみで無防備だったが、一括で塞ぐと現に働いている人を止める。
     - 実装: `app/api_authz.py` + `admin_auth_gate` 内のチェック。APIパス→チャンネルを導出し（`_EXPLICIT` に例外表）、拒否すべき要求を `api_authz_observations` に記録**するだけ**で通す。
     - 環境変数:
