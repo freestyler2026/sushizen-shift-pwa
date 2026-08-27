@@ -31,6 +31,7 @@ import {
   BADGE_SUCCESS,
   TABLE_ROW,
   TABLE_CELL,
+  INPUT_CLASS,
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
 import { MgmtChannelTabBar } from "../MgmtChannelTabs";
@@ -445,6 +446,216 @@ function OptionChips({ options }: { options: ResponseOption[] }) {
 
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
+
+// ─── Handling record ──────────────────────────────────────────────────────────
+
+interface Handling {
+  photo_checked?: boolean;
+  issue_found?: boolean | null;
+  issue_category?: string;
+  issue_detail?: string;
+  feedback_discord?: boolean;
+  feedback_kitchen?: boolean;
+  training_done?: boolean;
+  training_note?: string;
+  handled_by?: string;
+  handled_at?: string;
+}
+
+const ISSUE_CATEGORIES: { key: string; label: string }[] = [
+  { key: "portioning",     label: "Portioning / quantity" },
+  { key: "freshness",      label: "Freshness" },
+  { key: "temperature",    label: "Temperature" },
+  { key: "presentation",   label: "Presentation / plating" },
+  { key: "packaging",      label: "Packaging" },
+  { key: "wrong_item",     label: "Wrong item" },
+  { key: "foreign_object", label: "Foreign object" },
+  { key: "other",          label: "Other" },
+];
+
+function Check({
+  checked, onChange, label,
+}: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-violet-500"
+      />
+      {label}
+    </label>
+  );
+}
+
+/**
+ * What was done about this exception.
+ *
+ * Closing a task used to record nothing at all, so a week later there was no way
+ * to tell a handled one from an ignored one. These are the steps as the work
+ * actually happens: look at the photo, decide whether there is a problem, tell
+ * the team, train if it needs training.
+ */
+function HandlingPanel({
+  task, onSaved,
+}: { task: ManagementTask; onSaved: (t: ManagementTask) => void }) {
+  const saved = (task.context?.handling ?? null) as Handling | null;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [form, setForm] = useState<Handling>({
+    photo_checked: saved?.photo_checked ?? false,
+    issue_found: saved?.issue_found ?? null,
+    issue_category: saved?.issue_category ?? "",
+    issue_detail: saved?.issue_detail ?? "",
+    feedback_discord: saved?.feedback_discord ?? false,
+    feedback_kitchen: saved?.feedback_kitchen ?? false,
+    training_done: saved?.training_done ?? false,
+    training_note: saved?.training_note ?? "",
+  });
+  const [closeTask, setCloseTask] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/management/tasks/${task.id}/handling`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, close_task: closeTask }),
+      });
+      if (!res.ok) throw new Error((await res.text()).slice(0, 200) || `Save failed (${res.status})`);
+      const data = await res.json();
+      onSaved(data.task as ManagementTask);
+      setOpen(false);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className={T_LABEL}>Handling</div>
+        {saved?.handled_at ? (
+          <span className="text-[11px] text-emerald-300">
+            {saved.handled_by} · {fmtTime(saved.handled_at)}
+          </span>
+        ) : (
+          <span className="text-[11px] text-amber-300">Not recorded</span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="ml-auto rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-zinc-300 hover:bg-white/10 hover:text-white"
+        >
+          {open ? "Cancel" : saved?.handled_at ? "Update" : "Record"}
+        </button>
+      </div>
+
+      {!open && task.response_note && (
+        <div className="mt-1.5 text-xs text-zinc-300">{task.response_note}</div>
+      )}
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          <Check
+            checked={!!form.photo_checked}
+            onChange={(v) => setForm((f) => ({ ...f, photo_checked: v }))}
+            label="提出写真を確認した"
+          />
+
+          <div className="space-y-1.5">
+            <div className={T_LABEL}>問題の有無</div>
+            <div className="flex flex-wrap items-center gap-3">
+              {[
+                { v: false, l: "問題なし" },
+                { v: true,  l: "問題あり" },
+              ].map((o) => (
+                <label key={String(o.v)} className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-300">
+                  <input
+                    type="radio"
+                    checked={form.issue_found === o.v}
+                    onChange={() => setForm((f) => ({ ...f, issue_found: o.v }))}
+                    className="h-3.5 w-3.5 accent-violet-500"
+                  />
+                  {o.l}
+                </label>
+              ))}
+            </div>
+            {form.issue_found === true && (
+              <div className="space-y-2 pt-1">
+                <SelectDark
+                  value={form.issue_category ?? ""}
+                  onChange={(v) => setForm((f) => ({ ...f, issue_category: v }))}
+                  options={[
+                    { value: "", label: "— Issue category —" },
+                    ...ISSUE_CATEGORIES.map((c) => ({ value: c.key, label: c.label })),
+                  ]}
+                />
+                <textarea
+                  value={form.issue_detail ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, issue_detail: e.target.value }))}
+                  rows={2}
+                  placeholder="問題の内容"
+                  className={INPUT_CLASS + " w-full text-xs"}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className={T_LABEL}>Feedback / Training</div>
+            <Check
+              checked={!!form.feedback_discord}
+              onChange={(v) => setForm((f) => ({ ...f, feedback_discord: v }))}
+              label="Discord でフィードバックした"
+            />
+            <Check
+              checked={!!form.feedback_kitchen}
+              onChange={(v) => setForm((f) => ({ ...f, feedback_kitchen: v }))}
+              label="キッチンでフィードバックした"
+            />
+            <Check
+              checked={!!form.training_done}
+              onChange={(v) => setForm((f) => ({ ...f, training_done: v }))}
+              label="トレーニングを実施した"
+            />
+            {form.training_done && (
+              <textarea
+                value={form.training_note ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, training_note: e.target.value }))}
+                rows={2}
+                placeholder="トレーニング内容"
+                className={INPUT_CLASS + " w-full text-xs"}
+              />
+            )}
+          </div>
+
+          {err && <div className="text-xs text-red-400">{err}</div>}
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Check checked={closeTask} onChange={setCloseTask} label="対応完了として閉じる" />
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={busy}
+              className="ml-auto rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-400 disabled:opacity-50"
+            >
+              {busy ? "Saving…" : "Save handling"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Task row ─────────────────────────────────────────────────────────────────
+
 interface TaskRowProps {
   task: ManagementTask;
   template: ActionTemplate | null;
@@ -453,9 +664,10 @@ interface TaskRowProps {
   onToggle: () => void;
   onClaim?: (task: ManagementTask) => void;
   currentUser?: string;
+  onHandled?: (task: ManagementTask) => void;
 }
 
-function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentUser }: TaskRowProps) {
+function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentUser, onHandled }: TaskRowProps) {
   const shortfall = shortfallSummary(task.context);
   return (
     <div className={TABLE_ROW + " border-white/8"}>
@@ -571,6 +783,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
               Awaiting manager response…
             </div>
           )}
+          {onHandled && <HandlingPanel task={task} onSaved={onHandled} />}
           <TaskThread taskId={task.id} />
         </div>
       )}
@@ -941,6 +1154,7 @@ export default function BODashboardPage() {
                   onToggle={() => toggleExpand(task.id)}
                   onClaim={claimTask}
                   currentUser={getAuth()?.staffName || ""}
+                  onHandled={(t) => setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x)))}
                 />
               ))}
             </div>

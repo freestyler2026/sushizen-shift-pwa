@@ -1,0 +1,379 @@
+<title>誰も見ていなかった556件</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Source+Code+Pro:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --paper:     #FAF8F4;
+    --surface:   #FFFFFF;
+    --surface-2: #EFEBE4;
+    --ink:       #1B1714;
+    --ink-2:     #4E463E;
+    --ink-3:     #7A7167;
+    --rule:      #DDD6CB;
+    --rule-soft: #EAE4DA;
+    --alarm:     #A82D22;
+    --alarm-bg:  #F7E7E4;
+    --warn:      #8A6208;
+    --warn-bg:   #F8EFD9;
+    --ok:        #2C6650;
+    --ok-bg:     #E2EFE9;
+    --shadow: 0 1px 2px rgba(27,23,20,.05), 0 10px 26px rgba(27,23,20,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14120F; --surface: #1C1916; --surface-2: #262119;
+      --ink: #F0EAE1; --ink-2: #BEB4A7; --ink-3: #8C8377;
+      --rule: #382F26; --rule-soft: #2B241D;
+      --alarm: #E8897C; --alarm-bg: #2E1A17;
+      --warn: #DDAE5C; --warn-bg: #2B2316;
+      --ok: #6FBFA0; --ok-bg: #16281F;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14120F; --surface: #1C1916; --surface-2: #262119;
+    --ink: #F0EAE1; --ink-2: #BEB4A7; --ink-3: #8C8377;
+    --rule: #382F26; --rule-soft: #2B241D;
+    --alarm: #E8897C; --alarm-bg: #2E1A17;
+    --warn: #DDAE5C; --warn-bg: #2B2316;
+    --ok: #6FBFA0; --ok-bg: #16281F;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.9; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 54px; }
+  .num { font-family: "Source Code Pro", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  .eyebrow {
+    font-family: "Source Code Pro", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--alarm); font-weight: 600;
+  }
+  h1 {
+    font-family: "Zen Old Mincho", "Yu Mincho", serif; font-weight: 700;
+    font-size: clamp(30px, 5.4vw, 46px); line-height: 1.35; margin: 0;
+    letter-spacing: .01em; text-wrap: balance;
+  }
+  .standfirst { margin: 0; max-width: 60ch; color: var(--ink-2); font-size: 16.5px; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 6px 28px; padding-top: 18px; border-top: 1px solid var(--rule);
+    font-family: "Source Code Pro", ui-monospace, monospace; font-size: 12.5px; color: var(--ink-3);
+  }
+  .meta b { color: var(--ink-2); font-weight: 400; }
+
+  section { display: flex; flex-direction: column; gap: 22px; }
+  h2 {
+    font-family: "Zen Old Mincho", serif; font-size: 23px; font-weight: 700; margin: 0;
+    padding-bottom: 12px; border-bottom: 2px solid var(--ink);
+  }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 64ch; }
+
+  /* funnel — the whole story in four bars */
+  .funnel { display: flex; flex-direction: column; gap: 2px; }
+  .stage {
+    display: grid; grid-template-columns: 180px 1fr 92px; align-items: center; gap: 16px;
+    padding: 12px 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .stage:last-child { border-bottom: 0; }
+  .stage .lbl { font-size: 14px; color: var(--ink-2); }
+  .stage .bar { height: 26px; border-radius: 2px; min-width: 2px; }
+  .stage .val {
+    text-align: right; font-family: "Source Code Pro", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 600;
+  }
+  .stage.zero .val { color: var(--alarm); }
+  .stage.zero .lbl { color: var(--ink); font-weight: 700; }
+  @media (max-width: 620px) {
+    .stage { grid-template-columns: 1fr 72px; }
+    .stage .bar { grid-column: 1 / -1; }
+  }
+
+  .cause { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); overflow: hidden; }
+  .cause > .head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px;
+    padding: 18px 24px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .cause h3 { flex: 1 1 auto; min-width: 200px; }
+  .chip {
+    font-family: "Source Code Pro", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 600; padding: 3px 9px; border-radius: 2px; white-space: nowrap;
+  }
+  .chip.fixed { background: var(--ok-bg);    color: var(--ok); }
+  .chip.open  { background: var(--warn-bg);  color: var(--warn); }
+  .chip.crit  { background: var(--alarm-bg); color: var(--alarm); }
+  .rows { display: flex; flex-direction: column; }
+  .row { display: grid; grid-template-columns: 92px 1fr; gap: 0 20px; padding: 15px 24px; border-bottom: 1px solid var(--rule-soft); }
+  .row:last-child { border-bottom: 0; }
+  .row > dt {
+    font-family: "Source Code Pro", ui-monospace, monospace; font-size: 11px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding-top: 6px;
+  }
+  .row > dd { margin: 0; color: var(--ink-2); }
+  .row > dd strong { color: var(--ink); font-weight: 700; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; gap: 4px; } .row > dt { padding-top: 0; } }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 10px 16px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--rule-soft); }
+  thead th {
+    font-family: "Source Code Pro", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+    font-weight: 600; background: var(--surface-2); border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { font-family: "Source Code Pro", ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: right; }
+  td.bad { color: var(--alarm); font-weight: 700; }
+
+  code {
+    font-family: "Source Code Pro", ui-monospace, monospace; font-size: .87em;
+    background: var(--surface-2); padding: 1.5px 5px; border-radius: 2px; color: var(--ink);
+  }
+  .callout {
+    border-left: 3px solid var(--warn); background: var(--warn-bg);
+    border-radius: 0 3px 3px 0; padding: 18px 22px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .callout h3 { color: var(--warn); }
+  .callout p { color: var(--ink-2); max-width: 62ch; }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 20px;
+    font-family: "Source Code Pro", ui-monospace, monospace; font-size: 12px;
+    color: var(--ink-3); line-height: 1.9;
+  }
+</style>
+
+<div class="wrap">
+
+  <header style="display:flex;flex-direction:column;gap:18px;">
+    <div class="eyebrow">Store Operation Management Channel · 調査記録</div>
+    <h1>誰も見ていなかった556件</h1>
+    <p class="standfirst">
+      「Management Inbox のアラートが0件だが、Product Scoring では今日 TAFT に C が付いている」
+      という報告から調査しました。検知は正常に動いていました。止まっていたのはその先です。
+    </p>
+    <div class="meta">
+      <span><b>報告</b> 経理・上島</span>
+      <span><b>調査・修正</b> 2026-08-27</span>
+      <span><b>対象</b> Manila / Dubai 全店</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>何が起きていたか</h2>
+    <p class="lede">
+      例外は検知され、タスクとして記録されていました。<strong>そのうち1件もマネージャーに届いていませんでした。</strong>
+    </p>
+
+    <div class="funnel">
+      <div class="stage">
+        <span class="lbl">検知されたタスク</span>
+        <span class="bar" style="background:var(--ok);width:100%"></span>
+        <span class="val num">556</span>
+      </div>
+      <div class="stage zero">
+        <span class="lbl">マネージャーへ送信</span>
+        <span class="bar" style="background:var(--alarm);width:2px"></span>
+        <span class="val num">0</span>
+      </div>
+      <div class="stage zero">
+        <span class="lbl">マネージャーの回答</span>
+        <span class="bar" style="background:var(--alarm);width:3px"></span>
+        <span class="val num">3</span>
+      </div>
+      <div class="stage">
+        <span class="lbl">未対応のまま</span>
+        <span class="bar" style="background:var(--warn);width:80%"></span>
+        <span class="val num">445</span>
+      </div>
+    </div>
+
+    <p class="lede">
+      Manager Inbox は「BOが送信したタスク」を表示します。<strong>一度も送信されていないため、常に0件でした。</strong>
+      マネージャーが対応した結果0になったのではありません。
+    </p>
+  </section>
+
+  <section>
+    <h2>原因</h2>
+
+    <article class="cause">
+      <div class="head">
+        <h3>① Product Score に担当者が設定されていなかった</h3>
+        <span class="chip fixed">修正済み</span>
+      </div>
+      <dl class="rows">
+        <div class="row">
+          <dt>状況</dt>
+          <dd>担当の割り当ては<strong>1件だけ</strong>で、4種類の例外しかカバーしていませんでした。<code>product_score_c</code> はどこにも含まれず、<strong>176件すべてが担当者なし</strong>。Dubai は割り当てが1件もありませんでした。</dd>
+        </div>
+        <div class="row">
+          <dt>影響</dt>
+          <dd>BO Dashboard は担当者で絞り込むため、<strong>これらのタスクは誰の画面にも出ませんでした。</strong></dd>
+        </div>
+        <div class="row">
+          <dt>なぜ<br>起きたか</dt>
+          <dd>担当を「種類ごとに列挙する」方式だったため、<strong>列挙されなかった種類は自動的に無主になります。</strong>検知機能を追加しても、担当設定を足さなければ気付かれません。</dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="cause">
+      <div class="head">
+        <h3>② BOからマネージャーへの送信が一度も行われていない</h3>
+        <span class="chip crit">運用の停止</span>
+      </div>
+      <dl class="rows">
+        <div class="row">
+          <dt>状況</dt>
+          <dd>556件中、<strong>送信済み0件</strong>。送信の仕組み自体は正常に動作します（送信すると <code>sent_at</code> が記録される）。<strong>運用として送信操作が行われていませんでした。</strong></dd>
+        </div>
+        <div class="row">
+          <dt>影響</dt>
+          <dd>エスカレーション・未対応記録・Area Manager の週次スコアは、いずれも送信を起点に動きます。<strong>これらは入力ゼロのまま稼働していました。</strong></dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="cause">
+      <div class="head">
+        <h3>③ 過去の「対応済み」は対応の記録ではない</h3>
+        <span class="chip fixed">把握済み</span>
+      </div>
+      <dl class="rows">
+        <div class="row">
+          <dt>状況</dt>
+          <dd>閉じられている110件は、すべて <code>closed_by = "system (historical backfill)"</code>。<strong>移行時の一括処理で閉じられたもので、対応内容の記録はありません。</strong></dd>
+        </div>
+        <div class="row">
+          <dt>意味</dt>
+          <dd>「マネージャーが対応してアラートが0になったのでは」という推測に対しては、<strong>対応の記録は存在しない</strong>というのが答えです。</dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="cause">
+      <div class="head">
+        <h3>④ 止まっていることが、どの画面からも分からなかった</h3>
+        <span class="chip fixed">修正済み</span>
+      </div>
+      <dl class="rows">
+        <div class="row">
+          <dt>状況</dt>
+          <dd><strong>「今日は例外なし」と「全部溜まったまま」が、画面上まったく同じに見えていました。</strong>これが4か月分が誰にも気付かれなかった理由です。</dd>
+        </div>
+      </dl>
+    </article>
+  </section>
+
+  <section>
+    <h2>対処した内容</h2>
+
+    <h3>担当設定の画面を追加（Management Channel → Owners）</h3>
+    <p class="lede">
+      HQ が「どの例外を誰が担当するか」を指定します。設定は変更するまで維持され、検知時にこの設定が使われます。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>仕様</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>設定単位</td><td>例外の種類 × 都市（Manila / Dubai を個別に設定）</td></tr>
+          <tr><td>保存時の挙動</td><td><strong>既に溜まっている未対応タスクの担当も付け替える</strong>（翌日からではなく即座に反映）</td></tr>
+          <tr><td>一覧に出る種類</td><td>テンプレート登録済みの9種類＋<strong>実際に発生した全種類</strong>（テンプレート未登録の種別も表示）</td></tr>
+          <tr><td>未設定の扱い</td><td>担当なしのまま。<strong>画面上部に赤で警告し、件数を明示する</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>担当者不在時の引き取り</h3>
+    <p class="lede">
+      BO Dashboard の各タスクに担当者名を表示し、<strong>「Take over」ボタン</strong>を追加しました。
+      押すと自分が担当になります。HQ の設定を書き換える必要はありません。
+      担当者が休みの日でも、その場で引き取って処理できます。
+    </p>
+
+    <h3>メニューのバッジ表示</h3>
+    <p class="lede">
+      BO Dashboard のメニューに未対応件数を表示します。開かなくても異常が分かります。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>表示</th><th>条件</th></tr></thead>
+        <tbody>
+          <tr><td class="bad">赤バッジ</td><td>重大（red）あり／<strong>2日以上放置</strong>あり／<strong>担当者なし</strong>あり のいずれか</td></tr>
+          <tr><td>橙バッジ</td><td>未対応はあるが上記に該当しない</td></tr>
+          <tr><td>表示なし</td><td>未対応が0件</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lede">
+      <strong>担当者なしを「赤」に含めています。</strong>誰も見ることになっていないタスクが、3種類のうち最も危険なためです。
+    </p>
+  </section>
+
+  <section>
+    <h2>現在の状態</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>例外の種類</th><th style="text-align:right">未対応</th></tr></thead>
+        <tbody>
+          <tr><td>PM Backup Report Missing</td><td class="n">316</td></tr>
+          <tr><td>Product Score C or Below</td><td class="n">98</td></tr>
+          <tr><td>Disposal Report Not Submitted</td><td class="n">10</td></tr>
+          <tr><td>Salmon Yield Alert</td><td class="n">7</td></tr>
+          <tr><td>Backup Below 50% of Par Level</td><td class="n">7</td></tr>
+          <tr><td>Backup Below 70% of Par Level</td><td class="n">4</td></tr>
+          <tr><td>その他（Salmon 廃棄・KPI 2種）</td><td class="n">3</td></tr>
+        </tbody>
+        <tfoot><tr><td style="font-weight:700;background:var(--surface-2)">合計</td><td class="n" style="font-weight:700;background:var(--surface-2)">445</td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>次にやること</h2>
+
+    <div class="callout">
+      <h3>1. HQ が担当を設定する</h3>
+      <p>
+        Management Channel → <strong>Owners</strong> タブで、9種類＋αの担当を指定してください。
+        現在は4種類・Manila のみで、<strong>Dubai は未設定です。</strong>
+        保存すれば、溜まっている445件にも担当が付きます。
+      </p>
+    </div>
+
+    <div class="callout">
+      <h3>2. BO の送信操作を運用に乗せる</h3>
+      <p>
+        これは機能の不具合ではありません。<strong>送信操作が行われないかぎり、マネージャーには何も届きません。</strong>
+        担当者に「タスクを確認して送信する」手順を明示的に伝える必要があります。
+        バッジが赤で445件と出ていても、押す人がいなければ数字は減りません。
+      </p>
+    </div>
+
+    <div class="callout">
+      <h3>3. 対応履歴の記録項目（未着手）</h3>
+      <p>
+        「提出写真の確認／問題の有無と分類／Discord・キッチンでのフィードバック／トレーニング実施と内容」を
+        記録できるようにする件は、まだ着手していません。記録用の列は既にあるため、<strong>入力画面と選択肢を定義するだけ</strong>で実現できます。
+        ただし<strong>送信の運用が始まらないと、記録する対応そのものが発生しません。</strong>1と2の後に着手するのが順序として安全です。
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    調査・修正 2026-08-27 ／ Store Operation Management Channel<br>
+    検知処理は Heroku worker で15分ごとに稼働しており、停止していません。<br>
+    担当設定は都市ごとに保持され、変更するまで維持されます。
+  </footer>
+
+</div>
