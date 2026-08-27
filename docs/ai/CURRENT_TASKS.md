@@ -35,11 +35,28 @@ Last updated: 2026-08-27 (Manual Shift をセル単位編集に移行 — デプ
 - **公開済みセルを削除 → publish が通る**（旧: 409 で不能）
 - 実際に詰まっていた Cubao 2026-08-31 を本番で開き、警告ゼロ・オーバーレイ書き込みゼロを確認
 
-### 🔴 残作業（要確認）
-1. **DTR Sync を実データで再検証すること。** publish が差分適用になったため、
-   変わっていない行の `shift_published_rows.updated_at` が更新されなくなった
-   （旧: 週全体が NOW()）。教訓14の方向としては改善だが未検証。
-2. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま。
+### ✅ ダブルチェック実施 (2026-08-27)
+- **DTR Sync — 問題なし。** `sync-dtr-os` の公開シフト参照は既に
+  `DISTINCT ON (staff_name, work_date) ORDER BY r.updated_at DESC` で、
+  行単位の書き込み時刻を見る設計だった（＝差分適用と整合）。
+  Preview 実行（8/16–8/26, 553セッション）で errors 0 / suspicious 0、
+  `shift_data_missing` は Anthony・Tricia の2名のみ＝**教訓16の既知案件で、今回の変更起因ではない**。
+- 機能確認: 分割シフトの1コマ削除／Day Off等の特殊区分／Paint Mode／
+  AI Draft 読込（3行→2セル、分割が正しく1セルに統合）／Load from DB／
+  Published View の削除／**通信断→週切替→復帰でキューが元の週に着地**、すべて動作確認済み。
+- 二重 publish は no-op。Published View で消した行は再 publish で復活しない。
+
+### 🔴 残課題
+1. **Role Management が Manual Shift を制御できていない（今回の変更以前からの問題）。**
+   実データ確認: `channel.admin.manual_shift.view` を持つのは ADMIN と HR_STAFF のみ。
+   しかし `channel.admin.staff.manage` は8ロール（HQ / ADMIN / HR_MANAGER / HR_STAFF /
+   MANAGEMENT / MANAGER / MANILA_MANAGEMENT / DUBAI_MANAGEMENT）が保持しており、
+   シフト編集APIはこちらを見ている。さらに NavBar は
+   `canAccessAdminNav(auth) || hasChannelAccess(...)` なので、
+   **Manual Shift のトグルをOFFにしても誰も締め出せない。**
+   → 締め方を変えると現に働いている人が止まるため、**方針はユーザー判断待ち**。
+2. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま
+   （保存すると自分の値で上書き＝後勝ち）。
 3. 詳細は `docs/design/manual-shift-cell-level.md`（実装後の記録に差し替え済み）。
 
 ---
