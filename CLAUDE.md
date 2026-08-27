@@ -212,6 +212,8 @@ npx tsc --noEmit
 
 25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
 
+30. **Driveのファイルは「アップロードしたサービスアカウント」でしか読めない** → 2026-08-27 に発生。レシートは用途ごとに別のSAでアップロードされている（petty cash / receipt log = `procurement_drive_chain`、請求書 = `Dubai_Discord_Invoice_Json`）。他方のSAで読むと **404 File not found**（権限エラーではないので原因が分かりにくい）。`app/services/receipt_ocr.py` の `_drive_services()` が複数の認証を順に試す。新しいDrive保存先を追加したら、この関数にも足すこと。
+
 29. **画像を base64 で DB に持つ列を、一覧クエリで SELECT しない** → 2026-08-27 に本番を3回落とした原因。
     - `proc_po_invoice_checks.photo_data` = **416行で864MB**（最大5.8MB/行）、`proc_receivings.invoice_photo_b64` = **379行で839MB**。
     - `list_pending_po_invoice_checks` がこの2列を **最大500行ぶん** SELECT していた。100行読むだけで one-off dyno が即死（＝完全再現）。web dyno は 1024MB、常時 約295MB。
