@@ -429,6 +429,15 @@ function cellKey(staffName: string, dateStr: string) {
   return `${staffName}|${dateStr}`;
 }
 
+/** One cell as a single comparable string. Used to tell a real change from a
+ *  copy of what is already published — order and formatting must not matter. */
+function cellSignature(value: ShiftCell | ShiftCell[] | null | undefined): string {
+  return cellsOf(value)
+    .map((c) => `${c.start_hour}-${c.end_hour}:${c.role || ""}:${c.note || ""}:${c.branch_code || ""}`)
+    .sort()
+    .join("+");
+}
+
 /** Identity of a queued edit: one pending write per cell per week. A second edit
  *  to the same cell replaces the first rather than queueing behind it. */
 function queueKey(e: PendingEdit) {
@@ -502,6 +511,10 @@ export default function ManualShiftPage() {
   const [cellEditors, setCellEditors] = useState<Record<string, { by: string; at: string }>>({});
   const revRef = useRef(0);
   const publishedTokenRef = useRef("");
+  /** The published week exactly as last loaded, so a carried-over draft cell can
+   *  be compared against it. Without this the migration below cannot tell a real
+   *  edit from a saved copy of what is already published. */
+  const publishedGridRef = useRef<Record<string, string>>({});
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
@@ -765,6 +778,21 @@ export default function ManualShiftPage() {
       const rows = (data.rows || []);
       const serverToken = data.state_token ?? "";
       publishedTokenRef.current = serverToken;
+      {
+        const byCell: Record<string, ShiftCell[]> = {};
+        for (const r of rows as any[]) {
+          const k = cellKey(String(r.staff_name), String(r.work_date));
+          (byCell[k] ??= []).push({
+            start_hour: Number(r.start_hour), end_hour: Number(r.end_hour),
+            role: String(r.role || ""),
+            note: r.note ? String(r.note) : undefined,
+            branch_code: r.branch_code ? String(r.branch_code) : undefined,
+          });
+        }
+        publishedGridRef.current = Object.fromEntries(
+          Object.entries(byCell).map(([k, v]) => [k, cellSignature(v)])
+        );
+      }
 
       setGridData((prev) => {
         const nextGrid: GridData = {};
@@ -886,15 +914,17 @@ export default function ManualShiftPage() {
             if (overlaid.has(k) || seen.has(k)) continue;
             if (!staffListRef.current.includes(rName)) continue;
             seen.add(k);
-            carried.push({
-              staffName: rName, dateStr: rDate,
-              value: {
-                start_hour: Number(r.start_hour),
-                end_hour: Number(r.end_hour),
-                role: String(r.role || "STAFF"),
-                note: r.note ? String(r.note) : undefined,
-              },
-            });
+            const value: ShiftCell = {
+              start_hour: Number(r.start_hour),
+              end_hour: Number(r.end_hour),
+              role: String(r.role || "STAFF"),
+              note: r.note ? String(r.note) : undefined,
+            };
+            // Most saved drafts are a copy of what is already published. Carrying
+            // those across would report dozens of changes when nothing changed,
+            // and ask for a publish that does nothing.
+            if (cellSignature(value) === (publishedGridRef.current[k] ?? "")) continue;
+            carried.push({ staffName: rName, dateStr: rDate, value });
           }
           if (!cancelledRef.current && carried.length > 0) {
             commitCells(carried);
