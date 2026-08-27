@@ -359,6 +359,8 @@ export default function NavBar() {
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
   const [unownedBadge, setUnownedBadge] = useState(0);
+  const [mgmtBadge, setMgmtBadge] = useState(0);
+  const [mgmtCritical, setMgmtCritical] = useState(false);
   const [priceCheckBadge, setPriceCheckBadge] = useState(0);
   const [adminRequestBadge, setAdminRequestBadge] = useState(0);
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
@@ -563,6 +565,17 @@ export default function NavBar() {
           method: "GET", cache: "no-store", headers: getAuthHeaders(auth),
         });
         if (un.ok && !cancelled) setUnownedBadge(Number((await un.json())?.badge_count ?? 0));
+        // Store exceptions nobody has acted on. 535 of these accumulated while the
+        // channel looked quiet, because an empty inbox and an ignored one looked
+        // identical from every screen.
+        const mg = await fetch(`${API_BASE}/api/admin/management/badge?city=${encodeURIComponent(cityParam)}`, {
+          method: "GET", cache: "no-store", headers: getAuthHeaders(auth),
+        });
+        if (mg.ok && !cancelled) {
+          const m = await mg.json();
+          setMgmtBadge(Number(m?.badge_count ?? 0));
+          setMgmtCritical(Boolean(m?.critical));
+        }
       } catch {}
     };
     void fetchAdminIncidentBadge();
@@ -1173,6 +1186,8 @@ export default function NavBar() {
             ? { ...item, badgeCount: adminIncidentBadge, badgeWarning: adminIncidentBadge > 0 }
           : item.href === "/admin/incidents/unowned"
             ? { ...item, badgeCount: unownedBadge, badgeCritical: unownedBadge > 0 }
+          : item.href === "/admin/management/back-office"
+            ? { ...item, badgeCount: mgmtBadge, badgeCritical: mgmtCritical, badgeWarning: !mgmtCritical && mgmtBadge > 0 }
           : item.href === "/admin/price-check"
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item.href === "/admin/overtime"
@@ -1197,7 +1212,7 @@ export default function NavBar() {
             ? { ...item, badgeCount: paymentBadgeCount, badgeCritical: paymentBadgeCount > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, unownedBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge, paymentBadgeCount]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, unownedBadge, mgmtBadge, mgmtCritical, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge, paymentBadgeCount]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
