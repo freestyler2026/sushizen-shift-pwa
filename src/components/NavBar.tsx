@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { channelForRoute } from "@/lib/access-channels";
 import type { LucideIcon } from "lucide-react";
 import {
+  Hand,
   AlertTriangle,
   Siren,
   ArrowLeftRight,
@@ -251,6 +252,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/hr/policy-docs", label: "HR Policy Documents", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/assets", label: "Company Assets", icon: Laptop, adminOnly: true, match: "prefix" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
+  { href: "/admin/incidents/unowned", label: "Waiting for Someone", icon: Hand, adminOnly: true, match: "exact" },
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
@@ -356,6 +358,7 @@ export default function NavBar() {
   const [renewalBadge, setRenewalBadge] = useState(0);
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
+  const [unownedBadge, setUnownedBadge] = useState(0);
   const [priceCheckBadge, setPriceCheckBadge] = useState(0);
   const [adminRequestBadge, setAdminRequestBadge] = useState(0);
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
@@ -425,6 +428,7 @@ export default function NavBar() {
     if (href === "/admin/emergency-requests") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/emergency-requests", auth);
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
+    if (href === "/admin/incidents/unowned") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/price-check", auth);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/baseroll-prep", auth);
@@ -553,6 +557,12 @@ export default function NavBar() {
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setAdminIncidentBadge(Number(data?.badge_count ?? 0));
+        // Reports with nobody's name on them. This is the number that let
+        // eight sit unread: nothing showed the silence unless you opened a page.
+        const un = await fetch(`${API_BASE}/api/admin/incidents/unowned-badge?city=${encodeURIComponent(cityParam)}`, {
+          method: "GET", cache: "no-store", headers: getAuthHeaders(auth),
+        });
+        if (un.ok && !cancelled) setUnownedBadge(Number((await un.json())?.badge_count ?? 0));
       } catch {}
     };
     void fetchAdminIncidentBadge();
@@ -1161,6 +1171,8 @@ export default function NavBar() {
             ? { ...item, badgeCount: renewalBadge, badgeWarning: true }
           : item.href === "/admin/incidents"
             ? { ...item, badgeCount: adminIncidentBadge, badgeWarning: adminIncidentBadge > 0 }
+          : item.href === "/admin/incidents/unowned"
+            ? { ...item, badgeCount: unownedBadge, badgeCritical: unownedBadge > 0 }
           : item.href === "/admin/price-check"
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item.href === "/admin/overtime"
@@ -1185,7 +1197,7 @@ export default function NavBar() {
             ? { ...item, badgeCount: paymentBadgeCount, badgeCritical: paymentBadgeCount > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge, paymentBadgeCount]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, unownedBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge, pettyCashBadge, expenseBadge, transportBadge, spotPurchaseBadge, nteCasesBadge, supplierBadge, absenceStaleBadge, storeOpeningBadge, paymentBadgeCount]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
