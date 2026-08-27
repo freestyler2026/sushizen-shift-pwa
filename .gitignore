@@ -62,6 +62,9 @@ sushizen-shift-pwa/
 
 # Price monitor session files (contain auth tokens — upload to GitHub Secrets instead)
 scripts/*/keeta-session.*
+# Keeta needs one session per brand account, so the files are suffixed
+# (keeta-session-ramen_zen.json) and the pattern above no longer catches them.
+scripts/*/keeta-session-*
 scripts/*/careem-session.*
 scripts/*/noon-session.*
 scripts/grab/*-session.*

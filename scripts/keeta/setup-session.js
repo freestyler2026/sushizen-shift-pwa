@@ -11,13 +11,28 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-const OUT_FILE = path.join(__dirname, 'keeta-session.json');
+// Keeta issues a separate login per brand, so this has to be run once per account.
+// Writing to one fixed filename would overwrite the previous brand's session — and
+// the workflow reads each brand from its own secret, so they must not collide.
+const ACCOUNT   = (process.env.KEETA_ACCOUNT || 'sushi_zen').trim().toLowerCase();
+const SECRET_BY_ACCOUNT = {
+  sushi_zen:  'KEETA_SESSION',
+  ramen_zen:  'KEETA_RZ_SESSION',
+  all_veggie: 'KEETA_AVS_SESSION',
+};
+const SECRET_NAME = SECRET_BY_ACCOUNT[ACCOUNT];
+if (!SECRET_NAME) {
+  console.error(`Unknown KEETA_ACCOUNT="${ACCOUNT}". Use one of: ${Object.keys(SECRET_BY_ACCOUNT).join(', ')}`);
+  process.exit(1);
+}
+const OUT_FILE = path.join(__dirname, `keeta-session-${ACCOUNT}.json`);
 
 async function main() {
   console.log('\n=== Keeta Merchant Portal Session Setup ===\n');
+  console.log(`Account: ${ACCOUNT}  →  GitHub secret: ${SECRET_NAME}`);
   console.log('A browser window will open. Please log in:');
-  console.log('  URL:   https://merchant.mykeeta.com');
-  console.log('  Email: b297253@m.meeta.com');
+  console.log('  URL: https://merchant.mykeeta.com');
+  console.log(`\n  Log in with the ${ACCOUNT} account — not any other brand's.`);
   console.log('\nOnce logged in and the dashboard is visible, press Enter here.\n');
 
   const browser = await chromium.launch({ headless: false, slowMo: 0 });
@@ -62,8 +77,8 @@ async function main() {
   console.log('\n✓ Session saved to:', OUT_FILE);
   console.log('✓ Base64 version:  ', b64File);
   console.log('\n--- Next steps ---');
-  console.log('1. Go to your GitHub repo → Settings → Secrets → Actions');
-  console.log('2. Add a new secret named: KEETA_SESSION_STATE');
+  console.log('1. Go to your GitHub repo → Settings → Secrets and variables → Actions');
+  console.log(`2. Add (or update) the secret named: ${SECRET_NAME}`);
   console.log('3. Paste the contents of', b64File);
   console.log('\nThe GitHub Actions workflow will now run automatically.');
   console.log('When the session expires (~30 days), re-run this script.\n');
