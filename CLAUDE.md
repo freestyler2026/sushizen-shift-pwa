@@ -206,6 +206,12 @@ npx tsc --noEmit
 
 20. **シード関数と実DBの二重管理をしない — 片方だけ直すと「巻き戻しボタン」が生まれる** → Management Channel のテンプレートをDBに直接投入して完了としたが、BO Dashboard の「Seed Default Templates」ボタンが呼ぶ `seed_management_templates()` は古い定義のままだった。`ON CONFLICT DO UPDATE` なので、誰かが1回押すだけで新しい設定が全消えする。**UIにシード/リセットボタンがある設定は、必ずそのシード関数を唯一の正とし、DBへの直接投入はしない。**直した後は実際にシードを実行して往復を検証する。（2026-08-26 発見・修正済み）
 
+23. **FormData を送る fetch に `getAuthHeaders()` を使わない — 必ず `getUploadHeaders()`** → `getAuthHeaders()` は `Content-Type: application/json` を固定で付ける。これがブラウザの multipart boundary を上書きし、FastAPI 側では「fileフィールドが無い」と見えて **422** になる。ファイルサイズに関係なく**全てのアップロードが失敗**する。他の全アップロード箇所は `getUploadHeaders()` を使うか `delete headers["Content-Type"]` しているが、Store Supplier Orders だけ抜けていた（2026-08-27 実際に発生。スタッフからの「Invoiceが添付できない」の真因）。
+
+24. **Vercel の Function リクエストボディ上限は約4.3MB — スマホ写真は超える** → 本番で実測: 4000KB→200 / 4400KB→413（`FUNCTION_PAYLOAD_TOO_LARGE`、**text/plain**）。バックエンドが20MBを許可していても、リクエストはそこに到達しない。写真アップロードは必ず `src/lib/image-compress.ts` の `prepareUpload()` でブラウザ側で縮小してから送る。またエラー処理で `res.ok` を見る**前に** `res.json()` を呼ぶと、text/plain の413で例外になり原因が消える。`readError()` を使うこと。
+
+25. **NavBar の表示可否をロール名のベタ書きで判定しない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）のユーザーは `staff_auth.role` が **STAFF** のまま。`["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` ではどれだけ権限にチェックを入れても**永久に false**。`hasChannelAccess("admin.xxx", ["view"], auth)` を `||` で足すこと。バックエンド側の `_require_manage` 相当も同様に `perms` を見る。⚠️ **NavBar.tsx にはまだ同じ書き方が18箇所残っている**（/admin/expense-requests, /admin/nte, /admin/hr/*, /admin/emergency-requests, /admin/price-check, /admin/store-par-levels 等）。「権限を付けたのに入れない」の問い合わせが来たらまずここを疑う。（2026-08-27 Store Supplier Orders で発生）
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 ---
