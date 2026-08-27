@@ -52,14 +52,20 @@ for LOCATION in paranaque taft qc; do
     EXIT_CODE=1
   fi
 
-  # Cancellations settle from the same session. The portal blocks headless CI,
-  # so this runs here rather than in GitHub Actions.
-  if DATE_FROM="$DATE_FROM" DATE_TO="$DATE_TO" WEBHOOK_URL="$WEBHOOK_URL" \
-       "$NODE" "$SCRIPT_DIR/sync-cancellations.js" "$LOCATION" >> "$LOG_FILE" 2>&1; then
-    echo "  ✓ $LOCATION cancellations done" >> "$LOG_FILE"
+  # Cancellations settle from the same session, but reading them can trip the
+  # portal's press-and-hold check, which only a person can answer. There are
+  # rarely more than one or two a day, so this runs on Mondays only rather than
+  # asking for that every morning. Set RUN_CANCELLATIONS=1 to run it any day.
+  if [ "${RUN_CANCELLATIONS:-0}" = "1" ] || [ "$(date +%u)" = "1" ]; then
+    if DATE_FROM="$DATE_FROM" DATE_TO="$DATE_TO" WEBHOOK_URL="$WEBHOOK_URL" \
+         "$NODE" "$SCRIPT_DIR/sync-cancellations.js" "$LOCATION" >> "$LOG_FILE" 2>&1; then
+      echo "  ✓ $LOCATION cancellations done" >> "$LOG_FILE"
+    else
+      echo "  ✗ $LOCATION cancellations failed (exit $?)" >> "$LOG_FILE"
+      EXIT_CODE=1
+    fi
   else
-    echo "  ✗ $LOCATION cancellations failed (exit $?)" >> "$LOG_FILE"
-    EXIT_CODE=1
+    echo "  – $LOCATION cancellations skipped (Mondays only)" >> "$LOG_FILE"
   fi
 done
 
