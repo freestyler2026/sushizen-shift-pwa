@@ -432,7 +432,7 @@ export default function NavBar() {
     if (href === "/admin/store-opening") return canAccessStoreOpeningAdmin(auth);
     if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
     if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
-    if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || hasChannelAccess("admin.store_supplier_orders", ["view"], auth);
     if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role) || (auth?.permissions || []).includes("channel.admin.ar_payouts.view");
     if (href === "/admin/mgmt-accounting") return ["HQ", "ADMIN"].includes(role);
     return false;

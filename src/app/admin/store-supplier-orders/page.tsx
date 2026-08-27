@@ -23,6 +23,7 @@ import {
   BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { getAuthHeaders, getAuth } from "@/lib/auth";
+import { prepareUpload, readError } from "@/lib/image-compress";
 
 const STORES = ["PAR", "CUB", "TAFT"] as const;
 type Store = (typeof STORES)[number];
@@ -836,10 +837,16 @@ export default function StoreSupplierOrdersPage() {
 
   async function handleInvoicePhotoChange(file: File) {
     if (!receiveModal) return;
+    setError(null);
     setReceiveModal({ ...receiveModal, invoicePhotoFile: file, invoicePhotoUploading: true, invoicePhotoUrl: "" });
+    const clearFile = () =>
+      setReceiveModal((m) => m ? { ...m, invoicePhotoFile: null, invoicePhotoUploading: false } : m);
     try {
+      // Phone photos are routinely bigger than the upload path accepts, so
+      // shrink first rather than letting the request be rejected in transit.
+      const upload = await prepareUpload(file);
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", upload);
       fd.append("store", receiveModal.store);
       fd.append("order_date", receiveModal.orderDate);
       const res = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}/upload-invoice-photo`, {
@@ -847,16 +854,16 @@ export default function StoreSupplierOrdersPage() {
         headers: getAuthHeaders(),
         body: fd,
       });
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.detail ?? "Photo upload failed.");
-        setReceiveModal((m) => m ? { ...m, invoicePhotoFile: null, invoicePhotoUploading: false } : m);
+        setError(await readError(res, "Photo upload failed."));
+        clearFile();
         return;
       }
+      const data = await res.json();
       setReceiveModal((m) => m ? { ...m, invoicePhotoUrl: data.photo_url ?? "", invoicePhotoUploading: false } : m);
-    } catch {
-      setError("Photo upload failed.");
-      setReceiveModal((m) => m ? { ...m, invoicePhotoFile: null, invoicePhotoUploading: false } : m);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Photo upload failed.");
+      clearFile();
     }
   }
 
