@@ -451,9 +451,11 @@ interface TaskRowProps {
   onSend: (task: ManagementTask) => void;
   expanded: boolean;
   onToggle: () => void;
+  onClaim?: (task: ManagementTask) => void;
+  currentUser?: string;
 }
 
-function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
+function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentUser }: TaskRowProps) {
   const shortfall = shortfallSummary(task.context);
   return (
     <div className={TABLE_ROW + " border-white/8"}>
@@ -489,6 +491,23 @@ function TaskRow({ task, template, onSend, expanded, onToggle }: TaskRowProps) {
               )}
             </span>
             <span className={T_CAPTION}>{fmtTime(task.created_at)}</span>
+            {/* Whose queue this sits in. Without it on the row, a task owned by
+                someone who is off today looks the same as one being worked on. */}
+            <span className={T_CAPTION}>
+              {task.bo_assignee ? (
+                <>Owner: <span className="text-zinc-300">{task.bo_assignee}</span></>
+              ) : (
+                <span className="text-red-300">No owner</span>
+              )}
+            </span>
+            {onClaim && task.status !== "closed" && task.bo_assignee !== currentUser && (
+              <button
+                onClick={() => onClaim(task)}
+                className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                {task.bo_assignee ? "Take over" : "Take this"}
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -739,6 +758,28 @@ export default function BODashboardPage() {
     setCustomMessage(fillTemplate(templates[task.type]?.message_en || "", task.context));
   }
 
+  /** Take a task into your own queue.
+   *
+   *  HQ names an owner per exception type, which is right until that person is
+   *  off — and then their queue is the only place the task appears. Anyone can
+   *  pick it up; the name is what the dashboard filters and reports on.
+   */
+  async function claimTask(task: ManagementTask) {
+    const me = getAuth()?.staffName || "";
+    if (!me) return;
+    try {
+      const res = await fetch(`/api/admin/management/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ bo_assignee: me }),
+      });
+      if (!res.ok) throw new Error(`Could not take this task (${res.status})`);
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, bo_assignee: me } : t)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function handleSend() {
     if (!sendingTask) return;
     setSending(true);
@@ -898,6 +939,8 @@ export default function BODashboardPage() {
                   onSend={openSendModal}
                   expanded={expanded.has(task.id)}
                   onToggle={() => toggleExpand(task.id)}
+                  onClaim={claimTask}
+                  currentUser={getAuth()?.staffName || ""}
                 />
               ))}
             </div>
