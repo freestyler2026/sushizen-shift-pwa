@@ -1278,6 +1278,30 @@ export default function ManualShiftPage() {
     }
   }
 
+  async function handleDiscard() {
+    if (unpublishedCells.size === 0) return;
+    if (!window.confirm(
+      `Throw away ${unpublishedCells.size} unpublished change${unpublishedCells.size === 1 ? "" : "s"} for this week?\n\n` +
+      `The grid goes back to the published schedule. This affects everyone editing this week, not just you.`
+    )) return;
+    setError("");
+    setSaving(true);
+    try {
+      await flushOutbox();
+      await apiFetch("/api/admin/shifts/discard_week_cells", {
+        method: "POST",
+        body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+      });
+      setUnpublishedCells(new Set());
+      setCellEditors({});
+      await refreshWeek();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // ─── Employee Search ──────────────────────────────────────────────────────
   async function handleEmployeeSearch() {
     const q = searchQuery.trim();
@@ -1970,6 +1994,17 @@ export default function ManualShiftPage() {
                     ? "🚀 Nothing to publish"
                     : `🚀 Publish ${unpublishedCells.size} change${unpublishedCells.size !== 1 ? "s" : ""}`}
               </button>
+              {unpublishedCells.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  disabled={saving}
+                  title="Throw away this week's unpublished changes"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Discard changes
+                </button>
+              )}
               <p className="w-full text-xs text-gray-400 sm:w-auto">
                 Every edit is saved as you make it, and stays out of sight until you publish.
                 Publishing applies only the cells that changed — it never rewrites the rest of
