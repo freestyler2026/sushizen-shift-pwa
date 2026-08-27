@@ -52,11 +52,13 @@ for LOCATION in paranaque taft qc; do
     EXIT_CODE=1
   fi
 
-  # Cancellations settle from the same session, but reading them can trip the
-  # portal's press-and-hold check, which only a person can answer. There are
-  # rarely more than one or two a day, so this runs on Mondays only rather than
-  # asking for that every morning. Set RUN_CANCELLATIONS=1 to run it any day.
-  if [ "${RUN_CANCELLATIONS:-0}" = "1" ] || [ "$(date +%u)" = "1" ]; then
+  # Cancellations are NOT synced on a schedule. Reading them needs a live portal
+  # session and can trip a press-and-hold check, so whoever runs it has to keep a
+  # session alive — and a session nobody notices expiring produces days with no
+  # data, silently. The back-office staff are in the portal every day anyway and
+  # enter FoodPanda cancellations by hand, which is the reliable path.
+  # RUN_CANCELLATIONS=1 still runs it on demand.
+  if [ "${RUN_CANCELLATIONS:-0}" = "1" ]; then
     if DATE_FROM="$DATE_FROM" DATE_TO="$DATE_TO" WEBHOOK_URL="$WEBHOOK_URL" \
          "$NODE" "$SCRIPT_DIR/sync-cancellations.js" "$LOCATION" >> "$LOG_FILE" 2>&1; then
       echo "  ✓ $LOCATION cancellations done" >> "$LOG_FILE"
@@ -65,7 +67,7 @@ for LOCATION in paranaque taft qc; do
       EXIT_CODE=1
     fi
   else
-    echo "  – $LOCATION cancellations skipped (Mondays only)" >> "$LOG_FILE"
+    echo "  – $LOCATION cancellations skipped (staff enter these by hand)" >> "$LOG_FILE"
   fi
 done
 

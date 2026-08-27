@@ -1,0 +1,487 @@
+<title>キャンセル返金オペレーション</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --paper:      #F3F5F7;
+    --surface:    #FFFFFF;
+    --surface-2:  #E9EDF1;
+    --ink:        #131A21;
+    --ink-2:      #46545F;
+    --ink-3:      #6F7D88;
+    --rule:       #D2D9E0;
+    --rule-soft:  #E3E8ED;
+
+    --auto:       #4A5A67;   /* system does it */
+    --auto-bg:    #E6EBEF;
+    --staff:      #0E6647;   /* branch / back office staff */
+    --staff-bg:   #E0F0E9;
+    --hq:         #8A5A05;   /* HQ approval */
+    --hq-bg:      #F8EEDA;
+    --admin:      #26558F;   /* maintenance */
+    --admin-bg:   #E2EAF5;
+    --alert:      #A02D20;
+    --alert-bg:   #F8E6E3;
+
+    --shadow: 0 1px 2px rgba(19,26,33,.05), 0 10px 28px rgba(19,26,33,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D1216; --surface: #151C22; --surface-2: #1D262E;
+      --ink: #E6ECF1; --ink-2: #AFBCC6; --ink-3: #7F8D98;
+      --rule: #2A353E; --rule-soft: #212B33;
+      --auto: #9FB0BD; --auto-bg: #202A32;
+      --staff: #56C79C; --staff-bg: #122A22;
+      --hq: #DDAB55; --hq-bg: #2B2317;
+      --admin: #7BA9E4; --admin-bg: #172433;
+      --alert: #E98A7C; --alert-bg: #2E1B18;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D1216; --surface: #151C22; --surface-2: #1D262E;
+    --ink: #E6ECF1; --ink-2: #AFBCC6; --ink-3: #7F8D98;
+    --rule: #2A353E; --rule-soft: #212B33;
+    --auto: #9FB0BD; --auto-bg: #202A32;
+    --staff: #56C79C; --staff-bg: #122A22;
+    --hq: #DDAB55; --hq-bg: #2B2317;
+    --admin: #7BA9E4; --admin-bg: #172433;
+    --alert: #E98A7C; --alert-bg: #2E1B18;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.85; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 52px 24px 100px; display: flex; flex-direction: column; gap: 52px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* masthead */
+  .masthead { display: flex; flex-direction: column; gap: 16px; }
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--admin); font-weight: 700;
+  }
+  h1 {
+    font-family: "M PLUS 1", "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(28px, 5vw, 42px); line-height: 1.3; margin: 0;
+    letter-spacing: -.01em; text-wrap: balance;
+  }
+  .standfirst { margin: 0; max-width: 60ch; color: var(--ink-2); }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 6px 26px; padding-top: 16px; border-top: 1px solid var(--rule);
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--ink-3);
+  }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* role key */
+  .key { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tag {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .07em; font-weight: 700;
+    padding: 4px 10px; border-radius: 3px; white-space: nowrap;
+  }
+  .tag.auto  { background: var(--auto-bg);  color: var(--auto); }
+  .tag.staff { background: var(--staff-bg); color: var(--staff); }
+  .tag.hq    { background: var(--hq-bg);    color: var(--hq); }
+  .tag.admin { background: var(--admin-bg); color: var(--admin); }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+  h2 {
+    font-family: "M PLUS 1", sans-serif; font-size: 22px; font-weight: 700; margin: 0;
+    padding-bottom: 11px; border-bottom: 2px solid var(--ink);
+  }
+  h3 { font-size: 16.5px; font-weight: 700; margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 64ch; }
+
+  /* flow */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: grid; grid-template-columns: 116px 1fr; gap: 0 22px;
+    padding: 20px 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .step:last-child { border-bottom: 0; }
+  .step > .who { display: flex; flex-direction: column; gap: 7px; align-items: flex-start; }
+  .step > .who .n {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: var(--ink-3); letter-spacing: .1em;
+  }
+  .step > .body { display: flex; flex-direction: column; gap: 7px; }
+  .step .st {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--ink-3);
+  }
+  .step .st b { color: var(--ink); font-weight: 500; }
+  .step p { color: var(--ink-2); }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 1fr; gap: 10px; }
+    .step > .who { flex-direction: row; align-items: center; gap: 10px; }
+  }
+
+  /* role cards */
+  .cards { display: flex; flex-direction: column; gap: 18px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card > header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+    padding: 16px 22px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .card > header .freq {
+    margin-left: auto; font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: var(--ink-3); letter-spacing: .05em;
+  }
+  .card ol, .card ul { margin: 0; padding: 18px 22px 20px 42px; display: flex; flex-direction: column; gap: 11px; color: var(--ink-2); }
+  .card li strong { color: var(--ink); font-weight: 700; }
+
+  /* tables */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th:first-child, td:first-child { white-space: nowrap; }
+  thead th {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+    font-weight: 700; background: var(--surface-2); border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86em;
+    background: var(--surface-2); padding: 1.5px 5px; border-radius: 3px; color: var(--ink);
+  }
+  pre {
+    margin: 0; background: var(--surface-2); border-radius: 4px; padding: 14px 16px;
+    overflow-x: auto; font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12.5px; line-height: 1.7; color: var(--ink);
+  }
+
+  .note {
+    border-left: 3px solid var(--alert); background: var(--alert-bg);
+    border-radius: 0 4px 4px 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .note h3 { color: var(--alert); font-size: 15.5px; }
+  .note p { color: var(--ink-2); max-width: 62ch; }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 20px;
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px;
+    color: var(--ink-3); line-height: 1.9;
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Manila · Cancellation &amp; Refund · 運用ルール</div>
+    <h1>キャンセル返金オペレーション</h1>
+    <p class="standfirst">
+      キャンセル案件が記録されてから返金が確定するまでの流れと、スタッフ・本部・管理者それぞれの担当範囲。
+      2026-08-27 に確定した仕組みです。
+    </p>
+    <div class="meta">
+      <span><b>対象</b> Manila 3店舗（Taft / Cubao / Paranaque）</span>
+      <span><b>プラットフォーム</b> GrabFood / FoodPanda</span>
+      <span><b>画面</b> /admin/cancellations</span>
+    </div>
+  </header>
+
+  <div class="key">
+    <span class="tag auto">自動</span>
+    <span class="tag staff">スタッフ</span>
+    <span class="tag hq">本部 HQ</span>
+    <span class="tag admin">管理・保守</span>
+  </div>
+
+  <section>
+    <h2>仕組み — 1件のキャンセルが完了するまで</h2>
+    <p class="lede">
+      <strong>判断は人が、照合は自動が担当します。</strong>
+      「キャンセルが妥当か」はスタッフが毎日見て決めます。「プラットフォームが実際に払い戻したか」は
+      プラットフォーム側のデータと突き合わせるだけなので自動化しました。前者は減りません。
+    </p>
+
+    <div class="flow">
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 1</span><span class="tag staff">スタッフ</span></div>
+        <div class="body">
+          <h3>キャンセルを記録する</h3>
+          <p><code>/admin</code> → <strong>Manila Cancellation</strong> タブで入力します。注文番号・店舗・金額・キャンセル理由は必須です。</p>
+          <p class="st">workflow_status → <b>Waiting for Photo</b> または <b>Ticket Submitted</b></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 2</span><span class="tag staff">スタッフ</span></div>
+        <div class="body">
+          <h3>妥当性を判断し、必要ならチケットを出す</h3>
+          <p>厨房写真が必要か、プラットフォームに異議を申し立てるかを判断します。<strong>ここが人の仕事の中心</strong>で、自動化していません。</p>
+          <p class="st">ticket_status → <b>Ticket Sent</b> / refund_status → <b>Disputed</b>・<b>Compensation Provided</b> 等</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 3</span><span class="tag staff">スタッフ</span></div>
+        <div class="body">
+          <h3>返金待ちにする</h3>
+          <p>プラットフォームの回答待ちになったら、この状態にして手を離します。<strong>ここから先は待つだけで、押す作業はありません。</strong></p>
+          <p class="st">workflow_status → <b>Waiting for Refund Confirmation</b></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 4</span><span class="tag auto">自動</span></div>
+        <div class="body">
+          <h3>プラットフォームのデータと突き合わせる</h3>
+          <p><strong>GrabFood は毎日、FoodPanda は毎週月曜</strong>に自動で照合します。一致すれば返金確定に変わり、根拠が画面に残ります。</p>
+          <p class="st">workflow_status → <b>Refund Confirmed</b> ／ 詳細画面に <b>Platform Settlement</b> が表示される</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 5</span><span class="tag hq">本部 HQ</span></div>
+        <div class="body">
+          <h3>返金なしの判断を承認する</h3>
+          <p>スタッフが <strong>No Refund</strong>（返金を求めない）と決めた案件は、本部の承認または差し戻しが必要です。損失を確定させる判断のため、担当者だけでは閉じられません。</p>
+          <p class="st">hq_action → <b>approved</b> / <b>reverted</b></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 6</span><span class="tag staff">スタッフ</span></div>
+        <div class="body">
+          <h3>完了にする</h3>
+          <p>返金が確定した、または本部が返金なしを承認した案件を完了にします。完了した案件は自動照合の対象外になり、以後変更されません。</p>
+          <p class="st">workflow_status → <b>Completed</b></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>プラットフォームによる違い</h2>
+    <p class="lede">
+      同じ「返金確定」でも、2社は仕組みがまったく違います。FoodPanda は入金してきません。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th></th><th>GrabFood</th><th>FoodPanda</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>返金の形</strong></td>
+            <td>補償として<strong>入金される</strong><br><span class="mono">Compensation - Orders</span></td>
+            <td>入金はされず<strong>請求対象から外れる</strong><br><span class="mono">NOT_BILLABLE / netRevenue 0</span></td>
+          </tr>
+          <tr>
+            <td><strong>確定の条件</strong></td>
+            <td>取引データに補償行があり、<span class="mono">Transferred</span> または <span class="mono">Completed</span></td>
+            <td>注文が <span class="mono">CANCELLED</span> かつ <span class="mono">NOT_BILLABLE</span></td>
+          </tr>
+          <tr>
+            <td><strong>金額の扱い</strong></td>
+            <td>補償額を記録（注文分＋手数料分を合算）</td>
+            <td>キャンセル手数料が課された場合のみ、その額を記録</td>
+          </tr>
+          <tr>
+            <td><strong>確定しない場合</strong></td>
+            <td>まだ補償が出ていない → 待つ</td>
+            <td><strong>CANCELLED なのに BILLABLE のまま</strong> → FoodPanda が請求から外していない。督促が必要</td>
+          </tr>
+          <tr>
+            <td><strong>自動実行</strong></td>
+            <td>毎日 06:00 UTC（Manila 14:00）</td>
+            <td>毎週月曜 9:00（Mac）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>担当ごとの作業</h2>
+
+    <div class="cards">
+
+      <article class="card">
+        <header>
+          <span class="tag staff">スタッフ</span>
+          <h3>バックオフィス担当</h3>
+          <span class="freq">毎日</span>
+        </header>
+        <ol>
+          <li><strong>新しいキャンセルを入力する。</strong> <code>/admin</code> → Manila Cancellation タブ。</li>
+          <li><strong>妥当性を判断する。</strong> 写真の要否、チケット送付、異議申し立て。これまでどおりです。</li>
+          <li><strong>回答待ちは Waiting for Refund Confirmation にして手を離す。</strong> 以降の照合は自動なので、確認ボタンを押す必要はありません。</li>
+          <li><strong>Refund Confirmed になった案件を Completed にする。</strong> 詳細画面の <strong>Platform Settlement</strong> に確定根拠が出ています。</li>
+          <li><strong>赤い「records overdue」表示に対応する。</strong> 7日以上完了していない案件です。</li>
+        </ol>
+      </article>
+
+      <article class="card">
+        <header>
+          <span class="tag hq">本部 HQ</span>
+          <h3>承認と監視</h3>
+          <span class="freq">週1回程度</span>
+        </header>
+        <ol>
+          <li><strong>No Refund の承認・差し戻し。</strong> 琥珀色の「No Refund decisions pending HQ approval」に件数が出ます。損失確定の判断なので、放置せず処理してください。</li>
+          <li><strong>同期バッジを見る。</strong> ボタン横に最終同期日が出ます。<strong>琥珀色になっていたら止まっています。</strong></li>
+          <li><strong>FoodPanda の「BILLABLE のまま」案件を督促する。</strong> キャンセルされたのに請求から外れていない案件で、放置すると請求されたままになります。</li>
+          <li><strong>補償は出ているのに記録がない注文を確認する。</strong> Grab から補償を受け取っているのにキャンセル記録が無いケースです（例 GF-559 / GF-360）。記録漏れとして確認してください。</li>
+        </ol>
+      </article>
+
+      <article class="card">
+        <header>
+          <span class="tag admin">管理・保守</span>
+          <h3>西村（システム管理）</h3>
+          <span class="freq">週1回・火曜</span>
+        </header>
+        <ol>
+          <li><strong>火曜のリマインダーに従って Noon / Careem を手動実行する。</strong> この2つはセッションが 2.6日 / 72時間で切れるため、自動化していません。<strong>セッション再取得が先</strong>で、先にワークフローを回すと 401 で失敗します。</li>
+          <li><strong>月曜のリマインダーで FoodPanda の結果を確認する。</strong> 長押し認証で止まっていた場合のみ手動実行が必要です。</li>
+          <li><strong>Mac を起動しておく。</strong> FoodPanda は Mac の定期実行です。電源が落ちていると動きません。</li>
+        </ol>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>本部の確認ポイント — 画面のどこを見るか</h2>
+    <p class="lede">
+      <code>/admin/cancellations</code> の Manila 表示で、上部に4種類の表示が出ます。異常はすべてここに出ます。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>表示</th><th>意味</th><th>対応</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag auto">GrabFood synced today</span></td>
+            <td>灰色＝正常。自動照合が動いています</td>
+            <td>不要</td>
+          </tr>
+          <tr>
+            <td><span class="tag hq">GrabFood synced 5 days ago</span></td>
+            <td><strong>琥珀色＝異常。</strong>3日を超えて同期されていません</td>
+            <td>管理者に連絡。worker が停止している可能性</td>
+          </tr>
+          <tr>
+            <td><span class="tag hq">FoodPanda synced 12 days ago</span></td>
+            <td><strong>琥珀色＝異常。</strong>9日を超えています（月曜実行のため基準が別）</td>
+            <td>管理者に連絡。Mac の定期実行か認証で止まっています</td>
+          </tr>
+          <tr>
+            <td><span class="tag hq">N awaiting confirmation</span></td>
+            <td>返金待ちの件数。数件なら正常</td>
+            <td>増え続けるようなら確認</td>
+          </tr>
+          <tr>
+            <td><span class="tag hq">N No Refund pending HQ approval</span></td>
+            <td>本部の承認待ち</td>
+            <td><strong>本部が承認または差し戻し</strong></td>
+          </tr>
+          <tr>
+            <td><span class="tag hq">N records overdue</span></td>
+            <td>7日以上完了していない案件</td>
+            <td>スタッフが処理</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>自動実行の一覧</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>処理</th><th>実行</th><th>場所</th><th>セッション更新</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Grab キャンセル照合</td><td class="mono">毎日 06:00 UTC</td><td>Heroku worker</td><td><strong>不要</strong></td></tr>
+          <tr><td>Grab 入金取得</td><td class="mono">毎日</td><td>GitHub Actions</td><td>不要</td></tr>
+          <tr><td>FoodPanda 入金取得</td><td class="mono">毎日 9:00</td><td>Mac</td><td>必要</td></tr>
+          <tr><td>FoodPanda キャンセル照合</td><td class="mono">月曜 9:00</td><td>Mac</td><td>必要＋長押し認証</td></tr>
+          <tr><td>Keeta 入金取得</td><td class="mono">火曜</td><td>GitHub Actions</td><td>2027-02 まで有効</td></tr>
+          <tr><td><strong>Noon 入金取得</strong></td><td class="mono">手動</td><td>GitHub Actions</td><td>約2.6日で失効</td></tr>
+          <tr><td><strong>Careem 入金取得</strong></td><td class="mono">手動</td><td>GitHub Actions</td><td>72時間で失効</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lede">
+      <strong>Noon と Careem を手動にしたのは、失効が速すぎて自動と呼べないためです。</strong>
+      週次 cron を組んでも、Noon は8回中6回失敗していました。動いていないものを動いているように見せるより、
+      火曜のリマインダーで確実に実行する方が安全と判断しています。
+    </p>
+  </section>
+
+  <section>
+    <h2>リマインダー</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>曜日・時刻</th><th>内容</th><th>action が要る条件</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">月曜 9:30</td>
+            <td>FoodPanda キャンセル照合の結果確認</td>
+            <td>長押し認証で止まっていた場合のみ手動実行</td>
+          </tr>
+          <tr>
+            <td class="mono">火曜 10:06</td>
+            <td>Noon / Careem の入金取り込み</td>
+            <td>最終取り込みから日が空いていれば実行</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lede">
+      どちらも「必要なときだけ知らせる」作りです。問題がない週は数行で終わります。
+    </p>
+  </section>
+
+  <section>
+    <h2>設計上の約束</h2>
+
+    <div class="note">
+      <h3>認証を自動で突破する実装は作りません</h3>
+      <p>
+        FoodPanda のポータルは、キャンセル明細を読むときに長押しの人間確認を出すことがあります。
+        自社アカウント・自社データであっても、これを回避するコードは書きません。出た場合は人が通します。
+        そのため月曜の照合は「大抵は自動で通るが、たまに人手が要る」性質です。
+      </p>
+    </div>
+
+    <div class="note">
+      <h3>止まったら気付ける形にしてあります</h3>
+      <p>
+        今回の問題の本質は、707件すべてが未照合なのに<strong>画面上は正常に見えていた</strong>ことでした。
+        ボタンは存在し、押しても何も起きず、エラーも出ませんでした。
+        現在は最終同期日を画面に出し、0件取得を失敗として扱い、読めなかったファイルもログに残します。
+        <strong>手動か自動かより、止まったことが見えるかどうかが重要です。</strong>
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    確定 2026-08-27 ／ Manila Cancellation &amp; Refund Operations<br>
+    自動照合の根拠は各レコードの詳細画面「Platform Settlement」に表示されます。<br>
+    Grab の照合時刻は <span class="mono">GRAB_CANCELLATION_SYNC_HOURS_UTC</span> で変更可（デプロイ不要）。<br>
+    FoodPanda を月曜以外に走らせる場合は <span class="mono">RUN_CANCELLATIONS=1</span> を付けて実行。
+  </footer>
+
+</div>

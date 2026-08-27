@@ -257,7 +257,10 @@ function isOverdue(row: CancelRow): boolean {
   return row.incident_date <= daysAgoIso(7);
 }
 
-type SyncStatusMap = Record<string, { last_synced_at?: string | null; waiting?: number }>;
+type SyncStatusMap = Record<
+  string,
+  { last_synced_at?: string | null; last_record_at?: string | null; waiting?: number }
+>;
 
 // A sync that quietly stopped working looks the same as one with nothing to do.
 // Age is what tells them apart, so it is what the badge leads with.
@@ -278,32 +281,40 @@ const WORKFLOW_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 /**
- * Last settlement sync and what it left outstanding.
+ * How current each platform's cancellation data is, and what is outstanding.
  *
- * GrabFood confirms daily and FoodPanda weekly, so each carries its own idea of
- * how old is too old — one number would either cry wolf for FoodPanda or stay
- * quiet for a week of broken GrabFood runs.
+ * The two platforms fail in different ways, so they are measured differently.
+ * GrabFood is confirmed automatically against Grab's settlement data, so what
+ * goes stale is the sync. FoodPanda is entered and confirmed by the staff on
+ * their daily round of the portal, so what goes stale is data entry. Showing a
+ * "last synced" date for FoodPanda would be reporting on a job that no longer
+ * runs, and would read as broken every single day.
  */
 function SyncStatusBadge({
   label,
+  mode,
   status,
   staleAfterDays,
 }: {
   label: string;
-  status?: { last_synced_at?: string | null; waiting?: number };
+  mode: "auto" | "manual";
+  status?: { last_synced_at?: string | null; last_record_at?: string | null; waiting?: number };
   staleAfterDays: number;
 }) {
-  const age = daysSince(status?.last_synced_at);
+  const iso = mode === "auto" ? status?.last_synced_at : status?.last_record_at;
+  const age = daysSince(iso);
   const waiting = status?.waiting ?? 0;
   const stale = age === null || age > staleAfterDays;
   const tone = stale
     ? { border: "border-amber-500/30", bg: "bg-amber-500/10", text: "text-amber-300", sub: "text-amber-400/80" }
     : { border: "border-white/10", bg: "bg-white/5", text: "text-white/70", sub: "text-white/40" };
+  const verb = mode === "auto" ? "synced" : "entered";
   const when =
-    age === null ? "never synced" : age === 0 ? "synced today" : age === 1 ? "synced yesterday" : `synced ${age} days ago`;
+    age === null ? `never ${verb}` : age === 0 ? `${verb} today` : age === 1 ? `${verb} yesterday` : `${verb} ${age} days ago`;
   return (
     <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${tone.border} ${tone.bg}`}>
       <span className={`text-xs font-semibold ${tone.text}`}>{label}</span>
+      <span className={`text-[10px] uppercase tracking-wider ${tone.sub}`}>{mode === "auto" ? "auto" : "manual"}</span>
       <span className={`text-xs ${tone.sub}`}>{when}</span>
       {waiting > 0 && (
         <span className={`text-xs ${tone.sub}`}>· {waiting} awaiting confirmation</span>
@@ -1042,8 +1053,8 @@ export default function CancellationReportPage() {
                 <span className="text-xs text-amber-400">No Refund decisions pending HQ approval</span>
               </div>
             )}
-            <SyncStatusBadge label="GrabFood" status={syncStatusByPlatform.grabfood} staleAfterDays={3} />
-            <SyncStatusBadge label="FoodPanda" status={syncStatusByPlatform.foodpanda} staleAfterDays={9} />
+            <SyncStatusBadge label="GrabFood" mode="auto" status={syncStatusByPlatform.grabfood} staleAfterDays={3} />
+            <SyncStatusBadge label="FoodPanda" mode="manual" status={syncStatusByPlatform.foodpanda} staleAfterDays={3} />
             <div className="ml-auto flex items-center gap-2">
               {syncStatus === "done" && <span className="text-xs text-emerald-400">{syncMsg}</span>}
               {syncStatus === "error" && <span className="text-xs text-red-400">{syncMsg}</span>}
