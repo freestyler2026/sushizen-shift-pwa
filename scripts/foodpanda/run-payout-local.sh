@@ -18,14 +18,27 @@ DATE_FROM=$(python3 -c "from datetime import datetime, timedelta, timezone; pht 
 
 echo "Date range: $DATE_FROM to $DATE_TO" >> "$LOG_FILE"
 
-# Use node from nvm if available, otherwise system node
-if [ -f "$HOME/.nvm/nvm.sh" ]; then
-  export NVM_DIR="$HOME/.nvm"
-  source "$NVM_DIR/nvm.sh" --no-use
-  NODE="$NVM_DIR/versions/node/$(ls "$NVM_DIR/versions/node" | sort -V | tail -1)/bin/node"
-else
-  NODE="$(which node)"
+# Find node. launchd gives the job a bare PATH, so `which node` finds nothing and
+# NODE ended up empty — every step then failed with "command not found" while the
+# run still looked like it had started. Check the known install locations first.
+NODE=""
+for CANDIDATE in \
+  "$HOME/.volta/bin/node" \
+  "/opt/homebrew/bin/node" \
+  "/usr/local/bin/node"
+do
+  if [ -x "$CANDIDATE" ]; then NODE="$CANDIDATE"; break; fi
+done
+if [ -z "$NODE" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  NVM_LATEST="$(ls "$HOME/.nvm/versions/node" | sort -V | tail -1)"
+  [ -n "$NVM_LATEST" ] && NODE="$HOME/.nvm/versions/node/$NVM_LATEST/bin/node"
 fi
+[ -z "$NODE" ] && NODE="$(command -v node)"
+if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') — node not found; nothing ran" >> "$LOG_FILE"
+  exit 1
+fi
+echo "node: $NODE ($("$NODE" -v 2>/dev/null))" >> "$LOG_FILE"
 
 EXIT_CODE=0
 for LOCATION in paranaque taft qc; do
