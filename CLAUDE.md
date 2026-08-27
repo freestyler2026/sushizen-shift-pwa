@@ -49,6 +49,7 @@
 | Payroll系ページ（Manila Payroll / Dubai Payroll / Adjustments / Transactions / Loans / Leave Salary / Staff Profiles / Gov Tables / DTR Upload / Allowances / Remittances / My Pay / Inquiries） | **Payroll Manual** | `docs/manuals/payroll-manual.html` |
 | Store Operation Management Channel（BO Dashboard / Manager Inbox / Exception Templates / Pattern Detection / Area Manager Review） | **Management Channel Manual** | `docs/manuals/management-channel-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
+| 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
 
 **Republish 手順:**
 ```
@@ -77,6 +78,10 @@
    - file_path: docs/manuals/management-accounting-manual.html
    - url: https://claude.ai/code/artifact/7d9e43e9-7884-489a-9497-5eb08a960183   ← 管理会計マニュアル
    - favicon: 📊
+
+   - file_path: docs/manuals/tax-filing-manual.html
+   - url: https://claude.ai/code/artifact/a1d6d054-68fd-42e2-90d8-51c22192cfa5   ← 税務・証憑マニュアル
+   - favicon: 🧾
 ```
 
 **更新対象の判断基準:**
@@ -194,6 +199,10 @@ npx tsc --noEmit
 16. **DTR Sync が「効かない」ときは、まず Preview Sync のブロック表示を見る** → `shift_data_missing` / `suspicious_sessions` が1件でもあると「Sync to DTR」ボタンが `disabled` になり、**1行も書き込まれない**。他人（例：Anthony/Tricia のシフト未公開、Gessa/Mayorico の打刻漏れ）が原因でも全員分の同期が止まる。「シフトを直したのに DTR が変わらない」の実際の原因はほぼこれ。個別に急ぐ場合は DTR Records の Schedule 列（鉛筆アイコン）をクリックして `HH:MM-HH:MM` を直接入力すれば、その行だけ late/undertime が再計算される。（2026-08 Patrick 8/20・8/22 で発生）
 17. **給与系の一括処理で「1件でも不備があれば全体を中断」は作ってはいけない** → DTR Sync は `shift_data_missing` / `suspicious_sessions` があると全員分を書かずに `return {"error": ...}` していた。結果、他人の不備で数ヶ月間シフト修正がDTRに届かず、しかも画面上は原因が分かりにくかった。**不備のある行だけスキップして残りは処理し、スキップした行を必ずレスポンスとUIに出す**こと。安全ゲートの目的（誤った値を書かない）は行単位スキップで完全に満たせる。（2026-08-24 改善済み）
 19. **Nextのプロキシにヘッダーを追加するときは `[...slug]` だけを直してはいけない** → `src/app/api/auth/verify/route.ts` のような**個別ルートが catch-all より優先される**。catch-all にだけ転送を足すと、その個別ルートを通る経路（＝ログイン）でヘッダーが落ちて全員ログイン不能になる。`find src/app/api -name route.ts` で個別ルートを必ず列挙してから着手し、**デプロイ後は必ず実ブラウザでログインを検証する**。（2026-08-25 X-Approver-Pin 移行で実際に発生・即revertで復旧）
+
+21. **「〇〇に依頼してください」と案内する前に、その〇〇が実在するかDBで確認する** → CK Inventory のロック解除で「マネージャーに依頼してください」と案内しようとしたが、Manila CK/WH/BO の25名は全員 STAFF ロールで、解除できる人は0名だった（解除可能なのは HQ の6名のみ、全員 dubai 登録）。実行できない案内は、案内が無いより悪い。権限を要する操作の文言を書くときは `staff_auth.role` を必ず実データで確認する。（2026-08-26 ユーザー指摘で発覚）
+
+22. **取り消せない操作を主ボタンにしない／取り消し経路を必ず用意する** → CK Inventory は Finalize が紫の主ボタン、毎日使う Save Draft が控えめなセカンダリだった。結果、206件中13件しか入力していない状態でロックされ、しかも解除機能が存在しなかった。現場は「新しいセッションを作る」で回避し、30日で138セッション（本来約30）に膨れた。**頻度の高い操作を主ボタンに、取り消せない操作は従に。そして取り消し経路を権限制限＋記録つきで用意する。**（2026-08-26）
 
 20. **シード関数と実DBの二重管理をしない — 片方だけ直すと「巻き戻しボタン」が生まれる** → Management Channel のテンプレートをDBに直接投入して完了としたが、BO Dashboard の「Seed Default Templates」ボタンが呼ぶ `seed_management_templates()` は古い定義のままだった。`ON CONFLICT DO UPDATE` なので、誰かが1回押すだけで新しい設定が全消えする。**UIにシード/リセットボタンがある設定は、必ずそのシード関数を唯一の正とし、DBへの直接投入はしない。**直した後は実際にシードを実行して往復を検証する。（2026-08-26 発見・修正済み）
 

@@ -1,0 +1,404 @@
+<title>レシート仕訳の自動化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --paper:#F7F8FA; --card:#FFFFFF; --card-2:#EEF1F6; --rule:#DBE1EA; --rule-2:#E9EDF3;
+  --ink:#131A24; --ink-2:#3A4756; --muted:#6B7887;
+  --keep:#0E7C66; --keep-bg:#E3F4EF; --keep-line:#A8DCCD;
+  --stop:#B3261E; --stop-bg:#FBE9E7; --stop-line:#EFB9B4;
+  --ask:#8A5A00; --ask-bg:#FBF1DC; --ask-line:#E5C88A;
+  --new:#3A5CCC; --new-bg:#E8EDFB; --new-line:#B9C8F0;
+  --measure:36rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+    --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+    --keep:#3FD1AE; --keep-bg:#0D2A25; --keep-line:#1F5A4C;
+    --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+    --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
+    --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#0F141B; --card:#161D26; --card-2:#1D2632; --rule:#26303C; --rule-2:#202832;
+  --ink:#E7ECF3; --ink-2:#BAC5D2; --muted:#7D8B9B;
+  --keep:#3FD1AE; --keep-bg:#0D2A25; --keep-line:#1F5A4C;
+  --stop:#FF8A80; --stop-bg:#2C1614; --stop-line:#63302C;
+  --ask:#F0B84A; --ask-bg:#2A2110; --ask-line:#65511F;
+  --new:#8AA6FF; --new-bg:#161F3A; --new-line:#2E3F6B;
+}
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans JP",-apple-system,"Hiragino Sans",sans-serif;
+  font-size:15px; line-height:1.82; -webkit-font-smoothing:antialiased; }
+.wrap { max-width:64rem; margin:0 auto; padding:3.5rem 1.5rem 7rem; }
+.masthead { border-bottom:2px solid var(--ink); padding-bottom:1.4rem; margin-bottom:2.5rem; }
+.kicker { font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:.8rem; }
+h1 { font-size:clamp(1.7rem,4vw,2.45rem); line-height:1.3; font-weight:700; margin:0 0 .8rem; text-wrap:balance; }
+.standfirst { font-size:1rem; color:var(--ink-2); max-width:var(--measure); margin:0; }
+.dateline { margin-top:1.1rem; font-size:.78rem; color:var(--muted); font-family:"IBM Plex Mono",monospace; }
+section { margin-top:3.1rem; }
+h2 { font-size:1.32rem; font-weight:700; margin:0 0 .35rem; display:flex; align-items:baseline; gap:.75rem; text-wrap:balance; }
+h2 .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.1em; color:var(--muted); flex-shrink:0; padding-top:.15rem; }
+h3 { font-size:1rem; font-weight:700; margin:1.7rem 0 .55rem; }
+.lede { color:var(--ink-2); max-width:var(--measure); margin:0 0 1.4rem; }
+p { margin:0 0 .85rem; max-width:var(--measure); } p.wide { max-width:46rem; } p:last-child { margin-bottom:0; }
+code { font-family:"IBM Plex Mono",monospace; font-size:.85em; background:var(--card-2);
+  padding:.1em .4em; border-radius:3px; border:1px solid var(--rule-2); }
+.tw { overflow-x:auto; margin:1.2rem 0; border:1px solid var(--rule); }
+table { width:100%; border-collapse:collapse; font-size:.86rem; min-width:34rem; background:var(--card); }
+th { text-align:left; padding:.65rem .85rem; background:var(--card-2); font-family:"IBM Plex Mono",monospace;
+  font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; border-bottom:1px solid var(--rule); white-space:nowrap; }
+td { padding:.62rem .85rem; border-bottom:1px solid var(--rule-2); vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+td.n { text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+td.mono { font-family:"IBM Plex Mono",monospace; font-size:.81rem; }
+.box { border:1px solid var(--rule); background:var(--card); padding:1.1rem 1.25rem; margin:1.2rem 0; }
+.box.keep { border-color:var(--keep-line); background:var(--keep-bg); }
+.box.stop { border-color:var(--stop-line); background:var(--stop-bg); }
+.box.ask { border-color:var(--ask-line); background:var(--ask-bg); }
+.box.new { border-color:var(--new-line); background:var(--new-bg); }
+.box-h { font-family:"IBM Plex Mono",monospace; font-size:.67rem; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:600; margin-bottom:.45rem; color:var(--muted); }
+.box.keep .box-h{color:var(--keep)} .box.stop .box-h{color:var(--stop)}
+.box.ask .box-h{color:var(--ask)} .box.new .box-h{color:var(--new)}
+.box p { max-width:46rem; }
+pre { font-family:"IBM Plex Mono",monospace; font-size:.79rem; line-height:1.7; background:var(--card-2);
+  border:1px solid var(--rule); padding:.95rem 1.05rem; overflow-x:auto; margin:.9rem 0; border-radius:3px; }
+pre .c { color:var(--muted); } pre .k { color:var(--new); font-weight:600; }
+pre .x { color:var(--stop); font-weight:600; }
+.phase { border:1px solid var(--rule); background:var(--card); margin-bottom:1.05rem; }
+.phase-h { display:flex; align-items:baseline; gap:.9rem; flex-wrap:wrap; padding:.95rem 1.25rem;
+  border-bottom:1px solid var(--rule-2); background:var(--card-2); }
+.phase-n { font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:.77rem; letter-spacing:.06em;
+  color:var(--new); background:var(--new-bg); border:1px solid var(--new-line);
+  padding:.1rem .5rem; border-radius:3px; flex-shrink:0; }
+.phase-t { font-weight:700; font-size:1rem; }
+.phase-w { margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.73rem; color:var(--muted); }
+.phase-b { padding:1.15rem 1.25rem; } .phase-b p { max-width:46rem; }
+ul.plain { padding-left:1.1rem; margin:.45rem 0 0; max-width:46rem; }
+ul.plain li { margin-bottom:.42rem; } ul.plain li::marker { color:var(--muted); }
+.steps { list-style:none; counter-reset:s; padding:0; margin:1.2rem 0; }
+.steps li { counter-increment:s; position:relative; padding-left:2.6rem; padding-bottom:.9rem;
+  margin-bottom:.9rem; border-bottom:1px solid var(--rule-2); max-width:46rem; }
+.steps li:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+.steps li::before { content:counter(s); position:absolute; left:0; top:.1rem;
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:600;
+  width:1.6rem; height:1.6rem; line-height:1.6rem; text-align:center; border-radius:50%;
+  background:var(--card-2); border:1px solid var(--rule); color:var(--muted); }
+.steps li.auto::before { background:var(--keep-bg); border-color:var(--keep-line); color:var(--keep); }
+.steps li.auto { }
+.st { font-weight:700; }
+.sb { font-size:.9rem; color:var(--ink-2); }
+.pill { display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.66rem; font-weight:600;
+  letter-spacing:.06em; padding:.1rem .45rem; border-radius:3px; margin-left:.5rem; vertical-align:middle; }
+.pill.auto { background:var(--keep-bg); color:var(--keep); border:1px solid var(--keep-line); }
+.pill.man { background:var(--card-2); color:var(--muted); border:1px solid var(--rule); }
+footer { margin-top:3.8rem; padding-top:1.3rem; border-top:1px solid var(--rule); font-size:.78rem; color:var(--muted); }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="kicker">Sushi ZEN OS — 実装案 rev.3（税務申告向け）</div>
+  <h1>経理担当の仕訳作業を、確認作業に変える</h1>
+  <p class="standfirst">
+    月に約600枚の請求書とレシートが、すでにシステムに入っています。
+    読んで、科目を決めて、記帳して、ファイルする——この4工程を置き換える設計です。
+  </p>
+  <div class="dateline">2026-08-26 rev.3 · 前版（管理会計向け）から目的を修正</div>
+</header>
+
+<!-- ══ 置き換える作業 ══ -->
+<section>
+  <h2><span class="tag">対象</span>経理担当は今、何をしているか</h2>
+  <p class="lede">
+    税務申告のためのレシート処理を工程に分けると、置き換えられる範囲がはっきりします。
+  </p>
+  <ol class="steps">
+    <li><span class="st">収集</span><span class="pill man">人</span>
+      <div class="sb">スタッフからレシートを集める。<strong>ここは置き換えられません。</strong>紙で回ってくるものは、誰かが撮る必要があります</div></li>
+    <li class="auto"><span class="st">読取</span><span class="pill auto">自動</span>
+      <div class="sb">日付・取引先・TIN/TRN・税抜額・税額・税込額・明細を読み取る</div></li>
+    <li class="auto"><span class="st">科目判断</span><span class="pill auto">自動 + 確認</span>
+      <div class="sb">取引先マスタに当たれば即決定。新規のときだけAIが候補を出し、人が承認</div></li>
+    <li class="auto"><span class="st">記帳</span><span class="pill auto">自動</span>
+      <div class="sb">台帳に1行として確定。手入力は発生しない</div></li>
+    <li class="auto"><span class="st">ファイリング</span><span class="pill auto">自動</span>
+      <div class="sb">画像を恒久保存し、台帳の行から必ず開ける状態にする</div></li>
+    <li><span class="st">申告</span><span class="pill man">人・会計事務所</span>
+      <div class="sb">科目別集計と仕入税額を出力して渡す。<strong>申告そのものは行いません</strong></div></li>
+  </ol>
+  <div class="box new">
+    <div class="box-h">量の実態</div>
+    <p>
+      仕入請求書 <strong>26.1件/日</strong>（Dubai・8日で209件）＋ スタッフのレシート <strong>約3件/日</strong>。
+      合わせて<strong>月およそ600枚</strong>。1枚2分の手作業なら月20時間です。
+    </p>
+  </div>
+</section>
+
+<!-- ══ 管理会計との違い ══ -->
+<section>
+  <h2><span class="tag">前提</span>管理会計とは別の3つの軸が要る</h2>
+  <p class="lede">
+    先に作った月次PLの科目マスタは、この用途には<strong>そのままでは使えません</strong>。
+    税務申告には、経営管理では不要な次元が3つあります。
+  </p>
+  <div class="tw">
+    <table>
+      <tr><th>軸</th><th>管理会計（既存）</th><th>税務申告（必要）</th></tr>
+      <tr>
+        <td class="mono">単位</td><td>店舗別（CUB / PAR / TAFT …）</td>
+        <td><strong>法人別</strong>。申告は法人ごと。店舗別では申告書が作れません</td>
+      </tr>
+      <tr>
+        <td class="mono">期間</td><td>暦月</td>
+        <td><strong>税務期間</strong>。VAT は四半期など、暦月と一致しません</td>
+      </tr>
+      <tr>
+        <td class="mono">証憑</td><td>不要</td>
+        <td><strong>原本が出せること</strong>。台帳の行から必ず画像へ辿れる必要があります</td>
+      </tr>
+    </table>
+  </div>
+  <p class="wide">
+    さらに、税務では<strong>税抜額と税額を分けて</strong>持つ必要があります。仕入税額控除は税額の側で計算するためです。
+    月次PLは税込の総額しか見ていません。
+  </p>
+  <div class="box keep">
+    <div class="box-h">先に作った22科目は無駄になりません</div>
+    <p>
+      <code>account_master.tax_account_code</code> の列を用意してあります。
+      レシートを<strong>1回分類すれば、税務申告にも月次PLにも使えます</strong>。
+      ただし主従は逆で、<strong>税務側の体系が主</strong>、月次PLの科目が従です。
+    </p>
+  </div>
+</section>
+
+<!-- ══ OCRの不足 ══ -->
+<section>
+  <h2><span class="tag">検証済</span>税務項目は、プロンプトに足せば取れます</h2>
+  <p class="lede">
+    前版で「209件は抽出済みなので再OCR不要」と書きましたが、税務目的では成立しません。
+    ただし<strong>読取性能の問題ではありません</strong>。プロンプトが要求していないだけです。
+  </p>
+  <pre><span class="c">// invoice_ocr_service.py が現在取っている項目</span>
+vendor_name, invoice_number, invoice_date, due_date,
+total_amount, currency, line_items, confidence_notes
+
+<span class="c">// 税務申告に必要で、取れていない項目</span>
+<span class="x">tin_or_trn</span>        <span class="c">209件中 0件</span>
+<span class="x">tax_amount</span>       <span class="c">209件中 1件のみ言及</span>
+<span class="x">amount_excl_tax</span>  <span class="c">なし（total_amount のみ）</span>
+<span class="x">receipt_type</span>     <span class="c">なし（OR / SI / 手書き の別）</span></pre>
+  <p class="wide">
+    現在の抽出は<strong>発注照合のための項目</strong>で、税務のための項目ではありません。
+    <code>ocr_raw_json</code> にもプロンプトが定義した項目しか残っていないため、
+    <strong>0件という数字は「書類にTRNが無い」ことの証拠にはなりません</strong>。
+  </p>
+
+  <div class="box keep">
+    <div class="box-h">実証：同じモデル・同じ画像で3件全て成功</div>
+      <pre style="margin:.4rem 0 .7rem"><span class="c">-- 拡張プロンプトで再抽出した結果</span>
+SUMMIT TRADING COMPANY LLC      TRN 100010300000003  TAX_INVOICE
+   税抜 551.00 + 税額 27.55 = 578.55   <span class="c">DB値と一致・VAT 5%</span>
+SUNBERRY ... TRADING L.L.C      TRN 100469467300003  TAX_INVOICE
+   税抜 303.50 + 税額 15.18 = 318.68
+Chef Middle East LLC            TRN 100258961400003  TAX_INVOICE
+   税抜  60.00 + 税額  3.00 =  63.00</pre>
+    <p>
+      TRN・領収書種別・税抜額・税額のすべてが読めています。税込額は既存DB値と完全一致し、
+      VATも正確に5%です。<strong>gpt-4o の性能ではなく、プロンプトの設計の問題でした。</strong>
+      Prep Time 計測で厨房照明下の小さなレシートが読めているのと矛盾しません。
+    </p>
+  </div>
+
+  <div class="box new">
+    <div class="box-h">つまり Phase 1 は</div>
+    <p>
+      <strong>プロンプトの拡張 ＋ 209件の再抽出パス1回</strong>で完了します。
+      画像は Drive に残っており、読めることは実証済みです。技術的な不確実性はありません。
+    </p>
+  </div>
+</section>
+
+<!-- ══ 設計 ══ -->
+<section>
+  <h2><span class="tag">設計</span>既存を触らない方針は維持</h2>
+  <p class="lede">
+    5つの入力口はそのまま。参照するだけの台帳を上に載せる構造は前版と同じです。
+    変わるのは<strong>台帳が持つ項目</strong>です。
+  </p>
+  <pre><span class="k">fin_documents</span>  <span class="c">-- 経費台帳。1行 = 1証憑</span>
+  source_table, source_id      <span class="c">-- 元行を指すだけ。書き戻さない</span>
+  <span class="k">legal_entity</span>                 <span class="c">-- 申告単位。店舗ではない</span>
+  <span class="k">tax_period</span>                   <span class="c">-- 暦月とは別</span>
+  doc_date, vendor_id,
+  <span class="k">tin_or_trn, receipt_type</span>     <span class="c">-- 事実として保存。判断はしない</span>
+  amount_excl_tax, <span class="k">tax_amount</span>, amount_incl_tax, currency,
+  tax_account_code, mgmt_account_code, cost_center,
+  <span class="k">evidence_url, evidence_hash</span>   <span class="c">-- 原本への恒久リンク</span>
+  confidence, review_status,
+  <span class="k">locked_at</span>                    <span class="c">-- 申告後は変更不可</span>
+  UNIQUE (source_table, source_id)</pre>
+  <div class="box new">
+    <div class="box-h">判断ではなく事実を保存する</div>
+    <p>
+      <code>tin_or_trn</code> と <code>receipt_type</code> は<strong>事実</strong>です。
+      「経費になるか」は<strong>判断</strong>であり、会計・税務の領域です。
+      事実だけ保存しておけば、基準が確定した時点で<strong>過去分も遡って再判定できます</strong>。
+      基準が変わっても再抽出は不要です。
+    </p>
+  </div>
+</section>
+
+<!-- ══ Phase ══ -->
+<section>
+  <h2><span class="tag">段階</span>実装の順序</h2>
+
+  <div class="phase">
+    <div class="phase-h"><span class="phase-n">PHASE 1</span>
+      <span class="phase-t">拡張抽出と台帳</span>
+      <span class="phase-w">会計事務所を待たない</span></div>
+    <div class="phase-b">
+      <ul class="plain">
+        <li>OCRプロンプトに税務項目を追加（<code>tin_or_trn</code> / <code>tax_amount</code> / <code>amount_excl_tax</code> / <code>receipt_type</code>）</li>
+        <li>既存209件を再抽出。以後は自動</li>
+        <li>スタッフのレシート155件を新規OCR</li>
+        <li><code>fin_documents</code> に登録。画像への恒久リンクを張る</li>
+        <li>台帳の一覧・検索・画像表示（<strong>科目分類はまだしない</strong>）</li>
+      </ul>
+      <div class="box keep" style="margin-top:1rem">
+        <div class="box-h">この段階だけで得られるもの</div>
+        <p>
+          科目が付いていなくても、<strong>「日付・取引先・金額・税額・画像」が一覧で検索できる</strong>状態になります。
+          経理担当の「探す」「読む」「打ち込む」がここで消えます。残るのは科目を決める作業だけです。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h"><span class="phase-n">PHASE 2</span>
+      <span class="phase-t">科目の自動分類</span>
+      <span class="phase-w">会計事務所の体系が要る</span></div>
+    <div class="phase-b">
+      <p class="wide">
+        <strong>ここだけは事務所が決まるまで着手できません。</strong>
+        分類先が存在しないためです。体系が届いたら <code>account_master.tax_account_code</code> に入れます。
+      </p>
+      <pre><span class="k">vendor_master</span>
+  canonical_name, name_variants[],
+  is_internal,              <span class="c">-- Sushi ZEN CK / Warehouse は振替であって費用ではない</span>
+  default_tax_account,
+  tin_or_trn, tax_status</pre>
+      <p class="wide">
+        <strong>2回目以降はAIを呼びません。</strong>取引先は <code>drive_invoices</code> で
+        <strong>25社のみ</strong>。20社ほど登録すれば207件を覆います。数日で埋まります。
+      </p>
+      <div class="box ask">
+        <div class="box-h">社内振替を費用にしない</div>
+        <p>
+          <code>Sushi ZEN Central Kitchen</code> を食材費に分類すると、
+          CKが外部から仕入れた時点で計上済みのため<strong>二重計上</strong>になります。
+          名寄せの際に <code>is_internal</code> を<strong>同時に</strong>判定してください。
+          表記揺れも既に発生しています。<code>Centrak</code> という綴り違いが8件、
+          SUNBERRY はハイフン・ピリオド・大文字小文字の違いで<strong>4通り</strong>
+          （<code>- L.L.C</code> 11件 / <code>L.L.C</code> 7件 / <code>- LLC</code> 1件 /
+          <code>Sunberry ... L.L.C</code> 3件）。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h"><span class="phase-n">PHASE 3</span>
+      <span class="phase-t">申告用出力と監査対応</span>
+      <span class="phase-w">運用が回ってから</span></div>
+    <div class="phase-b">
+      <ul class="plain">
+        <li><strong>期間ロック</strong>：申告済み期間は変更不可にする。後から数字が動くと申告と帳簿が食い違います</li>
+        <li><strong>仕入税額の集計</strong>：TIN/TRN あり・なしで分けて出す</li>
+        <li><strong>重複検知</strong>：画像ハッシュと <code>(取引先, 日付, 金額)</code>。入力口を跨いで効きます</li>
+        <li><strong>監査対応</strong>：科目・期間・取引先から絞り込み、その場で原本画像を表示</li>
+        <li><strong>学習</strong>：同じ取引先で2回同じ修正が入ったら既定科目を更新</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 画面 ══ -->
+<section>
+  <h2><span class="tag">画面</span>経理担当のための1画面</h2>
+  <p class="lede">
+    使う人は店舗マネージャーではなく<strong>経理担当</strong>です。
+    1件を丁寧に承認する画面ではなく、<strong>100件を一気に流す画面</strong>を作ります。
+  </p>
+  <ul class="plain">
+    <li>左に<strong>証憑画像</strong>、右に<strong>抽出結果</strong>。目線を動かさずに数字を照合できる配置</li>
+    <li>キーボードだけで次へ進める（承認 → 次、修正 → 次）</li>
+    <li>マスタヒットは<strong>一括承認</strong>。1件ずつ開かない</li>
+    <li>TIN/TRN なしを<strong>絞り込める</strong>。申告前にまとめて確認するため</li>
+    <li>期間指定でCSV出力</li>
+  </ul>
+  <div class="tw">
+    <table>
+      <tr><th>画面</th><th>変更</th></tr>
+      <tr><td class="mono">/store/expense-request · petty-cash · receipt-log</td><td style="color:var(--keep)"><strong>変更なし</strong></td></tr>
+      <tr><td class="mono">/admin/expense-requests</td><td style="color:var(--keep)"><strong>変更なし</strong></td></tr>
+      <tr><td class="mono">/admin/finance/documents</td><td style="color:var(--new)"><strong>新規</strong>：台帳・確認・出力</td></tr>
+      <tr><td class="mono">/admin/finance/vendors</td><td style="color:var(--new)"><strong>新規</strong>：名寄せ・既定科目</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 確認 ══ -->
+<section>
+  <h2><span class="tag">確認</span>会計事務所に聞くこと</h2>
+  <p class="lede">前版から質問の中身が変わります。「体系を共有してほしい」ではなく、実務の受け渡し条件を詰めます。</p>
+  <ul class="plain">
+    <li><strong>下処理済みのデータをどの形式で渡せば、そのまま記帳に使えますか。</strong>
+        勘定科目コード・列構成・ファイル形式。<strong>記帳工数が下がる分の値引き交渉に直結します</strong></li>
+    <li><strong>経費性の判定基準。</strong>TIN記載なしの少額の扱い、手書き領収書、
+        Dubai の Simplified Tax Invoice の閾値。<strong>これはシステムが決めるべきではありません</strong></li>
+    <li><strong>証憑の保存要件。</strong>電子データで足りるか、紙の原本保管が必要か。保存年数</li>
+    <li><strong>申告単位。</strong>PH法人・UAE法人それぞれの税務期間と申告サイクル</li>
+  </ul>
+  <div class="box ask">
+    <div class="box-h">回答を待たずに進められること</div>
+    <p>
+      Phase 1（拡張抽出・台帳・画像リンク）は<strong>全て事務所の回答なしで完了できます</strong>。
+      待つ必要があるのは Phase 2 の分類だけです。
+    </p>
+  </div>
+</section>
+
+<!-- ══ できないこと ══ -->
+<section>
+  <h2><span class="tag">限界</span>これでは解決しないこと</h2>
+  <div class="tw">
+    <table>
+      <tr><th>できないこと</th><th>理由</th></tr>
+      <tr><td>紙で回ってくるレシートの収集</td><td>誰かが撮る必要があります。撮られないものは存在しないのと同じです</td></tr>
+      <tr><td>経費性の判定基準を決めること</td><td>会計・税務の判断。事実だけ保存し、判断層は基準確定後に載せます</td></tr>
+      <tr><td>紙の原本の代替</td><td>税務当局が紙を求める場合、システムは所在を示せても原本にはなりません</td></tr>
+      <tr><td>立替経費の未定着（93名中3名）</td><td>UIを変えない方針のため。定着は別課題です</td></tr>
+      <tr><td>申告書の作成</td><td>集計して渡すところまでです</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Sushi ZEN Workforce OS — レシート仕訳の自動化 実装案 rev.3<br>
+  仕入請求書 209件/8日（取引先25社）· スタッフレシート 195件/4テーブル ·
+  税務項目の抽出可否は実物3件で検証済み · 2026-08-26 時点
+</footer>
+
+</div>

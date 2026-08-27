@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  Loader2, Lock, Unlock, Package, Plus, RefreshCw, Save, X, Trash2, Settings2, Users,
+  AlertTriangle, Loader2, Lock, Unlock, Package, Plus, RefreshCw, Save, X, Trash2, Settings2, Users,
   AlertCircle,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
@@ -155,7 +155,10 @@ export default function CKInventoryPage() {
   const [creatingSession, setCreatingSession] = useState(false);
 
   // Finalize confirm
-  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  // 0 = closed, 1 = "you have not finished" warning, 2 = final confirmation.
+  // Stage 1 only appears when the count is incomplete, so a finished count is
+  // not slowed down by an extra tap.
+  const [finalizeStage, setFinalizeStage] = useState<0 | 1 | 2>(0);
   const [finalizing, setFinalizing] = useState(false);
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -513,7 +516,7 @@ export default function CKInventoryPage() {
         await saveEntries();
       }
       await apiFetch(`/api/store/ck-inventory/sessions/${activeSession.id}/finalize`, { method: "POST" });
-      setShowFinalizeConfirm(false);
+      setFinalizeStage(0);
       setSuccessMsg("Session finalized and locked.");
       await loadSessions();
       await loadSession(activeSession.id);
@@ -741,7 +744,7 @@ export default function CKInventoryPage() {
                       )}
                       {!activeSession.is_finalized && (
                         <button
-                          onClick={() => setShowFinalizeConfirm(true)}
+                          onClick={() => setFinalizeStage(kpi && kpi.filledCount < kpi.totalItems ? 1 : 2)}
                           disabled={saving}
                           className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-transparent px-4 py-2 text-sm font-medium text-amber-300/90 transition hover:border-amber-500/40 hover:bg-amber-500/10 disabled:opacity-50"
                         >
@@ -925,7 +928,7 @@ export default function CKInventoryPage() {
                             Save Draft
                           </button>
                           <button
-                            onClick={() => setShowFinalizeConfirm(true)}
+                            onClick={() => setFinalizeStage(kpi && kpi.filledCount < kpi.totalItems ? 1 : 2)}
                             disabled={saving}
                             className={`${PRIMARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50`}
                           >
@@ -1238,11 +1241,74 @@ export default function CKInventoryPage() {
         document.body
       )}
 
-      {/* ── Finalize Confirm Modal ─────────────────────────────────────────── */}
-      {showFinalizeConfirm && typeof document !== "undefined" && createPortal(
+      {/* ── Stage 1: not finished yet ───────────────────────────────────────
+          Shown only when items are still blank. Nobody on the CK floor can
+          unlock a session — every one of the 25 CK/WH/BO accounts is role
+          STAFF, and only HQ can reopen — so this has to send them back to Save
+          rather than tell them a manager will sort it out. Kept short and in
+          plain words: this is the screen that has to be understood. */}
+      {finalizeStage === 1 && kpi && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setFinalizeStage(0)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-amber-500/40 bg-neutral-900 p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-400 shrink-0" />
+              <h2 className="text-lg font-semibold text-amber-200">
+                The count is not finished
+              </h2>
+            </div>
+
+            <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+              <div className="text-3xl font-bold text-amber-200 tabular-nums">
+                {kpi.filledCount} / {kpi.totalItems}
+              </div>
+              <div className="mt-1 text-xs text-amber-200/80">
+                {kpi.totalItems - kpi.filledCount} items are still blank
+              </div>
+            </div>
+
+            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-sm text-zinc-100 leading-relaxed">
+                If you have <strong>not finished counting</strong>, go back and press{" "}
+                <strong className="text-violet-300">Save</strong> — the purple button.
+                Your entries are kept and you can carry on later.
+              </p>
+              <p className="mt-3 text-sm text-amber-200/90 leading-relaxed">
+                If you lock this session, <strong>you cannot unlock it yourself</strong>,
+                and the day cannot be counted again. Only the office can reopen it.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => setFinalizeStage(0)}
+                className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2 py-3 text-sm`}
+              >
+                <Save className="h-4 w-4" />
+                Go back and keep counting
+              </button>
+              <button
+                onClick={() => setFinalizeStage(2)}
+                className="w-full rounded-xl border border-white/10 bg-transparent px-4 py-2 text-xs text-zinc-400 transition hover:border-amber-500/30 hover:text-amber-300"
+              >
+                I have finished counting
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Stage 2: final confirmation ─────────────────────────────────── */}
+      {finalizeStage === 2 && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-          onClick={() => setShowFinalizeConfirm(false)}
+          onClick={() => setFinalizeStage(0)}
         >
           <div
             className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
@@ -1271,11 +1337,13 @@ export default function CKInventoryPage() {
               </div>
             )}
             <p className="mb-6 text-sm text-zinc-400">
-              This saves every entry and locks the session. After this only a manager or HQ
-              can reopen it — nobody needs to start a second session for the same day.
+              This saves every entry and locks the session.{" "}
+              <strong className="text-zinc-300">Only the office can reopen it.</strong>{" "}
+              Do not start a second session for the same day.
             </p>
+
             <div className="flex gap-3">
-              <button onClick={() => setShowFinalizeConfirm(false)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>
+              <button onClick={() => setFinalizeStage(0)} className={`${SECONDARY_BUTTON} flex-1 py-2 text-sm`}>
                 Cancel
               </button>
               <button
