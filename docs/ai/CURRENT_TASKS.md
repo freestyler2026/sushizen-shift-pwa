@@ -170,6 +170,95 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
+## ✅ Completed: 緊急連絡先の自己登録 (2026-08-27)
+
+### 設計：本人が登録する
+`/my-contact`「My Phone Number」— **全員が自分の番号だけ**を登録できる。
+名前は**トークンから取得**し、リクエストボディからは読まない（他人の名前で番号を登録できないため）。
+
+**なぜ自己申告か**: 他人が代理入力した番号は、変わっても誰も気づかず古びる。
+本人だけが変更を知っている。
+
+**なぜその場に理由を書くか**: 「火事・怪我・閉店のときは誰もアプリを開かない、電話する。
+だから番号が先に入っていないと機能しない」— 入力画面に1行で置いた。
+
+### `/admin/staff/contacts`「Emergency Contacts」
+**未登録の人を先頭に表示**。穴を隠す名簿は、必要になった瞬間に不完全と分かるので最悪。
+
+呼び出し先は**ロールから導出**（HQ / ADMIN / HR_MANAGER / MANILA_MANAGEMENT /
+DUBAI_MANAGEMENT / MANAGEMENT）。名簿を手で保守すると、異動の初回で古くなる。
+
+### 🔴 実装中に教訓25を再び踏んだ
+最初 `staff_auth.role` だけを見ており、**HQ6名しか出なかった**。
+HR_MANAGER も management も `staff_role_assignments` にあり、`staff_auth.role` は
+STAFF と HQ しか持たない。→ 両方を UNION するよう修正し、25名に。
+
+**「HR Manager なども登録できるように」という要望そのものが達成できていなかった。**
+
+### 本番実測
+```
+GET  /api/me/contact          → 自分の情報のみ返す
+POST phone="123"              → 400 "That does not look like a phone number."
+POST phone="+971 50 123 4567" → 200 保存（記号を除去して +971501234567）
+呼び出し先一覧                → 到達可能 1/25（テスト後に消去、現在 0/25）
+```
+
+### ⚠ ユーザー確認事項
+- **呼び出し先25名に `Test Account` / `Test Admin Account` が含まれる**（ADMINロール保持）。
+  緊急連絡先として不適切で、そもそもADMIN権限を持つべきか要確認
+- ADMINロールは23名おり、多くはマニラの事務スタッフ。
+  緊急時に25名へ電話するのは現実的でないため、呼び出し先の範囲を絞るか要判断
+
+---
+
+## ✅ Completed: 沈黙を可視化する — バッジ＋名指し (2026-08-27)
+
+### ③ NavBarバッジ ＋ 未引き取り一覧
+`/admin/incidents/unowned`「Waiting for someone」。
+**ページではなくバッジが本体** — 開かないと分からない画面が、8件放置の原因だった。
+
+「持ち主がいない」の定義に注意: `new` だけでなく、**`acknowledged` だが名前が無い6件も含める**。
+旧実装は引き取った人を記録していなかったため、現場に求めているのと同じ責任の空白がHQ側にあった。
+
+本番実測:
+```
+バッジ: 14件 / 最長 82日待ち
+「Take this on」→ "Taken on. It waited 82 days. The alerts stop now."
+→ 14 → 13件に減少 ✅
+```
+
+### ④ 2ラウンド無応答で名指し
+「HQ」宛は誰宛でもない。3ラウンド目から**1人ずつ名指しし、ラウンドごとに交代**する。
+```
+round 1-2  HQ全体（名指しなし）
+round 3    Ayako Nishimura
+round 4    Jay Nishimura
+round 5    Rafael Jonas Lagahit
+round 6    Yukihiro Nishimura
+round 7    Yuri Yamada
+round 8    Yusuke Uejima
+round 9    Ayako Nishimura（一巡）
+```
+**輪番表を作らずに輪番の効果を得る設計。** 3ラウンド目に寝ていた人は4ラウンド目には呼ばれず、
+最終的に全員が個別に呼ばれる。表の保守も、不在時の穴も無い。
+
+Level 2 は30分毎なので名指し開始は通報から約60分後、Level 3 は10分毎なので約20分後。
+
+### ⚠ 実装中に踏んだ罠
+`/admin/incidents/unowned` が `[id]` ルートに食われて "Incident not found" を表示。
+**サーバーは正しいページを返していた**（HTMLに文言あり）— PWAのService Workerが
+古いシェルを配っていた。`caches.delete()` で解消。
+静的ルート追加時は、既存の動的ルート配下だとキャッシュで確認を誤りやすい。
+
+### 残（HQ側の作業）
+1. **既存13件を片付ける** — 新しい仕組みを現場に案内する前に。
+   今の状態で「10分以内に報告を」と言うと、現場が最初に学ぶのは「報告しても何も起きない」
+2. **HQ6名の電話番号を登録** — `staff_master.whatsapp_phone` は167名全員未登録。
+   Level 3で「今すぐ電話」を出すには番号が要る
+3. 2週間測ってから、輪番が要るか判断
+
+---
+
 ## ✅ Completed: 店舗からの緊急通報 (2026-08-27)
 
 ### きっかけと、現場からの本質的な指摘
