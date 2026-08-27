@@ -159,6 +159,7 @@ const PRIMARY: NavItem[] = [
   { href: "/request",                label: "Request",               icon: ClipboardList, match: "exact" },
   { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" },
   { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" },
+  { href: "/store/report",           label: "Report Something",    icon: Siren,         match: "prefix" },
   { href: "/incidents",             label: "Incident Report",       icon: AlertTriangle, match: "prefix" },
   { href: "/my-pay",                label: "My Pay",                icon: Receipt,       match: "prefix" },
   { href: "/my-assets",             label: "My Assets",             icon: Laptop,        match: "prefix" },
