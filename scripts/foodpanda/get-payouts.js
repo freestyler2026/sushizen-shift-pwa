@@ -320,9 +320,12 @@ async function main() {
   try { fs.unlinkSync(TMP_SESSION); } catch (_) {}
 
   if (allPayouts.length === 0) {
-    console.log('\n⚠ No payouts captured. Portal may not have called ListPayouts and fallback also failed.');
-    console.log('  Possible causes: session expired, no payouts in date range, portal layout change.');
-    process.exit(0);
+    // Exiting 0 here made the daily job report success while importing nothing,
+    // which is how the scheduled run went unnoticed. An empty capture is a
+    // failure: say so and let the run go red.
+    console.error('\n\u274c No payouts captured. Portal may not have called ListPayouts and fallback also failed.');
+    console.error('  Possible causes: session expired, anti-bot block on CI, portal layout change.');
+    process.exit(1);
   }
 
   console.log(`\n✓ Total payouts captured: ${allPayouts.length}`);

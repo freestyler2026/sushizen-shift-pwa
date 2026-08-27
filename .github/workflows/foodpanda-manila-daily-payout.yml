@@ -64,7 +64,7 @@ jobs:
         timeout-minutes: 8
 
       - name: Extract Taft payouts
-        if: ${{ github.event.inputs.location == 'all' || github.event.inputs.location == 'taft' }}
+        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft' }}
         run: node scripts/foodpanda/get-payouts.js taft
         env:
           DATE_FROM:              ${{ env.DATE_FROM }}
@@ -74,7 +74,7 @@ jobs:
         timeout-minutes: 8
 
       - name: Extract QC payouts
-        if: ${{ github.event.inputs.location == 'all' || github.event.inputs.location == 'qc' }}
+        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc' }}
         run: node scripts/foodpanda/get-payouts.js qc
         env:
           DATE_FROM:              ${{ env.DATE_FROM }}
