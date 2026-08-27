@@ -83,6 +83,15 @@ const SHOP_MAP = {
   '1644198211': { code: 'KEETA_SZ_BB',  name: 'Sushi ZEN Business Bay',      brand: 'sushi_zen' },
   '1644191210': { code: 'KEETA_SZ_JLT', name: 'Sushi ZEN Jumeirah Lake',     brand: 'sushi_zen' },
   '1644184196': { code: 'KEETA_SZ_AM',  name: 'Sushi ZEN Al Mina',           brand: 'sushi_zen' },
+
+  // Ramen ZEN. Reports older than about June 2026 leave the shop-label column
+  // blank, so label-based derivation cannot identify them and a year of history
+  // was being skipped. The ids are stable, so map them outright.
+  '1644200182': { code: 'KEETA_RZ_ARJ', name: 'Ramen ZEN Arjan',             brand: 'ramen_zen' },
+  '1644320430': { code: 'KEETA_RZ_AB3', name: 'Ramen ZEN Al Barsha 3',       brand: 'ramen_zen' },
+  '1644173192': { code: 'KEETA_RZ_BB',  name: 'Ramen ZEN Business Bay',      brand: 'ramen_zen' },
+  '1644193201': { code: 'KEETA_RZ_JLT', name: 'Ramen ZEN Jumeirah Lake',     brand: 'ramen_zen' },
+  '1644179577': { code: 'KEETA_RZ_AM',  name: 'Ramen ZEN Al Mina',           brand: 'ramen_zen' },
 };
 
 // Brand id used by the portal's own "All restaurants" selection. One report per
