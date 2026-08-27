@@ -22,7 +22,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { getAuthHeaders, getAuth } from "@/lib/auth";
+import { getAuthHeaders, getUploadHeaders, getAuth } from "@/lib/auth";
 import { prepareUpload, readError } from "@/lib/image-compress";
 
 const STORES = ["PAR", "CUB", "TAFT"] as const;
@@ -851,7 +851,9 @@ export default function StoreSupplierOrdersPage() {
       fd.append("order_date", receiveModal.orderDate);
       const res = await fetch(`/api/admin/store-supplier/orders/${receiveModal.orderId}/upload-invoice-photo`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        // getAuthHeaders() forces Content-Type: application/json, which strips the
+        // multipart boundary and makes the server see no file at all.
+        headers: getUploadHeaders(),
         body: fd,
       });
       if (!res.ok) {
