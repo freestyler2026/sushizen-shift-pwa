@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prepareIfImage } from "@/lib/image-compress";
 import {
   AlertCircle, ArrowRightLeft, Bell, BellRing, CalendarDays, CheckCircle2,
   ClipboardList, Clock, FileText, Loader2, RefreshCw,
@@ -11,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
@@ -699,12 +700,12 @@ export default function RequestPage() {
       form.set("branch", branch);
       form.set("medical_doc", String(medicalDoc));
       form.set("payload_json", JSON.stringify(payload));
-      if (medicalDocumentFile) form.set("medical_document_file", medicalDocumentFile);
+      if (medicalDocumentFile) form.set("medical_document_file", await prepareIfImage(medicalDocumentFile));
 
       const apiBase = "";
       let res = await fetch(`${apiBase}/api/shift_change/submit`, {
         method: "POST",
-        headers: getAuthHeaders(currentAuth),
+        headers: getUploadHeaders(currentAuth),
         body: form,
       });
       if (res.status === 401) {
@@ -715,7 +716,7 @@ export default function RequestPage() {
           form.forEach((v, k) => form2.set(k, v));
           res = await fetch(`${apiBase}/api/shift_change/submit`, {
             method: "POST",
-            headers: getAuthHeaders(refreshed),
+            headers: getUploadHeaders(refreshed),
             body: form2,
           });
         }

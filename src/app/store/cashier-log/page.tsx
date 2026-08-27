@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Plus, RefreshCw, Trash2, X, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { clearAuth, getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SECONDARY_BUTTON, SELECT_CLASS, INPUT_CLASS,
@@ -146,7 +147,7 @@ export default function CashierLogPage() {
     fd.append("entry_date", entryDate);
     fd.append("entry_type", tab);
     fd.append("slot", slot);
-    fd.append("file", photo.file);
+    fd.append("file", await prepareUpload(photo.file));
     try {
       const res = await fetch(`${API}/entries/${entryId}/photo`, { method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store" });
       return res.ok;

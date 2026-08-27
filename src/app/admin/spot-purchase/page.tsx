@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -256,7 +257,7 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
       const form = new FormData();
       form.append("purchased_by", pb);
       form.append("receipt_notes", completeNotes[id] || "");
-      if (receiptFile[id]) form.append("receipt_file", receiptFile[id] as File);
+      if (receiptFile[id]) form.append("receipt_file", await prepareUpload(receiptFile[id] as File));
       const res = await fetch(`/api/admin/spot-purchase/requests/${id}/complete`, {
         method: "POST",
         headers: getUploadHeaders(auth),

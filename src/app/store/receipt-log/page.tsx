@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -200,7 +201,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
     setUploadErr("");
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", await prepareUpload(file));
       fd.append("branch_code", branch);
       const res = await fetch("/api/store/receipt-log/upload", {
         method: "POST",

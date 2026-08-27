@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import {
@@ -219,7 +220,7 @@ export default function ProcurementCaseDetailPage() {
       form.append("doc_type", uploadDocType);
       form.append("approver_name", requestedBy);
       form.append("pin", pin);
-      form.append("file", uploadFile);
+      form.append("file", await prepareUpload(uploadFile));
       const res = await fetch(`/api/admin/procurement/cases/${caseId}/documents/upload`, {
         method: "POST",
         headers,
@@ -250,7 +251,7 @@ export default function ProcurementCaseDetailPage() {
         form.append("doc_type", "RECEIPT");
         form.append("approver_name", requestedBy);
         form.append("pin", pin);
-        form.append("file", receiptFile);
+        form.append("file", await prepareUpload(receiptFile));
         const res = await fetch(`/api/admin/procurement/cases/${caseId}/documents/upload`, {
           method: "POST",
           headers,

@@ -6,6 +6,7 @@ import {
   DollarSign, Send, RefreshCw, CheckCircle2, XCircle,
   AlertTriangle, ExternalLink, Camera, X, ChevronDown, ChevronUp, Banknote,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { clearAuth, getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SELECT_CLASS, INPUT_CLASS, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
@@ -714,7 +715,7 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
       fd.append("branch", branch);
       fd.append("report_date", reportDate);
       fd.append("doc_type", "receipt");
-      fd.append("file", photo.file);
+      fd.append("file", await prepareUpload(photo.file));
       await fetch("/api/store/cash-report/upload-scpwd-photo", {
         method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
       }).catch(() => {});
@@ -728,7 +729,7 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
       fd.append("branch", branch);
       fd.append("report_date", reportDate);
       fd.append("doc_type", "id");
-      fd.append("file", photo.file);
+      fd.append("file", await prepareUpload(photo.file));
       await fetch("/api/store/cash-report/upload-scpwd-photo", {
         method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
       }).catch(() => {});

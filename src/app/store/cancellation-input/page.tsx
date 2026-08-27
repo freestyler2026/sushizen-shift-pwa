@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import { useRouter } from "next/navigation";
 import { Upload, X, CheckCircle2, AlertTriangle, ImagePlus, Loader2 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
@@ -105,7 +106,8 @@ export default function CancellationInputPage() {
         const fd = new FormData();
         fd.append("incident_date", form.incident_date);
         fd.append("branch", form.branch || "UNKNOWN");
-        fd.append("file", file, file.name);
+        const small = await prepareUpload(file);
+        fd.append("file", small, small.name);
         const res = await fetch("/api/store/cancellation/upload-photo", {
           method: "POST",
           headers: getUploadHeaders(auth),

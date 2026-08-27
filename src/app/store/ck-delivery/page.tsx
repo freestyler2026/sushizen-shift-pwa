@@ -7,6 +7,7 @@ import {
   Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, Trash2, TrendingUp,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
@@ -496,7 +497,7 @@ export default function CKDeliveryPage() {
       const fd = new FormData();
       fd.append("branch", activeDelivery.to_branch || "");
       fd.append("delivery_date", activeDelivery.delivery_date || "");
-      fd.append("file", fileObj);
+      fd.append("file", await prepareUpload(fileObj));
       const res = await fetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items/${itemId}/label-photo`, {
         method: "POST", headers: getUploadHeaders(getAuth()), body: fd, cache: "no-store",
       });

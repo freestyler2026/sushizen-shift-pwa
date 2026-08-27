@@ -3,6 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
 import { MANILA_STANDARDS, type StandardSpec } from "@/lib/backup-standards";
@@ -1187,7 +1188,7 @@ export default function BackupReportPage() {
           if (!photo) continue;
           try {
             const fd = new FormData();
-            fd.append("photo", photo);
+            fd.append("photo", await prepareUpload(photo));
             await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
               method: "POST",
               headers: { ...(getAuthHeaders(auth) ?? {}) },

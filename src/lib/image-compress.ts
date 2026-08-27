@@ -95,3 +95,33 @@ export async function readError(res: Response, fallback: string): Promise<string
     return text.trim().slice(0, 200) || fallback;
   }
 }
+
+/**
+ * Same shrink, for the screens that send a base64 data URL instead of
+ * multipart. Those are the worst case: base64 inflates by a third, and the
+ * result is stored in the database, where two such columns had grown to
+ * 869MB and 849MB and were taking the server down when listed.
+ */
+export async function prepareDataUrl(file: File): Promise<string> {
+  const small = await prepareUpload(file);
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.readAsDataURL(small);
+  });
+}
+
+/**
+ * For inputs that accept a mix — a photo, a PDF, a spreadsheet. Photos are
+ * shrunk; anything else is passed through untouched, because a spreadsheet
+ * cannot be redrawn on a canvas and must not be rejected here.
+ */
+export async function prepareIfImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    return await prepareUpload(file);
+  } catch {
+    return file;   // an odd image is better sent as-is than not at all
+  }
+}

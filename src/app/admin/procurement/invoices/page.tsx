@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, ShieldAlert, SquarePen, Upload, X } from "lucide-react";
+import { prepareIfImage } from "@/lib/image-compress";
 import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -721,7 +722,7 @@ export default function ProcurementInvoicesPage() {
       formData.set("pin", pin.trim());
       formData.set("invoice_date", uploadInvoiceDate);
       formData.set("branch_name", uploadBranchName.trim());
-      formData.set("file", uploadFile);
+      formData.set("file", await prepareIfImage(uploadFile));
       const res = await fetch("/api/admin/procurement/analytics/supplier-invoices/upload-drive", {
         method: "POST",
         headers,

@@ -15,6 +15,7 @@ import {
   Send,
   X,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
 import { API_BASE } from "@/lib/api";
@@ -267,7 +268,7 @@ export default function IncidentsPage() {
       let imageUploadOk = true;
       if (imageFile && reportId) {
         const fd = new FormData();
-        fd.append("file", imageFile);
+        fd.append("file", await prepareUpload(imageFile));
         fd.append("uploader_name", reporter || a.staffName);
         fd.append("authorization", `Bearer ${a.accessToken || ""}`);
         const attRes = await fetch(`${API_BASE}/api/incidents/${reportId}/attachments`, { method: "POST", body: fd });

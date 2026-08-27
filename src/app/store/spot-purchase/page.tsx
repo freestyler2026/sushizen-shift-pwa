@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
   BADGE_ERROR,
@@ -208,7 +209,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
     updateItem(itemId, { photoUploading: true, photoError: "" });
     try {
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", await prepareUpload(file));
       const res = await fetch("/api/store/spot-purchase/upload-photo", {
         method: "POST",
         headers: getUploadHeaders(auth),

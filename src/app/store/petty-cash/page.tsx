@@ -11,6 +11,7 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { clearAuth, getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -121,7 +122,7 @@ function RequestCard({
     setUploading(true); setUploadMsg(null);
     try {
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", await prepareUpload(file));
       const headers = getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"];
       const r = await fetch(`/api/store/petty-cash/${req.id}/photo`, {
@@ -308,7 +309,7 @@ export default function PettyCashPage() {
       form.append("category",     category);
       form.append("amount",       String(amt));
       form.append("purpose",      purpose);
-      if (file) form.append("file", file);
+      if (file) form.append("file", await prepareUpload(file));
 
       const headers = getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"];

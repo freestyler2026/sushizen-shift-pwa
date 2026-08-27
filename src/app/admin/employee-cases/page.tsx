@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, hasPermission, refreshAuthFromApi } from "@/lib/auth";
 // API calls go through Next.js proxy (/api/admin/...) — no direct Heroku fetch
 import {
@@ -915,7 +916,7 @@ export default function EmployeeCasesPage() {
       // Upload image if selected
       if (reqImage && newReq?.id) {
         const form = new FormData();
-        form.append("file", reqImage);
+        form.append("file", await prepareUpload(reqImage));
         await fetch(`/api/admin/cases/requests/${newReq.id}/upload-image`, {
           method: "POST",
           headers: authHeaders(),

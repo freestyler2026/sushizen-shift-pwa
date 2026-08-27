@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { prepareDataUrl } from "@/lib/image-compress";
 import {
   AlertTriangle,
   Camera,
@@ -331,13 +332,13 @@ function CheckLinesTable({ lines, currency }: { lines: CheckLine[]; currency: st
   );
 }
 
+/**
+ * These images are stored as base64 in proc_po_invoice_checks.photo_data,
+ * which had grown to 869MB with single rows at 5.8MB — enough to take the
+ * server down when a list touched them. Shrink before encoding.
+ */
 function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return prepareDataUrl(file);
 }
 
 function PhotoUpload({

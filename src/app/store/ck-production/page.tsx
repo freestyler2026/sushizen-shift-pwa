@@ -1,4 +1,5 @@
 "use client";
+import { prepareUpload } from "@/lib/image-compress";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -259,7 +260,7 @@ export default function CkProductionPage() {
       fd.append("pin", pin.trim());
       fd.append("delivery_note", notes.trim());
       fd.append("dispatched_items_json", JSON.stringify(dispatchedItems));
-      if (photo) fd.append("file", photo);
+      if (photo) fd.append("file", await prepareUpload(photo));
 
       const res = await fetch(
         `/api/admin/procurement/ck-production/dispatch/${poId}`,

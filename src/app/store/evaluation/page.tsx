@@ -12,6 +12,7 @@ import {
   Trash2,
   ImageIcon,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -590,7 +591,7 @@ function PhotoPanel({
     form.append("branch_code", branchCode);
     form.append("eval_date", evalDate);
     form.append("category", category);
-    form.append("file", file);
+    form.append("file", await prepareUpload(file));
 
     try {
       const headers = getAuthHeaders() as Record<string, string>;
@@ -931,7 +932,7 @@ export default function StoreEvaluationPage() {
             fd.append("branch_code", branchCode);
             fd.append("eval_date", evalDate);
             fd.append("category", photo.category);
-            fd.append("file", photo.file);
+            fd.append("file", await prepareUpload(photo.file));
             const headers = getAuthHeaders() as Record<string, string>;
             delete headers["Content-Type"];
             await fetch("/api/store/evaluation/upload-image", {

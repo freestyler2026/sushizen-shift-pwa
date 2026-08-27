@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import SelectDark from "@/components/SelectDark";
+import { prepareUpload } from "@/lib/image-compress";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
@@ -1107,7 +1108,7 @@ export default function StoreProcurementHomePage() {
       fd.append("pin", pin.trim());
       fd.append("delivery_note", (ckDispatchNote[poId] || "").trim());
       const photoFile = ckDispatchPhoto[poId];
-      if (photoFile) fd.append("file", photoFile);
+      if (photoFile) fd.append("file", await prepareUpload(photoFile));
 
       const headers = await (await import("@/lib/procurementClient")).procurementTokenHeaders(requestedBy, pin);
       const res = await fetch(`/api/admin/procurement/ck-dispatch/${encodeURIComponent(poId)}`, {

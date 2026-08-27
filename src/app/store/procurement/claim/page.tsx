@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, AlertTriangle, Camera, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2, X } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
@@ -154,7 +155,7 @@ export default function StoreProcurementClaimPage() {
     setError("");
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", await prepareUpload(file));
       fd.append("approver_name", requestedBy.trim());
       fd.append("pin", pin.trim());
       fd.append("store_code", selectedRequest?.store_code || "");

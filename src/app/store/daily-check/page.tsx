@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Clock,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -132,7 +133,7 @@ function PhotoUploadCell({
       fd.append("city", city);
       fd.append("photo_type", photoKey);
       fd.append("check_date", checkDate);
-      fd.append("file", f);
+      fd.append("file", await prepareUpload(f));
       // Must delete Content-Type so browser sets multipart/form-data boundary automatically
       const uploadHeaders = getAuthHeaders();
       delete (uploadHeaders as Record<string, string>)["Content-Type"];
