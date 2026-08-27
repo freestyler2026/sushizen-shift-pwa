@@ -257,6 +257,17 @@ function isOverdue(row: CancelRow): boolean {
   return row.incident_date <= daysAgoIso(7);
 }
 
+type SyncStatusMap = Record<string, { last_synced_at?: string | null; waiting?: number }>;
+
+// A sync that quietly stopped working looks the same as one with nothing to do.
+// Age is what tells them apart, so it is what the badge leads with.
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  return Math.floor((Date.now() - then) / 86_400_000);
+}
+
 const WORKFLOW_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   "Waiting for Photo": { bg: "#f59e0b1a", text: "#fbbf24" },
   "Ticket Submitted": { bg: "#6366f11a", text: "#a5b4fc" },
@@ -265,6 +276,41 @@ const WORKFLOW_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   "No Refund": { bg: "#ef44441a", text: "#f87171" },
   "Completed": { bg: "#22c55e1a", text: "#86efac" },
 };
+
+/**
+ * Last settlement sync and what it left outstanding.
+ *
+ * GrabFood confirms daily and FoodPanda weekly, so each carries its own idea of
+ * how old is too old — one number would either cry wolf for FoodPanda or stay
+ * quiet for a week of broken GrabFood runs.
+ */
+function SyncStatusBadge({
+  label,
+  status,
+  staleAfterDays,
+}: {
+  label: string;
+  status?: { last_synced_at?: string | null; waiting?: number };
+  staleAfterDays: number;
+}) {
+  const age = daysSince(status?.last_synced_at);
+  const waiting = status?.waiting ?? 0;
+  const stale = age === null || age > staleAfterDays;
+  const tone = stale
+    ? { border: "border-amber-500/30", bg: "bg-amber-500/10", text: "text-amber-300", sub: "text-amber-400/80" }
+    : { border: "border-white/10", bg: "bg-white/5", text: "text-white/70", sub: "text-white/40" };
+  const when =
+    age === null ? "never synced" : age === 0 ? "synced today" : age === 1 ? "synced yesterday" : `synced ${age} days ago`;
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${tone.border} ${tone.bg}`}>
+      <span className={`text-xs font-semibold ${tone.text}`}>{label}</span>
+      <span className={`text-xs ${tone.sub}`}>{when}</span>
+      {waiting > 0 && (
+        <span className={`text-xs ${tone.sub}`}>· {waiting} awaiting confirmation</span>
+      )}
+    </div>
+  );
+}
 
 function WorkflowBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-white/20">—</span>;
@@ -605,6 +651,7 @@ export default function CancellationReportPage() {
 
   // Manila stats (no-refund pending, overdue)
   const [noRefundPending, setNoRefundPending] = useState(0);
+  const [syncStatusByPlatform, setSyncStatusByPlatform] = useState<SyncStatusMap>({});
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
   const [syncMsg, setSyncMsg] = useState("");
 
@@ -693,10 +740,13 @@ export default function CancellationReportPage() {
   useEffect(() => {
     if (city !== "manila" || !canLoad) return;
     const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
-    void apiGet<{ no_refund_pending?: number; overdue_count?: number }>(
+    void apiGet<{ no_refund_pending?: number; overdue_count?: number; sync_status?: SyncStatusMap }>(
       `/api/admin/analytics/manila/cancellations/stats?${qs}`,
     )
-      .then((r) => setNoRefundPending(r.no_refund_pending ?? 0))
+      .then((r) => {
+        setNoRefundPending(r.no_refund_pending ?? 0);
+        setSyncStatusByPlatform(r.sync_status ?? {});
+      })
       .catch(() => { /* non-critical */ });
   }, [city, canLoad, approverName, pin]);
 
@@ -715,8 +765,11 @@ export default function CancellationReportPage() {
         }
         // Refresh no-refund pending count
         const statsQs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
-        void apiGet<{ no_refund_pending?: number }>(`/api/admin/analytics/manila/cancellations/stats?${statsQs}`)
-          .then((r) => setNoRefundPending(r.no_refund_pending ?? 0))
+        void apiGet<{ no_refund_pending?: number; sync_status?: SyncStatusMap }>(`/api/admin/analytics/manila/cancellations/stats?${statsQs}`)
+          .then((r) => {
+            setNoRefundPending(r.no_refund_pending ?? 0);
+            setSyncStatusByPlatform(r.sync_status ?? {});
+          })
           .catch(() => { /* ignore */ });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Workflow update failed");
@@ -989,6 +1042,8 @@ export default function CancellationReportPage() {
                 <span className="text-xs text-amber-400">No Refund decisions pending HQ approval</span>
               </div>
             )}
+            <SyncStatusBadge label="GrabFood" status={syncStatusByPlatform.grabfood} staleAfterDays={3} />
+            <SyncStatusBadge label="FoodPanda" status={syncStatusByPlatform.foodpanda} staleAfterDays={9} />
             <div className="ml-auto flex items-center gap-2">
               {syncStatus === "done" && <span className="text-xs text-emerald-400">{syncMsg}</span>}
               {syncStatus === "error" && <span className="text-xs text-red-400">{syncMsg}</span>}
