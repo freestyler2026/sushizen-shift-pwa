@@ -33,9 +33,19 @@ for LOCATION in paranaque taft qc; do
   echo "--- $LOCATION ---" >> "$LOG_FILE"
   if DATE_FROM="$DATE_FROM" DATE_TO="$DATE_TO" WEBHOOK_URL="$WEBHOOK_URL" \
        "$NODE" "$SCRIPT_DIR/get-payouts.js" "$LOCATION" >> "$LOG_FILE" 2>&1; then
-    echo "  ✓ $LOCATION done" >> "$LOG_FILE"
+    echo "  ✓ $LOCATION payouts done" >> "$LOG_FILE"
   else
-    echo "  ✗ $LOCATION failed (exit $?)" >> "$LOG_FILE"
+    echo "  ✗ $LOCATION payouts failed (exit $?)" >> "$LOG_FILE"
+    EXIT_CODE=1
+  fi
+
+  # Cancellations settle from the same session. The portal blocks headless CI,
+  # so this runs here rather than in GitHub Actions.
+  if DATE_FROM="$DATE_FROM" DATE_TO="$DATE_TO" WEBHOOK_URL="$WEBHOOK_URL" \
+       "$NODE" "$SCRIPT_DIR/sync-cancellations.js" "$LOCATION" >> "$LOG_FILE" 2>&1; then
+    echo "  ✓ $LOCATION cancellations done" >> "$LOG_FILE"
+  else
+    echo "  ✗ $LOCATION cancellations failed (exit $?)" >> "$LOG_FILE"
     EXIT_CODE=1
   fi
 done

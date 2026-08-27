@@ -27,6 +27,7 @@ interface CancelRecord {
   pic_notes: string | null;
   workflow_status: string | null;
   no_refund_reason: string | null;
+  grab_synced_at?: string | null;
 }
 
 interface EditableRecord extends CancelRecord {
@@ -388,7 +389,9 @@ function RecordCard({
   const ps = PLATFORM_STYLES[rec.platform] ?? PLATFORM_STYLES.GrabFood;
   const reasonOk = !!(rec.cancellation_reason?.trim());
   const workflowCondOk =
-    rec.workflow_status !== "Refund Confirmed" || parseFloat(rec.refund_str.replace(/,/g, "")) > 0;
+    rec.workflow_status !== "Refund Confirmed" ||
+    !!rec.grab_synced_at ||
+    parseFloat(rec.refund_str.replace(/,/g, "")) > 0;
   const noRefundCondOk =
     rec.workflow_status !== "No Refund" || (rec.no_refund_reason_str?.trim() ?? "").length > 0;
   const hasMin =
@@ -622,7 +625,9 @@ function RecordCard({
             <div>
               <Label>
                 Refund Amount (PHP)
-                {rec.workflow_status === "Refund Confirmed" && <span className="ml-1 text-red-400">*</span>}
+                {rec.workflow_status === "Refund Confirmed" && !rec.grab_synced_at && (
+                  <span className="ml-1 text-red-400">*</span>
+                )}
               </Label>
               <input
                 type="text"
@@ -755,7 +760,11 @@ export default function AdminCancellationInputTab({
       setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "Cancellation Reason is required." } : r)));
       return;
     }
-    if (rec.workflow_status === "Refund Confirmed" && !(parseFloat(rec.refund_str.replace(/,/g, "")) > 0)) {
+    if (
+      rec.workflow_status === "Refund Confirmed" &&
+      !rec.grab_synced_at &&
+      !(parseFloat(rec.refund_str.replace(/,/g, "")) > 0)
+    ) {
       setRecords((prev) => prev.map((r) => (r._uid === uid ? { ...r, error: "Refund Amount is required when status is Refund Confirmed." } : r)));
       return;
     }

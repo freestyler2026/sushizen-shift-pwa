@@ -120,20 +120,14 @@ GET（47979）と history（47973）は db 側の戻り値に追従するだけ�
 Talabat は「トップページに50%と表示されない日・店舗があるが、店舗内に入ると割引されている」
 という報告あり。表示上の問題か Talabat 側の出し分けかは未調査。ブランド分割とは別論点。
 
-## [2026-08-27] FoodPanda キャンセルの返金自動確認（Session 1 向け）
-GrabFood 側は `sync_grab_finance_from_drive` で自動確認できるようになったが、FoodPanda は未対応。
-理由: 30分を超える新規実装（新スクリプト＋バックエンドの受け口＋突合ロジック＋UI）。
+## [2026-08-27] FoodPanda キャンセルの返金自動確認 — 対応済み（Session 2で実装）
+`scripts/foodpanda/sync-cancellations.js` + `POST /api/foodpanda/cancellation-status` で実装・本番反映済み。
+判定は経理承認のマッピング（CANCELLED+NOT_BILLABLE → Refund Confirmed、手数料があれば金額に記録、
+BILLABLE のままなら needs_review として残す）。
 
-調査済みの事実:
-- FoodPanda portal の GraphQL `ListOrders` が注文単位のデータを返す。
-  `orderId`（例 `ryqc-2634-2x28` = OS の order_no と同形式）/ `orderStatus` (CANCELLED) /
-  `billableStatus` (NOT_BILLABLE) / `billing.commissionAmount` / `billing.netRevenue` /
-  `orderIssuesDetails[].orderIssue` (AVOIDABLE_CANCELLATION 等) と metadata の `fee` / `deduction` / `amount` /
-  `totalFeesAndDeductions`
-- 実データ例は scripts/foodpanda/{qc,taft,paranaque}-api-responses.json（2026-08-24 取得）に残っている。
-- OS で止まっている `ryqc-2634-2x28` は ListOrders 上で CANCELLED / NOT_BILLABLE として存在する。
-- 注意: Grab と意味が違う。FoodPanda は「補償を送金する」のではなく「請求対象から外す（netRevenue 0）」形。
-  さらにキャンセル手数料（AVOIDABLE_CANCELLATION の fee）が店側に課される場合がある。
-  Refund Confirmed の定義を先に決める必要がある。
-- 注意: portal は headless CI を弾く（PerimeterX）。既存の payout 抽出も GitHub Actions では0件で、
-  実際に動いているのは Mac の launchd (`scripts/foodpanda/run-payout-local.sh`)。新しい同期も同じ経路が要る。
+残課題（Session 1 向け）:
+- **launchd の定期実行が動いていない。** `~/Library/Logs/sushizen-foodpanda-payouts.log` は全行が
+  `Operation not permitted`。~/Desktop 配下のスクリプトを launchd から実行できていない（macOS TCC）。
+  payout 抽出も同じ経路なので、FoodPanda の入金取り込みごと止まっている。
+- **このスクリプトは headless では動かせない。** PerimeterX が ListOrders だけ 403 を返す
+  （ListPayouts は headless でも通る）。実ウィンドウなら 200。GUI セッションが要る。
