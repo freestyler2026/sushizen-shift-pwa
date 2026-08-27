@@ -1,0 +1,481 @@
+<title>Dubai の入金はなぜ合わなかったか</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #F5F7F4;
+    --surface:    #FFFFFF;
+    --surface-2:  #ECF0EC;
+    --ink:        #14201D;
+    --ink-2:      #45544F;
+    --ink-3:      #6E7C77;
+    --rule:       #D3DBD6;
+    --rule-soft:  #E4EAE5;
+    --accent:     #0D6153;
+    --accent-2:   #0A8E77;
+    --critical:   #9E2B1E;
+    --critical-bg:#F7E7E4;
+    --warn:       #8A5B06;
+    --warn-bg:    #F8EEDC;
+    --ok:         #0D6153;
+    --ok-bg:      #E1EFEA;
+    --shadow:     0 1px 2px rgba(20,32,29,.05), 0 8px 24px rgba(20,32,29,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0E1513;
+      --surface:    #161F1C;
+      --surface-2:  #1D2825;
+      --ink:        #E7EDEA;
+      --ink-2:      #B0BEB9;
+      --ink-3:      #849690;
+      --rule:       #2C3A36;
+      --rule-soft:  #232E2B;
+      --accent:     #58C2AB;
+      --accent-2:   #7ED6C1;
+      --critical:   #E8897B;
+      --critical-bg:#2F1D1A;
+      --warn:       #DDAE5C;
+      --warn-bg:    #2C2317;
+      --ok:         #58C2AB;
+      --ok-bg:      #172B26;
+      --shadow:     0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0E1513;
+    --surface:    #161F1C;
+    --surface-2:  #1D2825;
+    --ink:        #E7EDEA;
+    --ink-2:      #B0BEB9;
+    --ink-3:      #849690;
+    --rule:       #2C3A36;
+    --rule-soft:  #232E2B;
+    --accent:     #58C2AB;
+    --accent-2:   #7ED6C1;
+    --critical:   #E8897B;
+    --critical-bg:#2F1D1A;
+    --warn:       #DDAE5C;
+    --warn-bg:    #2C2317;
+    --ok:         #58C2AB;
+    --ok-bg:      #172B26;
+    --shadow:     0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ── masthead ─────────────────────────────────────────── */
+  .masthead { display: flex; flex-direction: column; gap: 18px; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  h1 {
+    font-family: "Shippori Mincho", "Yu Mincho", serif;
+    font-weight: 600; font-size: clamp(30px, 5.2vw, 44px);
+    line-height: 1.35; margin: 0; text-wrap: balance; letter-spacing: .01em;
+  }
+  .standfirst {
+    margin: 0; max-width: 62ch; color: var(--ink-2); font-size: 16.5px;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+    padding-top: 18px; border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px; color: var(--ink-3);
+  }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* ── summary band ─────────────────────────────────────── */
+  .band {
+    display: grid; gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 3px; overflow: hidden;
+  }
+  .stat { background: var(--surface); padding: 22px 20px; display: flex; flex-direction: column; gap: 6px; }
+  .stat .k {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .stat .v {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 25px; font-weight: 600; line-height: 1.2; letter-spacing: -.01em;
+  }
+  .stat .v.neg { color: var(--critical); }
+  .stat .v.pos { color: var(--accent); }
+  .stat .s { font-size: 13px; color: var(--ink-3); line-height: 1.6; }
+
+  /* ── sections ─────────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 22px; }
+  h2 {
+    font-family: "Shippori Mincho", "Yu Mincho", serif;
+    font-size: 23px; font-weight: 600; margin: 0; letter-spacing: .01em;
+    padding-bottom: 12px; border-bottom: 2px solid var(--ink);
+  }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 64ch; }
+
+  /* ── quoted report ────────────────────────────────────── */
+  .quote {
+    background: var(--surface-2); border-radius: 3px;
+    padding: 22px 24px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .quote .who {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .quote ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+
+  /* ── finding cards ────────────────────────────────────── */
+  .findings { display: flex; flex-direction: column; gap: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 3px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card > .head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px;
+    padding: 18px 24px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .card h3 {
+    font-family: "Zen Kaku Gothic New", sans-serif;
+    font-size: 17.5px; font-weight: 700; margin: 0; flex: 1 1 auto; min-width: 200px;
+  }
+  .amount {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600;
+  }
+  .amount.neg { color: var(--critical); }
+  .amount.pos { color: var(--accent); }
+  .chip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 600; padding: 3px 9px; border-radius: 2px; white-space: nowrap;
+  }
+  .chip.fixed { background: var(--ok-bg);       color: var(--ok); }
+  .chip.open  { background: var(--warn-bg);     color: var(--warn); }
+  .chip.crit  { background: var(--critical-bg); color: var(--critical); }
+
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: grid; grid-template-columns: 96px 1fr; gap: 0 20px;
+    padding: 16px 24px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row > dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); padding-top: 6px;
+  }
+  .row > dd { margin: 0; color: var(--ink-2); }
+  .row > dd strong { color: var(--ink); font-weight: 700; }
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 1fr; gap: 4px; }
+    .row > dt { padding-top: 0; }
+  }
+
+  /* ── tables ───────────────────────────────────────────── */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 10px 16px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--rule-soft); }
+  thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: right; }
+  td.code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+  tr.new td { background: var(--ok-bg); }
+  tr.new td.code::after { content: " ←新規"; color: var(--ok); font-size: 11px; letter-spacing: .06em; }
+  tfoot td { font-weight: 700; background: var(--surface-2); border-top: 1px solid var(--rule); }
+
+  /* ── callout ──────────────────────────────────────────── */
+  .callout {
+    background: var(--warn-bg); border-radius: 3px;
+    padding: 22px 24px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .callout h3 {
+    font-family: "Zen Kaku Gothic New", sans-serif;
+    margin: 0; font-size: 16.5px; font-weight: 700; color: var(--warn);
+  }
+  .callout p { color: var(--ink-2); max-width: 62ch; }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .88em; background: var(--surface-2);
+    padding: 1px 5px; border-radius: 2px; color: var(--ink);
+  }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 20px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--ink-3); line-height: 1.9;
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">AR Payouts · Dubai · 調査記録</div>
+    <h1>Dubai の入金はなぜ合わなかったか</h1>
+    <p class="standfirst">
+      「Keeta は Sushi ZEN の入金しか入っていない」「Careem / Noon は金額が合わない」という報告について調査しました。
+      原因は3件あり、すべて修正済みです。
+    </p>
+    <div class="meta">
+      <span><b>報告</b> 経理・上島</span>
+      <span><b>調査・修正</b> 2026-08-27</span>
+      <span><b>対象</b> Dubai 5プラットフォーム / 3ブランド</span>
+    </div>
+  </header>
+
+  <div class="band">
+    <div class="stat">
+      <span class="k">Careem 二重計上</span>
+      <span class="v neg num">81,073.63</span>
+      <span class="s">同じ売上が2回計上されていた金額（AED）</span>
+    </div>
+    <div class="stat">
+      <span class="k">Keeta 欠落</span>
+      <span class="v pos num">279,650.83</span>
+      <span class="s">OSに1件も入っていなかった Ramen ZEN の入金（AED）</span>
+    </div>
+    <div class="stat">
+      <span class="k">ブランド未設定</span>
+      <span class="v neg num">1,285</span>
+      <span class="s">1,758件中。絞り込みが効かない状態だった</span>
+    </div>
+    <div class="stat">
+      <span class="k">修正後の未設定</span>
+      <span class="v pos num">0</span>
+      <span class="s">Dubai 1,900件すべてにブランドあり</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>報告された症状</h2>
+    <div class="quote">
+      <span class="who">経理からの報告 — 2026-08-27</span>
+      <ul>
+        <li>Keeta は OS 上に <strong>Sushi ZEN の入金しか入っていない</strong></li>
+        <li>Careem / Noon は<strong>金額が合わない</strong>（入金のほうが少し多い）</li>
+      </ul>
+    </div>
+    <p class="lede">
+      調査の結果、これは1つの不具合ではなく、別々の原因が3件重なったものでした。
+      Noon については取り込み自体に問題はなく、下記3件のいずれにも該当しません。
+    </p>
+  </section>
+
+  <section>
+    <h2>判明した原因</h2>
+
+    <div class="findings">
+
+      <article class="card">
+        <div class="head">
+          <h3>Careem — 同じ売上が2回計上されていた</h3>
+          <span class="amount neg num">AED 81,073.63</span>
+          <span class="chip fixed">修正済み</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt>現象</dt>
+            <dd>Careem の一覧に、確定した<strong>週次サイクルの行</strong>と、日々の<strong>残高速報の行</strong>（<code>careem_balance_*</code>）が両方表示されていました。同じ売上が2つの行として合計に入るため、OS の金額が実際の入金より大きくなります。</dd>
+          </div>
+          <div class="row">
+            <dt>範囲</dt>
+            <dd>残高速報30行のうち、<strong>8/22・8/23 の20行</strong>がサイクル行と重複。8/25 の10行（AED 9,851.80）はまだ対応するサイクルが確定していないため、重複ではありません。</dd>
+          </div>
+          <div class="row">
+            <dt>修正</dt>
+            <dd>一覧の既定表示から残高速報の行を除外しました。<strong>行自体は削除していません</strong>ので、サイクル確定前の速報値として必要になれば参照できます。</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <div class="head">
+          <h3>Keeta — Ramen ZEN が丸ごと入っていなかった</h3>
+          <span class="amount pos num">AED 279,650.83</span>
+          <span class="chip fixed">修正済み</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt>現象</dt>
+            <dd>Keeta は<strong>ブランドごとに別のログインアカウント</strong>になっています。自動取得は Sushi ZEN のアカウントしか見ていなかったため、Ramen ZEN の入金が OS に1件も入っていませんでした。銀行には入金が来ているので、照合すれば必ず差が出ます。</dd>
+          </div>
+          <div class="row">
+            <dt>対象店舗</dt>
+            <dd>Arjan / Al Barsha 3 / Business Bay / Jumeirah Lake Towers / Al Mina の<strong>5店舗</strong>。</dd>
+          </div>
+          <div class="row">
+            <dt>修正</dt>
+            <dd>自動取得を2アカウント対応にし、<strong>2025年10月〜2026年8月の142件</strong>を取り込みました。今後は毎週火曜の自動実行に Ramen ZEN も含まれます。</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <div class="head">
+          <h3>ブランドでの絞り込みが機能していなかった</h3>
+          <span class="amount neg num">1,285 / 1,758 件</span>
+          <span class="chip fixed">修正済み</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt>現象</dt>
+            <dd>Dubai の入金 1,758件のうち <strong>1,285件（73%）はブランドが未設定</strong>でした。設定済みの分も <code>sushi_zen</code> / <code>Sushi ZEN</code> / <code>all_veggie_sushi</code> / <code>all_veggie</code> と表記が4通りに割れていました。</dd>
+          </div>
+          <div class="row">
+            <dt>影響</dt>
+            <dd>画面側は表示名で照合していたため、<strong>ブランドを選んでもほとんど何も表示されない</strong>状態でした。ブランド別に金額を確認できなかったことが、差異の切り分けを難しくしていました。</dd>
+          </div>
+          <div class="row">
+            <dt>修正</dt>
+            <dd>店舗コードからブランドを補完し、表記を <code>sushi_zen</code> / <code>ramen_zen</code> / <code>all_veggie</code> に統一。Dubai 1,900件すべてにブランドが入り、<strong>未設定は0件</strong>になりました。変更前の状態はバックアップ済みです。</dd>
+          </div>
+        </dl>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>修正作業中に判明した2件</h2>
+    <p class="lede">
+      Keeta の Ramen ZEN を取り込む過程で、取得の仕組み自体に不具合が2件見つかりました。どちらも放置すると同じ欠落が再発します。
+    </p>
+
+    <div class="findings">
+
+      <article class="card">
+        <div class="head">
+          <h3>ログイン情報が保存できず、取得を開始できなかった</h3>
+          <span class="chip fixed">修正済み</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt>現象</dt>
+            <dd>Keeta の自動取得はログインセッションを保管して使いますが、保存形式が未圧縮だったため <strong>74,924文字</strong>となり、保管先の上限（48KB）を超えて登録できませんでした。</dd>
+          </div>
+          <div class="row">
+            <dt>修正</dt>
+            <dd>書き出し時に圧縮するようにし、<strong>18,748文字</strong>に収まりました。読み込み側は元々圧縮に対応していたため、書き出し側だけが抜けていた形です。次回のセッション更新時に同じ問題は起きません。</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="card">
+        <div class="head">
+          <h3>2026年6月より前の Ramen ZEN が取り込まれなかった</h3>
+          <span class="chip fixed">修正済み</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt>現象</dt>
+            <dd>Keeta の古いレポートは<strong>店舗名の列が空欄</strong>です。店舗名から店舗を特定する作りだったため、1回目の実行では2026年6月以降しか取り込めず、<strong>82件がスキップ</strong>されていました。</dd>
+          </div>
+          <div class="row">
+            <dt>修正</dt>
+            <dd>店舗IDは変わらないため、IDで直接対応させるようにしました。2回目の実行で<strong>2025年10月まで遡って取得完了</strong>、スキップは0件です。</dd>
+          </div>
+        </dl>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>修正後の状態</h2>
+    <p class="lede">Dubai の入金データは現在この状態です。Keeta の Ramen ZEN 5店舗が新たに加わり、Careem の重複行は除外されています（下表は画面に表示される数字と同じです）。</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>プラットフォーム</th><th>ブランド</th><th style="text-align:right">件数</th>
+            <th>期間</th><th style="text-align:right">合計 (AED)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="code">careem</td><td>Sushi ZEN</td><td class="n">220</td><td class="n">2025-11-01 〜 2026-08-23</td><td class="n">2,481,368.05</td></tr>
+          <tr><td class="code">careem</td><td>Ramen ZEN</td><td class="n">176</td><td class="n">2025-11-01 〜 2026-08-23</td><td class="n">304,571.22</td></tr>
+          <tr><td class="code">careem</td><td>All Veggie</td><td class="n">44</td><td class="n">2025-11-01 〜 2026-08-23</td><td class="n">18,893.07</td></tr>
+          <tr><td class="code">keeta</td><td>Sushi ZEN</td><td class="n">220</td><td class="n">2025-10-01 〜 2026-08-31</td><td class="n">2,037,744.55</td></tr>
+          <tr class="new"><td class="code">keeta</td><td>Ramen ZEN</td><td class="n">142</td><td class="n">2025-10-01 〜 2026-08-31</td><td class="n">279,650.83</td></tr>
+          <tr><td class="code">noon</td><td>Sushi ZEN</td><td class="n">633</td><td class="n">2023-12-28 〜 2026-08-22</td><td class="n">3,606,873.21</td></tr>
+          <tr><td class="code">noon</td><td>Ramen ZEN</td><td class="n">272</td><td class="n">2024-02-08 〜 2026-08-22</td><td class="n">216,568.72</td></tr>
+          <tr><td class="code">noon</td><td>All Veggie</td><td class="n">57</td><td class="n">2025-06-23 〜 2026-08-22</td><td class="n">19,066.62</td></tr>
+          <tr><td class="code">talabat</td><td>Sushi ZEN</td><td class="n">21</td><td class="n">2025-08-31 〜 2026-08-22</td><td class="n">1,061,351.81</td></tr>
+          <tr><td class="code">talabat</td><td>Ramen ZEN</td><td class="n">19</td><td class="n">2025-08-31 〜 2026-08-22</td><td class="n">123,712.97</td></tr>
+          <tr><td class="code">talabat</td><td>All Veggie</td><td class="n">17</td><td class="n">2025-08-31 〜 2026-08-22</td><td class="n">9,438.79</td></tr>
+          <tr><td class="code">smiles</td><td>Sushi ZEN</td><td class="n">49</td><td class="n">2025-01-01 〜 2026-08-31</td><td class="n">83,561.67</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="2">合計</td><td class="n">1,870</td><td></td><td class="n">10,242,801.51</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Noon について</h2>
+    <p class="lede">
+      取り込みは正常でした。Ramen ZEN・All Veggie とも欠落はなく、Keeta のような問題は起きていません。
+      今回の3件はいずれも Noon の差異の説明にはなりません。
+    </p>
+    <p class="lede">
+      ただし <strong>Careem の二重計上を除外した数字は変わっています</strong>ので、まず修正後の金額で再度ご確認ください。
+      それでも差が残る場合は、<strong>差が出ている期間と金額</strong>をお知らせいただければ特定できます。
+    </p>
+  </section>
+
+  <section>
+    <h2>ご確認いただきたいこと</h2>
+    <div class="callout">
+      <h3>照合済みの期間に、確認漏れが隠れている可能性があります</h3>
+      <p>
+        銀行照合の画面は、入金額の入力欄に <strong>OS の金額をあらかじめ入れた状態</strong>で表示されます。
+        そのまま保存すると必ず一致するため、初期値のまま確定された期間があると、差額がそこで見逃されます。
+      </p>
+      <p>
+        特に Keeta は、Ramen ZEN が欠落したまま照合済みになっている期間があるはずです。
+        <strong>実際の入金額と照らして再確認をお願いします。</strong>
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    調査・修正 2026-08-27 ／ 対象 AR Payouts (Dubai)<br>
+    Careem 残高速報の行は削除せず、一覧の既定表示から除外しています。ブランド補完前の状態はバックアップ済みです。<br>
+    Keeta の自動取得は毎週火曜に実行され、Sushi ZEN・Ramen ZEN の両方を取得します。
+  </footer>
+
+</div>

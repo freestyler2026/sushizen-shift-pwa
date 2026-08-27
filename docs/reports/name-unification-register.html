@@ -1,0 +1,702 @@
+<title>氏名統一レジスタ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ink:      #171a20;
+    --ink-soft: #4d545f;
+    --paper:    #f4f5f7;
+    --surface:  #ffffff;
+    --rule:     #dde0e6;
+    --rule-soft:#e9ebef;
+    --accent:   #2c4a7c;
+    --accent-bg:#e8edf6;
+    --retired:  #8d929c;
+    --ok:       #2c6a52;
+    --ok-bg:    #e4efea;
+
+    --measure: 62ch;
+    --step--1: 0.8125rem;
+    --step-0:  0.9375rem;
+    --step-1:  1.0625rem;
+    --step-2:  1.375rem;
+    --step-3:  1.875rem;
+    --step-4:  2.625rem;
+
+    --jp: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:      #e7e9ee;
+      --ink-soft: #a4abb8;
+      --paper:    #12141a;
+      --surface:  #1a1d25;
+      --rule:     #2b303b;
+      --rule-soft:#232833;
+      --accent:   #93b2e2;
+      --accent-bg:#1e2735;
+      --retired:  #7d838f;
+      --ok:       #6fbf9c;
+      --ok-bg:    #17281f;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink:      #e7e9ee;
+    --ink-soft: #a4abb8;
+    --paper:    #12141a;
+    --surface:  #1a1d25;
+    --rule:     #2b303b;
+    --rule-soft:#232833;
+    --accent:   #93b2e2;
+    --accent-bg:#1e2735;
+    --retired:  #7d838f;
+    --ok:       #6fbf9c;
+    --ok-bg:    #17281f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--jp);
+    font-size: var(--step-0);
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 3rem) 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2.5rem, 5vw, 4rem);
+  }
+
+  /* ---- masthead ---- */
+
+  .masthead { display: flex; flex-direction: column; gap: 1rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: var(--step-4);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: var(--measure);
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+  }
+
+  /* ---- stats ---- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .stat {
+    background: var(--surface);
+    padding: 1.15rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .stat dt {
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  .stat dd {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--step-3);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+
+  .stat dd .unit {
+    font-size: var(--step-0);
+    color: var(--ink-soft);
+    margin-inline-start: 0.15em;
+  }
+
+  .stat--ok dd { color: var(--ok); }
+
+  /* ---- prose ---- */
+
+  section { display: flex; flex-direction: column; gap: 1.25rem; }
+
+  h2 {
+    margin: 0;
+    font-size: var(--step-2);
+    font-weight: 700;
+    line-height: 1.4;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--ink);
+    text-wrap: balance;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  p { margin: 0; max-width: var(--measure); }
+
+  .prose { display: flex; flex-direction: column; gap: 1rem; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--rule-soft);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+  }
+
+  /* ---- register ---- */
+
+  .register {
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .record {
+    display: grid;
+    grid-template-columns: minmax(14rem, 22rem) 1fr;
+    gap: 0.35rem 2rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--rule-soft);
+    align-items: baseline;
+  }
+
+  .record:last-child { border-bottom: 0; }
+
+  .now {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: var(--step-0);
+    color: var(--accent);
+    word-break: break-word;
+  }
+
+  .was { display: flex; flex-direction: column; gap: 0.2rem; }
+
+  .was span {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--retired);
+    word-break: break-word;
+  }
+
+  .was span::before {
+    content: "←";
+    margin-inline-end: 0.55em;
+    color: var(--retired);
+    opacity: 0.65;
+  }
+
+  .gap {
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 0 0.1em;
+    border-radius: 1px;
+  }
+
+  .register-head {
+    display: grid;
+    grid-template-columns: minmax(14rem, 22rem) 1fr;
+    gap: 2rem;
+    padding: 0.7rem 1.25rem;
+    background: var(--rule-soft);
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 46rem) {
+    .record, .register-head { grid-template-columns: 1fr; gap: 0.3rem; }
+    .register-head span:last-child { display: none; }
+  }
+
+  /* ---- chips ---- */
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .chips span {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--ink-soft);
+  }
+
+  /* ---- callout ---- */
+
+  .callout {
+    border-inline-start: 3px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 1.1rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .callout h3 { color: var(--ink); font-weight: 700; }
+
+  .login-pair {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+  }
+
+  .login-pair .old { color: var(--retired); text-decoration: line-through; }
+  .login-pair .arrow { color: var(--ink-soft); }
+  .login-pair .new { color: var(--accent); font-weight: 500; }
+
+  /* ---- closing ---- */
+
+  .verdict {
+    border: 1px solid var(--ok);
+    background: var(--ok-bg);
+    border-radius: 2px;
+    padding: 1.25rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .verdict strong { color: var(--ok); }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.25rem;
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .note { font-size: var(--step--1); color: var(--ink-soft); max-width: var(--measure); }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Sushi ZEN Workforce OS ／ 2026-08-26</div>
+    <h1>氏名統一レジスタ</h1>
+    <p class="standfirst">
+      同じ方が2つ以上の名前でシステムに登録されていました。マニラ20名・ドバイ27名の記録を1つの名前にまとめ、
+      給与・シフト・勤怠・ログインのすべてで同じ名前を指すようにしました。
+    </p>
+  </header>
+
+  <dl class="stats">
+    <div class="stat">
+      <dt>名前をまとめた方</dt>
+      <dd>47<span class="unit">名</span></dd>
+    </div>
+    <div class="stat">
+      <dt>書き換えた記録</dt>
+      <dd>35,000<span class="unit">行超</span></dd>
+    </div>
+    <div class="stat stat--ok">
+      <dt>現在の重複</dt>
+      <dd>0<span class="unit">件</span></dd>
+    </div>
+    <div class="stat stat--ok">
+      <dt>ログインできない方</dt>
+      <dd>0<span class="unit">名</span></dd>
+    </div>
+  </dl>
+
+  <section>
+    <h2>何が起きていたか</h2>
+    <div class="prose">
+      <p>
+        このシステムは<strong>名前そのものを鍵にして</strong>、シフト・勤怠・給与・ログインを結び付けています。
+        名前が1文字でも違えば、システムは別人として扱います。
+      </p>
+      <p>原因は3つありました。</p>
+      <p>
+        <strong>1. 見えない二重スペース。</strong>
+        表計算ソフトからコピーした名前に、目では気づけない空白が混ざっていました。
+        <code>Mariano<span class="gap">␣␣</span>Espenida Jr.</code> と <code>Mariano Espenida Jr.</code> は、画面上は同じに見えます。
+      </p>
+      <p>
+        <strong>2. 役職記号の混入。</strong>
+        シフト表のセルに書かれた <code>(PIC)</code> <code>(S)</code> <code>(L)</code> などの記号が、名前の一部として取り込まれていました。
+      </p>
+      <p>
+        <strong>3. 表記の揺れ。</strong>
+        姓名の順序（<code>Diaz, John Rey</code>）、ミドルネームの有無、綴りの違いが混在していました。
+      </p>
+      <p>
+        この結果、たとえば Junowel さんの8月の勤務は3つの名前に分かれ、給与計算はそのうち1つ分しか見ていませんでした。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>マニラ ── 統一した20名</h2>
+    <h3>在籍中の方（16名）</h3>
+    <div class="register">
+      <div class="register-head"><span>統一後の名前</span><span>これまで混在していた表記</span></div>
+
+      <div class="record">
+        <div class="now">Mariano Espenida Jr.</div>
+        <div class="was"><span>Mariano<span class="gap">␣␣</span>Espenida Jr.</span><span>Marino Espenida Jr.</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Junowel Trespecios</div>
+        <div class="was"><span>Junowel<span class="gap">␣␣</span>Trespecios</span><span>Junowel C. Trespecios</span><span>Junowel Coronado Trespecios</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Cherish Mapolon Galarosa</div>
+        <div class="was"><span>Cherish Galarosa</span><span>Galarosa, Cherish</span><span>Cherish Galarosa (PH)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Lynde B. Ore</div>
+        <div class="was"><span>Lynde Ore</span><span>Ore, Lynde B.</span><span>Lynde Ore (PH)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Peter Villafuerte</div>
+        <div class="was"><span>Villafuerte Peter John</span><span>Peter John Villafuerte</span></div>
+      </div>
+      <div class="record">
+        <div class="now">John Rey Diaz</div>
+        <div class="was"><span>Diaz, John Rey</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Lowegie D. Dumangcas</div>
+        <div class="was"><span>Lowegie Dumangcas</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Gessa Gregorio</div>
+        <div class="was"><span>Gessa O. Gregorio</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ricardo Lamis III</div>
+        <div class="was"><span>Ricardo Lamis</span><span>Ricardo Lamis III (PH)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Samantha Varca</div>
+        <div class="was"><span>Samantha Mae Varca - Sam</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Mayorico Furio</div>
+        <div class="was"><span>Mayorico C. Furio Jr. Ⅱ</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Francis Ibana</div>
+        <div class="was"><span>Francis Ibara</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Wallen Galisanao</div>
+        <div class="was"><span>Wallen Galasinao</span><span>Wallen Galasinao (PH)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Jade De Guzman</div>
+        <div class="was"><span>Jade Raven De Guzman</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Erica May Sadiasa</div>
+        <div class="was"><span>Erica Sadiasa</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ruby Rosa Rongcales</div>
+        <div class="was"><span>Ruby Rongcales</span></div>
+      </div>
+    </div>
+
+    <h3>退職された方（4名）</h3>
+    <div class="register">
+      <div class="record">
+        <div class="now">Salting Carissa T.</div>
+        <div class="was"><span>Carissa Salting</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Christian Jhay Ibuan Tibar</div>
+        <div class="was"><span>Christian Jhay Tibar</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Istrael Lopez</div>
+        <div class="was"><span>Istrael V. Lopez</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Lagundi John Jhave Albo</div>
+        <div class="was"><span>John Jhave Lagundi</span></div>
+      </div>
+    </div>
+    <p class="note">
+      退職者の記録も統一しています。過去の給与履歴を名前で検索したときに、1人分がまとまって出るようにするためです。
+    </p>
+  </section>
+
+  <section>
+    <h2>ドバイ ── 統一した27名</h2>
+    <div class="register">
+      <div class="register-head"><span>統一後の名前</span><span>これまで混在していた表記</span></div>
+
+      <div class="record">
+        <div class="now">Rafael Jonas Lagahit</div>
+        <div class="was"><span>Rafael<span class="gap">␣␣</span>Jonas Lagahit</span><span>Rafael Lagahit</span><span>Rafael Jonas Lagahit (PIC)(L)</span><span>Rafael Lagahit (AM)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Philip Ore</div>
+        <div class="was"><span>Philip Borja</span><span>Philip Borja<span class="gap">␣␣</span>(PIC)(L)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Udaya Gurung</div>
+        <div class="was"><span>Udaya Mohan Singh Gurung</span><span>Udaya Gurung Mohan Singh Mohan Singh Gurung</span><span>Udaya Gurung (R)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Muhammad Bilal Sabir</div>
+        <div class="was"><span>Muhammad Bilal</span><span>Muhammad Bilal Sabir Mahmood</span><span>Muhammad Bilal Sabir (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Padam Bahadur K C</div>
+        <div class="was"><span>Padam</span><span>Padam (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Sandesh Pun Magar</div>
+        <div class="was"><span>Sandesh</span><span>Sandesh (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ma. Rosario Paguyan</div>
+        <div class="was"><span>Ma Rosario Sandoval Paguyan</span><span>Ma Rosario Paguyan</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Mausein Luai</div>
+        <div class="was"><span>Luai Mausein</span><span>Mausein Luai (S)(R)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ramuel M. Gatin</div>
+        <div class="was"><span>Ramuel Gatin</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Kapil Bahadur</div>
+        <div class="was"><span>Kapil Bahadur Khati</span><span>Kapil Bahadur (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Shyam Lal Pun</div>
+        <div class="was"><span>Shyam Pun</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Fahad Abdul Razzaq</div>
+        <div class="was"><span>Fahad Razzaq</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Bijien Mijar</div>
+        <div class="was"><span>Bijen Mijar</span><span>Bijien Mijar (S)(R)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Lyssa Rae</div>
+        <div class="was"><span>Lyssa Rae Adan</span><span>Lyssa Rae (PIC)(L)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Shushma Kumari</div>
+        <div class="was"><span>Shushma Kumari Gurmachhan</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Sanam KC</div>
+        <div class="was"><span>Sanam K C</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Nabin KC</div>
+        <div class="was"><span>Nabin K C</span><span>Nabin KC (R)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Pukar K C</div>
+        <div class="was"><span>Puker KC</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ian Tamano</div>
+        <div class="was"><span>Ian Tamaño</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Bibek BK</div>
+        <div class="was"><span>Bibek B K</span><span>Bibek BK (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Amar BK</div>
+        <div class="was"><span>Amar B K</span><span>Amar BK (S)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Ashik Kahn</div>
+        <div class="was"><span>Ashik Khan</span><span>Ashik Kahn (AL)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Chandra Gurung</div>
+        <div class="was"><span>Chandra Bahadur Gurung</span><span>Chandra Gurung (AL)</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Rienzel Mauhay Buniel</div>
+        <div class="was"><span>Rienzel Buniel</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Mary Grace</div>
+        <div class="was"><span>Mary Grace Malayao</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Sita Gurmachhan</div>
+        <div class="was"><span>Gurmachhan Sita</span></div>
+      </div>
+      <div class="record">
+        <div class="now">Sota Horii</div>
+        <div class="was"><span>Horii Sota</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>役職記号が名前に入っていた方（46名）</h2>
+    <div class="prose">
+      <p>
+        シフト表の <code>(PIC)</code> <code>(S)</code> <code>(L)</code> <code>(AL)</code> <code>(R)</code>
+        <code>(N)</code> <code>(PH)</code> <code>(AM)</code> が名前の一部として保存されていた方です。記号を取り除きました。
+      </p>
+    </div>
+    <div class="chips">
+      <span>Aaron Jay Pamplona</span>
+      <span>Alex Delgado</span>
+      <span>Alexandra Lim</span>
+      <span>Amar BK</span>
+      <span>Anna Rose Quimno</span>
+      <span>Ashik Kahn</span>
+      <span>Bibek BK</span>
+      <span>Bijien Mijar</span>
+      <span>Bikram Manger</span>
+      <span>Chandra Gurung</span>
+      <span>Cherish Galarosa</span>
+      <span>Hayat Ullah Khan</span>
+      <span>James Ray Pata</span>
+      <span>Jasmine Sadoval</span>
+      <span>Jerryboy Niemes</span>
+      <span>Jheymar Fabros</span>
+      <span>Joemar Marquez</span>
+      <span>Jonathan Brembuela</span>
+      <span>Jonathan Camposano</span>
+      <span>Jovenn Rio</span>
+      <span>Kapil Bahadur</span>
+      <span>Karen Jane Borja</span>
+      <span>Krishna Tamang</span>
+      <span>Lynde Ore</span>
+      <span>Lyssa Rae</span>
+      <span>Mausein Luai</span>
+      <span>Melchor Casil</span>
+      <span>Muhammad Bilal Sabir</span>
+      <span>Muna Rana Magar</span>
+      <span>Muskan Tamang</span>
+      <span>Nabaraj Sapkota</span>
+      <span>Nabin KC</span>
+      <span>Naome Santizas</span>
+      <span>Nishan Nepal</span>
+      <span>Norhaida Sharif</span>
+      <span>Rachelle Ann Caubat</span>
+      <span>Rafael Jonas Lagahit</span>
+      <span>Rafael Lagahit</span>
+      <span>Raman Miya</span>
+      <span>Renuka Neupane</span>
+      <span>Reymar Contillo</span>
+      <span>Ricardo Lamis III</span>
+      <span>Sharon Namale</span>
+      <span>Sherileene Santiago</span>
+      <span>Udaya Gurung</span>
+      <span>Yogesh Bashyal</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>ログイン時に入力する名前が変わる方</h2>
+    <div class="callout">
+      <h3>この2名は、次回から新しい名前を入力してください</h3>
+      <div class="login-pair">
+        <span class="old">Lowegie Dumangcas</span><span class="arrow">→</span><span class="new">Lowegie D. Dumangcas</span>
+      </div>
+      <div class="login-pair">
+        <span class="old">Rafael Lagahit</span><span class="arrow">→</span><span class="new">Rafael Jonas Lagahit</span>
+      </div>
+      <p><strong>PINは変わりません。</strong>これまでと同じ番号でログインできます。</p>
+      <p class="note">
+        上記以外の方は、これまでと同じ名前・同じPINでログインできます。名前を統一しても
+        ログインできなくなる方が出ないよう、全員分を確認済みです。
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>これで何が変わるか</h2>
+    <div class="verdict">
+      <p><strong>同じ方が別々の人として扱われることは、もうありません。</strong></p>
+      <p>
+        給与計算・シフト・勤怠・ログインのすべてで、1人につき1つの名前だけを見るようになりました。
+        勤務日数が2つに分かれて片方だけ支給される、という取りこぼしは起きません。
+      </p>
+    </div>
+    <div class="prose">
+      <p>
+        再発防止として、<strong>名前を保存する時点で空白を自動的に整える</strong>ようにシステムを変更しました。
+        Staffページでの登録・更新、シフト表の取り込み、どの経路から入力しても、
+        文字の間の余分な空白と役職記号は自動で取り除かれます。今後は同じ問題が入り込みません。
+      </p>
+      <p>
+        <strong>お願い：</strong>スタッフの名前を登録・変更するときは、必ず Staff ページから行ってください。
+        契約書の署名と同じ表記にしていただけると、給与明細と書類が一致します。
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <div>Sushi ZEN Workforce OS ／ 氏名統一作業 2026-08-26 実施</div>
+    <div>対象：マニラ・ドバイ全スタッフ ／ 検証範囲：氏名を持つ全188カラム</div>
+  </footer>
+
+</div>

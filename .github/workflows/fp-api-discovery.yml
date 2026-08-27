@@ -2,11 +2,16 @@ name: FoodPanda — API Discovery (temporary, delete after use)
 
 on:
   workflow_dispatch:
+    inputs:
+      location:
+        description: 'Account to inspect: paranaque | taft | qc'
+        required: false
+        default: 'qc'
 
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,9 +23,13 @@ jobs:
           npx playwright install chromium --with-deps
         timeout-minutes: 8
 
-      - name: Discover finance API via portal navigation
-        run: node scripts/foodpanda/discover-finance-api.js paranaque
+      # Does the portal expose the order code next to the money? Without it a
+      # cancellation cannot be matched, so this decides whether the FoodPanda
+      # side of the refund workflow can be automated at all.
+      - name: Look for per-order refund detail
+        run: node scripts/foodpanda/discover-order-transactions.js ${{ github.event.inputs.location || 'qc' }}
         env:
-          FP_EMAIL_PARANAQUE:    ${{ secrets.FP_EMAIL_PARANAQUE }}
-          FP_PASSWORD_PARANAQUE: ${{ secrets.FP_PASSWORD_PARANAQUE }}
-        timeout-minutes: 4
+          FP_SESSION_PARANAQUE: ${{ secrets.FP_SESSION_PARANAQUE }}
+          FP_SESSION_TAFT:      ${{ secrets.FP_SESSION_TAFT }}
+          FP_SESSION_QC:        ${{ secrets.FP_SESSION_QC }}
+        timeout-minutes: 10
