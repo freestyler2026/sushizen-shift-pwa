@@ -170,7 +170,32 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
-### ✅ 認可欠落471件 — 計測層を導入（log モード稼働中）
+## 🔴 本番停止 (2026-08-27 11:38–11:41 GST, 約3分)
+
+**R15 — Memory quota vastly exceeded**: web dyno が `mem=2162M(211.2%)` で SIGKILL。
+`heroku ps:restart web` で復旧。**原因は未特定。**
+
+| 事実 | |
+|---|---|
+| 発生 | 11:38:28（v2294 デプロイの95秒後） |
+| 通常時のメモリ | **約300MB / 1024MB**（計測有効化後に確認） |
+| クラッシュ時 | 2162MB — 短時間で約1.8GB増えた＝リークではなく**単発の重い処理**の形 |
+| 私の新規コード | `api_authz` サーベイ。バッファは1500キー上限・名前10件上限で、**1.8GB確保する仕組みが無い** |
+
+**帰属できないので、断定せず切り分けを優先した:**
+1. `heroku labs:enable log-runtime-metrics` — 次回の証拠を取れるようにした
+2. `ADMIN_AUTHZ_MODE=off` — 新規コードをホットパスから外した
+3. OFF状態で **300MB安定・クラッシュ0** を確認（＝ベースライン取得）
+
+⚠️ **サーベイは OFF のまま。再開はユーザー判断**（できれば業務時間外に、メモリを監視しながら）。
+再開前に、ロック保持中のDB I/Oは解消済み（`maybe_flush` を lock 外に）。
+
+CLAUDE.md 教訓12（openpyxl が `max_row`=1,048,576 で巨大化）が同種の症状。
+Excel処理系が犯人の可能性があるが、当時のログに該当リクエストは見当たらなかった。
+
+---
+
+### ✅ 認可欠落471件 — 計測層を導入（現在 OFF）
 `app/api_authz.py` + `admin_auth_gate`。APIパスからチャンネルを導出し、拒否すべき要求を
 `api_authz_observations` に記録**するだけ**。挙動は不変（本番実測で確認済み）。
 
@@ -196,8 +221,27 @@ Richard S. Gante は Manila Management で、supplier-confirmations も price-ch
 3. `ADMIN_AUTHZ_ENFORCE=/api/admin/xxx` + `ADMIN_AUTHZ_MODE=enforce` を設定
 4. 問題があれば config を消すだけで即戻る（デプロイ不要）
 
+### ✅ Role Management の抜け道を封鎖 (2026-08-27)
+「admin権限を1つでも持てば通る」判定を廃止。ユーザー意図＝**閲覧権限は Role Management で全制御**。
+
+| 箇所 | 修正前 | 影響していた人数 |
+|---|---|---|
+| `renewals_api.py` | `startswith("channel.admin.")` | 52名が通る / 正当な保有は**5名のみ** |
+| `discord_api.py` | 同上 | 同様 |
+| `main.py _hr_auth_check` | `startswith("channel.admin.hr")` | **34名がHR権限0で** recruitment / onboarding / reviews / separations に到達 |
+
+34名の経路は `hr_policy_docs.view`（8ロールに付与）。HRはパスから**ページ単位で**チャンネルを解決するようにした。
+
+本番実測:
+```
+HR_STAFF             hr/requisitions 200  hr/separations 200   ← 正当な保有者は不変
+MANILA_MANAGEMENT    hr/requisitions 200
+INVENTORY_PURCHASING hr/requisitions 403  hr/policy-docs 200   ← 抜け道のみ封鎖、正当な分は維持
+```
+
 ### 残課題
-- 上記の区画ごとの enforce 切り替え（データが溜まってから）
+- サーベイ再開の判断とメモリ問題の追跡
+- 区画ごとの enforce 切り替え（データが溜まってから）
 - badge系エンドポイントは NavBar が全員分ポーリングしている。権限で隠すなら
   クライアント側も同じ権限で判定しないと403ノイズになる
 - `renewals_api.py` / `discord_api.py` の `startswith("channel.admin.")` が過度に広い
