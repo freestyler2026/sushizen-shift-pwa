@@ -378,21 +378,70 @@ function PublishedView({
 function draftKey(city: string, branch: string, week: string) {
   return `manual-shift-draft::${city}::${branch}::${week}`;
 }
-function saveDraft(city: string, branch: string, week: string, grid: GridData) {
+
+/** How long a browser-held grid stays trustworthy. A copy older than this is dropped
+ *  even if the week has not moved on, so a tab opened days ago cannot resurrect itself. */
+const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+type StoredDraft = {
+  /** Grid as it stood in this browser. */
+  grid: GridData;
+  /** The published-week fingerprint this grid was built from. "" for copies written
+   *  before the stamp existed — those can never be proven current, so they are dropped. */
+  token: string;
+  savedAt: number;
+};
+
+function saveDraft(city: string, branch: string, week: string, grid: GridData, token: string) {
   try {
     const compact: GridData = {};
     for (const [name, days] of Object.entries(grid)) {
       const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
       if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell | ShiftCell[]>;
     }
-    localStorage.setItem(draftKey(city, branch, week), JSON.stringify(compact));
+    // Stamp what the grid was built from. Without this the copy looks equally valid
+    // whether it is five seconds or five days behind the published week.
+    const payload = { v: 2, token, savedAt: Date.now(), grid: compact };
+    localStorage.setItem(draftKey(city, branch, week), JSON.stringify(payload));
   } catch { /* quota exceeded — silently ignore */ }
 }
-function loadDraft(city: string, branch: string, week: string): GridData {
+
+function loadDraft(city: string, branch: string, week: string): StoredDraft {
+  const empty: StoredDraft = { grid: {}, token: "", savedAt: 0 };
   try {
     const raw = localStorage.getItem(draftKey(city, branch, week));
-    return raw ? (JSON.parse(raw) as GridData) : {};
-  } catch { return {}; }
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.v === 2) {
+      return {
+        grid: (parsed.grid ?? {}) as GridData,
+        token: String(parsed.token ?? ""),
+        savedAt: Number(parsed.savedAt ?? 0),
+      };
+    }
+    // Pre-stamp copy: keep the cells so we can say how many were dropped, but leave the
+    // token blank so it can never pass as current.
+    return { grid: parsed as GridData, token: "", savedAt: 0 };
+  } catch { return empty; }
+}
+
+function countCells(grid: GridData): number {
+  let n = 0;
+  for (const days of Object.values(grid)) n += Object.values(days).filter((c) => c != null).length;
+  return n;
+}
+
+/** Whether a browser-held grid may be laid over freshly loaded server data.
+ *  It may only when it was built from exactly the week the server is serving now —
+ *  otherwise it is someone's view from before another person's correction, and
+ *  applying it is how a published change silently disappears. */
+function draftIsCurrent(saved: StoredDraft, serverToken: string): boolean {
+  // savedAt is 0 on pre-stamp copies, so this also retires every unstamped grid
+  // already sitting in someone's browser.
+  if (!saved.savedAt || Date.now() - saved.savedAt > DRAFT_MAX_AGE_MS) return false;
+  // Both empty means the week has never been published — a grid being built from
+  // scratch has nothing to conflict with, so it is still the user's own work.
+  return saved.token === serverToken;
 }
 function clearDraft(city: string, branch: string, week: string) {
   try { localStorage.removeItem(draftKey(city, branch, week)); } catch { /* ignore */ }
@@ -492,7 +541,7 @@ export default function ManualShiftPage() {
     // When week/branch changes, the key differs → skip to avoid writing the old grid
     // into the new week/branch's slot before the reload effect loads its correct data.
     if (staffList.length > 0 && !loading && key === draftKeyRef.current) {
-      saveDraft(city, branchCode, weekStart, gridData);
+      saveDraft(city, branchCode, weekStart, gridData, baseStateTokenRef.current);
       setHasDraft(localCellCount > 0);
     }
     draftKeyRef.current = key;
@@ -541,6 +590,9 @@ export default function ManualShiftPage() {
   // Fingerprint of the published week as loaded, sent back on publish so the server can
   // reject a save built on a copy someone else has since changed.
   const baseStateTokenRef = useRef<string>("");
+  // How many cells the browser was holding that we refused to apply, so the page can
+  // tell the user their old copy was dropped instead of silently swapping the grid.
+  const [discardedDraftCells, setDiscardedDraftCells] = useState(0);
 
   const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
@@ -549,12 +601,15 @@ export default function ManualShiftPage() {
       const data = await apiFetch<{ rows?: any[]; state_token?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
-      if (cancelledRef?.current) return;
+      if (cancelledRef?.current) return "";
       const rows = (data.rows || []);
-      // Remember how this week looked when we loaded it. Publishing replaces the whole
-      // week, so the server uses this to refuse a save from a page that has gone stale
-      // rather than let it silently undo someone else's edit.
-      baseStateTokenRef.current = data.state_token ?? "";
+      // Only a forced load rebuilds the grid from what the server just sent; a merge
+      // keeps whatever the page already held on top. Restamping the token on a merge
+      // would claim the grid is based on this fetch when part of it predates it —
+      // exactly the claim that let a stale grid pass the staleness check and overwrite
+      // a published correction. So the basis token moves only when the basis does.
+      if (forceOverwrite) baseStateTokenRef.current = data.state_token ?? "";
+      const serverToken = data.state_token ?? "";
 
       setGridData((prev) => {
         const nextGrid: GridData = {};
@@ -610,8 +665,10 @@ export default function ManualShiftPage() {
         const merged = Array.from(new Set([...currentStaff, ...extraNames])).sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
+      return serverToken;
     } catch (e: unknown) {
       if (!cancelledRef?.current) setError(e instanceof Error ? e.message : String(e));
+      return "";
     } finally {
       if (!cancelledRef?.current) setLoading(false);
     }
@@ -630,7 +687,7 @@ export default function ManualShiftPage() {
       const staffOk = await loadStaff(cancelledRef);
       if (cancelledRef.current) return;
       if (!staffOk) return; // staff load failed — keep the error visible
-      await loadExistingShifts(true, cancelledRef);
+      const serverToken = await loadExistingShifts(true, cancelledRef);
       if (cancelledRef.current) return;
       // Load server draft rows and apply on top of published shifts
       try {
@@ -685,11 +742,16 @@ export default function ManualShiftPage() {
         // Approved day-offs overlay is optional — ignore errors silently
       }
       if (cancelledRef.current) return;
-      if (Object.keys(savedDraft).length > 0) {
+      // The copy this browser kept is only safe to lay over the server's week when it
+      // was built from exactly that week. Otherwise it predates someone else's
+      // correction, and applying it is what made published changes reappear as their
+      // old values the next morning. Drop it and say how much was dropped.
+      const savedCells = countCells(savedDraft.grid);
+      if (savedCells > 0 && draftIsCurrent(savedDraft, serverToken || "")) {
         setGridData((prev) => {
           const next: GridData = {};
           for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-          for (const [name, days] of Object.entries(savedDraft)) {
+          for (const [name, days] of Object.entries(savedDraft.grid)) {
             if (!next[name]) continue;
             for (const [date, cell] of Object.entries(days)) {
               if (cell != null) next[name][date] = cell;
@@ -697,6 +759,12 @@ export default function ManualShiftPage() {
           }
           return next;
         });
+        setDiscardedDraftCells(0);
+      } else if (savedCells > 0) {
+        clearDraft(city, branchCode, weekStart);
+        setDiscardedDraftCells(savedCells);
+      } else {
+        setDiscardedDraftCells(0);
       }
       if (!cancelledRef.current) setView("edit");
     })();
@@ -953,7 +1021,7 @@ export default function ManualShiftPage() {
         }
       }
 
-      saveDraft(city, branchCode, weekStart, newGrid);
+      saveDraft(city, branchCode, weekStart, newGrid, baseStateTokenRef.current);
       setHasDraft(true);
       // Trigger a re-render of the grid by reloading staff + shifts
       const staffOk = await loadStaff();
@@ -1180,9 +1248,9 @@ export default function ManualShiftPage() {
     setView("edit");
     setGridData((prev) => {
       const saved = loadDraft(city, branchCode, weekStart);
-      if (!saved || Object.keys(saved).length === 0) return prev;
+      if (!draftIsCurrent(saved, baseStateTokenRef.current)) return prev;
       const next = { ...prev };
-      for (const [name, days] of Object.entries(saved)) {
+      for (const [name, days] of Object.entries(saved.grid)) {
         next[name] = { ...(next[name] ?? {}), ...days };
       }
       return next;
@@ -1327,12 +1395,13 @@ export default function ManualShiftPage() {
                   const savedDraft = loadDraft(city, branchCode, weekStart);
                   const staffOk = await loadStaff();
                   if (!staffOk) return; // staff load failed — error is already displayed, do not clear it
-                  await loadExistingShifts(true);
-                  if (Object.keys(savedDraft).length > 0) {
+                  const serverToken = await loadExistingShifts(true);
+                  const savedCells = countCells(savedDraft.grid);
+                  if (savedCells > 0 && draftIsCurrent(savedDraft, serverToken || "")) {
                     setGridData((prev) => {
                       const next: GridData = {};
                       for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-                      for (const [name, days] of Object.entries(savedDraft)) {
+                      for (const [name, days] of Object.entries(savedDraft.grid)) {
                         if (!next[name]) continue;
                         for (const [date, cell] of Object.entries(days)) {
                           if (cell != null) next[name][date] = cell;
@@ -1340,6 +1409,10 @@ export default function ManualShiftPage() {
                       }
                       return next;
                     });
+                    setDiscardedDraftCells(0);
+                  } else if (savedCells > 0) {
+                    clearDraft(city, branchCode, weekStart);
+                    setDiscardedDraftCells(savedCells);
                   }
                 }}
                 disabled={loading}
@@ -1410,6 +1483,28 @@ export default function ManualShiftPage() {
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {discardedDraftCells > 0 && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start justify-between gap-3">
+            <div>
+              <div className="font-semibold">
+                This browser was holding {discardedDraftCells} unpublished cell
+                {discardedDraftCells > 1 ? "s" : ""} from an older version of this week.
+              </div>
+              <div className="mt-0.5">
+                Someone else has published changes since, so the saved copy was discarded and the
+                current schedule is shown. Re-apply your edits on top of what you see now.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiscardedDraftCells(0)}
+              className="shrink-0 rounded-lg border border-amber-300 px-2 py-1 text-xs hover:bg-amber-100"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
