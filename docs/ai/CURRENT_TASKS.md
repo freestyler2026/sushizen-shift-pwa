@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (レシート仕訳自動化 Phase 1 抽出完了 — 税務項目208件)
+Last updated: 2026-08-27 (Manual Shift をセル単位編集に移行 — デプロイ済み)
+
+---
+
+## ✅ Completed: Manual Shift セル単位編集 (2026-08-27)
+
+### 背景
+現場から「他の人が変更した」で publish できないと報告。作業者は1人。
+調べたところ **自分の削除操作が自分のグリッドを古くしていた**（`delete_published_row` が
+公開週を直接書き換えるのに、基準スタンプは強制読み込みでしか更新されない）。
+
+根本原因は書き込み単位が「週全体」であること。このページの直近8コミットのうち
+**6件がガードの手当て**だった。
+
+### 実施
+書き込み単位をセルにし、**Publish は触ったセルだけを適用**する差分方式へ。
+
+| 追加 | 内容 |
+|---|---|
+| テーブル | `shift_week_edits`（公開週への差分オーバーレイ） |
+| API | `week_cells` / `week_state` / `publish_week_cells` / `discard_week_cells` |
+| 排他 | `pg_advisory_xact_lock` で週ごとに publish/discard を直列化 |
+
+**消えたもの**: `base_state_token` / `base_content_hash` 検証、localStorage の週スナップショット、
+破棄バナー、「他の人が変更した」409、Save Draft ボタン（全編集が自動保存のため）。
+
+**残したもの**: `manual_publish`（キャッシュに残る古いページ用）、
+`delete_published_row`（Published View で使用）。
+
+### 検証（本番）
+- 編集がページ再読み込みを跨いで残る
+- 2人目の編集が5秒で反映され、編集者名がセルに出る
+- **公開済みセルを削除 → publish が通る**（旧: 409 で不能）
+- 実際に詰まっていた Cubao 2026-08-31 を本番で開き、警告ゼロ・オーバーレイ書き込みゼロを確認
+
+### 🔴 残作業（要確認）
+1. **DTR Sync を実データで再検証すること。** publish が差分適用になったため、
+   変わっていない行の `shift_published_rows.updated_at` が更新されなくなった
+   （旧: 週全体が NOW()）。教訓14の方向としては改善だが未検証。
+2. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま。
+3. 詳細は `docs/design/manual-shift-cell-level.md`（実装後の記録に差し替え済み）。
 
 ---
 
