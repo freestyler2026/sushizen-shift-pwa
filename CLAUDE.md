@@ -50,6 +50,7 @@
 | Store Operation Management Channel（BO Dashboard / Manager Inbox / Exception Templates / Pattern Detection / Area Manager Review） | **Management Channel Manual** | `docs/manuals/management-channel-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
+| 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 
 **Republish 手順:**
 ```
@@ -82,6 +83,12 @@
    - file_path: docs/manuals/tax-filing-manual.html
    - url: https://claude.ai/code/artifact/a1d6d054-68fd-42e2-90d8-51c22192cfa5   ← 税務・証憑マニュアル
    - favicon: 🧾
+
+   - file_path: docs/manuals/emergency-reporting.html
+   - url: https://claude.ai/code/artifact/9b1b9346-202a-4c94-9dd3-2ad3f39cd702   ← Emergency Reporting（スタッフ向け）
+   - favicon: 🚨
+   ※ これだけ英語・スマホ1画面スクロール。読者が店舗スタッフで、
+     緊急時に端末で読むため。他マニュアル（日本語・サイドバー式）と体裁を揃えないこと。
 ```
 
 **更新対象の判断基準:**

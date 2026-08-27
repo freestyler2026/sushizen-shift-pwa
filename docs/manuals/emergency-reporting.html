@@ -1,0 +1,242 @@
+<title>Emergency Reporting</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FFFFFF;--surface:#F7F8FA;--line:#E3E6EB;
+  --ink:#161A1F;--muted:#5C6672;
+  --red:#D92D20;--red-soft:#FEF3F2;--red-line:#FDA29B;
+  --amber:#B54708;--amber-soft:#FFFAEB;--amber-line:#FEDF89;
+  --green:#067647;--green-soft:#ECFDF3;--green-line:#ABEFC6;
+  --blue:#175CD3;--blue-soft:#EFF8FF;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1116;--surface:#171B22;--line:#262C36;
+  --ink:#ECEFF3;--muted:#98A2B3;
+  --red:#FF6B5E;--red-soft:#2A1512;--red-line:#7A2E26;
+  --amber:#FDB022;--amber-soft:#2A1F0D;--amber-line:#7A5A18;
+  --green:#4ADE80;--green-soft:#0F2318;--green-line:#1F5334;
+  --blue:#7CB4FF;--blue-soft:#0F1D33;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1116;--surface:#171B22;--line:#262C36;
+  --ink:#ECEFF3;--muted:#98A2B3;
+  --red:#FF6B5E;--red-soft:#2A1512;--red-line:#7A2E26;
+  --amber:#FDB022;--amber-soft:#2A1F0D;--amber-line:#7A5A18;
+  --green:#4ADE80;--green-soft:#0F2318;--green-line:#1F5334;
+  --blue:#7CB4FF;--blue-soft:#0F1D33;
+}
+body{background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  line-height:1.6;font-size:17px;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:0 auto;padding:28px 20px 72px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+h1{font-size:34px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:6px 0 10px;text-wrap:balance}
+h2{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:38px 0 12px;text-wrap:balance}
+h3{font-size:16px;font-weight:700;margin:20px 0 6px}
+p{margin:10px 0;color:var(--ink)}
+.lede{font-size:19px;color:var(--muted)}
+.muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 18px;margin:16px 0}
+.card.red{background:var(--red-soft);border-color:var(--red-line)}
+.card.amber{background:var(--amber-soft);border-color:var(--amber-line)}
+.card.green{background:var(--green-soft);border-color:var(--green-line)}
+.big{font-size:20px;font-weight:700;line-height:1.35}
+.door{display:flex;gap:14px;align-items:flex-start;background:var(--surface);
+  border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.door.pick{border-color:var(--red-line);background:var(--red-soft)}
+.door .ico{font-size:26px;line-height:1;flex-shrink:0}
+.door .t{font-weight:700;font-size:17px}
+.door .d{color:var(--muted);font-size:15px;margin-top:2px}
+ul.plain{list-style:none;margin:12px 0}
+ul.plain li{position:relative;padding:7px 0 7px 30px;border-bottom:1px solid var(--line)}
+ul.plain li:last-child{border-bottom:none}
+ul.plain li::before{content:"●";position:absolute;left:6px;top:7px;color:var(--red);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile .k{font-weight:700;font-size:15px}
+.tile .v{color:var(--muted);font-size:14px;margin-top:2px}
+.steps{counter-reset:s;margin:14px 0}
+.step{counter-increment:s;position:relative;padding:0 0 18px 44px}
+.step:last-child{padding-bottom:0}
+.step::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;
+  border-radius:50%;background:var(--red);color:#fff;font-weight:800;font-size:14px;
+  display:flex;align-items:center;justify-content:center}
+.step::after{content:"";position:absolute;left:13.5px;top:30px;bottom:2px;width:1px;background:var(--line)}
+.step:last-child::after{display:none}
+.step .h{font-weight:700}
+.step .b{color:var(--muted);font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:15px;margin:14px 0}
+th{text-align:left;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.tw{overflow-x:auto}
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}
+.tag.l3{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+.tag.l2{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line)}
+.tag.l1{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.quote{border-left:3px solid var(--red);padding:2px 0 2px 16px;margin:16px 0;
+  font-size:19px;font-weight:600;line-height:1.45}
+.small{font-size:14px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+@media(max-width:520px){h1{font-size:28px}body{font-size:16px}.wrap{padding:22px 16px 60px}}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN · Store staff</div>
+<h1>When something happens at your store</h1>
+<p class="lede">How to tell HQ, in about two minutes.</p>
+
+<div class="card red">
+  <div class="big">You will never be in trouble for reporting something.</div>
+  <p style="margin-bottom:0">Not even if it turns out to be small. The only thing that causes
+  a problem is when nobody hears about it. If you are unsure — report it.</p>
+</div>
+
+<h2>Open <em>Report Something</em></h2>
+<p>It is in the menu. You will see two choices.</p>
+
+<div class="door pick">
+  <div class="ico">🚨</div>
+  <div>
+    <div class="t">It is happening now — we need help</div>
+    <div class="d">No water. No power. Gas. A fire. Someone hurt. A freezer that stopped.
+    A storm. Anything that is going on right now.</div>
+  </div>
+</div>
+
+<div class="door">
+  <div class="ico">📄</div>
+  <div>
+    <div class="t">It already happened — for the record</div>
+    <div class="d">Something to look into so it does not happen again. A product problem,
+    a delivery, stock, a customer.</div>
+  </div>
+</div>
+
+<p><strong>Not sure which one?</strong> Use the first. It is always the safer choice.</p>
+
+<h2>You do not have to decide how serious it is</h2>
+<p>You will not be asked whether it is an emergency, how bad it is, or whose fault it is.
+Pick what it is, and the system works out the rest.</p>
+
+<div class="tw"><table>
+  <thead><tr><th>What you pick</th><th>What it becomes</th></tr></thead>
+  <tbody>
+    <tr><td>Fire · Injury · Flood · Forced to close</td><td><span class="tag l3">Level 3</span> HQ told at once, every 10 minutes until someone answers</td></tr>
+    <tr><td>Water · Electricity · Gas · Security</td><td><span class="tag l2">Level 2</span> HQ told at once, every 30 minutes until someone answers</td></tr>
+    <tr><td>Equipment · Weather · Building</td><td>Level depends on your answer to <em>&ldquo;Is trading affected?&rdquo;</em></td></tr>
+  </tbody>
+</table></div>
+
+<h2>What it asks you</h2>
+<p class="muted">Six things. Two of them are optional.</p>
+
+<ul class="plain">
+  <li><strong>What is it?</strong> — choose from the list</li>
+  <li><strong>Which store?</strong></li>
+  <li><strong>When did you notice?</strong> — not when it started. When <em>you</em> saw it</li>
+  <li><strong>Is trading affected?</strong> — Yes / Not yet</li>
+  <li><strong>Can the store keep going?</strong> — Yes / Limited / No</li>
+  <li><strong>Do you need HQ to do something?</strong> — Yes / No</li>
+</ul>
+
+<p class="small">The last two questions are what let HQ decide whether to send water from the
+central kitchen, arrange a tank, or change how the store trades. Without them they can only
+guess.</p>
+
+<div class="card">
+  <p style="margin-top:0"><strong>Photos and the full story come later.</strong>
+  Send the short report first. You can add detail once things have settled.</p>
+</div>
+
+<h2>Why the time matters so much</h2>
+
+<div class="quote">The sooner HQ knows, the more they can do.</div>
+
+<div class="grid">
+  <div class="tile"><div class="k">Told at 2pm</div><div class="v">Water can be sent from the
+  central kitchen. A tank can be arranged. Trading can be changed.</div></div>
+  <div class="tile"><div class="k">Told at 7pm</div><div class="v">There is almost nothing
+  left to try.</div></div>
+</div>
+
+<p>This is the whole reason the fast report exists. Nobody can stop the building&rsquo;s water
+going off — but the hours after you notice are the part we control.</p>
+
+<div class="card amber">
+  <p style="margin-top:0"><strong>Aim for ten minutes.</strong> From the moment you notice, to
+  the moment you send. That is all it takes, and it is the one thing that decides whether HQ
+  can help.</p>
+</div>
+
+<h2>What happens after you press send</h2>
+
+<div class="steps">
+  <div class="step">
+    <div class="h">HQ is told straight away</div>
+    <div class="b">Not at the end of the day. The moment you send it.</div>
+  </div>
+  <div class="step">
+    <div class="h">If nobody answers, it asks again</div>
+    <div class="b">Every 10 minutes for Level 3, every 30 for Level 2. It does not go quiet.</div>
+  </div>
+  <div class="step">
+    <div class="h">Then it starts naming people</div>
+    <div class="b">After two rounds with no answer, it asks one person at a time by name,
+    working through HQ until somebody replies.</div>
+  </div>
+  <div class="step">
+    <div class="h">Someone takes it on</div>
+    <div class="b">Their name goes on your report and the alerts stop. From then on it is
+    theirs, not yours.</div>
+  </div>
+</div>
+
+<p><strong>You do not need to chase it.</strong> That is the system&rsquo;s job now.</p>
+
+<h2>For a fire or an injury — call first</h2>
+
+<div class="card red">
+  <p style="margin-top:0"><strong>Nobody opens an app during a fire.</strong> Call, get people
+  safe, then send the report when you can. The report is the record — it is not how you raise
+  the alarm when someone is in danger.</p>
+</div>
+
+<hr>
+
+<h2>One thing to do today</h2>
+
+<div class="card green">
+  <p style="margin-top:0"><strong>Open <em>My Phone Number</em> and add your number.</strong>
+  Start with the country code, like <span class="muted">+63 917 123 4567</span>.</p>
+  <p style="margin-bottom:0">It takes a few seconds, and only you can do it — nobody can enter
+  it for you. It is used to reach you about an emergency at a store, and for nothing else.
+  Only HQ and HR can see it.</p>
+</div>
+
+<hr>
+
+<h2>Questions people ask</h2>
+
+<h3>What if I report something and it turns out to be nothing?</h3>
+<p>That is fine, and it always will be. Nobody counts how many reports a store sends, on
+purpose — because counting them would teach everyone to send fewer.</p>
+
+<h3>What if my manager is not around?</h3>
+<p>Send it yourself. Anyone can. The rule is that whoever notices reports it — so that nobody
+ends up waiting for somebody else to do it.</p>
+
+<h3>What if someone already reported it?</h3>
+<p>Send it anyway. Two reports of the same thing costs nothing. Zero reports costs a day of
+trading.</p>
+
+<h3>It is not our fault — the building did it. Should I still report?</h3>
+<p>Yes, and this is the important one. A report is not only about blame or fixing a cause. When
+the problem is outside our control, the report is what gives HQ time to work around it.</p>
+
+<h3>Do I need to write a lot?</h3>
+<p>No. Six answers, most of them a single tap. The written part is optional.</p>
+
+</div>
