@@ -128,6 +128,8 @@ type CancelRow = {
   workflow_status: string | null;
   no_refund_reason: string | null;
   photo_upload_urls: string[] | null;
+  grab_refund_reason: string | null;
+  grab_synced_at: string | null;
 };
 
 // Shape returned by Manila API (different field names)
@@ -153,6 +155,8 @@ type ManilaApiRow = {
   workflow_status?: string | null;
   no_refund_reason?: string | null;
   photo_upload_urls?: string | null;
+  grab_refund_reason?: string | null;
+  grab_synced_at?: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -187,6 +191,8 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     pic_notes: r.pic_notes ?? null,
     workflow_status: r.workflow_status ?? null,
     no_refund_reason: r.no_refund_reason ?? null,
+    grab_refund_reason: r.grab_refund_reason ?? null,
+    grab_synced_at: r.grab_synced_at ?? null,
     photo_upload_urls: (() => {
       try {
         const raw = r.photo_upload_urls;
@@ -448,6 +454,19 @@ function DetailModal({
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Grab settlement evidence — why this was confirmed automatically */}
+          {row.grab_synced_at && (
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Grab Settlement</p>
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 text-sm text-white/80">
+                <p>{row.grab_refund_reason || "Matched in Grab transaction data"}</p>
+                <p className="mt-1 text-xs text-white/40">
+                  Confirmed from Grab transaction data on {row.grab_synced_at.slice(0, 10)}
+                </p>
+              </div>
             </div>
           )}
 
