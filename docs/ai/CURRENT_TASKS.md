@@ -46,16 +46,35 @@ Last updated: 2026-08-27 (Manual Shift をセル単位編集に移行 — デプ
   Published View の削除／**通信断→週切替→復帰でキューが元の週に着地**、すべて動作確認済み。
 - 二重 publish は no-op。Published View で消した行は再 publish で復活しない。
 
+### ✅ Role Management で Manual Shift を制御できるようにした (2026-08-27)
+判定が3か所に手で写され、ロール一覧が3種類あった。Role Management の
+`channel.admin.manual_shift.publish` は**どこからも読まれていない死に権限**で、
+実効的な鍵は `channel.admin.staff.manage`（8ロール保有・約42人）だった。
+
+**実績で測ってから塞いだ**: `shift_publish_log` 1,408件（2026-07-21〜08-27）と
+`shift_change_events` を集計 → publish も公開行削除も**全員 ADMIN か HQ**。
+よって Staff管理鍵は温存せず削除。
+
+- 統合先: `_may_edit_shifts()` — `*` / `channel.admin.manual_shift.publish` /
+  `shift.manual.publish`、および HQ（Channels UI が HQ を locked 表示しているのと整合）。
+  **ADMIN はハードコードしない**（付与済み権限で通す＝トグルが本物になる）。
+- 対象: `manual_publish` / `week_cells` / `publish_week_cells` / `discard_week_cells` /
+  `draft_week` / `save_draft_only` / `publish_from_base` / `delete_published_row`。
+- NavBar は `canAccessAdminNav ||` を外しチャンネル判定のみに。ページにガードが
+  **1つも無かった**ので追加（URL直打ちで開けていた）。
+- 戻し道: `heroku config:set SHIFT_EDIT_ALLOW_STAFF_MANAGE=1 -a sushizen-shift-app`（デプロイ不要）
+
+**Impersonation で検証**: ADMIN(Erica/Ruby/Marithel)・HQ(Yuri) は 200、
+MANILA_MANAGEMENT(Richard)・HR_MANAGER(Peter)・DUBAI_MANAGEMENT(Rafael)・MANAGER(Jasmine) は 403。
+権限なしでメニュー非表示＋`/` へリダイレクト、未ログインは `/login` へ。
+
+**アクセスを失う7名（実績ゼロ）**: Francis Ibana / Norhaida Sharif / Peter Villafuerte /
+Richard S. Gante（MANILA_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae（MANAGER）、
+Rafael Jonas Lagahit（DUBAI_MANAGEMENT）。必要なら Role Management で
+「Publish Manual Shift」を付与すれば戻る（403の文言にも記載）。
+
 ### 🔴 残課題
-1. **Role Management が Manual Shift を制御できていない（今回の変更以前からの問題）。**
-   実データ確認: `channel.admin.manual_shift.view` を持つのは ADMIN と HR_STAFF のみ。
-   しかし `channel.admin.staff.manage` は8ロール（HQ / ADMIN / HR_MANAGER / HR_STAFF /
-   MANAGEMENT / MANAGER / MANILA_MANAGEMENT / DUBAI_MANAGEMENT）が保持しており、
-   シフト編集APIはこちらを見ている。さらに NavBar は
-   `canAccessAdminNav(auth) || hasChannelAccess(...)` なので、
-   **Manual Shift のトグルをOFFにしても誰も締め出せない。**
-   → 締め方を変えると現に働いている人が止まるため、**方針はユーザー判断待ち**。
-2. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま
+1. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま
    （保存すると自分の値で上書き＝後勝ち）。
 3. 詳細は `docs/design/manual-shift-cell-level.md`（実装後の記録に差し替え済み）。
 
