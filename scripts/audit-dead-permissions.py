@@ -52,8 +52,21 @@ def main():
         helper = re.search(rf'''["']{re.escape(ck)}["']\s*,\s*\[[^\]]*["']{re.escape(ak)}["']''', blob)
         # the generic route→channel fallthrough covers every routed channel's view
         generic = ak == "view" and ck in routed
+        # Prefix tests, e.g. any(p.startswith("channel.admin.hr") for p in perms).
+        # A prefix only counts when it selects a subset — "channel.admin." matches
+        # every admin permission, so trusting it would silence this whole report.
+        # _require_channel(request, "admin.xxx", write=...) builds the key at
+        # run time, so the literal never appears in the source.
+        dynamic = re.search(
+            r"_require_channel\(\s*\w+\s*,\s*[\"']" + re.escape(ck) + r"[\"']", blob
+        ) is not None
+        family = "channel." + ck.split(".")[0] + "."
+        prefixed = any(
+            key.startswith(pre) and len(pre) > len(family)
+            for pre in re.findall(r'startswith\(\s*["\']([a-z0-9_.]+)["\']', blob)
+        )
         implied = any(i in blob for i in (p.get("implies") or []))
-        if not (literal or helper or generic or implied):
+        if not (literal or helper or generic or implied or prefixed or dynamic):
             dead.append(p)
 
     print(f"permissions: {len(perms)}   unreadable: {len(dead)}")
