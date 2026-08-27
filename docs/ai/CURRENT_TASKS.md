@@ -170,6 +170,54 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
+## ✅ Completed: 沈黙を可視化する — バッジ＋名指し (2026-08-27)
+
+### ③ NavBarバッジ ＋ 未引き取り一覧
+`/admin/incidents/unowned`「Waiting for someone」。
+**ページではなくバッジが本体** — 開かないと分からない画面が、8件放置の原因だった。
+
+「持ち主がいない」の定義に注意: `new` だけでなく、**`acknowledged` だが名前が無い6件も含める**。
+旧実装は引き取った人を記録していなかったため、現場に求めているのと同じ責任の空白がHQ側にあった。
+
+本番実測:
+```
+バッジ: 14件 / 最長 82日待ち
+「Take this on」→ "Taken on. It waited 82 days. The alerts stop now."
+→ 14 → 13件に減少 ✅
+```
+
+### ④ 2ラウンド無応答で名指し
+「HQ」宛は誰宛でもない。3ラウンド目から**1人ずつ名指しし、ラウンドごとに交代**する。
+```
+round 1-2  HQ全体（名指しなし）
+round 3    Ayako Nishimura
+round 4    Jay Nishimura
+round 5    Rafael Jonas Lagahit
+round 6    Yukihiro Nishimura
+round 7    Yuri Yamada
+round 8    Yusuke Uejima
+round 9    Ayako Nishimura（一巡）
+```
+**輪番表を作らずに輪番の効果を得る設計。** 3ラウンド目に寝ていた人は4ラウンド目には呼ばれず、
+最終的に全員が個別に呼ばれる。表の保守も、不在時の穴も無い。
+
+Level 2 は30分毎なので名指し開始は通報から約60分後、Level 3 は10分毎なので約20分後。
+
+### ⚠ 実装中に踏んだ罠
+`/admin/incidents/unowned` が `[id]` ルートに食われて "Incident not found" を表示。
+**サーバーは正しいページを返していた**（HTMLに文言あり）— PWAのService Workerが
+古いシェルを配っていた。`caches.delete()` で解消。
+静的ルート追加時は、既存の動的ルート配下だとキャッシュで確認を誤りやすい。
+
+### 残（HQ側の作業）
+1. **既存13件を片付ける** — 新しい仕組みを現場に案内する前に。
+   今の状態で「10分以内に報告を」と言うと、現場が最初に学ぶのは「報告しても何も起きない」
+2. **HQ6名の電話番号を登録** — `staff_master.whatsapp_phone` は167名全員未登録。
+   Level 3で「今すぐ電話」を出すには番号が要る
+3. 2週間測ってから、輪番が要るか判断
+
+---
+
 ## ✅ Completed: 店舗からの緊急通報 (2026-08-27)
 
 ### きっかけと、現場からの本質的な指摘
