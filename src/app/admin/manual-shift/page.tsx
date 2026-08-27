@@ -28,6 +28,27 @@ function cellsOf(c: ShiftCell | ShiftCell[] | null | undefined): ShiftCell[] {
   if (!c) return [];
   return Array.isArray(c) ? c : [c];
 }
+/** One cell of the week's working overlay, as the server keeps it. */
+type WeekEdit = {
+  staff_name: string;
+  work_date: string;
+  cells: ShiftCell[];
+  edited_by: string;
+  edited_at: string;
+  rev: number;
+  /** Already applied to the published week — no longer pending. */
+  published: boolean;
+};
+
+type WeekState = {
+  ok: boolean;
+  published_token: string;
+  max_rev: number;
+  edits: WeekEdit[];
+  pending: number;
+  published_changed: boolean;
+};
+
 type EditTarget = { staffName: string; dateStr: string } | null;
 type PageView = "edit" | "published" | "search" | "monthly";
 
@@ -374,83 +395,66 @@ function PublishedView({
   );
 }
 
-// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+// ─── The outbox ───────────────────────────────────────────────────────────────
+//
+// This page used to keep a copy of the whole week in localStorage and publish it
+// by replacing the published week. One person's copy could therefore erase
+// another's correction, which is why the publish had to be blocked whenever the
+// copy could not be proven current — and that block kept refusing the editor's
+// own work.
+//
+// What is kept here now is not the week. It is only the cells this browser has
+// edited and not yet had acknowledged by the server: a queue of outstanding
+// writes. It exists so a dropped connection in a store does not lose what someone
+// just typed. A queue of edits cannot overwrite a cell nobody edited, so there is
+// nothing left for a staleness check to protect.
 
-function draftKey(city: string, branch: string, week: string) {
-  return `manual-shift-draft::${city}::${branch}::${week}`;
-}
-
-/** How long a browser-held grid stays trustworthy. A copy older than this is dropped
- *  even if the week has not moved on, so a tab opened days ago cannot resurrect itself. */
-const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-
-type StoredDraft = {
-  /** Grid as it stood in this browser. */
-  grid: GridData;
-  /** Staff taken out of the grid. The list is rebuilt from the roster on every
-   *  load, so without this a removed row comes straight back — the button says
-   *  "remove from grid" and then does not. */
-  removed: string[];
-  /** The published-week fingerprint this grid was built from. "" for copies written
-   *  before the stamp existed — those can never be proven current, so they are dropped. */
-  token: string;
-  savedAt: number;
+/** One edited cell on its way to the server. An empty `cells` is the cell
+ *  explicitly cleared, which is not the same as never having been touched. */
+type PendingEdit = {
+  city: string;
+  branch_code: string;
+  week_start: string;
+  staff_name: string;
+  work_date: string;
+  cells: ShiftCell[];
 };
 
-function saveDraft(city: string, branch: string, week: string, grid: GridData, token: string, removed: string[] = []) {
-  try {
-    const compact: GridData = {};
-    for (const [name, days] of Object.entries(grid)) {
-      const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
-      if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell | ShiftCell[]>;
-    }
-    // Stamp what the grid was built from. Without this the copy looks equally valid
-    // whether it is five seconds or five days behind the published week.
-    const payload = { v: 2, token, savedAt: Date.now(), grid: compact, removed };
-    localStorage.setItem(draftKey(city, branch, week), JSON.stringify(payload));
-  } catch { /* quota exceeded — silently ignore */ }
+/** One key for every queued edit, not one per week. Each entry carries the week
+ *  it belongs to, so changing week or branch mid-flush cannot post an edit
+ *  against the wrong one. */
+const OUTBOX_KEY = "manual-shift-outbox";
+
+function cellKey(staffName: string, dateStr: string) {
+  return `${staffName}|${dateStr}`;
 }
 
-function loadDraft(city: string, branch: string, week: string): StoredDraft {
-  const empty: StoredDraft = { grid: {}, token: "", savedAt: 0, removed: [] };
+/** Identity of a queued edit: one pending write per cell per week. A second edit
+ *  to the same cell replaces the first rather than queueing behind it. */
+function queueKey(e: PendingEdit) {
+  return `${e.city}|${e.branch_code}|${e.week_start}|${e.staff_name}|${e.work_date}`;
+}
+
+function loadOutbox(): PendingEdit[] {
   try {
-    const raw = localStorage.getItem(draftKey(city, branch, week));
-    if (!raw) return empty;
+    const raw = localStorage.getItem(OUTBOX_KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && parsed.v === 2) {
-      return {
-        grid: (parsed.grid ?? {}) as GridData,
-        token: String(parsed.token ?? ""),
-        savedAt: Number(parsed.savedAt ?? 0),
-        removed: Array.isArray(parsed.removed) ? parsed.removed.map(String) : [],
-      };
-    }
-    // Pre-stamp copy: keep the cells so we can say how many were dropped, but leave the
-    // token blank so it can never pass as current.
-    return { grid: parsed as GridData, token: "", savedAt: 0, removed: [] };
-  } catch { return empty; }
+    return Array.isArray(parsed) ? (parsed as PendingEdit[]) : [];
+  } catch { return []; }
 }
 
-function countCells(grid: GridData): number {
-  let n = 0;
-  for (const days of Object.values(grid)) n += Object.values(days).filter((c) => c != null).length;
-  return n;
+function saveOutbox(edits: PendingEdit[]) {
+  try {
+    if (edits.length === 0) localStorage.removeItem(OUTBOX_KEY);
+    else localStorage.setItem(OUTBOX_KEY, JSON.stringify(edits));
+  } catch { /* quota exceeded — the edit is still in flight, just not recoverable */ }
 }
 
-/** Whether a browser-held grid may be laid over freshly loaded server data.
- *  It may only when it was built from exactly the week the server is serving now —
- *  otherwise it is someone's view from before another person's correction, and
- *  applying it is how a published change silently disappears. */
-function draftIsCurrent(saved: StoredDraft, serverToken: string): boolean {
-  // savedAt is 0 on pre-stamp copies, so this also retires every unstamped grid
-  // already sitting in someone's browser.
-  if (!saved.savedAt || Date.now() - saved.savedAt > DRAFT_MAX_AGE_MS) return false;
-  // Both empty means the week has never been published — a grid being built from
-  // scratch has nothing to conflict with, so it is still the user's own work.
-  return saved.token === serverToken;
-}
-function clearDraft(city: string, branch: string, week: string) {
-  try { localStorage.removeItem(draftKey(city, branch, week)); } catch { /* ignore */ }
+/** Retire the pre-cell-level saved weeks. Left alone they sit in every browser
+ *  holding a stale copy of a week nothing reads any more. */
+function dropLegacyWeekDraft(city: string, branch: string, week: string) {
+  try { localStorage.removeItem(`manual-shift-draft::${city}::${branch}::${week}`); } catch { /* ignore */ }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -482,17 +486,26 @@ export default function ManualShiftPage() {
   const [error, setError] = useState("");
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
-  const [hasDraft, setHasDraft] = useState(false);
 
-  // A new deploy hard-reloads the page, and this grid holds a week of unsaved
-  // edits — the reload landed mid-entry, threw the work away and dropped the
-  // branch back to the default. Hold the reload until the grid is saved.
-  useUnsavedGuard("manual-shift", hasDraft);
-  const [draftSaving, setDraftSaving] = useState(false);
-  const [serverDraftSavedAt, setServerDraftSavedAt] = useState<string | null>(null);
-  const [serverDraftCells, setServerDraftCells] = useState<Set<string>>(new Set());
-  const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
-  const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
+  // ─── Cell-level sync ──────────────────────────────────────────────────────
+  // Edits this browser has not yet had acknowledged. Held in a ref because the
+  // flush loop reads it outside React's render cycle, and mirrored to state only
+  // so the header can say whether everything is saved.
+  const outboxRef = useRef<Map<string, PendingEdit>>(new Map());
+  const [outboxSize, setOutboxSize] = useState(0);
+  const [syncError, setSyncError] = useState("");
+  const [notice, setNotice] = useState("");
+  /** Cells edited but not yet published — anyone's, not just this browser's. */
+  const [unpublishedCells, setUnpublishedCells] = useState<Set<string>>(new Set());
+  /** Who last touched each unpublished cell, so a second editor is visible
+   *  rather than silent. */
+  const [cellEditors, setCellEditors] = useState<Record<string, { by: string; at: string }>>({});
+  const revRef = useRef(0);
+  const publishedTokenRef = useRef("");
+
+  // A new deploy hard-reloads the page. Edits are saved as they are made now, so
+  // the only thing a reload can lose is what has not reached the server yet.
+  useUnsavedGuard("manual-shift", outboxSize > 0);
   const [removedStaff, setRemovedStaff] = useState<string[]>([]);
   const removedStaffRef = useRef<string[]>([]);
   removedStaffRef.current = removedStaff;
@@ -528,11 +541,6 @@ export default function ManualShiftPage() {
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
   const staffListRef = useRef<string[]>([]);
-  // Tracks locally-applied shifts so loadExistingShifts can restore them
-  // after a server reload (which only knows about published/server data).
-  // Tracks the current draft key so the auto-save effect can skip writes
-  // when week/branch just changed (prevents old grid data corrupting the new key).
-  const draftKeyRef = useRef(draftKey(city, branchCode, weekStart));
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const weekDates = useMemo(
@@ -540,26 +548,166 @@ export default function ManualShiftPage() {
     [weekStart]
   );
 
-  const localCellCount = useMemo(
-    () => Object.values(gridData).reduce(
-      (sum, days) => sum + Object.values(days).reduce((s, c) => s + cellsOf(c).length, 0), 0
-    ),
-    [gridData]
-  );
-
   useEffect(() => { staffListRef.current = staffList; }, [staffList]);
 
-  useEffect(() => {
-    const key = draftKey(city, branchCode, weekStart);
-    // Only write the draft when the key matches what was active on the previous render.
-    // When week/branch changes, the key differs → skip to avoid writing the old grid
-    // into the new week/branch's slot before the reload effect loads its correct data.
-    if (staffList.length > 0 && !loading && key === draftKeyRef.current) {
-      saveDraft(city, branchCode, weekStart, gridData, baseStateTokenRef.current, removedStaffRef.current);
-      setHasDraft(localCellCount > 0);
+  // ─── Sending edits ────────────────────────────────────────────────────────
+
+  const syncOutboxSize = useCallback(() => {
+    setOutboxSize(outboxRef.current.size);
+    saveOutbox(Array.from(outboxRef.current.values()));
+  }, []);
+
+  /** Send everything queued. Grouped by week so a queue built across a week
+   *  change still lands in the right place. What fails stays queued. */
+  const flushOutbox = useCallback(async () => {
+    if (outboxRef.current.size === 0) return;
+    const groups = new Map<string, PendingEdit[]>();
+    for (const e of outboxRef.current.values()) {
+      const g = `${e.city}|${e.branch_code}|${e.week_start}`;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g)!.push(e);
     }
-    draftKeyRef.current = key;
-  }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount, loading]);
+    let failed = false;
+    for (const [g, edits] of groups) {
+      const [c, bc, ws] = g.split("|");
+      try {
+        await apiFetch("/api/admin/shifts/week_cells", {
+          method: "POST",
+          body: JSON.stringify({
+            city: c, branch_code: bc, week_start: ws,
+            edits: edits.map((e) => ({ staff_name: e.staff_name, work_date: e.work_date, cells: e.cells })),
+          }),
+        });
+        for (const e of edits) {
+          // Only drop the queued edit if it is still the one we sent. A newer
+          // edit to the same cell must not be dropped by an older flush.
+          const k = queueKey(e);
+          if (outboxRef.current.get(k) === e) outboxRef.current.delete(k);
+        }
+      } catch {
+        failed = true;
+      }
+    }
+    setSyncError(failed ? "Not saved yet — retrying. Keep this page open." : "");
+    syncOutboxSize();
+  }, [syncOutboxSize]);
+
+  /** The single place a cell changes. Everything that edits the grid goes
+   *  through here, so nothing can change a cell without it being saved. */
+  const commitCells = useCallback((
+    changes: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
+  ) => {
+    if (changes.length === 0) return;
+    setGridData((prev) => {
+      const next: GridData = {};
+      for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+      for (const ch of changes) {
+        next[ch.staffName] = { ...(next[ch.staffName] ?? {}), [ch.dateStr]: ch.value };
+      }
+      return next;
+    });
+    const now = new Date().toISOString();
+    const me = auth?.staffName || "you";
+    setUnpublishedCells((prev) => {
+      const s = new Set(prev);
+      for (const ch of changes) s.add(cellKey(ch.staffName, ch.dateStr));
+      return s;
+    });
+    setCellEditors((prev) => {
+      const nx = { ...prev };
+      for (const ch of changes) nx[cellKey(ch.staffName, ch.dateStr)] = { by: me, at: now };
+      return nx;
+    });
+    for (const ch of changes) {
+      const e: PendingEdit = {
+        city, branch_code: branchCode, week_start: weekStart,
+        staff_name: ch.staffName, work_date: ch.dateStr,
+        cells: cellsOf(ch.value),
+      };
+      outboxRef.current.set(queueKey(e), e);
+    }
+    syncOutboxSize();
+    void flushOutbox();
+  }, [city, branchCode, weekStart, auth?.staffName, syncOutboxSize, flushOutbox]);
+
+  const commitCell = useCallback(
+    (staffName: string, dateStr: string, value: ShiftCell | ShiftCell[] | null) =>
+      commitCells([{ staffName, dateStr, value }]),
+    [commitCells],
+  );
+
+  /** Lay the week's unpublished edits over the grid. Returns the cells it touched.
+   *
+   *  A cell still queued in this browser is skipped: what the server echoes back
+   *  is what we sent a moment ago, and applying it would undo a newer keystroke. */
+  const applyOverlay = useCallback((edits: WeekEdit[]): Set<string> => {
+    const touched = new Set<string>();
+    const changes: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[] = [];
+    const editors: Record<string, { by: string; at: string }> = {};
+    const published: string[] = [];
+    for (const e of edits) {
+      const k = cellKey(e.staff_name, e.work_date);
+      const queued = outboxRef.current.has(
+        `${city}|${branchCode}|${weekStart}|${e.staff_name}|${e.work_date}`
+      );
+      if (queued) continue;
+      const cells = (e.cells || []).map((c) => ({
+        start_hour: Number(c.start_hour),
+        end_hour: Number(c.end_hour),
+        role: String(c.role || ""),
+        note: c.note ? String(c.note) : undefined,
+        branch_code: c.branch_code ? String(c.branch_code) : undefined,
+      }));
+      changes.push({
+        staffName: e.staff_name,
+        dateStr: e.work_date,
+        value: cells.length === 0 ? null : cells.length === 1 ? cells[0] : cells,
+      });
+      if (e.published) published.push(k);
+      else {
+        touched.add(k);
+        editors[k] = { by: e.edited_by || "", at: e.edited_at || "" };
+      }
+    }
+    if (changes.length > 0) {
+      setGridData((prev) => {
+        const next: GridData = {};
+        for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+        for (const ch of changes) {
+          // A cell for somebody not on this branch's roster would be a phantom row.
+          if (!next[ch.staffName]) continue;
+          next[ch.staffName][ch.dateStr] = ch.value;
+        }
+        return next;
+      });
+    }
+    setUnpublishedCells((prev) => {
+      const s = new Set(prev);
+      for (const k of touched) s.add(k);
+      for (const k of published) s.delete(k);
+      return s;
+    });
+    if (Object.keys(editors).length > 0) setCellEditors((prev) => ({ ...prev, ...editors }));
+    return touched;
+  }, [city, branchCode, weekStart]);
+
+  // Recover anything left queued by a closed tab or a dropped connection.
+  useEffect(() => {
+    const saved = loadOutbox();
+    if (saved.length > 0) {
+      for (const e of saved) outboxRef.current.set(queueKey(e), e);
+      setOutboxSize(outboxRef.current.size);
+      void flushOutbox();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Retry loop for a failed send. Idle when the queue is empty.
+  useEffect(() => {
+    if (outboxSize === 0) return;
+    const t = window.setInterval(() => { void flushOutbox(); }, 5000);
+    return () => window.clearInterval(t);
+  }, [outboxSize, flushOutbox]);
 
   useEffect(() => {
     setBranchCode(BRANCHES[city][0].code);
@@ -606,16 +754,6 @@ export default function ManualShiftPage() {
     }
   }, [city, branchCode]);
 
-  // Fingerprint of the published week as loaded, sent back on publish so the server can
-  // reject a save built on a copy someone else has since changed.
-  const baseStateTokenRef = useRef<string>("");
-  // Digest of the week this grid was built from. The timestamp above only says when the
-  // page last fetched; this says what it fetched, which is what the server compares.
-  const baseContentHashRef = useRef<string>("");
-  // How many cells the browser was holding that we refused to apply, so the page can
-  // tell the user their old copy was dropped instead of silently swapping the grid.
-  const [discardedDraftCells, setDiscardedDraftCells] = useState(0);
-
   const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setError("");
@@ -625,16 +763,8 @@ export default function ManualShiftPage() {
       );
       if (cancelledRef?.current) return "";
       const rows = (data.rows || []);
-      // Only a forced load rebuilds the grid from what the server just sent; a merge
-      // keeps whatever the page already held on top. Restamping the token on a merge
-      // would claim the grid is based on this fetch when part of it predates it —
-      // exactly the claim that let a stale grid pass the staleness check and overwrite
-      // a published correction. So the basis token moves only when the basis does.
-      if (forceOverwrite) {
-        baseStateTokenRef.current = data.state_token ?? "";
-        baseContentHashRef.current = data.content_hash ?? "";
-      }
       const serverToken = data.state_token ?? "";
+      publishedTokenRef.current = serverToken;
 
       setGridData((prev) => {
         const nextGrid: GridData = {};
@@ -707,56 +837,72 @@ export default function ManualShiftPage() {
     // cancelledRef is shared with loadStaff/loadExistingShifts so they can check
     // it before each setState call — prevents stale fetches from overwriting newer results.
     const cancelledRef = { current: false };
-    const savedDraft = loadDraft(city, branchCode, weekStart);
-    setRemovedStaff(savedDraft.removed);
-    removedStaffRef.current = savedDraft.removed;
-    setServerDraftCells(new Set());
-    setServerDraftSavedAt(null);
+    dropLegacyWeekDraft(city, branchCode, weekStart);
+    setRemovedStaff([]);
+    removedStaffRef.current = [];
+    setUnpublishedCells(new Set());
+    setCellEditors({});
+    revRef.current = 0;
     setPublishedCount(0);
     void (async () => {
       const staffOk = await loadStaff(cancelledRef);
       if (cancelledRef.current) return;
       if (!staffOk) return; // staff load failed — keep the error visible
-      const serverToken = await loadExistingShifts(true, cancelledRef);
+      await loadExistingShifts(true, cancelledRef);
       if (cancelledRef.current) return;
-      // Load server draft rows and apply on top of published shifts
+
+      // The week's unpublished edits — everyone's, not this browser's. They lay
+      // over the published week; a cell with no edit is whatever is published.
+      let overlaid = new Set<string>();
       try {
-        const draftData = await apiFetch<{ version_id: string | null; rows: any[] }>(
-          `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
+        const state = await apiFetch<WeekState>(
+          `/api/admin/shifts/week_state?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}` +
+          `&week_start=${encodeURIComponent(weekStart)}&since_rev=0&published_token=${encodeURIComponent(publishedTokenRef.current)}`
         );
-        if (!cancelledRef.current && draftData.rows.length > 0) {
-          // Manual (published) shifts take priority over draft shifts.
-          // Draft rows only fill slots where no published shift exists.
-          let appliedDraftKeys = new Set<string>();
-          setGridData((prev) => {
-            const next: GridData = {};
-            const applied = new Set<string>();
-            for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-            for (const r of draftData.rows as any[]) {
-              const rName = r.staff_name as string;
-              const rDate = r.work_date as string;
-              // Skip draft rows for staff not already in the grid (prevent phantom rows)
-              if (!next[rName]) continue;
-              // Skip if a published (manual) shift already exists for this slot
-              if (next[rName][rDate] != null) continue;
-              next[rName][rDate] = {
-                start_hour: Number(r.start_hour),
-                end_hour: Number(r.end_hour),
-                role: String(r.role || ""),
-                note: r.note ? String(r.note) : undefined,
-              };
-              applied.add(`${rName}|${rDate}`);
-            }
-            appliedDraftKeys = applied;
-            return next;
-          });
-          if (!cancelledRef.current) {
-            setServerDraftCells(appliedDraftKeys);
-            setServerDraftSavedAt("loaded");
-          }
+        if (!cancelledRef.current) {
+          revRef.current = state.max_rev ?? 0;
+          overlaid = applyOverlay(state.edits ?? []);
         }
       } catch {
-        // Server draft is optional — ignore load errors silently
+        // Without the overlay the page still shows the published week, which is
+        // true — just missing what has not been published yet.
+      }
+
+      // Work saved with the old "Save Draft" button lived in a separate table and
+      // was only ever applied to the screen. Publishing now sends the overlay, so
+      // that work would quietly not be published. Move it across, once, and only
+      // into cells the overlay does not already cover.
+      if (!cancelledRef.current && revRef.current === 0) {
+        try {
+          const draftData = await apiFetch<{ version_id: string | null; rows: any[] }>(
+            `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
+          );
+          const carried: { staffName: string; dateStr: string; value: ShiftCell }[] = [];
+          const seen = new Set<string>();
+          for (const r of (draftData.rows || []) as any[]) {
+            const rName = String(r.staff_name);
+            const rDate = String(r.work_date);
+            const k = cellKey(rName, rDate);
+            if (overlaid.has(k) || seen.has(k)) continue;
+            if (!staffListRef.current.includes(rName)) continue;
+            seen.add(k);
+            carried.push({
+              staffName: rName, dateStr: rDate,
+              value: {
+                start_hour: Number(r.start_hour),
+                end_hour: Number(r.end_hour),
+                role: String(r.role || "STAFF"),
+                note: r.note ? String(r.note) : undefined,
+              },
+            });
+          }
+          if (!cancelledRef.current && carried.length > 0) {
+            commitCells(carried);
+            setNotice(`${carried.length} cell${carried.length === 1 ? "" : "s"} from the old saved draft moved into this week — publish when ready.`);
+          }
+        } catch {
+          // No old draft, or it could not be read. Nothing to carry across.
+        }
       }
       // Fetch approved Day-Off proposals so empty cells can show "Day Off" badge
       try {
@@ -772,35 +918,65 @@ export default function ManualShiftPage() {
         // Approved day-offs overlay is optional — ignore errors silently
       }
       if (cancelledRef.current) return;
-      // The copy this browser kept is only safe to lay over the server's week when it
-      // was built from exactly that week. Otherwise it predates someone else's
-      // correction, and applying it is what made published changes reappear as their
-      // old values the next morning. Drop it and say how much was dropped.
-      const savedCells = countCells(savedDraft.grid);
-      if (savedCells > 0 && draftIsCurrent(savedDraft, serverToken || "")) {
-        setGridData((prev) => {
-          const next: GridData = {};
-          for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-          for (const [name, days] of Object.entries(savedDraft.grid)) {
-            if (!next[name]) continue;
-            for (const [date, cell] of Object.entries(days)) {
-              if (cell != null) next[name][date] = cell;
-            }
-          }
-          return next;
-        });
-        setDiscardedDraftCells(0);
-      } else if (savedCells > 0) {
-        clearDraft(city, branchCode, weekStart);
-        setDiscardedDraftCells(savedCells);
-      } else {
-        setDiscardedDraftCells(0);
-      }
-      if (!cancelledRef.current) setView("edit");
+      setView("edit");
     })();
     return () => { cancelledRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
+
+  // ─── Seeing other people's edits ──────────────────────────────────────────
+  //
+  // Polling, not a socket: the page is open for minutes at a time and a few
+  // seconds of lag on someone else's cell is not worth a persistent connection.
+
+  /** Fetch the week's overlay from the beginning and lay all of it back on.
+   *  Needed after the published week is reloaded, because that rebuilds the grid
+   *  from published rows alone -- without this the cells someone has edited but
+   *  not published would silently snap back to their published values. */
+  const reapplyWholeOverlay = useCallback(async () => {
+    const state = await apiFetch<WeekState>(
+      `/api/admin/shifts/week_state?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}` +
+      `&week_start=${encodeURIComponent(weekStart)}&since_rev=0&published_token=${encodeURIComponent(publishedTokenRef.current)}`
+    );
+    revRef.current = state.max_rev ?? 0;
+    applyOverlay(state.edits ?? []);
+  }, [city, branchCode, weekStart, applyOverlay]);
+
+  /** Published week + overlay, in that order. Every refresh path uses this so
+   *  none of them can reload one without the other. */
+  const refreshWeek = useCallback(async () => {
+    await loadExistingShifts(true);
+    try { await reapplyWholeOverlay(); } catch { /* keep the published week on screen */ }
+  }, [loadExistingShifts, reapplyWholeOverlay]);
+
+  useEffect(() => {
+    if (staffList.length === 0 || view !== "edit") return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || document.hidden) return;
+      try {
+        const state = await apiFetch<WeekState>(
+          `/api/admin/shifts/week_state?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}` +
+          `&week_start=${encodeURIComponent(weekStart)}&since_rev=${revRef.current}` +
+          `&published_token=${encodeURIComponent(publishedTokenRef.current)}`
+        );
+        if (stopped) return;
+        if (state.published_changed) {
+          // Someone published, or another page changed a row. Reloading the
+          // published week rebuilds the grid, so the whole overlay goes back on.
+          await refreshWeek();
+          return;
+        }
+        revRef.current = Math.max(revRef.current, state.max_rev ?? 0);
+        if (state.edits?.length) applyOverlay(state.edits);
+      } catch {
+        // A failed poll is not worth telling anyone about — the next one is in
+        // five seconds, and the page is still showing true data meanwhile.
+      }
+    };
+    const t = window.setInterval(() => { void tick(); }, 5000);
+    return () => { stopped = true; window.clearInterval(t); };
+  }, [city, branchCode, weekStart, staffList.length, view, applyOverlay, refreshWeek]);
 
   function closeEdit() {
     setEditTarget(null);
@@ -816,11 +992,7 @@ export default function ManualShiftPage() {
       paintSplit && paintStart2 < paintEnd2
         ? [block1, { start_hour: paintStart2, end_hour: paintEnd2, role: paintRole, branch_code: b }]
         : block1;
-    setGridData((prev) => ({
-      ...prev,
-      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: value },
-    }));
-    setHasDraft(true);
+    commitCell(staffName, dateStr, value);
   }
 
   function loadShiftIntoForm(shift: ShiftCell | null, index: number | null) {
@@ -863,11 +1035,7 @@ export default function ManualShiftPage() {
     const note = editNote.trim() || undefined;
 
     if (editMode === "special") {
-      setGridData((prev) => ({
-        ...prev,
-        [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType, note } },
-      }));
-      setHasDraft(true);
+      commitCell(staffName, dateStr, { start_hour: 0, end_hour: 0, role: editSpecialType, note });
       closeEdit();
       return;
     }
@@ -879,104 +1047,47 @@ export default function ManualShiftPage() {
     const role = editRole === "OTHER" ? editCustomRole.trim() : editRole;
     if (!role) return;
     const newShift: ShiftCell = { start_hour: editStart, end_hour: editEnd, role, branch_code: editBranchCode || undefined, note };
-    setGridData((prev) => {
-      const raw = prev[staffName]?.[dateStr];
-      const existing = cellsOf(raw);
-      let updated: ShiftCell | ShiftCell[];
-      if (editShiftIndex === null) {
-        const next = [...existing, newShift];
-        updated = next.length === 1 ? next[0] : next;
-      } else {
-        const next = existing.map((s, i) => i === editShiftIndex ? newShift : s);
-        updated = next.length === 1 ? next[0] : next;
-      }
-      return { ...prev, [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: updated } };
-    });
-    setHasDraft(true);
+    const existing = cellsOf(gridData[staffName]?.[dateStr]);
+    const next = editShiftIndex === null
+      ? [...existing, newShift]
+      : existing.map((s, i) => (i === editShiftIndex ? newShift : s));
+    commitCell(staffName, dateStr, next.length === 1 ? next[0] : next);
     closeEdit();
   }
 
   function removeShiftSegment(staffName: string, dateStr: string, index: number) {
-    setGridData((prev) => {
-      const raw = prev[staffName]?.[dateStr];
-      const existing = cellsOf(raw);
-      const next = existing.filter((_, i) => i !== index);
-      let updated: ShiftCell | ShiftCell[] | null;
-      if (next.length === 0) updated = null;
-      else if (next.length === 1) updated = next[0];
-      else updated = next;
-      return { ...prev, [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: updated } };
-    });
-    setHasDraft(true);
+    const next = cellsOf(gridData[staffName]?.[dateStr]).filter((_, i) => i !== index);
+    commitCell(staffName, dateStr, next.length === 0 ? null : next.length === 1 ? next[0] : next);
   }
 
   function clearCell(staffName: string, dateStr: string) {
-    setGridData((prev) => ({
-      ...prev,
-      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: null },
-    }));
+    commitCell(staffName, dateStr, null);
     closeEdit();
   }
 
-  /** Re-stamp what this grid is based on after a change this page itself made.
+  /** Deleting a cell.
    *
-   *  Deleting a published row rewrites the week on the server. The basis stamp
-   *  only moves on a forced load, so the grid was left describing a week that no
-   *  longer existed — and the next publish was refused as someone else's change,
-   *  when the someone else was the same person a moment earlier. Restamping is
-   *  safe here and only here: the change is ours and already reflected in the grid.
+   *  This used to remove the row from the published week straight away, which
+   *  rewrote the week on the server while this page's basis stamp stayed where it
+   *  was -- so the editor's next publish was refused as somebody else's change,
+   *  when the somebody else was themselves a minute earlier. A deletion is now an
+   *  edit like any other: the cell is recorded as empty, and it leaves the
+   *  published week when the week is published.
    */
-  async function restampBasisAfterOwnEdit() {
-    try {
-      const data = await apiFetch<{ state_token?: string; content_hash?: string }>(
-        `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
-      );
-      baseStateTokenRef.current = data.state_token ?? "";
-      baseContentHashRef.current = data.content_hash ?? "";
-      // The stale-week refusal came from the server on the last publish attempt;
-      // once the basis is current again it no longer describes anything.
-      setError((prev) => (prev.includes("changed by someone else") ? "" : prev));
-    } catch {
-      // Leave the old stamp: a failed refresh must not claim the grid is current.
-    }
+  function deletePublishedShift(staffName: string, dateStr: string) {
+    commitCell(staffName, dateStr, null);
   }
 
-  async function deletePublishedShift(staffName: string, dateStr: string) {
-    setDeletingCell({ staffName, dateStr });
-    try {
-      await apiFetch("/api/admin/shifts/delete_published_row", {
-        method: "POST",
-        body: JSON.stringify({ city, branch_code: branchCode, work_date: dateStr, staff_name: staffName }),
-      });
-    } catch {
-      // Shift may not have been published yet — still clear locally
-    } finally {
-      setDeletingCell(null);
-    }
-    clearCell(staffName, dateStr);
-    await restampBasisAfterOwnEdit();
-  }
-
-  async function deleteStaffFromGrid(staffName: string) {
+  function deleteStaffFromGrid(staffName: string) {
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
     const totalShifts = datesWithShifts.length;
-    if (!window.confirm(`Delete all ${totalShifts} shift(s) for "${stripRoleSuffix(staffName)}" and remove from grid?`)) return;
-    setDeletingStaffGrid(staffName);
-    try {
-      for (const d of datesWithShifts) {
-        try {
-          await apiFetch("/api/admin/shifts/delete_published_row", {
-            method: "POST",
-            body: JSON.stringify({ city, branch_code: branchCode, work_date: d, staff_name: staffName }),
-          });
-        } catch {
-          // May not be published yet — continue
-        }
-      }
-    } finally {
-      setDeletingStaffGrid(null);
+    if (!window.confirm(
+      `Clear all ${totalShifts} shift(s) for "${stripRoleSuffix(staffName)}" and remove the row?\n\n` +
+      `They leave the published schedule when you publish this week.`
+    )) return;
+    if (datesWithShifts.length > 0) {
+      commitCells(datesWithShifts.map((d) => ({ staffName, dateStr: d, value: null })));
     }
-    await restampBasisAfterOwnEdit();
     setStaffList((prev) => prev.filter((n) => n !== staffName));
     setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
     setGridData((prev) => {
@@ -1031,9 +1142,8 @@ export default function ManualShiftPage() {
         res = await loadFromDb(true);
       }
       if (!res.ok) { setError("Load from DB failed"); return; }
-      // Reload grid from newly published data
-      clearDraft(city, branchCode, weekStart);
-      setHasDraft(false);
+      // publish_from_base writes the published week itself, so there is nothing
+      // to carry over -- reload and let the overlay lie back on top.
       const staffOk = await loadStaff();
       if (!staffOk) return;
       await loadExistingShifts(true);
@@ -1078,27 +1188,23 @@ export default function ManualShiftPage() {
         return;
       }
 
-      // Build a GridData from draft rows
-      const newGrid: GridData = {};
+      // Draft rows go into the week's overlay like any other edit, so they are
+      // saved on the server the moment they land and are published with the rest.
+      const byCell = new Map<string, { staffName: string; dateStr: string; value: ShiftCell[] }>();
       for (const r of res.rows) {
-        if (!newGrid[r.staff_name]) newGrid[r.staff_name] = {};
+        const k = cellKey(r.staff_name, r.work_date);
         const cell: ShiftCell = { start_hour: r.start_hour, end_hour: r.end_hour, role: r.role || "STAFF" };
-        const existing = newGrid[r.staff_name][r.work_date];
-        if (existing == null) {
-          newGrid[r.staff_name][r.work_date] = cell;
-        } else {
-          const arr = Array.isArray(existing) ? existing : [existing];
-          const merged = [...arr, cell].sort((a, b) => a.start_hour - b.start_hour);
-          newGrid[r.staff_name][r.work_date] = merged.length === 1 ? merged[0] : merged;
-        }
+        const found = byCell.get(k);
+        if (found) found.value.push(cell);
+        else byCell.set(k, { staffName: r.staff_name, dateStr: r.work_date, value: [cell] });
       }
-
-      saveDraft(city, branchCode, weekStart, newGrid, baseStateTokenRef.current, removedStaffRef.current);
-      setHasDraft(true);
-      // Trigger a re-render of the grid by reloading staff + shifts
+      const changes = Array.from(byCell.values()).map((c) => {
+        const sorted = c.value.slice().sort((a, b) => a.start_hour - b.start_hour);
+        return { staffName: c.staffName, dateStr: c.dateStr, value: sorted.length === 1 ? sorted[0] : sorted };
+      });
       const staffOk = await loadStaff();
       if (!staffOk) return;
-      await loadExistingShifts(false);
+      commitCells(changes);
       setError("");
       alert(`Loaded ${res.rows.length} draft shifts into the grid for ${labelOf(city, branchCode)}.\n\nReview and publish when ready.`);
     } catch (ex: unknown) {
@@ -1127,67 +1233,48 @@ export default function ManualShiftPage() {
 
   async function handlePublish() {
     setError("");
-    const rows = buildRows();
-    if (rows.length === 0) {
-      setError("No shifts to publish. Please add at least one shift.");
+    // Everything typed must be on the server before the server is asked to publish
+    // it -- the browser no longer sends the week, so an unsent edit would simply
+    // not be published.
+    await flushOutbox();
+    if (outboxRef.current.size > 0) {
+      setError("Some edits have not reached the server yet. Wait a moment and publish again.");
+      return;
+    }
+    if (unpublishedCells.size === 0) {
+      setError("Nothing to publish — no cells have changed since the last publish.");
       return;
     }
     setSaving(true);
     try {
-      const result = await apiFetch<{ ok: boolean; rows_copied: number; export_result?: any }>(
-        "/api/admin/shifts/manual_publish",
+      const result = await apiFetch<{
+        ok: boolean; cells_applied: number; rows_written: number;
+        export_result?: { error?: string } | null; published_token?: string;
+      }>(
+        "/api/admin/shifts/publish_week_cells",
         {
           method: "POST",
           body: JSON.stringify({
             city,
             branch_code: branchCode,
             week_start: weekStart,
-            rows,
             auto_export: true,
             export_month: weekStart.slice(0, 7),
-            base_state_token: baseStateTokenRef.current,
-            base_content_hash: baseContentHashRef.current,
           }),
         }
       );
       if (result.export_result?.error) {
         setError(`Sheet export error: ${result.export_result.error}`);
       }
-      setPublishedCount(result.rows_copied);
-      clearDraft(city, branchCode, weekStart);
-      setHasDraft(false);
-      setServerDraftCells(new Set());
-      setServerDraftSavedAt(null);
+      setPublishedCount(result.rows_written);
+      setUnpublishedCells(new Set());
+      setCellEditors({});
+      publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
       setView("published");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleSaveDraft() {
-    setError("");
-    const rows = buildRows();
-    if (rows.length === 0) {
-      setError("No shifts to save as draft. Please add at least one shift.");
-      return;
-    }
-    setDraftSaving(true);
-    try {
-      const result = await apiFetch<{ ok: boolean; version_id: string; saved_at: string }>(
-        "/api/admin/shifts/save_draft_only",
-        {
-          method: "POST",
-          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart, rows }),
-        }
-      );
-      setServerDraftSavedAt(result.saved_at);
-      setServerDraftCells(new Set(rows.map((r) => `${r.staff_name}|${r.work_date}`)));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDraftSaving(false);
     }
   }
 
@@ -1317,18 +1404,9 @@ export default function ManualShiftPage() {
   const branches = BRANCHES[city];
   const shiftCount = useMemo(() => buildRows().length, [buildRows]);
 
-  const handleBackToEdit = useCallback(() => {
-    setView("edit");
-    setGridData((prev) => {
-      const saved = loadDraft(city, branchCode, weekStart);
-      if (!draftIsCurrent(saved, baseStateTokenRef.current)) return prev;
-      const next = { ...prev };
-      for (const [name, days] of Object.entries(saved.grid)) {
-        next[name] = { ...(next[name] ?? {}), ...days };
-      }
-      return next;
-    });
-  }, [city, branchCode, weekStart]);
+  // The grid was never thrown away to get here, and unpublished edits live on the
+  // server, so going back to editing is just switching the view.
+  const handleBackToEdit = useCallback(() => setView("edit"), []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -1465,28 +1543,9 @@ export default function ManualShiftPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  const savedDraft = loadDraft(city, branchCode, weekStart);
                   const staffOk = await loadStaff();
                   if (!staffOk) return; // staff load failed — error is already displayed, do not clear it
-                  const serverToken = await loadExistingShifts(true);
-                  const savedCells = countCells(savedDraft.grid);
-                  if (savedCells > 0 && draftIsCurrent(savedDraft, serverToken || "")) {
-                    setGridData((prev) => {
-                      const next: GridData = {};
-                      for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-                      for (const [name, days] of Object.entries(savedDraft.grid)) {
-                        if (!next[name]) continue;
-                        for (const [date, cell] of Object.entries(days)) {
-                          if (cell != null) next[name][date] = cell;
-                        }
-                      }
-                      return next;
-                    });
-                    setDiscardedDraftCells(0);
-                  } else if (savedCells > 0) {
-                    clearDraft(city, branchCode, weekStart);
-                    setDiscardedDraftCells(savedCells);
-                  }
+                  await refreshWeek();
                 }}
                 disabled={loading}
                 className={SECONDARY_BUTTON}
@@ -1497,16 +1556,13 @@ export default function ManualShiftPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
-                    clearDraft(city, branchCode, weekStart);
-                    setHasDraft(false);
                     const staffOk = await loadStaff();
-                    if (staffOk) void loadExistingShifts(true);
+                    if (staffOk) await refreshWeek();
                   }}
                   disabled={loading}
                   className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 transition hover:bg-gray-50"
                 >
-                  ↺ Reload from Server
+                  ↺ Refresh
                 </button>
               )}
               {staffList.length > 0 && (
@@ -1538,14 +1594,18 @@ export default function ManualShiftPage() {
               <p className="text-xs text-gray-400">
                 {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
               </p>
-              {hasDraft && (
+              {outboxSize > 0 ? (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                  ● Unsaved local draft
+                  ● Saving {outboxSize} cell{outboxSize !== 1 ? "s" : ""}…
+                </span>
+              ) : (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  ✓ Saved
                 </span>
               )}
-              {serverDraftCells.size > 0 && (
+              {unpublishedCells.size > 0 && (
                 <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
-                  ◈ Server draft ({serverDraftCells.size} cell{serverDraftCells.size !== 1 ? "s" : ""}) — not yet published
+                  ◈ {unpublishedCells.size} cell{unpublishedCells.size !== 1 ? "s" : ""} edited — not yet published
                 </span>
               )}
             </div>
@@ -1559,22 +1619,23 @@ export default function ManualShiftPage() {
           </div>
         )}
 
-        {discardedDraftCells > 0 && (
-          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start justify-between gap-3">
-            <div>
-              <div className="font-semibold">
-                This browser was holding {discardedDraftCells} unpublished cell
-                {discardedDraftCells > 1 ? "s" : ""} from an older version of this week.
-              </div>
-              <div className="mt-0.5">
-                Someone else has published changes since, so the saved copy was discarded and the
-                current schedule is shown. Re-apply your edits on top of what you see now.
-              </div>
+        {syncError && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="font-semibold">{syncError}</div>
+            <div className="mt-0.5">
+              Your edits are held on this device and will be sent as soon as the connection
+              comes back. Nothing has been lost.
             </div>
+          </div>
+        )}
+
+        {notice && (
+          <div className="rounded-2xl border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 flex items-start justify-between gap-3">
+            <div>{notice}</div>
             <button
               type="button"
-              onClick={() => setDiscardedDraftCells(0)}
-              className="shrink-0 rounded-lg border border-amber-300 px-2 py-1 text-xs hover:bg-amber-100"
+              onClick={() => setNotice("")}
+              className="shrink-0 rounded-lg border border-indigo-300 px-2 py-1 text-xs hover:bg-indigo-100"
             >
               Dismiss
             </button>
@@ -1748,18 +1809,23 @@ export default function ManualShiftPage() {
                             <button
                               type="button"
                               title="Delete all shifts for this staff member"
-                              disabled={deletingStaffGrid === name}
-                              onClick={() => void deleteStaffFromGrid(name)}
+                              onClick={() => deleteStaffFromGrid(name)}
                               className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
                             >
-                              {deletingStaffGrid === name ? "…" : "🗑"}
+                              🗑
                             </button>
                           </div>
                         </td>
                         {weekDates.map((d) => {
                           const cellRaw = gridData[name]?.[d] ?? null;
                           const shifts = cellsOf(cellRaw);
-                          const isDraft = serverDraftCells.has(`${name}|${d}`);
+                          // Edited but not published yet. The ring is the only thing
+                          // that distinguishes it from what staff can already see.
+                          const isDraft = unpublishedCells.has(cellKey(name, d));
+                          const editor = cellEditors[cellKey(name, d)];
+                          const editedBy = editor?.by
+                            ? `Edited by ${editor.by}${editor.at ? ` at ${new Date(editor.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""} — not published yet`
+                            : undefined;
                           // Treat 0:00-0:00 published shift as Day Off (normalize role)
                           const normalizedShifts = shifts.map((s) =>
                             s.start_hour === 0 && s.end_hour === 0 && !isSpecialRole(s.role)
@@ -1787,6 +1853,7 @@ export default function ManualShiftPage() {
                                     <button
                                       type="button"
                                       onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
+                                      title={editedBy}
                                       className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(normalizedShifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
                                     >
                                       {specialLabel(normalizedShifts[0].role)}
@@ -1797,15 +1864,14 @@ export default function ManualShiftPage() {
                                     <button
                                       type="button"
                                       title="Delete shift"
-                                      disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                        void deletePublishedShift(name, d);
+                                        if (!window.confirm(`Clear the shift for ${name} on ${formatDate(d)}?\n\nIt leaves the published schedule when you publish this week.`)) return;
+                                        deletePublishedShift(name, d);
                                       }}
                                       className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
                                     >
-                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                      ×
                                     </button>
                                   </div>
                                 ) : (
@@ -1817,6 +1883,7 @@ export default function ManualShiftPage() {
                                           key={idx}
                                           type="button"
                                           onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
+                                          title={editedBy}
                                           className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
                                         >
                                           <div className={`text-xs leading-tight ${tc.time}`}>
@@ -1852,16 +1919,15 @@ export default function ManualShiftPage() {
                                     {normalizedShifts.length === 1 && (
                                       <button
                                         type="button"
-                                        title="Delete shift"
-                                        disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                        title="Clear shift"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                          void deletePublishedShift(name, d);
+                                          if (!window.confirm(`Clear the shift for ${name} on ${formatDate(d)}?\n\nIt leaves the published schedule when you publish this week.`)) return;
+                                          deletePublishedShift(name, d);
                                         }}
                                         className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
                                       >
-                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                        ×
                                       </button>
                                     )}
                                   </div>
@@ -1894,28 +1960,20 @@ export default function ManualShiftPage() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                disabled={draftSaving || saving}
-                className={`${SECONDARY_BUTTON} min-w-[160px]`}
-              >
-                {draftSaving ? "Saving..." : "📝 Save Draft"}
-              </button>
-              <button
-                type="button"
                 onClick={handlePublish}
-                disabled={saving || draftSaving}
+                disabled={saving || unpublishedCells.size === 0}
                 className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >
-                {saving ? "Publishing..." : "🚀 Publish"}
+                {saving
+                  ? "Publishing..."
+                  : unpublishedCells.size === 0
+                    ? "🚀 Nothing to publish"
+                    : `🚀 Publish ${unpublishedCells.size} change${unpublishedCells.size !== 1 ? "s" : ""}`}
               </button>
-              {serverDraftSavedAt && (
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 ring-1 ring-indigo-200">
-                  ✓ Draft saved to server
-                </span>
-              )}
               <p className="w-full text-xs text-gray-400 sm:w-auto">
-                Save Draft: keeps {shiftCount} shift{shiftCount !== 1 ? "s" : ""} as a draft (not visible to staff).&nbsp;
-                Publish: sends to Week / My-Shift &amp; exports to Google Sheets.
+                Every edit is saved as you make it, and stays out of sight until you publish.
+                Publishing applies only the cells that changed — it never rewrites the rest of
+                the week — then sends to Week / My-Shift and exports to Google Sheets.
               </p>
               {shiftCount > 0 && (
                 <button
@@ -2369,14 +2427,13 @@ export default function ManualShiftPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!window.confirm(`Delete all shifts for ${editTarget.staffName} on ${formatDate(editTarget.dateStr)}?`)) return;
-                      void deletePublishedShift(editTarget.staffName, editTarget.dateStr);
+                      if (!window.confirm(`Clear all shifts for ${editTarget.staffName} on ${formatDate(editTarget.dateStr)}?\n\nThey leave the published schedule when you publish this week.`)) return;
+                      clearCell(editTarget.staffName, editTarget.dateStr);
                     }}
-                    disabled={!!(deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr)}
                     className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
                     title="Delete all shifts for this day"
                   >
-                    {deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr ? "…" : "🗑"}
+                    🗑
                   </button>
                 )}
                 <button
