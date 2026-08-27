@@ -105,6 +105,7 @@ td.muted{color:var(--muted);font-size:12px}
 <nav class="sidebar">
   <div class="sidebar-label">結論</div>
   <div class="nav-item active" onclick="show('summary')"><span class="nav-icon">🎯</span><span>結論</span></div>
+  <div class="nav-item" onclick="show('concept')"><span class="nav-icon">🧠</span><span>【改訂】認識の問題</span></div>
   <div class="nav-item" onclick="show('exists')"><span class="nav-icon">🔍</span><span>OSに既にあるもの</span></div>
   <div class="sidebar-label">本当の欠落</div>
   <div class="nav-item" onclick="show('gaps')"><span class="nav-icon">🕳️</span><span>5つの欠落</span></div>
@@ -174,6 +175,112 @@ td.muted{color:var(--muted);font-size:12px}
         <div class="lc-header"><span class="lc-status">C. 解決まで追跡する</span><span class="lc-who admin">中</span></div>
         <div class="lc-detail">ご指摘のとおり「報告箱」ではなくチケットにする。担当者・期限・解決の記録。</div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="sec-concept">
+  <div class="section-hero">
+    <div class="hero-icon">🧠</div>
+    <div>
+      <div class="section-title">【改訂】認識の問題 — 前案の弱点</div>
+      <div class="section-desc">現場からの指摘を受け、実データで検証しました。指摘は正しく、前案は不十分でした。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">指摘：断水は「インシデント」だと思わなかった</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      Incident Report は「<strong>自社の不手際があり、対応策を考えるための材料</strong>」として認識されている。
+      断水のように原因が外にあり、こちらで防げないものは、その枠に入らない——という指摘です。
+    </p>
+    <div class="tip danger"><span class="tip-icon">⚠️</span>
+      <div><strong>前案の弱点はここでした。</strong>「Water カテゴリを足して重大度を自動化する」だけでは、
+      <strong>そもそもその画面を開かない</strong>人には届きません。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">実データが指摘を裏付けています</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>カテゴリ</th><th>件数</th><th>種別</th></tr></thead>
+      <tbody>
+        <tr><td>Product Issue</td><td>6</td><td>自社起因</td></tr>
+        <tr><td>Food Safety — CK Label</td><td>5</td><td>自社起因</td></tr>
+        <tr><td>Stock Shortage</td><td>3</td><td>自社起因</td></tr>
+        <tr><td>Delivery Issue</td><td>1</td><td>自社起因</td></tr>
+        <tr><td>Other</td><td>1</td><td>その他</td></tr>
+        <tr><td><strong>Weather Issue / Facility Issue / Equipment Issue</strong></td>
+            <td><strong>0</strong></td><td><strong>外部起因</strong></td></tr>
+      </tbody>
+    </table></div>
+    <div class="formula-box" style="color:var(--red)">
+      自社起因 15件 ／ 外部起因 <strong>0件</strong><br>
+      Facility・Weather・Equipment は<strong>フォームに存在するのに、一度も使われていない</strong>
+    </div>
+    <p class="section-desc" style="margin-top:8px">
+      <strong>カテゴリが足りなかったのではありません。</strong>Facility Issue も Weather Issue も
+      最初からありました。それでも一度も使われていない。
+      <strong>障壁は選択肢ではなく「インシデント」という言葉そのもの</strong>でした。
+    </p>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title">ただし「認識を変える」という解決策には賛成しかねます</div>
+    <p class="section-desc">
+      ご提案は「Incident Report の認識を変える必要がある」でした。指摘の分析は正しいのですが、
+      解決策としては<strong>170名に言葉の意味を再定義してもらう教育施策</strong>になります。
+      これは「マネージャーが重大度を正しく判断する」に依存するのと<strong>同じ種類の脆さ</strong>で、
+      人が入れ替われば失われ、時間とともに薄れます。
+    </p>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>認識を変えてもらうのではなく、認識を問わない画面にします。</strong>
+      「これはインシデントか？」を判断させなければ、認識のズレは問題になりません。</div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">改訂の核心：緊急度と原因は、別の軸である</div>
+    <p class="section-desc" style="margin-bottom:10px">
+      従来のフォームは<strong>原因の種類で画面を1つにまとめ、緊急度をその中で選ばせて</strong>いました。
+      この2つは本来独立しています。冷凍庫の故障は<strong>自社の設備（原因は内）</strong>ですが<strong>緊急</strong>です。
+      客からの苦情は<strong>自社起因</strong>ですが<strong>緊急ではありません</strong>。断水は<strong>外部</strong>で<strong>緊急</strong>です。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>原因が内（自社）</th><th>原因が外（インフラ・天候）</th></tr></thead>
+      <tbody>
+        <tr><td><strong>いま困っている</strong></td>
+            <td>冷凍庫故障、スタッフ負傷</td>
+            <td><strong>断水</strong>、停電、台風</td></tr>
+        <tr><td><strong>起きたこと</strong></td>
+            <td>商品不良、ラベル不備<br><span class="chip">現在の16件はここだけ</span></td>
+            <td>先週の停電の記録</td></tr>
+      </tbody>
+    </table></div>
+    <p class="section-desc" style="margin-top:10px">
+      <strong>報告者に判断できるのは「いま困っているか」だけ</strong>です。
+      原因が内か外かは、あとから分類すればよく、その場で問う必要がありません。
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">なぜ「コントロール不可能」でも報告が要るのか</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      ご指摘のとおり断水は防げません。だからこそ「報告しても仕方ない」と感じるのは自然です。
+      しかし報告の目的が違います。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>自社起因の報告</th><th>外部起因の報告</th></tr></thead>
+      <tbody>
+        <tr><td>目的</td><td>原因分析・再発防止</td><td><strong>HQの選択肢を残すこと</strong></td></tr>
+        <tr><td>価値の変化</td><td>時間が経っても失われない</td><td><strong>時間とともに急速に失われる</strong></td></tr>
+        <tr><td>14:00に報告</td><td>—</td><td>CKから水を運ぶ／タンク手配／営業方法変更が<strong>選べる</strong></td></tr>
+        <tr><td>19:00に報告</td><td>—</td><td><strong>ほぼ打つ手なし</strong></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>この説明は<strong>マニュアルではなく報告画面に1行で置きます</strong>。
+      「早いほどHQができることが増えます」——読む場所が報告の瞬間でなければ意味がありません。</div>
     </div>
   </div>
 </section>
@@ -336,6 +443,36 @@ td.muted{color:var(--muted);font-size:12px}
     <div>
       <div class="section-title">A. マネージャーに判断させない</div>
       <div class="section-desc">最小・最速で、今回の断水に直接効きます。</div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">A-0.【改訂】入口を2つの扉にする — 認識を問わない</div>
+    <p class="section-desc" style="margin-bottom:10px">
+      「Incident Report」という名前の画面を1つ置くのをやめ、
+      <strong>報告者が判断なしに答えられる1問</strong>から始めます。
+    </p>
+    <div class="formula-box">
+      <div class="formula-label" style="color:var(--muted)">最初の画面</div>
+      店舗からの報告<br><br>
+      ┌──────────────────────┐<br>
+      │ <strong>いま起きている — 助けが要る</strong>  │ → 速報（4項目・即通知・応答まで再通知）<br>
+      └──────────────────────┘<br>
+      ┌──────────────────────┐<br>
+      │ <strong>起きたこと — 記録しておきたい</strong> │ → 従来の Incident Report（原因分析）<br>
+      └──────────────────────┘
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>問わないこと</th><th>問うこと</th></tr></thead>
+      <tbody>
+        <tr><td>この画面</td>
+            <td>インシデントか／緊急か／自社の責任か／重大度はどれか</td>
+            <td><strong>いま困っているか。それだけ</strong></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>扉は2つ、部屋は1つ</strong>です。データも、HQの受信箱も、台帳も同じものを使います。
+      分けるのは<strong>最初に尋ねる質問だけ</strong>で、新しい無視される箱は作りません。</div>
     </div>
   </div>
 
