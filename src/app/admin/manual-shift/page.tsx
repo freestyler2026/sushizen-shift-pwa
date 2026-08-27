@@ -590,6 +590,9 @@ export default function ManualShiftPage() {
   // Fingerprint of the published week as loaded, sent back on publish so the server can
   // reject a save built on a copy someone else has since changed.
   const baseStateTokenRef = useRef<string>("");
+  // Digest of the week this grid was built from. The timestamp above only says when the
+  // page last fetched; this says what it fetched, which is what the server compares.
+  const baseContentHashRef = useRef<string>("");
   // How many cells the browser was holding that we refused to apply, so the page can
   // tell the user their old copy was dropped instead of silently swapping the grid.
   const [discardedDraftCells, setDiscardedDraftCells] = useState(0);
@@ -598,7 +601,7 @@ export default function ManualShiftPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<{ rows?: any[]; state_token?: string }>(
+      const data = await apiFetch<{ rows?: any[]; state_token?: string; content_hash?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
       if (cancelledRef?.current) return "";
@@ -608,7 +611,10 @@ export default function ManualShiftPage() {
       // would claim the grid is based on this fetch when part of it predates it —
       // exactly the claim that let a stale grid pass the staleness check and overwrite
       // a published correction. So the basis token moves only when the basis does.
-      if (forceOverwrite) baseStateTokenRef.current = data.state_token ?? "";
+      if (forceOverwrite) {
+        baseStateTokenRef.current = data.state_token ?? "";
+        baseContentHashRef.current = data.content_hash ?? "";
+      }
       const serverToken = data.state_token ?? "";
 
       setGridData((prev) => {
@@ -1074,6 +1080,7 @@ export default function ManualShiftPage() {
             auto_export: true,
             export_month: weekStart.slice(0, 7),
             base_state_token: baseStateTokenRef.current,
+            base_content_hash: baseContentHashRef.current,
           }),
         }
       );

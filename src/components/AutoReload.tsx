@@ -45,6 +45,25 @@ export default function AutoReload() {
   const [applyingUpdate, setApplyingUpdate] = useState(false); // brief "Applying update…" before reload
   const [loopGuarded, setLoopGuarded] = useState(false);   // reload loop detected — show fatal error
 
+  /** Reloading the URL is not enough on this PWA: the service worker keeps serving the
+   *  bundle it already cached, so a page can look reloaded and still be running the old
+   *  build — which is how a fixed page kept behaving like the broken one until someone
+   *  knew to force-refresh. Retire the cached build first, then reload. */
+  async function dropCachedBuild() {
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.update().catch(() => undefined)));
+      }
+      if (typeof caches !== "undefined") {
+        const names = await caches.keys();
+        await Promise.all(names.map((n) => caches.delete(n).catch(() => undefined)));
+      }
+    } catch {
+      // Best effort — a reload without this is still better than none.
+    }
+  }
+
   function hardReload() {
     try {
       const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || 0);
@@ -59,7 +78,7 @@ export default function AutoReload() {
     }
     const url = new URL(window.location.href);
     url.searchParams.set("_r", String(Date.now()));
-    window.location.replace(url.toString());
+    void dropCachedBuild().finally(() => window.location.replace(url.toString()));
   }
 
   useEffect(() => {
