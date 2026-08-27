@@ -36,6 +36,10 @@ interface FinDoc {
   confidence: string;
   classified_by: string;
   confirmed_by: string;
+  ocr_status: string;
+  ocr_vendor: string;
+  ocr_total: number | null;
+  amount_disagrees: boolean;
 }
 
 interface Account {
@@ -276,6 +280,11 @@ export default function FinDocumentsPage() {
                     </td>
                     <td className="py-2.5 max-w-[280px]">
                       <div className="truncate text-sm text-zinc-200">{d.vendor_name || "—"}</div>
+                      {d.ocr_vendor && d.ocr_vendor !== "UNKNOWN" && d.ocr_vendor !== d.vendor_name && (
+                        <div className="truncate text-[11px] text-zinc-500">
+                          receipt: {d.ocr_vendor}
+                        </div>
+                      )}
                       {d.image_url && (
                         <a
                           href={d.image_url}
@@ -290,6 +299,14 @@ export default function FinDocumentsPage() {
                     </td>
                     <td className="py-2.5 text-right text-sm text-zinc-200 tabular-nums whitespace-nowrap">
                       {money(d.amount_total, d.currency)}
+                      {d.amount_disagrees && (
+                        <div
+                          className="text-[11px] text-amber-300"
+                          title="The receipt shows a different amount from the claim. Often a round trip with one leg photographed — worth a look either way."
+                        >
+                          receipt says {money(d.ocr_total, d.currency)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5">
                       {d.is_internal ? (
