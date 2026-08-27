@@ -36,6 +36,47 @@ const WEBHOOK_URL   = process.env.WEBHOOK_URL;
 const PORTAL        = 'https://merchant.mykeeta.com';
 
 // Shop ID → store code mapping (Keeta portal shopIds)
+// Which brand this run's session belongs to. Keeta gives each brand its own login,
+// so the account decides the brand — the settlement report itself never says it.
+const KEETA_BRAND = (process.env.KEETA_BRAND || 'sushi_zen').trim().toLowerCase();
+
+const BRAND_PREFIX = { sushi_zen: 'SZ', ramen_zen: 'RZ', all_veggie: 'AVS' };
+
+// The portal's shop label ("Arjan") → the branch code the rest of the OS uses.
+const BRANCH_FROM_LABEL = [
+  [/arjan/i,                    'ARJ'],
+  [/barsha\s*3|al\s*barsha/i,   'AB3'],
+  [/business\s*bay/i,           'BB'],
+  [/jumeirah|jlt/i,             'JLT'],
+  [/al\s*mina|mina/i,           'AM'],
+  [/mirdif|mc/i,                'MC'],
+];
+
+function branchFromLabel(label) {
+  for (const [re, code] of BRANCH_FROM_LABEL) if (re.test(label || '')) return code;
+  return '';
+}
+
+/**
+ * Identify a shop. SHOP_MAP wins so existing store codes never move; anything else is
+ * built from this run's brand plus the label in the report. Skipping unknown shops is
+ * what silently lost an entire brand's payouts, so only give up when the label cannot
+ * be recognised either — and say so loudly.
+ */
+function resolveShop(shopId, shopLabel) {
+  const known = SHOP_MAP[shopId];
+  if (known) return known;
+  const prefix = BRAND_PREFIX[KEETA_BRAND];
+  const branch = branchFromLabel(shopLabel);
+  if (!prefix || !branch) return null;
+  return {
+    code:  `KEETA_${prefix}_${branch}`,
+    name:  `${KEETA_BRAND} ${shopLabel}`.trim(),
+    brand: KEETA_BRAND,
+    derived: true,
+  };
+}
+
 const SHOP_MAP = {
   '1644178222': { code: 'KEETA_SZ_ARJ', name: 'Sushi ZEN Arjan',            brand: 'sushi_zen' },
   '1644171212': { code: 'KEETA_SZ_AB3', name: 'Sushi ZEN Al Barsha 3',       brand: 'sushi_zen' },
@@ -234,6 +275,10 @@ function parseInvoiceDetails(wb) {
     if (!groups[key]) {
       groups[key] = {
         shop_id:         shopId,
+        // Column E carries the portal's own label for the shop ("Arjan"). Keeping it
+        // lets a restaurant that is not yet in SHOP_MAP still be identified, instead
+        // of being dropped the way the whole Ramen ZEN account was.
+        shop_label:      String(row[4] ?? '').trim(),
         billing_cycle:   billingCycle,
         settlement_date: settlDate,
         payout_aed:      0,
@@ -400,11 +445,16 @@ async function main() {
 
     for (const s of settlements) {
       // One report can now hold several shops, so the mapping is per row.
-      const shopInfo = SHOP_MAP[s.shop_id];
+      const shopInfo = resolveShop(s.shop_id, s.shop_label);
       if (!shopInfo) {
-        console.log(`    (shop ${s.shop_id} not in SHOP_MAP) → skipped`);
+        console.log(`    ⚠ shop ${s.shop_id} ("${s.shop_label}") is not in SHOP_MAP and its `
+                  + `label was not recognised — its payout is NOT being recorded. `
+                  + `Add it to SHOP_MAP or extend BRANCH_FROM_LABEL.`);
         totalSkipped++;
         continue;
+      }
+      if (shopInfo.derived) {
+        console.log(`    + shop ${s.shop_id} ("${s.shop_label}") → ${shopInfo.code} (derived from KEETA_BRAND=${KEETA_BRAND})`);
       }
 
       const dedupeKey = `${s.shop_id}||${s.billing_cycle}`;

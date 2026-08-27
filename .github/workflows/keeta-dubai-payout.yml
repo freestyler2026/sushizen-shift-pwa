@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # The secrets context is not dependable inside a step-level `if`, so the second
+    # account's session is surfaced as an env var the condition can read.
+    env:
+      KEETA_RZ_SESSION: ${{ secrets.KEETA_RZ_SESSION }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +46,27 @@ jobs:
         run: npx playwright install chromium --with-deps
         working-directory: ${{ github.workspace }}
 
-      - name: Extract Keeta settlement payouts
+      # Keeta gives each brand its own login, so one session only ever sees one
+      # brand's restaurants. Running Sushi ZEN alone is why Ramen ZEN's settlements
+      # never reached the OS while its money did reach the bank.
+      - name: Extract Keeta settlement payouts — Sushi ZEN
         run: node scripts/keeta/get-payouts.js
         env:
           KEETA_SESSION:  ${{ secrets.KEETA_SESSION }}
+          KEETA_BRAND:    sushi_zen
+          WEBHOOK_URL:    ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          GENERATE_FROM:  ${{ github.event.inputs.generate_from }}
+          GENERATE_TO:    ${{ github.event.inputs.generate_to }}
+        timeout-minutes: 12
+
+      - name: Extract Keeta settlement payouts — Ramen ZEN
+        # Runs only once the second account's session secret exists, and never blocks
+        # the Sushi ZEN extract above.
+        if: ${{ always() && env.KEETA_RZ_SESSION != '' }}
+        run: node scripts/keeta/get-payouts.js
+        env:
+          KEETA_SESSION:  ${{ env.KEETA_RZ_SESSION }}
+          KEETA_BRAND:    ramen_zen
           WEBHOOK_URL:    ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
           GENERATE_FROM:  ${{ github.event.inputs.generate_from }}
           GENERATE_TO:    ${{ github.event.inputs.generate_to }}
