@@ -12,6 +12,7 @@ import {
   SECONDARY_BUTTON,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import { useUnsavedGuard } from "@/lib/unsavedGuard";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 const W_CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
@@ -386,13 +387,17 @@ const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 type StoredDraft = {
   /** Grid as it stood in this browser. */
   grid: GridData;
+  /** Staff taken out of the grid. The list is rebuilt from the roster on every
+   *  load, so without this a removed row comes straight back — the button says
+   *  "remove from grid" and then does not. */
+  removed: string[];
   /** The published-week fingerprint this grid was built from. "" for copies written
    *  before the stamp existed — those can never be proven current, so they are dropped. */
   token: string;
   savedAt: number;
 };
 
-function saveDraft(city: string, branch: string, week: string, grid: GridData, token: string) {
+function saveDraft(city: string, branch: string, week: string, grid: GridData, token: string, removed: string[] = []) {
   try {
     const compact: GridData = {};
     for (const [name, days] of Object.entries(grid)) {
@@ -401,13 +406,13 @@ function saveDraft(city: string, branch: string, week: string, grid: GridData, t
     }
     // Stamp what the grid was built from. Without this the copy looks equally valid
     // whether it is five seconds or five days behind the published week.
-    const payload = { v: 2, token, savedAt: Date.now(), grid: compact };
+    const payload = { v: 2, token, savedAt: Date.now(), grid: compact, removed };
     localStorage.setItem(draftKey(city, branch, week), JSON.stringify(payload));
   } catch { /* quota exceeded — silently ignore */ }
 }
 
 function loadDraft(city: string, branch: string, week: string): StoredDraft {
-  const empty: StoredDraft = { grid: {}, token: "", savedAt: 0 };
+  const empty: StoredDraft = { grid: {}, token: "", savedAt: 0, removed: [] };
   try {
     const raw = localStorage.getItem(draftKey(city, branch, week));
     if (!raw) return empty;
@@ -417,11 +422,12 @@ function loadDraft(city: string, branch: string, week: string): StoredDraft {
         grid: (parsed.grid ?? {}) as GridData,
         token: String(parsed.token ?? ""),
         savedAt: Number(parsed.savedAt ?? 0),
+        removed: Array.isArray(parsed.removed) ? parsed.removed.map(String) : [],
       };
     }
     // Pre-stamp copy: keep the cells so we can say how many were dropped, but leave the
     // token blank so it can never pass as current.
-    return { grid: parsed as GridData, token: "", savedAt: 0 };
+    return { grid: parsed as GridData, token: "", savedAt: 0, removed: [] };
   } catch { return empty; }
 }
 
@@ -477,11 +483,19 @@ export default function ManualShiftPage() {
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
+
+  // A new deploy hard-reloads the page, and this grid holds a week of unsaved
+  // edits — the reload landed mid-entry, threw the work away and dropped the
+  // branch back to the default. Hold the reload until the grid is saved.
+  useUnsavedGuard("manual-shift", hasDraft);
   const [draftSaving, setDraftSaving] = useState(false);
   const [serverDraftSavedAt, setServerDraftSavedAt] = useState<string | null>(null);
   const [serverDraftCells, setServerDraftCells] = useState<Set<string>>(new Set());
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
   const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
+  const [removedStaff, setRemovedStaff] = useState<string[]>([]);
+  const removedStaffRef = useRef<string[]>([]);
+  removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
   const [paintMode, setPaintMode] = useState(false);
   const [paintStart, setPaintStart] = useState(9);
@@ -541,7 +555,7 @@ export default function ManualShiftPage() {
     // When week/branch changes, the key differs → skip to avoid writing the old grid
     // into the new week/branch's slot before the reload effect loads its correct data.
     if (staffList.length > 0 && !loading && key === draftKeyRef.current) {
-      saveDraft(city, branchCode, weekStart, gridData, baseStateTokenRef.current);
+      saveDraft(city, branchCode, weekStart, gridData, baseStateTokenRef.current, removedStaffRef.current);
       setHasDraft(localCellCount > 0);
     }
     draftKeyRef.current = key;
@@ -568,7 +582,12 @@ export default function ManualShiftPage() {
         `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&home_branch=${encodeURIComponent(branchCode)}&exclude_role=HQ&limit=5000`
       );
       if (cancelledRef?.current) return false;
-      const names = (data.names || []).sort((a, b) => a.localeCompare(b));
+      // Rows taken out of the grid this session stay out. The roster still lists
+      // them, so without this the removal is undone by the next load.
+      const removedNow = new Set(removedStaffRef.current);
+      const names = (data.names || [])
+        .filter((n) => !removedNow.has(n))
+        .sort((a, b) => a.localeCompare(b));
       setStaffList(names);
       staffListRef.current = names;
       setGridData((prev) => {
@@ -668,7 +687,10 @@ export default function ManualShiftPage() {
           return !currentStaff.some(s => stripRoleSuffix(s) === stripped);
         });
       if (extraNames.length > 0) {
-        const merged = Array.from(new Set([...currentStaff, ...extraNames])).sort((a, b) => a.localeCompare(b));
+        const removedNow = new Set(removedStaffRef.current);
+        const merged = Array.from(new Set([...currentStaff, ...extraNames]))
+          .filter((n) => !removedNow.has(n))
+          .sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
       return serverToken;
@@ -686,6 +708,8 @@ export default function ManualShiftPage() {
     // it before each setState call — prevents stale fetches from overwriting newer results.
     const cancelledRef = { current: false };
     const savedDraft = loadDraft(city, branchCode, weekStart);
+    setRemovedStaff(savedDraft.removed);
+    removedStaffRef.current = savedDraft.removed;
     setServerDraftCells(new Set());
     setServerDraftSavedAt(null);
     setPublishedCount(0);
@@ -929,6 +953,7 @@ export default function ManualShiftPage() {
       setDeletingStaffGrid(null);
     }
     setStaffList((prev) => prev.filter((n) => n !== staffName));
+    setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
     setGridData((prev) => {
       const next = { ...prev };
       delete next[staffName];
@@ -1043,7 +1068,7 @@ export default function ManualShiftPage() {
         }
       }
 
-      saveDraft(city, branchCode, weekStart, newGrid, baseStateTokenRef.current);
+      saveDraft(city, branchCode, weekStart, newGrid, baseStateTokenRef.current, removedStaffRef.current);
       setHasDraft(true);
       // Trigger a re-render of the grid by reloading staff + shifts
       const staffOk = await loadStaff();

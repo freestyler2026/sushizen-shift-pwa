@@ -239,11 +239,20 @@
       </div>
 
       <div class="step">
-        <div class="who"><span class="n">STEP 4</span><span class="tag auto">自動</span></div>
+        <div class="who"><span class="n">STEP 4a</span><span class="tag auto">自動</span></div>
         <div class="body">
-          <h3>プラットフォームのデータと突き合わせる</h3>
-          <p><strong>GrabFood は毎日、FoodPanda は毎週月曜</strong>に自動で照合します。一致すれば返金確定に変わり、根拠が画面に残ります。</p>
+          <h3>GrabFood — 取引データと自動で突き合わせる</h3>
+          <p><strong>毎日 06:00 UTC（Manila 14:00）</strong>に自動照合します。<strong>スタッフの操作は不要です。</strong>一致すれば返金確定に変わり、根拠が詳細画面に残ります。</p>
           <p class="st">workflow_status → <b>Refund Confirmed</b> ／ 詳細画面に <b>Platform Settlement</b> が表示される</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="who"><span class="n">STEP 4b</span><span class="tag staff">スタッフ</span></div>
+        <div class="body">
+          <h3>FoodPanda — ポータルを見て自分で確定する</h3>
+          <p>毎日の巡回でポータルを見たとき、<strong>該当注文が請求対象から外れていれば返金確定にします。</strong>FoodPanda は自動化していません（下記「なぜ FoodPanda は手作業か」参照）。</p>
+          <p class="st">workflow_status → <b>Refund Confirmed</b>（金額欄は空でも保存できます）</p>
         </div>
       </div>
 
@@ -300,9 +309,9 @@
             <td><strong>CANCELLED なのに BILLABLE のまま</strong> → FoodPanda が請求から外していない。督促が必要</td>
           </tr>
           <tr>
-            <td><strong>自動実行</strong></td>
-            <td>毎日 06:00 UTC（Manila 14:00）</td>
-            <td>毎週月曜 9:00（Mac）</td>
+            <td><strong>確定のしかた</strong></td>
+            <td><strong>自動</strong> — 毎日 06:00 UTC（Manila 14:00）</td>
+            <td><strong>スタッフが手作業</strong> — 毎日の巡回時に確定</td>
           </tr>
         </tbody>
       </table>
@@ -323,8 +332,9 @@
         <ol>
           <li><strong>新しいキャンセルを入力する。</strong> <code>/admin</code> → Manila Cancellation タブ。</li>
           <li><strong>妥当性を判断する。</strong> 写真の要否、チケット送付、異議申し立て。これまでどおりです。</li>
-          <li><strong>回答待ちは Waiting for Refund Confirmation にして手を離す。</strong> 以降の照合は自動なので、確認ボタンを押す必要はありません。</li>
-          <li><strong>Refund Confirmed になった案件を Completed にする。</strong> 詳細画面の <strong>Platform Settlement</strong> に確定根拠が出ています。</li>
+          <li><strong>GrabFood は回答待ちにして手を離す。</strong> Waiting for Refund Confirmation にすれば、あとは毎日の自動照合が確定させます。<strong>確認ボタンを押す必要はありません。</strong></li>
+          <li><strong>FoodPanda はポータルで確認して自分で確定する。</strong> 巡回時に該当注文を見て、請求対象から外れていれば Refund Confirmed にします。判定基準は上の比較表のとおりです。</li>
+          <li><strong>Refund Confirmed になった案件を Completed にする。</strong> GrabFood は詳細画面の <strong>Platform Settlement</strong> に確定根拠が出ています。</li>
           <li><strong>赤い「records overdue」表示に対応する。</strong> 7日以上完了していない案件です。</li>
         </ol>
       </article>
@@ -350,10 +360,14 @@
           <span class="freq">週1回・火曜</span>
         </header>
         <ol>
-          <li><strong>火曜のリマインダーに従って Noon / Careem を手動実行する。</strong> この2つはセッションが 2.6日 / 72時間で切れるため、自動化していません。<strong>セッション再取得が先</strong>で、先にワークフローを回すと 401 で失敗します。</li>
-          <li><strong>月曜のリマインダーで FoodPanda の結果を確認する。</strong> 長押し認証で止まっていた場合のみ手動実行が必要です。</li>
-          <li><strong>Mac を起動しておく。</strong> FoodPanda は Mac の定期実行です。電源が落ちていると動きません。</li>
+          <li><strong>入金データ（AR Payouts）のセッションを更新する。</strong> Noon・Careem・FoodPanda の入金取得はポータルのセッションが必要です。<strong>キャンセルと違い頻度が低いため、ここは管理者が持ちます。</strong></li>
+          <li><strong>火曜のリマインダーに従って Noon / Careem を実行する。</strong> <strong>セッション再取得が先</strong>で、先にワークフローを回すと 401 で失敗します。</li>
+          <li><strong>Mac を起動しておく。</strong> FoodPanda の入金取得は Mac の定期実行です。電源が落ちていると動きません。</li>
         </ol>
+        <p style="padding:0 22px 20px;color:var(--ink-2);font-size:14.5px;">
+          <strong>キャンセルのセッション管理は行いません。</strong> スタッフが毎日ポータルを見ているので、
+          そこで確定させる方が確実です。管理者が週1回しか見ない仕組みにすると、切れた数日分が静かに欠けます。
+        </p>
       </article>
 
     </div>
@@ -414,19 +428,21 @@
         </thead>
         <tbody>
           <tr><td>Grab キャンセル照合</td><td class="mono">毎日 06:00 UTC</td><td>Heroku worker</td><td><strong>不要</strong></td></tr>
+          <tr><td><strong>FoodPanda キャンセル</strong></td><td class="mono">スタッフが毎日</td><td>ポータル巡回時</td><td>スタッフ自身のログイン</td></tr>
           <tr><td>Grab 入金取得</td><td class="mono">毎日</td><td>GitHub Actions</td><td>不要</td></tr>
-          <tr><td>FoodPanda 入金取得</td><td class="mono">毎日 9:00</td><td>Mac</td><td>必要</td></tr>
-          <tr><td>FoodPanda キャンセル照合</td><td class="mono">月曜 9:00</td><td>Mac</td><td>必要＋長押し認証</td></tr>
           <tr><td>Keeta 入金取得</td><td class="mono">火曜</td><td>GitHub Actions</td><td>2027-02 まで有効</td></tr>
-          <tr><td><strong>Noon 入金取得</strong></td><td class="mono">手動</td><td>GitHub Actions</td><td>約2.6日で失効</td></tr>
-          <tr><td><strong>Careem 入金取得</strong></td><td class="mono">手動</td><td>GitHub Actions</td><td>72時間で失効</td></tr>
+          <tr><td>FoodPanda 入金取得</td><td class="mono">毎日 9:00</td><td>Mac</td><td>管理者が更新</td></tr>
+          <tr><td>Noon 入金取得</td><td class="mono">手動（火曜）</td><td>GitHub Actions</td><td>管理者が更新・約2.6日で失効</td></tr>
+          <tr><td>Careem 入金取得</td><td class="mono">手動（火曜）</td><td>GitHub Actions</td><td>管理者が更新・72時間で失効</td></tr>
         </tbody>
       </table>
     </div>
     <p class="lede">
-      <strong>Noon と Careem を手動にしたのは、失効が速すぎて自動と呼べないためです。</strong>
-      週次 cron を組んでも、Noon は8回中6回失敗していました。動いていないものを動いているように見せるより、
-      火曜のリマインダーで確実に実行する方が安全と判断しています。
+      <strong>境界はセッションの有無で引いています。</strong>
+      セッションが要らないもの（Grab キャンセル照合・Grab / Keeta 入金）は自動。
+      毎日必要でセッションが要るもの（FoodPanda キャンセル）はスタッフが巡回のついでに。
+      頻度が低くセッションが要るもの（入金取得）は管理者が更新します。
+      誰も見ていないセッションに依存させると、切れた日から静かにデータが欠けます。
     </p>
   </section>
 
@@ -437,20 +453,16 @@
         <thead><tr><th>曜日・時刻</th><th>内容</th><th>action が要る条件</th></tr></thead>
         <tbody>
           <tr>
-            <td class="mono">月曜 9:30</td>
-            <td>FoodPanda キャンセル照合の結果確認</td>
-            <td>長押し認証で止まっていた場合のみ手動実行</td>
-          </tr>
-          <tr>
             <td class="mono">火曜 10:06</td>
-            <td>Noon / Careem の入金取り込み</td>
-            <td>最終取り込みから日が空いていれば実行</td>
+            <td>Noon / Careem の入金取り込み（管理者）</td>
+            <td>最終取り込みから日が空いていれば、セッション更新のうえ実行</td>
           </tr>
         </tbody>
       </table>
     </div>
     <p class="lede">
-      どちらも「必要なときだけ知らせる」作りです。問題がない週は数行で終わります。
+      「必要なときだけ知らせる」作りです。問題がない週は数行で終わります。
+      キャンセルについてはリマインダーを置いていません。スタッフの毎日の業務に含まれているためです。
     </p>
   </section>
 
@@ -481,7 +493,7 @@
     確定 2026-08-27 ／ Manila Cancellation &amp; Refund Operations<br>
     自動照合の根拠は各レコードの詳細画面「Platform Settlement」に表示されます。<br>
     Grab の照合時刻は <span class="mono">GRAB_CANCELLATION_SYNC_HOURS_UTC</span> で変更可（デプロイ不要）。<br>
-    FoodPanda を月曜以外に走らせる場合は <span class="mono">RUN_CANCELLATIONS=1</span> を付けて実行。
+    FoodPanda のキャンセル照合スクリプトは残してあり、必要時のみ <span class="mono">RUN_CANCELLATIONS=1</span> で実行可能。
   </footer>
 
 </div>
