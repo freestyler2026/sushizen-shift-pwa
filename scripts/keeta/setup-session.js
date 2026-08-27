@@ -10,6 +10,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 // Keeta issues a separate login per brand, so this has to be run once per account.
 // Writing to one fixed filename would overwrite the previous brand's session — and
@@ -68,14 +69,17 @@ async function main() {
   await context.storageState({ path: OUT_FILE });
   await browser.close();
 
-  // Encode as base64 for GitHub Secret
+  // Encode for the GitHub Secret. Raw base64 of the storage state runs ~75,000
+  // characters, and GitHub rejects any secret over 48KB with "Value is too large."
+  // gzip first — the portal's cached i18n bundles compress to about a quarter of
+  // that. get-payouts.js sniffs the gzip magic bytes and inflates transparently.
   const raw = fs.readFileSync(OUT_FILE, 'utf8');
-  const b64 = Buffer.from(raw).toString('base64');
+  const b64 = zlib.gzipSync(Buffer.from(raw, 'utf8'), { level: 9 }).toString('base64');
   const b64File = OUT_FILE.replace('.json', '.b64.txt');
   fs.writeFileSync(b64File, b64);
 
   console.log('\n✓ Session saved to:', OUT_FILE);
-  console.log('✓ Base64 version:  ', b64File);
+  console.log(`✓ Base64 (gzip):     ${b64File}  (${b64.length.toLocaleString()} chars)`);
   console.log('\n--- Next steps ---');
   console.log('1. Go to your GitHub repo → Settings → Secrets and variables → Actions');
   console.log(`2. Add (or update) the secret named: ${SECRET_NAME}`);
