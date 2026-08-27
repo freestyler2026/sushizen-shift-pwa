@@ -123,9 +123,13 @@ async function main() {
   console.log(`Date range: ${DATE_FROM} → ${DATE_TO}  (vendors: ${acct.vendors.join(', ')})`);
   console.log('='.repeat(60));
 
+  // On screen on purpose. PerimeterX sometimes asks for a press-and-hold check,
+  // and a person has to answer it — nothing here tries to get past one. Parked
+  // off-screen, the check would be invisible and the run would just fail with no
+  // sign of why.
   const browser = await chromium.launch({
     headless: false,                                     // see the note at the top
-    args: ['--disable-blink-features=AutomationControlled', '--window-position=-2400,0'],
+    args: ['--disable-blink-features=AutomationControlled', '--window-size=1100,800'],
   });
   const context = await browser.newContext({
     storageState: loadSession(),
@@ -185,6 +189,16 @@ async function main() {
       let json;
       try { json = JSON.parse(text); } catch (_) {
         console.error(`  [${win.label}] HTTP ${resp.status()} — unparseable: ${text.slice(0, 160)}`);
+        failed = true;
+        break;
+      }
+      if (resp.status() === 403 || text.includes('perimeterx')) {
+        console.error(
+          `  [${win.label}] blocked by the portal's bot check.\n` +
+          '  Run this by hand and answer the press-and-hold prompt in the window:\n' +
+          `    DATE_FROM=${DATE_FROM} DATE_TO=${DATE_TO} WEBHOOK_URL=<url> ` +
+          `node scripts/foodpanda/sync-cancellations.js ${LOCATION}`
+        );
         failed = true;
         break;
       }
