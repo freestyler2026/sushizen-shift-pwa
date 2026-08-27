@@ -957,13 +957,29 @@ export default function ManualShiftPage() {
     setDbImporting(true);
     setError("");
     try {
-      const res = await apiFetch<{ ok: boolean; rows_copied: number }>(
-        "/api/admin/shifts/publish_from_base",
-        {
-          method: "POST",
-          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+      const loadFromDb = async (force: boolean) =>
+        apiFetch<{ ok: boolean; rows_copied: number }>(
+          "/api/admin/shifts/publish_from_base",
+          {
+            method: "POST",
+            body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart, force }),
+          }
+        );
+      let res: { ok: boolean; rows_copied: number };
+      try {
+        res = await loadFromDb(false);
+      } catch (first: unknown) {
+        // The server refuses when someone else published this week in the last few
+        // hours, because loading from DB throws their corrections away. Name them and
+        // let the user decide rather than doing it silently.
+        const msg = first instanceof Error ? first.message : String(first);
+        if (!/published this week/i.test(msg)) throw first;
+        if (!window.confirm(`${msg}\n\nReplace the whole week anyway?`)) {
+          setError("");
+          return;
         }
-      );
+        res = await loadFromDb(true);
+      }
       if (!res.ok) { setError("Load from DB failed"); return; }
       // Reload grid from newly published data
       clearDraft(city, branchCode, weekStart);
