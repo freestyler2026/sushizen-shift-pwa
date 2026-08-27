@@ -1,0 +1,597 @@
+<title>Emergency Alert 実装案</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;
+  --accent:#EF4444;--accent-dim:rgba(239,68,68,.12);
+  --text:#E2E8F0;--muted:#7A90AA;
+  --green:#34D399;--red:#F87171;--blue:#60A5FA;--violet:#A78BFA;--orange:#FB923C;
+  --manila:#60A5FA;--dubai:#FB923C;
+  --sidebar-w:248px;
+}
+@media(prefers-color-scheme:light){:root{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(239,68,68,.10)}}
+:root[data-theme="dark"]{--bg:#0F1623;--surface:#1A2336;--surface2:#223047;--border:#2A3D5A;--text:#E2E8F0;--muted:#7A90AA;--accent-dim:rgba(239,68,68,.12)}
+:root[data-theme="light"]{--bg:#F0F4F9;--surface:#fff;--surface2:#EEF2F8;--border:#CBD5E1;--text:#1E2B3C;--muted:#5A7090;--accent-dim:rgba(239,68,68,.10)}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;font-size:14px}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 calc(var(--sidebar-w)+20px)}
+.topbar-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.lang-toggle{display:flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--surface2)}
+.lang-btn{padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:background .15s,color .15s}
+.lang-btn.active{background:var(--accent);color:#0F1623}
+.sidebar{position:fixed;top:52px;left:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:10px 0}
+.sidebar-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.10em;text-transform:uppercase;padding:10px 16px 3px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:500;border-left:3px solid transparent;transition:color .15s,background .15s,border-color .15s}
+.nav-item:hover{color:var(--text);background:var(--accent-dim)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim)}
+.nav-icon{font-size:13px;flex-shrink:0}
+.main{margin-left:var(--sidebar-w);margin-top:52px;padding:32px 36px 80px;max-width:920px}
+.section{display:none}.section.active{display:block}
+.section-hero{display:flex;align-items:flex-start;gap:14px;margin-bottom:24px}
+.hero-icon{width:46px;height:46px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.section-title{font-size:20px;font-weight:700;color:var(--text)}
+.section-path{font-size:11px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;margin-top:3px}
+.section-desc{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:10px}
+.card.blue-border{border-color:rgba(96,165,250,.4)}
+.card.orange-border{border-color:rgba(251,146,60,.4)}
+.card.red-border{border-color:rgba(248,113,113,.4)}
+.card.green-border{border-color:rgba(52,211,153,.4)}
+.card.violet-border{border-color:rgba(167,139,250,.4)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.steps{list-style:none}
+.step{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:20px;height:20px;border-radius:50%;flex-shrink:0;background:var(--accent);color:#0F1623;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.step-body strong{color:var(--text);font-weight:600}
+.step-body p{color:var(--muted);font-size:12px;margin-top:1px}
+.step-body code{font-family:'SF Mono','Fira Code',monospace;font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--blue)}
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text);white-space:nowrap}
+.chip.green{background:rgba(52,211,153,.12);color:var(--green);border-color:rgba(52,211,153,.3)}
+.chip.amber{background:var(--accent-dim);color:var(--accent);border-color:rgba(239,68,68,.3)}
+.chip.red{background:rgba(248,113,113,.12);color:var(--red);border-color:rgba(248,113,113,.3)}
+.chip.blue{background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3)}
+.chip.violet{background:rgba(167,139,250,.12);color:var(--violet);border-color:rgba(167,139,250,.3)}
+.chip.orange{background:rgba(251,146,60,.12);color:var(--orange);border-color:rgba(251,146,60,.3)}
+.tip{display:flex;gap:8px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:11px 13px;margin-top:4px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.tip-icon{flex-shrink:0;color:var(--accent);font-size:14px}
+.tip.danger{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.3)}
+.tip.danger .tip-icon{color:var(--red)}
+.tip.info{background:rgba(96,165,250,.07);border-color:rgba(96,165,250,.3)}
+.tip.info .tip-icon{color:var(--blue)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.muted{color:var(--muted);font-size:12px}
+.lifecycle{position:relative;padding-left:28px;margin:4px 0 14px}
+.lifecycle::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--border)}
+.lc-step{position:relative;margin-bottom:12px}
+.lc-step:last-child{margin-bottom:0}
+.lc-dot{position:absolute;left:-23px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--border)}
+.lc-dot.green{background:var(--green);border-color:var(--green)}
+.lc-dot.blue{background:var(--blue);border-color:var(--blue)}
+.lc-dot.amber{background:var(--accent);border-color:var(--accent)}
+.lc-dot.violet{background:var(--violet);border-color:var(--violet)}
+.lc-dot.red{background:var(--red);border-color:var(--red)}
+.lc-dot.orange{background:var(--orange);border-color:var(--orange)}
+.lc-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lc-status{font-size:11px;font-weight:700;color:var(--text)}
+.lc-who{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px}
+.lc-who.admin{background:rgba(239,68,68,.15);color:var(--accent)}
+.lc-who.staff{background:rgba(167,139,250,.15);color:var(--violet)}
+.lc-who.system{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-who.manila{background:rgba(96,165,250,.15);color:var(--blue)}
+.lc-who.dubai{background:rgba(251,146,60,.15);color:var(--orange)}
+.lc-detail{font-size:12px;color:var(--muted);margin-top:2px}
+.lc-path{font-family:'SF Mono','Fira Code',monospace;font-size:10px;color:var(--blue);background:var(--surface2);padding:1px 5px;border-radius:3px;margin-top:2px;display:inline-block}
+.formula-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:8px 0;font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:var(--green)}
+.formula-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;font-family:system-ui}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}
+.status-flow .arrow{color:var(--muted);font-size:12px}
+.city-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.city-badge.manila{background:rgba(96,165,250,.15);color:var(--manila)}
+.city-badge.dubai{background:rgba(251,146,60,.15);color:var(--dubai)}
+.city-badge.both{background:rgba(52,211,153,.15);color:var(--green)}
+@media(max-width:700px){:root{--sidebar-w:0px}.sidebar{display:none}.topbar{padding:0 16px}.main{margin-left:0;padding:16px 14px 60px}}
+</style>
+<div class="topbar">
+  <span class="topbar-title">Sushi ZEN — Emergency Alert 実装案</span>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label">結論</div>
+  <div class="nav-item active" onclick="show('summary')"><span class="nav-icon">🎯</span><span>結論</span></div>
+  <div class="nav-item" onclick="show('exists')"><span class="nav-icon">🔍</span><span>OSに既にあるもの</span></div>
+  <div class="sidebar-label">本当の欠落</div>
+  <div class="nav-item" onclick="show('gaps')"><span class="nav-icon">🕳️</span><span>5つの欠落</span></div>
+  <div class="nav-item" onclick="show('evidence')"><span class="nav-icon">📊</span><span>実データ</span></div>
+  <div class="sidebar-label">実装</div>
+  <div class="nav-item" onclick="show('planA')"><span class="nav-icon">①</span><span>A: 判断させない</span></div>
+  <div class="nav-item" onclick="show('planB')"><span class="nav-icon">②</span><span>B: 沈黙を追いかける</span></div>
+  <div class="nav-item" onclick="show('planC')"><span class="nav-icon">③</span><span>C: 解決まで追跡</span></div>
+  <div class="nav-item" onclick="show('metric')"><span class="nav-icon">⏱️</span><span>10分ルールの測り方</span></div>
+  <div class="sidebar-label">注意</div>
+  <div class="nav-item" onclick="show('risks')"><span class="nav-icon">⚠️</span><span>やってはいけないこと</span></div>
+</nav>
+
+<main class="main">
+
+<section class="section active" id="sec-summary">
+  <div class="section-hero">
+    <div class="hero-icon">🎯</div>
+    <div>
+      <div class="section-title">結論</div>
+      <div class="section-desc">ご提案の中身はほぼそのまま正しいです。ただし<strong>新しいチャンネルを作るべきではありません</strong>。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">報告箱は既にあり、既に無視されています</div>
+    <p class="section-desc" style="margin-bottom:10px">
+      OSには <strong>Incident Report</strong> が既にあり、Water以外のカテゴリも重大度4段階も、
+      <strong>毎時のエスカレーション通知</strong>まで実装済みで、実際に動いています。
+      それでも <strong>16件中8件が「new」のまま、HQからの返信は1件もありません</strong>
+      （critical の在庫切れ1件を含む）。
+    </p>
+    <div class="tip danger"><span class="tip-icon">⚠️</span>
+      <div>4つ目の報告先を作っても、5つ目の無視される箱が増えるだけです。
+      <strong>問題はフォームではなく、報告の義務化・沈黙の追跡・時間の計測が無いこと</strong>です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">ご提案のうち、既に満たされている点</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ご提案</th><th>現状</th></tr></thead>
+      <tbody>
+        <tr><td>Manager以外も報告できるように</td><td><span class="chip green">実装済</span> STAFFを含む12ロールが報告権限を保有</td></tr>
+        <tr><td>写真・動画の添付</td><td><span class="chip green">実装済</span></td></tr>
+        <tr><td>重大度の段階</td><td><span class="chip green">実装済</span> low / medium / high / critical の4段階</td></tr>
+        <tr><td>HQへの即時通知</td><td><span class="chip amber">半分</span> Discord DM基盤あり（26名登録済）。ただし後述の欠陥あり</td></tr>
+        <tr><td>ステータス管理</td><td><span class="chip amber">半分</span> new→acknowledged→resolved はあるが、期限も担当者もない</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">やるべきこと（3段階）</div>
+    <div class="lifecycle">
+      <div class="lc-step"><div class="lc-dot red"></div>
+        <div class="lc-header"><span class="lc-status">A. マネージャーに判断させない</span><span class="lc-who admin">小・即効</span></div>
+        <div class="lc-detail">カテゴリに Water / Electricity / Gas / Fire / Security / Forced Closure を追加し、
+        <strong>カテゴリから重大度を自動で決める</strong>。「報告すべきか」を考えさせない。</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status">B. 沈黙を追いかける</span><span class="lc-who admin">中</span></div>
+        <div class="lc-detail">現在のエスカレーションは<strong>1回鳴って終わり</strong>。誰かが引き取るまで、
+        範囲を広げながら鳴り続ける仕組みにする。</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status">C. 解決まで追跡する</span><span class="lc-who admin">中</span></div>
+        <div class="lc-detail">ご指摘のとおり「報告箱」ではなくチケットにする。担当者・期限・解決の記録。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="sec-exists">
+  <div class="section-hero">
+    <div class="hero-icon">🔍</div>
+    <div>
+      <div class="section-title">OSに既にあるもの</div>
+      <div class="section-desc">新規に作る前に、何が動いていて何が動いていないかを実データで確認しました。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">3つの似た仕組みが既に存在します</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>仕組み</th><th>件数</th><th>性質</th><th>ライフサイクル</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Incident Report</strong><br><span class="lc-path">/incidents</span></td>
+            <td>16</td><td>現場発 → HQ</td><td>new / acknowledged / resolved</td></tr>
+        <tr><td><strong>Management Channel</strong><br><span class="lc-path">/admin/management/*</span></td>
+            <td>413</td><td>システム検知 → 店舗</td><td>created → sent → responded → closed<br>＋エスカレーション＋未対応記録＋週次スコア</td></tr>
+        <tr><td><strong>Discord Alert</strong></td><td>受信者26名</td><td>通知のみ</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>Management Channel には既に、ご提案のチケット機構がそのまま入っています</strong>
+      — 送信時刻・応答時刻・SLA超過の記録・エスカレーション・エリアマネージャー週次スコア。
+      ただし現在は<strong>システムが検知したものだけ</strong>を扱い、現場発の通報は扱いません。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">既存カテゴリ（9種）</div>
+    <div class="chip-row">
+      <span class="chip">Product Issue</span><span class="chip">Customer Issue</span>
+      <span class="chip">Stock Shortage</span><span class="chip">Delivery Issue</span>
+      <span class="chip">Equipment Issue</span><span class="chip">Weather Issue</span>
+      <span class="chip">Facility Issue</span><span class="chip">Injury</span><span class="chip">Other</span>
+    </div>
+    <p class="section-desc" style="margin-top:10px">
+      <strong>Water / Electricity / Gas / Fire / Security / Forced Closure がありません。</strong>
+      今回の断水は「Facility Issue」に入るしかなく、それは Product Issue と同じ扱いを受けます。
+      <strong>カテゴリが事象を名指ししていないので、システムが特別扱いしようがない</strong>のが実態です。
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sec-gaps">
+  <div class="section-hero">
+    <div class="hero-icon">🕳️</div>
+    <div>
+      <div class="section-title">本当の欠落は5つ</div>
+      <div class="section-desc">フォームではなく、これらが原因です。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">① カテゴリが事象を名指ししていない</div>
+    <p class="section-desc">断水・停電・ガス停止・火災・強制閉店の選択肢が無い。
+    → <strong>システムが「これは営業が止まる事象だ」と知る手がかりが無い</strong>。</p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">② 重大度をマネージャーが選んでいる</div>
+    <p class="section-desc">ご指摘の核心です。現在は low〜critical を<strong>本人が選択</strong>します。
+    「これは high だろうか medium だろうか」と考える余地がある限り、Francisレベルの判断に依存し続けます。
+    → <strong>カテゴリから自動で決めれば、判断の余地が消えます。</strong></p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">③ エスカレーションが1回鳴って終わる</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      毎時のチェックは動いていますが、対象は <code>critical &gt; 2時間</code> と <code>high &gt; 4時間</code> のみで、
+      しかも<strong>一度通知したものは二度と対象になりません</strong>（同じ通知の重複を避ける実装）。
+      medium は最初から対象外です。
+    </p>
+    <div class="tip danger"><span class="tip-icon">⚠️</span>
+      <div>これが <strong>8件が「new」のまま滞留している直接の原因</strong>です。
+      1回Discordに流れて、誰も見なければそれで終わりになります。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">④ HQが判断するための情報が無い</div>
+    <p class="section-desc">「営業に影響があるか」「営業を継続できるか」の欄がありません。
+    自由記述の description しかないため、<strong>CKから水を運ぶべきか、タンクを用意すべきか、
+    営業方法を変えるべきかをHQが決められません。</strong>ご提案のとおり、この2問は必須にすべきです。</p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">⑤ 発見から報告までの時間が測られていない</div>
+    <p class="section-desc">発見時刻（<code>incident_datetime</code>）と報告時刻（<code>created_at</code>）は
+    <strong>両方すでに保存されています</strong>。しかし比較されたことがありません。
+    → <strong>「10分以内」を明文化しても、守られたか分からない</strong>。測れないルールは運用できません。</p>
+  </div>
+</section>
+
+<section class="section" id="sec-evidence">
+  <div class="section-hero">
+    <div class="hero-icon">📊</div>
+    <div>
+      <div class="section-title">実データ</div>
+      <div class="section-desc">推測ではなく、本番の16件を実測した結果です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">発見 → 報告までの時間</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>報告者</th><th>カテゴリ</th><th>重大度</th><th>状態</th><th>発見→報告</th></tr></thead>
+      <tbody>
+        <tr><td>Reymar Contillo</td><td>Food Safety — CK Label</td><td>high</td><td>acknowledged</td><td>0分</td></tr>
+        <tr><td>Richard S. Gante</td><td>Other</td><td>high</td><td><strong>new</strong></td><td><strong>11.0時間</strong></td></tr>
+        <tr><td>Mariano Espenida</td><td>Delivery Issue</td><td>medium</td><td><strong>new</strong></td><td><strong>10.4時間</strong></td></tr>
+        <tr><td>Mariano Espenida</td><td>Stock Shortage</td><td>medium</td><td>acknowledged</td><td><strong>88.0時間</strong></td></tr>
+        <tr><td>Tricia Andrea Estrada</td><td>Product Issue</td><td>medium</td><td>acknowledged</td><td>17.1時間</td></tr>
+        <tr><td>Peter Villafuerte</td><td>Product Issue</td><td><strong>critical</strong></td><td>resolved</td><td>16.1時間</td></tr>
+      </tbody>
+    </table></div>
+    <div class="formula-box">
+      <div class="formula-label" style="color:var(--muted)">12件の実測</div>
+      中央値 0分 ／ 最大 88時間 ／ 10分以内 7件（58%）
+    </div>
+    <p class="section-desc" style="margin-top:8px">
+      <strong>二極化しています。</strong>その場で出す人は0分、そうでない人は10時間〜88時間。
+      平均を見ても意味がなく、<strong>遅い側だけを潰す必要があります</strong>。
+      今回の断水（夕方発生・夜報告）はこの遅い側の典型です。
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">HQ側の滞留</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>件数</th></tr></thead>
+      <tbody>
+        <tr><td><strong>new（誰も引き取っていない）</strong></td><td><strong>8 / 16</strong></td></tr>
+        <tr><td>HQからの返信（last_replied_at）</td><td><strong>0件</strong></td></tr>
+        <tr><td>うち critical</td><td>1件（在庫切れ）</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip danger"><span class="tip-icon">⚠️</span>
+      <div><strong>現場だけの問題ではありません。</strong>報告されたものの半分をHQが引き取っていません。
+      現場に「10分以内に報告せよ」と課す前に、HQ側の引き取りを仕組みで保証しないと、
+      報告する側の意欲を削ぐだけになります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚠ データ品質の問題</div>
+    <p class="section-desc">発見時刻が報告時刻より<strong>後になっている行が2件</strong>あります（-475分、-7411分）。
+    発見時刻は手入力のため、タイムゾーンか入力ミスです。
+    時間を指標にするなら、<strong>未来の時刻を弾く検証を先に入れる必要があります</strong>。</p>
+  </div>
+</section>
+
+<section class="section" id="sec-planA">
+  <div class="section-hero">
+    <div class="hero-icon">①</div>
+    <div>
+      <div class="section-title">A. マネージャーに判断させない</div>
+      <div class="section-desc">最小・最速で、今回の断水に直接効きます。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">A-1. カテゴリを追加し、重大度を自動で決める</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      重大度の選択欄を<strong>無くします</strong>。カテゴリを選んだ時点で決まります。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>カテゴリ（新規は太字）</th><th>自動の重大度</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Fire</strong> / <strong>Injury</strong> / <strong>Flood</strong> / <strong>Forced Closure</strong></td>
+            <td><span class="chip red">Level 3 Critical</span></td><td>人命・営業停止。即時HQ＋電話</td></tr>
+        <tr><td><strong>Water</strong> / <strong>Electricity</strong> / <strong>Gas</strong> / <strong>Security</strong></td>
+            <td><span class="chip red">Level 2 Urgent</span></td><td>数時間以内に営業へ影響</td></tr>
+        <tr><td>Equipment Issue / Weather Issue / Facility Issue</td>
+            <td><span class="chip amber">Level 2 か 1</span><br>「営業に影響あり」の回答で決まる</td><td>—</td></tr>
+        <tr><td>Product / Customer / Stock / Delivery / Other</td>
+            <td><span class="chip">Level 1 Warning</span></td><td>従来どおり</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>Water を選んだ時点で Level 2 が確定します。</strong>
+      「これは報告するほどか」と考える余地が構造的に消えます。ご提案の核心はここだと理解しました。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">A-2. HQが判断できる2問を必須にする</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>項目</th><th>形式</th><th>なぜ必要か</th></tr></thead>
+      <tbody>
+        <tr><td>営業に影響があるか</td><td>YES / NO</td><td>Level 1か2かの分岐にも使う</td></tr>
+        <tr><td>営業を継続できるか</td><td>YES / NO / LIMITED</td><td>CKから水を送るか、閉めるかの判断</td></tr>
+        <tr><td>取った対応</td><td>短文（任意）</td><td>「Building Managementに確認中」等</td></tr>
+        <tr><td>HQの支援が必要か</td><td>YES / NO</td><td>誰が動くかが即決まる</td></tr>
+      </tbody>
+    </table></div>
+    <p class="section-desc" style="margin-top:8px">
+      ご提案の「2〜3分で出せる」を守るため、<strong>これ以上は増やしません</strong>。
+      在庫量や残り時間などの詳細は、落ち着いてからの Incident Report 本体に書かせます。
+    </p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">実装量</div>
+    <p class="section-desc">
+      既存の <code>incident_reports</code> テーブルに列を4つ足し、カテゴリ配列を拡張し、
+      重大度の選択UIを自動表示に置き換えるだけです。<strong>新テーブル・新画面は不要</strong>。
+      既存16件のデータもそのまま残ります。
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sec-planB">
+  <div class="section-hero">
+    <div class="hero-icon">②</div>
+    <div>
+      <div class="section-title">B. 沈黙を追いかける</div>
+      <div class="section-desc">1回鳴って終わりを、引き取られるまで鳴り続けるに変えます。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">現在の実装（欠陥）</div>
+    <div class="formula-box" style="color:var(--red)">
+      critical かつ 2時間経過 → 1回だけDiscord通知<br>
+      high かつ 4時間経過 → 1回だけDiscord通知<br>
+      medium / low → <strong>永久に通知されない</strong><br>
+      一度通知したもの → <strong>二度と対象にならない</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">変更後</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Level</th><th>初回通知</th><th>未応答なら</th><th>宛先の広がり</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip red">3 Critical</span></td><td><strong>即時</strong></td><td>10分ごとに再通知</td>
+            <td>店舗Manager → Area Manager → HQ全員</td></tr>
+        <tr><td><span class="chip red">2 Urgent</span></td><td><strong>即時</strong></td><td>30分ごとに再通知</td>
+            <td>店舗Manager → Area Manager → HQ</td></tr>
+        <tr><td><span class="chip amber">1 Warning</span></td><td>次の定期サマリー</td><td>24時間で1回</td><td>担当者のみ</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div><strong>誰かが「引き取る」を押すまで止まりません。</strong>
+      止めるには対応する必要がある、という形にします。これが「報告箱」との決定的な違いです。</div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title">⚠ 通知が届く保証について</div>
+    <p class="section-desc">
+      Discord DM は26名に登録済みですが、<strong>DMを閉じている人には届きません</strong>
+      （<code>discord_dm_status</code> に記録あり）。Level 3で「電話等の緊急連絡」を運用に入れるご提案は正しく、
+      <strong>システムは「通知を試みた記録」までしか保証できません</strong>。
+      Level 3は必ず人間の電話を併用する前提で設計します。
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sec-planC">
+  <div class="section-hero">
+    <div class="hero-icon">③</div>
+    <div>
+      <div class="section-title">C. 解決まで追跡する</div>
+      <div class="section-desc">ご提案の「チケットシステムに近づける」の部分です。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">ステータスと責任者</div>
+    <div class="lifecycle">
+      <div class="lc-step"><div class="lc-dot red"></div>
+        <div class="lc-header"><span class="lc-status">Reported</span><span class="lc-who staff">現場</span></div>
+        <div class="lc-detail">通報。この時点で通知が飛び始める</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot orange"></div>
+        <div class="lc-header"><span class="lc-status">Acknowledged</span><span class="lc-who admin">HQの誰か</span></div>
+        <div class="lc-detail"><strong>名前が入る</strong>。通知が止まる。ここで初めて責任が移る</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot amber"></div>
+        <div class="lc-header"><span class="lc-status">Action taken</span><span class="lc-who admin">担当者</span></div>
+        <div class="lc-detail">何をしたかを記録（CKから水を送った 等）</div>
+      </div>
+      <div class="lc-step"><div class="lc-dot green"></div>
+        <div class="lc-header"><span class="lc-status">Resolved</span><span class="lc-who admin">担当者</span></div>
+        <div class="lc-detail">現場の確認をもって終了</div>
+      </div>
+    </div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <div>現在 <code>acknowledged</code> は誰が押したか記録されていません。
+      <strong>名前が入らない限り、責任の空白は消えません。</strong>ご提案の「誰かが報告すると思った」を、
+      HQ側でも防ぐ必要があります。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Management Channel との統合</div>
+    <p class="section-desc">
+      既存の Management Channel は<strong>システム検知 → 店舗</strong>の一方向です。
+      Emergency は<strong>店舗 → HQ</strong>の逆方向ですが、
+      チケットの機構（送信時刻・応答時刻・SLA・エスカレーション・週次スコア）は同じものが使えます。
+      <strong>同じ画面に「店舗からの通報」タブを足す</strong>のが、作る量が最も少なく、
+      マネージャーが見る場所も1箇所に保てます。
+    </p>
+  </div>
+</section>
+
+<section class="section" id="sec-metric">
+  <div class="section-hero">
+    <div class="hero-icon">⏱️</div>
+    <div>
+      <div class="section-title">「10分以内」を測れるようにする</div>
+      <div class="section-desc">明文化するだけでは運用できません。</div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">必要なデータは既に揃っています</div>
+    <p class="section-desc">
+      発見時刻と報告時刻は両方保存済みです。<strong>差を出すだけ</strong>で、
+      店舗別・報告者別の「発見から報告までの時間」が今日から出せます。
+    </p>
+    <div class="formula-box">
+      <div class="formula-label" style="color:var(--muted)">現状（12件の実測）</div>
+      中央値 0分 ／ 10分以内 7件（58%） ／ 最大 88時間
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">⚠ 指標の設計を間違えないこと</div>
+    <p class="section-desc" style="margin-bottom:8px">
+      ご提案の<strong>「Emergency Alertを出したこと自体は責めない」は極めて重要</strong>で、
+      指標の設計がそれを裏切らないようにする必要があります。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>指標</th><th>可否</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>発見→報告の時間</td><td><span class="chip green">使う</span></td><td>速いほど良い。報告を増やす方向に働く</td></tr>
+        <tr><td>店舗別の<strong>通報件数</strong></td><td><span class="chip red">使わない</span></td>
+            <td>少ないほど良く見えるため、<strong>報告しない動機を作る</strong></td></tr>
+        <tr><td>誤報・大げさな報告の件数</td><td><span class="chip red">使わない</span></td><td>同上</td></tr>
+        <tr><td>HQの引き取りまでの時間</td><td><span class="chip green">使う</span></td><td>現在8件が放置。HQ側も測られるべき</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip danger"><span class="tip-icon">⚠️</span>
+      <div>通報件数をスコアに入れた瞬間に、この仕組みは死にます。
+      <strong>測るのは「速さ」だけ</strong>にしてください。</div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="sec-risks">
+  <div class="section-hero">
+    <div class="hero-icon">⚠️</div>
+    <div>
+      <div class="section-title">やってはいけないこと</div>
+      <div class="section-desc">この種の仕組みが失敗するときの型です。</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">1. 新しい報告先を増やす</div>
+    <p class="section-desc">Incident Report とは別に Emergency Alert を作ると、現場は
+    <strong>「どっちに出すべきか」を考えることになります</strong>。
+    それはまさに今回避けたかった判断です。<strong>入口は1つ、カテゴリで分岐</strong>が正解です。</p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">2. 現場だけに義務を課す</div>
+    <p class="section-desc">HQが8件を引き取っていない状態で「10分以内に報告せよ」だけを課すと、
+    <strong>報告しても何も起きないという学習</strong>が起きます。
+    A（現場側）とB（HQ側）は同時に入れる必要があります。</p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">3. 通知が届いたと仮定する</div>
+    <p class="section-desc">Discord DM は相手の設定で届きません。
+    <strong>システムは「送った記録」しか持てない</strong>ため、Level 3は電話併用を運用として明記してください。
+    「OSに入れたから大丈夫」が一番危険です。</p>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title">4. 発見時刻を信じすぎる</div>
+    <p class="section-desc">手入力なので、既に2件が報告時刻より後の時刻になっています。
+    <strong>入力時に未来時刻を弾く</strong>、<strong>大きく遡る場合は理由を求める</strong>——
+    この2つを先に入れないと、時間指標そのものが信用できません。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">確認させてください</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>論点</th><th>確認したいこと</th></tr></thead>
+      <tbody>
+        <tr><td>Level 3の連絡先</td><td>電話をかける相手と順番。システムには入れられません</td></tr>
+        <tr><td>Level 2の応答期限</td><td>30分で妥当か。夜間・休業時間帯の扱い</td></tr>
+        <tr><td>HQ側の一次受け</td><td>誰が引き取るのか。輪番か、都市ごとか</td></tr>
+        <tr><td>ドバイへの適用</td><td>マニラのみか、両都市か</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+function show(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const s=document.getElementById('sec-'+id);
+  if(s)s.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick')==="show('"+id+"')")n.classList.add('active');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
