@@ -7,7 +7,6 @@
   --red:#D92D20;--red-soft:#FEF3F2;--red-line:#FDA29B;
   --amber:#B54708;--amber-soft:#FFFAEB;--amber-line:#FEDF89;
   --green:#067647;--green-soft:#ECFDF3;--green-line:#ABEFC6;
-  --blue:#175CD3;--blue-soft:#EFF8FF;
 }
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0E1116;--surface:#171B22;--line:#262C36;
@@ -15,7 +14,6 @@
   --red:#FF6B5E;--red-soft:#2A1512;--red-line:#7A2E26;
   --amber:#FDB022;--amber-soft:#2A1F0D;--amber-line:#7A5A18;
   --green:#4ADE80;--green-soft:#0F2318;--green-line:#1F5334;
-  --blue:#7CB4FF;--blue-soft:#0F1D33;
 }}
 :root[data-theme="dark"]{
   --bg:#0E1116;--surface:#171B22;--line:#262C36;
@@ -23,34 +21,39 @@
   --red:#FF6B5E;--red-soft:#2A1512;--red-line:#7A2E26;
   --amber:#FDB022;--amber-soft:#2A1F0D;--amber-line:#7A5A18;
   --green:#4ADE80;--green-soft:#0F2318;--green-line:#1F5334;
-  --blue:#7CB4FF;--blue-soft:#0F1D33;
 }
 body{background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   line-height:1.6;font-size:17px;-webkit-text-size-adjust:100%}
-.wrap{max-width:640px;margin:0 auto;padding:28px 20px 72px}
+.langbar{position:sticky;top:0;z-index:10;background:var(--bg);
+  border-bottom:1px solid var(--line);padding:8px 20px;display:flex;justify-content:flex-end}
+.lang-toggle{display:flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--surface)}
+.lang-btn{padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;border:none;
+  background:transparent;color:var(--muted);transition:background .15s,color .15s}
+.lang-btn.active{background:var(--red);color:#fff}
+.wrap{max-width:640px;margin:0 auto;padding:24px 20px 72px}
 .eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
 h1{font-size:34px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:6px 0 10px;text-wrap:balance}
 h2{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:38px 0 12px;text-wrap:balance}
 h3{font-size:16px;font-weight:700;margin:20px 0 6px}
-p{margin:10px 0;color:var(--ink)}
+p{margin:10px 0}
 .lede{font-size:19px;color:var(--muted)}
-.muted{color:var(--muted)}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 18px;margin:16px 0}
+.small{font-size:14px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}
 .card.red{background:var(--red-soft);border-color:var(--red-line)}
 .card.amber{background:var(--amber-soft);border-color:var(--amber-line)}
 .card.green{background:var(--green-soft);border-color:var(--green-line)}
-.big{font-size:20px;font-weight:700;line-height:1.35}
+.big{font-size:20px;font-weight:700;line-height:1.35;margin-bottom:8px}
 .door{display:flex;gap:14px;align-items:flex-start;background:var(--surface);
   border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
 .door.pick{border-color:var(--red-line);background:var(--red-soft)}
 .door .ico{font-size:26px;line-height:1;flex-shrink:0}
 .door .t{font-weight:700;font-size:17px}
-.door .d{color:var(--muted);font-size:15px;margin-top:2px}
+.door .dsc{color:var(--muted);font-size:15px;margin-top:2px}
 ul.plain{list-style:none;margin:12px 0}
 ul.plain li{position:relative;padding:7px 0 7px 30px;border-bottom:1px solid var(--line)}
 ul.plain li:last-child{border-bottom:none}
-ul.plain li::before{content:"●";position:absolute;left:6px;top:7px;color:var(--red);font-size:12px}
+ul.plain li::before{content:"\25CF";position:absolute;left:6px;top:7px;color:var(--red);font-size:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .tile .k{font-weight:700;font-size:15px}
@@ -71,172 +74,176 @@ th{text-align:left;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
 td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:last-child td{border-bottom:none}
 .tw{overflow-x:auto}
-.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
 .tag.l3{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
 .tag.l2{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line)}
-.tag.l1{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
 .quote{border-left:3px solid var(--red);padding:2px 0 2px 16px;margin:16px 0;
   font-size:19px;font-weight:600;line-height:1.45}
-.small{font-size:14px;color:var(--muted)}
+.part{margin:30px 0 4px;font-size:12px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.path{display:flex;flex-direction:column;gap:3px;background:var(--surface);
+  border:1px solid var(--line);border-left:3px solid var(--red);
+  border-radius:0 10px 10px 0;padding:10px 14px;margin:12px 0}
+.path .route{font-size:15px;font-weight:600;color:var(--ink)}
+.path .where{font-size:13px;color:var(--muted)}
 hr{border:none;border-top:1px solid var(--line);margin:34px 0}
-@media(max-width:520px){h1{font-size:28px}body{font-size:16px}.wrap{padding:22px 16px 60px}}
+@media(max-width:520px){h1{font-size:28px}body{font-size:16px}.wrap{padding:20px 16px 60px}}
 </style>
+
+<div class="langbar">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    <button class="lang-btn" onclick="setLang('ja')" id="btn-ja">日本語</button>
+  </div>
+</div>
 
 <div class="wrap">
 
-<div class="eyebrow">Sushi ZEN · Store staff</div>
-<h1>When something happens at your store</h1>
-<p class="lede">How to tell HQ, in about two minutes.</p>
-
+<div class="eyebrow" data-en="Sushi ZEN &amp;middot; Stores and HQ" data-ja="Sushi ZEN・店舗とHQ向け">Sushi ZEN &middot; Stores and HQ</div>
+<h1 data-en="When something happens at your store" data-ja="店舗で何か起きたとき">When something happens at your store</h1>
+<p class="lede" data-en="How to tell HQ, in about two minutes." data-ja="HQへ伝える方法。所要約2分です。">How to tell HQ, in about two minutes.</p>
 <div class="card red">
-  <div class="big">You will never be in trouble for reporting something.</div>
-  <p style="margin-bottom:0">Not even if it turns out to be small. The only thing that causes
-  a problem is when nobody hears about it. If you are unsure — report it.</p>
+<div class="big" data-en="You will never be in trouble for reporting something." data-ja="報告したことで叱られることはありません。">You will never be in trouble for reporting something.</div>
+<p style="margin-bottom:0" data-en="Not even if it turns out to be small. The only thing that causes a problem is when nobody hears about it. If you are unsure &amp;mdash; report it." data-ja="結果的に小さなことだったとしてもです。問題になるのは、誰も知らないままでいることだけです。迷ったら報告してください。">Not even if it turns out to be small. The only thing that causes a problem is when nobody hears about it. If you are unsure &mdash; report it.</p>
 </div>
-
-<h2>Open <em>Report Something</em></h2>
-<p>It is in the menu. You will see two choices.</p>
-
-<div class="door pick">
-  <div class="ico">🚨</div>
-  <div>
-    <div class="t">It is happening now — we need help</div>
-    <div class="d">No water. No power. Gas. A fire. Someone hurt. A freezer that stopped.
-    A storm. Anything that is going on right now.</div>
-  </div>
-</div>
-
-<div class="door">
-  <div class="ico">📄</div>
-  <div>
-    <div class="t">It already happened — for the record</div>
-    <div class="d">Something to look into so it does not happen again. A product problem,
-    a delivery, stock, a customer.</div>
-  </div>
-</div>
-
-<p><strong>Not sure which one?</strong> Use the first. It is always the safer choice.</p>
-
-<h2>You do not have to decide how serious it is</h2>
-<p>You will not be asked whether it is an emergency, how bad it is, or whose fault it is.
-Pick what it is, and the system works out the rest.</p>
-
-<div class="tw"><table>
-  <thead><tr><th>What you pick</th><th>What it becomes</th></tr></thead>
-  <tbody>
-    <tr><td>Fire · Injury · Flood · Forced to close</td><td><span class="tag l3">Level 3</span> HQ told at once, every 10 minutes until someone answers</td></tr>
-    <tr><td>Water · Electricity · Gas · Security</td><td><span class="tag l2">Level 2</span> HQ told at once, every 30 minutes until someone answers</td></tr>
-    <tr><td>Equipment · Weather · Building</td><td>Level depends on your answer to <em>&ldquo;Is trading affected?&rdquo;</em></td></tr>
-  </tbody>
-</table></div>
-
-<h2>What it asks you</h2>
-<p class="muted">Six things. Two of them are optional.</p>
-
+<div class="part" data-en="Part 1 &amp;mdash; if you work in a store" data-ja="パート1 — 店舗で働く人へ">Part 1 &mdash; if you work in a store</div>
+<h2 data-en="Open <em>Report Something</em>" data-ja="<em>Report Something</em> を開く">Open <em>Report Something</em></h2>
+<div class="path"><span class="route" data-en="Menu &amp;rarr; <b>Report Something</b>" data-ja="メニュー → <b>Report Something</b>">Menu &rarr; <b>Report Something</b></span><span class="where" data-en="On a phone: bottom bar &amp;rarr; <b>More</b>. On a computer: the left sidebar, under <b>Staff</b>." data-ja="スマホ：下部バー → <b>More</b>。パソコン：左サイドバーの <b>Staff</b> の中。">On a phone: bottom bar &rarr; <b>More</b>. On a computer: the left sidebar, under <b>Staff</b>.</span></div>
+<p data-en="You will see two choices." data-ja="選択肢が2つ出ます。">You will see two choices.</p>
+<div class="door pick"><div class="ico">&#128680;</div><div>
+<div class="t" data-en="It is happening now &amp;mdash; we need help" data-ja="今起きている — 助けが要る">It is happening now &mdash; we need help</div>
+<div class="dsc" data-en="No water. No power. Gas. A fire. Someone hurt. A freezer that stopped. A storm. Anything that is going on right now." data-ja="断水。停電。ガス。火事。けが人。冷凍庫の故障。台風。今まさに起きていることすべて。">No water. No power. Gas. A fire. Someone hurt. A freezer that stopped. A storm. Anything that is going on right now.</div>
+</div></div>
+<div class="door"><div class="ico">&#128196;</div><div>
+<div class="t" data-en="It already happened &amp;mdash; for the record" data-ja="起きたこと — 記録しておきたい">It already happened &mdash; for the record</div>
+<div class="dsc" data-en="Something to look into so it does not happen again. A product problem, a delivery, stock, a customer." data-ja="原因を調べて再発を防ぐためのもの。商品の不具合、配送、在庫、お客様対応など。">Something to look into so it does not happen again. A product problem, a delivery, stock, a customer.</div>
+</div></div>
+<p data-en="<strong>Not sure which one?</strong> Use the first. It is always the safer choice." data-ja="<strong>どちらか迷ったら</strong>上を選んでください。常にそちらが安全です。"><strong>Not sure which one?</strong> Use the first. It is always the safer choice.</p>
+<h2 data-en="You do not have to decide how serious it is" data-ja="重大度は判断しなくていい">You do not have to decide how serious it is</h2>
+<p data-en="You will not be asked whether it is an emergency, how bad it is, or whose fault it is. Pick what it is, and the system works out the rest." data-ja="「緊急か」「どれほど重大か」「誰のせいか」は聞かれません。何が起きたかを選べば、あとはシステムが決めます。">You will not be asked whether it is an emergency, how bad it is, or whose fault it is. Pick what it is, and the system works out the rest.</p>
+<div class="tw"><table><thead><tr>
+<th data-en="What you pick" data-ja="選んだもの">What you pick</th>
+<th data-en="What it becomes" data-ja="どうなるか">What it becomes</th>
+</tr></thead><tbody>
+<tr><td data-en="Fire &amp;middot; Injury &amp;middot; Flood &amp;middot; Forced to close" data-ja="火事・けが人・浸水・強制閉店">Fire &middot; Injury &middot; Flood &middot; Forced to close</td><td data-en="<span class='tag l3'>Level 3</span> HQ told at once, every 10 minutes until someone answers" data-ja="<span class='tag l3'>Level 3</span> 即時にHQへ。誰かが応えるまで10分ごとに再通知"><span class='tag l3'>Level 3</span> HQ told at once, every 10 minutes until someone answers</td></tr>
+<tr><td data-en="Water &amp;middot; Electricity &amp;middot; Gas &amp;middot; Security" data-ja="断水・停電・ガス・防犯">Water &middot; Electricity &middot; Gas &middot; Security</td><td data-en="<span class='tag l2'>Level 2</span> HQ told at once, every 30 minutes until someone answers" data-ja="<span class='tag l2'>Level 2</span> 即時にHQへ。誰かが応えるまで30分ごとに再通知"><span class='tag l2'>Level 2</span> HQ told at once, every 30 minutes until someone answers</td></tr>
+<tr><td data-en="Equipment &amp;middot; Weather &amp;middot; Building" data-ja="設備・天候・建物">Equipment &middot; Weather &middot; Building</td><td data-en="Level depends on your answer to <em>&amp;ldquo;Is trading affected?&amp;rdquo;</em>" data-ja="<em>「営業に影響があるか」</em>の回答で決まります">Level depends on your answer to <em>&ldquo;Is trading affected?&rdquo;</em></td></tr>
+</tbody></table></div>
+<h2 data-en="What it asks you" data-ja="聞かれること">What it asks you</h2>
+<p class="small" data-en="Six things. Two of them are optional." data-ja="6つだけです。うち2つは任意です。">Six things. Two of them are optional.</p>
 <ul class="plain">
-  <li><strong>What is it?</strong> — choose from the list</li>
-  <li><strong>Which store?</strong></li>
-  <li><strong>When did you notice?</strong> — not when it started. When <em>you</em> saw it</li>
-  <li><strong>Is trading affected?</strong> — Yes / Not yet</li>
-  <li><strong>Can the store keep going?</strong> — Yes / Limited / No</li>
-  <li><strong>Do you need HQ to do something?</strong> — Yes / No</li>
+<li data-en="<strong>What is it?</strong> &amp;mdash; choose from the list" data-ja="<strong>何が起きたか</strong> — 一覧から選ぶ"><strong>What is it?</strong> &mdash; choose from the list</li>
+<li data-en="<strong>Which store?</strong>" data-ja="<strong>どの店舗か</strong>"><strong>Which store?</strong></li>
+<li data-en="<strong>When did you notice?</strong> &amp;mdash; not when it started. When <em>you</em> saw it" data-ja="<strong>いつ気づいたか</strong> — 発生時刻ではなく、<em>あなたが</em>気づいた時刻"><strong>When did you notice?</strong> &mdash; not when it started. When <em>you</em> saw it</li>
+<li data-en="<strong>Is trading affected?</strong> &amp;mdash; Yes / Not yet" data-ja="<strong>営業に影響があるか</strong> — ある / まだない"><strong>Is trading affected?</strong> &mdash; Yes / Not yet</li>
+<li data-en="<strong>Can the store keep going?</strong> &amp;mdash; Yes / Limited / No" data-ja="<strong>営業を続けられるか</strong> — 続けられる / 制限あり / 無理"><strong>Can the store keep going?</strong> &mdash; Yes / Limited / No</li>
+<li data-en="<strong>Do you need HQ to do something?</strong> &amp;mdash; Yes / No" data-ja="<strong>HQの対応が必要か</strong> — 必要 / 不要"><strong>Do you need HQ to do something?</strong> &mdash; Yes / No</li>
 </ul>
-
-<p class="small">The last two questions are what let HQ decide whether to send water from the
-central kitchen, arrange a tank, or change how the store trades. Without them they can only
-guess.</p>
-
+<p class="small" data-en="The last two questions are what let HQ decide whether to send water from the central kitchen, arrange a tank, or change how the store trades. Without them they can only guess." data-ja="最後の2問が、CKから水を送るか、タンクを手配するか、営業方法を変えるかをHQが決める材料になります。これがないと推測するしかありません。">The last two questions are what let HQ decide whether to send water from the central kitchen, arrange a tank, or change how the store trades. Without them they can only guess.</p>
 <div class="card">
-  <p style="margin-top:0"><strong>Photos and the full story come later.</strong>
-  Send the short report first. You can add detail once things have settled.</p>
+<p style="margin-top:0" data-en="<strong>Photos and the full story come later.</strong> Send the short report first. You can add detail once things have settled." data-ja="<strong>写真や詳しい経緯はあとで構いません。</strong>まず短い報告を送ってください。落ち着いてから追記できます。"><strong>Photos and the full story come later.</strong> Send the short report first. You can add detail once things have settled.</p>
 </div>
-
-<h2>Why the time matters so much</h2>
-
-<div class="quote">The sooner HQ knows, the more they can do.</div>
-
+<h2 data-en="Why the time matters so much" data-ja="なぜ時間がこれほど重要か">Why the time matters so much</h2>
+<div class="quote" data-en="The sooner HQ knows, the more they can do." data-ja="早く伝わるほど、HQができることが増えます。">The sooner HQ knows, the more they can do.</div>
 <div class="grid">
-  <div class="tile"><div class="k">Told at 2pm</div><div class="v">Water can be sent from the
-  central kitchen. A tank can be arranged. Trading can be changed.</div></div>
-  <div class="tile"><div class="k">Told at 7pm</div><div class="v">There is almost nothing
-  left to try.</div></div>
+<div class="tile"><div class="k" data-en="Told at 2pm" data-ja="14時に伝わった場合">Told at 2pm</div><div class="v" data-en="Water can be sent from the central kitchen. A tank can be arranged. Trading can be changed." data-ja="CKから水を送れる。タンクを手配できる。営業方法を変えられる。">Water can be sent from the central kitchen. A tank can be arranged. Trading can be changed.</div></div>
+<div class="tile"><div class="k" data-en="Told at 7pm" data-ja="19時に伝わった場合">Told at 7pm</div><div class="v" data-en="There is almost nothing left to try." data-ja="打てる手がほぼありません。">There is almost nothing left to try.</div></div>
 </div>
-
-<p>This is the whole reason the fast report exists. Nobody can stop the building&rsquo;s water
-going off — but the hours after you notice are the part we control.</p>
-
+<p data-en="This is the whole reason the fast report exists. Nobody can stop the building&amp;rsquo;s water going off &amp;mdash; but the hours after you notice are the part we control." data-ja="速報がある理由はこれだけです。建物の断水は誰にも防げません。でも、気づいてからの数時間はこちらで変えられます。">This is the whole reason the fast report exists. Nobody can stop the building&rsquo;s water going off &mdash; but the hours after you notice are the part we control.</p>
 <div class="card amber">
-  <p style="margin-top:0"><strong>Aim for ten minutes.</strong> From the moment you notice, to
-  the moment you send. That is all it takes, and it is the one thing that decides whether HQ
-  can help.</p>
+<p style="margin-top:0" data-en="<strong>Aim for ten minutes.</strong> From the moment you notice, to the moment you send. That is all it takes, and it is the one thing that decides whether HQ can help." data-ja="<strong>目安は10分です。</strong>気づいてから送信まで。それだけですが、HQが助けられるかどうかはここで決まります。"><strong>Aim for ten minutes.</strong> From the moment you notice, to the moment you send. That is all it takes, and it is the one thing that decides whether HQ can help.</p>
 </div>
-
-<h2>What happens after you press send</h2>
-
+<h2 data-en="What happens after you press send" data-ja="送信したあとに起きること">What happens after you press send</h2>
 <div class="steps">
-  <div class="step">
-    <div class="h">HQ is told straight away</div>
-    <div class="b">Not at the end of the day. The moment you send it.</div>
-  </div>
-  <div class="step">
-    <div class="h">If nobody answers, it asks again</div>
-    <div class="b">Every 10 minutes for Level 3, every 30 for Level 2. It does not go quiet.</div>
-  </div>
-  <div class="step">
-    <div class="h">Then it starts naming people</div>
-    <div class="b">After two rounds with no answer, it asks one person at a time by name,
-    working through HQ until somebody replies.</div>
-  </div>
-  <div class="step">
-    <div class="h">Someone takes it on</div>
-    <div class="b">Their name goes on your report and the alerts stop. From then on it is
-    theirs, not yours.</div>
-  </div>
+<div class="step"><div class="h" data-en="HQ is told straight away" data-ja="即時にHQへ届きます">HQ is told straight away</div><div class="b" data-en="Not at the end of the day. The moment you send it." data-ja="一日の終わりではなく、送信した瞬間にです。">Not at the end of the day. The moment you send it.</div></div>
+<div class="step"><div class="h" data-en="If nobody answers, it asks again" data-ja="誰も応えなければ、何度でも送られます">If nobody answers, it asks again</div><div class="b" data-en="Every 10 minutes for Level 3, every 30 for Level 2. It does not go quiet." data-ja="Level 3は10分ごと、Level 2は30分ごと。黙りません。">Every 10 minutes for Level 3, every 30 for Level 2. It does not go quiet.</div></div>
+<div class="step"><div class="h" data-en="Then it starts naming people" data-ja="次に、名指しが始まります">Then it starts naming people</div><div class="b" data-en="After two rounds with no answer, it asks one person at a time by name, working through HQ until somebody replies." data-ja="2回無応答のあとは、HQのメンバーを一人ずつ名指しで呼びます。">After two rounds with no answer, it asks one person at a time by name, working through HQ until somebody replies.</div></div>
+<div class="step"><div class="h" data-en="Someone takes it on" data-ja="誰かが引き取ります">Someone takes it on</div><div class="b" data-en="Their name goes on your report and the alerts stop. From then on it is theirs, not yours." data-ja="その人の名前が報告に付き、通知が止まります。そこから先はその人の仕事です。">Their name goes on your report and the alerts stop. From then on it is theirs, not yours.</div></div>
 </div>
-
-<p><strong>You do not need to chase it.</strong> That is the system&rsquo;s job now.</p>
-
-<h2>For a fire or an injury — call first</h2>
-
+<p data-en="<strong>You do not need to chase it.</strong> That is the system&amp;rsquo;s job now." data-ja="<strong>あなたが催促する必要はありません。</strong>それはシステムの仕事です。"><strong>You do not need to chase it.</strong> That is the system&rsquo;s job now.</p>
+<h2 data-en="For a fire or an injury &amp;mdash; call first" data-ja="火事・けが人は、まず電話">For a fire or an injury &mdash; call first</h2>
 <div class="card red">
-  <p style="margin-top:0"><strong>Nobody opens an app during a fire.</strong> Call, get people
-  safe, then send the report when you can. The report is the record — it is not how you raise
-  the alarm when someone is in danger.</p>
+<p style="margin-top:0" data-en="<strong>Nobody opens an app during a fire.</strong> Call, get people safe, then send the report when you can. The report is the record &amp;mdash; it is not how you raise the alarm when someone is in danger." data-ja="<strong>火事のときにアプリを開く人はいません。</strong>電話して、人の安全を確保してから、落ち着いたときに報告してください。報告は記録のためのものであって、危険を知らせる手段ではありません。"><strong>Nobody opens an app during a fire.</strong> Call, get people safe, then send the report when you can. The report is the record &mdash; it is not how you raise the alarm when someone is in danger.</p>
 </div>
-
 <hr>
-
-<h2>One thing to do today</h2>
-
+<h2 data-en="One thing to do today" data-ja="今日やっておくこと">One thing to do today</h2>
+<div class="path"><span class="route" data-en="Menu &amp;rarr; <b>My Phone Number</b>" data-ja="メニュー → <b>My Phone Number</b>">Menu &rarr; <b>My Phone Number</b></span><span class="where" data-en="On a phone: bottom bar &amp;rarr; <b>More</b>. On a computer: the left sidebar, under <b>Staff</b>." data-ja="スマホ：下部バー → <b>More</b>。パソコン：左サイドバーの <b>Staff</b> の中。">On a phone: bottom bar &rarr; <b>More</b>. On a computer: the left sidebar, under <b>Staff</b>.</span></div>
 <div class="card green">
-  <p style="margin-top:0"><strong>Open <em>My Phone Number</em> and add your number.</strong>
-  Start with the country code, like <span class="muted">+63 917 123 4567</span>.</p>
-  <p style="margin-bottom:0">It takes a few seconds, and only you can do it — nobody can enter
-  it for you. It is used to reach you about an emergency at a store, and for nothing else.
-  Only HQ and HR can see it.</p>
+<p style="margin-top:0" data-en="<strong>Open <em>My Phone Number</em> and add your number.</strong> Start with the country code, like +63 917 123 4567." data-ja="<strong>メニューの <em>My Phone Number</em> を開いて、自分の番号を登録してください。</strong>国番号から入れてください（例：+63 917 123 4567）。"><strong>Open <em>My Phone Number</em> and add your number.</strong> Start with the country code, like +63 917 123 4567.</p>
+<p style="margin-bottom:0" data-en="It takes a few seconds, and only you can do it &amp;mdash; nobody can enter it for you. It is used to reach you about an emergency at a store, and for nothing else. Only HQ and HR can see it." data-ja="数秒で終わります。登録できるのは本人だけで、他人が代わりに入力することはできません。店舗の緊急事態の連絡にのみ使い、他の用途には使いません。見られるのはHQとHRだけです。">It takes a few seconds, and only you can do it &mdash; nobody can enter it for you. It is used to reach you about an emergency at a store, and for nothing else. Only HQ and HR can see it.</p>
 </div>
-
 <hr>
-
-<h2>Questions people ask</h2>
-
-<h3>What if I report something and it turns out to be nothing?</h3>
-<p>That is fine, and it always will be. Nobody counts how many reports a store sends, on
-purpose — because counting them would teach everyone to send fewer.</p>
-
-<h3>What if my manager is not around?</h3>
-<p>Send it yourself. Anyone can. The rule is that whoever notices reports it — so that nobody
-ends up waiting for somebody else to do it.</p>
-
-<h3>What if someone already reported it?</h3>
-<p>Send it anyway. Two reports of the same thing costs nothing. Zero reports costs a day of
-trading.</p>
-
-<h3>It is not our fault — the building did it. Should I still report?</h3>
-<p>Yes, and this is the important one. A report is not only about blame or fixing a cause. When
-the problem is outside our control, the report is what gives HQ time to work around it.</p>
-
-<h3>Do I need to write a lot?</h3>
-<p>No. Six answers, most of them a single tap. The written part is optional.</p>
-
+<h2 data-en="Questions people ask" data-ja="よくある質問">Questions people ask</h2>
+<h3 data-en="What if I report something and it turns out to be nothing?" data-ja="報告したのに何でもなかったら？">What if I report something and it turns out to be nothing?</h3>
+<p data-en="That is fine, and it always will be. Nobody counts how many reports a store sends, on purpose &amp;mdash; because counting them would teach everyone to send fewer." data-ja="問題ありません。これからもずっとそうです。店舗ごとの報告件数は、意図的に数えていません。数えた瞬間に、全員が報告を減らすようになるからです。">That is fine, and it always will be. Nobody counts how many reports a store sends, on purpose &mdash; because counting them would teach everyone to send fewer.</p>
+<h3 data-en="What if my manager is not around?" data-ja="マネージャーがいないときは？">What if my manager is not around?</h3>
+<p data-en="Send it yourself. Anyone can. The rule is that whoever notices reports it &amp;mdash; so that nobody ends up waiting for somebody else to do it." data-ja="自分で送ってください。誰でも送れます。「気づいた人が報告する」がルールです。誰かがやるだろうと待つ状態をなくすためです。">Send it yourself. Anyone can. The rule is that whoever notices reports it &mdash; so that nobody ends up waiting for somebody else to do it.</p>
+<h3 data-en="What if someone already reported it?" data-ja="誰かがもう報告していたら？">What if someone already reported it?</h3>
+<p data-en="Send it anyway. Two reports of the same thing costs nothing. Zero reports costs a day of trading." data-ja="それでも送ってください。同じ内容が2件来ても損はありません。ゼロ件の損失は営業1日分です。">Send it anyway. Two reports of the same thing costs nothing. Zero reports costs a day of trading.</p>
+<h3 data-en="It is not our fault &amp;mdash; the building did it. Should I still report?" data-ja="うちのせいじゃなく建物の問題でも報告する？">It is not our fault &mdash; the building did it. Should I still report?</h3>
+<p data-en="Yes, and this is the important one. A report is not only about blame or fixing a cause. When the problem is outside our control, the report is what gives HQ time to work around it." data-ja="はい。ここが一番大事です。報告は責任追及や原因分析のためだけのものではありません。こちらで防げない問題のときこそ、報告がHQに回避策を考える時間を作ります。">Yes, and this is the important one. A report is not only about blame or fixing a cause. When the problem is outside our control, the report is what gives HQ time to work around it.</p>
+<h3 data-en="Do I need to write a lot?" data-ja="やっぱり長く書く必要がある？">Do I need to write a lot?</h3>
+<p data-en="No. Six answers, most of them a single tap. The written part is optional." data-ja="いいえ。回答は6つで、ほとんどはタップするだけです。文章の部分は任意です。">No. Six answers, most of them a single tap. The written part is optional.</p>
+<hr>
+<div class="part" data-en="Part 2 &amp;mdash; if you work at HQ or the back office" data-ja="パート2 — HQ・本部の人へ">Part 2 &mdash; if you work at HQ or the back office</div>
+<h2 data-en="Where the reports arrive" data-ja="報告が届く場所">Where the reports arrive</h2>
+<p class="lede" data-en="Three pages. They do different jobs, so it is worth knowing which one answers which question." data-ja="3つのページがあります。役割が違うので、どの疑問にどれが答えるかを押さえてください。">Three pages. They do different jobs, so it is worth knowing which one answers which question.</p>
+<h3 data-en="1. Waiting for Someone &amp;mdash; the one to check" data-ja="1. Waiting for Someone — 最初に見るページ">1. Waiting for Someone &mdash; the one to check</h3>
+<div class="path"><span class="route" data-en="Admin &amp;rarr; <b>Waiting for Someone</b>" data-ja="Admin → <b>Waiting for Someone</b>">Admin &rarr; <b>Waiting for Someone</b></span><span class="where" data-en="On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &amp;rarr; <b>More</b>." data-ja="パソコン：左サイドバーの <b>Admin</b> の中。スマホ：下部バー → <b>More</b>。">On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &rarr; <b>More</b>.</span></div>
+<p data-en="Only the reports with nobody&amp;rsquo;s name on them. The red number beside it in the menu is that count &amp;mdash; if it is not zero, somebody is waiting for us right now." data-ja="誰の名前も付いていない報告だけが並びます。メニュー横の赤い数字がその件数です。ゼロでなければ、今この瞬間に誰かが待っています。">Only the reports with nobody&rsquo;s name on them. The red number beside it in the menu is that count &mdash; if it is not zero, somebody is waiting for us right now.</p>
+<ul class="plain">
+<li data-en="Each row shows <strong>how long it has waited</strong>, what it is, whether trading is affected, who reported it, and how many times the alert has already fired." data-ja="各行に、<strong>待っている時間</strong>、内容、営業への影響、報告者、通知が何回鳴ったかが出ます。">Each row shows <strong>how long it has waited</strong>, what it is, whether trading is affected, who reported it, and how many times the alert has already fired.</li>
+<li data-en="Press <strong>Take this on</strong>. Your name goes on the report and the alerts stop. That is the whole action &amp;mdash; there is nothing else to fill in." data-ja="<strong>Take this on</strong> を押します。自分の名前が報告に付き、通知が止まります。操作はこれだけで、入力欄はありません。">Press <strong>Take this on</strong>. Your name goes on the report and the alerts stop. That is the whole action &mdash; there is nothing else to fill in.</li>
+<li data-en="Filter by city with the dropdown at the top right." data-ja="右上のドロップダウンで都市を絞り込めます。">Filter by city with the dropdown at the top right.</li>
+<li data-en="When it says <em>Everything has an owner</em>, the list is clear. That is the state to keep." data-ja="<em>Everything has an owner</em> と出れば全件に担当が付いています。この状態を保ちます。">When it says <em>Everything has an owner</em>, the list is clear. That is the state to keep.</li>
+</ul>
+<div class="card amber">
+<p style="margin:0" data-en="<strong>Reading a report does not stop the alerts. Taking it on does.</strong> Until somebody presses the button, the report is addressed to &amp;ldquo;HQ&amp;rdquo; &amp;mdash; which means it is addressed to nobody." data-ja="<strong>読んだだけでは通知は止まりません。引き取って初めて止まります。</strong>誰かがボタンを押すまで、その報告の宛先は「HQ」＝つまり誰でもない、という状態です。"><strong>Reading a report does not stop the alerts. Taking it on does.</strong> Until somebody presses the button, the report is addressed to &ldquo;HQ&rdquo; &mdash; which means it is addressed to nobody.</p>
 </div>
+<h3 data-en="2. Incident Reports &amp;mdash; the full record" data-ja="2. Incident Reports — 全件の記録">2. Incident Reports &mdash; the full record</h3>
+<div class="path"><span class="route" data-en="Admin &amp;rarr; <b>Incident Reports</b>" data-ja="Admin → <b>Incident Reports</b>">Admin &rarr; <b>Incident Reports</b></span><span class="where" data-en="On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &amp;rarr; <b>More</b>." data-ja="パソコン：左サイドバーの <b>Admin</b> の中。スマホ：下部バー → <b>More</b>。">On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &rarr; <b>More</b>.</span></div>
+<p data-en="Every report, urgent and not. Two tabs: <strong>Reports</strong> and <strong>Store Issue Board</strong>. Status runs <em>New &amp;rarr; Acknowledged &amp;rarr; In Progress &amp;rarr; Resolved</em>. This is where you reply, add detail and close things off." data-ja="緊急・非緊急を問わず全件が並びます。タブは <strong>Reports</strong> と <strong>Store Issue Board</strong> の2つ。ステータスは <em>New → Acknowledged → In Progress → Resolved</em> と進みます。返信・追記・完了処理はここで行います。">Every report, urgent and not. Two tabs: <strong>Reports</strong> and <strong>Store Issue Board</strong>. Status runs <em>New &rarr; Acknowledged &rarr; In Progress &rarr; Resolved</em>. This is where you reply, add detail and close things off.</p>
+<p class="small" data-en="<strong>Waiting for Someone</strong> answers only one question &amp;mdash; has anybody picked it up. <strong>Incident Reports</strong> is where the work actually gets done." data-ja="<strong>Waiting for Someone</strong> は「誰かが引き取ったか」だけを答えるページです。実際の対応は <strong>Incident Reports</strong> で行います。"><strong>Waiting for Someone</strong> answers only one question &mdash; has anybody picked it up. <strong>Incident Reports</strong> is where the work actually gets done.</p>
+<h3 data-en="3. Emergency Contacts &amp;mdash; the call list" data-ja="3. Emergency Contacts — 電話連絡先">3. Emergency Contacts &mdash; the call list</h3>
+<div class="path"><span class="route" data-en="Admin &amp;rarr; <b>Emergency Contacts</b>" data-ja="Admin → <b>Emergency Contacts</b>">Admin &rarr; <b>Emergency Contacts</b></span><span class="where" data-en="On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &amp;rarr; <b>More</b>." data-ja="パソコン：左サイドバーの <b>Admin</b> の中。スマホ：下部バー → <b>More</b>。">On a computer: the left sidebar, under <b>Admin</b>. On a phone: bottom bar &rarr; <b>More</b>.</span></div>
+<p data-en="Who to phone when a store has a fire, an injury, or has to close. The list is built from roles &amp;mdash; HQ, Admin, HR Manager and the two management roles &amp;mdash; so it follows people when their job changes, instead of being a list somebody has to remember to update." data-ja="火事・けが人・強制閉店のときに電話する相手の一覧です。ロール（HQ・Admin・HR Manager・両Management）から自動生成されるため、担当が変わっても追随します。誰かが手で更新する名簿ではありません。">Who to phone when a store has a fire, an injury, or has to close. The list is built from roles &mdash; HQ, Admin, HR Manager and the two management roles &mdash; so it follows people when their job changes, instead of being a list somebody has to remember to update.</p>
+<ul class="plain">
+<li data-en="Two counts at the top: <strong>Reachable</strong> and <strong>No number yet</strong>. People without a number are listed first, on purpose &amp;mdash; a call list that hides its own gaps is worse than one that shows them." data-ja="上部に <strong>Reachable</strong> と <strong>No number yet</strong> の2つの数字が出ます。番号未登録の人を先頭に表示します。欠けを隠す連絡先一覧は、欠けが見える一覧より危険だからです。">Two counts at the top: <strong>Reachable</strong> and <strong>No number yet</strong>. People without a number are listed first, on purpose &mdash; a call list that hides its own gaps is worse than one that shows them.</li>
+<li data-en="Tap a number to call it, or use the copy button." data-ja="番号をタップすれば発信、コピーボタンでコピーできます。">Tap a number to call it, or use the copy button.</li>
+<li data-en="<strong>You cannot enter somebody else&amp;rsquo;s number.</strong> Ask them to open <em>My Phone Number</em> themselves. A number a third person typed goes stale without anyone noticing." data-ja="<strong>他人の番号を代わりに入力することはできません。</strong>本人に <em>My Phone Number</em> を開いてもらってください。他人が入れた番号は、誰も気づかないまま古くなります。"><strong>You cannot enter somebody else&rsquo;s number.</strong> Ask them to open <em>My Phone Number</em> themselves. A number a third person typed goes stale without anyone noticing.</li>
+</ul>
+<div class="card green">
+<p style="margin:0" data-en="<strong>HQ and HR: register your own number too.</strong> Menu &amp;rarr; <em>My Phone Number</em>. You are on the call list &amp;mdash; if your number is missing, the escalation reaches your name and stops there." data-ja="<strong>HQ・HRの方も自分の番号を登録してください。</strong>メニュー → <em>My Phone Number</em>。あなたは連絡先一覧に載っています。番号が無いと、名指しがあなたの番で止まります。"><strong>HQ and HR: register your own number too.</strong> Menu &rarr; <em>My Phone Number</em>. You are on the call list &mdash; if your number is missing, the escalation reaches your name and stops there.</p>
+</div>
+<h2 data-en="What the system does without being asked" data-ja="システムが自動で行うこと">What the system does without being asked</h2>
+<p class="small" data-en="So that nobody has to watch a screen." data-ja="誰も画面を見張らなくて済むようにするためです。">So that nobody has to watch a screen.</p>
+<div class="steps">
+<div class="step"><div class="h" data-en="It alerts the moment a store presses send" data-ja="店舗が送信した瞬間に通知します">It alerts the moment a store presses send</div><div class="b" data-en="Not on a schedule, not at the end of the day." data-ja="定時でも一日の終わりでもなく、送信した瞬間です。">Not on a schedule, not at the end of the day.</div></div>
+<div class="step"><div class="h" data-en="It repeats until somebody takes it on" data-ja="誰かが引き取るまで繰り返します">It repeats until somebody takes it on</div><div class="b" data-en="Every 10 minutes for Level 3, every 30 for Level 2." data-ja="Level 3は10分ごと、Level 2は30分ごと。">Every 10 minutes for Level 3, every 30 for Level 2.</div></div>
+<div class="step"><div class="h" data-en="After two silent rounds it names people" data-ja="2回無応答で名指しに切り替わります">After two silent rounds it names people</div><div class="b" data-en="It stops addressing &amp;ldquo;HQ&amp;rdquo; and asks one person at a time, working through the list, so nobody can assume somebody else has it." data-ja="宛先が「HQ」ではなくなり、一覧を順に一人ずつ名指しします。「他の誰かがやるだろう」が成立しなくなります。">It stops addressing &ldquo;HQ&rdquo; and asks one person at a time, working through the list, so nobody can assume somebody else has it.</div></div>
+<div class="step"><div class="h" data-en="Taking it on is the only thing that stops it" data-ja="止まるのは、引き取ったときだけです">Taking it on is the only thing that stops it</div><div class="b" data-en="Not reading it, not replying in chat. Press <strong>Take this on</strong>." data-ja="読んでも、チャットで返しても止まりません。<strong>Take this on</strong> を押してください。">Not reading it, not replying in chat. Press <strong>Take this on</strong>.</div></div>
+</div>
+<h2 data-en="How to judge this, and how not to" data-ja="評価の仕方・してはいけない見方">How to judge this, and how not to</h2>
+<div class="grid">
+<div class="tile"><div class="k" data-en="Watch this" data-ja="見るべき数字">Watch this</div><div class="v" data-en="How long reports wait before somebody takes them on." data-ja="報告が引き取られるまでの待ち時間。">How long reports wait before somebody takes them on.</div></div>
+<div class="tile"><div class="k" data-en="Never this" data-ja="見てはいけない数字">Never this</div><div class="v" data-en="How many reports a store files." data-ja="店舗ごとの報告件数。">How many reports a store files.</div></div>
+</div>
+<p data-en="The moment a store is measured on how few reports it sends, it sends fewer &amp;mdash; and the ones it stops sending are the early ones, which are the only ones we can still do anything about." data-ja="「報告が少ないほど良い」と測られた瞬間、店舗は報告を減らします。そして最初に消えるのは早い段階の報告＝まだ手が打てる唯一の報告です。">The moment a store is measured on how few reports it sends, it sends fewer &mdash; and the ones it stops sending are the early ones, which are the only ones we can still do anything about.</p>
+</div>
+
+<script>
+  // Same shape as the other manuals: data-en / data-ja swapped in place.
+  function setLang(lang){
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+    document.querySelectorAll('[data-en]').forEach(function(el){
+      el.innerHTML = lang === 'ja' ? el.dataset.ja : el.dataset.en;
+    });
+    document.documentElement.lang = lang === 'ja' ? 'ja' : 'en';
+    try { localStorage.setItem('zen_manual_lang', lang); } catch (e) {}
+  }
+  // Store staff read this in English; the toggle is for whoever needs the other.
+  try {
+    if (localStorage.getItem('zen_manual_lang') === 'ja') setLang('ja');
+  } catch (e) {}
+</script>
