@@ -59,6 +59,55 @@ amount_excl_tax / tax_amount / tax_rate_pct
 
 ---
 
+## ✅ Completed: Role Management を唯一の正にする構造修正 (2026-08-27)
+
+### 発見
+`NavBar.canSeeAdminItem()` の末尾が `return false`。**if連鎖に載っていない管理ページは、
+権限に何をチェックしても HQ/ADMIN 以外に永久に見えない**。実測で
+**Role Management が表示する146権限のうち76が、コードから一度も読まれていなかった**。
+
+### 3つの独立した欠陥
+1. **NavBar の `return false`** — 未登録ページが全滅（/admin/finance/vendors, /admin/backup,
+   /admin/disposal, /admin/business-events, /admin/handbook 等）
+2. **接頭辞なし権限キー** — `db.py` の auto-repair INSERT が `ac.channel_key || '.view'` を生成。
+   `channel.` が付かず永久に一致しない。管理UI経由で作った全チャンネルが該当。
+   実DBに4件、うち `admin.hr_policy_docs.view`（8ロール）/ `ck_delivery.view`（7ロール）は付与済みで無効だった
+3. **チャンネル未登録** — `/admin/nte` と `/admin/mgmt-accounting` はチャンネル自体が無く、制御不能
+
+### 修正
+| 層 | 内容 |
+|---|---|
+| 生成 | `scripts/sync-access-channels.py` → `src/lib/access-channels.ts`（route→channel、112件） |
+| NavBar | 末尾を `channelAccessForRoute(href, auth)` に。既存18ロールリストは `\|\|` で追加的に温存 |
+| ページ | ロール名だけでリダイレクトしていた10ガードに権限経路を追加 |
+| バックエンド | `_actor_allows(actor, ROLES, perm)` を導入。expense_requests / overtime / spot_purchase / baseroll / store_supplier に適用 |
+| キー生成 | auto-repair INSERT に `'channel.' ||` を追加。既存3件は付与ごと移行 |
+| カタログ | `admin.nte` / `admin.mgmt_accounting` を登録 |
+| 点検 | `scripts/audit-dead-permissions.py`（死んだ権限を列挙、CIに使える exit code） |
+
+**死んだ権限 76 → 14**（残りは全て `.manage` 系＋`payroll.view_salary`）。
+
+### ⚠️ 副作用 — 45組が新たに到達可能に
+既に付与済みだが無効だった権限が一斉に有効化される。**ユーザーの確認待ち**:
+HR_STAFF(6名)→HR系9ページ / INVENTORY_PURCHASING(31名)→backup,baseroll,disposal,emergency,hr_policy_docs /
+MANILA_MANAGER(2名)→backup,baseroll,disposal,overtime,spot_purchase / MANILA_MANAGEMENT(4名)→management系,vendors 等
+
+### 併せて発見・修正
+- **Company Assets の13エンドポイントに認可が無かった** — グローバル `admin_auth_gate` は
+  ログイン確認のみ。一般STAFFのトークンで全資産の取得に成功（DELETE も同様に開いていた）。
+  実測で確認 → `channel.admin.assets.view/.manage` を要求するよう修正、修正後403を確認
+- **Impersonation（Login As）が機能していない** — Nextプロキシが `sz_access` Cookie を
+  Authorization ヘッダーより優先するため、なりすまし用トークンが常に無視される。
+  結果、「相手として見ている」つもりで実際はHQ権限のまま。**未修正・要判断**
+- `payroll.view_salary`（"View Salary Amounts"）はどこからも読まれていない。
+  給与マスクは `_SALARY_PATH_PREFIXES` ミドルウェアがHQロールで判定しており、この権限は飾り。付与ロールは0
+
+### 残課題
+- `.manage` 系13権限の配線（`audit-dead-permissions.py` が列挙）
+- Impersonation のCookie優先問題
+
+---
+
 ## ✅ Completed: 申告科目リスト — BIR 35行を登録 (2026-08-27)
 
 **「会計事務所の科目表待ち」は誤り。** マニラは BIR Form 1702-RT の Schedule 4 に
