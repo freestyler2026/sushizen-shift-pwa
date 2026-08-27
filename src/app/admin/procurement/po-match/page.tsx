@@ -207,7 +207,8 @@ type PendingCheck = {
   store_received_by?: string;
   store_code?: string;
   receiving_no?: string;
-  /** The image is fetched separately — see the photo endpoint. */
+  /** Images are fetched separately — see the photo endpoint. */
+  has_photo_data?: boolean;
   has_store_invoice_photo?: boolean;
 };
 
@@ -755,7 +756,7 @@ function QuickEntryTab({
     // the one belonging to the record just opened.
     const inlinePhoto = pc.photo_data || "";
     setPhotos(inlinePhoto ? [inlinePhoto] : []);
-    if (!inlinePhoto && pc.has_store_invoice_photo && pc.id) {
+    if (!inlinePhoto && (pc.has_photo_data || pc.has_store_invoice_photo) && pc.id) {
       apiFetch(`/procurement/po-invoice-checks/${encodeURIComponent(String(pc.id))}/photo`)
         .then((d) => { if (d?.photo) setPhotos([d.photo]); })
         .catch(() => { /* the form still works without the photo */ });
