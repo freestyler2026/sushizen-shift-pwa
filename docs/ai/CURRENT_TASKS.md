@@ -102,9 +102,50 @@ MANILA_MANAGER(2名)→backup,baseroll,disposal,overtime,spot_purchase / MANILA_
 - `payroll.view_salary`（"View Salary Amounts"）はどこからも読まれていない。
   給与マスクは `_SALARY_PATH_PREFIXES` ミドルウェアがHQロールで判定しており、この権限は飾り。付与ロールは0
 
+### 追加対応 (同日) — 効かない権限を 0 に
+`audit-dead-permissions.py` 自体が2度嘘をついていた:
+1. `startswith("channel.admin.hr")` によるプレフィックス判定を読めず、HR系4件を誤って「死んでいる」と報告
+2. プレフィックスを教えたら今度は `startswith("channel.admin.")`（全admin権限に一致）を信用し、全件を「生きている」と報告
+3. `_require_channel(request, "admin.xxx")` の実行時キー生成も読めなかった
+
+正味の残り10件を配線:
+| 権限 | 対応 |
+|---|---|
+| ar_payouts.manage | 7エンドポイントに認可が無かった → `_require_channel` |
+| business_events.manage | インラインのロール名判定 → 追加的に |
+| emergency_requests.manage | badge-count に認可なし → 追加 |
+| supplier_confirmations.manage | badge に認可なし → 追加 |
+| handbook.manage | `_require_hq_admin_actor` → `_require_channel` |
+| employee_cases.manage | 書き込み11件が `.view` だけを見ていた → `_require_manage` を新設し適用 |
+| nte.manage | `_require_hr`（ロール名のみ）→ 追加的に |
+| store_par_levels.manage | Store Par Levels は supplier catalog API を使うため `store_supplier_api._require_manage` で受理 |
+| payroll.view_salary | `_is_hq()` に権限判定を追加。説明文が謳っていた挙動が初めて本当になった |
+| discord_alerts.manage | **削除**。対象はPIN認証で守られており、トグルで開けられない。付与ロール0 |
+
+⚠️ **NTE書き込みで3ロールが権限を失うところだった** → 現状維持のため
+`DUBAI_MANAGEMENT` / `MANILA_MANAGEMENT` / `MANILA_MANAGER` に `employee_cases.manage` を明示付与。
+不要なら Role Management で外せる（今度は本当に効く）。
+
+**`audit-dead-permissions.py` → 0件 / exit 0。**
+
+### 🔴 未対応の重大事項: /api/admin/* の認可欠落 471件
+グローバルの `admin_auth_gate` は**ログイン済みかを見るだけ**。実測（無権限STAFFのトークン）:
+```
+GET /api/admin/inventory/items  → 200 全件
+GET /api/admin/mgmt/overhead    → 200
+```
+内訳: 総数1319（書き込み700）のうち **認可なし471（書き込み257）**。
+上位: inventory 118 / menu 102 / attendance 44 / payroll 38 / mgmt 37 / management 31。
+
+**提案（未実施・要判断）**: `admin_auth_gate` に認可層を足し、APIパス→チャンネルの対応から
+`channel.<ck>.view/.manage` を要求する。ただし**まず log モード**で「拒否されるはずだった要求」を
+記録し、ログが綺麗になったプレフィックスから順に enforce へ切り替える。
+471件を一括で塞ぐと、現に使えている人を締め出す事故が起きる。
+
 ### 残課題
-- `.manage` 系13権限の配線（`audit-dead-permissions.py` が列挙）
-- Impersonation のCookie優先問題
+- 上記471件の認可（log モードでの計測から）
+- Impersonation のCookie優先問題（`renewals_api.py` / `discord_api.py` の
+  `startswith("channel.admin.")` も過度に広い — admin権限を1つでも持てば通る）
 
 ---
 
