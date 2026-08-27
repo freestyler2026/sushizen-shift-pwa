@@ -170,6 +170,56 @@ Exit後: 72件 / identity = Yukihiro に復帰
 **以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
 → 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
 
+## ✅ Completed: Phase 1台帳 + Phase 2分類 (2026-08-27)
+
+### fin_documents — 証憑台帳（Phase 1 の残り）
+**元テーブルには一切書き戻さない**参照専用。スタッフの入力画面は変えない。
+
+| 入力元 | 件数 |
+|---|---:|
+| Supplier invoice (Drive) | 240 |
+| Petty cash | 141 |
+| Store receipt log | 8 |
+| Staff reimbursement | 9 |
+| **合計** | **398** |
+
+`(source_table, source_id)` で参照、content hash で変更検知、冪等。
+
+### 分類（Phase 2）
+判断の根拠を**信頼できる順**に3段階。**推測はしない**:
+1. 取引先の既定科目（人が決めたもの）→ `high`
+2. 元画面でスタッフが選んだカテゴリ → `medium`
+3. どちらも無ければ**空欄のまま**人に回す
+
+自社（`is_internal`）は社内移動として `INTERNAL`。二重計上を防ぐ。
+`account_master.tax_account_code` 経由で **BIR の申告行**まで決まる。
+
+### 🔑 確定は取引先に学習される
+本番実測: **Taste Masters 1件を確定 → 同じ取引先の28件が自動分類**。
+1取引先1回の判断で、その後の全レシートが片付く。これが「取引先マスタが中核」の実装。
+
+```
+初回分類  : カテゴリ73件 + 自社33件、292件は空欄のまま
+1件確定後 : 取引先経由で28件が追加分類 → 未分類 262件
+```
+
+### 画面
+`/admin/finance/documents`（Filing Ledger）。4タブ（要判断／システム判断／確定済／全件）、
+都市フィルタ、レシート画像リンク、科目セレクタ、確定ボタン。
+チャンネル `admin.finance_documents` を登録済み（view / manage）。
+
+### 次の一手（効率が高い順）
+未分類262件のうち **152件は上位5社の食材仕入**。この5社を1回ずつ確定すれば一括で片付く:
+Chef Middle East 59 / Ocean Fisheries 27 / Sunberry 21 / Summit 15 / (Taste Masters 済)
+
+### 併せて修正
+- HR の `.manage` が `.view` と同じ扉しか開いていなかった → 書き込みは `.manage` 必須に。
+  MANILA_MANAGEMENT(4名) は view のみ保有＝**設定どおり書き込み不可**になった（要確認）
+- `audit-dead-permissions.py` のリゾルバ例外が**79チャンネルを免除**していた（`receipt.jpg` まで）
+  → 既知の2つのパス→チャンネル表だけをASTで読む方式に。現在6件（HR系のみ）・監査0件
+
+---
+
 ## ✅ 解決: 本番メモリ枯渇 (2026-08-27) — 原因特定・修正・安定確認
 
 ### 結論
