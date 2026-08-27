@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { channelForRoute } from "@/lib/access-channels";
 import type { LucideIcon } from "lucide-react";
 import {
+  Phone,
   Hand,
   AlertTriangle,
   Siren,
@@ -196,6 +197,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
+  { href: "/my-contact",             label: "My Phone Number",     icon: Phone,         match: "exact" },
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
@@ -224,6 +226,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/security", label: "Security", icon: ShieldAlert, adminOnly: true, match: "prefix" },
   { href: "/admin/handbook", label: "Employee Handbook", icon: BookCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/staff-ranks", label: "Staff Ranks (L0-L10)", icon: TrendingUp, adminOnly: true, match: "prefix" },
+  { href: "/admin/staff/contacts", label: "Emergency Contacts", icon: Phone, adminOnly: true, match: "exact" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" },
@@ -399,6 +402,7 @@ export default function NavBar() {
     if (href === "/admin/absences") return canAccessAbsencesAdmin(auth);
     if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
     if (href === "/admin/staff") return canAccessStaffAdmin(auth);
+    if (href === "/admin/staff/contacts") return canAccessStaffAdmin(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/security") return ["HQ", "ADMIN"].includes(role) || channelAccessForRoute("/admin/security", auth);
     if (href === "/admin/staff-ranks") return canAccessStaffAdmin(auth);
