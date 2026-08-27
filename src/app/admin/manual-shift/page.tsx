@@ -188,8 +188,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     let j: Record<string, unknown> = {};
     try { j = text ? (JSON.parse(text) as Record<string, unknown>) : {}; } catch { /* non-JSON body (e.g. 502 HTML) */ }
-    // FastAPI's detail can be an object (the stale-schedule 409 carries one). Reading
-    // it as a string would surface "[object Object]" to the user.
+    // FastAPI's detail can be an object — the 409s from the whole-week publish paths
+    // (Load from DB, and the old publish a cached tab may still call) carry one.
+    // Reading it as a string would surface "[object Object]" to the user.
     const detail = j?.detail;
     const detailMsg = typeof detail === "string"
       ? detail
@@ -1142,8 +1143,20 @@ export default function ManualShiftPage() {
     if (!branchCode) { setError("Branch not selected"); return; }
     if (!window.confirm(
       `Load shifts from DB for ${labelOf(city, branchCode)} — week of ${weekStart}?\n\n` +
-      `This will replace any existing published shifts for this branch+week.`
+      `This replaces the published schedule for this branch and week.`
     )) return;
+
+    // Unpublished edits are not part of the published week, so the import cannot
+    // touch them — they simply get applied on top the next time anyone publishes,
+    // which quietly undoes part of the import. Say so, and offer the way out.
+    let discardFirst = false;
+    if (unpublishedCells.size > 0) {
+      discardFirst = window.confirm(
+        `This week also has ${unpublishedCells.size} unpublished change${unpublishedCells.size === 1 ? "" : "s"}.\n\n` +
+        `OK — throw them away, so the imported schedule stands as it is.\n` +
+        `Cancel — keep them; they will be applied on top the next time this week is published.`
+      );
+    }
 
     setDbImporting(true);
     setError("");
@@ -1172,6 +1185,14 @@ export default function ManualShiftPage() {
         res = await loadFromDb(true);
       }
       if (!res.ok) { setError("Load from DB failed"); return; }
+      if (discardFirst) {
+        await apiFetch("/api/admin/shifts/discard_week_cells", {
+          method: "POST",
+          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+        });
+        setUnpublishedCells(new Set());
+        setCellEditors({});
+      }
       // publish_from_base writes the published week itself, so there is nothing
       // to carry over -- reload and let the overlay lie back on top.
       const staffOk = await loadStaff();
@@ -1198,7 +1219,8 @@ export default function ManualShiftPage() {
     if (hasExistingData) {
       if (!window.confirm(
         `Load AI Draft shifts into ${labelOf(city, branchCode)} for week of ${weekStart}?\n\n` +
-        `This will overwrite any existing data in the grid for this week. Continue?`
+        `Cells the draft covers are replaced. Cells it does not cover are left alone.\n` +
+        `Nothing reaches the published schedule until you press Publish.`
       )) return;
     }
 
@@ -2068,7 +2090,7 @@ export default function ManualShiftPage() {
           <div className={`${W_CARD} flex flex-col items-center justify-center py-16 text-center`}>
             <div className="mb-3 text-4xl">📅</div>
             <p className="text-sm font-medium text-gray-600">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
-            <p className="mt-1 text-xs text-gray-400">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
+            <p className="mt-1 text-xs text-gray-400">The published schedule loads first, with anyone&rsquo;s unpublished edits laid on top.</p>
           </div>
         )}
 
