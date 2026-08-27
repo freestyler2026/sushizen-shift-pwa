@@ -291,6 +291,13 @@ npx tsc --noEmit
     - 公開週を読み直したら**必ずオーバーレイを貼り直す**。片方だけ読むと未公開セルが公開値に戻って見える。
     - 詳細は `docs/design/manual-shift-cell-level.md`。**publish が差分適用になったので、変わっていない行の `updated_at` は更新されない** — 教訓14の方向としては改善だが DTR Sync は実データで再検証すること。
 
+32. **同じ判定を3か所に手で写すと、ロール一覧が3種類になる** → Manual Shift のシフト変更は3か所で別々のロール一覧を持っていた（`manual_publish`＝HQ/ADMIN/HR_MANAGER＋`channel.admin.staff.manage`、`publish_from_base`＝+MANAGEMENT/MANILA_MANAGEMENT/MANAGER、`delete_published_row`＝HQ/ADMIN/MANAGER/MANILA_MANAGEMENT）。しかも **Role Management が用意している `channel.admin.manual_shift.publish` はどこからも読まれていなかった**（grep で `access_control.py` 以外に出現ゼロ＝完全な死に権限）。実効的な鍵は `channel.admin.staff.manage`（Staff管理用・8ロール保有）で、結果として**約42人が公開済みシフトを書き換えられた**。NavBar も `canAccessAdminNav(auth) || ...` だったため、Manual Shift のトグルをOFFにしても誰も締め出せなかった。（2026-08-27 発覚・修正済み）
+    - 閉じる前に**実績で誰が使っているかを測る**。`shift_publish_log`（1,408件／2026-07-21〜08-27）と `shift_change_events` を集計したところ、publish も delete も**全員 ADMIN か HQ**。よって Staff管理鍵は温存せず削除できた。
+    - **Impersonation で穴の実在を証明してから塞ぐ**（教訓27）。Richard S. Gante（MANILA_MANAGEMENT）で実際にセル書き込みと publish が通ることを確認 → 修正後 403 を確認。
+    - **ADMIN をハードコードしない。** ADMIN は付与済みの `channel.admin.manual_shift.publish` で通す。そうしないとトグルが ADMIN に対して嘘のままになる。HQ だけはハードコード（Channels UI が全チャンネルで HQ を `locked` 表示しているので、それと整合させる）。
+    - **戻し道を用意する**: `heroku config:set SHIFT_EDIT_ALLOW_STAFF_MANAGE=1` で旧鍵を復活（デプロイ不要）。
+    - 締め出される人を**名前で列挙してユーザーに渡す**（今回7名）。「誰も使っていない」で終わらせない。
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 ---
