@@ -4,6 +4,25 @@
 
 import type { NextResponse } from "next/server";
 
+/**
+ * Cookie holding an impersonation token, set by /api/admin/impersonate.
+ *
+ * It has to take precedence over sz_access, or the impersonated session is
+ * silently ignored: every proxy route preferred the cookie, so "Login As"
+ * showed the target's name while still calling the API with the admin's own
+ * credentials. The tool for checking a role setup always reported HQ's view,
+ * which is why nobody noticed the permission system was inert.
+ *
+ * The token it carries is always for the impersonated staff member, so it can
+ * only ever narrow what the caller can do, never widen it.
+ */
+export const IMPERSONATION_COOKIE = "sz_imp";
+
+/** The credential a proxy route should forward: impersonation first. */
+export function sessionToken(req: { cookies: { get(name: string): { value: string } | undefined } }): string | undefined {
+  return req.cookies.get(IMPERSONATION_COOKIE)?.value || req.cookies.get("sz_access")?.value;
+}
+
 export const PROXY_COOKIE_OPTS = {
   httpOnly: true as const,
   secure: true as const,

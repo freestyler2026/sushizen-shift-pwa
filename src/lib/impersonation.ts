@@ -36,7 +36,8 @@ export type ImpersonateResp = {
   city: string;
   city_lock?: string;
   permissions: string[];
-  access_token: string;
+  /** No longer returned to the client — the proxy keeps it in an httpOnly cookie. */
+  access_token?: string;
   impersonated_by: string;
 };
 
@@ -62,7 +63,9 @@ export function startImpersonation(resp: ImpersonateResp): void {
       permissions: current?.permissions || [],
     })
   );
-  // Set the impersonated session (token lives in localStorage, not httpOnly cookie)
+  // The token is NOT stored here — /api/admin/impersonate keeps it in an
+  // httpOnly cookie the proxies prefer over sz_access. localStorage only holds
+  // who is being viewed, so the UI can label itself.
   const impAuth: Auth = {
     staffName: resp.impersonating,
     city: (resp.city === "manila" ? "manila" : "dubai") as "dubai" | "manila",
@@ -71,15 +74,22 @@ export function startImpersonation(resp: ImpersonateResp): void {
         ? resp.city_lock
         : "",
     role: resp.role,
-    accessToken: resp.access_token,
+    accessToken: "",
     hasSession: true,
     permissions: resp.permissions,
   };
   setAuth(impAuth);
 }
 
-export function exitImpersonation(): void {
+export async function exitImpersonation(): Promise<void> {
   if (typeof window === "undefined") return;
+  // Clear the server-side cookie first. If this fails the API would keep
+  // answering as the impersonated staff member while the UI showed the admin.
+  try {
+    await fetch("/api/admin/impersonate", { method: "DELETE", cache: "no-store" });
+  } catch {
+    // Fall through: the cookie expires on its own after four hours.
+  }
   const raw = window.localStorage.getItem(BACKUP_KEY);
   if (!raw) return;
   window.localStorage.removeItem(BACKUP_KEY);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionToken } from "@/lib/proxy-auth";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   // Forward the existing sz_access cookie as Authorization so Heroku can issue
   // a same-or-higher-role token (non-downgrade guard on remint).
-  const existingToken = req.cookies.get("sz_access")?.value;
+  const existingToken = sessionToken(req);
   const clientAuth = req.headers.get("authorization");
   const authHeader = existingToken
     ? `Bearer ${existingToken}`

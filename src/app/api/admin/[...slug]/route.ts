@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { tryRefreshUpstream, setRefreshedCookie } from "@/lib/proxy-auth";
+import { tryRefreshUpstream, setRefreshedCookie, sessionToken, IMPERSONATION_COOKIE } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -20,7 +20,7 @@ type ForwardMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Build auth headers: httpOnly cookie takes precedence, client header is backward-compat fallback. */
 function resolveAuthHeaders(req: NextRequest): Record<string, string> {
-  const access = req.cookies.get("sz_access")?.value;
+  const access = sessionToken(req);
   const session = req.cookies.get("sz_session")?.value;
   const headers: Record<string, string> = {};
   const auth = access ? `Bearer ${access}` : (req.headers.get("authorization") || "");
@@ -55,7 +55,11 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
 
   if (upstream.status === 401) {
     const sid = req.cookies.get("sz_session")?.value || "";
-    const newToken = await tryRefreshUpstream(apiBase, sid);
+    // Never refresh while impersonating: sz_session belongs to the admin,
+    // so refreshing would silently restore their own permissions.
+    const impersonating = Boolean(req.cookies.get(IMPERSONATION_COOKIE)?.value);
+
+    const newToken = impersonating ? null : await tryRefreshUpstream(apiBase, sid);
     if (newToken) {
       upstream = await fetch(upstreamUrl, {
         method,

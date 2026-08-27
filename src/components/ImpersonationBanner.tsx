@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { UserX } from "lucide-react";
 import { exitImpersonation, getImpersonationInfo, type ImpersonationInfo } from "@/lib/impersonation";
 
 export default function ImpersonationBanner() {
-  const router = useRouter();
   const [info, setInfo] = useState<ImpersonationInfo | null>(null);
 
   useEffect(() => {
@@ -21,10 +19,10 @@ export default function ImpersonationBanner() {
 
   if (!info) return null;
 
-  function handleExit() {
-    exitImpersonation();
-    router.push("/admin/staff/roles");
-    // Reload so the page re-reads the restored admin auth
+  async function handleExit() {
+    // Must await: the server cookie has to be cleared before the reload, or the
+    // next page load still calls the API as the impersonated staff member.
+    await exitImpersonation();
     window.location.href = "/admin/staff/roles";
   }
 

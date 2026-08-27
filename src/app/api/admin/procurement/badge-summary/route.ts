@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionToken } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ function buildForwardHeaders(req: NextRequest): HeadersInit {
   // Authorization header, so forwarding only the header left this proxy
   // unauthenticated and the procurement badge permanently blank. Prefer the
   // cookie, exactly like the catch-all admin proxy does.
-  const cookieToken = req.cookies.get("sz_access")?.value || "";
+  const cookieToken = sessionToken(req) || "";
   const clientAuth = req.headers.get("authorization") || "";
   const auth = cookieToken ? `Bearer ${cookieToken}` : clientAuth;
   const sessionId = req.cookies.get("sz_session")?.value || req.headers.get("x-session-id") || "";
