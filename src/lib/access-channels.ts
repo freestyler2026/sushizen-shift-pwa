@@ -120,6 +120,7 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/store/purchase", { channel: "store_direct_purchase", match: "prefix", admin: false }],
   ["/store/receipt-log", { channel: "store_receipt_log", match: "prefix", admin: false }],
   ["/store/receiving", { channel: "store_ck_receiving", match: "prefix", admin: false }],
+  ["/store/report", { channel: "store_report", match: "prefix", admin: false }],
   ["/store/spot-purchase", { channel: "store_spot_purchase", match: "prefix", admin: false }],
   ["/store/supplier-receiving", { channel: "store_supplier_receiving", match: "prefix", admin: false }],
   ["/store/transport-expense", { channel: "store_transport_expense", match: "prefix", admin: false }],
