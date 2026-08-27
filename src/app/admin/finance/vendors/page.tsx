@@ -27,6 +27,12 @@ import {
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
 
+interface OwnTin {
+  city: string;
+  tin: string;
+  label: string;
+}
+
 interface Vendor {
   id: number;
   city: string;
@@ -66,6 +72,9 @@ export default function VendorMasterPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [edits, setEdits] = useState<Record<number, string>>({});
   const [mergeFrom, setMergeFrom] = useState<Vendor | null>(null);
+  const [ownTins, setOwnTins] = useState<OwnTin[]>([]);
+  const [newOwnTin, setNewOwnTin] = useState("");
+  const [newOwnLabel, setNewOwnLabel] = useState("");
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
@@ -87,6 +96,10 @@ export default function VendorMasterPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json();
       setVendors(d.vendors || []);
+      const own = await fetch("/api/admin/finance/own-tax-numbers?city=dubai", {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (own.ok) setOwnTins((await own.json()).rows || []);
     } catch (e) {
       setBanner({ kind: "err", text: `Could not load vendors: ${e}` });
     } finally {
@@ -143,6 +156,39 @@ export default function VendorMasterPage() {
       setBanner({ kind: "err", text: `${v.canonical_name}: ${e instanceof Error ? e.message : e}` });
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function addOwnTin() {
+    setBanner(null);
+    try {
+      const res = await fetch("/api/admin/finance/own-tax-numbers", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city: "dubai", tin: newOwnTin, label: newOwnLabel }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.detail || `HTTP ${res.status}`);
+      }
+      setNewOwnTin("");
+      setNewOwnLabel("");
+      setBanner({ kind: "ok", text: "Added. It will no longer be suggested as a supplier's number." });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `${e instanceof Error ? e.message : e}` });
+    }
+  }
+
+  async function removeOwnTin(tin: string) {
+    try {
+      await fetch(`/api/admin/finance/own-tax-numbers/${encodeURIComponent(tin)}?city=dubai`, {
+        method: "DELETE",
+        headers: getAuthHeaders(getAuth()),
+      });
+      await load();
+    } catch {
+      setBanner({ kind: "err", text: "Could not remove that number." });
     }
   }
 
@@ -417,6 +463,56 @@ export default function VendorMasterPage() {
             </table>
           </div>
         )}
+
+        <div className={GLASS_CARD + " mt-6 p-4"}>
+          <div className={T_LABEL}>Our own tax numbers</div>
+          <p className={T_CAPTION + " mt-1 max-w-3xl leading-relaxed"}>
+            Every supplier invoice prints two: the supplier&rsquo;s at the top, and ours in
+            the box addressed to us (M/S, Bill To). The reader sometimes picks up ours by
+            mistake and offers it as the supplier&rsquo;s number. Numbers listed here are
+            recognised as ours and never suggested.
+          </p>
+
+          {ownTins.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ownTins.map((o) => (
+                <span
+                  key={o.tin}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs"
+                >
+                  <span className="tabular-nums text-zinc-200">{o.tin}</span>
+                  {o.label && <span className="text-zinc-500">{o.label}</span>}
+                  <button
+                    onClick={() => removeOwnTin(o.tin)}
+                    className="text-zinc-600 hover:text-red-300"
+                    title="Remove"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              className="w-44 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-sm tabular-nums text-white outline-none focus:border-violet-500/50"
+              placeholder="15 digits"
+              inputMode="numeric"
+              value={newOwnTin}
+              onChange={(e) => setNewOwnTin(e.target.value.replace(/[^0-9]/g, ""))}
+            />
+            <input
+              className="w-64 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
+              placeholder="Which of our companies (optional)"
+              value={newOwnLabel}
+              onChange={(e) => setNewOwnLabel(e.target.value)}
+            />
+            <button onClick={addOwnTin} disabled={!newOwnTin} className={SMALL_BUTTON}>
+              Add
+            </button>
+          </div>
+        </div>
 
         <div className={T_CAPTION + " mt-4 leading-relaxed"}>
           <strong className="text-zinc-400">Own company</strong> means Sushi ZEN&rsquo;s own
