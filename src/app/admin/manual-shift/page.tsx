@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { getAuth, getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import { getAuth, getAuthHeaders, hasChannelAccess, tryRefreshAccessToken } from "@/lib/auth";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   PRIMARY_BUTTON,
@@ -471,6 +472,20 @@ function dropLegacyWeekDraft(city: string, branch: string, week: string) {
 
 export default function ManualShiftPage() {
   const auth = useMemo(() => getAuth(), []);
+  const router = useRouter();
+
+  // This page had no guard, so the URL opened for anyone signed in — the grid was
+  // empty until the API refused, which reads as a broken page rather than a closed
+  // door. Same rule as the menu: whatever Role Management says.
+  useEffect(() => {
+    const a = getAuth();
+    if (!a) {
+      router.replace("/login?next=%2Fadmin%2Fmanual-shift");
+      return;
+    }
+    if (!hasChannelAccess("admin.manual_shift", ["view", "publish"], a)) router.replace("/");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [city, setCity] = useState<City>((auth?.city as City) || "dubai");
   const [branchCode, setBranchCode] = useState(() => BRANCHES[(auth?.city as City) || "dubai"][0].code);
