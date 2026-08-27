@@ -210,7 +210,21 @@ npx tsc --noEmit
 
 24. **Vercel の Function リクエストボディ上限は約4.3MB — スマホ写真は超える** → 本番で実測: 4000KB→200 / 4400KB→413（`FUNCTION_PAYLOAD_TOO_LARGE`、**text/plain**）。バックエンドが20MBを許可していても、リクエストはそこに到達しない。写真アップロードは必ず `src/lib/image-compress.ts` の `prepareUpload()` でブラウザ側で縮小してから送る。またエラー処理で `res.ok` を見る**前に** `res.json()` を呼ぶと、text/plain の413で例外になり原因が消える。`readError()` を使うこと。
 
-25. **NavBar の表示可否をロール名のベタ書きで判定しない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）のユーザーは `staff_auth.role` が **STAFF** のまま。`["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` ではどれだけ権限にチェックを入れても**永久に false**。`hasChannelAccess("admin.xxx", ["view"], auth)` を `||` で足すこと。バックエンド側の `_require_manage` 相当も同様に `perms` を見る。⚠️ **NavBar.tsx にはまだ同じ書き方が18箇所残っている**（/admin/expense-requests, /admin/nte, /admin/hr/*, /admin/emergency-requests, /admin/price-check, /admin/store-par-levels 等）。「権限を付けたのに入れない」の問い合わせが来たらまずここを疑う。（2026-08-27 Store Supplier Orders で発生）
+25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
+
+26. **アクセス制御は Role Management を唯一の正とする — ロール名判定は「追加の抜け道」としてのみ** → 2026-08-27 に構造修正済み。
+    - `NavBar.canSeeAdminItem()` の末尾は `channelAccessForRoute(href, auth)`。**`return false` に戻してはいけない** — if連鎖に書き忘れたページが全員に見えなくなる（修正前は 76/146 の権限が死んでいた → 現在 14）。
+    - ルート→チャンネル対応は `src/lib/access-channels.ts`（**自動生成・手編集禁止**）。バックエンドの `ACCESS_CHANNELS` を変えたら必ず再生成:
+      ```bash
+      python3 scripts/sync-access-channels.py           # 再生成
+      python3 scripts/sync-access-channels.py --check   # 差分検出（stale なら exit 1）
+      python3 scripts/audit-dead-permissions.py         # 効かない権限を列挙（新チャンネル追加後は必須）
+      ```
+    - バックエンドは `_actor_allows(actor, ROLES, "channel.xxx.view")`（`app/main.py`、`_actor_from_token_request` の隣）。
+    - 新チャンネルの権限キーは**必ず `channel.` 接頭辞付き**。管理UI経由で作られたチャンネルは接頭辞が欠けており、8ロールに付与済みの権限が無効だった（`db.py` の auto-repair INSERT を修正済み）。
+    - グローバルの `admin_auth_gate` は**ログイン済みかを見るだけで、認可はしない**。`/api/admin/*` の各エンドポイントは自前で権限を確認すること（Company Assets の13エンドポイントが全スタッフに開いていた実例あり）。
+    - ⚠️ **残課題: `.manage` 系13権限が未配線**（`audit-dead-permissions.py` が列挙）。`view` は全て有効。
+
 
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
