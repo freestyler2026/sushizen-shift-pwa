@@ -216,13 +216,29 @@ npx tsc --noEmit
     - `proc_po_invoice_checks.photo_data` = **416行で864MB**（最大5.8MB/行）、`proc_receivings.invoice_photo_b64` = **379行で839MB**。
     - `list_pending_po_invoice_checks` がこの2列を **最大500行ぶん** SELECT していた。100行読むだけで one-off dyno が即死（＝完全再現）。web dyno は 1024MB、常時 約295MB。
     - 修正: 一覧は `has_photo_data` / `has_store_invoice_photo` の真偽値だけ返し、画像は開いた1件だけ `GET /api/admin/procurement/po-invoice-checks/{id}/photo` で取る。**148行 +3MB**（修正前は死亡）。
-    - ⚠️ **同じ形の列がまだある**（`qc_reference_images.image_b64` 等）。一覧系で base64 列を引いていないか、新規クエリを書くたびに確認する。
+    - **DB全体を実測して洗い出し済み（2026-08-27）**。100KB/行を超える列は6つだけ:
+      | 列 | 合計 | 最大/行 | 状態 |
+      |---|---:|---:|---|
+      | `proc_po_invoice_checks.photo_data` | 869MB | 5.7MB | 一覧から除外済 |
+      | `proc_audit_logs.after_json` | 860MB | 5.7MB | 828MBが写真のコピー。読み書き両方で除去済 |
+      | `proc_receivings.invoice_photo_b64` | 849MB | 5.7MB | 一覧から除外済 |
+      | `proc_po_invoice_checks.extra_photos` | 13MB | 2.1MB | 小 |
+      | `expense_reimbursement_requests.receipt_image` | 3MB | 0.4MB | 小 |
+      | `policy_documents.file_content` | 2MB | 0.7MB | 小 |
+      再点検するときは `information_schema.columns` から text/jsonb 列を総なめして `MAX(octet_length(...))` を測る（このやり方でこの表を作った）。
+    - **監査ログに画像を入れない**。`_strip_blobs()`（db.py）が `invoice_photo_b64` / `photo_data` / `extra_photos` / `receipt_image` / `image_b64` を書き込み前に落とす。新しい画像列を作ったらこのタプルに足す。
     - 調査手順: `heroku labs:enable log-runtime-metrics` → `sample#memory_total` を追う。**落ちたリクエストはアクセスログに残らない**（uvicornは完了時にしか記録しない）ので、`main.py` の `memory_watch` ミドルウェアが入口/出口でRSSを記録する。閾値は環境変数で**デプロイ不要**に調整可能:
       ```bash
       heroku config:set RSS_ALARM_MB=650 RSS_DELTA_MB=15 -a sushizen-shift-app
       ```
     - ⚠️ **RSSはプロセス全体なので、重い処理と重なっただけのリクエストが濡れ衣を着る**（badge系が "+218MB" と出た）。必ず one-off dyno で単独実測して裏を取ること。
-    - ⚠️ **アップロード口は12箇所以上あり、クライアント圧縮があるのは Store Supplier Orders だけ**。写真1枚で RSS が 38〜50MB 増える（教訓24の `prepareUpload()` を他にも展開する余地がある）。
+    - **画像アップロードは28画面すべてクライアント圧縮済み（2026-08-27）**。`src/lib/image-compress.ts`:
+      | 関数 | 用途 |
+      |---|---|
+      | `prepareUpload(file)` | 画像を長辺2000pxに縮小。PDFは素通し、超過時はエラー |
+      | `prepareDataUrl(file)` | 縮小してから base64 data URL に。**DBに入れる画面はこれ** |
+      | `prepareIfImage(file)` | 画像だけ縮小、xlsx等は素通し。**混在acceptの入力はこれ** |
+      新しいアップロード画面を作ったら必ずどれかを通すこと。
 
 28. **`/api/admin/*` の認可は「まず計測、次に区画ごとに有効化」** → 2026-08-27 導入。471件が認証のみで無防備だったが、一括で塞ぐと現に働いている人を止める。
     - 実装: `app/api_authz.py` + `admin_auth_gate` 内のチェック。APIパス→チャンネルを導出し（`_EXPLICIT` に例外表）、拒否すべき要求を `api_authz_observations` に記録**するだけ**で通す。
