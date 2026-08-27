@@ -207,7 +207,8 @@ type PendingCheck = {
   store_received_by?: string;
   store_code?: string;
   receiving_no?: string;
-  store_invoice_photo?: string;
+  /** The image is fetched separately — see the photo endpoint. */
+  has_store_invoice_photo?: boolean;
 };
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -749,9 +750,16 @@ function QuickEntryTab({
     setLinkSuggestions([]);
     setLinkDismissed(false);
     setShowPoList(false);
-    // Load store-uploaded photo if available
-    const storePhoto = pc.store_invoice_photo || pc.photo_data || "";
-    setPhotos(storePhoto ? [storePhoto] : []);
+    // The list no longer carries the photos: base64 invoice images run to
+    // 5.8MB each and a hundred of them exhausted the server's memory. Fetch
+    // the one belonging to the record just opened.
+    const inlinePhoto = pc.photo_data || "";
+    setPhotos(inlinePhoto ? [inlinePhoto] : []);
+    if (!inlinePhoto && pc.has_store_invoice_photo && pc.id) {
+      apiFetch(`/procurement/po-invoice-checks/${encodeURIComponent(String(pc.id))}/photo`)
+        .then((d) => { if (d?.photo) setPhotos([d.photo]); })
+        .catch(() => { /* the form still works without the photo */ });
+    }
     // Load PO lines if PO number is known
     setInvLineItems([]);
     if (pc.po_no) {
