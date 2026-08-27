@@ -6,7 +6,7 @@ import {
   CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2,
   Plus, RefreshCw, XCircle, Zap, AlertCircle, Banknote,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
@@ -476,7 +476,7 @@ export default function LoansPage() {
   useEffect(() => {
     if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
-    if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role)) {
+    if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role) && !hasRouteAccess("/admin/payroll", auth)) {
       router.replace("/week");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

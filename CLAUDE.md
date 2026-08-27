@@ -210,7 +210,71 @@ npx tsc --noEmit
 
 24. **Vercel の Function リクエストボディ上限は約4.3MB — スマホ写真は超える** → 本番で実測: 4000KB→200 / 4400KB→413（`FUNCTION_PAYLOAD_TOO_LARGE`、**text/plain**）。バックエンドが20MBを許可していても、リクエストはそこに到達しない。写真アップロードは必ず `src/lib/image-compress.ts` の `prepareUpload()` でブラウザ側で縮小してから送る。またエラー処理で `res.ok` を見る**前に** `res.json()` を呼ぶと、text/plain の413で例外になり原因が消える。`readError()` を使うこと。
 
-25. **NavBar の表示可否をロール名のベタ書きで判定しない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）のユーザーは `staff_auth.role` が **STAFF** のまま。`["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` ではどれだけ権限にチェックを入れても**永久に false**。`hasChannelAccess("admin.xxx", ["view"], auth)` を `||` で足すこと。バックエンド側の `_require_manage` 相当も同様に `perms` を見る。⚠️ **NavBar.tsx にはまだ同じ書き方が18箇所残っている**（/admin/expense-requests, /admin/nte, /admin/hr/*, /admin/emergency-requests, /admin/price-check, /admin/store-par-levels 等）。「権限を付けたのに入れない」の問い合わせが来たらまずここを疑う。（2026-08-27 Store Supplier Orders で発生）
+25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
+
+30. **Driveのファイルは「アップロードしたサービスアカウント」でしか読めない** → 2026-08-27 に発生。レシートは用途ごとに別のSAでアップロードされている（petty cash / receipt log = `procurement_drive_chain`、請求書 = `Dubai_Discord_Invoice_Json`）。他方のSAで読むと **404 File not found**（権限エラーではないので原因が分かりにくい）。`app/services/receipt_ocr.py` の `_drive_services()` が複数の認証を順に試す。新しいDrive保存先を追加したら、この関数にも足すこと。
+
+29. **画像を base64 で DB に持つ列を、一覧クエリで SELECT しない** → 2026-08-27 に本番を3回落とした原因。
+    - `proc_po_invoice_checks.photo_data` = **416行で864MB**（最大5.8MB/行）、`proc_receivings.invoice_photo_b64` = **379行で839MB**。
+    - `list_pending_po_invoice_checks` がこの2列を **最大500行ぶん** SELECT していた。100行読むだけで one-off dyno が即死（＝完全再現）。web dyno は 1024MB、常時 約295MB。
+    - 修正: 一覧は `has_photo_data` / `has_store_invoice_photo` の真偽値だけ返し、画像は開いた1件だけ `GET /api/admin/procurement/po-invoice-checks/{id}/photo` で取る。**148行 +3MB**（修正前は死亡）。
+    - **DB全体を実測して洗い出し済み（2026-08-27）**。100KB/行を超える列は6つだけ:
+      | 列 | 合計 | 最大/行 | 状態 |
+      |---|---:|---:|---|
+      | `proc_po_invoice_checks.photo_data` | 869MB | 5.7MB | 一覧から除外済 |
+      | `proc_audit_logs.after_json` | 860MB | 5.7MB | 828MBが写真のコピー。読み書き両方で除去済 |
+      | `proc_receivings.invoice_photo_b64` | 849MB | 5.7MB | 一覧から除外済 |
+      | `proc_po_invoice_checks.extra_photos` | 13MB | 2.1MB | 小 |
+      | `expense_reimbursement_requests.receipt_image` | 3MB | 0.4MB | 小 |
+      | `policy_documents.file_content` | 2MB | 0.7MB | 小 |
+      再点検するときは `information_schema.columns` から text/jsonb 列を総なめして `MAX(octet_length(...))` を測る（このやり方でこの表を作った）。
+    - **監査ログに画像を入れない**。`_strip_blobs()`（db.py）が `invoice_photo_b64` / `photo_data` / `extra_photos` / `receipt_image` / `image_b64` を書き込み前に落とす。新しい画像列を作ったらこのタプルに足す。
+    - 調査手順: `heroku labs:enable log-runtime-metrics` → `sample#memory_total` を追う。**落ちたリクエストはアクセスログに残らない**（uvicornは完了時にしか記録しない）ので、`main.py` の `memory_watch` ミドルウェアが入口/出口でRSSを記録する。閾値は環境変数で**デプロイ不要**に調整可能:
+      ```bash
+      heroku config:set RSS_ALARM_MB=650 RSS_DELTA_MB=15 -a sushizen-shift-app
+      ```
+    - ⚠️ **RSSはプロセス全体なので、重い処理と重なっただけのリクエストが濡れ衣を着る**（badge系が "+218MB" と出た）。必ず one-off dyno で単独実測して裏を取ること。
+    - **画像アップロードは28画面すべてクライアント圧縮済み（2026-08-27）**。`src/lib/image-compress.ts`:
+      | 関数 | 用途 |
+      |---|---|
+      | `prepareUpload(file)` | 画像を長辺2000pxに縮小。PDFは素通し、超過時はエラー |
+      | `prepareDataUrl(file)` | 縮小してから base64 data URL に。**DBに入れる画面はこれ** |
+      | `prepareIfImage(file)` | 画像だけ縮小、xlsx等は素通し。**混在acceptの入力はこれ** |
+      新しいアップロード画面を作ったら必ずどれかを通すこと。
+
+28. **`/api/admin/*` の認可は「まず計測、次に区画ごとに有効化」** → 2026-08-27 導入。471件が認証のみで無防備だったが、一括で塞ぐと現に働いている人を止める。
+    - 実装: `app/api_authz.py` + `admin_auth_gate` 内のチェック。APIパス→チャンネルを導出し（`_EXPLICIT` に例外表）、拒否すべき要求を `api_authz_observations` に記録**するだけ**で通す。
+    - 環境変数:
+      ```bash
+      heroku config:get ADMIN_AUTHZ_MODE -a sushizen-shift-app     # 未設定=log（既定・無害）
+      heroku config:set ADMIN_AUTHZ_ENFORCE=/api/admin/inventory -a sushizen-shift-app  # 区画ごとに有効化
+      heroku config:set ADMIN_AUTHZ_MODE=enforce -a sushizen-shift-app
+      ```
+      **enforce は `ADMIN_AUTHZ_ENFORCE` に列挙したプレフィックスにしか効かない。** 戻すのは config を消すだけ（デプロイ不要）。
+    - 確認: `GET /api/admin/authz-survey`（`admin.security` 権限が必要）。**有効化する前に必ず読む** — その業務を実際にしている人の名前が出ている行は、有効化すればその人が止まる。
+    - マッピングできないサブツリーは**推測せず素通り**させる。誤った推測で締め出す方が有害。
+    - 計測は絶対にリクエストを壊してはいけない（全体を try で囲み、例外はログのみ）。
+
+27. **権限の検証は Impersonation（Login As）で行う — 合成トークンでは嘘の結果が出る** → 2026-08-27 に修正。
+    - `/admin/staff/roles` の "Login As" → 対象者として本番を操作できる。終了は上部バナーの Exit。
+    - トークンは **httpOnly Cookie `sz_imp`**（`/api/admin/impersonate` が発行）。JSからは読めない。プロキシは `sz_imp` → `sz_access` の順で採用する。
+    - **プロキシで Cookie を読む箇所は `sessionToken(req)`（`src/lib/proxy-auth.ts`）を使う。** 各ルートで `req.cookies.get("sz_access")` を直に読むと impersonation が効かなくなる（20ルートが該当していた。教訓19と同じ罠）。
+    - Impersonation 中は **401の自動リフレッシュを行わない**（`sz_session` は管理者のもので、リフレッシュすると管理者権限に戻る）。多重 impersonation も409で拒否。ログアウトは `sz_imp` も消す。
+    - ⚠️ **`issue_access_token(role="STAFF", ...)` で自作したトークンで検証してはいけない。** カスタムロールの実トークンは `role` に解決済みのロール名（`INVENTORY_PURCHASING` 等）が入る。role="STAFF" で作ると通ってしまい、実ユーザーが403になるバグを見逃す（実際に `store_supplier_api._require_view` の不具合を見逃した）。
+
+26. **アクセス制御は Role Management を唯一の正とする — ロール名判定は「追加の抜け道」としてのみ** → 2026-08-27 に構造修正済み。
+    - `NavBar.canSeeAdminItem()` の末尾は `channelAccessForRoute(href, auth)`。**`return false` に戻してはいけない** — if連鎖に書き忘れたページが全員に見えなくなる（修正前は 76/146 の権限が死んでいた → 現在 14）。
+    - ルート→チャンネル対応は `src/lib/access-channels.ts`（**自動生成・手編集禁止**）。バックエンドの `ACCESS_CHANNELS` を変えたら必ず再生成:
+      ```bash
+      python3 scripts/sync-access-channels.py           # 再生成
+      python3 scripts/sync-access-channels.py --check   # 差分検出（stale なら exit 1）
+      python3 scripts/audit-dead-permissions.py         # 効かない権限を列挙（新チャンネル追加後は必須）
+      ```
+    - バックエンドは `_actor_allows(actor, ROLES, "channel.xxx.view")`（`app/main.py`、`_actor_from_token_request` の隣）。
+    - 新チャンネルの権限キーは**必ず `channel.` 接頭辞付き**。管理UI経由で作られたチャンネルは接頭辞が欠けており、8ロールに付与済みの権限が無効だった（`db.py` の auto-repair INSERT を修正済み）。
+    - グローバルの `admin_auth_gate` は**ログイン済みかを見るだけで、認可はしない**。`/api/admin/*` の各エンドポイントは自前で権限を確認すること（Company Assets の13エンドポイントが全スタッフに開いていた実例あり）。
+    - ⚠️ **残課題: `.manage` 系13権限が未配線**（`audit-dead-permissions.py` が列挙）。`view` は全て有効。
+
 
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 

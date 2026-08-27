@@ -16,7 +16,7 @@ import {
   Building2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, hasRouteAccess } from "@/lib/auth";
 import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD,
@@ -744,7 +744,7 @@ export default function PriceCheckPage() {
       return;
     }
     const role = auth.role || "";
-    if (!["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role)) {
+    if (!["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) && !hasRouteAccess("/admin/price-check", auth)) {
       router.replace("/admin");
       return;
     }

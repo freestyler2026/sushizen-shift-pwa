@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, Minus, X, ChevronRight, ChevronLeft } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -890,7 +890,7 @@ export default function HrSeparationPage() {
       const resolved = await refreshAuthFromApi(raw);
       const a = resolved || raw;
       const role = String(a?.role || "").toUpperCase();
-      if (!ALLOWED_ROLES.includes(role)) {
+      if (!ALLOWED_ROLES.includes(role) && !hasRouteAccess("/admin/hr/separation", a)) {
         router.replace("/week");
         return;
       }

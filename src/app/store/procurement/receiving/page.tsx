@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import Link from "next/link";
 import { Ban, Camera, CheckCircle2, Circle, Clock, ExternalLink, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw, X } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
@@ -294,7 +295,7 @@ export default function StoreProcurementReceivingPage() {
         const formData = new FormData();
         formData.append("approver_name", requestedBy.trim());
         formData.append("pin", pin.trim());
-        formData.append("file", files[i]);
+        formData.append("file", await prepareUpload(files[i]));
         const res = await fetch(endpoint, { method: "POST", body: formData });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

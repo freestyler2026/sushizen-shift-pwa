@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionToken } from "@/lib/proxy-auth";
 
 /** AI Pro can exceed default serverless limits; stream from Heroku without buffering the full body. */
 export const maxDuration = 120;
@@ -16,7 +17,7 @@ function getApiBase(): string {
 
 /** Phase 3: sz_access httpOnly cookie takes precedence; fall back to client Authorization header. */
 function resolveAuthHeaders(req: NextRequest): Record<string, string> {
-  const access = req.cookies.get("sz_access")?.value;
+  const access = sessionToken(req);
   const session = req.cookies.get("sz_session")?.value;
   const headers: Record<string, string> = {};
   const auth = access ? `Bearer ${access}` : (req.headers.get("authorization") || "");

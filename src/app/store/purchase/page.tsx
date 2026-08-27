@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prepareUpload } from "@/lib/image-compress";
 import { canAccessProcurementAdmin, getAuth } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -301,7 +302,7 @@ export default function StorePurchasePage() {
       fd.append("vendor_name", vendorName.trim());
       fd.append("request_date", requestDate);
       fd.append("items_json", JSON.stringify(payload));
-      if (photoFile) fd.append("file", photoFile);
+      if (photoFile) fd.append("file", await prepareUpload(photoFile));
 
       const res  = await fetch("/api/admin/procurement/direct-purchase", {
         method: "POST",

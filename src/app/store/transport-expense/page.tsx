@@ -11,6 +11,7 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -116,7 +117,7 @@ function ReceiptUploadPanel({
       form.append("amount", String(amt));
       form.append("description", desc);
       form.append("uploaded_by", expense.staff_name);
-      if (file) form.append("file", file);
+      if (file) form.append("file", await prepareUpload(file));
 
       const headers = getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"];

@@ -3,6 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
 import {
@@ -796,7 +797,7 @@ export default function DisposalPage() {
         for (const file of photoFiles) {
           try {
             const form = new FormData();
-            form.append("photo", file);
+            form.append("photo", await prepareUpload(file));
             form.append("city", city);
             form.append("branch_code", branchCode);
             form.append("report_date", reportDate);

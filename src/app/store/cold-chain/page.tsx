@@ -15,7 +15,8 @@ import {
   Camera,
   X,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { prepareUpload } from "@/lib/image-compress";
+import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -375,10 +376,10 @@ function DispatchForm({ city }: { city: string }) {
         const fd = new FormData();
         fd.append("city",          city);
         fd.append("dispatch_date", dispatchDate);
-        fd.append("file",          photoFile);
+        fd.append("file",          await prepareUpload(photoFile));
         await fetch(`/api/store/cold-chain/dispatch/${dispatchId}/photo`, {
           method: "POST",
-          headers: getAuthHeaders(),
+          headers: getUploadHeaders(),
           body: fd,
           cache: "no-store",
         }).catch(() => {}); // non-fatal

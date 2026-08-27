@@ -59,6 +59,331 @@ amount_excl_tax / tax_amount / tax_rate_pct
 
 ---
 
+## ✅ Completed: Role Management を唯一の正にする構造修正 (2026-08-27)
+
+### 発見
+`NavBar.canSeeAdminItem()` の末尾が `return false`。**if連鎖に載っていない管理ページは、
+権限に何をチェックしても HQ/ADMIN 以外に永久に見えない**。実測で
+**Role Management が表示する146権限のうち76が、コードから一度も読まれていなかった**。
+
+### 3つの独立した欠陥
+1. **NavBar の `return false`** — 未登録ページが全滅（/admin/finance/vendors, /admin/backup,
+   /admin/disposal, /admin/business-events, /admin/handbook 等）
+2. **接頭辞なし権限キー** — `db.py` の auto-repair INSERT が `ac.channel_key || '.view'` を生成。
+   `channel.` が付かず永久に一致しない。管理UI経由で作った全チャンネルが該当。
+   実DBに4件、うち `admin.hr_policy_docs.view`（8ロール）/ `ck_delivery.view`（7ロール）は付与済みで無効だった
+3. **チャンネル未登録** — `/admin/nte` と `/admin/mgmt-accounting` はチャンネル自体が無く、制御不能
+
+### 修正
+| 層 | 内容 |
+|---|---|
+| 生成 | `scripts/sync-access-channels.py` → `src/lib/access-channels.ts`（route→channel、112件） |
+| NavBar | 末尾を `channelAccessForRoute(href, auth)` に。既存18ロールリストは `\|\|` で追加的に温存 |
+| ページ | ロール名だけでリダイレクトしていた10ガードに権限経路を追加 |
+| バックエンド | `_actor_allows(actor, ROLES, perm)` を導入。expense_requests / overtime / spot_purchase / baseroll / store_supplier に適用 |
+| キー生成 | auto-repair INSERT に `'channel.' ||` を追加。既存3件は付与ごと移行 |
+| カタログ | `admin.nte` / `admin.mgmt_accounting` を登録 |
+| 点検 | `scripts/audit-dead-permissions.py`（死んだ権限を列挙、CIに使える exit code） |
+
+**死んだ権限 76 → 14**（残りは全て `.manage` 系＋`payroll.view_salary`）。
+
+### ⚠️ 副作用 — 45組が新たに到達可能に
+既に付与済みだが無効だった権限が一斉に有効化される。**ユーザーの確認待ち**:
+HR_STAFF(6名)→HR系9ページ / INVENTORY_PURCHASING(31名)→backup,baseroll,disposal,emergency,hr_policy_docs /
+MANILA_MANAGER(2名)→backup,baseroll,disposal,overtime,spot_purchase / MANILA_MANAGEMENT(4名)→management系,vendors 等
+
+### 併せて発見・修正
+- **Company Assets の13エンドポイントに認可が無かった** — グローバル `admin_auth_gate` は
+  ログイン確認のみ。一般STAFFのトークンで全資産の取得に成功（DELETE も同様に開いていた）。
+  実測で確認 → `channel.admin.assets.view/.manage` を要求するよう修正、修正後403を確認
+- **Impersonation（Login As）が機能していない** — Nextプロキシが `sz_access` Cookie を
+  Authorization ヘッダーより優先するため、なりすまし用トークンが常に無視される。
+  結果、「相手として見ている」つもりで実際はHQ権限のまま。**未修正・要判断**
+- `payroll.view_salary`（"View Salary Amounts"）はどこからも読まれていない。
+  給与マスクは `_SALARY_PATH_PREFIXES` ミドルウェアがHQロールで判定しており、この権限は飾り。付与ロールは0
+
+### 追加対応 (同日) — 効かない権限を 0 に
+`audit-dead-permissions.py` 自体が2度嘘をついていた:
+1. `startswith("channel.admin.hr")` によるプレフィックス判定を読めず、HR系4件を誤って「死んでいる」と報告
+2. プレフィックスを教えたら今度は `startswith("channel.admin.")`（全admin権限に一致）を信用し、全件を「生きている」と報告
+3. `_require_channel(request, "admin.xxx")` の実行時キー生成も読めなかった
+
+正味の残り10件を配線:
+| 権限 | 対応 |
+|---|---|
+| ar_payouts.manage | 7エンドポイントに認可が無かった → `_require_channel` |
+| business_events.manage | インラインのロール名判定 → 追加的に |
+| emergency_requests.manage | badge-count に認可なし → 追加 |
+| supplier_confirmations.manage | badge に認可なし → 追加 |
+| handbook.manage | `_require_hq_admin_actor` → `_require_channel` |
+| employee_cases.manage | 書き込み11件が `.view` だけを見ていた → `_require_manage` を新設し適用 |
+| nte.manage | `_require_hr`（ロール名のみ）→ 追加的に |
+| store_par_levels.manage | Store Par Levels は supplier catalog API を使うため `store_supplier_api._require_manage` で受理 |
+| payroll.view_salary | `_is_hq()` に権限判定を追加。説明文が謳っていた挙動が初めて本当になった |
+| discord_alerts.manage | **削除**。対象はPIN認証で守られており、トグルで開けられない。付与ロール0 |
+
+⚠️ **NTE書き込みで3ロールが権限を失うところだった** → 現状維持のため
+`DUBAI_MANAGEMENT` / `MANILA_MANAGEMENT` / `MANILA_MANAGER` に `employee_cases.manage` を明示付与。
+不要なら Role Management で外せる（今度は本当に効く）。
+
+**`audit-dead-permissions.py` → 0件 / exit 0。**
+
+### 🔴 未対応の重大事項: /api/admin/* の認可欠落 471件
+グローバルの `admin_auth_gate` は**ログイン済みかを見るだけ**。実測（無権限STAFFのトークン）:
+```
+GET /api/admin/inventory/items  → 200 全件
+GET /api/admin/mgmt/overhead    → 200
+```
+内訳: 総数1319（書き込み700）のうち **認可なし471（書き込み257）**。
+上位: inventory 118 / menu 102 / attendance 44 / payroll 38 / mgmt 37 / management 31。
+
+**提案（未実施・要判断）**: `admin_auth_gate` に認可層を足し、APIパス→チャンネルの対応から
+`channel.<ck>.view/.manage` を要求する。ただし**まず log モード**で「拒否されるはずだった要求」を
+記録し、ログが綺麗になったプレフィックスから順に enforce へ切り替える。
+471件を一括で塞ぐと、現に使えている人を締め出す事故が起きる。
+
+### ✅ Impersonation（Login As）修正 — 検証手段の回復
+プロキシ20ルートが `req.cookies.get("sz_access")` を直読みし、Cookie を Authorization ヘッダーより
+優先していたため、localStorage の impersonation トークンが**全リクエストで無視**されていた。
+結果「相手の名前は出るが権限はHQのまま」。**権限システムが死んでいたことに誰も気づけなかった直接の原因。**
+
+| 対応 | 内容 |
+|---|---|
+| トークンの置き場 | localStorage → **httpOnly Cookie `sz_imp`**（JSから読めない） |
+| 優先順位 | `sessionToken(req)` を共有ヘルパー化し、20ルートを一括で切替（教訓19の罠を回避） |
+| 401リフレッシュ | impersonation 中は**行わない**（`sz_session` は管理者のもの＝権限が戻ってしまう） |
+| 多重 impersonation | 409で拒否（監査ログが無意味になるため） |
+| ログアウト | `sz_imp` も消す |
+| Exit | サーバ側Cookieを先に消してからリロード |
+
+**本番で実測（Alexandra Lim / INVENTORY_PURCHASING）:**
+```
+修正前: 管理メニュー 72件 / API identity = Yukihiro (HQ)
+修正後: 管理メニュー 21件 / API identity = Alexandra Lim
+        持つ権限   store-supplier orders 200, supplier emails 200
+        持たない   assets 403, ar-payouts 403
+Exit後: 72件 / identity = Yukihiro に復帰
+```
+
+🔴 **この検証で新たなバグを1件発見・修正**: `store_supplier_api._require_view` が
+ロール名のみで判定しており、`INVENTORY_PURCHASING`（31名）を403で弾いていた。
+**以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
+→ 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
+
+## ✅ Completed: レシートOCR (2026-08-27)
+
+### 実装
+`app/services/receipt_ocr.py`。既存の請求書OCRを再利用し、**2つの保存形式**に対応:
+- Google Drive リンク（petty cash 141 / receipt log 8）
+- base64 data URL（staff reimbursement 9 — 行に直接埋め込み）
+
+🔴 **落とし穴**: レシートは**所有するサービスアカウントが違うDrive**に散らばっている。
+petty cash は `procurement_drive_chain`、請求書は `Dubai_Discord_Invoice_Json`。
+最初は請求書用の認証で読もうとして **petty cash 全件が404**。
+→ 複数の認証を順に試す方式に修正。
+
+### 読み取り結果は元データと分離
+`ocr_*` 列に格納。`register_fin_documents` が元テーブルから再取得しても消えず、
+人が確定した分類も上書きしない。**事実（元画面の申告）／事実（レシートの実物）／判断（分類）が三層**。
+
+### 精度（実測）
+| 入力元 | 済 | 金額一致 | 店名取得 | TRN取得 |
+|---|---:|---:|---:|---:|
+| Supplier invoice | 92 | **71/71 完全一致** | 71 | 67 |
+| Petty cash | 24 | 9/11 | 7 | 0 |
+
+TRN は 82/124件で取得。
+
+### 分類への効果
+- **TRNで取引先を特定**する経路を追加（名前は綴り、番号は識別子）
+- petty cash の `vendor_name` はスタッフが打った「目的」なので、
+  **レシートから読んだ店名**の方を優先してマスタに当てる
+- 実測: TRANSPORT が 24→42件（+18）に自動分類された
+
+### 🔴 副次的に見つかった価値: 申告額とレシートの不一致
+```
+468.00 請求 ← レシートは 243.00 (Move It Mottotaxi)
+778.00 請求 ← レシートは 119.00
+```
+現時点で4件。往復の片道だけ撮影したケースが多いと思われるが、**人が見るべき情報**。
+台帳に「receipt says ○○」と並記する形で表示（判定はしない）。
+
+### 定期実行
+worker に `run_filing_ledger` を追加、**毎時**「取り込み → OCR → 分類」の順で実行。
+順序が重要（読んでから分類しないと取引先が特定できない）。稼働確認済み。
+
+### 進捗
+118/398件が読み取り済み。残りはバッチとワーカーで自動的に消化される。
+
+---
+
+## ✅ Completed: Phase 1台帳 + Phase 2分類 (2026-08-27)
+
+### fin_documents — 証憑台帳（Phase 1 の残り）
+**元テーブルには一切書き戻さない**参照専用。スタッフの入力画面は変えない。
+
+| 入力元 | 件数 |
+|---|---:|
+| Supplier invoice (Drive) | 240 |
+| Petty cash | 141 |
+| Store receipt log | 8 |
+| Staff reimbursement | 9 |
+| **合計** | **398** |
+
+`(source_table, source_id)` で参照、content hash で変更検知、冪等。
+
+### 分類（Phase 2）
+判断の根拠を**信頼できる順**に3段階。**推測はしない**:
+1. 取引先の既定科目（人が決めたもの）→ `high`
+2. 元画面でスタッフが選んだカテゴリ → `medium`
+3. どちらも無ければ**空欄のまま**人に回す
+
+自社（`is_internal`）は社内移動として `INTERNAL`。二重計上を防ぐ。
+`account_master.tax_account_code` 経由で **BIR の申告行**まで決まる。
+
+### 🔑 確定は取引先に学習される
+本番実測: **Taste Masters 1件を確定 → 同じ取引先の28件が自動分類**。
+1取引先1回の判断で、その後の全レシートが片付く。これが「取引先マスタが中核」の実装。
+
+```
+初回分類  : カテゴリ73件 + 自社33件、292件は空欄のまま
+1件確定後 : 取引先経由で28件が追加分類 → 未分類 262件
+```
+
+### 画面
+`/admin/finance/documents`（Filing Ledger）。4タブ（要判断／システム判断／確定済／全件）、
+都市フィルタ、レシート画像リンク、科目セレクタ、確定ボタン。
+チャンネル `admin.finance_documents` を登録済み（view / manage）。
+
+### 次の一手（効率が高い順）
+未分類262件のうち **152件は上位5社の食材仕入**。この5社を1回ずつ確定すれば一括で片付く:
+Chef Middle East 59 / Ocean Fisheries 27 / Sunberry 21 / Summit 15 / (Taste Masters 済)
+
+### 併せて修正
+- HR の `.manage` が `.view` と同じ扉しか開いていなかった → 書き込みは `.manage` 必須に。
+  MANILA_MANAGEMENT(4名) は view のみ保有＝**設定どおり書き込み不可**になった（要確認）
+- `audit-dead-permissions.py` のリゾルバ例外が**79チャンネルを免除**していた（`receipt.jpg` まで）
+  → 既知の2つのパス→チャンネル表だけをASTで読む方式に。現在6件（HR系のみ）・監査0件
+
+---
+
+## ✅ 解決: 本番メモリ枯渇 (2026-08-27) — 原因特定・修正・安定確認
+
+### 結論
+**`list_pending_po_invoice_checks` が base64 画像列を最大500行ぶん SELECT していた。**
+
+| 列 | 件数 | 合計 | 最大/行 |
+|---|---:|---:|---:|
+| `proc_po_invoice_checks.photo_data` | 416 | **864 MB** | 5.8 MB |
+| `proc_receivings.invoice_photo_b64` | 379 | **839 MB** | 5.8 MB |
+
+web dyno は 1024MB・常時約295MB。100行読むだけで **one-off dyno が即死**（完全再現）。
+
+### 修正と実測
+一覧は真偽値のみ返し、画像は開いた1件だけ個別取得（`GET /api/admin/procurement/po-invoice-checks/{id}/photo`）。
+
+```
+修正前: limit=100 → プロセス死亡
+修正後: limit=200 / 148件 → +3MB
+本番:   295〜302MB で平坦、R14/R15 ゼロ、クラッシュ ゼロ
+```
+
+### 私の変更は原因ではなかった（証拠）
+2回目のクラッシュ時 `ADMIN_AUTHZ_MODE=off`（＝新規コードはホットパス外）。
+80並列バースト +25MB、給与エンドポイント +2MB、`my_month` +1MB と個別に実測して除外済み。
+
+### 恒久的な計測を残した
+`main.py` の `memory_watch` ミドルウェア。**落ちたリクエストはアクセスログに残らない**（uvicornは完了時にしか記録しない）ため、入口/出口でRSSを記録する。閾値はデプロイ不要で調整可:
+```bash
+heroku config:set RSS_ALARM_MB=650 RSS_DELTA_MB=15 -a sushizen-shift-app
+```
+⚠️ RSSはプロセス全体なので、重い処理と重なったリクエストが濡れ衣を着る（badge系が"+218MB"と誤表示）。必ず単独実測で裏を取る。
+
+### 残る同型リスク
+- 他の base64 列（`qc_reference_images.image_b64` 等）を一覧で引いていないか
+- **アップロード口12箇所以上のうち、クライアント圧縮があるのは Store Supplier Orders だけ**。写真1枚でRSSが38〜50MB増える（教訓24の `prepareUpload()` を展開する余地）
+
+---
+
+## 🔴 本番停止の記録 (2026-08-27 11:38–11:41 / 12:01–12:05 / 12:35 GST)
+
+**R15 — Memory quota vastly exceeded**: web dyno が `mem=2162M(211.2%)` で SIGKILL。
+`heroku ps:restart web` で復旧。**原因は未特定。**
+
+| 事実 | |
+|---|---|
+| 発生 | 11:38:28（v2294 デプロイの95秒後） |
+| 通常時のメモリ | **約300MB / 1024MB**（計測有効化後に確認） |
+| クラッシュ時 | 2162MB — 短時間で約1.8GB増えた＝リークではなく**単発の重い処理**の形 |
+| 私の新規コード | `api_authz` サーベイ。バッファは1500キー上限・名前10件上限で、**1.8GB確保する仕組みが無い** |
+
+**帰属できないので、断定せず切り分けを優先した:**
+1. `heroku labs:enable log-runtime-metrics` — 次回の証拠を取れるようにした
+2. `ADMIN_AUTHZ_MODE=off` — 新規コードをホットパスから外した
+3. OFF状態で **300MB安定・クラッシュ0** を確認（＝ベースライン取得）
+
+⚠️ **サーベイは OFF のまま。再開はユーザー判断**（できれば業務時間外に、メモリを監視しながら）。
+再開前に、ロック保持中のDB I/Oは解消済み（`maybe_flush` を lock 外に）。
+
+CLAUDE.md 教訓12（openpyxl が `max_row`=1,048,576 で巨大化）が同種の症状。
+Excel処理系が犯人の可能性があるが、当時のログに該当リクエストは見当たらなかった。
+
+---
+
+### ✅ 認可欠落471件 — 計測層を導入（現在 OFF）
+`app/api_authz.py` + `admin_auth_gate`。APIパスからチャンネルを導出し、拒否すべき要求を
+`api_authz_observations` に記録**するだけ**。挙動は不変（本番実測で確認済み）。
+
+```
+無権限STAFF  /api/admin/inventory/items  → 200（変化なし）
+無権限STAFF  /api/admin/assets           → 403（既に閉じた箇所は閉じたまま）
+HQ           全て 200
+```
+
+**稼働30分未満で、一括enforceが事故になる証拠が出た:**
+| HITS | PATH | ROLE / 誰 |
+|---:|---|---|
+| 5 | `/api/admin/payments/badge-count` | STAFF / Mary Jane Tegerero, Regine L. Pedernal |
+| 2 | `/api/admin/supplier-confirmations/badge` | MANILA_MANAGEMENT / Richard S. Gante |
+| 1 | `/api/admin/price-check/flagged-count` | MANILA_MANAGEMENT / Richard S. Gante |
+
+Richard S. Gante は Manila Management で、supplier-confirmations も price-check も
+本来使う業務。**一括で塞いでいたらこの人が止まっていた。**
+
+**有効化の手順（ユーザー判断）:**
+1. `GET /api/admin/authz-survey` を読む（`admin.security` 権限）
+2. その区画に「正当な利用者」が出ていないことを確認
+3. `ADMIN_AUTHZ_ENFORCE=/api/admin/xxx` + `ADMIN_AUTHZ_MODE=enforce` を設定
+4. 問題があれば config を消すだけで即戻る（デプロイ不要）
+
+### ✅ Role Management の抜け道を封鎖 (2026-08-27)
+「admin権限を1つでも持てば通る」判定を廃止。ユーザー意図＝**閲覧権限は Role Management で全制御**。
+
+| 箇所 | 修正前 | 影響していた人数 |
+|---|---|---|
+| `renewals_api.py` | `startswith("channel.admin.")` | 52名が通る / 正当な保有は**5名のみ** |
+| `discord_api.py` | 同上 | 同様 |
+| `main.py _hr_auth_check` | `startswith("channel.admin.hr")` | **34名がHR権限0で** recruitment / onboarding / reviews / separations に到達 |
+
+34名の経路は `hr_policy_docs.view`（8ロールに付与）。HRはパスから**ページ単位で**チャンネルを解決するようにした。
+
+本番実測:
+```
+HR_STAFF             hr/requisitions 200  hr/separations 200   ← 正当な保有者は不変
+MANILA_MANAGEMENT    hr/requisitions 200
+INVENTORY_PURCHASING hr/requisitions 403  hr/policy-docs 200   ← 抜け道のみ封鎖、正当な分は維持
+```
+
+### 残課題
+- サーベイ再開の判断とメモリ問題の追跡
+- 区画ごとの enforce 切り替え（データが溜まってから）
+- badge系エンドポイントは NavBar が全員分ポーリングしている。権限で隠すなら
+  クライアント側も同じ権限で判定しないと403ノイズになる
+- `renewals_api.py` / `discord_api.py` の `startswith("channel.admin.")` が過度に広い
+  — admin権限を1つでも持てば通る（例: Disposal閲覧権限だけで Renewals に入れる）
+
+---
+
 ## ✅ Completed: 申告科目リスト — BIR 35行を登録 (2026-08-27)
 
 **「会計事務所の科目表待ち」は誤り。** マニラは BIR Form 1702-RT の Schedule 4 に

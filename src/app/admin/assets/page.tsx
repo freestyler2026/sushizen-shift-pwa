@@ -7,7 +7,7 @@ import {
   AlertTriangle, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight,
   Camera, ClipboardCheck, Wrench, FileText, Star,
 } from "lucide-react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
@@ -963,7 +963,7 @@ export default function AssetsPage() {
       const resolved = await refreshAuthFromApi(raw);
       const a = resolved || raw;
       const role = String(a?.role || "").toUpperCase();
-      if (!ALLOWED_ROLES.includes(role)) return;
+      if (!ALLOWED_ROLES.includes(role) && !hasRouteAccess("/admin/assets", auth)) return;
       setAllowed(true);
       setCity(String(a?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
     }

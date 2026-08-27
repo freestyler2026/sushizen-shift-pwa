@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionToken } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ const COOKIE_MAX_AGE = 604800; // 7 days
 
 /** Read sz_access/sz_session cookies and build Authorization / X-Session-Id headers. */
 function cookieAuthHeaders(req: NextRequest): Record<string, string> {
-  const access = req.cookies.get("sz_access")?.value;
+  const access = sessionToken(req);
   const session = req.cookies.get("sz_session")?.value;
   const headers: Record<string, string> = {};
   // Cookie takes precedence; fall back to client-provided header (backward compat).

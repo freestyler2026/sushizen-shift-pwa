@@ -9,7 +9,7 @@ import {
   TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER,
   BADGE_SUCCESS, BADGE_WARNING,
 } from "@/lib/ui-tokens";
-import { getAuth } from "@/lib/auth";
+import { getAuth, hasRouteAccess } from "@/lib/auth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ export default function DailyPLPage() {
     const auth = getAuth();
     if (!auth) { router.push("/"); return; }
     const r = auth.role;
-    if (!["ADMIN","HQ","MANILA_MANAGEMENT","DUBAI_MANAGEMENT"].includes(r)) {
+    if (!["ADMIN","HQ","MANILA_MANAGEMENT","DUBAI_MANAGEMENT"].includes(r) && !hasRouteAccess("/admin/mgmt-accounting", auth)) {
       router.push("/week");
     }
   }, [router]);
