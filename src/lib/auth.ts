@@ -1,3 +1,4 @@
+import { channelForRoute } from "@/lib/access-channels";
 // src/lib/auth.ts
 export type City = "dubai" | "manila";
 
@@ -520,6 +521,20 @@ export function channelPermissionKey(channelKey: string, action: string) {
 
 export function hasChannelAccess(channelKey: string, actions: string[] = ["view"], a?: Auth | null): boolean {
   return hasAnyPermission(actions.map((action) => channelPermissionKey(channelKey, action)), a);
+}
+
+/**
+ * Does this person hold the view permission Role Management uses for a route?
+ *
+ * Page guards used to test role names only, so a custom role (Manila Manager,
+ * Inventory & Purchasing — all of which sit on staff_auth.role = "STAFF")
+ * could be granted a channel and still be redirected away. Use this alongside
+ * the role list, never instead of the guard itself.
+ */
+export function hasRouteAccess(href: string, a?: Auth | null): boolean {
+  const meta = channelForRoute(href);
+  if (!meta) return false;
+  return hasChannelAccess(meta.channel, ["view"], a ?? getAuth());
 }
 
 export function isAdmin(a?: Auth | null): boolean {

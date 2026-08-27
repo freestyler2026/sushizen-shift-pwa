@@ -7,7 +7,7 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { getAuth, hasRouteAccess } from "@/lib/auth";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   GLASS_CARD, INPUT_CLASS, PRIMARY_BUTTON,
@@ -549,7 +549,7 @@ export default function AdjustmentsPage() {
   const role = auth?.role ?? "";
 
   useEffect(() => {
-    const ok = role === "HQ" || role === "ADMIN" || ["MANAGEMENT","MANILA_MANAGEMENT","HR_MANAGER"].includes(role);
+    const ok = role === "HQ" || role === "ADMIN" || ["MANAGEMENT","MANILA_MANAGEMENT","HR_MANAGER"].includes(role) || hasRouteAccess("/admin/payroll", auth);
     if (!ok) router.replace("/week");
   }, [role, router]);
 

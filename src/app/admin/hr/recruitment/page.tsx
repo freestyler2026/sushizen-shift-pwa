@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, RefreshCw, Star, Calendar, ClipboardList } from "lucide-react";
-import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -1255,7 +1255,7 @@ export default function HRRecruitmentPage() {
     void refreshAuthFromApi(current).then((resolved) => {
       const auth = resolved || current;
       const role = String(auth?.role || "").toUpperCase();
-      if (!ALLOWED_ROLES.includes(role)) {
+      if (!ALLOWED_ROLES.includes(role) && !hasRouteAccess("/admin/hr/recruitment", auth)) {
         router.replace("/week");
         return;
       }

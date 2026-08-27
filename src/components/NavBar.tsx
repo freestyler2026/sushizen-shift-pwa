@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { channelForRoute } from "@/lib/access-channels";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -394,48 +395,60 @@ export default function NavBar() {
     if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
     if (href === "/admin/staff") return canAccessStaffAdmin(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
-    if (href === "/admin/security") return ["HQ", "ADMIN"].includes(role);
+    if (href === "/admin/security") return ["HQ", "ADMIN"].includes(role) || channelAccessForRoute("/admin/security", auth);
     if (href === "/admin/staff-ranks") return canAccessStaffAdmin(auth);
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
-    if (href === "/admin/shift-audit") return ["ADMIN", "HQ"].includes(role);
+    if (href === "/admin/shift-audit") return ["ADMIN", "HQ"].includes(role) || channelAccessForRoute("/admin/shift-audit", auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/store-evaluations") return canAccessStoreEvaluationsAdmin(auth);
     if (href === "/admin/cold-chain") return canAccessColdChainAdmin(auth);
-    if (href === "/admin/ck-label-compliance") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/ck-label-compliance") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/ck-label-compliance", auth);
     if (href === "/admin/daily-check") return canAccessDailyCheckAdmin(auth);
-    if (href === "/admin/expense-requests") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role);
-    if (href === "/admin/overtime") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"].includes(role);
+    if (href === "/admin/expense-requests") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role) || channelAccessForRoute("/admin/expense-requests", auth);
+    if (href === "/admin/overtime") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"].includes(role) || channelAccessForRoute("/admin/overtime", auth);
     if (href === "/admin/transport-expense") return canAccessTransportExpenseAdmin(auth);
     if (href === "/admin/petty-cash") return canAccessPettyCashAdmin(auth);
     if (href === "/admin/cash-management") return canAccessCashManagementAdmin(auth);
     if (href === "/admin/meal-allowance") return canAccessMealAllowanceAdmin(auth);
     if (href === "/admin/probation") return canAccessProbationAdmin(auth);
-    if (href === "/admin/employee-cases") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/nte") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/hr/performance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/hr/separation") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/employee-cases") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/employee-cases", auth);
+    if (href === "/admin/nte") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/nte", auth);
+    if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/recruitment", auth);
+    if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/onboarding", auth);
+    if (href === "/admin/hr/performance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/performance", auth);
+    if (href === "/admin/hr/separation") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/separation", auth);
     if (href === "/admin/hr/clearance") return canAccessHrClearanceAdmin(auth);
-    if (href === "/admin/hr/policy-docs") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/assets") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role);
-    if (href === "/admin/emergency-requests") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/hr/policy-docs") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/policy-docs", auth);
+    if (href === "/admin/assets") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/assets", auth);
+    if (href === "/admin/emergency-requests") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/emergency-requests", auth);
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth);
-    if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
-    if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/price-check", auth);
+    if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/baseroll-prep", auth);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
     if (href === "/admin/market-analysis") return canAccessMarketAnalysisAdmin(auth);
     if (href === "/admin/store-opening") return canAccessStoreOpeningAdmin(auth);
     if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
-    if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/store-par-levels", auth);
     if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || hasChannelAccess("admin.store_supplier_orders", ["view"], auth);
     if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role) || (auth?.permissions || []).includes("channel.admin.ar_payouts.view");
-    if (href === "/admin/mgmt-accounting") return ["HQ", "ADMIN"].includes(role);
-    return false;
+    if (href === "/admin/mgmt-accounting") return ["HQ", "ADMIN"].includes(role) || channelAccessForRoute("/admin/mgmt-accounting", auth);
+    // Anything not named above is decided by Role Management. Previously this
+    // was `return false`, so every page nobody remembered to add here was
+    // invisible no matter what an admin ticked — and each new page silently
+    // joined them.
+    return channelAccessForRoute(href, auth);
+  }
+
+  /** Does this person hold the view permission for the channel that governs
+   *  this route? Unknown route (no channel registered) stays closed. */
+  function channelAccessForRoute(href: string, auth: ReturnType<typeof getAuth>) {
+    const meta = channelForRoute(href);
+    if (!meta) return false;
+    return hasChannelAccess(meta.channel, ["view"], auth);
   }
 
   useEffect(() => {
@@ -1085,31 +1098,37 @@ export default function NavBar() {
         if (item.href === "/my-pay") return canAccessMyPay(resolvedAuth);
         if (item.href === "/store/evaluation") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
-          return ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(r);
+          return ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(r)
+            || channelAccessForRoute("/store/evaluation", resolvedAuth);
         }
         if (item.href === "/store/ck-inventory") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r)
-            || canAccessInventoryAdminNav(resolvedAuth);
+            || canAccessInventoryAdminNav(resolvedAuth)
+            || channelAccessForRoute("/store/ck-inventory", resolvedAuth);
         }
         if (item.href === "/store/ck-production-plan") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
-            || canAccessInventoryAdminNav(resolvedAuth);
+            || canAccessInventoryAdminNav(resolvedAuth)
+            || channelAccessForRoute("/store/ck-production-plan", resolvedAuth);
         }
         if (item.href === "/store/ck-delivery") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
-            || canAccessInventoryAdminNav(resolvedAuth);
+            || canAccessInventoryAdminNav(resolvedAuth)
+            || channelAccessForRoute("/store/ck-delivery", resolvedAuth);
         }
         if (item.href === "/store/ck-ingredient-receiving") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
-            || canAccessInventoryAdminNav(resolvedAuth);
+            || canAccessInventoryAdminNav(resolvedAuth)
+            || channelAccessForRoute("/store/ck-ingredient-receiving", resolvedAuth);
         }
         if (item.href === "/store/supplier-receiving") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
-          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "STAFF"].includes(r);
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "STAFF"].includes(r)
+            || channelAccessForRoute("/store/supplier-receiving", resolvedAuth);
         }
         return true;
       })

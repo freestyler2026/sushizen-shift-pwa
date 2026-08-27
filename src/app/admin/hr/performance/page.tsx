@@ -6,8 +6,7 @@ import { Star, ChevronRight, X, CheckCircle, RefreshCw, AlertCircle, Clock } fro
 import {
   getAuth,
   refreshAuthFromApi,
-  getAuthHeaders,
-} from "@/lib/auth";
+  getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import SelectDark from "@/components/SelectDark";
 import {
@@ -366,7 +365,7 @@ export default function HRPerformancePage() {
       const resolved = await refreshAuthFromApi(a);
       const auth = resolved || a;
       const role = String(auth?.role || "").toUpperCase();
-      if (!ALLOWED_ROLES.includes(role)) { router.replace("/my-shift"); return; }
+      if (!ALLOWED_ROLES.includes(role) && !hasRouteAccess("/admin/hr/performance", auth)) { router.replace("/my-shift"); return; }
       setAuthReady(true);
     })();
   }, [router]);
