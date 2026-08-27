@@ -142,10 +142,38 @@ GET /api/admin/mgmt/overhead    → 200
 記録し、ログが綺麗になったプレフィックスから順に enforce へ切り替える。
 471件を一括で塞ぐと、現に使えている人を締め出す事故が起きる。
 
+### ✅ Impersonation（Login As）修正 — 検証手段の回復
+プロキシ20ルートが `req.cookies.get("sz_access")` を直読みし、Cookie を Authorization ヘッダーより
+優先していたため、localStorage の impersonation トークンが**全リクエストで無視**されていた。
+結果「相手の名前は出るが権限はHQのまま」。**権限システムが死んでいたことに誰も気づけなかった直接の原因。**
+
+| 対応 | 内容 |
+|---|---|
+| トークンの置き場 | localStorage → **httpOnly Cookie `sz_imp`**（JSから読めない） |
+| 優先順位 | `sessionToken(req)` を共有ヘルパー化し、20ルートを一括で切替（教訓19の罠を回避） |
+| 401リフレッシュ | impersonation 中は**行わない**（`sz_session` は管理者のもの＝権限が戻ってしまう） |
+| 多重 impersonation | 409で拒否（監査ログが無意味になるため） |
+| ログアウト | `sz_imp` も消す |
+| Exit | サーバ側Cookieを先に消してからリロード |
+
+**本番で実測（Alexandra Lim / INVENTORY_PURCHASING）:**
+```
+修正前: 管理メニュー 72件 / API identity = Yukihiro (HQ)
+修正後: 管理メニュー 21件 / API identity = Alexandra Lim
+        持つ権限   store-supplier orders 200, supplier emails 200
+        持たない   assets 403, ar-payouts 403
+Exit後: 72件 / identity = Yukihiro に復帰
+```
+
+🔴 **この検証で新たなバグを1件発見・修正**: `store_supplier_api._require_view` が
+ロール名のみで判定しており、`INVENTORY_PURCHASING`（31名）を403で弾いていた。
+**以前のcurl検証を `role="STAFF"` でトークン生成していたため見逃していた。**
+→ 教訓27に記載。今後の権限検証は必ず Impersonation で行う。
+
 ### 残課題
-- 上記471件の認可（log モードでの計測から）
-- Impersonation のCookie優先問題（`renewals_api.py` / `discord_api.py` の
-  `startswith("channel.admin.")` も過度に広い — admin権限を1つでも持てば通る）
+- `/api/admin/*` の認可欠落471件（log モードでの計測から着手）
+- `renewals_api.py` / `discord_api.py` の `startswith("channel.admin.")` が過度に広い
+  — admin権限を1つでも持てば通る（例: Disposal閲覧権限だけで Renewals に入れる）
 
 ---
 

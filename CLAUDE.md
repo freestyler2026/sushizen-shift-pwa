@@ -212,6 +212,13 @@ npx tsc --noEmit
 
 25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
 
+27. **権限の検証は Impersonation（Login As）で行う — 合成トークンでは嘘の結果が出る** → 2026-08-27 に修正。
+    - `/admin/staff/roles` の "Login As" → 対象者として本番を操作できる。終了は上部バナーの Exit。
+    - トークンは **httpOnly Cookie `sz_imp`**（`/api/admin/impersonate` が発行）。JSからは読めない。プロキシは `sz_imp` → `sz_access` の順で採用する。
+    - **プロキシで Cookie を読む箇所は `sessionToken(req)`（`src/lib/proxy-auth.ts`）を使う。** 各ルートで `req.cookies.get("sz_access")` を直に読むと impersonation が効かなくなる（20ルートが該当していた。教訓19と同じ罠）。
+    - Impersonation 中は **401の自動リフレッシュを行わない**（`sz_session` は管理者のもので、リフレッシュすると管理者権限に戻る）。多重 impersonation も409で拒否。ログアウトは `sz_imp` も消す。
+    - ⚠️ **`issue_access_token(role="STAFF", ...)` で自作したトークンで検証してはいけない。** カスタムロールの実トークンは `role` に解決済みのロール名（`INVENTORY_PURCHASING` 等）が入る。role="STAFF" で作ると通ってしまい、実ユーザーが403になるバグを見逃す（実際に `store_supplier_api._require_view` の不具合を見逃した）。
+
 26. **アクセス制御は Role Management を唯一の正とする — ロール名判定は「追加の抜け道」としてのみ** → 2026-08-27 に構造修正済み。
     - `NavBar.canSeeAdminItem()` の末尾は `channelAccessForRoute(href, auth)`。**`return false` に戻してはいけない** — if連鎖に書き忘れたページが全員に見えなくなる（修正前は 76/146 の権限が死んでいた → 現在 14）。
     - ルート→チャンネル対応は `src/lib/access-channels.ts`（**自動生成・手編集禁止**）。バックエンドの `ACCESS_CHANNELS` を変えたら必ず再生成:
