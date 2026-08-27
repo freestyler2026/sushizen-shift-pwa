@@ -918,6 +918,29 @@ export default function ManualShiftPage() {
     closeEdit();
   }
 
+  /** Re-stamp what this grid is based on after a change this page itself made.
+   *
+   *  Deleting a published row rewrites the week on the server. The basis stamp
+   *  only moves on a forced load, so the grid was left describing a week that no
+   *  longer existed — and the next publish was refused as someone else's change,
+   *  when the someone else was the same person a moment earlier. Restamping is
+   *  safe here and only here: the change is ours and already reflected in the grid.
+   */
+  async function restampBasisAfterOwnEdit() {
+    try {
+      const data = await apiFetch<{ state_token?: string; content_hash?: string }>(
+        `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
+      );
+      baseStateTokenRef.current = data.state_token ?? "";
+      baseContentHashRef.current = data.content_hash ?? "";
+      // The stale-week refusal came from the server on the last publish attempt;
+      // once the basis is current again it no longer describes anything.
+      setError((prev) => (prev.includes("changed by someone else") ? "" : prev));
+    } catch {
+      // Leave the old stamp: a failed refresh must not claim the grid is current.
+    }
+  }
+
   async function deletePublishedShift(staffName: string, dateStr: string) {
     setDeletingCell({ staffName, dateStr });
     try {
@@ -931,6 +954,7 @@ export default function ManualShiftPage() {
       setDeletingCell(null);
     }
     clearCell(staffName, dateStr);
+    await restampBasisAfterOwnEdit();
   }
 
   async function deleteStaffFromGrid(staffName: string) {
@@ -952,6 +976,7 @@ export default function ManualShiftPage() {
     } finally {
       setDeletingStaffGrid(null);
     }
+    await restampBasisAfterOwnEdit();
     setStaffList((prev) => prev.filter((n) => n !== staffName));
     setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
     setGridData((prev) => {
