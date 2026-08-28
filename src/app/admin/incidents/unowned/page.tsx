@@ -103,7 +103,11 @@ function Row({ item, onDone }: { item: WaitingItem; onDone: () => void }) {
       } else if (a.form === "close") {
         body = { photo_checked: true, issue_found: false, close_task: true };
       } else if (a.body) {
-        body = a.body;
+        // Providers cannot know who is signed in, so they mark the slot instead.
+        body = Object.fromEntries(
+          Object.entries(a.body).map(([k, v]) =>
+            [k, v === "__me__" ? (getAuth()?.staffName || "") : v]),
+        );
       }
       const res = await fetch(a.endpoint as string, {
         method: a.method,
