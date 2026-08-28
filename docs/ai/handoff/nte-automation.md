@@ -80,8 +80,7 @@ ISSUED     3件
   ひとくくり（`app/nte_api.py` 353行）。**PENDING = レビュー担当（Camilla）待ち、
   APPROVED = 発行担当（Peter）待ち**と画面で分かるようにする
 - **申請者を HQ に限定**（現状は閲覧権限があれば誰でも submit できる）
-- **violation テンプレを Request 側でも選べるように**（テンプレ機能は既存。
-  `/api/admin/cases/templates`。Issue Notice 側にしか選択UIが無い）
+- ~~violation テンプレを Request 側でも選べるように~~ → **Session 2 で対応済み**（下記参照）
 
 ### Phase B — Absence への入力項目追加（スキーマ変更）
 `absences` に事前連絡有無・MC提出有無を追加し、Absence ページで入力できるようにする。
@@ -113,6 +112,19 @@ ISSUED     3件
 ---
 
 ## Session 2 で対応済み（やり直さないこと）
+
+**違反カタログを Request 側でも使えるようにした**（フロント `73813835` / バックエンド `2d3a4d82`）。
+「リクエストしてもテンプレートが出てこない」という報告の直接の原因。
+
+- Request フォームに Issue Notice と同じ違反ピッカー（161件）を追加
+- 選んだ `violation_code` を `nte_requests` と `staff_nte_records` に保存（列は追加済み）
+- `/api/admin/nte-v2/catalog/{code}/render` に **`mode=blank`** を追加。
+  従来の `mode=sample` は「03 Jul 2026 … Late by 22 min」のような**本物に見える日付**を
+  返しており、無編集で発行すると存在しない違反を告知することになる。
+  フォームは `blank` を使い、事実部分を `________` にする
+- render の権限を `_require_hq` → `_require_hr` に変更（発行するのはHR）
+
+本番で往復確認済み: 申請(ATT-001) → 一覧表示 → 承認 → 発行 → 通知に `ATT-001` が残る。
 
 **作成中ドラフトの消失を修正・デプロイ済み**（`5d3f55d1`）。
 同じスタッフから「3回ほど途中で閉じられてしまいました」と報告があった件。
