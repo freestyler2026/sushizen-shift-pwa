@@ -304,8 +304,10 @@ npx tsc --noEmit
 
 34. **退職者はロールを持ち続ける — 割り当てを消すだけでは戻ってくる** → 2026-08-28 に発覚。`staff_master.is_active=false` の9名が生きたロールを保持し、うち **Jason Mark Fabillar は最終出社から2か月後もADMIN**、PINも有効だった。`/api/auth/verify` には**在籍チェックが一切ない**（存在確認・凍結・PINのみ）。
     - `staff_role_assignments` を消すだけでは不十分。`resolve_staff_access_profile` は割り当てが無いと **`staff_master.role` にフォールバック**し、そこも `ADMIN` のままだった。**両方を塞ぐには解決関数側で止める。**
-    - 実装: `resolve_staff_access_profile` が `is_active=false` なら STAFF・権限ゼロを返す。**ログインは止めていない** — `is_active=false` なのに直近1か月でログインした人が4名おり、フラグが施錠の根拠にできるほど正確でないため。誤フラグの人はメニューを失うだけで、アカウントは失わない。逃げ道は `ALLOW_INACTIVE_STAFF_ROLES=1`。
-    - `staff_master` は **`status='ACTIVE'` と `is_active=false` が同一行で矛盾**している（9名全員）。`status` は退職時に更新されていない。集計で `status` を使うと退職者を現役と数える。
+    - ⚠️ **`is_active` を退職の判定に使ってはいけない。** 最初の実装はこれで判定し、**産休中の社員から権限を剥奪した**。この会社は `is_active=false` を「退職」と「休職」の**両方**に使っている。区別できる列は存在しない（`hr_separation` は9名中2件、`status` は167名全員 `ACTIVE`）。
+    - 実装: `resolve_staff_access_profile` が **`staff_master.status='SEPARATED'`** のとき STAFF・権限ゼロを返す。`status` は他がどこも書かないので、明示的に退職とマークした人だけが権限を失う。逃げ道は `ALLOW_INACTIVE_STAFF_ROLES=1`。
+    - **ログインは止めていない。** 誤マークの人はメニューを失うだけで、アカウントは失わない。退職者のPINは有効なままなので、締め出すなら別途凍結が要る。
+    - `staff_master` は **`status` と `is_active` が同一行で矛盾**する（9名全員が `status='ACTIVE'` かつ `is_active=false`）。どちらも「在籍」を意味しない。集計に使う前に、その列が実際に何を意味しているか人に確認すること。
 
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
