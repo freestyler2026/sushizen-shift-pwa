@@ -11,10 +11,11 @@ import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
  * Levels is what you open when Pattern Detection raises "Par level review",
  * and neither linked to the other or back to the dashboard.
  */
-export type MgmtChannelTabKey = "bo" | "owners" | "par" | "patterns" | "people" | "area";
+export type MgmtChannelTabKey = "bo" | "reports" | "owners" | "par" | "patterns" | "people" | "area";
 
 export const MGMT_CHANNEL_TABS: { key: MgmtChannelTabKey; label: string; href: string }[] = [
   { key: "bo",       label: "BO Dashboard",   href: "/admin/management/back-office" },
+  { key: "reports",  label: "Required Reports", href: "/admin/management/required-reports" },
   { key: "owners",   label: "Owners",         href: "/admin/management/assignments" },
   { key: "par",      label: "Par Levels",     href: "/admin/management/par-levels" },
   { key: "patterns", label: "Patterns",       href: "/admin/management/patterns" },
