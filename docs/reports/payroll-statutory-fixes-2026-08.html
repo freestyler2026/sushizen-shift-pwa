@@ -1,0 +1,275 @@
+<title>法定控除 修正記録と経理手順</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FFFFFF;--surface:#F3F5F8;--surface2:#E9EDF2;--line:#D9DFE7;--line-soft:#E8ECF1;
+  --ink:#14181D;--muted:#5A6472;--accent:#2F4B7C;--accent-soft:#EAEFF7;
+  --defect:#B42318;--defect-soft:#FEF3F2;--defect-line:#F3B5AE;
+  --ops:#B54708;--ops-soft:#FFFAEB;--ops-line:#F1CE8A;
+  --ok:#067647;--ok-soft:#ECFDF3;--ok-line:#A6E4C1;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1117;--surface:#151B23;--surface2:#1C242E;--line:#2A343F;--line-soft:#212932;
+  --ink:#E9EDF2;--muted:#96A1AF;--accent:#8FB0E0;--accent-soft:#16202F;
+  --defect:#FF8A7A;--defect-soft:#25120F;--defect-line:#6B2A22;
+  --ops:#F2B457;--ops-soft:#231A0C;--ops-line:#6B4E18;
+  --ok:#5FD79A;--ok-soft:#0C2418;--ok-line:#1D5537;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D1117;--surface:#151B23;--surface2:#1C242E;--line:#2A343F;--line-soft:#212932;
+  --ink:#E9EDF2;--muted:#96A1AF;--accent:#8FB0E0;--accent-soft:#16202F;
+  --defect:#FF8A7A;--defect-soft:#25120F;--defect-line:#6B2A22;
+  --ops:#F2B457;--ops-soft:#231A0C;--ops-line:#6B4E18;
+  --ok:#5FD79A;--ok-soft:#0C2418;--ok-line:#1D5537;
+}
+body{background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans JP",system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;
+  font-size:15px;line-height:1.8;-webkit-text-size-adjust:100%;font-feature-settings:"palt" 1}
+.wrap{max-width:880px;margin:0 auto;padding:48px 24px 96px}
+.mono{font-family:"IBM Plex Mono",Consolas,monospace;font-feature-settings:normal}
+
+.masthead{border-bottom:2px solid var(--ink);padding-bottom:18px}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--accent);margin-bottom:10px}
+h1{font-family:"Noto Serif JP",serif;font-size:31px;font-weight:700;line-height:1.35;text-wrap:balance}
+.byline{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px;font-size:12.5px;color:var(--muted)}
+.byline b{color:var(--ink);font-weight:500}
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;line-height:1.5;margin:0 0 6px;text-wrap:balance}
+h3{font-size:15px;font-weight:700;margin:26px 0 8px}
+p{margin:12px 0}
+.lede{font-size:16px;color:var(--muted);margin-top:6px}
+.small{font-size:13px;color:var(--muted)}
+section{margin-top:52px;padding-top:22px;border-top:1px solid var(--line)}
+.secno{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;color:var(--accent);letter-spacing:.08em;margin-bottom:8px}
+
+.tw{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);
+  background:var(--surface);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tfoot td{background:var(--surface);font-weight:700;border-top:1px solid var(--line)}
+
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;padding:14px 18px;margin:20px 0}
+.callout.defect{border-left-color:var(--defect);background:var(--defect-soft)}
+.callout.ops{border-left-color:var(--ops);background:var(--ops-soft)}
+.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout .t{font-weight:700;margin-bottom:2px}
+.callout p{margin:6px 0 0}
+
+.chip{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11.5px;font-weight:700;white-space:nowrap;vertical-align:2px}
+.chip.done{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok-line)}
+.chip.todo{background:var(--ops-soft);color:var(--ops);border:1px solid var(--ops-line)}
+.chip.hold{background:var(--defect-soft);color:var(--defect);border:1px solid var(--defect-line)}
+
+pre.code{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.85;margin:16px 0}
+code{font-family:"IBM Plex Mono",monospace;font-size:.9em;background:var(--surface2);padding:1px 5px;border-radius:4px}
+
+ul{margin:12px 0;padding-left:0;list-style:none}
+ul li{position:relative;padding:4px 0 4px 20px}
+ul li::before{content:"";position:absolute;left:4px;top:15px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+
+.steps{counter-reset:s;margin:18px 0}
+.step{counter-increment:s;position:relative;padding:0 0 20px 46px;border-left:1px solid var(--line);margin-left:14px}
+.step:last-child{border-left-color:transparent;padding-bottom:0}
+.step::before{content:counter(s);position:absolute;left:-14px;top:0;width:28px;height:28px;border-radius:50%;
+  background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.step .h{font-weight:700;padding-top:3px}
+.step .b{font-size:14px;color:var(--muted);margin-top:2px}
+.step .b b{color:var(--ink)}
+
+footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+@media(max-width:640px){.wrap{padding:32px 16px 64px}h1{font-size:25px}}
+</style>
+
+<div class="wrap">
+
+<div class="masthead">
+  <div class="kicker">SUSHI ZEN WORKFORCE OS ／ 給与差異調査 続報</div>
+  <h1>法定控除の修正記録と経理手順</h1>
+  <div class="byline">
+    <span>作成 <b>2026-08-28</b></span>
+    <span>対象 <b>マニラ SSS / PhilHealth / Pag-IBIG</b></span>
+    <span>宛先 <b>経理チーム</b></span>
+  </div>
+</div>
+
+<p class="lede">先の差異調査（CASE 2）を受け、会計事務所の見解に基づいてOS側を修正しました。何を変え、何を変えなかったか、そして経理側で何をする必要があるかをまとめます。</p>
+
+<div class="callout">
+  <div class="t">この文書の前提</div>
+  <p>すべての数値は本番データベースを直接参照したものです。「たぶんこうなっている」という記述は含みません。確認できていない事項は<b>「未確認」と明記</b>しています。</p>
+</div>
+
+<!-- ── 1 ── -->
+<section>
+  <div class="secno">SECTION 1</div>
+  <h2>会計事務所の見解と、当社の実態</h2>
+  <p>照会した4点のうち、事務所が「おそらく問題がある」とした2点は<b>当社には当てはまりませんでした</b>。代わりに別の問題が見つかっています。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>照会事項</th><th>事務所の回答</th><th>当社の実態</th></tr></thead>
+    <tbody>
+      <tr><td>立替回収をSSS基礎から除外すべきか</td><td>除外すべき</td><td><b>該当。修正済み</b></td></tr>
+      <tr><td>欠勤・遅刻は基礎を下げてよいか</td><td>下げてよい（実支給ベースが正）</td><td>現状維持。変更なし</td></tr>
+      <tr><td>WISP層が抜けていないか</td><td>抜けていれば全員影響</td><td>実装済み。ただし<b>計算方法が誤り</b></td></tr>
+      <tr><td>PhilHealthに欠勤減額が入っていないか</td><td>入っていれば過少納付</td><td><b>該当せず。契約月額を使用</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="small">PhilHealth は <code>manila_staff_profiles.monthly_rate</code>（契約月額）を参照しています。明細の <span class="mono">note</span> 欄に <span class="mono">basic=21,000.00</span> と <span class="mono">monthly_gross=17,661.54</span> が別々に残っており、基礎が分かれていることが記録上も確認できます。</p>
+</section>
+
+<!-- ── 2 ── -->
+<section>
+  <div class="secno">SECTION 2</div>
+  <h2>OS側で変更した内容</h2>
+
+  <h3>2-1　SSS算定基礎から立替回収を除外 <span class="chip done">反映済み</span></h3>
+  <p>RA 11199 §8(f) は compensation を「雇用に対する実際の報酬」と定義します。寮の家賃・電気代、前借、ローン返済、源泉税は、報酬が確定した<b>後に</b>給与から回収するものであり、報酬の減額ではありません。</p>
+  <pre class="code">除外する  MANUAL_DEDUCTION（寮費・電気代など） / LOAN_DEDUCTION / INCOME_TAX
+据え置く  欠勤・遅刻・早退による減額、OT・深夜・休日割増</pre>
+  <p>電気代 <span class="mono">₱272.55</span> ひとつでMSCが1段階（₱500）下がっていました。<b>前半カットオフ分の回収も戻す</b>ようにしています。保存されている前半の gross は回収控除後の純額なので、そのままでは第1カットオフの寮費が月間MSCを下げ続けるためです。</p>
+
+  <h3>2-2　SSS表を61行の正規スケジュールに差し替え <span class="chip done">反映済み</span></h3>
+  <p>従来の表は37行で、MSC ₱20,000 までは正しく₱500刻みでしたが、<b>それより上は3つの粗いバンド</b>にまとめられていました。エンジンはこの欠落を、MPF（WISP）層を<b>実給与の₱20,000超過分から按分</b>して回避していました。</p>
+
+  <div class="callout defect">
+    <div class="t">按分は、SSSの表に存在しない金額を生みます</div>
+    <p>すべてのSSS掛金はMSCの関数であり、MSCは61個の値しか取りません。按分の結果 <span class="mono">₱1,069.66</span> や <span class="mono">₱1,312.54</span> といった、スケジュール上どこにも無い従業員負担額が出ていました。これは組合員の記録に転記できないMSCを意味します。</p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th class="n">給与</th><th class="n">従来（按分）</th><th class="n">正しいMSC</th><th class="n">正しいEE</th><th class="n">差</th></tr></thead>
+    <tbody>
+      <tr><td class="n">21,393.20</td><td class="n">1,069.66</td><td class="n">21,500</td><td class="n">1,075.00</td><td class="n">−5.34</td></tr>
+      <tr><td class="n">26,250.80</td><td class="n">1,312.54</td><td class="n">26,500</td><td class="n">1,325.00</td><td class="n">−12.46</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>事務所提供のCSV（61行）を投入前に<b>全行を算術検証</b>しました。MSC分割の合計＝総額、EE＝各部分の5%、ER＝10%、EC は MSC 15,000 で 10→30、範囲の隙間・重複ゼロ、事務所の例2件も一致。<b>エラー0件</b>で投入しています。</p>
+  <p>按分にはもう1つ誤りがありました。MPF層の上限が <span class="mono">10,000</span>（MSC 30,000想定）でしたが、<b>表は35,000まであるため15,000が正</b>です。該当者は現在いませんが、放置すれば高給者で過少控除になります。</p>
+
+  <div class="callout ok">
+    <div class="t">再発防止：不変条件をエンジンに実装</div>
+    <p>従業員負担額は定義上 <b>MSC × 5%</b> なので、必ず₱25の倍数で₱250〜₱1,750の範囲に入ります。この条件を外れた場合、<span class="mono">logger.error</span> で記録します。按分が出していた2つの数値は、この検査で即座に検出されます。</p>
+  </div>
+
+  <h3>2-3　休憩60分の二重処理（CASE 1） <span class="chip todo">コード反映済・再同期待ち</span></h3>
+  <p>労働時間側は休憩60分を無条件に差し引き（＝休憩を取った前提）、Undertime側は未記録の休憩を「1分も取っていない」と解釈して60分を戻していました。同じ1行に相反する前提が適用されていた状態です。</p>
+  <p><b>未記録＝所定どおり取った</b>に統一しました。休憩実績が記録されている日は従来どおり未取得分を戻します（41分しか取らなかった人の残19分は実際の労働時間です）。</p>
+  <p class="small">修正時に、鉛筆アイコンのスケジュール手修正が休憩調整を<b>一切していなかった</b>ことも判明したため、同じ関数を使うよう統一しました。</p>
+
+  <h3>2-4　変更していないもの</h3>
+  <ul>
+    <li><b>PhilHealth</b> — 契約月額基準で正しく動作。5%、下限₱10,000、上限₱100,000、労使折半。変更不要。</li>
+    <li><b>Pag-IBIG</b> — 事務所が「3点の中で最も根拠が薄い、HDMF支店に確認を」とされたため<b>保留</b>。該当3名（計₱132.64の過大控除）の事実のみ記録。</li>
+    <li><b>欠勤・遅刻による基礎の減額</b> — 事務所の見解どおり、現行のまま。</li>
+  </ul>
+</section>
+
+<!-- ── 3 ── -->
+<section>
+  <div class="secno">SECTION 3</div>
+  <h2>再計算で分かったこと ― 7月は再計算できません</h2>
+
+  <div class="callout defect">
+    <div class="t">過去期間の再計算は、現在の給与額で過去を上書きします</div>
+    <p>2026-07-1H / 2H を再計算したところ、<b>42名中37名の月額が現在の給与額に書き換わりました</b>（合計 +₱84,235）。エンジンはスタッフプロファイルを実行時に読むため、7月以降の昇給が7月の計算に遡って適用されます。<br>
+    <b>バックアップから7月を完全復元済みです。</b>復元後、月額の差異は0件であることを確認しています。</p>
+  </div>
+
+  <p>これは今回の修正で生じた問題ではなく、以前から存在していた挙動です。ただし<b>「過去期間の法定控除だけを直す」ことが再計算ではできない</b>ことを意味します。7月の訂正は、SSS行を個別に更新するか、OS外（SSSへの修正申告）で処理する必要があります。</p>
+
+  <h3>8月は再計算済み（安全）</h3>
+  <p>8月は現在の給与額と一致しているため、遡及汚染はありません（レート変更0件）。ただし<b>今回の修正以外の変更も同時に反映</b>されています。差額を「SSS修正によるもの」と説明できないため、項目別に分けます。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>期</th><th>項目</th><th class="n">変動</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>08-1H</td><td>SSS_WISP_EE</td><td class="n">−467.40</td><td>MSC刻みへの修正</td></tr>
+      <tr><td>08-1H</td><td>SSS_ER / SSS_WISP_ER</td><td class="n">+4,238.20</td><td>同上（会社負担増）</td></tr>
+      <tr><td>08-1H</td><td>MONTHLY_BASIC（3名）</td><td class="n">−18,358.73</td><td><b>8/5入社の日割り</b>（従来が誤り）</td></tr>
+      <tr><td>08-2H</td><td>SSS_EE / SSS_WISP_EE</td><td class="n">−892.65</td><td>MSC刻み＋基礎修正</td></tr>
+      <tr><td>08-2H</td><td>SSS_ER / SSS_WISP_ER</td><td class="n">+4,891.09</td><td>同上（会社負担増）</td></tr>
+      <tr><td>08-2H</td><td>OT_PAY / NIGHT_DIFF_OT</td><td class="n">+946.24</td><td>OT承認の反映</td></tr>
+      <tr><td>08-2H</td><td>ABSENT / LATE</td><td class="n">−1,629.58</td><td>DTR修正の反映</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="small">8/5入社の3名（Joefferson Sucia / Francis Angelo Dizon / Mona Medrano）は、従来<b>半月分の満額</b>が支給されていました。入社日は3名とも 2026-08-05 で、期間は 7/26–8/10 です。日割りが正しい処理です。</p>
+
+  <div class="callout ops">
+    <div class="t">まだ反映されていないもの</div>
+    <p>休憩60分の修正（2-3）は<b>DTRの再同期をしないと数値に出ません</b>。エンジンは <span class="mono">manila_attendance_daily.undertime_minutes</span> を読むだけで、再計算では作り直されないためです。再同期すると11日・約₱1,060の控除が追加されます。<b>未実施です。</b></p>
+  </div>
+</section>
+
+<!-- ── 4 ── -->
+<section>
+  <div class="secno">SECTION 4</div>
+  <h2>経理チームの作業</h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="h">7月前半の過大控除を確定する <span class="chip todo">要作業</span></div>
+      <div class="b">42名・<b>₱4,925.00</b> の過大控除があります。当初報告の11名ではありません。下位ブラケットにも影響していました。<br>
+      <b>まず確認が必要</b>：OS上は<b>支払済み・公開済みが0件</b>です。7月給与が実際にこの数値で支給されたのか、それとも手計算シートを正として支給されたのかを確定してください。<b>支給されていなければ返金の対象は存在しません。</b></div>
+    </div>
+    <div class="step">
+      <div class="h">支給されていた場合のみ、返金を計上する</div>
+      <div class="b">次回カットオフに<b>独立した明細行</b>として計上します（純額に紛れ込ませない）。摘要は <span class="mono">SSS over-deduction refund — applicable month July 2026 (1st cut-off)</span> のように、対象月が後から追える表記にしてください。</div>
+    </div>
+    <div class="step">
+      <div class="h">SSSの修正申告（適用月ごと）</div>
+      <div class="b">SSSは<b>適用月単位で記録されます</b>。将来の納付との相殺で処理してはいけません。相殺した月が今度は過少納付になり、月2%の延滞が走ります。<br>
+      各対象月の電子収納リストを修正し、その月のPRNで差額を納付します。My.SSSで閉じた月を開けない場合は担当支店経由です。</div>
+    </div>
+    <div class="step">
+      <div class="h">8月の過少納付を確定する</div>
+      <div class="b">MSC刻みへの修正により、8月の従業員負担が計 <b>₱1,360.05</b>、会社負担が計 <b>₱9,129.29</b> 増えています。8月分の納付前であれば修正後の数値で納付してください。納付済みであれば同様に修正申告が必要です。</div>
+    </div>
+    <div class="step">
+      <div class="h">Pag-IBIG をHDMF支店に確認する <span class="chip hold">保留中</span></div>
+      <div class="b">基礎が「基本給＋COLAの実績額」なのか、実務どおり定額₱200でよいのかを確認してください。該当3名・₱132.64。<b>書面同意を取って₱200を任意積立として継続する</b>方が運用は簡潔で、Pag-IBIGも明示的に認めています。この場合コード変更は不要です。</div>
+    </div>
+    <div class="step">
+      <div class="h">寮費控除の書面同意を確認する</div>
+      <div class="b">事務所からの指摘です。労働法 Art. 113 により、寮の家賃・電気代の給与控除には<b>本人の書面による同意</b>が必要です。署名済みの同意書が揃っているか確認してください。今回の修正とは別件ですが、同じ控除に関する論点です。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 5 ── -->
+<section>
+  <div class="secno">SECTION 5</div>
+  <h2>今後の運用で守ること</h2>
+  <ul>
+    <li><b>過去期間を再計算しない。</b> 給与額が変わっていれば遡って上書きされます。どうしても必要な場合は、事前に <span class="mono">manila_payroll_items</span> と <span class="mono">manila_payroll_runs</span> の両方をバックアップし、実行後に <span class="mono">monthly_rate</span> が動いていないか照合してください。</li>
+    <li><b>3つの基礎は別物です。</b> SSS＝実支給ベース、PhilHealth＝契約基本給、Pag-IBIG＝基本給＋COLA。ひとつの「報酬」で3つを賄おうとしたことが、今回の問題の大半の原因です。</li>
+    <li><b>SSSの従業員負担が₱25の倍数でなければ誤りです。</b> 明細を見るときの簡易チェックとして使えます。</li>
+    <li><b>SSS表が改定されたら差し替える。</b> 現在は Circular 2024-006（61行、MSC ₱5,000〜₱35,000）。新しい通達が出たら同じ手順で全行を検証してから投入します。</li>
+  </ul>
+
+  <div class="callout">
+    <div class="t">バックアップの保管</div>
+    <p>再計算前の全データを <span class="mono">_payroll_items_backup_20260828</span> および <span class="mono">_payroll_runs_backup_20260828</span> に保管しています（3,916項目・207ラン）。7月の復元はここから行いました。<b>8月の内容に問題が見つかった場合も、同じ方法で戻せます。</b>不要と判断されるまで削除しません。</p>
+  </div>
+</section>
+
+<footer>
+  本記録の数値は本番データベースおよび給与エンジンのコードを直接確認したものです。会計事務所提供のSSSスケジュール（61行）は、投入前に全行の算術整合・範囲の連続性・提示された検算例2件を検証しています。<br>
+  参照：<span class="mono">manila_payroll_items</span> ／ <span class="mono">manila_payroll_runs</span> ／ <span class="mono">ph_sss_contribution_table</span> ／ <span class="mono">app/manila_payroll_engine.py</span>
+</footer>
+
+</div>

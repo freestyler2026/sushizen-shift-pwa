@@ -1,18 +1,43 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-28 (Session 2 から NTE 自動化を移送 — 未着手)
+Last updated: 2026-08-28 (NTE: Phase 0 / A-1 / A-2 デプロイ済み。B・C は判断待ち)
 
 ---
 
-## 📥 Session 2 からの引き継ぎ（未着手）
+## 📥 NTE の自動化と滞留解消 — 進行中
 
-| 件名 | 仕様書 | 状態 | なぜ Session 2 で完了できないか |
-|---|---|---|---|
-| NTE の自動化と滞留解消 | [docs/ai/handoff/nte-automation.md](handoff/nte-automation.md) | 未着手 | スキーマ変更が必要（`absences` に事前連絡・MC提出の列） |
+仕様書: [docs/ai/handoff/nte-automation.md](handoff/nte-automation.md)（**着手前に必ず通読**）
 
-仕様書は**調べ直さなくても着手できる粒度**で書いてある。実測値・触るファイル・
-判断が要る点・Session 2 で対応済みの範囲まで入っているので、**着手前に必ず通読すること。**
-経緯の全文は `INBOX.md`（hotfix worktree、mainにも入っている）。
+| Phase | 内容 | 状態 |
+|---|---|---|
+| **0** | `issued_nte_id` が毎回 NULL になる不具合の修正＋既存4件の復旧 | **完了**（`43d85ef0`） |
+| **A-1** | 申請キューを全都市表示に（HRロール）＋他都市バッジ | **完了**（`43d85ef0` / `9cf20122`） |
+| **A-2** | 滞留2日超を Waiting for Someone に掲載 | **完了**（`70bfe8d4`） |
+| **B** | `absences` に事前連絡・MC提出の列を追加 | 判断待ち（下記） |
+| **C** | 勤怠連動の自動下書き | Phase B 待ち |
+
+### 調査で判明し、仕様書を上書きした点
+
+- **39日放置の原因は権限ではなく表示だった。** `list_nte_requests` が city 完全一致で
+  絞っており既定値が `manila`。Dubai の申請は誰の画面にも出ていなかった。承認自体は
+  city 非依存で、HQ の誰でも実行できた。
+- **承認権限を HQ のみに絞ってはいけない。** 実際の付与ロールは
+  Peter Villafuerte = `HR_MANAGER`、Cyrine Fernandez = `ADMIN`、Camilla Gadingan = `HR_STAFF`。
+  HQ 限定にすると発行担当の Peter と Dubai の Cyrine が締め出される（教訓21・32）。
+  なお **Camilla は現状 approve できない**（`HR_STAFF` は `HR_ROLES` に無い）。
+- **滞留の時計は段階ごとに分ける。** 申請日起点だと、2日前に申請され今朝承認された
+  6件が誤検知される。PENDING は `created_at`、APPROVED は `reviewed_at` から測る。
+- **Phase B で正とするのは `absences`。** 両都市をカバーする唯一のテーブル
+  （dubai 1,838 / manila 970、2025-11〜）。`manila_attendance_daily` は manila 限定・
+  2026-04〜で、遅刻ルール（`late_minutes`）専用。`dubai_attendance_daily.late_minutes` は
+  **全行0で未充填のため、遅刻ルールはマニラ限定**。
+
+### ⚠️ NTE とは別件で見つかった要調査
+
+`absences` が ABSENT とする日のうち `manila_attendance_daily.absent_without_pay` が
+立っていない行がある（通常勤務日・打刻なし・実働0）。**7月11件・8月28件、4月は0件。**
+`manila_payroll_engine.py` は `absent_without_pay` を読む（452行・1132行）ため、
+**欠勤控除漏れの可能性**。7月は締め済み。教訓37により過去期間の再計算はしないこと。
 
 ---
 

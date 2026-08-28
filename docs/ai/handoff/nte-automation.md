@@ -68,6 +68,20 @@ ISSUED     3件
 
 ---
 
+## 進捗（Session 1 / 2026-08-28）
+
+**Phase 0・A-1・A-2 はデプロイ済み。** 詳細と、この仕様書を上書きした調査結果は
+`docs/ai/CURRENT_TASKS.md` の先頭にある。要点だけ:
+
+- 39日放置の原因は権限ではなく **city フィルタによる非表示** だった
+- **承認を HQ 限定にしない**こと。Peter=HR_MANAGER / Cyrine=ADMIN が締め出される
+- 滞留の時計は **段階ごと**（PENDING=created_at / APPROVED=reviewed_at）
+- Phase B で正とするのは **`absences`**（両都市をカバーする唯一のテーブル）
+- `dubai_attendance_daily.late_minutes` は全行0 → **遅刻ルールはマニラ限定**
+- 発行のたび `issued_nte_id` が NULL になっていた（修正済・既存4件復旧済）
+
+---
+
 ## 実装の範囲
 
 ### Phase A — 滞留の可視化と督促（スキーマ変更なし・先にやる）
