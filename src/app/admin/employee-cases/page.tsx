@@ -121,6 +121,9 @@ type NteRequest = {
   city: string;
   staff_name: string;
   reason: string;
+  // Which catalogue entry the requester picked, so HR sees the ground the
+  // notice rests on and not only the prose it produced.
+  violation_code?: string;
   requested_by: string;
   request_date: string;
   status: NteRequestStatus;
@@ -699,6 +702,10 @@ export default function EmployeeCasesPage() {
   // Issue Notice — violation catalog picker
   const [issueViolationCode, setIssueViolationCode] = useState("");
   const [issueViolationPickerOpen, setIssueViolationPickerOpen] = useState(false);
+  // The picker serves both forms. Without this it always wrote into Issue Notice,
+  // which is why the catalogue was invisible from a request.
+  const [violationPickerTarget, setViolationPickerTarget] = useState<"issue" | "request">("issue");
+  const [reqViolationCode, setReqViolationCode] = useState("");
   const [issueViolationSearch, setIssueViolationSearch] = useState("");
   const [issueTemplateLoading, setIssueTemplateLoading] = useState(false);
   const [pickerExpandedCats, setPickerExpandedCats] = useState<Set<string>>(
@@ -797,12 +804,14 @@ export default function EmployeeCasesPage() {
   useEffect(() => {
     if (!accessReady || reqDraftLoaded.current) return;
     reqDraftLoaded.current = true;
-    const d = loadDraft<{ staff: string; reason: string; date: string; type: CaseType }>(REQ_DRAFT_KEY);
+    const d = loadDraft<{ staff: string; reason: string; date: string;
+                          type: CaseType; violation?: string }>(REQ_DRAFT_KEY);
     if (!d) return;
     if (d.staff) setReqStaffName(d.staff);
     if (d.reason) setReqReason(d.reason);
     if (d.date) setReqDate(d.date);
     if (d.type) setReqCaseType(d.type);
+    if (d.violation) setReqViolationCode(d.violation);
   }, [accessReady]);
 
   useEffect(() => {
@@ -824,9 +833,10 @@ export default function EmployeeCasesPage() {
   useEffect(() => {
     if (!reqDraftLoaded.current) return;
     if (reqDirty) saveDraft(REQ_DRAFT_KEY, { staff: reqStaffName, reason: reqReason,
-                                             date: reqDate, type: reqCaseType });
+                                             date: reqDate, type: reqCaseType,
+                                             violation: reqViolationCode });
     else clearDraft(REQ_DRAFT_KEY);
-  }, [reqDirty, reqStaffName, reqReason, reqDate, reqCaseType]);
+  }, [reqDirty, reqStaffName, reqReason, reqDate, reqCaseType, reqViolationCode]);
 
   useEffect(() => {
     if (!issueDraftLoaded.current) return;
@@ -987,6 +997,7 @@ export default function EmployeeCasesPage() {
           requested_by: currentUser,
           request_date: reqDate || todayStr(),
           case_type: reqCaseType,
+          violation_code: reqViolationCode,
         }),
       });
       const data = await res.json();
@@ -1006,6 +1017,7 @@ export default function EmployeeCasesPage() {
 
       setSuccessMsg(`NTE request for ${reqStaffName} submitted. HR will review it.`);
       clearDraft(REQ_DRAFT_KEY);
+      setReqViolationCode("");
       setReqStaffName("");
       setReqReason("");
       setReqDate(todayStr());
@@ -1364,16 +1376,28 @@ export default function EmployeeCasesPage() {
 
   async function applyIssueViolationTemplate(code: string) {
     const market = city === "dubai" ? "AE" : "PH";
+    const forRequest = violationPickerTarget === "request";
+    const who = forRequest ? reqStaffName : issueStaffName;
     setIssueTemplateLoading(true);
     try {
       const auth = getAuth();
-      const res = await fetch(`/api/admin/nte-v2/catalog/${code}/render?market=${market}`, {
-        headers: getAuthHeaders(auth) as Record<string, string>,
-      });
+      // mode=blank: the sample text carries dates that read as real findings, and
+      // a notice sent unedited would accuse someone of incidents that never
+      // happened. Blanks make the gaps impossible to miss.
+      const res = await fetch(
+        `/api/admin/nte-v2/catalog/${code}/render?market=${market}&mode=blank`
+        + `&staff_name=${encodeURIComponent(who || "")}`,
+        { headers: getAuthHeaders(auth) as Record<string, string> },
+      );
       if (!res.ok) return;
       const data = await res.json() as { rendered?: string };
-      setIssueReason(data.rendered ?? "");
-      setIssueViolationCode(code);
+      if (forRequest) {
+        setReqReason(data.rendered ?? "");
+        setReqViolationCode(code);
+      } else {
+        setIssueReason(data.rendered ?? "");
+        setIssueViolationCode(code);
+      }
       setIssueViolationPickerOpen(false);
       setIssueViolationSearch("");
     } catch { /* silent */ } finally {
@@ -2216,14 +2240,58 @@ export default function EmployeeCasesPage() {
             </div>
 
             <div>
+              <label className={T_LABEL}>Violation (optional — fills the wording for you)</label>
+              {reqViolationCode ? (
+                <div className="mt-1 flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2">
+                  <BookOpen className="h-4 w-4 text-violet-400 shrink-0" />
+                  <span className="text-sm font-mono text-violet-300 font-medium">{reqViolationCode}</span>
+                  {catalog.find((c) => c.code === reqViolationCode) && (
+                    <span className="text-sm text-zinc-300 truncate">
+                      — {catalog.find((c) => c.code === reqViolationCode)!.title_en}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setReqViolationCode(""); setReqReason(""); }}
+                    className="ml-auto text-xs text-zinc-500 hover:text-red-400 shrink-0"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (catalog.length === 0) void loadCatalog();
+                    setViolationPickerTarget("request");
+                    setIssueViolationPickerOpen(true);
+                  }}
+                  className="mt-1 flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800/50 px-4 py-2 text-sm text-zinc-300 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Select violation &amp; auto-fill reason…
+                </button>
+              )}
+              {issueTemplateLoading && violationPickerTarget === "request" && (
+                <p className="mt-1 text-xs text-zinc-400">Loading template…</p>
+              )}
+            </div>
+
+            <div>
               <label className={T_LABEL}>Reason / Incident Description *</label>
               <textarea
                 className={`${TEXTAREA_CLASS} mt-1`}
-                rows={4}
+                rows={reqViolationCode ? 10 : 4}
                 value={reqReason}
                 onChange={(e) => setReqReason(e.target.value)}
                 placeholder="Describe the incident or misconduct that warrants an NTE…"
               />
+              {reqViolationCode && (
+                <p className="mt-1.5 text-xs text-amber-400">
+                  Replace every ________ with the real date, time and figure. This text is
+                  sent to the staff member word for word.
+                </p>
+              )}
             </div>
 
             <div>
@@ -2329,7 +2397,14 @@ export default function EmployeeCasesPage() {
                             </button>
                           </div>
                         </div>
-                        <p className={`${T_CAPTION} border-t border-white/5 pt-2`}>{req.reason}</p>
+                        <>
+                      {req.violation_code && (
+                        <p className="border-t border-white/5 pt-2 text-xs font-mono text-violet-300">
+                          {req.violation_code}
+                        </p>
+                      )}
+                      <p className={`${T_CAPTION} ${req.violation_code ? "" : "border-t border-white/5 pt-2"}`}>{req.reason}</p>
+                    </>
                       </div>
                     ))}
                 </div>
@@ -2398,7 +2473,14 @@ export default function EmployeeCasesPage() {
                         </button>
                       </div>
                     </div>
-                    <p className={`${T_CAPTION} border-t border-white/5 pt-2`}>{req.reason}</p>
+                    <>
+                      {req.violation_code && (
+                        <p className="border-t border-white/5 pt-2 text-xs font-mono text-violet-300">
+                          {req.violation_code}
+                        </p>
+                      )}
+                      <p className={`${T_CAPTION} ${req.violation_code ? "" : "border-t border-white/5 pt-2"}`}>{req.reason}</p>
+                    </>
                   </div>
                 ))}
             </div>
@@ -2543,6 +2625,7 @@ export default function EmployeeCasesPage() {
                 type="button"
                 onClick={() => {
                   if (catalog.length === 0) void loadCatalog();
+                  setViolationPickerTarget("issue");
                   setIssueViolationPickerOpen(true);
                 }}
                 className="flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800/50 px-4 py-2 text-sm text-zinc-300 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
