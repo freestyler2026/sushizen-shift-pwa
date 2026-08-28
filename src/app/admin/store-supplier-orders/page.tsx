@@ -45,6 +45,9 @@ interface OrderListItem {
   total_qty_received: number;
   email_sent_at: string | null;
   email_error: string | null;
+  // True when the stock behind the order was not counted on the eve of
+  // delivery, so a fallback is never mistaken for a normal order.
+  stock_stale?: boolean;
 }
 
 interface OrderItem {
@@ -1251,6 +1254,14 @@ export default function StoreSupplierOrdersPage() {
                       <span className={STATUS_STYLE[order.status]}>
                         {STATUS_ICON[order.status]} {order.status}
                       </span>
+                      {order.stock_stale && (
+                        <span
+                          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300"
+                          title="The stock behind this order was not counted the day before delivery. Check the quantities before sending."
+                        >
+                          old stock count
+                        </span>
+                      )}
                       <span className="text-xs text-zinc-500 ml-auto">{order.item_count} item{order.item_count !== 1 ? "s" : ""}</span>
                       {order.email_sent_at && (
                         <span title={`Email sent ${order.email_sent_at}`} className="text-emerald-400">
