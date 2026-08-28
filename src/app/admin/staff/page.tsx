@@ -793,7 +793,21 @@ export default function AdminStaffPage() {
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
-      if (!window.confirm(`Change status for ${dn} to ${newStatus}?`)) return;
+      // INACTIVE does more than change a label: it freezes the account, ends the
+      // session in progress and stops the salary config. Someone read "Change
+      // status to INACTIVE?" as a roster edit, clicked OK, and locked a working
+      // staff member out — undone four seconds later, which is what a misread
+      // dialog looks like.
+      const warning =
+        newStatus === "INACTIVE"
+          ? `${dn} を INACTIVE にします。\n\n` +
+            `・アカウントが即座に凍結され、ログインできなくなります\n` +
+            `・作業中のセッションはその場で切断されます\n` +
+            `・給与設定が無効化されます\n\n` +
+            `休職・産休の場合は INACTIVE ではなく Absence ページで設定してください。\n\n` +
+            `本当に INACTIVE にしますか？`
+          : `${dn} を ACTIVE に戻します。凍結も解除されます。よろしいですか？`;
+      if (!window.confirm(warning)) return;
       setLoading(true);
 
       const r = await apiPost<{ ok: boolean; updated: number }>(
