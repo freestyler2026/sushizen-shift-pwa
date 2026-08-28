@@ -134,6 +134,13 @@
   }
   .card.danger { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.04); }
   .card.danger .card-title { color: var(--red); }
+  /* Coloured card edges, so the NTE guide can rank its cards by how much
+     trouble ignoring them causes. Same tokens as the rest of the manual. */
+  .card.amber-border  { border-color: rgba(245,158,11,0.40); }
+  .card.blue-border   { border-color: rgba(96,165,250,0.35); }
+  .card.violet-border { border-color: rgba(167,139,250,0.35); }
+  .card.red-border    { border-color: rgba(248,113,113,0.35); }
+  .card.red-border .card-title { color: var(--red); }
 
   /* ── STEPS ── */
   .steps { list-style: none; }
@@ -181,6 +188,11 @@
     border-color: rgba(248,113,113,0.3);
   }
   .tip.danger .tip-icon { color: var(--red); }
+  .tip.info {
+    background: rgba(96,165,250,0.07);
+    border-color: rgba(96,165,250,0.30);
+  }
+  .tip.info .tip-icon { color: var(--blue); }
 
   /* ── CONFIRM MOCK UI ── */
   .confirm-mock {
@@ -339,6 +351,123 @@
         <div class="section-path">Admin → NTE Management</div>
         <div class="section-desc" data-en="Issue, track, and decide on Notice to Explain cases through a fully automated workflow. All NTE records are centralized in the company database." data-ja="NTE（説明要求書）の発行・追跡・判定を完全自動ワークフローで管理します。すべてのNTE記録は会社データベースに一元化されます。">Issue, track, and decide NTE cases through a fully automated workflow.</div>
       </div>
+    </div>
+
+    <!-- ══ WHICH ROUTE ══ -->
+    <div class="card amber-border">
+      <div class="card-title" data-en="🆕 Start Here — Two Ways to Make an NTE" data-ja="🆕 最初に読む — NTEの作り方は2通りあります">🆕 Start Here — Two Ways to Make an NTE</div>
+      <p style="margin-bottom:12px" data-en="This is the most common source of confusion. The ready-made templates only appear on ONE of these two routes. Pick the route first, before you start typing." data-ja="ここが一番間違えやすいところです。用意されたテンプレートは<b>2つのうち片方にしか出てきません</b>。書き始める前に、どちらの道を使うか先に決めてください。">The templates only appear on ONE of these two routes. Pick the route before you start typing.</p>
+      <div class="table-wrap"><table>
+        <tr>
+          <th></th>
+          <th data-en="① NTE Request tab" data-ja="① NTE Request タブ">① NTE Request</th>
+          <th data-en="② Create Notice button" data-ja="② Create Notice ボタン">② Create Notice</th>
+        </tr>
+        <tr>
+          <td data-en="Who can use it" data-ja="使える人">Who can use it</td>
+          <td class="muted" data-en="Anyone who can open the page" data-ja="ページを開ける人なら誰でも">Anyone with page access</td>
+          <td class="muted" data-en="HQ / ADMIN / HR Manager only" data-ja="HQ / ADMIN / HRマネージャーのみ">HQ / ADMIN / HR Manager only</td>
+        </tr>
+        <tr>
+          <td data-en="Ready-made templates" data-ja="用意されたテンプレート"><b>Templates</b></td>
+          <td class="muted"><span style="color:var(--red);font-weight:700" data-en="✕ Do NOT appear" data-ja="✕ 出てきません">✕ Do NOT appear</span></td>
+          <td class="muted"><span style="color:var(--green);font-weight:700" data-en="✓ 161 violations to choose from" data-ja="✓ 161件から選べます">✓ 161 violations</span></td>
+        </tr>
+        <tr>
+          <td data-en="What the employee receives" data-ja="本人に届く文章">What the employee receives</td>
+          <td class="muted" data-en="EXACTLY what you typed, word for word. Nothing is added." data-ja="<b>あなたが書いた文章がそのまま</b>届きます。何も足されません。">Exactly what you typed, word for word</td>
+          <td class="muted" data-en="The template text, after you edit in the real details" data-ja="テンプレートの文章を、実際の内容に直したもの">The template text, edited by you</td>
+        </tr>
+        <tr>
+          <td data-en="Steps before it is sent" data-ja="送られるまでの手順">Steps before sending</td>
+          <td class="muted" data-en="You submit → HR approves → HR issues (3 steps, 3 people-moments)" data-ja="申請 → HRが承認 → HRが発行（3ステップ）">Submit → HR approves → HR issues</td>
+          <td class="muted" data-en="You fill it in and issue it (1 step)" data-ja="入力して発行（1ステップ）">Fill in and issue (1 step)</td>
+        </tr>
+      </table></div>
+      <div class="tip danger" style="margin-top:10px">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="If you use NTE Request and expect a template to appear later, it never will. The text you write is the finished notice. This is why notices have gone out as plain free text." data-ja="<b>NTE Request で申請して「あとからテンプレートが出てくる」ことはありません。</b>書いた文章がそのまま完成品です。テンプレートが出てこなかったのはこのためです。">If you use NTE Request and wait for a template to appear, it never will. What you write is the finished notice.</span>
+      </div>
+    </div>
+
+    <!-- ══ WHERE ARE THE TEMPLATES ══ -->
+    <div class="card violet-border">
+      <div class="card-title" data-en="🆕 Where the Templates Actually Are" data-ja="🆕 テンプレートはどこにあるか">🆕 Where the Templates Actually Are</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click the purple 'Create Notice' button at the top of the page" data-ja="画面上部の紫の「Create Notice」ボタンを押す">Click the purple <b>Create Notice</b> button at the top</strong><p data-en="Not the NTE Request tab. The purple button." data-ja="NTE Request タブではありません。<b>紫のボタン</b>です。">Not the NTE Request tab — the purple button.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Choose the staff member and the Document Type" data-ja="対象スタッフと Document Type を選ぶ">Choose the staff member and <b>Document Type</b></strong><p data-en="NTE — Notice to Explain / Warning Letter / Final Warning." data-ja="NTE（説明要求）／ Warning Letter（警告書）／ Final Warning（最終警告）から選びます。">NTE / Warning Letter / Final Warning.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click 'Select violation &amp; auto-fill reason…'" data-ja="「Select violation &amp; auto-fill reason…」を押す">Click <b>“Select violation &amp; auto-fill reason…”</b></strong><p data-en="This is the button with the book icon. It opens the violation list — 161 entries grouped by category (Attendance 9, Conduct 15, Food Safety 14, Fraud 10, and so on). Type in the search box to narrow it down." data-ja="本のアイコンが付いたボタンです。ここで<b>違反の一覧（161件）</b>が開きます。カテゴリ別（出勤9件・行動規範15件・衛生14件・不正10件 など）に並んでいます。検索欄に文字を入れて絞り込めます。">The book-icon button. Opens the 161-entry violation list, grouped by category. Use the search box.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Pick the violation — the letter writes itself" data-ja="違反を選ぶと、文章が自動で入る">Pick the violation — the letter fills itself in</strong><p data-en="Example: ATT-001 Habitual Tardiness fills in a full paragraph citing the OS timekeeping records, the dates, the minutes late, and the company threshold." data-ja="例：<b>ATT-001 Habitual Tardiness（常習的遅刻）</b>を選ぶと、OSの勤怠記録に基づく文章・日付・遅刻分数・社内基準までまとめて入ります。">e.g. ATT-001 Habitual Tardiness fills a full paragraph citing OS records, dates and minutes late.</p></div></li>
+      </ol>
+      <div class="tip danger" style="margin-top:12px">
+        <span class="tip-icon">🚨</span>
+        <span data-en="THE FILLED-IN TEXT CONTAINS EXAMPLE DATA. The dates, times and counts are samples to show you the shape of the letter — for instance '03 Jul 2026 — Scheduled 09:00 | Actual 09:22 | Late by 22 min'. You MUST replace every date, time and number with the real ones before issuing. Never send it as it appears." data-ja="<b>自動で入る文章には「見本の数字」が入っています。</b>日付・時刻・回数はあくまで文章の形を見せるためのサンプルです（例：「03 Jul 2026 — Scheduled 09:00｜Actual 09:22｜Late by 22 min」）。<b>発行する前に、日付・時刻・数字をすべて実際のものに書き換えてください。</b>そのまま送ってはいけません。">The filled-in text contains EXAMPLE dates and numbers. Replace every one with the real values before issuing. Never send it as-is.</span>
+      </div>
+      <div class="tip info" style="margin-top:8px">
+        <span class="tip-icon">ℹ️</span>
+        <span data-en="The 'Templates' tab at the top is a different, currently empty feature. It is not where the violation letters live. Use 'Select violation &amp; auto-fill reason…' instead." data-ja="画面上部の <b>Templates タブは別の機能</b>で、現在は空です。違反ごとの文章はここにはありません。<b>「Select violation &amp; auto-fill reason…」</b>を使ってください。">The “Templates” tab is a different, currently empty feature. Use “Select violation &amp; auto-fill reason…”.</span>
+      </div>
+    </div>
+
+    <!-- ══ TAB MAP ══ -->
+    <div class="card">
+      <div class="card-title" data-en="🆕 What Each Tab Is For" data-ja="🆕 タブの意味">🆕 What Each Tab Is For</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Tab" data-ja="タブ">Tab</th><th data-en="What it is for" data-ja="用途">What it is for</th><th data-en="Who uses it" data-ja="使う人">Who</th></tr>
+        <tr><td><b>Staff Board</b></td><td class="muted" data-en="Everyone's current notice count at a glance. 3 active notices trigger an automatic suspension." data-ja="全員の有効な通知件数を一覧で確認。<b>有効な通知が3件になると自動で出勤停止</b>になります。">Notice count per person. 3 active notices → automatic suspension.</td><td class="muted">HR</td></tr>
+        <tr><td><b>NTE Request</b></td><td class="muted" data-en="Ask HR to issue a notice. Free text only — no templates." data-ja="HRに発行を依頼する。<b>自由記述のみ・テンプレートなし。</b>">Ask HR to issue. Free text, no templates.</td><td class="muted" data-en="Anyone" data-ja="誰でも">Anyone</td></tr>
+        <tr><td><b>Pending</b></td><td class="muted" data-en="Requests waiting for HR. Two stages: waiting for review, then waiting to be issued." data-ja="HR待ちの申請。<b>2段階</b>：レビュー待ち → 発行待ち。">Requests waiting for HR — review, then issuance.</td><td class="muted">HR</td></tr>
+        <tr><td><b>Issue Notice</b></td><td class="muted" data-en="Write and issue a notice directly. This is where the templates are." data-ja="通知を直接作って発行する。<b>テンプレートはここにあります。</b>">Write and issue directly. Templates live here.</td><td class="muted">HQ / HR</td></tr>
+        <tr><td><b>Case History</b></td><td class="muted" data-en="Every notice ever issued, searchable by name." data-ja="発行済みの全通知。名前で検索できます。">Every notice issued, searchable.</td><td class="muted">HR</td></tr>
+        <tr><td><b>Templates</b></td><td class="muted" data-en="A separate feature, currently empty. Not the violation letters." data-ja="別機能。現在は空です。違反文はここではありません。">Separate feature, currently empty.</td><td class="muted">—</td></tr>
+      </table></div>
+    </div>
+
+    <!-- ══ HR: HANDLING REQUESTS ══ -->
+    <div class="card blue-border">
+      <div class="card-title" data-en="🆕 HR — Handling a Request That Came In" data-ja="🆕 HR — 届いた申請の処理">🆕 HR — Handling a Request That Came In</div>
+      <p style="margin-bottom:10px" data-en="A request does not reach the employee by itself. It stops twice, and each stop needs a person to act." data-ja="申請は<b>自動では本人に届きません。</b>途中で2回止まり、そのたびに人が動く必要があります。">A request never reaches the employee by itself. It stops twice, and each stop needs a person.</p>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:10px">
+        <span class="chip">PENDING</span><span style="color:var(--muted)">→ Approve →</span>
+        <span class="chip blue">APPROVED</span><span style="color:var(--muted)">→ Issue →</span>
+        <span class="chip green" data-en="ISSUED — employee can see it" data-ja="ISSUED — 本人に届く">ISSUED</span>
+      </div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Open the Pending tab and read the request" data-ja="Pending タブを開いて申請を読む">Open <b>Pending</b> and read the request</strong><p data-en="Check the staff name, the date, the reason, and any attached photo." data-ja="スタッフ名・日付・理由・添付写真を確認します。">Check name, date, reason and any attached photo.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Approve or Reject" data-ja="Approve か Reject">Approve or Reject</strong><p data-en="Approve moves it to Pending Issuance. Reject closes it with a note back to the requester." data-ja="Approve すると<b>発行待ち</b>に進みます。Reject すると申請者への注記付きで終了します。">Approve → Pending Issuance. Reject closes it with a note.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Issue it — this is the step people forget" data-ja="Issue する — ここが忘れられがちです">Issue it — <b>this is the step people forget</b></strong><p data-en="Approved is NOT sent. Until you click Issue, the employee sees nothing. As of 28 Aug 2026 one request had been sitting Approved-but-not-issued for 39 days." data-ja="<b>Approve しただけでは送られていません。</b>Issue を押すまで本人には何も見えません。2026年8月28日時点で、<b>承認済みのまま39日間放置</b>された申請が1件ありました。">Approved is NOT sent. Until you click Issue, the employee sees nothing.</p></div></li>
+      </ol>
+      <div class="tip" style="margin-top:8px">
+        <span class="tip-icon">💡</span>
+        <span data-en="The text of a request goes out word for word. If it is too short or unclear, do not issue it as-is — reject it with a note, or issue a proper notice from Create Notice using a template instead." data-ja="<b>申請の文章はそのまま本人に届きます。</b>短すぎる・意味が伝わらない場合は、そのまま発行せず、注記を付けて Reject するか、Create Notice でテンプレートから作り直してください。">A request's text goes out word for word. If it is unclear, reject with a note or rewrite it from Create Notice.</span>
+      </div>
+    </div>
+
+    <!-- ══ GLOSSARY ══ -->
+    <div class="card">
+      <div class="card-title" data-en="🆕 Plain-Language Glossary" data-ja="🆕 用語の意味（やさしい説明）">🆕 Plain-Language Glossary</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Word on screen" data-ja="画面の言葉">Word on screen</th><th data-en="What it means" data-ja="意味">What it means</th></tr>
+        <tr><td><b>NTE</b></td><td class="muted" data-en="Notice to Explain. A letter asking the employee to explain, in writing, what happened. It is not a punishment by itself." data-ja="Notice to Explain（説明要求書）。<b>何があったのかを本人に書面で説明してもらうための書面</b>です。これ自体は処分ではありません。">A letter asking the employee to explain in writing. Not a punishment by itself.</td></tr>
+        <tr><td><b>Draft</b></td><td class="muted" data-en="Not sent yet. Still being written." data-ja="まだ送られていない、作成中の状態。">Not sent yet.</td></tr>
+        <tr><td><b>Pending Review</b></td><td class="muted" data-en="Waiting for HR to read it and decide." data-ja="HRが読んで判断するのを待っている状態。">Waiting for HR to decide.</td></tr>
+        <tr><td><b>Pending Issuance</b></td><td class="muted" data-en="HR agreed, but it has NOT been sent yet. Someone still has to press Issue." data-ja="HRは承認したが、<b>まだ送られていない。</b>誰かが Issue を押す必要があります。">Approved but not sent. Someone must press Issue.</td></tr>
+        <tr><td><b>Issued / Served</b></td><td class="muted" data-en="The employee can now see it and reply." data-ja="本人が見られる状態になり、回答できます。">The employee can now see and reply.</td></tr>
+        <tr><td><b>Active Notice</b></td><td class="muted" data-en="A notice still in effect. Three of them trigger an automatic suspension." data-ja="まだ有効な通知。<b>3件になると自動で出勤停止</b>になります。">Still in effect. Three trigger automatic suspension.</td></tr>
+        <tr><td><b>Violation code</b></td><td class="muted" data-en="A short ID for the rule that was broken, e.g. ATT-001 = Habitual Tardiness. Choosing one fills in the letter for you." data-ja="破られた規則の短い番号。例：<b>ATT-001 = 常習的遅刻</b>。選ぶと文章が自動で入ります。">A short ID for the rule broken, e.g. ATT-001 = Habitual Tardiness.</td></tr>
+      </table></div>
+    </div>
+
+    <!-- ══ MISTAKES ══ -->
+    <div class="card red-border">
+      <div class="card-title" data-en="🆕 Common Mistakes" data-ja="🆕 よくある間違い">🆕 Common Mistakes</div>
+      <div class="table-wrap"><table>
+        <tr><th data-en="What happens" data-ja="起きること">What happens</th><th data-en="Why" data-ja="原因">Why</th><th data-en="What to do" data-ja="どうするか">What to do</th></tr>
+        <tr><td data-en="“I waited for the template and it never came”" data-ja="「テンプレートを待ったが出てこない」">“The template never appeared”</td><td class="muted" data-en="You used NTE Request. Templates are only on Create Notice." data-ja="NTE Request を使った。テンプレートは Create Notice 側にしかありません。">NTE Request has no templates.</td><td class="muted" data-en="Use the purple Create Notice button instead." data-ja="紫の <b>Create Notice</b> ボタンを使ってください。">Use Create Notice.</td></tr>
+        <tr><td data-en="“I approved it but the employee says nothing arrived”" data-ja="「承認したのに本人に届いていない」">“Approved but nothing arrived”</td><td class="muted" data-en="Approve does not send. Issue sends." data-ja="Approve は送信ではありません。<b>Issue が送信</b>です。">Approve ≠ send.</td><td class="muted" data-en="Open Pending Issuance and click Issue." data-ja="Pending Issuance を開いて <b>Issue</b> を押します。">Click Issue in Pending Issuance.</td></tr>
+        <tr><td data-en="“The notice contains dates that never happened”" data-ja="「身に覚えのない日付が書かれている」">“The notice has dates that never happened”</td><td class="muted" data-en="The template's example data was left in." data-ja="テンプレートの<b>見本の数字</b>を消さずに発行した。">Example data was left in.</td><td class="muted" data-en="Always replace every date and number before issuing." data-ja="発行前に日付・数字を<b>必ず</b>実際のものに直します。">Replace every date and number first.</td></tr>
+        <tr><td data-en="“I was typing and the page reset to Dubai”" data-ja="「入力中に画面がドバイに戻った」">“The page reset to Dubai while typing”</td><td class="muted" data-en="Fixed on 28 Aug 2026. Your text and the city you chose are now kept." data-ja="2026年8月28日に修正済み。入力内容と選んだ都市は保持されます。">Fixed 28 Aug 2026.</td><td class="muted" data-en="Re-attach the photo only — text is restored automatically." data-ja="写真だけ選び直してください。文章は自動で戻ります。">Only the photo needs re-attaching.</td></tr>
+      </table></div>
     </div>
 
     <div class="card">
