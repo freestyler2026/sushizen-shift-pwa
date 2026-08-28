@@ -484,6 +484,39 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <!-- ── HOW ORDER QUANTITIES ARE CALCULATED ── -->
+  <div class="card blue-border">
+    <div class="card-title" data-en="🆕 How the Order Quantity Is Calculated — and How to Check It" data-ja="🆕 発注数量の計算方法と確認のしかた">🆕 How the Order Quantity Is Calculated — and How to Check It</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px" data-en="Every generated line now shows the figures it was built from, so you can check an order without asking anyone to investigate. The rule is: order = par − stock." data-ja="生成された明細には、計算に使った数字がそのまま表示されます。誰かに調査を頼まなくても自分で確認できます。ルールは 発注量 = par − 在庫 です。">Every generated line shows the figures it was built from. The rule is: order = par − stock.</p>
+
+    <ul style="font-size:12px;color:var(--muted);line-height:1.9;margin:0 0 12px 18px">
+      <li data-en="<b>Par comes from the DELIVERY day, not the day you generate.</b> Deliveries run Monday / Wednesday / Friday. A Friday delivery has to last Saturday and Sunday, so it uses weekend par." data-ja="<b>parは「納品日」で決まります。生成日ではありません。</b>納品は月・水・金です。金曜納品は土日を持たせる必要があるため週末parを使います。"><b>Par comes from the DELIVERY day.</b> Deliveries run Mon/Wed/Fri. A Friday delivery uses weekend par because it must last the weekend.</li>
+      <li data-en="<b>Stock comes from the Daily Inventory counted the evening before delivery.</b> The order is built the moment your store submits that count — whatever time of day that is. There is no fixed cut-off you have to beat." data-ja="<b>在庫は「納品前日」のDaily Inventoryを使います。</b>発注は、店舗がその棚卸しを提出した時点で自動的に作られます。何時でも構いません。締切に間に合わせる必要はありません。"><b>Stock comes from the Daily Inventory counted the evening before delivery.</b> The order is built the moment your store submits that count, whatever time of day.</li>
+      <li data-en="<b>If a store counts twice a day (AM and PM), the PM count is used.</b> The order line names which one it used." data-ja="<b>1日2回棚卸しする店舗（AM / PM）はPMを使います。</b>どちらを使ったかは明細に表示されます。"><b>If a store counts AM and PM, the PM count is used.</b> The line names which one.</li>
+    </ul>
+
+    <div class="two-col" style="margin-bottom:12px">
+      <div style="background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-en="① Under the Stock column" data-ja="① Stock列の下">① Under the Stock column</div>
+        <p style="font-size:12px;color:var(--muted)" data-en="Each line shows par 2.0 (weekday) · count 2026-08-28 PM — the par used, whether it was the weekday or weekend figure, and exactly which stock count it read. Subtract the two and you should get the ordered quantity." data-ja="各明細に par 2.0 (weekday) · count 2026-08-28 PM と表示されます。使ったpar、平日/週末どちらか、どの棚卸しを読んだかが分かります。引き算すれば発注量になります。">Each line shows <b>par 2.0 (weekday) · count 2026-08-28 PM</b> — the par used, weekday or weekend, and which stock count it read.</p>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-en="② If someone changed the quantity" data-ja="② 誰かが数量を直した場合">② If someone changed the quantity</div>
+        <p style="font-size:12px;color:var(--muted)" data-en="A hand-edited line shows edited · was 4.0 next to the quantity, and the order carries a Manual changes list naming who changed what, from what to what, and what the system had calculated. Nothing is overwritten silently." data-ja="手で直した明細には数量の横に edited · was 4.0 と表示され、発注に「Manual changes」の一覧が付きます。誰が・いくつを・いくつに直したか、システムがいくつと計算していたかが残ります。黙って上書きされることはありません。">A hand-edited line shows <b>edited · was 4.0</b>, and the order carries a <b>Manual changes</b> list naming who changed what and what the system had calculated.</p>
+      </div>
+    </div>
+
+    <div class="warn">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="An order tagged 'old stock count' in amber was built before that store submitted its count for the day, so it used an older one. Check the quantities against the shelf before sending it." data-ja="オレンジの「old stock count」が付いた発注は、その店舗がその日の棚卸しを提出する前に作られたため、古い在庫で計算されています。送信前に必ず実際の在庫と照合してください。">An order tagged <b>old stock count</b> (amber) was built before that store submitted its count for the day. Check the quantities against the shelf before sending.</span>
+    </div>
+
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">💡</span>
+      <span data-en="If the quantity still does not match what you expect, the fastest check is the line itself: par minus stock. If those two numbers are right and the order is wrong, report it. If the stock number is not what you counted, the count is what needs fixing." data-ja="数量が期待と合わない場合、まず明細を見てください。par − 在庫 です。この2つが正しくて発注量が違うなら報告してください。在庫の数字が自分の数えた値と違うなら、直すべきは棚卸しの方です。">If a quantity still looks wrong, check the line itself: par minus stock. If those are right and the order is wrong, report it. If the stock number is not what you counted, the count is what needs fixing.</span>
+    </div>
+  </div>
+
   <!-- ── NEW FEATURE: PO DATE ── -->
   <div class="card blue-border">
     <div class="card-title" data-en="🆕 PO Date — Defaults to Tomorrow + Editable Per Order" data-ja="🆕 PO日付 — デフォルト翌日 + 発注ごとに編集可能">🆕 PO Date — Defaults to Tomorrow + Editable Per Order</div>
