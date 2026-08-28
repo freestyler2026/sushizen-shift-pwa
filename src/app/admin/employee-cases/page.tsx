@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, hasPermission, refreshAuthFromApi } from "@/lib/auth";
+import { useUnsavedGuard, saveDraft, loadDraft, clearDraft } from "@/lib/unsavedGuard";
 // API calls go through Next.js proxy (/api/admin/...) — no direct Heroku fetch
 import {
   GLASS_CARD,
@@ -57,6 +58,13 @@ import SelectDark from "@/components/SelectDark";
 type NteStatus = "ACTIVE" | "RESOLVED";
 
 type CaseType = "NTE" | "WARNING_LETTER" | "FINAL_WARNING";
+
+// Half-written notices were being lost: a deploy reloads the page, and the form
+// held everything in memory. Three attempts were abandoned before this. Keep the
+// in-progress request and the chosen city, and tell AutoReload to wait.
+const CITY_DRAFT_KEY = "zen:employee-cases:city";
+const REQ_DRAFT_KEY = "zen:employee-cases:nte-request";
+const ISSUE_DRAFT_KEY = "zen:employee-cases:issue-notice";
 
 type NteRecord = {
   id: string;
@@ -744,6 +752,8 @@ export default function EmployeeCasesPage() {
   const [reqCaseType, setReqCaseType] = useState<CaseType>("NTE");
   const [reqImage, setReqImage] = useState<File | null>(null);
   const [reqImagePreview, setReqImagePreview] = useState<string>("");
+  const reqDraftLoaded = useRef(false);
+  const issueDraftLoaded = useRef(false);
   const [submittingReq, setSubmittingReq] = useState(false);
   const reqImageRef = useRef<HTMLInputElement>(null);
   // Explanation full-text modal
@@ -764,6 +774,60 @@ export default function EmployeeCasesPage() {
   const [issueTemplateId, setIssueTemplateId] = useState("");
   const [issueReason, setIssueReason] = useState("");
   const [issuing, setIssuing] = useState(false);
+
+  // ── Keep half-written notices ──────────────────────────────────────────────
+  // Remember the city the user actually picked, so a reload does not drop them
+  // back on their account's own city.
+  useEffect(() => {
+    if (accessReady) saveDraft(CITY_DRAFT_KEY, city);
+  }, [accessReady, city]);
+
+  // Restore an in-progress request once, after access resolves. The evidence
+  // image is not restorable — a File cannot be serialised — so it is re-picked.
+  useEffect(() => {
+    if (!accessReady || reqDraftLoaded.current) return;
+    reqDraftLoaded.current = true;
+    const d = loadDraft<{ staff: string; reason: string; date: string; type: CaseType }>(REQ_DRAFT_KEY);
+    if (!d) return;
+    if (d.staff) setReqStaffName(d.staff);
+    if (d.reason) setReqReason(d.reason);
+    if (d.date) setReqDate(d.date);
+    if (d.type) setReqCaseType(d.type);
+  }, [accessReady]);
+
+  useEffect(() => {
+    if (!accessReady || issueDraftLoaded.current) return;
+    issueDraftLoaded.current = true;
+    const d = loadDraft<{ staff: string; date: string; approvedBy: string;
+                          type: CaseType; reason: string }>(ISSUE_DRAFT_KEY);
+    if (!d) return;
+    if (d.staff) setIssueStaffName(d.staff);
+    if (d.date) setIssueDate(d.date);
+    if (d.approvedBy) setIssueApprovedBy(d.approvedBy);
+    if (d.type) setIssueCaseType(d.type);
+    if (d.reason) setIssueReason(d.reason);
+  }, [accessReady]);
+
+  const reqDirty = Boolean(reqStaffName.trim() || reqReason.trim());
+  const issueDirty = Boolean(issueStaffName.trim() || issueReason.trim());
+
+  useEffect(() => {
+    if (!reqDraftLoaded.current) return;
+    if (reqDirty) saveDraft(REQ_DRAFT_KEY, { staff: reqStaffName, reason: reqReason,
+                                             date: reqDate, type: reqCaseType });
+    else clearDraft(REQ_DRAFT_KEY);
+  }, [reqDirty, reqStaffName, reqReason, reqDate, reqCaseType]);
+
+  useEffect(() => {
+    if (!issueDraftLoaded.current) return;
+    if (issueDirty) saveDraft(ISSUE_DRAFT_KEY, { staff: issueStaffName, date: issueDate,
+                                                 approvedBy: issueApprovedBy,
+                                                 type: issueCaseType, reason: issueReason });
+    else clearDraft(ISSUE_DRAFT_KEY);
+  }, [issueDirty, issueStaffName, issueDate, issueApprovedBy, issueCaseType, issueReason]);
+
+  // Hold off a new-deploy reload while either notice is half written.
+  useUnsavedGuard("employee-cases", reqDirty || issueDirty);
 
   // Case History tab state
   const [historyNameFilter, setHistoryNameFilter] = useState("");
@@ -798,10 +862,16 @@ export default function EmployeeCasesPage() {
         return;
       }
       if (!cancelled) {
+        // Only fall back to the account's own city when the user has not already
+        // chosen one. Overriding it on every mount sent anyone working across
+        // cities back to their home city mid-form.
+        const savedCity = loadDraft<"manila" | "dubai">(CITY_DRAFT_KEY);
         setCity(
-          String(resolved?.city || "manila").toLowerCase() === "dubai"
-            ? "dubai"
-            : "manila"
+          savedCity === "manila" || savedCity === "dubai"
+            ? savedCity
+            : String(resolved?.city || "manila").toLowerCase() === "dubai"
+              ? "dubai"
+              : "manila"
         );
         const name = resolved?.staffName || "";
         setCurrentUser(name);
@@ -925,6 +995,7 @@ export default function EmployeeCasesPage() {
       }
 
       setSuccessMsg(`NTE request for ${reqStaffName} submitted. HR will review it.`);
+      clearDraft(REQ_DRAFT_KEY);
       setReqStaffName("");
       setReqReason("");
       setReqDate(todayStr());
@@ -1063,6 +1134,7 @@ export default function EmployeeCasesPage() {
         ? `Notice issued to ${issueStaffName}. Suspension auto-created!`
         : `Notice issued to ${issueStaffName}. Active notices: ${(resData as any).active_nte_count ?? "—"}`;
       setSuccessMsg(msg);
+      clearDraft(ISSUE_DRAFT_KEY);
       setIssueStaffName("");
       setIssueDate(todayStr());
       setIssueReason("");
