@@ -72,8 +72,17 @@ const ROLE_OPTIONS_FALLBACK = [
 const ROLE_OPTIONS = ROLE_OPTIONS_FALLBACK;
 type StaffRole = string;
 
-const STATUS_OPTIONS = ["ACTIVE", "INACTIVE"] as const;
+// ON_LEAVE and SEPARATED both deactivate and freeze the account. The difference
+// is that ON_LEAVE keeps the person's roles, so coming back needs no rebuilding,
+// while SEPARATED removes them. The old single INACTIVE meant both, which is how
+// someone who had left kept ADMIN for two months.
+const STATUS_OPTIONS = ["ACTIVE", "ON_LEAVE", "SEPARATED"] as const;
 type StaffStatus = (typeof STATUS_OPTIONS)[number];
+const STATUS_LABEL: Record<StaffStatus, string> = {
+  ACTIVE: "Active",
+  ON_LEAVE: "On Leave",
+  SEPARATED: "Separated",
+};
 
 type StaffRow = {
   id: string;
@@ -184,6 +193,9 @@ function asRole(s: any): StaffRole {
 }
 
 function asStatus(s: any): StaffStatus {
+  // Rows written before the split still say INACTIVE. Read it as On Leave — the
+  // reading that does not take anybody's roles away on a guess.
+  if (String(s ?? "").trim().toUpperCase() === "INACTIVE") return "ON_LEAVE";
   const u = norm(s).toUpperCase();
   if (STATUS_OPTIONS.includes(u as any)) return u as StaffStatus;
   return "ACTIVE";
@@ -209,9 +221,8 @@ function roleBadgeClass(role: StaffRole) {
 }
 
 function statusBadgeClass(status: StaffStatus) {
-  if (status === "ACTIVE") {
-    return BADGE_SUCCESS;
-  }
+  if (status === "ACTIVE") return BADGE_SUCCESS;
+  if (status === "ON_LEAVE") return BADGE_WARNING;
   return BADGE_ERROR;
 }
 
@@ -793,20 +804,26 @@ export default function AdminStaffPage() {
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
-      // INACTIVE does more than change a label: it freezes the account, ends the
-      // session in progress and stops the salary config. Someone read "Change
-      // status to INACTIVE?" as a roster edit, clicked OK, and locked a working
-      // staff member out — undone four seconds later, which is what a misread
-      // dialog looks like.
+      // Both of these do more than change a label: the account is frozen, the
+      // session in progress is cut, and the salary config is switched off.
+      // Someone once read "Change status to INACTIVE?" as a roster edit, clicked
+      // OK, and locked a working colleague out — undone four seconds later,
+      // which is what a misread dialog looks like. So each option now says what
+      // it actually does, and how the two differ.
       const warning =
-        newStatus === "INACTIVE"
-          ? `${dn} を INACTIVE にします。\n\n` +
-            `・アカウントが即座に凍結され、ログインできなくなります\n` +
-            `・作業中のセッションはその場で切断されます\n` +
-            `・給与設定が無効化されます\n\n` +
-            `休職・産休の場合は INACTIVE ではなく Absence ページで設定してください。\n\n` +
-            `本当に INACTIVE にしますか？`
-          : `${dn} を ACTIVE に戻します。凍結も解除されます。よろしいですか？`;
+        newStatus === "SEPARATED"
+          ? `Mark ${dn} as SEPARATED (left the company)?\n\n` +
+            `• Their account is frozen and any session ends now\n` +
+            `• Salary configuration is switched off\n` +
+            `• Their roles and permissions are removed\n\n` +
+            `For maternity, sick or any other leave, use "On Leave" instead — it keeps their roles for when they return.`
+          : newStatus === "ON_LEAVE"
+          ? `Put ${dn} On Leave?\n\n` +
+            `• Their account is frozen and any session ends now\n` +
+            `• Salary configuration is switched off\n` +
+            `• Their roles are kept, so returning needs no rebuilding\n\n` +
+            `If they have left the company, use "Separated" instead.`
+          : `Reactivate ${dn}? The account is unfrozen and salary configuration is restored.`;
       if (!window.confirm(warning)) return;
       setLoading(true);
 
@@ -1157,7 +1174,7 @@ export default function AdminStaffPage() {
             className={SELECT_CLASS + " max-w-[180px]"}
             value={newStaffStatus}
             onChange={v => setNewStaffStatus(v as StaffStatus)}
-            options={STATUS_OPTIONS.map((x) => ({ value: x, label: x }))}
+            options={STATUS_OPTIONS.map((x) => ({ value: x, label: STATUS_LABEL[x] }))}
           />
         </div>
 
@@ -1199,7 +1216,7 @@ export default function AdminStaffPage() {
             <SelectDark
               className={[
                 "w-full rounded-xl border px-3 py-2 text-sm bg-neutral-950",
-                statusFilter === "INACTIVE"
+                statusFilter === "ON_LEAVE" || statusFilter === "SEPARATED"
                   ? "border-amber-500 text-amber-200"
                   : statusFilter === "ACTIVE"
                   ? "border-emerald-700 text-emerald-200"
@@ -1209,7 +1226,7 @@ export default function AdminStaffPage() {
               onChange={v => setStatusFilter(v as StaffStatus | "")}
               options={[
                 { value: "", label: "All statuses" },
-                ...STATUS_OPTIONS.map((x) => ({ value: x, label: x })),
+                ...STATUS_OPTIONS.map((x) => ({ value: x, label: STATUS_LABEL[x] })),
               ]}
             />
           </div>
@@ -1279,7 +1296,7 @@ export default function AdminStaffPage() {
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: i * 0.02 }}
-                    className={[TABLE_ROW, !statusFilter && st === "INACTIVE" ? "opacity-60" : ""].join(" ")}
+                    className={[TABLE_ROW, !statusFilter && st !== "ACTIVE" ? "opacity-60" : ""].join(" ")}
                   >
                     <td className={TABLE_CELL + " px-4 align-top"}>
                       <div className="flex items-start gap-2.5">
@@ -1437,12 +1454,17 @@ export default function AdminStaffPage() {
                           {multiBranchSavedName === dn ? <span className="text-[11px] text-violet-300">Saved ✓</span> : null}
                         </div>
                         {st === "ACTIVE" ? (
-                          <button type="button" onClick={() => setStatusOnly(dn, "INACTIVE")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
-                            Deactivate
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button type="button" onClick={() => setStatusOnly(dn, "ON_LEAVE")} className={SMALL_BUTTON + " text-xs"} disabled={loading}>
+                              On Leave
+                            </button>
+                            <button type="button" onClick={() => setStatusOnly(dn, "SEPARATED")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
+                              Separated
+                            </button>
+                          </div>
                         ) : (
                           <button type="button" onClick={() => setStatusOnly(dn, "ACTIVE")} className={SMALL_BUTTON + " text-xs"} disabled={loading}>
-                            Activate
+                            Reactivate
                           </button>
                         )}
                       </div>
