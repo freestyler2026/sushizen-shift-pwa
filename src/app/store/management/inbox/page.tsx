@@ -362,6 +362,49 @@ interface TaskCardProps {
   ) => Promise<void>;
 }
 
+
+/**
+ * The photo the alert is about.
+ *
+ * The instruction identifies it only by the time it was scored, which meant
+ * opening Product Scoring and reading down a list to find out what the complaint
+ * was actually about. Showing it here is the difference between judging the food
+ * and guessing at it.
+ */
+function TaskPhoto({ taskId, base }: { taskId: number; base: "store" | "admin" }) {
+  const [failed, setFailed] = useState(false);
+  const [full, setFull] = useState(false);
+  if (failed) return null;
+  const src = `/api/${base}/management/tasks/${taskId}/photo`;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setFull(true)}
+        className="mt-3 block w-full overflow-hidden rounded-xl border border-white/10 bg-black/20"
+        title="Tap to enlarge"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Scored product"
+          onError={() => setFailed(true)}
+          className="max-h-56 w-full object-contain"
+        />
+      </button>
+      {full && (
+        <div
+          onClick={() => setFull(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="Scored product" className="max-h-full max-w-full object-contain" />
+        </div>
+      )}
+    </>
+  );
+}
+
 function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
   const [responding, setResponding] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -480,6 +523,9 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
             selected={selectedKey}
             onSelect={key => { setSelectedKey(key); setNote(""); }}
           />
+
+          {task.type === "product_score_c" && <TaskPhoto taskId={task.id} base="store" />}
+
 
           {/* Second stage — only for exception types whose template defines one. */}
           {actionOptions.length > 0 && selectedKey && (

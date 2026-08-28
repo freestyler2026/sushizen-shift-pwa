@@ -447,6 +447,47 @@ function OptionChips({ options }: { options: ResponseOption[] }) {
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 
+
+/**
+ * The photo a product-score alert is about.
+ *
+ * The alert identifies it only by the time it was scored. Showing it on the task
+ * is what lets a reviewer judge the score rather than take it on trust.
+ */
+function TaskPhoto({ taskId }: { taskId: number }) {
+  const [failed, setFailed] = useState(false);
+  const [full, setFull] = useState(false);
+  if (failed) return null;
+  const src = `/api/admin/management/tasks/${taskId}/photo`;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setFull(true)}
+        className="block w-full overflow-hidden rounded-lg border border-white/10 bg-black/20"
+        title="Click to enlarge"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Scored product"
+          onError={() => setFailed(true)}
+          className="max-h-48 w-full object-contain"
+        />
+      </button>
+      {full && (
+        <div
+          onClick={() => setFull(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="Scored product" className="max-h-full max-w-full object-contain" />
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Handling record ──────────────────────────────────────────────────────────
 
 interface Handling {
@@ -783,6 +824,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
               Awaiting manager response…
             </div>
           )}
+          {task.type === "product_score_c" && <TaskPhoto taskId={task.id} />}
           {onHandled && <HandlingPanel task={task} onSaved={onHandled} />}
           <TaskThread taskId={task.id} />
         </div>
