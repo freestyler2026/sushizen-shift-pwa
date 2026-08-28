@@ -156,6 +156,21 @@ const STATUS_ICON: Record<OrderStatus, React.ReactNode> = {
   issue: <AlertTriangle className="h-3 w-3" />,
 };
 
+/**
+ * A calendar date in the viewer's own timezone.
+ *
+ * toISOString() reports the UTC day, so before 08:00 in Manila (04:00 in Dubai)
+ * every date on this page named the day before. The par level is chosen from the
+ * delivery date, so an early-morning order was built against the wrong day of
+ * the week and came up short for the weekend.
+ */
+function localDate(offsetDays = 0): string {
+  const d = new Date();
+  if (offsetDays) d.setDate(d.getDate() + offsetDays);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+}
+
 export default function StoreSupplierOrdersPage() {
   const auth = getAuth();
   const userRole = (auth?.role ?? "").toUpperCase();
@@ -167,12 +182,8 @@ export default function StoreSupplierOrdersPage() {
   const storeRef = useRef<Store>("PAR");
   storeRef.current = store;
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 14);
-    return d.toISOString().slice(0, 10);
-  });
-  const [dateTo, setDateTo] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState<string>(() => localDate(-14));
+  const [dateTo, setDateTo] = useState<string>(() => localDate());
 
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -182,11 +193,11 @@ export default function StoreSupplierOrdersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [generating, setGenerating] = useState(false);
-  const [generateDate, setGenerateDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  });
+  // Tomorrow's delivery date, in the store's own calendar. toISOString() reports
+  // the UTC day, so before 08:00 in Manila (04:00 in Dubai) it named today —
+  // and the par level is chosen from this date, so an early-morning order was
+  // built against the wrong day of the week.
+  const [generateDate, setGenerateDate] = useState<string>(() => localDate(1));
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
   const [generateInvDate, setGenerateInvDate] = useState<string | null>(null);
   const [generateDebug, setGenerateDebug] = useState<{item_name:string;stock_found:boolean;stock:number;par:number;par_source:string;order_qty:number}[]|null>(null);
@@ -1471,11 +1482,11 @@ export default function StoreSupplierOrdersPage() {
                                 ) : detail.delivery_date ? (
                                   <>
                                     <span className={`text-xs font-medium ${
-                                      order.status === "sent" && detail.delivery_date < new Date().toISOString().slice(0, 10)
+                                      order.status === "sent" && detail.delivery_date < localDate()
                                         ? "text-red-400" : "text-zinc-300"
                                     }`}>
                                       {detail.delivery_date}
-                                      {order.status === "sent" && detail.delivery_date < new Date().toISOString().slice(0, 10) && (
+                                      {order.status === "sent" && detail.delivery_date < localDate() && (
                                         <span className="ml-1 text-red-400 text-xs">(overdue)</span>
                                       )}
                                     </span>
@@ -1491,7 +1502,7 @@ export default function StoreSupplierOrdersPage() {
                                   </>
                                 ) : isManager ? (
                                   <button
-                                    onClick={() => setDeliveryDateEdit({ orderId: order.id, value: new Date().toISOString().slice(0, 10) })}
+                                    onClick={() => setDeliveryDateEdit({ orderId: order.id, value: localDate() })}
                                     className="text-xs text-zinc-500 hover:text-zinc-300 italic flex items-center gap-1"
                                   >
                                     <Pencil className="h-3 w-3" /> Set date
@@ -1503,7 +1514,7 @@ export default function StoreSupplierOrdersPage() {
                             )}
 
                             {/* ── EDD Escalation Section (sent + overdue orders) ── */}
-                            {detail.status === "sent" && detail.delivery_date && detail.delivery_date < new Date().toISOString().slice(0, 10) && (
+                            {detail.status === "sent" && detail.delivery_date && detail.delivery_date < localDate() && (
                               <div className="border-t border-white/5 pt-3 space-y-3">
                                 <div className="flex items-center gap-2 text-sm">
                                   <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
@@ -1524,7 +1535,7 @@ export default function StoreSupplierOrdersPage() {
                                         <input
                                           type="date"
                                           className={INPUT_CLASS + " max-w-[160px] text-xs py-1"}
-                                          value={eddEdit?.orderId === order.id ? eddEdit.date : (detail.expected_delivery_date ?? new Date().toISOString().slice(0, 10))}
+                                          value={eddEdit?.orderId === order.id ? eddEdit.date : (detail.expected_delivery_date ?? localDate())}
                                           onChange={(e) => setEddEdit((prev) => prev?.orderId === order.id
                                             ? { ...prev, date: e.target.value }
                                             : { orderId: order.id, date: e.target.value, note: detail.edd_note ?? "" }
@@ -1540,14 +1551,14 @@ export default function StoreSupplierOrdersPage() {
                                           value={eddEdit?.orderId === order.id ? eddEdit.note : (detail.edd_note ?? "")}
                                           onChange={(e) => setEddEdit((prev) => prev?.orderId === order.id
                                             ? { ...prev, note: e.target.value }
-                                            : { orderId: order.id, date: detail.expected_delivery_date ?? new Date().toISOString().slice(0, 10), note: e.target.value }
+                                            : { orderId: order.id, date: detail.expected_delivery_date ?? localDate(), note: e.target.value }
                                           )}
                                         />
                                       </div>
                                       <button
                                         onClick={() => {
                                           const ed = eddEdit?.orderId === order.id ? eddEdit : null;
-                                          const dateVal = ed?.date || detail.expected_delivery_date || new Date().toISOString().slice(0, 10);
+                                          const dateVal = ed?.date || detail.expected_delivery_date || localDate();
                                           const noteVal = ed?.note ?? detail.edd_note ?? "";
                                           handleSubmitEDD(order.id, dateVal, noteVal);
                                         }}

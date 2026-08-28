@@ -1,0 +1,470 @@
+<title>店舗管理チャンネルの使い方</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --paper:     #F7F6FA;
+    --surface:   #FFFFFF;
+    --surface-2: #EDEAF4;
+    --ink:       #17141F;
+    --ink-2:     #4A4458;
+    --ink-3:     #746D82;
+    --rule:      #DBD5E6;
+    --rule-soft: #E8E4F0;
+    --accent:    #5B3FBF;
+    --accent-bg: #EAE4FA;
+    --red:       #A3282B;  --red-bg:   #F8E6E6;
+    --amber:     #8A5D08;  --amber-bg: #F9EFD9;
+    --green:     #1C6A4C;  --green-bg: #E0F0E8;
+    --grey-bg:   #ECEAF0;
+    --shadow: 0 1px 2px rgba(23,20,31,.05), 0 10px 26px rgba(23,20,31,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #110F16; --surface: #191622; --surface-2: #221E2D;
+      --ink: #EFEBF6; --ink-2: #B9B2C7; --ink-3: #8B8399;
+      --rule: #322B41; --rule-soft: #262032;
+      --accent: #A88CFF; --accent-bg: #241C3B;
+      --red: #E98A87; --red-bg: #2E1A1A;
+      --amber: #DDAE5C; --amber-bg: #2B2316;
+      --green: #63C39B; --green-bg: #14291F;
+      --grey-bg: #221E2A;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #110F16; --surface: #191622; --surface-2: #221E2D;
+    --ink: #EFEBF6; --ink-2: #B9B2C7; --ink-3: #8B8399;
+    --rule: #322B41; --rule-soft: #262032;
+    --accent: #A88CFF; --accent-bg: #241C3B;
+    --red: #E98A87; --red-bg: #2E1A1A;
+    --amber: #DDAE5C; --amber-bg: #2B2316;
+    --green: #63C39B; --green-bg: #14291F;
+    --grey-bg: #221E2A;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.9; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 54px 24px 100px; display: flex; flex-direction: column; gap: 52px; }
+  .mono { font-family: "DM Mono", ui-monospace, monospace; }
+
+  .eyebrow {
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 11.5px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 500;
+  }
+  h1 {
+    font-family: "BIZ UDPGothic", "Zen Kaku Gothic New", sans-serif; font-weight: 700;
+    font-size: clamp(28px, 5vw, 42px); line-height: 1.35; margin: 0; text-wrap: balance;
+  }
+  .standfirst { margin: 0; max-width: 60ch; color: var(--ink-2); }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 6px 26px; padding-top: 16px; border-top: 1px solid var(--rule);
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--ink-3);
+  }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+  h2 {
+    font-family: "BIZ UDPGothic", sans-serif; font-size: 22px; font-weight: 700; margin: 0;
+    padding-bottom: 11px; border-bottom: 2px solid var(--ink);
+  }
+  h3 { font-family: "BIZ UDPGothic", sans-serif; font-size: 17px; font-weight: 700; margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 64ch; }
+
+  /* who this section is for */
+  .who {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    background: var(--accent-bg); color: var(--accent);
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 11.5px;
+    letter-spacing: .08em; font-weight: 500; padding: 5px 12px; border-radius: 3px;
+  }
+
+  /* screen mock */
+  .screen {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .screen > .bar {
+    background: var(--surface-2); border-bottom: 1px solid var(--rule);
+    padding: 8px 14px; font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: var(--ink-3); letter-spacing: .05em;
+  }
+  .screen > .body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .screen pre {
+    margin: 0; font-family: "DM Mono", ui-monospace, monospace; font-size: 12.5px;
+    line-height: 1.75; color: var(--ink); overflow-x: auto; white-space: pre;
+  }
+
+  /* steps */
+  ol.steps { margin: 0; padding-left: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 14px; }
+  ol.steps > li {
+    counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 0 14px; align-items: start;
+  }
+  ol.steps > li::before {
+    content: counter(s); grid-row: span 2;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; margin-top: 3px;
+  }
+  ol.steps > li > div { color: var(--ink-2); }
+  ol.steps > li strong { color: var(--ink); font-weight: 700; }
+
+  /* colour key */
+  .keys { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .key { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: 3px; }
+  .key b { font-size: 13px; white-space: nowrap; }
+  .key span { font-size: 13px; color: var(--ink-2); }
+  .k-red { background: var(--red-bg); }     .k-red b { color: var(--red); }
+  .k-amber { background: var(--amber-bg); } .k-amber b { color: var(--amber); }
+  .k-green { background: var(--green-bg); } .k-green b { color: var(--green); }
+  .k-grey { background: var(--grey-bg); }   .k-grey b { color: var(--ink-3); }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th:first-child, td:first-child { white-space: nowrap; }
+  thead th {
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 500;
+    background: var(--surface-2); border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { font-family: "DM Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: right; }
+
+  code {
+    font-family: "DM Mono", ui-monospace, monospace; font-size: .87em;
+    background: var(--surface-2); padding: 1.5px 5px; border-radius: 2px;
+  }
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-bg);
+    border-radius: 0 3px 3px 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .note h3 { color: var(--accent); font-size: 16px; }
+  .note p { color: var(--ink-2); max-width: 62ch; }
+  .warn { border-left-color: var(--amber); background: var(--amber-bg); }
+  .warn h3 { color: var(--amber); }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 20px;
+    font-family: "DM Mono", ui-monospace, monospace; font-size: 12px; color: var(--ink-3); line-height: 1.9;
+  }
+</style>
+
+<div class="wrap">
+
+  <header style="display:flex;flex-direction:column;gap:16px;">
+    <div class="eyebrow">Store Operation Management Channel</div>
+    <h1>店舗管理チャンネルの使い方</h1>
+    <p class="standfirst">
+      報告してもらった4点の対応と、あわせて作り直した部分の説明です。
+      <strong>探しに行かなくていいように作りました。</strong>色を見て、その場で送って、その場で記録する。それだけです。
+    </p>
+    <div class="meta">
+      <span>2026-08-28 更新</span>
+      <span>対象 バックオフィス / 店舗マネージャー</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>報告してもらった4点</h2>
+    <p class="lede">すべて直しました。<strong>調べたところ、報告より大きな不具合が3つ見つかりました。</strong></p>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>指摘</th><th>調べて分かったこと</th><th>対応</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>時刻でしか<br>判別できない</strong></td>
+            <td><strong>その時刻が8時間ずれていました。</strong>マニラの23:21の写真が15:21と表示されていました（ドバイは4時間）。判別できなくて当然です。</td>
+            <td>現地時刻に統一。一覧に Time 列を追加。<strong>さらにアラートに写真を直接表示</strong>したので、探す作業自体が不要になりました。</td>
+          </tr>
+          <tr>
+            <td><strong>選択肢だけで<br>閉じられる</strong></td>
+            <td>「フィードバックした」だけでは、どこで何を言ったかが残りません。</td>
+            <td>Feedback を選ぶと <strong>Discord / Kitchen のどちらか必須</strong>。Training を選ぶと<strong>内容1行が必須</strong>。本部から確認・修正できます。</td>
+          </tr>
+          <tr>
+            <td><strong>CK のアラートを<br>消してほしい</strong></td>
+            <td>CK は Cubao として提出しているため、追う対象ではありませんでした。</td>
+            <td>対象から除外。既存分も削除。今後は出ません。</td>
+          </tr>
+          <tr>
+            <td><strong>ほぼ提出済みなのに<br>アラートが出る</strong></td>
+            <td><strong>アラート側が間違っていました。</strong>①その日が終わる前（現地0:15）に「今日の分がない」と判定 ②重複チェックの誤りで1日54件の重複。</td>
+            <td>期限を過ぎてから判定するよう修正。重複を整理し <strong>445件 → 143件</strong>。アラート本文に日付を追加。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="lede">
+      あわせて、<strong>送信すらできないアラートが9件</strong>ありました（サーモン歩留まり・廃棄・コスト系）。
+      送信文が用意されておらず、作られるのに誰にも処理できない状態でした。これも追加済みです。
+    </p>
+  </section>
+
+  <section>
+    <h2>この仕組みの考え方</h2>
+    <p class="lede">
+      <strong>判断はシステムが持ちます。人は決められたことを実行します。</strong>
+      「自分で気づいて、自分で調べて、自分で判断する」形にすると、忙しい日に必ず抜けます。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>役割</th><th>やること</th><th>判断</th></tr></thead>
+        <tbody>
+          <tr><td><strong>OS</strong></td><td>異常を検知して、色を付けて、担当者に振り分ける</td><td>不要</td></tr>
+          <tr><td><strong>バックオフィス</strong></td><td>自分のページの色を見る → 定型文を送る → 結果を記録する</td><td>不要</td></tr>
+          <tr><td><strong>店舗マネージャー</strong></td><td>届いた指示を実行して、選択肢で答える</td><td>不要</td></tr>
+          <tr><td><strong>エリアマネージャー</strong></td><td>週次の点数だけを見る</td><td>点数で判断</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lede">
+      <strong>マネージャーが自分でダッシュボードを見に行く運用にはしていません。</strong>
+      指示は届きます。届いたものに答えてください。
+    </p>
+  </section>
+
+  <section>
+    <span class="who">バックオフィス担当</span>
+    <h2>BO Dashboard — 毎日ここだけ見ます</h2>
+
+    <p class="lede">
+      <strong>開くと自分の担当ページの分だけが出ます。</strong>他の人の分は出ません。
+      切り替えれば見られますが、普段は自分の分だけで大丈夫です。
+    </p>
+
+    <div class="screen">
+      <div class="bar">Management Channel → BO Dashboard</div>
+      <div class="body">
+<pre>Page  [ My pages ]  [ Reports &amp; Inventory 336 ]  [ Quality &amp; Complaints 100 ]  [ All ]
+
+Quality &amp; Complaints    BO Staff C    Owner: Aliana Manuel    赤 2   黄 98
+
+┌─ Action Manual ──────────────────────────────────────────────┐
+│ Product Score C 以下   行の写真を見て、何が悪かったかを選ばせる │
+│                        品質が基準を下回った                    │
+│ 苦情に承認写真がない   担当者名が記録されるまで閉じない        │
+│ 同一スタッフ1週3回     OSがNTE候補として出す。HRへ回す         │
+└──────────────────────────────────────────────────────────────┘
+
+● Product Score C    TAFT    23:21    Not sent yet    Owner: Aliana Manuel
+    [ 商品写真 ]
+    [ Send ]  [ Take over ]</pre>
+      </div>
+    </div>
+
+    <p class="lede">
+      <strong>マニュアルが画面の中にあります。</strong>別の資料を探しに行く必要はありません。
+      色の意味と、送るべきものが、例外の一覧のすぐ上に書いてあります。
+    </p>
+
+    <h3>手順</h3>
+    <ol class="steps">
+      <li><div><strong>色を見ます。</strong>赤はいますぐ。黄はその日のうちに。</div></li>
+      <li><div><strong>上のマニュアルを読みます。</strong>その色で何をすべきかが書いてあります。</div></li>
+      <li><div><strong>[ Send ] を押します。</strong>定型文が入っているので、そのまま送れます。</div></li>
+      <li><div><strong>返答が来たら、対応内容を記録します。</strong>下の Handling 欄です。</div></li>
+    </ol>
+
+    <div class="note warn">
+      <h3>いま一番の問題はここです</h3>
+      <p>
+        <strong>送信されたタスクが、これまで1件もありませんでした。</strong>556件が作られて、誰にも届いていませんでした。
+        検知は動いていたので、画面は静かなままでした。
+      </p>
+      <p>
+        <strong>[ Send ] を押してください。</strong>押さないかぎり、マネージャーには何も届きません。
+        バッジの数字も減りません。
+      </p>
+    </div>
+
+    <h3>対応内容の記録（Handling）</h3>
+    <p class="lede">タスクを開くと入力欄が出ます。<strong>記録がないタスクは「Not recorded」と表示されます。</strong></p>
+    <div class="screen">
+      <div class="body">
+<pre>Handling                                    Not recorded    [ Record ]
+
+  ☐ 提出写真を確認した
+
+  問題の有無    ○ 問題なし    ○ 問題あり
+                 └ 分類  分量 / 鮮度 / 温度 / 盛り付け / 梱包 /
+                         商品違い / 異物 / その他
+                 └ 内容（自由記述）
+
+  Feedback / Training
+    ☐ Discord でフィードバックした
+    ☐ キッチンでフィードバックした
+    ☐ トレーニングを実施した  └ 内容
+
+  ☐ 対応完了として閉じる                     [ Save handling ]</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="who">店舗マネージャー</span>
+    <h2>Manager Inbox — 届いたものに答えるだけ</h2>
+
+    <p class="lede">
+      <strong>自分で探しに行く必要はありません。</strong>バックオフィスから指示が届きます。
+      調べる必要も、判断する必要もありません。実行して、選択肢で答えてください。
+    </p>
+
+    <div class="screen">
+      <div class="bar">Manager Inbox</div>
+      <div class="body">
+<pre>Product Score C                                     TAFT
+The product scored at 23:21 received a Product Score
+of C or below.
+
+[ 商品写真 ]     ← タップで拡大
+
+何が問題でしたか
+  [ Presentation ] [ Portion ] [ Rolling/Cutting ] [ Sauce/Topping ]
+
+対応
+  [ Feedback given ]  [ Training done ]  [ Cannot — … ]
+
+Feedback を選んだ場合
+  Where did you give the feedback?
+  [ Discord ]   [ Kitchen ]        ← どちらか必須
+
+Training を選んだ場合
+  What did the training cover? (one line)   ← 必須</pre>
+      </div>
+    </div>
+
+    <div class="note">
+      <h3>「Cannot」は正直に選んでください</h3>
+      <p>
+        人手が足りない、システムが動かない——実行できない事情があるときは
+        <strong>「Cannot」を選んでください。評価を下げることはありません。</strong>
+        これは店舗が助けを求める合図として扱います。同じ理由が繰り返されたら、
+        その資源を持っている人に回ります。<strong>無理に「Done」にすると、その問題は誰にも見えなくなります。</strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <span class="who">バックオフィス担当</span>
+    <h2>Required Reports — 「出した」と「見た」は別です</h2>
+
+    <p class="lede">
+      これまでは「レポートの行があるかどうか」しか見ていませんでした。
+      <strong>提出された報告の中身を誰も読んでいなくても、正常に見えていました。</strong>
+    </p>
+
+    <div class="screen">
+      <div class="bar">Management Channel → Required Reports</div>
+      <div class="body">
+<pre>Required Item          期限    担当        CUB            TAFT
+Opening Report         10:00   BO Staff D  未提出          提出済・未確認
+AM Backup Report       11:15   BO Staff A  提出済・未確認   確認済
+Opening Travel Path    10:30   BO Staff D  未提出          提出済・未確認
+Mid Shift Travel Path  15:00   BO Staff D  期限前          期限前
+PM Backup Report       17:15   BO Staff A  期限前          期限前
+Daily Inventory        22:00   BO Staff A  期限前          期限前
+Disposal Report / NIL  22:00   BO Staff A  期限前          期限前
+Closing Travel Path    22:30   BO Staff D  期限前          期限前</pre>
+      </div>
+    </div>
+
+    <div class="keys">
+      <div class="key k-red"><b>未提出</b><span>期限を過ぎたのに出ていない</span></div>
+      <div class="key k-grey"><b>期限前</b><span>まだ締切前。失敗ではありません</span></div>
+      <div class="key k-amber"><b>提出済・未確認</b><span>出ているが、誰も中身を見ていない</span></div>
+      <div class="key k-green"><b>確認済</b><span>読みました</span></div>
+    </div>
+
+    <p class="lede">
+      <strong>黄色を緑にするのが、この画面での仕事です。</strong>
+      セルを押して「確認したと記録」を押してください。問題があればチェックを入れて内容を書きます。
+    </p>
+  </section>
+
+  <section>
+    <h2>Waiting for Someone — 本来は空のはずの画面</h2>
+    <p class="lede">
+      ここに出るのは <strong>「誰も担当していない」か「期限を過ぎた」ものだけ</strong>です。
+      担当が毎日きちんと見ていれば、ここには何も落ちてきません。
+    </p>
+    <p class="lede">
+      <strong>ここに溜まっているということは、手前のどこかが回っていないという意味です。</strong>
+      数字が減らないときは、担当設定か期限の設定が実態に合っていません。遠慮なく言ってください。
+    </p>
+    <p class="lede">
+      この画面でも対応は完結します。移動しません。ただし
+      <strong>「キャンセル 7日以上未完了」だけは、その1件を開きます</strong>——返金の判断は記録を見ないとできないので、
+      中身を見ずに閉じる操作は作りませんでした。
+    </p>
+  </section>
+
+  <section>
+    <h2>いまやってほしいこと</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>優先</th><th>内容</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="n">1</td>
+            <td><strong>残業申請 30件のレビュー</strong></td>
+            <td>承認も却下もされていません。<strong>給与計算で必ず問題になります。</strong></td>
+          </tr>
+          <tr>
+            <td class="n">2</td>
+            <td><strong>[ Send ] を押す運用を始める</strong></td>
+            <td>556件が一度も送信されていません。押さないかぎり何も動きません。</td>
+          </tr>
+          <tr>
+            <td class="n">3</td>
+            <td><strong>PM Backup の未提出を店舗に確認</strong></td>
+            <td>TAFT 8/26・8/27、Dubai BB 8/26・8/27。整理後に残ったものは本物です。</td>
+          </tr>
+          <tr>
+            <td class="n">4</td>
+            <td><strong>Required Reports の黄色を緑にする</strong></td>
+            <td>提出された報告を誰も読んでいない状態をなくすためです。</td>
+          </tr>
+          <tr>
+            <td class="n">5</td>
+            <td><strong>キャンセル 100件を進める</strong></td>
+            <td>7日以上放置されています。減らないようなら期限を見直します。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>困ったときは</h2>
+    <div class="note">
+      <h3>遠慮なく言ってください</h3>
+      <p>
+        <strong>「担当が付いていないアラートがある」</strong> — 設定漏れです。すぐ直します。<br>
+        <strong>「この期限は現場に合っていない」</strong> — 私が仮に決めた値なので、希望を教えてください。<br>
+        <strong>「この種類はそもそも出さなくていい」</strong> — 外します。<br>
+        <strong>「アラートの内容が間違っている」</strong> — 今回の4点がまさにそれでした。
+      </p>
+      <p>
+        今回の指摘は、<strong>実際に使ってみないと分からないもの</strong>ばかりでした。
+        特に時刻のずれと重複は、データを見ているだけでは気づけません。細かいことでも構いません。
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    2026-08-28 更新 ／ Store Operation Management Channel<br>
+    写真は一覧では軽い版を表示し、タップで原寸を開きます。<br>
+    担当の設定は Management Channel → Owners（HQが設定します）。
+  </footer>
+
+</div>
