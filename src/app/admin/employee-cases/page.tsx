@@ -106,6 +106,16 @@ type NteTemplate = {
 
 type NteRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ISSUED";
 
+/** Requests are listed across both cities for HR, so mark the ones from elsewhere. */
+function OtherCityTag({ rowCity, viewCity }: { rowCity: string; viewCity: string }) {
+  if ((rowCity || "").toLowerCase() === (viewCity || "").toLowerCase()) return null;
+  return (
+    <span className="ml-2 rounded-md bg-sky-500/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-sky-300">
+      {rowCity}
+    </span>
+  );
+}
+
 type NteRequest = {
   id: string;
   city: string;
@@ -2270,7 +2280,7 @@ export default function EmployeeCasesPage() {
           {/* HR Review section — only visible to HR roles */}
           {isHR && (
             <div className={`${GLASS_CARD} space-y-3 p-5`}>
-              <p className={T_SECTION}>HR Review — Pending Requests</p>
+              <p className={T_SECTION}>HR Review — Pending Requests (all cities)</p>
               {requests.filter((r) => r.status === "PENDING").length === 0 ? (
                 <p className={`${T_BODY} text-center py-4`}>No pending requests.</p>
               ) : (
@@ -2284,7 +2294,10 @@ export default function EmployeeCasesPage() {
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
-                            <p className={`${T_BODY} font-semibold`}>{req.staff_name}</p>
+                            <p className={`${T_BODY} font-semibold`}>
+                              {req.staff_name}
+                              <OtherCityTag rowCity={req.city} viewCity={city} />
+                            </p>
                             <p className={T_CAPTION}>
                               Requested by {req.requested_by} · {fmtDate(req.request_date)}
                             </p>
@@ -2333,7 +2346,8 @@ export default function EmployeeCasesPage() {
         <div className={`${GLASS_CARD} space-y-3 p-5`}>
           <p className={T_SECTION}>Pending Issuance</p>
           <p className={`${T_BODY}`}>
-            Approved NTE requests awaiting formal issuance. Select and issue to add to Case History.
+            Approved NTE requests awaiting formal issuance, across all cities. Select and issue to
+            add to Case History.
           </p>
           {requests.filter((r) => r.status === "APPROVED").length === 0 ? (
             <div className="py-8 text-center">
@@ -2352,6 +2366,7 @@ export default function EmployeeCasesPage() {
                       <div>
                         <p className={`${T_BODY} font-semibold text-violet-300`}>
                           {req.staff_name}
+                          <OtherCityTag rowCity={req.city} viewCity={city} />
                         </p>
                         <p className={T_CAPTION}>
                           Requested by {req.requested_by} · {fmtDate(req.request_date)}
@@ -2403,7 +2418,10 @@ export default function EmployeeCasesPage() {
                       key={req.id}
                       className="rounded-xl border border-zinc-700/30 bg-zinc-900/20 p-3 opacity-60"
                     >
-                      <p className={`${T_CAPTION} font-semibold`}>{req.staff_name}</p>
+                      <p className={`${T_CAPTION} font-semibold`}>
+                        {req.staff_name}
+                        <OtherCityTag rowCity={req.city} viewCity={city} />
+                      </p>
                       <p className={T_CAPTION}>
                         By {req.requested_by} · {fmtDate(req.request_date)}
                         {req.reviewed_by && ` · Rejected by ${req.reviewed_by}`}
