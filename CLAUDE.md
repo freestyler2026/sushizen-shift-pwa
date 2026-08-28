@@ -299,7 +299,8 @@ npx tsc --noEmit
     - 締め出される人を**名前で列挙してユーザーに渡す**（今回7名）。「誰も使っていない」で終わらせない。
 
 33. **Role Management で外した既定権限は、次のログインで復活する（教訓20の再発）** → `seed_access_control_defaults()` は `api_auth_verify` から毎回呼ばれ、末尾の「safety migration 2026-05」が **`DEFAULT_ROLE_GRANTS` にあってDBに1行も無い権限を無条件に再INSERT**する。したがってRole ManagementのUIでチェックを外しても、誰かがログインした瞬間に戻る。**システムロールから既定権限を外すには `app/access_control.py` の `DEFAULT_ROLE_GRANTS` を編集するのが必須**で、DBだけ触っても無意味（2026-08-28 ADMINからHR Clearanceを外そうとして実際に発生・DELETEが巻き戻された）。
-    - ⚠️ この挙動は**Role Managementの「外す」操作全般が効かない**ことを意味する。新しい既定権限が自動で行き渡る利点と引き換えなので、どちらを取るかは要判断（未修正）。
+    - **2026-08-28 修正済み**: 外した権限を `access_role_permission_revocations` に記録し、シード側がそれを読み飛ばす。Rolesタブ（`replace_access_role_permissions`）とChannelsタブ（`replace_channel_view_roles`）の両方に実装。**新しい既定権限が既存ロールに配られる利点は維持**され、再度チェックを入れると記録が消えて元に戻る。
+    - 検証手順: 既定権限を1つ外す → **ログイン＋Resync System Channels を実行** → 外れたままなら正常。以前はここで復活していた。
     - あわせて**ロール名のベタ書きも消すこと**。`_clearance_auth_check` が `role in ("HQ","ADMIN")` だったため、権限を外しても11名のADMINがページを開けたままだった（教訓32と同型）。
 
 34. **退職者はロールを持ち続ける — 割り当てを消すだけでは戻ってくる** → 2026-08-28 に発覚。`staff_master.is_active=false` の9名が生きたロールを保持し、うち **Jason Mark Fabillar は最終出社から2か月後もADMIN**、PINも有効だった。`/api/auth/verify` には**在籍チェックが一切ない**（存在確認・凍結・PINのみ）。
