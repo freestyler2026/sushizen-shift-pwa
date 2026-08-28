@@ -1,0 +1,383 @@
+<title>8月後半 給与差異調査</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FFFFFF;
+  --surface:#F3F5F8;
+  --surface2:#E9EDF2;
+  --line:#D9DFE7;
+  --line-soft:#E8ECF1;
+  --ink:#14181D;
+  --muted:#5A6472;
+  --accent:#2F4B7C;
+  --accent-soft:#EAEFF7;
+  --defect:#B42318;--defect-soft:#FEF3F2;--defect-line:#F3B5AE;
+  --ops:#B54708;--ops-soft:#FFFAEB;--ops-line:#F1CE8A;
+  --ok:#067647;--ok-soft:#ECFDF3;--ok-line:#A6E4C1;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1117;
+  --surface:#151B23;
+  --surface2:#1C242E;
+  --line:#2A343F;
+  --line-soft:#212932;
+  --ink:#E9EDF2;
+  --muted:#96A1AF;
+  --accent:#8FB0E0;
+  --accent-soft:#16202F;
+  --defect:#FF8A7A;--defect-soft:#25120F;--defect-line:#6B2A22;
+  --ops:#F2B457;--ops-soft:#231A0C;--ops-line:#6B4E18;
+  --ok:#5FD79A;--ok-soft:#0C2418;--ok-line:#1D5537;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D1117;
+  --surface:#151B23;
+  --surface2:#1C242E;
+  --line:#2A343F;
+  --line-soft:#212932;
+  --ink:#E9EDF2;
+  --muted:#96A1AF;
+  --accent:#8FB0E0;
+  --accent-soft:#16202F;
+  --defect:#FF8A7A;--defect-soft:#25120F;--defect-line:#6B2A22;
+  --ops:#F2B457;--ops-soft:#231A0C;--ops-line:#6B4E18;
+  --ok:#5FD79A;--ok-soft:#0C2418;--ok-line:#1D5537;
+}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans JP",system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:15px;line-height:1.8;-webkit-text-size-adjust:100%;
+  font-feature-settings:"palt" 1;
+}
+.wrap{max-width:860px;margin:0 auto;padding:48px 24px 96px}
+.serif{font-family:"Noto Serif JP","Hiragino Mincho ProN",serif}
+.mono{font-family:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;font-feature-settings:normal}
+.num{font-variant-numeric:tabular-nums}
+
+.masthead{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:8px}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--accent);margin-bottom:10px}
+h1{font-family:"Noto Serif JP",serif;font-size:31px;font-weight:700;line-height:1.35;letter-spacing:.01em;text-wrap:balance}
+.byline{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px;font-size:12.5px;color:var(--muted)}
+.byline b{color:var(--ink);font-weight:500}
+
+h2{font-family:"Noto Serif JP",serif;font-size:21px;font-weight:700;line-height:1.5;margin:0 0 6px;text-wrap:balance}
+h3{font-size:15px;font-weight:700;margin:26px 0 8px}
+p{margin:12px 0}
+.lede{font-size:16px;color:var(--muted);margin-top:4px}
+.small{font-size:13px;color:var(--muted)}
+
+.verdicts{display:grid;gap:10px;margin:26px 0 8px}
+.verdict{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+  border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface)}
+.vnum{font-family:"Noto Serif JP",serif;font-size:19px;font-weight:700;color:var(--muted);line-height:1.3}
+.vq{font-weight:700}
+.vr{font-size:13.5px;color:var(--muted);margin-top:2px}
+
+.chip{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11.5px;font-weight:700;
+  letter-spacing:.03em;white-space:nowrap;vertical-align:2px}
+.chip.defect{background:var(--defect-soft);color:var(--defect);border:1px solid var(--defect-line)}
+.chip.ops{background:var(--ops-soft);color:var(--ops);border:1px solid var(--ops-line)}
+.chip.ok{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok-line)}
+
+section.case{margin-top:52px;padding-top:22px;border-top:1px solid var(--line)}
+.caseno{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;color:var(--accent);
+  letter-spacing:.08em;margin-bottom:8px}
+
+.tw{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);
+  background:var(--surface);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tfoot td{background:var(--surface);font-weight:700;border-top:1px solid var(--line)}
+
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);
+  border-radius:0 8px 8px 0;padding:14px 18px;margin:20px 0}
+.callout.defect{border-left-color:var(--defect);background:var(--defect-soft)}
+.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.callout .t{font-weight:700;margin-bottom:2px}
+.callout p{margin:6px 0 0}
+
+/* The centrepiece: one row of data, read two opposite ways. */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0}
+.half{border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--surface)}
+.half h4{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:10px}
+.half .assume{font-weight:700;font-size:14.5px;margin-bottom:8px}
+.half .calc{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);line-height:1.9;
+  font-variant-numeric:tabular-nums}
+.half.a{border-color:var(--ok-line)}
+.half.a .assume{color:var(--ok)}
+.half.b{border-color:var(--defect-line)}
+.half.b .assume{color:var(--defect)}
+.splitnote{text-align:center;font-size:13px;color:var(--muted);margin:-4px 0 20px}
+
+pre.code{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.85;margin:16px 0}
+pre.code b{color:var(--defect);font-weight:500}
+code{font-family:"IBM Plex Mono",monospace;font-size:.9em;background:var(--surface2);
+  padding:1px 5px;border-radius:4px}
+
+ul{margin:12px 0 12px 0;padding-left:0;list-style:none}
+ul li{position:relative;padding:4px 0 4px 20px}
+ul li::before{content:"";position:absolute;left:4px;top:15px;width:5px;height:5px;
+  border-radius:50%;background:var(--accent)}
+ol{margin:12px 0 12px 22px}
+ol li{padding:4px 0}
+
+.actions{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:20px 0}
+.act{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+.act:last-child{border-bottom:none}
+.act .who{font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--muted);
+  white-space:nowrap;padding-top:3px;min-width:74px}
+.act .what{font-size:14px}
+.act .what b{display:block;margin-bottom:2px}
+
+footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+
+@media(max-width:640px){
+  .wrap{padding:32px 16px 64px}
+  h1{font-size:25px}
+  .split{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+
+<div class="masthead">
+  <div class="kicker">SUSHI ZEN WORKFORCE OS ／ 給与調査</div>
+  <h1>8月後半 給与差異調査</h1>
+  <div class="byline">
+    <span>対象期間 <b>2026-08-2H</b>（8/11–8/25）</span>
+    <span>対象 <b>マニラ 6名</b></span>
+    <span>作成 <b>2026-08-28</b></span>
+  </div>
+</div>
+
+<p class="lede">現場から寄せられた3件の照会を、OS側の欠陥と運用側の事象に切り分けました。数値はすべて本番データで再現しています。</p>
+
+<div class="verdicts">
+  <div class="verdict">
+    <div class="vnum">1</div>
+    <div>
+      <div class="vq">金額差異（5名）　<span class="chip defect">OS側の欠陥</span></div>
+      <div class="vr">4名は<b>休憩60分の扱いが計算の前半と後半で逆</b>。1名はマニュアルシート側の転記。</div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div class="vnum">2</div>
+    <div>
+      <div class="vq">SSSがAdjustmentで減る　<span class="chip defect">OS側の欠陥</span></div>
+      <div class="vr">ご指摘のとおりです。寮の電気代がSSSの算定基礎に入っています。</div>
+    </div>
+  </div>
+  <div class="verdict">
+    <div class="vnum">3</div>
+    <div>
+      <div class="vq">PhilHealth 246.19 は最低額割れか　<span class="chip ok">問題なし</span></div>
+      <div class="vr">₱250 は<b>月額</b>の下限。この方は月額 492.38 で、半月分が 246.19 です。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────── CASE 1 ─────────────────────────── -->
+<section class="case">
+  <div class="caseno">CASE 1</div>
+  <h2>金額差異 ― 5名</h2>
+  <p>差額の所在を1行ずつ突き合わせた結果、<b>5名中4名は Undertime（早退控除）1項目に集中</b>していました。残る1名は別の原因です。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr>
+      <th>スタッフ</th><th class="n">差額<br><span style="font-weight:400">Manual − OS</span></th>
+      <th>差額の所在</th><th class="n">該当日</th><th>判定</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>Cristella Marie C. Tayor</td><td class="n">−137.09</td><td>Undertime</td><td class="n">8/16, 8/18</td><td><span class="chip defect">OS欠陥</span></td></tr>
+      <tr><td>Rhemar Guerrero</td><td class="n">−103.56</td><td>Undertime</td><td class="n">8/22</td><td><span class="chip defect">OS欠陥</span></td></tr>
+      <tr><td>Nicko Villacorte</td><td class="n">−36.10</td><td>Undertime</td><td class="n">8/14</td><td><span class="chip defect">OS欠陥</span></td></tr>
+      <tr><td>Louiela Chica</td><td class="n">−1.68</td><td>Undertime</td><td class="n">―</td><td><span class="chip defect">OS欠陥</span></td></tr>
+      <tr><td>Renzy Siena</td><td class="n">−20.25</td><td>Holiday</td><td class="n">8/21</td><td><span class="chip ops">シート転記</span></td></tr>
+      <tr><td>Cherish M. Galarosa</td><td class="n">+286.50</td><td>OT / ND 区分</td><td class="n">―</td><td><span class="chip ops">OT未承認</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>原因 ― 同じ60分を、引いてから返している</h3>
+  <p>OSは1日の給与を2段階で計算します。<b>その2段階が、休憩について正反対の前提を置いています。</b></p>
+
+  <div class="split">
+    <div class="half a">
+      <h4>① 労働時間（支払う側）</h4>
+      <div class="assume">「休憩は取った」と仮定</div>
+      <div class="calc">
+        在社 450分<br>
+        − 休憩 <b>60分</b>（設定値）<br>
+        ＝ 支払 390分
+      </div>
+    </div>
+    <div class="half b">
+      <h4>② Undertime（控除する側）</h4>
+      <div class="assume">「休憩は取っていない」と仮定</div>
+      <div class="calc">
+        早退 141分（定時 − 退勤）<br>
+        − 未取得休憩 <b>60分</b><br>
+        ＝ 控除 81分
+      </div>
+    </div>
+  </div>
+  <p class="splitnote">同じ1行のデータに、両立しない2つの前提が適用されています。</p>
+
+  <p>休憩の実績（<code>actual_break_minutes</code>）が記録されていない日、コードは <code>or 0</code> によって<b>「休憩0分＝1分も取っていない」と解釈</b>します。その結果、①で60分を引いておきながら、②で60分を返すことになります。</p>
+
+  <pre class="code">undertime = 定時 − 退勤時刻
+unused    = 60 − <b>(actual_break_minutes or 0)</b>   ← 未記録なら 60
+undertime = undertime − unused                 ← 最大60分が消える</pre>
+
+  <p>この式で、報告のあった4件すべてを<b>1分の誤差もなく再現できました</b>。推測ではありません。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>スタッフ / 日</th><th class="n">在社</th><th class="n">休憩実績</th><th class="n">本来の早退</th><th class="n">OS計上</th><th class="n">消えた分</th></tr></thead>
+    <tbody>
+      <tr><td>Nicko 8/14</td><td class="n">378分</td><td class="n">41分</td><td class="n">161分</td><td class="n">142分</td><td class="n">19分</td></tr>
+      <tr><td>Rhemar 8/22</td><td class="n">435分</td><td class="n">未記録</td><td class="n">77分</td><td class="n">17分</td><td class="n">60分</td></tr>
+      <tr><td>Cristella 8/16</td><td class="n">397分</td><td class="n">未記録</td><td class="n">141分</td><td class="n">81分</td><td class="n">60分</td></tr>
+      <tr><td>Cristella 8/18</td><td class="n">523分</td><td class="n">未記録</td><td class="n">26分</td><td class="n">0分</td><td class="n">26分</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <div class="t">Nicko さんの日だけは、OSの方が正しい可能性があります</div>
+    <p>8/14 は休憩41分が<b>実際に記録されています</b>。19分を取らずに働いたのであれば、その分を控除から戻すのは正しい扱いです。マニュアルシートは休憩実績を見ずに「定時−退勤」だけで計算しているため、この19分を拾えません。<br>
+    <b>休憩が記録されている日はOSが正しく、記録がない日はマニュアルシートが正しい</b>、というのが正確な結論です。</p>
+  </div>
+
+  <h3>影響範囲</h3>
+  <ul>
+    <li>当期の勤務日 <b>659日</b> のうち、休憩実績が未記録なのは <b>432日（66%）</b>。</li>
+    <li>そのうち実際に早退が発生し控除が減ったのは <b>11日</b>、合計 <b>544分</b>（概算 <b>約₱898</b>）。</li>
+    <li>休憩が記録されていた8日分の減額 60分（約₱99）は、上記のとおり<b>正当</b>です。</li>
+  </ul>
+
+  <h3>Renzy さん（8/21）は別件 ― シート側の転記</h3>
+  <p>この方だけ差異が Holiday です。8/21 は特別休日で、OSは <span class="mono num">6.5042h × ₱100.64 × 30% = ₱196.37</span> と計算しており、打刻（11:41:56–19:12:11、休憩60分控除）と完全に整合します。</p>
+  <p>一方マニュアルシートの <span class="mono num">176.12</span> は、<b>同じシート内の ND 合計 176.12 と1円まで一致</b>します。独立した2つの計算が同じ端数になることは考えにくく、セルの転記と見られます。<b>OSの196.37が正しい</b>と判断します。</p>
+
+  <h3>0.01〜0.30 の端数差は誤りではありません</h3>
+  <p>ND・Holiday・Absences に見られる1円未満の差は、<b>OSが日ごとに四捨五入して合計</b>するのに対し、シートは合計してから丸めているためです。会計上どちらも許容されますが、給与明細と一致させるならOS方式（日次丸め）が基準になります。</p>
+</section>
+
+<!-- ─────────────────────────── CASE 2 ─────────────────────────── -->
+<section class="case">
+  <div class="caseno">CASE 2</div>
+  <h2>SSSが Adjustment で下がる</h2>
+  <p><b>ご指摘のとおりです。</b>寮の電気代・家賃などの Adjustment が、SSSの算定基礎に含まれています。</p>
+
+  <p>エンジンの処理順序が原因です。</p>
+  <pre class="code">1. 基本給・OT・ND・遅刻/早退/欠勤を計算
+2. <b>Adjustment（寮の電気代 −272.55 など）を加算</b>
+3. 1+2 の合計を monthly_gross として <b>SSS表を参照</b></pre>
+
+  <p>Renzy さんの明細に、その基礎額がそのまま残っています。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>項目</th><th class="n">金額</th><th>算定基礎（noteより）</th></tr></thead>
+    <tbody>
+      <tr><td>SSS_EE</td><td class="n">−437.50</td><td class="mono num">monthly_gross = 17,661.54</td></tr>
+      <tr><td>PHILHEALTH_EE</td><td class="n">−262.50</td><td class="mono num">basic = 21,000.00</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout defect">
+    <div class="t">SSSだけが gross、PhilHealth は basic を見ています</div>
+    <p>PhilHealth と Pag-IBIG は基本給を基礎にしているため、Adjustment の影響を受けません。<b>影響しているのはSSSのみ</b>です。修正範囲もSSSに限定されます。</p>
+  </div>
+
+  <p>フィリピンの制度上、SSS掛金は<b>報酬（compensation）</b>に対して課されます。寮の電気代の回収は報酬の減額ではなく個人費用の立替回収なので、算定基礎から外すのが正しい扱いです。450.00 → 437.50 という観察は、この経路によるブラケット降格で説明がつきます。</p>
+
+  <div class="callout">
+    <div class="t">併せてご判断いただきたい点</div>
+    <p>現在の算定基礎には、Adjustment だけでなく<b>欠勤・遅刻・早退による減額も含まれています</b>。無給欠勤による報酬減はMSCに反映されるという解釈も成り立つため、こちらは制度解釈の問題です。「Adjustmentのみ除外」か「実支給額ベースを維持」か、会計事務所の見解に合わせて実装します。</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────── CASE 3 ─────────────────────────── -->
+<section class="case">
+  <div class="caseno">CASE 3</div>
+  <h2>PhilHealth の最低額</h2>
+  <p><b>OSの計算は正しく、修正は不要です。</b>₱250 という数字の読み方に行き違いがあります。</p>
+
+  <p>PhilHealth（Circular 2023-0001）は<b>月額基本給の5%</b>、下限 ₱10,000・上限 ₱100,000。労使折半なので従業員負担は2.5%です。</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>　</th><th class="n">月額基本給</th><th class="n">保険料 5%</th><th class="n">従業員負担<br><span style="font-weight:400">月額</span></th><th class="n">半月あたり</th></tr></thead>
+    <tbody>
+      <tr><td>下限適用者（≤₱10,000）</td><td class="n">10,000.00</td><td class="n">500.00</td><td class="n"><b>250.00</b></td><td class="n">125.00</td></tr>
+      <tr><td>Jennyleen Valera Pepelar</td><td class="n">19,695.00</td><td class="n">984.75</td><td class="n"><b>492.38</b></td><td class="n">246.19</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout ok">
+    <div class="t">₱250 は「月額」の下限、246.19 は「半月」の金額です</div>
+    <p>Jennyleen さんの月額負担は <b>₱492.38</b> で、下限の約2倍です。半月分の 246.19 を月額の下限 250 と並べたことによる行き違いで、下限割れではありません。<br>
+    なお、月額基本給が ₱10,000〜₱20,000 のスタッフは<b>全員</b>、半月額が250を下回って見えます（125〜250の範囲に入るため）。同じ照会が今後も出る可能性があります。</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────── ACTIONS ─────────────────────────── -->
+<section class="case">
+  <div class="caseno">対応方針</div>
+  <h2>切り分けと次の一手</h2>
+
+  <h3>OS側 ― 修正が必要</h3>
+  <div class="actions">
+    <div class="act">
+      <div class="who">CASE 1</div>
+      <div class="what"><b>休憩未記録の日は「所定どおり取った」と扱う</b>
+      <span class="small">現在の <code>or 0</code>（＝1分も取っていない）は、労働時間側が60分を引いている前提と矛盾します。未記録は0ではなく60として扱えば、両者の前提が揃い、当期4件の差異は解消します。休憩が記録されている日の挙動は変わりません。</span></div>
+    </div>
+    <div class="act">
+      <div class="who">CASE 2</div>
+      <div class="what"><b>SSSの算定基礎から Adjustment を除外する</b>
+      <span class="small">寮費・電気代の回収は報酬ではありません。ただし「欠勤等による減額も外すか」は制度解釈が絡むため、会計事務所の見解を確認のうえ実装します。PhilHealth・Pag-IBIG は現状で正しく、変更不要です。</span></div>
+    </div>
+  </div>
+
+  <h3>運用側 ― 修正は不要</h3>
+  <div class="actions">
+    <div class="act">
+      <div class="who">CASE 1</div>
+      <div class="what"><b>Renzy さん 8/21：シートの Holiday を 196.37 に訂正</b>
+      <span class="small">シートの 176.12 は同シートの ND 合計からの転記と見られます。OSが正です。</span></div>
+    </div>
+    <div class="act">
+      <div class="who">CASE 1</div>
+      <div class="what"><b>Cherish さん：OTを承認すれば解消</b>
+      <span class="small">未承認OTは engine が OT=0 とし、ND も再分類されます。ご認識のとおりです。</span></div>
+    </div>
+    <div class="act">
+      <div class="who">CASE 3</div>
+      <div class="what"><b>PhilHealth は対応不要 ― Marithel さんへ月額/半月の説明を</b>
+      <span class="small">下限 ₱250 は月額。半月額と比較すると、月額基本給20,000未満のスタッフは全員が下限割れに見えます。</span></div>
+    </div>
+  </div>
+
+  <h3>根本的な論点</h3>
+  <p>CASE 1 は、<b>休憩の実績が3分の2の日で記録されていない</b>ことが土台にあります。計算式を直せば当期の差異は消えますが、記録が入らない限り「所定どおり取った」という推定に頼り続けることになります。休憩打刻の運用を詰めるかどうかは、別途ご判断ください。</p>
+</section>
+
+<footer>
+  本レポートの数値は本番データベースを直接参照し、給与エンジンの計算式で再現したものです。CASE 1 の4件、CASE 2 の算定基礎、CASE 3 の保険料はいずれも実データで一致を確認しています。<br>
+  参照：<span class="mono">manila_attendance_daily</span> ／ <span class="mono">manila_payroll_items</span> ／ <span class="mono">app/manila_payroll_engine.py</span>
+</footer>
+
+</div>
