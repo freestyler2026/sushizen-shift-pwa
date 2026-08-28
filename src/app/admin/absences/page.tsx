@@ -73,7 +73,34 @@ type AbsenceRow = {
   reason_category?: ReasonCategory | string;
   source_sheet_name?: string;
   created_at?: string | null;
+  /** "" = nobody has said yet. Not the same as NO — the NTE rules need the difference. */
+  prior_notice?: AbsenceFlag | string;
+  mc_submitted?: AbsenceFlag | string;
+  flags_updated_by?: string;
 };
+
+/** "" unrecorded · YES · NO · NA (not applicable) */
+type AbsenceFlag = "" | "YES" | "NO" | "NA";
+
+const NOTICE_OPTIONS: Array<{ value: AbsenceFlag; label: string }> = [
+  { value: "",    label: "—" },
+  { value: "YES", label: "Told us" },
+  { value: "NO",  label: "No word" },
+];
+
+const MC_OPTIONS: Array<{ value: AbsenceFlag; label: string }> = [
+  { value: "",    label: "—" },
+  { value: "YES", label: "Submitted" },
+  { value: "NO",  label: "Not submitted" },
+  { value: "NA",  label: "N/A" },
+];
+
+function flagClass(v: string | undefined): string {
+  if (v === "YES") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+  if (v === "NO") return "border-rose-500/30 bg-rose-500/10 text-rose-300";
+  if (v === "NA") return "border-zinc-600/40 bg-zinc-700/20 text-zinc-400";
+  return "border-white/10 bg-white/5 text-zinc-500";
+}
 
 const REASON_CATEGORIES: Array<{ value: ReasonCategory; label: string; emoji: string; color: string }> = [
   { value: "",         label: "— No category —", emoji: "",   color: "" },
@@ -724,6 +751,41 @@ export default function AdminAbsencesPage() {
 
       setMsg({ kind: "ok", text: `Bulk saved ${count} rows.` });
       await loadReport();
+    } catch (e: any) {
+      setMsg({ kind: "err", text: e?.message || String(e) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Record whether the person gave notice, or handed in an MC.
+   *
+   * Kept off /upsert deliberately: that path rebuilds the row from the sheet,
+   * and these two facts are usually learned days after the absence itself. */
+  const saveFlags = async (
+    r: AbsenceRow,
+    patch: { prior_notice?: AbsenceFlag; mc_submitted?: AbsenceFlag },
+  ) => {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const nm = norm(approverName);
+      const p = norm(pin);
+      if (!nm) throw new Error("Approver name is required.");
+      if (!p) throw new Error("PIN is required.");
+
+      await apiPost("/api/admin/absences/flags", {
+        city,
+        staff_name: norm(r.staff_name),
+        work_date: norm(r.work_date),
+        absence_type: norm(r.absence_type).toUpperCase(),
+        approver_name: nm,
+        pin: p,
+        ...patch,
+      });
+
+      setMsg({ kind: "ok", text: `Saved for ${r.staff_name} / ${r.work_date}.` });
+      if (rows !== null) await loadHistory();
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message || String(e) });
     } finally {
@@ -1394,19 +1456,21 @@ export default function AdminAbsencesPage() {
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Type</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Branch</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Note / Shift</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Told us?</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>MC</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}></th>
                 </tr>
               </thead>
               <tbody>
                 {historyLoading ? (
                   <tr>
-                    <td colSpan={6} className={`${TABLE_CELL} px-4 py-12 text-center text-zinc-500`}>
+                    <td colSpan={8} className={`${TABLE_CELL} px-4 py-12 text-center text-zinc-500`}>
                       Loading…
                     </td>
                   </tr>
                 ) : rows === null ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center">
+                    <td colSpan={8} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <CalendarDays className="h-8 w-8 text-zinc-700" />
                         <p className={T_CAPTION}>Select filters above and click Load History.</p>
@@ -1415,7 +1479,7 @@ export default function AdminAbsencesPage() {
                   </tr>
                 ) : (filteredRows ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center">
+                    <td colSpan={8} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <CalendarOff className="h-8 w-8 text-zinc-700" />
                         <p className={T_CAPTION}>No records found for this filter.</p>
@@ -1457,6 +1521,40 @@ export default function AdminAbsencesPage() {
                             <NoteCell note={r.note} category={r.reason_category} />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
+                            <select
+                              aria-label={`Prior notice for ${r.staff_name} on ${r.work_date}`}
+                              disabled={loading}
+                              value={(r.prior_notice as AbsenceFlag) || ""}
+                              onChange={(e) =>
+                                saveFlags(r, { prior_notice: e.target.value as AbsenceFlag })
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.prior_notice)}`}
+                            >
+                              {NOTICE_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value} className="bg-zinc-900 text-zinc-200">
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className={`${TABLE_CELL} px-4`}>
+                            <select
+                              aria-label={`Medical certificate for ${r.staff_name} on ${r.work_date}`}
+                              disabled={loading}
+                              value={(r.mc_submitted as AbsenceFlag) || ""}
+                              onChange={(e) =>
+                                saveFlags(r, { mc_submitted: e.target.value as AbsenceFlag })
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.mc_submitted)}`}
+                            >
+                              {MC_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value} className="bg-zinc-900 text-zinc-200">
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className={`${TABLE_CELL} px-4`}>
                             {manual ? (
                               <button
                                 onClick={() => setPendingDeleteRow(isPendingDelete ? null : r)}
@@ -1473,7 +1571,7 @@ export default function AdminAbsencesPage() {
                         </motion.tr>
                         {isPendingDelete ? (
                           <tr className="border-t border-red-500/10 bg-red-500/5">
-                            <td colSpan={6} className="px-4 py-3">
+                            <td colSpan={8} className="px-4 py-3">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm text-zinc-300">
                                   Delete absence for <strong className="text-white">{r.staff_name}</strong> on{" "}
