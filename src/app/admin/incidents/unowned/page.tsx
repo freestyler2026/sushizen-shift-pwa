@@ -17,9 +17,13 @@ interface WaitingAction {
   key: string;
   label: string;
   method: string;
-  endpoint: string;
+  endpoint?: string;
   form?: string;
   body_key?: string;
+  /** Fixed payload the provider declared, e.g. {hq_action: "approved"}. */
+  body?: Record<string, unknown>;
+  /** For work that genuinely needs the record: opens that one, not a list. */
+  open_url?: string;
 }
 
 interface WaitingItem {
@@ -78,6 +82,9 @@ function Row({ item, onDone }: { item: WaitingItem; onDone: () => void }) {
   // Everything an item needs to be settled is on the row, so it is settled here.
   // Sending someone to another page to finish is the step that never happens.
   async function run(a: WaitingAction) {
+    // Some work cannot honestly be finished from a row — judging a refund needs
+    // the record. Those open the one record rather than a page to search.
+    if (a.open_url) { window.open(a.open_url, "_blank", "noopener"); return; }
     if (a.form === "feedback" && !openForm) { setOpenForm(true); return; }
     if (a.form === "feedback" && !feedback.trim()) { setErr("フィードバックを入力してください"); return; }
     setBusy(a.key);
@@ -95,8 +102,10 @@ function Row({ item, onDone }: { item: WaitingItem; onDone: () => void }) {
         };
       } else if (a.form === "close") {
         body = { photo_checked: true, issue_found: false, close_task: true };
+      } else if (a.body) {
+        body = a.body;
       }
-      const res = await fetch(a.endpoint, {
+      const res = await fetch(a.endpoint as string, {
         method: a.method,
         headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
@@ -155,7 +164,7 @@ function Row({ item, onDone }: { item: WaitingItem; onDone: () => void }) {
             disabled={!!busy}
             onClick={() => void run(a)}
             className={`rounded-lg border px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${
-              a.key === "take_on" || a.key === "claim"
+              a.key === "take_on" || a.key === "claim" || a.key === "hq_approve" || a.key === "ot_approve"
                 ? "border-violet-500/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25"
                 : "border-white/12 bg-white/5 text-zinc-300 hover:bg-white/10"
             }`}

@@ -11,6 +11,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  BookOpen,
   MessageSquare,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
@@ -697,6 +698,60 @@ function HandlingPanel({
 
 // ─── Task row ─────────────────────────────────────────────────────────────────
 
+
+interface BoPageManualRow { signal: string; means: string; do: string }
+interface BoPage {
+  key: string;
+  slot: string;
+  label: string;
+  types: string[];
+  manual: BoPageManualRow[];
+  owner: string;
+  owner_conflict: string[];
+  red: number;
+  yellow: number;
+  open_total: number;
+}
+
+/**
+ * What the colours on this page mean and what to send.
+ *
+ * The design has back-office staff "look at the colour, open the manual, send
+ * the template" — three steps, of which only the middle one required leaving the
+ * screen. Printing it here is what makes the job the zero-judgement script it was
+ * meant to be.
+ */
+function ActionManual({ page }: { page: BoPage }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <BookOpen className="h-3.5 w-3.5 text-violet-300" />
+        <span className="text-xs font-bold uppercase tracking-wider text-violet-200">Action Manual</span>
+        <span className="text-xs text-zinc-500">{page.label}</span>
+        {open ? <ChevronUp className="ml-auto h-3.5 w-3.5 text-zinc-500" />
+              : <ChevronDown className="ml-auto h-3.5 w-3.5 text-zinc-500" />}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {page.manual.map((m, i) => (
+            <div key={i} className="grid grid-cols-[minmax(140px,auto)_1fr] gap-x-3 gap-y-0.5 text-xs">
+              <div className="font-semibold text-white">{m.signal}</div>
+              <div className="text-zinc-300">{m.do}</div>
+              <div className="text-zinc-500">{m.means}</div>
+              <div />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface TaskRowProps {
   task: ManagementTask;
   template: ActionTemplate | null;
@@ -850,6 +905,11 @@ export default function BODashboardPage() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("open");
+  const [pages, setPages] = useState<BoPage[]>([]);
+  // Defaults to the pages this person owns. The design gives each back-office
+  // member specific pages and says they "see only their exceptions"; a list of
+  // everyone's is a list nobody treats as theirs.
+  const [pageFilter, setPageFilter] = useState<string>("mine");
   const [cityFilter, setCityFilter] = useState<string>("manila");
 
   // Send modal
@@ -898,6 +958,17 @@ export default function BODashboardPage() {
   }, [cityFilter]);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/management/bo-pages?city=${cityFilter}`, {
+          headers: getAuthHeaders(getAuth()), cache: "no-store",
+        });
+        if (res.ok) setPages(((await res.json())?.pages ?? []) as BoPage[]);
+      } catch { /* the dashboard still works without the manual */ }
+    })();
+  }, [cityFilter]);
+
+  useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
 
@@ -914,9 +985,21 @@ export default function BODashboardPage() {
   const closedCount    = tasks.filter(t => t.status === "closed").length;
 
   // Filter by status client-side (tasks are always fetched for all statuses for accurate KPI counts)
+  const me = getAuth()?.staffName || "";
+  const myPages = pages.filter((p) => p.owner && p.owner === me);
+  const activePages =
+    pageFilter === "all" ? pages
+    : pageFilter === "mine" ? (myPages.length > 0 ? myPages : pages)
+    : pages.filter((p) => p.key === pageFilter);
+  const allowedTypes = new Set(activePages.flatMap((p) => p.types));
+
+  const pageFilteredTasks = pages.length === 0
+    ? tasks
+    : tasks.filter((t) => allowedTypes.has(t.type));
+
   const filteredTasks = statusFilter && statusFilter !== "all"
-    ? tasks.filter(t => t.status === statusFilter)
-    : tasks;
+    ? pageFilteredTasks.filter(t => t.status === statusFilter)
+    : pageFilteredTasks;
 
   // Sorted: red first, then by created_at desc
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -1157,6 +1240,57 @@ export default function BODashboardPage() {
         </div>
 
         {/* Task List */}
+        {pages.length > 0 && (
+          <div className="mb-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={T_LABEL}>Page</span>
+              {[{ key: "mine", label: myPages.length > 0 ? "My pages" : "My pages (none assigned)" },
+                ...pages.map((p) => ({ key: p.key, label: p.label })),
+                { key: "all", label: "All" }].map((o) => (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => setPageFilter(o.key)}
+                  className={`rounded-lg border px-3 py-1 text-xs font-semibold transition-colors ${
+                    pageFilter === o.key
+                      ? "border-violet-500/50 bg-violet-500/20 text-white"
+                      : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                  }`}
+                >
+                  {o.label}
+                  {o.key !== "mine" && o.key !== "all" && (() => {
+                    const pg = pages.find((x) => x.key === o.key);
+                    return pg && pg.open_total > 0
+                      ? <span className="ml-1.5 tabular-nums text-zinc-400">{pg.open_total}</span>
+                      : null;
+                  })()}
+                </button>
+              ))}
+            </div>
+
+            {/* The manual for whatever is being worked, on the page being worked. */}
+            {activePages.map((p) => (
+              <div key={p.key} className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-white">{p.label}</span>
+                  <span className="text-zinc-500">{p.slot}</span>
+                  {p.owner
+                    ? <span className="text-zinc-400">Owner: <span className="text-zinc-200">{p.owner}</span></span>
+                    : <span className="text-red-300">No owner set</span>}
+                  {p.owner_conflict.length > 0 && (
+                    <span className="text-amber-300">
+                      分割されています: {p.owner_conflict.join(" / ")}
+                    </span>
+                  )}
+                  {p.red > 0 && <span className="text-red-300">赤 {p.red}</span>}
+                  {p.yellow > 0 && <span className="text-amber-300">黄 {p.yellow}</span>}
+                </div>
+                <ActionManual page={p} />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className={GLASS_CARD + " overflow-hidden"}>
           {loading ? (
             <div className="flex items-center justify-center py-16 text-zinc-500">

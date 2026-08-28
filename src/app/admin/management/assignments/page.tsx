@@ -17,6 +17,18 @@ import {
 import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import SelectDark from "@/components/SelectDark";
 
+interface BoPage {
+  key: string;
+  slot: string;
+  label: string;
+  types: string[];
+  owner: string;
+  owner_conflict: string[];
+  red: number;
+  yellow: number;
+  open_total: number;
+}
+
 interface MatrixRow {
   exception_type: string;
   title: string;
@@ -30,6 +42,7 @@ export default function ManagementAssignmentsPage() {
   const router = useRouter();
   const [city, setCity] = useState<"manila" | "dubai">("manila");
   const [rows, setRows] = useState<MatrixRow[]>([]);
+  const [boPages, setBoPages] = useState<BoPage[]>([]);
   const [staff, setStaff] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +74,11 @@ export default function ManagementAssignmentsPage() {
         { cache: "no-store", headers: getAuthHeaders(auth) },
       );
       if (st.ok) setStaff(((await st.json())?.names ?? []) as string[]);
+
+      const bp = await fetch(`/api/admin/management/bo-pages?city=${city}`, {
+        cache: "no-store", headers: getAuthHeaders(auth),
+      });
+      if (bp.ok) setBoPages(((await bp.json())?.pages ?? []) as BoPage[]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -73,6 +91,23 @@ export default function ManagementAssignmentsPage() {
   const setOwner = (exceptionType: string, owner: string) => {
     setSaved("");
     setRows((prev) => prev.map((r) => (r.exception_type === exceptionType ? { ...r, owner } : r)));
+  };
+
+  const savePageOwner = async (pageKey: string, staffName: string) => {
+    setSaved("");
+    setError("");
+    try {
+      const res = await fetch("/api/admin/management/bo-pages/owner", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, page_key: pageKey, staff_name: staffName }),
+      });
+      if (!res.ok) throw new Error((await res.text()).slice(0, 200) || `Save failed (${res.status})`);
+      setSaved(staffName ? `${staffName} をこのページの担当にしました` : "担当を外しました");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const save = async () => {
@@ -153,6 +188,46 @@ export default function ManagementAssignmentsPage() {
         </div>
       )}
 
+      {/* Ownership is per page in the design — one person, one page, one manual.
+          The per-type table below stays for exceptions to that, but the page is
+          how it is meant to be set: nothing makes you enumerate a list you might
+          not know is complete. */}
+      <div className="mb-6 flex flex-col gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-white/70">Pages</h2>
+        {boPages.map((p) => (
+          <div key={p.key} className={`${GLASS_CARD} flex flex-wrap items-center gap-3 px-4 py-3`}>
+            <div className="min-w-[200px]">
+              <div className="text-sm font-semibold text-white">{p.label}</div>
+              <div className={T_CAPTION}>{p.slot} · {p.types.length} 種別</div>
+            </div>
+            {p.open_total > 0 && (
+              <div className="text-xs">
+                {p.red > 0 && <span className="text-red-300">赤 {p.red}</span>}
+                {p.red > 0 && p.yellow > 0 && <span className="text-zinc-600"> · </span>}
+                {p.yellow > 0 && <span className="text-amber-300">黄 {p.yellow}</span>}
+              </div>
+            )}
+            {p.owner_conflict.length > 0 && (
+              <div className="text-xs text-amber-300">分割: {p.owner_conflict.join(" / ")}</div>
+            )}
+            <div className="ml-auto min-w-[220px]">
+              <SelectDark
+                value={p.owner}
+                onChange={(v) => void savePageOwner(p.key, v)}
+                options={[
+                  { value: "", label: "— no owner —" },
+                  ...staff.map((n) => ({ value: n, label: n })),
+                ]}
+              />
+            </div>
+          </div>
+        ))}
+        {boPages.length === 0 && <div className={T_CAPTION}>読み込み中…</div>}
+      </div>
+
+      <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-white/70">
+        種別ごとの上書き
+      </h2>
       <div className={`${GLASS_CARD} overflow-hidden p-0`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
