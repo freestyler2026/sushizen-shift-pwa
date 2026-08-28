@@ -1,10 +1,15 @@
-# Manual Shift — セル単位保存への移行 実装案
+# Manual Shift — セル単位保存 実装記録
 
-作成 2026-08-27 / 対象 `src/app/admin/manual-shift/page.tsx`, `app/main.py`, `app/db.py`
+作成 2026-08-27 / 実装完了 2026-08-27
+対象 `src/app/admin/manual-shift/page.tsx`, `app/main.py`, `app/db.py`
 
-## なぜ作り直すか
+> この文書は **実装後の記録** です。設計案の段階で書かれた前半の構想とは
+> 一部異なる結論になっています。差分は「設計案から変えた点」に記載。
 
-不具合が個別に発生しているのではなく、**書き込み単位が「週全体」であること**から派生している。
+## なぜ作り直したか
+
+不具合が個別に発生していたのではなく、**書き込み単位が「週全体」であること**から
+派生していた。
 
 ```
 ブラウザが週全体を保持 → Publish で週全体を上書き
@@ -13,171 +18,87 @@
   → そのブロックが誤作動する
 ```
 
-これまでの修正はすべて「ブロックを賢くする」方向だった。**ブロックが要らない形にする**のが正しい。
+このページの直近8コミットのうち6件が、このブロックの手当てだった。
+`delete_published_row` は公開データを直接書き換えるのに、ブラウザ側の基準スタンプは
+強制読み込みでしか更新されないため、**自分の削除で自分が publish できなくなっていた。**
 
----
+## 設計案から変えた点
 
-## 現状の構造（調査済み）
+設計案は「Publish はサーバー側の下書きから行う」だった。これは
+**週全体の上書きをサーバー側に移すだけで、無くしていない。**
+公開データが下書き以外の経路（`publish_from_base` / AI Draft適用 /
+`inject_staff_rows` / 名前修正カスケード）で変わると同じ事故が起きる。
 
-| テーブル | 制約 | 備考 |
-|---|---|---|
-| `shift_published_versions` | **UNIQUE (city, branch_code, week_start)** | 週×支店で1行。公開は常にこの1版 |
-| `shift_published_rows` | version_id 外部キー | `/week` · My Shift · DTR · 給与がここを読む |
-| `shift_draft_versions` | 一意制約なし | `save_draft_only` が毎回新規作成 → 版が溜まる |
-| `shift_draft_rows` | version_id 外部キー | セル単位の行は既にある |
+実装したのは差分オーバーレイ:
 
-現在の書き込み経路:
-- `POST /api/admin/shifts/save_draft_only` — 週全体を送り、新しい draft version を作る
-- `POST /api/admin/shifts/manual_publish` — 週全体 + `base_state_token` + `base_content_hash`
-- `POST /api/admin/shifts/delete_published_row` — 公開行を直接消す（今回の不具合の原因）
+> **Publish は週を差し替えず、触ったセルだけを適用する。**
 
----
+触っていないセルには一切書かないので、手元が古くても害が無い。
+トークンもハッシュも不要になる。
 
-## 目指す構造
+## 実装
 
-### 1. 作業用ドラフトを週×支店で1つに固定
+### テーブル `shift_week_edits`
 
-`shift_draft_versions` に `is_working BOOLEAN DEFAULT FALSE` を追加し、部分一意インデックスを張る。
+公開データへの差分。セルにオーバーレイ行が無い＝「公開されているものがそのまま」。
 
-```sql
-ALTER TABLE shift_draft_versions ADD COLUMN IF NOT EXISTS is_working BOOLEAN NOT NULL DEFAULT FALSE;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_draft_working
-  ON shift_draft_versions (city, branch_code, week_start) WHERE is_working;
-```
-
-AI ドラフトは `is_working = FALSE` のまま残るので、「Load AI Draft」は従来どおり動く。
-
-`shift_draft_rows` に編集者を記録する。
-
-```sql
-ALTER TABLE shift_draft_rows ADD COLUMN IF NOT EXISTS updated_by TEXT NOT NULL DEFAULT '';
-CREATE INDEX IF NOT EXISTS idx_draft_rows_cell
-  ON shift_draft_rows (version_id, staff_name, work_date);
-```
-
-### 2. セル単位の書き込み
-
-```
-PUT /api/admin/shifts/cell
-{ city, branch_code, week_start, work_date, staff_name,
-  shifts: [ { start_hour, end_hour, role, note } ] }     ← 空配列 = そのセルは空
-```
-
-処理:
-1. 作業用ドラフト版を取得（無ければ作成）
-2. `DELETE FROM shift_draft_rows WHERE version_id=? AND staff_name=? AND work_date=?`
-3. `shifts` を INSERT（`updated_by` に実行者）
-4. 更新後のセルと `updated_at` を返す
-
-**削除は「空のセル」として表現する。** 公開行を直接消さないので、今回の「自分の削除で自分が古くなる」不具合は構造的に起きない。
-
-分割シフト（1セルに複数）は delete+insert で自然に扱える。セル単位の一意制約は不要。
-
-ペイントモードは1ドラッグで大量に発火するため、まとめて送る版も用意する。
-
-```
-PUT /api/admin/shifts/cells      { ..., cells: [ {work_date, staff_name, shifts}, ... ] }
-```
-
-### 3. Publish はサーバー側のドラフトから行う
-
-```
-POST /api/admin/shifts/publish_from_draft
-{ city, branch_code, week_start }        ← グリッドを送らない
-```
-
-処理:
-1. `pg_advisory_xact_lock(hashtext(city||branch_code||week_start))` — 同時 publish の直列化
-2. 作業用ドラフト行を読む
-3. `shift_published_versions` の該当版の行を置き換える
-4. `_record_published_week_diff()` で差分を記録（実装済み）
-5. 公開時点のドラフトを版として凍結（`is_working=FALSE` の複製を残す）→ 履歴になる
-6. Google Sheets 書き出しは現状のまま
-
-**`base_state_token` / `base_content_hash` は不要になるので削除する。** ブラウザは週の状態を主張しないので、古い/新しいという概念が消える。
-
-### 4. 他の人の編集を見せる
-
-```
-GET /api/admin/shifts/draft_week?...&since=<ISO8601>
-→ since 以降に更新されたセルだけ返す
-```
-
-- 5〜10秒間隔でポーリング
-- **自分が編集中のセルには上書きしない**（フォーカス中のセルは除外）
-- 「Ruby が 3 セル更新しました」程度の控えめな表示
-- WebSocket は不要
-
-### 5. UI の変更
-
-| 現在 | 変更後 |
+| 列 | 内容 |
 |---|---|
-| Save Draft（週全体を保存） | **廃止**。編集は都度保存される |
-| Publish（週全体を送信） | サーバードラフトを公開するだけ |
-| localStorage ドラフト | **廃止**。破棄バナーもなくなる |
-| 🗑 remove from grid | **「この人の1週間を空にする」**に変更。行は消さない |
-| 「他の人が変更した」警告 | **廃止** |
-| — | 追加: セルに最終更新者・時刻を表示 |
-| — | 追加: **「ドラフトを破棄して公開版に戻す」** |
+| PK | city, branch_code, week_start, staff_name, work_date |
+| cells | jsonb 配列。**空配列＝そのセルは明示的に空**（行が無いのとは別の意味） |
+| edited_by / edited_at | 誰がいつ |
+| rev | `shift_week_edits_rev_seq`。**更新時も採番**するのでポーリングが訂正を拾える |
+| published_at | 公開済み。行は消さない（消すとポーリング側が消滅を検知できない） |
 
-「下書きは非公開、Publish で公開」の区別は維持する。週をかけて組む運用が壊れるため。
+### API
 
----
-
-## 削除するコード
-
-フロント（`manual-shift/page.tsx`）:
-- `saveDraft` / `loadDraft` / `draftIsCurrent` / `StoredDraft` / `DRAFT_MAX_AGE_MS`
-- `baseStateTokenRef` / `baseContentHashRef` / `discardedDraftCells` / 破棄バナー
-- `removedStaff` / `removedStaffRef` / `restampBasisAfterOwnEdit`
-- 409 (`outdated_client` / `stale_grid`) のハンドリング
-
-バックエンド:
-- `manual_publish` の `base_state_token` / `base_content_hash` 検証
-- `get_published_week_content_hash` / `_hash_published_rows`（他に利用が無ければ）
-- `delete_published_row` は base shift 画面が使うため**残す**
-
----
-
-## 段階
-
-| 段階 | 内容 | 単独でリリース可能か |
-|---|---|---|
-| A | セル単位の書き込み（バックエンド + フロント配線）、localStorage ドラフト廃止 | 可。ただし Publish は旧経路のまま |
-| B | `publish_from_draft` + ガード削除 | **A と同時が望ましい** |
-| C | ポーリングと編集者表示 | 後日で可 |
-
-A だけでは旧 publish 経路が残り、週全体を送り続けるため効果が半減する。**A と B は同時にリリースする。**
-
----
-
-## 見積もり
-
-| | 目安 |
+| エンドポイント | 役割 |
 |---|---|
-| バックエンド（エンドポイント・マイグレーション・ロック） | 半日 |
-| フロント（2,500行のページから旧機構を外して再配線） | 1日 |
-| 検証（`/week` · My Shift · DTR · 給与 · Sheets 書き出し） | 半日 |
+| `POST /api/admin/shifts/week_cells` | セルを upsert。入力のたびに飛ぶ |
+| `GET /api/admin/shifts/week_state` | `since_rev` 以降の差分＋`published_token` の変化 |
+| `POST /api/admin/shifts/publish_week_cells` | **body にグリッドを送らない。** 未公開セルだけ適用 |
+| `POST /api/admin/shifts/discard_week_cells` | 未公開分を破棄して公開版に戻す |
 
-**合計 約2日。** ホットフィックスの範囲外。
+publish / discard は `pg_advisory_xact_lock` で週ごとに直列化する。
 
----
+`week_state` は公開行そのものは返さない。ページには `/api/published/week` の
+読み込みが既にあり、二重の経路を作ると必ずずれるため、**変わったかどうかだけ**返す。
 
-## 注意点
+### フロント
 
-1. **公開データの形式を変えない。** `/week`・My Shift・DTR 同期・給与エンジンが `shift_published_rows` に依存している。
-2. **承認済み Day Off はドラフトにのみ適用**される現仕様を維持する。
-3. **`shift_change_events` の差分記録**を publish 経路の変更後も動かす（今日、記録が無言で失敗していた前例あり）。
-4. **「Load AI Draft」は作業用ドラフトを上書きする**ため、確認ダイアログを必須にする。
-5. **公開時にドラフトの版を凍結**しておくこと。スプレッドシートの版履歴に相当し、誤った一括編集を戻せる唯一の手段になる。
-6. `publish_week_from_base_shift` の6時間ガードは別経路。触らない。
+- `commitCells()` が唯一のセル変更経路。グリッド更新と送信キュー投入を必ず同時に行う
+- localStorage は**週のコピーではなく未送信の編集キュー**のみ（店舗の通信断対策）
+- 5秒ポーリングで他人の編集を反映。タブが非表示のときは止まる
+- 自分のキューにあるセルは上書きしない（送った直後のエコーで打鍵を戻さないため）
+- 公開週を読み直したら**必ずオーバーレイを全部貼り直す**（`refreshWeek()`）。
+  片方だけ読むとオーバーレイが公開値に戻って見える
 
----
+### 消えたもの
 
-## 暫定対応（2026-08-27 実施済み・根本解決ではない）
+`base_state_token` / `base_content_hash` の検証（manual publish 経路）、
+localStorage の週スナップショット、破棄バナー、「他の人が変更した」409、
+**Save Draft ボタン**（全編集が自動保存のため）。
 
-- 自分の削除で自分のグリッドが古くなる不具合を修正（`restampBasisAfterOwnEdit`）
-- デプロイ時の強制リロードで入力が消える件を修正（`useUnsavedGuard` に登録）
-- 削除した行がリロードで復活する件を修正（ローカルドラフトに記録）
+旧 Save Draft の内容は初回表示時にオーバーレイへ一度だけ移送する。
+移送しないと画面に出ているのに publish されない、という無言の欠落になる。
 
-いずれも週全体モデルの上での対処であり、本移行時にすべて削除される。
+## 残した / 残っているもの
+
+- `manual_publish`（旧・週全体）は残置。キャッシュに残った古いページが完全に壊れるため。
+  新しい経路とは独立で、古いページは従来どおり409で守られる
+- `delete_published_row` は **Published View** で使用。公開済みを消す別操作なので妥当
+- 未対応: 編集ポップアップを開いたままのセルを他人が変更した場合、
+  ポップアップ内の値は古いまま（保存すると自分の値で上書きされる）
+
+## 下流への影響
+
+`shift_published_rows` の形は不変。ただし **publish が差分適用になったため、
+変わっていない行の `updated_at` は更新されない**（以前は週全体が NOW() になっていた）。
+CLAUDE.md 教訓14の方向としては改善だが、**DTR Sync は実データで再検証すること。**
+
+## 検証済み（本番API）
+
+- 編集がページ再読み込みを跨いで残る
+- 2人目の編集が1ポーリング周期（5秒）で反映され、編集者名が出る
+- **公開済みセルを削除 → publish が拒否されずに通り、他人のセルは残る**
+- 未公開が無いときの publish は no-op（トークンも動かない）

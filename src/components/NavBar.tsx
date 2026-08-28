@@ -435,7 +435,11 @@ export default function NavBar() {
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/incidents/unowned") return canAccessIncidentReportAdmin(auth);
-    if (href === "/admin/manual-shift") return canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth);
+    // Deliberately no role list and no canAccessAdminNav fallback: this is the one
+    // route where the Role Management toggle is the whole answer. canAccessAdminNav
+    // is true for anyone holding any admin channel, so it made "Manual Shift: off"
+    // mean nothing. HQ still cannot be locked out — it carries "*".
+    if (href === "/admin/manual-shift") return hasChannelAccess("admin.manual_shift", ["view", "publish"], auth);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/price-check", auth);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/baseroll-prep", auth);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);

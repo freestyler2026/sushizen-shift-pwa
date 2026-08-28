@@ -1,6 +1,82 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-26 (レシート仕訳自動化 Phase 1 抽出完了 — 税務項目208件)
+Last updated: 2026-08-27 (Manual Shift をセル単位編集に移行 — デプロイ済み)
+
+---
+
+## ✅ Completed: Manual Shift セル単位編集 (2026-08-27)
+
+### 背景
+現場から「他の人が変更した」で publish できないと報告。作業者は1人。
+調べたところ **自分の削除操作が自分のグリッドを古くしていた**（`delete_published_row` が
+公開週を直接書き換えるのに、基準スタンプは強制読み込みでしか更新されない）。
+
+根本原因は書き込み単位が「週全体」であること。このページの直近8コミットのうち
+**6件がガードの手当て**だった。
+
+### 実施
+書き込み単位をセルにし、**Publish は触ったセルだけを適用**する差分方式へ。
+
+| 追加 | 内容 |
+|---|---|
+| テーブル | `shift_week_edits`（公開週への差分オーバーレイ） |
+| API | `week_cells` / `week_state` / `publish_week_cells` / `discard_week_cells` |
+| 排他 | `pg_advisory_xact_lock` で週ごとに publish/discard を直列化 |
+
+**消えたもの**: `base_state_token` / `base_content_hash` 検証、localStorage の週スナップショット、
+破棄バナー、「他の人が変更した」409、Save Draft ボタン（全編集が自動保存のため）。
+
+**残したもの**: `manual_publish`（キャッシュに残る古いページ用）、
+`delete_published_row`（Published View で使用）。
+
+### 検証（本番）
+- 編集がページ再読み込みを跨いで残る
+- 2人目の編集が5秒で反映され、編集者名がセルに出る
+- **公開済みセルを削除 → publish が通る**（旧: 409 で不能）
+- 実際に詰まっていた Cubao 2026-08-31 を本番で開き、警告ゼロ・オーバーレイ書き込みゼロを確認
+
+### ✅ ダブルチェック実施 (2026-08-27)
+- **DTR Sync — 問題なし。** `sync-dtr-os` の公開シフト参照は既に
+  `DISTINCT ON (staff_name, work_date) ORDER BY r.updated_at DESC` で、
+  行単位の書き込み時刻を見る設計だった（＝差分適用と整合）。
+  Preview 実行（8/16–8/26, 553セッション）で errors 0 / suspicious 0、
+  `shift_data_missing` は Anthony・Tricia の2名のみ＝**教訓16の既知案件で、今回の変更起因ではない**。
+- 機能確認: 分割シフトの1コマ削除／Day Off等の特殊区分／Paint Mode／
+  AI Draft 読込（3行→2セル、分割が正しく1セルに統合）／Load from DB／
+  Published View の削除／**通信断→週切替→復帰でキューが元の週に着地**、すべて動作確認済み。
+- 二重 publish は no-op。Published View で消した行は再 publish で復活しない。
+
+### ✅ Role Management で Manual Shift を制御できるようにした (2026-08-27)
+判定が3か所に手で写され、ロール一覧が3種類あった。Role Management の
+`channel.admin.manual_shift.publish` は**どこからも読まれていない死に権限**で、
+実効的な鍵は `channel.admin.staff.manage`（8ロール保有・約42人）だった。
+
+**実績で測ってから塞いだ**: `shift_publish_log` 1,408件（2026-07-21〜08-27）と
+`shift_change_events` を集計 → publish も公開行削除も**全員 ADMIN か HQ**。
+よって Staff管理鍵は温存せず削除。
+
+- 統合先: `_may_edit_shifts()` — `*` / `channel.admin.manual_shift.publish` /
+  `shift.manual.publish`、および HQ（Channels UI が HQ を locked 表示しているのと整合）。
+  **ADMIN はハードコードしない**（付与済み権限で通す＝トグルが本物になる）。
+- 対象: `manual_publish` / `week_cells` / `publish_week_cells` / `discard_week_cells` /
+  `draft_week` / `save_draft_only` / `publish_from_base` / `delete_published_row`。
+- NavBar は `canAccessAdminNav ||` を外しチャンネル判定のみに。ページにガードが
+  **1つも無かった**ので追加（URL直打ちで開けていた）。
+- 戻し道: `heroku config:set SHIFT_EDIT_ALLOW_STAFF_MANAGE=1 -a sushizen-shift-app`（デプロイ不要）
+
+**Impersonation で検証**: ADMIN(Erica/Ruby/Marithel)・HQ(Yuri) は 200、
+MANILA_MANAGEMENT(Richard)・HR_MANAGER(Peter)・DUBAI_MANAGEMENT(Rafael)・MANAGER(Jasmine) は 403。
+権限なしでメニュー非表示＋`/` へリダイレクト、未ログインは `/login` へ。
+
+**アクセスを失う7名（実績ゼロ）**: Francis Ibana / Norhaida Sharif / Peter Villafuerte /
+Richard S. Gante（MANILA_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae（MANAGER）、
+Rafael Jonas Lagahit（DUBAI_MANAGEMENT）。必要なら Role Management で
+「Publish Manual Shift」を付与すれば戻る（403の文言にも記載）。
+
+### 🔴 残課題
+1. 編集ポップアップを開いたままのセルを他人が変更した場合、ポップアップ内の値は古いまま
+   （保存すると自分の値で上書き＝後勝ち）。
+3. 詳細は `docs/design/manual-shift-cell-level.md`（実装後の記録に差し替え済み）。
 
 ---
 

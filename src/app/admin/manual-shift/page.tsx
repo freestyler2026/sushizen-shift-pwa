@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { getAuth, getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import { getAuth, getAuthHeaders, hasChannelAccess, tryRefreshAccessToken } from "@/lib/auth";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   PRIMARY_BUTTON,
@@ -188,8 +189,9 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!res.ok) {
     let j: Record<string, unknown> = {};
     try { j = text ? (JSON.parse(text) as Record<string, unknown>) : {}; } catch { /* non-JSON body (e.g. 502 HTML) */ }
-    // FastAPI's detail can be an object (the stale-schedule 409 carries one). Reading
-    // it as a string would surface "[object Object]" to the user.
+    // FastAPI's detail can be an object — the 409s from the whole-week publish paths
+    // (Load from DB, and the old publish a cached tab may still call) carry one.
+    // Reading it as a string would surface "[object Object]" to the user.
     const detail = j?.detail;
     const detailMsg = typeof detail === "string"
       ? detail
@@ -429,6 +431,15 @@ function cellKey(staffName: string, dateStr: string) {
   return `${staffName}|${dateStr}`;
 }
 
+/** One cell as a single comparable string. Used to tell a real change from a
+ *  copy of what is already published — order and formatting must not matter. */
+function cellSignature(value: ShiftCell | ShiftCell[] | null | undefined): string {
+  return cellsOf(value)
+    .map((c) => `${c.start_hour}-${c.end_hour}:${c.role || ""}:${c.note || ""}:${c.branch_code || ""}`)
+    .sort()
+    .join("+");
+}
+
 /** Identity of a queued edit: one pending write per cell per week. A second edit
  *  to the same cell replaces the first rather than queueing behind it. */
 function queueKey(e: PendingEdit) {
@@ -461,6 +472,20 @@ function dropLegacyWeekDraft(city: string, branch: string, week: string) {
 
 export default function ManualShiftPage() {
   const auth = useMemo(() => getAuth(), []);
+  const router = useRouter();
+
+  // This page had no guard, so the URL opened for anyone signed in — the grid was
+  // empty until the API refused, which reads as a broken page rather than a closed
+  // door. Same rule as the menu: whatever Role Management says.
+  useEffect(() => {
+    const a = getAuth();
+    if (!a) {
+      router.replace("/login?next=%2Fadmin%2Fmanual-shift");
+      return;
+    }
+    if (!hasChannelAccess("admin.manual_shift", ["view", "publish"], a)) router.replace("/");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [city, setCity] = useState<City>((auth?.city as City) || "dubai");
   const [branchCode, setBranchCode] = useState(() => BRANCHES[(auth?.city as City) || "dubai"][0].code);
@@ -502,6 +527,10 @@ export default function ManualShiftPage() {
   const [cellEditors, setCellEditors] = useState<Record<string, { by: string; at: string }>>({});
   const revRef = useRef(0);
   const publishedTokenRef = useRef("");
+  /** The published week exactly as last loaded, so a carried-over draft cell can
+   *  be compared against it. Without this the migration below cannot tell a real
+   *  edit from a saved copy of what is already published. */
+  const publishedGridRef = useRef<Record<string, string>>({});
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
@@ -765,6 +794,21 @@ export default function ManualShiftPage() {
       const rows = (data.rows || []);
       const serverToken = data.state_token ?? "";
       publishedTokenRef.current = serverToken;
+      {
+        const byCell: Record<string, ShiftCell[]> = {};
+        for (const r of rows as any[]) {
+          const k = cellKey(String(r.staff_name), String(r.work_date));
+          (byCell[k] ??= []).push({
+            start_hour: Number(r.start_hour), end_hour: Number(r.end_hour),
+            role: String(r.role || ""),
+            note: r.note ? String(r.note) : undefined,
+            branch_code: r.branch_code ? String(r.branch_code) : undefined,
+          });
+        }
+        publishedGridRef.current = Object.fromEntries(
+          Object.entries(byCell).map(([k, v]) => [k, cellSignature(v)])
+        );
+      }
 
       setGridData((prev) => {
         const nextGrid: GridData = {};
@@ -886,15 +930,17 @@ export default function ManualShiftPage() {
             if (overlaid.has(k) || seen.has(k)) continue;
             if (!staffListRef.current.includes(rName)) continue;
             seen.add(k);
-            carried.push({
-              staffName: rName, dateStr: rDate,
-              value: {
-                start_hour: Number(r.start_hour),
-                end_hour: Number(r.end_hour),
-                role: String(r.role || "STAFF"),
-                note: r.note ? String(r.note) : undefined,
-              },
-            });
+            const value: ShiftCell = {
+              start_hour: Number(r.start_hour),
+              end_hour: Number(r.end_hour),
+              role: String(r.role || "STAFF"),
+              note: r.note ? String(r.note) : undefined,
+            };
+            // Most saved drafts are a copy of what is already published. Carrying
+            // those across would report dozens of changes when nothing changed,
+            // and ask for a publish that does nothing.
+            if (cellSignature(value) === (publishedGridRef.current[k] ?? "")) continue;
+            carried.push({ staffName: rName, dateStr: rDate, value });
           }
           if (!cancelledRef.current && carried.length > 0) {
             commitCells(carried);
@@ -1112,8 +1158,20 @@ export default function ManualShiftPage() {
     if (!branchCode) { setError("Branch not selected"); return; }
     if (!window.confirm(
       `Load shifts from DB for ${labelOf(city, branchCode)} — week of ${weekStart}?\n\n` +
-      `This will replace any existing published shifts for this branch+week.`
+      `This replaces the published schedule for this branch and week.`
     )) return;
+
+    // Unpublished edits are not part of the published week, so the import cannot
+    // touch them — they simply get applied on top the next time anyone publishes,
+    // which quietly undoes part of the import. Say so, and offer the way out.
+    let discardFirst = false;
+    if (unpublishedCells.size > 0) {
+      discardFirst = window.confirm(
+        `This week also has ${unpublishedCells.size} unpublished change${unpublishedCells.size === 1 ? "" : "s"}.\n\n` +
+        `OK — throw them away, so the imported schedule stands as it is.\n` +
+        `Cancel — keep them; they will be applied on top the next time this week is published.`
+      );
+    }
 
     setDbImporting(true);
     setError("");
@@ -1142,6 +1200,14 @@ export default function ManualShiftPage() {
         res = await loadFromDb(true);
       }
       if (!res.ok) { setError("Load from DB failed"); return; }
+      if (discardFirst) {
+        await apiFetch("/api/admin/shifts/discard_week_cells", {
+          method: "POST",
+          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+        });
+        setUnpublishedCells(new Set());
+        setCellEditors({});
+      }
       // publish_from_base writes the published week itself, so there is nothing
       // to carry over -- reload and let the overlay lie back on top.
       const staffOk = await loadStaff();
@@ -1168,7 +1234,8 @@ export default function ManualShiftPage() {
     if (hasExistingData) {
       if (!window.confirm(
         `Load AI Draft shifts into ${labelOf(city, branchCode)} for week of ${weekStart}?\n\n` +
-        `This will overwrite any existing data in the grid for this week. Continue?`
+        `Cells the draft covers are replaced. Cells it does not cover are left alone.\n` +
+        `Nothing reaches the published schedule until you press Publish.`
       )) return;
     }
 
@@ -1271,6 +1338,30 @@ export default function ManualShiftPage() {
       setCellEditors({});
       publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
       setView("published");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDiscard() {
+    if (unpublishedCells.size === 0) return;
+    if (!window.confirm(
+      `Throw away ${unpublishedCells.size} unpublished change${unpublishedCells.size === 1 ? "" : "s"} for this week?\n\n` +
+      `The grid goes back to the published schedule. This affects everyone editing this week, not just you.`
+    )) return;
+    setError("");
+    setSaving(true);
+    try {
+      await flushOutbox();
+      await apiFetch("/api/admin/shifts/discard_week_cells", {
+        method: "POST",
+        body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+      });
+      setUnpublishedCells(new Set());
+      setCellEditors({});
+      await refreshWeek();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1970,6 +2061,17 @@ export default function ManualShiftPage() {
                     ? "🚀 Nothing to publish"
                     : `🚀 Publish ${unpublishedCells.size} change${unpublishedCells.size !== 1 ? "s" : ""}`}
               </button>
+              {unpublishedCells.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  disabled={saving}
+                  title="Throw away this week's unpublished changes"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Discard changes
+                </button>
+              )}
               <p className="w-full text-xs text-gray-400 sm:w-auto">
                 Every edit is saved as you make it, and stays out of sight until you publish.
                 Publishing applies only the cells that changed — it never rewrites the rest of
@@ -2003,7 +2105,7 @@ export default function ManualShiftPage() {
           <div className={`${W_CARD} flex flex-col items-center justify-center py-16 text-center`}>
             <div className="mb-3 text-4xl">📅</div>
             <p className="text-sm font-medium text-gray-600">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
-            <p className="mt-1 text-xs text-gray-400">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
+            <p className="mt-1 text-xs text-gray-400">The published schedule loads first, with anyone&rsquo;s unpublished edits laid on top.</p>
           </div>
         )}
 

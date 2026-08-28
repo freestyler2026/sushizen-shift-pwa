@@ -283,6 +283,21 @@ npx tsc --noEmit
     - ⚠️ **残課題: `.manage` 系13権限が未配線**（`audit-dead-permissions.py` が列挙）。`view` は全て有効。
 
 
+31. **「同時編集の衝突を検知してブロックする」を作り始めたら、書き込み単位を疑う** → Manual Shift は週全体をブラウザに持ち、Publish で公開週を丸ごと差し替えていた。だから「手元が古い」と他人の修正を消してしまう。そこで `base_state_token` / `base_content_hash` でブロックを入れたが、**直近8コミット中6件がそのブロックの手当て**になり、しかも `delete_published_row` が公開週を直接書き換える一方で基準スタンプは強制読み込みでしか更新されないため、**自分の削除で自分が publish 不能**になっていた（2026-08-27 現場から報告）。
+    - 直し方は「ブロックを賢くする」ではなく **ブロックが要らない形にする**。書き込み単位をセルにし、Publish は**触ったセルだけを適用**する（`shift_week_edits` オーバーレイ + `publish_week_cell_edits`）。触っていないセルに書かないので、手元が古くても壊せるものが無い。トークンもハッシュも不要になった。
+    - ⚠️ **「サーバー側の下書きから publish する」だけでは不十分。** 下書きが週全体のコピーなら、上書きがサーバー側に移るだけで消えていない。公開データは他に4経路（`publish_from_base` / AI Draft適用 / `inject_staff_rows` / 名前修正カスケード）が書くので、そこから同じ事故が再発する。**差分適用にすること。**
+    - localStorage は全廃しない。**週のコピー**は捨て、**未送信の編集キュー**だけ残す（店舗の通信断で打鍵が消えるため）。
+    - オーバーレイ行は publish 後も**消さずに published 印を付ける**。`since_rev` ポーリングは行の消滅を検知できないので、消すと他の人の画面に存在しない編集が残る。
+    - 公開週を読み直したら**必ずオーバーレイを貼り直す**。片方だけ読むと未公開セルが公開値に戻って見える。
+    - 詳細は `docs/design/manual-shift-cell-level.md`。**publish が差分適用になったので、変わっていない行の `updated_at` は更新されない** — 教訓14の方向としては改善だが DTR Sync は実データで再検証すること。
+
+32. **同じ判定を3か所に手で写すと、ロール一覧が3種類になる** → Manual Shift のシフト変更は3か所で別々のロール一覧を持っていた（`manual_publish`＝HQ/ADMIN/HR_MANAGER＋`channel.admin.staff.manage`、`publish_from_base`＝+MANAGEMENT/MANILA_MANAGEMENT/MANAGER、`delete_published_row`＝HQ/ADMIN/MANAGER/MANILA_MANAGEMENT）。しかも **Role Management が用意している `channel.admin.manual_shift.publish` はどこからも読まれていなかった**（grep で `access_control.py` 以外に出現ゼロ＝完全な死に権限）。実効的な鍵は `channel.admin.staff.manage`（Staff管理用・8ロール保有）で、結果として**約42人が公開済みシフトを書き換えられた**。NavBar も `canAccessAdminNav(auth) || ...` だったため、Manual Shift のトグルをOFFにしても誰も締め出せなかった。（2026-08-27 発覚・修正済み）
+    - 閉じる前に**実績で誰が使っているかを測る**。`shift_publish_log`（1,408件／2026-07-21〜08-27）と `shift_change_events` を集計したところ、publish も delete も**全員 ADMIN か HQ**。よって Staff管理鍵は温存せず削除できた。
+    - **Impersonation で穴の実在を証明してから塞ぐ**（教訓27）。Richard S. Gante（MANILA_MANAGEMENT）で実際にセル書き込みと publish が通ることを確認 → 修正後 403 を確認。
+    - **ADMIN をハードコードしない。** ADMIN は付与済みの `channel.admin.manual_shift.publish` で通す。そうしないとトグルが ADMIN に対して嘘のままになる。HQ だけはハードコード（Channels UI が全チャンネルで HQ を `locked` 表示しているので、それと整合させる）。
+    - **戻し道を用意する**: `heroku config:set SHIFT_EDIT_ALLOW_STAFF_MANAGE=1` で旧鍵を復活（デプロイ不要）。
+    - 締め出される人を**名前で列挙してユーザーに渡す**（今回7名）。「誰も使っていない」で終わらせない。
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 ---
