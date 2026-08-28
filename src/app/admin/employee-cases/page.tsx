@@ -134,6 +134,8 @@ type NteRequest = {
   reviewed_at?: string | null;
   review_note?: string;
   issued_nte_id?: string | null;
+  /** "manual", or "auto:<rule>" when the attendance rules proposed it. */
+  source?: string;
   created_at: string;
 };
 
@@ -1034,6 +1036,55 @@ export default function EmployeeCasesPage() {
   };
 
   // ── Approve / Reject Request ───────────────────────────────────────────────
+  const [autoSelected, setAutoSelected] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+
+  const isAuto = (r: NteRequest) => (r.source || "").startsWith("auto:");
+  const autoDrafts = requests.filter((r) => isAuto(r) && r.status === "PENDING");
+
+  /** Approve and issue in one call. The two stages exist so a second person
+   *  looks before a notice goes out; for a rule-made draft the reviewer is
+   *  that person, so making them click twice only adds a place to stall. */
+  const handleConfirmSelected = async () => {
+    const ids = Array.from(autoSelected);
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `Issue ${ids.length} notice${ids.length === 1 ? "" : "s"}?\n\n` +
+          `Each one is sent to that employee's OS account straight away. ` +
+          `This cannot be undone.`
+      )
+    )
+      return;
+    setConfirming(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/cases/requests/confirm`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ request_ids: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any)?.detail || `HTTP ${res.status}`);
+      const failed = (data as any)?.failed ?? [];
+      setSuccessMsg(
+        `Issued ${(data as any)?.issued_count ?? 0}.` +
+          (failed.length ? ` ${failed.length} could not be issued — see below.` : "")
+      );
+      if (failed.length) {
+        setError(
+          failed.map((f: any) => `${f.id}: ${f.error}`).join(" · ")
+        );
+      }
+      setAutoSelected(new Set());
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const handleApproveRequest = async (req: NteRequest) => {
     setError("");
     try {
@@ -2345,16 +2396,96 @@ export default function EmployeeCasesPage() {
             </div>
           </div>
 
+          {/* Drafts the attendance rules proposed. Kept apart from the requests a
+              person filed: these arrive in batches and are read as a batch. */}
+          {isHR && autoDrafts.length > 0 && (
+            <div className={`${GLASS_CARD} space-y-3 p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className={T_SECTION}>
+                    Proposed from attendance ({autoDrafts.length})
+                  </p>
+                  <p className={T_CAPTION}>
+                    Generated from timekeeping and absence records. Nothing has been sent.
+                    Read each one, then confirm the ones that should go out.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={`${SMALL_BUTTON} text-xs`}
+                    onClick={() =>
+                      setAutoSelected(
+                        autoSelected.size === autoDrafts.length
+                          ? new Set()
+                          : new Set(autoDrafts.map((r) => r.id))
+                      )
+                    }
+                  >
+                    {autoSelected.size === autoDrafts.length ? "Clear all" : "Select all"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={autoSelected.size === 0 || confirming}
+                    className={`${PRIMARY_BUTTON} text-sm disabled:opacity-40`}
+                    onClick={handleConfirmSelected}
+                  >
+                    {confirming
+                      ? "Issuing…"
+                      : `Confirm & issue (${autoSelected.size})`}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {autoDrafts.map((req) => {
+                  const checked = autoSelected.has(req.id);
+                  return (
+                    <label
+                      key={req.id}
+                      className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${
+                        checked
+                          ? "border-sky-500/40 bg-sky-950/20"
+                          : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 flex-shrink-0 accent-sky-500"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = new Set(autoSelected);
+                          if (e.target.checked) next.add(req.id);
+                          else next.delete(req.id);
+                          setAutoSelected(next);
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className={`${T_BODY} font-semibold`}>
+                          {req.staff_name}
+                          <OtherCityTag rowCity={req.city} viewCity={city} />
+                          <span className="ml-2 rounded-md bg-white/5 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                            {(req.source || "").replace("auto:", "")}
+                          </span>
+                        </p>
+                        <p className={`${T_CAPTION} mt-1`}>{req.reason}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* HR Review section — only visible to HR roles */}
           {isHR && (
             <div className={`${GLASS_CARD} space-y-3 p-5`}>
               <p className={T_SECTION}>HR Review — Pending Requests (all cities)</p>
-              {requests.filter((r) => r.status === "PENDING").length === 0 ? (
+              {requests.filter((r) => r.status === "PENDING" && !isAuto(r)).length === 0 ? (
                 <p className={`${T_BODY} text-center py-4`}>No pending requests.</p>
               ) : (
                 <div className="space-y-2">
                   {requests
-                    .filter((r) => r.status === "PENDING")
+                    .filter((r) => r.status === "PENDING" && !isAuto(r))
                     .map((req) => (
                       <div
                         key={req.id}
