@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-28 (NTE: Phase 0 / A-1 / A-2 デプロイ済み。B・C は判断待ち)
+Last updated: 2026-08-28 (NTE: Phase 0〜C 全てデプロイ済み。自動生成は既定OFF)
 
 ---
 
@@ -13,8 +13,24 @@ Last updated: 2026-08-28 (NTE: Phase 0 / A-1 / A-2 デプロイ済み。B・C �
 | **0** | `issued_nte_id` が毎回 NULL になる不具合の修正＋既存4件の復旧 | **完了**（`43d85ef0`） |
 | **A-1** | 申請キューを全都市表示に（HRロール）＋他都市バッジ | **完了**（`43d85ef0` / `9cf20122`） |
 | **A-2** | 滞留2日超を Waiting for Someone に掲載 | **完了**（`70bfe8d4`） |
-| **B** | `absences` に事前連絡・MC提出の列を追加 | 判断待ち（下記） |
-| **C** | 勤怠連動の自動下書き | Phase B 待ち |
+| **B** | `absences` に事前連絡・MC提出の列を追加（3値TEXT・再取り込み耐性を実証） | **完了**（`676f0347`） |
+| **C** | 勤怠連動の自動下書き＋一括Confirm | **完了**（`ac590202` / `1087ee77`） |
+
+### ⚠️ Phase C の自動生成は既定でOFF
+
+初回パスは2週間分＝約40件を一度にHRのキューへ積む。開始タイミングは人が決めること。
+
+```bash
+heroku config:set NTE_AUTO_DRAFTS_ENABLED=1 -a sushizen-shift-app
+```
+
+`POST /api/admin/cases/auto-drafts/preview` は**何も作らずに**内容を確認できる。
+2026年8月の実測: late60 **31件** / late30x2 **15件** / absent2x **19件** / awol **0件** = 計65件。
+
+**awol が0件なのは正常。** `absences.prior_notice='NO'` の明示記録を要求しており、
+空欄（未記録）を「連絡なし」と読まない。読めば全欠勤にAWOL通知が出る。
+
+**遅刻ルールはマニラ限定。** `dubai_attendance_daily.late_minutes` は3,849行すべて0。
 
 ### 調査で判明し、仕様書を上書きした点
 

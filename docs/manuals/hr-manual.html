@@ -459,6 +459,28 @@
       </div>
     </div>
 
+    <!-- ══ AUTO DRAFTS ══ -->
+    <div class="card violet-border">
+      <div class="card-title" data-en="🆕 Notices the System Proposes for You" data-ja="🆕 システムが提案してくる下書き">🆕 Notices the System Proposes for You</div>
+      <p style="margin-bottom:10px" data-en="Added 28 Aug 2026. Each day the system reads the timekeeping and absence records and writes drafts for the patterns it finds. Nothing is sent. They wait for you in a section called Proposed from attendance, above the normal request list." data-ja="2026年8月28日追加。システムが毎日、勤怠と欠勤の記録を読んで、該当するパターンの下書きを作ります。<b>送信はされません。</b>通常の申請一覧の上にある「<b>Proposed from attendance</b>」に溜まります。">Added 28 Aug 2026. Drafts are written daily from attendance records. Nothing is sent.</p>
+      <div class="table-wrap"><table>
+        <tr><th data-en="Rule" data-ja="ルール">Rule</th><th data-en="What triggers it" data-ja="発動条件">What triggers it</th><th data-en="Per month" data-ja="月あたり">Per month</th></tr>
+        <tr><td><b>LATE60</b></td><td class="muted" data-en="Late by 60 minutes or more, on any one day. Manila only." data-ja="1日で60分以上の遅刻。<b>マニラのみ。</b>">60+ minutes late on a day. Manila only.</td><td class="muted">31</td></tr>
+        <tr><td><b>LATE30X2</b></td><td class="muted" data-en="Late by 30+ minutes on two or more days in the same week. Manila only." data-ja="同じ週に30分以上の遅刻が2回以上。<b>マニラのみ。</b>">30+ min late, twice in one week. Manila only.</td><td class="muted">15</td></tr>
+        <tr><td><b>ABSENT2X</b></td><td class="muted" data-en="Absent on two or more days in the same week. Both cities." data-ja="同じ週に2日以上の欠勤。<b>両都市。</b>">Absent twice in one week. Both cities.</td><td class="muted">19</td></tr>
+        <tr><td><b>AWOL</b></td><td class="muted" data-en="Absent with no advance notice. Fires only when Told us? is set to No word on the Absence page — a blank means nobody has answered yet, and the system will not accuse someone on a blank." data-ja="事前連絡のない欠勤。<b>Absenceページの「Told us?」が「No word」のときだけ</b>発動します。空欄は「まだ誰も答えていない」という意味で、<b>空欄を根拠に人を責めることはしません。</b>">Only when Told us? = No word. A blank never triggers it.</td><td class="muted">0</td></tr>
+      </table></div>
+      <ol class="steps" style="margin-top:12px">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Read each draft" data-ja="下書きを読む">Read each draft</strong><p data-en="The wording already contains the real figures — the date, the minutes, the days. There are no ________ to fill in." data-ja="文章には<b>実際の数字（日付・分数・日数）がすでに入っています。</b>埋めるべき ________ はありません。">The wording already contains the real figures. No ________ to fill in.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Tick the ones that should go out" data-ja="出すべきものにチェックを入れる">Tick the ones that should go out</strong><p data-en="Leave anything you disagree with unticked. A draft you never confirm is never sent, and the same person and week is never proposed twice." data-ja="納得できないものはチェックしないでください。<b>確認しなかった下書きは送られません。</b>また、同じ人・同じ週が二度提案されることはありません。">Leave anything you disagree with unticked. It is never sent.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Press Confirm &amp; issue" data-ja="Confirm &amp; issue を押す">Press <b>Confirm &amp; issue</b></strong><p data-en="This approves and sends in one step, for every ticked draft at once. Unlike a manual request there is no separate Issue step afterwards — it goes to the employee immediately, and cannot be taken back." data-ja="チェックした下書きを<b>まとめて承認・送信</b>します。手動申請と違い、<b>あとから Issue を押す手順はありません。</b>その場で本人に届き、取り消せません。">Approves and sends every ticked draft at once. It cannot be taken back.</p></div></li>
+      </ol>
+      <div class="tip danger" style="margin-top:8px">
+        <span class="tip-icon">⚠️</span>
+        <span data-en="These rules find about 65 cases a month. That is why the system never sends them itself — one wrong notice costs the trust of everyone who receives the next one. Read before you tick." data-ja="このルールは<b>月におよそ65件</b>を拾います。システムが自動送信しないのはそのためです。<b>誤った通知が1件出れば、その次に受け取った全員の信頼を失います。</b>チェックする前に必ず読んでください。">These rules find about 65 cases a month. One wrong notice costs the trust of everyone who receives the next one.</span>
+      </div>
+    </div>
+
     <!-- ══ GLOSSARY ══ -->
     <div class="card">
       <div class="card-title" data-en="🆕 Plain-Language Glossary" data-ja="🆕 用語の意味（やさしい説明）">🆕 Plain-Language Glossary</div>
