@@ -298,6 +298,15 @@ npx tsc --noEmit
     - **戻し道を用意する**: `heroku config:set SHIFT_EDIT_ALLOW_STAFF_MANAGE=1` で旧鍵を復活（デプロイ不要）。
     - 締め出される人を**名前で列挙してユーザーに渡す**（今回7名）。「誰も使っていない」で終わらせない。
 
+33. **Role Management で外した既定権限は、次のログインで復活する（教訓20の再発）** → `seed_access_control_defaults()` は `api_auth_verify` から毎回呼ばれ、末尾の「safety migration 2026-05」が **`DEFAULT_ROLE_GRANTS` にあってDBに1行も無い権限を無条件に再INSERT**する。したがってRole ManagementのUIでチェックを外しても、誰かがログインした瞬間に戻る。**システムロールから既定権限を外すには `app/access_control.py` の `DEFAULT_ROLE_GRANTS` を編集するのが必須**で、DBだけ触っても無意味（2026-08-28 ADMINからHR Clearanceを外そうとして実際に発生・DELETEが巻き戻された）。
+    - ⚠️ この挙動は**Role Managementの「外す」操作全般が効かない**ことを意味する。新しい既定権限が自動で行き渡る利点と引き換えなので、どちらを取るかは要判断（未修正）。
+    - あわせて**ロール名のベタ書きも消すこと**。`_clearance_auth_check` が `role in ("HQ","ADMIN")` だったため、権限を外しても11名のADMINがページを開けたままだった（教訓32と同型）。
+
+34. **退職者はロールを持ち続ける — 割り当てを消すだけでは戻ってくる** → 2026-08-28 に発覚。`staff_master.is_active=false` の9名が生きたロールを保持し、うち **Jason Mark Fabillar は最終出社から2か月後もADMIN**、PINも有効だった。`/api/auth/verify` には**在籍チェックが一切ない**（存在確認・凍結・PINのみ）。
+    - `staff_role_assignments` を消すだけでは不十分。`resolve_staff_access_profile` は割り当てが無いと **`staff_master.role` にフォールバック**し、そこも `ADMIN` のままだった。**両方を塞ぐには解決関数側で止める。**
+    - 実装: `resolve_staff_access_profile` が `is_active=false` なら STAFF・権限ゼロを返す。**ログインは止めていない** — `is_active=false` なのに直近1か月でログインした人が4名おり、フラグが施錠の根拠にできるほど正確でないため。誤フラグの人はメニューを失うだけで、アカウントは失わない。逃げ道は `ALLOW_INACTIVE_STAFF_ROLES=1`。
+    - `staff_master` は **`status='ACTIVE'` と `is_active=false` が同一行で矛盾**している（9名全員）。`status` は退職時に更新されていない。集計で `status` を使うと退職者を現役と数える。
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 ---
