@@ -352,7 +352,14 @@ interface TaskCardProps {
   task: ManagementTask;
   template: ActionTemplate | null;
   managerName: string;
-  onRespond: (task: ManagementTask, response: string, action: string | null, note: string) => Promise<void>;
+  onRespond: (
+    task: ManagementTask,
+    response: string,
+    action: string | null,
+    note: string,
+    channels?: string[],
+    trainingNote?: string,
+  ) => Promise<void>;
 }
 
 function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
@@ -370,6 +377,15 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
   // Free text is required when either stage's chosen option asks for it.
   const pickedCause  = options.find(o => o.key === selectedKey);
   const pickedAction = actionOptions.find(o => o.key === actionKey);
+  // Choosing "feedback given" from a list records that something was said but not
+  // where — which is the part the back office needs in order to check it. Same for
+  // training: one line of what it covered.
+  const [channels, setChannels] = useState<string[]>([]);
+  const isFeedback = /feedback/i.test(actionKey || selectedKey || "");
+  const isTraining = /training|retrain|coach/i.test(actionKey || selectedKey || "");
+  const toggleChannel = (c: string) =>
+    setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+
   const needsNote =
     !!pickedCause?.require_note || !!pickedAction?.require_note ||
     selectedKey === "other" || selectedKey === "cannot_confirm";
@@ -378,7 +394,9 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
   const canSubmit =
     !!selectedKey &&
     (actionOptions.length === 0 || !!actionKey) &&
-    (!needsNote || !!note.trim());
+    (!needsNote || !!note.trim()) &&
+    (!isFeedback || channels.length > 0) &&
+    (!isTraining || !!note.trim());
 
   const sevColor =
     task.severity === "red"    ? "border-red-500/40 bg-red-950/20" :
@@ -394,7 +412,7 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
     if (!canSubmit || responding) return;
     setResponding(true);
     try {
-      await onRespond(task, selectedKey!, actionKey, note.trim());
+      await onRespond(task, selectedKey!, actionKey, note.trim(), channels, isTraining ? note.trim() : "");
       setSubmitted(true);
     } finally {
       setResponding(false);
@@ -475,11 +493,44 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
             </div>
           )}
 
-          {needsNote && (
+          {isFeedback && (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Where did you give the feedback?
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "discord", label: "Discord" },
+                  { key: "kitchen", label: "Kitchen" },
+                ].map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => toggleChannel(c.key)}
+                    className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                      channels.includes(c.key)
+                        ? "border-violet-500/60 bg-violet-500/20 text-white"
+                        : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isTraining && (
+            <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              What did the training cover? (one line)
+            </div>
+          )}
+
+          {(needsNote || isTraining) && (
             <textarea
               className="mt-3 w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none"
               rows={2}
-              placeholder={notePlaceholder}
+              placeholder={isTraining ? "e.g. Re-checked plating standard for salmon nigiri" : notePlaceholder}
               value={note}
               onChange={e => setNote(e.target.value)}
             />
@@ -610,11 +661,20 @@ export default function ManagerInboxPage() {
     loadTasks();
   }, [loadTasks, branch]);
 
-  async function handleRespond(task: ManagementTask, response: string, action: string | null, note: string) {
+  async function handleRespond(
+    task: ManagementTask,
+    response: string,
+    action: string | null,
+    note: string,
+    channels?: string[],
+    trainingNote?: string,
+  ) {
     const headers = getAuthHeaders(getAuth());
-    const body: Record<string, string> = { response };
+    const body: Record<string, unknown> = { response };
     if (action) body.response_action = action;
     if (note) body.response_note = note;
+    if (channels && channels.length > 0) body.feedback_channels = channels;
+    if (trainingNote) body.training_note = trainingNote;
     const res = await fetch(`/api/store/management/tasks/${task.id}/respond`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },

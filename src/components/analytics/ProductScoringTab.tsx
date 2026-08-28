@@ -60,6 +60,8 @@ interface ScoreRow {
   image_url: string;
   score_date: string;
   scored_at: string;
+  /** Store-local HH:MM, formatted server-side so it matches the management alert exactly. */
+  local_time?: string | null;
   total_score: number;
   grade: string;
   feedback: string;
@@ -1488,7 +1490,7 @@ export default function ProductScoringTab({
             <table className="w-full text-xs">
               <thead>
                 <tr>
-                  {["Date", "Store", "Staff", "Category", "Score", "Grade", "Feedback", ""].map((h) => (
+                  {["Date", "Time", "Store", "Staff", "Category", "Score", "Grade", "Feedback", ""].map((h) => (
                     <th key={h} className={TABLE_HEADER}>{h}</th>
                   ))}
                 </tr>
@@ -1501,6 +1503,11 @@ export default function ProductScoringTab({
                   <>
                     <tr key={row.id} className={TABLE_ROW + " cursor-pointer"} onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}>
                       <td className="py-1.5 px-2 text-slate-400">{row.score_date}</td>
+                      {/* The management alert identifies a photo only by this time,
+                          so it is printed here in the same store-local form. */}
+                      <td className="py-1.5 px-2 font-mono tabular-nums text-slate-300">
+                        {row.local_time || "—"}
+                      </td>
                       <td className="py-1.5 px-2 font-medium">{row.branch_code || row.store_code}</td>
                       <td className="py-1.5 px-2 text-slate-400">{row.author_name || "—"}</td>
                       <td className="py-1.5 px-2">
@@ -1524,7 +1531,7 @@ export default function ProductScoringTab({
                     </tr>
                     {expandedRow === row.id && (
                       <tr key={`${row.id}-expand`} className="bg-slate-900/40">
-                        <td colSpan={8} className="px-4 py-3">
+                        <td colSpan={9} className="px-4 py-3">
                           {row.feedback && (
                             <p className="mb-3 text-xs text-slate-300 leading-relaxed">{row.feedback}</p>
                           )}
