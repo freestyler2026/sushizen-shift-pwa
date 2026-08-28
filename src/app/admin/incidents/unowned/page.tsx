@@ -50,6 +50,7 @@ function waited(min: number): string {
 
 /** The photo an item is about, when it has one. */
 function ItemPhoto({ url }: { url: string }) {
+  const thumb = `${url}?size=thumb`;
   const [failed, setFailed] = useState(false);
   const [full, setFull] = useState(false);
   if (failed) return null;
@@ -61,7 +62,7 @@ function ItemPhoto({ url }: { url: string }) {
         className="block overflow-hidden rounded-lg border border-white/10 bg-black/20"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="" onError={() => setFailed(true)} className="max-h-32 object-contain" />
+        <img src={thumb} alt="" loading="lazy" onError={() => setFailed(true)} className="max-h-32 object-contain" />
       </button>
       {full && (
         <div onClick={() => setFull(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">

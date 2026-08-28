@@ -460,6 +460,7 @@ function TaskPhoto({ taskId }: { taskId: number }) {
   const [full, setFull] = useState(false);
   if (failed) return null;
   const src = `/api/admin/management/tasks/${taskId}/photo`;
+  const thumb = `${src}?size=thumb`;
   return (
     <>
       <button
@@ -470,8 +471,9 @@ function TaskPhoto({ taskId }: { taskId: number }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={src}
+          src={thumb}
           alt="Scored product"
+          loading="lazy"
           onError={() => setFailed(true)}
           className="max-h-48 w-full object-contain"
         />
