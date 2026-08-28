@@ -307,7 +307,9 @@ npx tsc --noEmit
     - ⚠️ **`is_active` を退職の判定に使ってはいけない。** 最初の実装はこれで判定し、**産休中の社員から権限を剥奪した**。この会社は `is_active=false` を「退職」と「休職」の**両方**に使っている。区別できる列は存在しない（`hr_separation` は9名中2件、`status` は167名全員 `ACTIVE`）。
     - 実装: `resolve_staff_access_profile` が **`staff_master.status='SEPARATED'`** のとき STAFF・権限ゼロを返す。`status` は他がどこも書かないので、明示的に退職とマークした人だけが権限を失う。逃げ道は `ALLOW_INACTIVE_STAFF_ROLES=1`。
     - **ログインは止めていない。** 誤マークの人はメニューを失うだけで、アカウントは失わない。退職者のPINは有効なままなので、締め出すなら別途凍結が要る。
-    - `staff_master` は **`status` と `is_active` が同一行で矛盾**する（9名全員が `status='ACTIVE'` かつ `is_active=false`）。どちらも「在籍」を意味しない。集計に使う前に、その列が実際に何を意味しているか人に確認すること。
+    - **2026-08-28 に3値化して解消**: `staff_master.status` を `ACTIVE` / `ON_LEAVE` / `SEPARATED` の在籍状態にした。3つとも Staff ページから設定する。`ON_LEAVE` と `SEPARATED` は**どちらもアカウント凍結・セッション切断・給与設定停止**を行い、違いは**ロールを残すか奪うか**だけ。`is_active` は payroll・名簿・スタッフ選択が読むので `ACTIVE` のときだけ TRUE に同期する。
+    - 旧 `INACTIVE` は **400 で拒否**する（`ON_LEAVE` に寄せる推測もしない）。推測すると半分は外れ、外れた側は「復職者が締め出される」か「退職者が権限を持ち続ける」のどちらかになるため。既存行の `INACTIVE` 表示だけは `ON_LEAVE` として読む。
+    - 検証は Test Account で往復すること: ACTIVE(ADMIN/167) → ON_LEAVE(**ADMIN/167 維持**) → SEPARATED(**STAFF/13**) → ACTIVE(ADMIN/167 復帰)。
 
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
