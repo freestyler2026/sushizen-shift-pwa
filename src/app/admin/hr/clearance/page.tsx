@@ -621,7 +621,19 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
     }
   }
 
-  const readOnly = c.current_stage > 0;
+  // Frozen at Finalized, not the moment it leaves Draft — stages 1-3 are the
+  // reviews, and a reviewer who finds a wrong figure has to be able to get it
+  // corrected. Matches the server.
+  const frozen = c.current_stage >= 4;
+  // Every amount masked means this account cannot see salary, and so cannot set
+  // it either: the server refuses the save. Typing into the boxes and pressing
+  // Save used to look like it worked and change nothing.
+  const salaryHiddenHere = [
+    c.fp_basic_pay, c.fp_prorated_13th, c.fp_leave_conversion, c.fp_separation_pay,
+    c.fp_allowance, c.fp_other_earnings, c.fp_deduction_statutory,
+    c.fp_deduction_loans, c.fp_deduction_other,
+  ].every(isSalaryHidden);
+  const readOnly = frozen || salaryHiddenHere;
 
   return (
     <div className="mt-4">
@@ -629,10 +641,22 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
         {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         Final Pay Breakdown
         {c.current_stage === 0 && !readOnly && <span className="text-xs text-amber-400 ml-1">(draft — edit before submitting)</span>}
+        {frozen && <span className="text-xs text-white/40 ml-1">(finalized — amounts locked)</span>}
       </button>
 
       {open && (
         <div className="mt-3 space-y-4">
+          {salaryHiddenHere && !frozen && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <div className="font-semibold">Salary amounts are hidden from your account.</div>
+              <div className="mt-0.5 leading-relaxed">
+                You can work this case, but you cannot enter the final pay — the server
+                will refuse it, so the boxes are disabled rather than pretending to save.
+                Ask HQ to enter the amounts, or to grant you{" "}
+                <strong>View Salary Amounts</strong> under Role Management.
+              </div>
+            </div>
+          )}
           {/* Earnings */}
           <div>
             <p className={`${T_CAPTION} mb-2 text-emerald-400`}>Earnings</p>
