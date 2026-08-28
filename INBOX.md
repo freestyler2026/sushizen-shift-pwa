@@ -176,3 +176,6 @@ BILLABLE のままなら needs_review として残す）。
       滞留の可視化と督促が無い。/store/my-nte で本人への配信は既に動く。
 
 対応済み(Session 2): 作成中ドラフトの消失 → 5d3f55d1
+
+**仕様書: `docs/ai/handoff/nte-automation.md`**（Session 1 はここを読む。
+`docs/ai/CURRENT_TASKS.md` の先頭からリンク済み）

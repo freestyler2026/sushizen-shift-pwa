@@ -1,6 +1,18 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-27 (Manual Shift をセル単位編集に移行 — デプロイ済み)
+Last updated: 2026-08-28 (Session 2 から NTE 自動化を移送 — 未着手)
+
+---
+
+## 📥 Session 2 からの引き継ぎ（未着手）
+
+| 件名 | 仕様書 | 状態 | なぜ Session 2 で完了できないか |
+|---|---|---|---|
+| NTE の自動化と滞留解消 | [docs/ai/handoff/nte-automation.md](handoff/nte-automation.md) | 未着手 | スキーマ変更が必要（`absences` に事前連絡・MC提出の列） |
+
+仕様書は**調べ直さなくても着手できる粒度**で書いてある。実測値・触るファイル・
+判断が要る点・Session 2 で対応済みの範囲まで入っているので、**着手前に必ず通読すること。**
+経緯の全文は `INBOX.md`（hotfix worktree、mainにも入っている）。
 
 ---
 
