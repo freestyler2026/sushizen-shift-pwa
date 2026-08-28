@@ -62,9 +62,28 @@ interface OrderItem {
   price_variance_pct: number | null;
   price_flagged: boolean;
   current_stock?: number | null;
+  // What the generator worked out, so a hand-corrected line can be told apart
+  // from one the calculation got wrong.
+  qty_suggested?: number | null;
+  suggested_par?: number | null;
+  suggested_stock?: number | null;
+  par_source?: string | null;
+  inventory_date?: string | null;
+}
+
+interface ItemEdit {
+  item_name: string | null;
+  item_code: string | null;
+  action: string;
+  qty_before: number | null;
+  qty_after: number | null;
+  qty_suggested: number | null;
+  changed_by: string | null;
+  changed_at: string;
 }
 
 interface OrderDetail extends OrderListItem {
+  edits?: ItemEdit[];
   delivery_date: string | null;
   invoice_number: string | null;
   invoice_date: string | null;
@@ -1280,6 +1299,13 @@ export default function StoreSupplierOrdersPage() {
                                             {item.current_stock != null
                                               ? <span className="text-zinc-300">{Number(item.current_stock)} {item.unit}</span>
                                               : <span className="text-zinc-600">—</span>}
+                                            {item.suggested_par != null && (
+                                              <div className="text-[10px] text-zinc-500">
+                                                par {Number(item.suggested_par)}
+                                                {item.par_source ? ` (${item.par_source})` : ""}
+                                                {item.inventory_date ? ` · count ${item.inventory_date}` : ""}
+                                              </div>
+                                            )}
                                           </td>
                                           <td className="px-3 py-2 text-right tabular-nums">
                                             {editingItemId === item.id ? (
@@ -1314,6 +1340,18 @@ export default function StoreSupplierOrdersPage() {
                                             ) : (
                                               <div className="flex items-center gap-1 justify-end group">
                                                 <span className="text-amber-400 font-semibold">{item.qty_ordered} {item.unit}</span>
+                                                {item.qty_suggested != null
+                                                  && Math.abs(Number(item.qty_suggested) - Number(item.qty_ordered)) > 0.001 && (
+                                                  <span
+                                                    className="text-[10px] text-sky-400/90 whitespace-nowrap"
+                                                    title={`The system worked out ${Number(item.qty_suggested)} ${item.unit}`
+                                                      + (item.suggested_stock != null && item.suggested_par != null
+                                                        ? ` (par ${Number(item.suggested_par)} − stock ${Number(item.suggested_stock)})`
+                                                        : "")}
+                                                  >
+                                                    edited · was {Number(item.qty_suggested)}
+                                                  </span>
+                                                )}
                                                 {canEditQty && (
                                                   <button
                                                     onClick={() => { setEditingItemId(item.id); setEditQty(String(item.qty_ordered)); }}
@@ -1396,6 +1434,38 @@ export default function StoreSupplierOrdersPage() {
                                       <Plus className="h-3.5 w-3.5" /> Add Item
                                     </button>
                                   </div>
+                                )}
+                                {detail.edits && detail.edits.length > 0 && (
+                                  <details className="rounded-xl border border-white/5 bg-white/2 px-3 py-2">
+                                    <summary className="cursor-pointer text-xs text-zinc-400">
+                                      Manual changes ({detail.edits.length})
+                                    </summary>
+                                    <ul className="mt-2 space-y-1">
+                                      {detail.edits.map((e, i) => (
+                                        <li key={i} className="text-xs text-zinc-400 tabular-nums">
+                                          <span className="text-zinc-500">
+                                            {new Date(e.changed_at).toLocaleString()}
+                                          </span>
+                                          {" — "}
+                                          <span className="text-zinc-200">{e.item_name ?? e.item_code}</span>
+                                          {" "}
+                                          {e.action === "add"
+                                            ? <>added as <span className="text-amber-300">{Number(e.qty_after)}</span></>
+                                            : e.action === "delete"
+                                              ? <>removed (was <span className="text-amber-300">{Number(e.qty_before)}</span>)</>
+                                              : <>
+                                                  <span className="text-zinc-500">{Number(e.qty_before)}</span>
+                                                  {" → "}
+                                                  <span className="text-amber-300">{Number(e.qty_after)}</span>
+                                                </>}
+                                          {e.qty_suggested != null && (
+                                            <span className="text-zinc-500"> · system {Number(e.qty_suggested)}</span>
+                                          )}
+                                          {e.changed_by && <span className="text-zinc-500"> · by {e.changed_by}</span>}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </details>
                                 )}
                                 </div>
                               );
