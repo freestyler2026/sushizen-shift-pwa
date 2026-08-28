@@ -69,6 +69,7 @@ interface OrderItem {
   suggested_stock?: number | null;
   par_source?: string | null;
   inventory_date?: string | null;
+  inventory_shift?: string | null;
 }
 
 interface ItemEdit {
@@ -1303,7 +1304,9 @@ export default function StoreSupplierOrdersPage() {
                                               <div className="text-[10px] text-zinc-500">
                                                 par {Number(item.suggested_par)}
                                                 {item.par_source ? ` (${item.par_source})` : ""}
-                                                {item.inventory_date ? ` · count ${item.inventory_date}` : ""}
+                                                {item.inventory_date
+                                                  ? ` · count ${item.inventory_date}${item.inventory_shift ? " " + item.inventory_shift : ""}`
+                                                  : ""}
                                               </div>
                                             )}
                                           </td>
