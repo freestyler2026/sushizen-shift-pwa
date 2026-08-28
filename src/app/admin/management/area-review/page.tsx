@@ -20,6 +20,24 @@ import {
 import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import SelectDark from "@/components/SelectDark";
 
+interface ComplianceComponent {
+  key: string;
+  label: string;
+  weight: number;
+  value: number | null;
+  counted: boolean;
+}
+
+interface ComplianceRow {
+  branch: string;
+  score: number | null;
+  grade: "A" | "B" | "C" | "D" | null;
+  components: ComplianceComponent[];
+  /** How much of the design's 100 points this number actually rests on. */
+  coverage_pct: number;
+  measured_components: number;
+}
+
 interface BranchScore {
   branch: string;
   sent: number;
@@ -79,6 +97,7 @@ export default function AreaReviewPage() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [data, setData] = useState<WeekResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,6 +120,14 @@ export default function AreaReviewPage() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
+
+      // The design's seven-component number, alongside the response-rate axis
+      // this page already had.
+      const cs = await fetch(
+        `/api/admin/management/manager-score?city=${city}&week_start=${weekStart}`,
+        { headers: getAuthHeaders(getAuth()) },
+      );
+      if (cs.ok) setCompliance(((await cs.json())?.rows ?? []) as ComplianceRow[]);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -113,6 +140,8 @@ export default function AreaReviewPage() {
   }, [load]);
 
   const branches = data?.branches ?? [];
+  const compRow = (branch: string) => compliance.find((c) => c.branch === branch);
+
   const scored = branches.filter((b) => b.score !== null);
   const groupScore = scored.length
     ? Math.round(scored.reduce((a, b) => a + (b.score ?? 0), 0) / scored.length)
@@ -217,6 +246,7 @@ export default function AreaReviewPage() {
                 <tr className="text-left">
                   <th className={TABLE_HEADER + " pl-2"}>Branch</th>
                   <th className={TABLE_HEADER + " text-center"}>Grade</th>
+                  <th className={TABLE_HEADER + " text-right"}>Compliance</th>
                   <th className={TABLE_HEADER + " text-right"}>Score</th>
                   <th className={TABLE_HEADER + " text-right"}>Sent</th>
                   <th className={TABLE_HEADER + " text-right"}>Responded</th>
@@ -232,6 +262,27 @@ export default function AreaReviewPage() {
                 {branches.map((b) => (
                   <tr key={b.branch} className={TABLE_ROW}>
                     <td className="py-3 pl-2 text-sm font-medium text-white">{b.branch}</td>
+                    <td className="py-3 text-right">
+                      {(() => {
+                        const c = compRow(b.branch);
+                        if (!c || c.score === null) return <span className="text-xs text-zinc-600">—</span>;
+                        return (
+                          <span
+                            title={c.components
+                              .map((x) => `${x.label} ${x.weight}%: ${x.value === null ? "対象なし" : x.value + "%"}`)
+                              .join("\n")}
+                            className="cursor-help"
+                          >
+                            <span className="text-sm font-semibold text-white tabular-nums">{c.score}</span>
+                            {/* A score built from three components is a different
+                                claim from one built from seven, so it says which. */}
+                            <span className="ml-1 text-[10px] text-zinc-500">
+                              {c.measured_components}/7
+                            </span>
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="py-3 text-center">
                       {b.grade ? (
                         <span
