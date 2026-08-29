@@ -34,15 +34,25 @@ BO が送った10件に返信は0件。
 - エスカレーション連鎖: Francis→Yusuke / Yusuke→**Ayako**（自己ループ無し）/ Ayako→Yusuke
 - 未送信のマニラ22件に宛先を後埋め（Francis 11 / Peter 5 / Richard 4 / Yusuke 2）
 
-### ⚠️ 残っている判断
+### 後片付け（2026-08-29 西村さん指示で実施済み）
 
-**`status='sent'` かつ宛先が空の14件**（本日 10:02〜10:48 に BO が押した分＋α）。
-Phase 1 以前に押されたもので**誰にも届いていない**。8/29 の90件と同じ扱い
-（`sent_at=NULL` にしてスコア分母から外す）にするかどうかは西村さんの判断。
-**今後は Send ガードにより新たに増えない。**
+**バックアップ: `_management_tasks_deleted_20260829`（41行）** — 下記2件をまとめて保全。
 
-**BO への確認1件**: `complaint_no_photo` / `pm_backup_missing` / `salmon_yield_alert` を
-送っていない理由。画面で見て手当てしているなら生成は残す。採点からは既に外してある。
+- **宛先が空のまま送信済みだった14件を削除。** 誰にも届いていないため。
+  内訳は `product_score_c` と `disposal_missing`。**今後は Send ガードにより増えない。**
+- **`complaint_no_photo` / `pm_backup_missing` / `salmon_yield_alert` を廃止**（27行削除）。
+  1か月間まったく送られておらず、1日2.5件の「送らない検出」を生み続けていた。
+  `app/db.py` の `_RETIRED_TASK_TYPES` で**生成そのものを止めている**（検出器のコードは残置）。
+
+⚠️ **削除した27行のうち `pm_backup_missing` の1件だけ実際に回答されていた。**
+バックアップ表から復元可能。戻す判断が要るならこの1行。
+
+**復活はデプロイ不要**:
+```bash
+heroku config:set MANAGEMENT_ENABLE_TYPES=pm_backup_missing -a sushizen-shift-app
+```
+
+削除後の残数: closed 181 / open 95 / responded 10。宛先の空いた送信済みは **0件**。
 
 **1と2だけで「送ったのに誰も見ない」は解消する。ただし Phase 0 が先。**
 
