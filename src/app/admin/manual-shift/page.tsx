@@ -440,6 +440,23 @@ function cellSignature(value: ShiftCell | ShiftCell[] | null | undefined): strin
     .join("+");
 }
 
+/** The same identity, but only over the fields the old saved draft actually
+ *  holds: work_date, staff_name, role, start_hour, end_hour. It has no
+ *  branch_code and no note.
+ *
+ *  Comparing full signatures made every published cell that carried a
+ *  branch_code look different from its own draft copy — 84 of the 98 cells in
+ *  one TAFT week — so the migration below carried the whole week across as
+ *  pending changes. The screen then offered "Publish 98 changes" when five had
+ *  been edited, and left ninety-three stale copies of other people's cells
+ *  sitting in the queue. */
+function cellDraftSignature(value: ShiftCell | ShiftCell[] | null | undefined): string {
+  return cellsOf(value)
+    .map((c) => `${c.start_hour}-${c.end_hour}:${c.role || ""}`)
+    .sort()
+    .join("+");
+}
+
 /** Identity of a queued edit: one pending write per cell per week. A second edit
  *  to the same cell replaces the first rather than queueing behind it. */
 function queueKey(e: PendingEdit) {
@@ -531,6 +548,7 @@ export default function ManualShiftPage() {
    *  be compared against it. Without this the migration below cannot tell a real
    *  edit from a saved copy of what is already published. */
   const publishedGridRef = useRef<Record<string, string>>({});
+  const publishedDraftSigRef = useRef<Record<string, string>>({});
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
@@ -808,6 +826,10 @@ export default function ManualShiftPage() {
         publishedGridRef.current = Object.fromEntries(
           Object.entries(byCell).map(([k, v]) => [k, cellSignature(v)])
         );
+        // Same cells, compared only on what a legacy draft can hold.
+        publishedDraftSigRef.current = Object.fromEntries(
+          Object.entries(byCell).map(([k, v]) => [k, cellDraftSignature(v)])
+        );
       }
 
       setGridData((prev) => {
@@ -939,7 +961,11 @@ export default function ManualShiftPage() {
             // Most saved drafts are a copy of what is already published. Carrying
             // those across would report dozens of changes when nothing changed,
             // and ask for a publish that does nothing.
-            if (cellSignature(value) === (publishedGridRef.current[k] ?? "")) continue;
+            //
+            // Compared on the draft's own fields. The draft has no branch_code,
+            // so a full-signature comparison called every published cell that
+            // had one a difference, and carried the entire week.
+            if (cellDraftSignature(value) === (publishedDraftSigRef.current[k] ?? "")) continue;
             carried.push({ staffName: rName, dateStr: rDate, value });
           }
           if (!cancelledRef.current && carried.length > 0) {
