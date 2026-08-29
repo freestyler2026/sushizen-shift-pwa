@@ -1,4 +1,13 @@
-# 引き継ぎ: Management Channel — 送信を実際に届くようにする
+# Management Channel — 送信を実際に届くようにする（**実装完了 2026-08-29**）
+
+> **Phase 0〜5 すべて実装・本番稼働中。** 以下は設計と根拠の記録として残す。
+> 触るファイル・完了判定はそのまま回帰テストの基準として使える。
+>
+> 実装物: `management_owner_roster` / `management_owner_substitutes` /
+> `management_channel_discord`（`app/db.py`）、`resolve_task_owner` /
+> `owner_send_preview` / `notify_task_owner`、`/api/admin/management/owner-roster`
+> ・`owner-preview`・`type-response-rates`、`/api/store/management/badge`、
+> `_provider_management_unanswered`（`app/waiting_api.py`）。
 
 Session 2 → Session 1（2026-08-29）。**通知連携と当番表の新設が要るため移送。**
 発端は西村さん自身が Send を押して「どこに送られたのか分からない」と気づいたこと。

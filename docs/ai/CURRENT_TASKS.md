@@ -4,7 +4,7 @@ Last updated: 2026-08-29 (COE 発行 Phase 0/A/B 完了・本番稼働。Managem
 
 ---
 
-## 📥 Management Channel — 送信が誰にも届いていない — 未着手・着手可
+## ✅ Management Channel — Phase 0〜5 実装完了・本番稼働（2026-08-29）
 
 仕様書: [docs/ai/handoff/management-channel-delivery.md](handoff/management-channel-delivery.md)
 （**着手前に必ず通読**。実装順に並べてある。最初に読むのは冒頭3節でよい）
@@ -19,12 +19,30 @@ BO が送った10件に返信は0件。
 
 | Phase | 内容 | 状態 |
 |---|---|---|
-| **0** | **送る量を決める**（要約化・不要な型の停止・回答率の可視化） | 未着手 |
-| **1** | 当番表で `manager_name` を埋める／宛先未設定なら Send 不可（マニラのみ） | 未着手 |
-| **2** | 本人宛の受信箱＋NavBar バッジ | 未着手 |
-| **3** | Discord 通知（個人宛の経路が未確定） | 未着手 |
-| **4** | BO 側に既読・回答の状態＋型ごとの回答率 | 未着手 |
-| **5** | 24時間無反応のエスカレーション（**Phase 0 の後**） | 未着手 |
+| **0** | `product_score_c` を店舗別1日1通の要約に／`complaint_no_photo`・`pm_backup_missing` を採点から除外／型別回答率パネル | **完了** |
+| **1** | 当番表 `management_owner_roster`（branch × weekday）で `manager_name` を自動充当／宛先未設定なら Send 不可（マニラのみ）／当番表エディタ | **完了** |
+| **2** | 受信箱の既定を「自分宛」に／NavBar バッジ（24時間超で赤） | **完了** |
+| **3** | Discord チャンネル投稿＋`<@ID>` メンション。IDが無ければ投稿しない | **完了** |
+| **4** | Send 画面に宛先・シフト外警告・ID未登録警告／送信結果に通知可否を返す | **完了** |
+| **5** | 24時間無反応を Waiting for Someone に掲載（一般則のエスカレーション連鎖） | **完了** |
+
+### 本番実測（2026-08-29 実装直後）
+
+- `product_score_c`: 8/18 の**32枚 → 3タスク**（店舗別1通）で検証。定期実行が Manila / Dubai 双方で要約を生成中
+- 当番表 35行・代理1件・Discord ID 5名分をシード。`resolve_task_owner` は曜日で正しく切替（8/31月=Ayako、9/1火=Francis）
+- Send ガード: 当番の無い店舗は **400 "Cannot send — no manager is rostered for … "**、TAFT火曜は Francis に解決して送信成功
+- エスカレーション連鎖: Francis→Yusuke / Yusuke→**Ayako**（自己ループ無し）/ Ayako→Yusuke
+- 未送信のマニラ22件に宛先を後埋め（Francis 11 / Peter 5 / Richard 4 / Yusuke 2）
+
+### ⚠️ 残っている判断
+
+**`status='sent'` かつ宛先が空の14件**（本日 10:02〜10:48 に BO が押した分＋α）。
+Phase 1 以前に押されたもので**誰にも届いていない**。8/29 の90件と同じ扱い
+（`sent_at=NULL` にしてスコア分母から外す）にするかどうかは西村さんの判断。
+**今後は Send ガードにより新たに増えない。**
+
+**BO への確認1件**: `complaint_no_photo` / `pm_backup_missing` / `salmon_yield_alert` を
+送っていない理由。画面で見て手当てしているなら生成は残す。採点からは既に外してある。
 
 **1と2だけで「送ったのに誰も見ない」は解消する。ただし Phase 0 が先。**
 
