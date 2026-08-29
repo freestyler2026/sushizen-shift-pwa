@@ -286,6 +286,14 @@
     <span class="nav-icon">💼</span>
     <span data-en="HR Clearance" data-ja="最終精算">HR Clearance</span>
   </div>
+  <div class="nav-item" onclick="show('coe')">
+    <span class="nav-icon">📜</span>
+    <span data-en="Certificate of Employment" data-ja="在職証明書（COE）">Certificate of Employment</span>
+  </div>
+  <div class="nav-item" onclick="show('employment-details')">
+    <span class="nav-icon">🗂️</span>
+    <span data-en="Employment Details" data-ja="役職・入社日・法人の登録">Employment Details</span>
+  </div>
   <div class="nav-item" onclick="show('policy-docs')">
     <span class="nav-icon">📄</span>
     <span data-en="Policy Documents" data-ja="会社規則・通達">Policy Documents</span>
@@ -1016,6 +1024,103 @@
     <div class="tip">
       <span class="tip-icon">💡</span>
       <span data-en="Acknowledgement is permanent and cannot be undone. Once a staff member enters their PIN and confirms, the record is stored with a timestamp and cannot be removed." data-ja="受領確認は取り消しできません。スタッフがPINを入力して確認すると、タイムスタンプとともに記録され、削除できません。">Acknowledgement is permanent. Once confirmed with PIN, the record cannot be removed.</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ CERTIFICATE OF EMPLOYMENT ═══════════ -->
+  <div class="section" id="sec-coe">
+    <div class="section-hero">
+      <div class="hero-icon">📜</div>
+      <div>
+        <div class="section-title" data-en="Certificate of Employment" data-ja="在職証明書（COE）">Certificate of Employment</div>
+        <div class="section-path">Admin → Certificate of Employment</div>
+        <div class="section-desc" data-en="Raise, approve and issue a COE as a PDF. DOLE Labor Advisory 06-20 requires it within 3 days of the employee asking." data-ja="COEの起票・承認・PDF発行を行います。DOLE Labor Advisory 06-20 により、本人の請求から3日以内の発行義務があります。">Raise, approve and issue a COE. DOLE requires it within 3 days of the request.</div>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">⚖️</span>
+      <span data-en="The 3-day clock starts on the day the employee asked, not the day you open the screen. Enter the real request date. A late or refused COE is grounds for a DOLE complaint." data-ja="3日の期限は「本人が請求した日」から数えます。画面を開いた日ではありません。実際の請求日を入力してください。発行の遅延・拒否は従業員がDOLEに申し立てる事由になります。">The 3-day clock starts on the day the employee asked, not the day you open the screen.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Who does what" data-ja="誰が何をするか">Who does what</div>
+      <div class="table-wrap"><table>
+        <tr>
+          <th data-en="Step" data-ja="操作">Step</th>
+          <th data-en="Who" data-ja="担当">Who</th>
+          <th data-en="Notes" data-ja="補足">Notes</th>
+        </tr>
+        <tr>
+          <td data-en="Raise the request" data-ja="請求を起票する"><b>Raise the request</b></td>
+          <td class="muted" data-en="Camilla (HR Staff) and the five approvers" data-ja="Camilla（HR Staff）と承認者5名">Camilla (HR Staff) and the five approvers</td>
+          <td class="muted" data-en="Raising it does not issue anything." data-ja="起票しただけでは何も発行されません。">Raising it does not issue anything.</td>
+        </tr>
+        <tr>
+          <td data-en="Approve and issue the PDF" data-ja="承認してPDFを発行する"><b>Approve and issue</b></td>
+          <td class="muted" data-en="Ayako Nishimura · Yusuke Uejima · Peter Villafuerte · Richard S. Gante · Francis Ibana" data-ja="西村 綾子 ・ 植嶋 佑介 ・ Peter Villafuerte ・ Richard S. Gante ・ Francis Ibana">Ayako Nishimura · Yusuke Uejima · Peter Villafuerte · Richard S. Gante · Francis Ibana</td>
+          <td class="muted" data-en="Granted by name, not by role — the certificate goes to the employee's next employer." data-ja="ロールの流用ではなく名指しで付与しています。証明書は本人の次の勤務先に渡る文書だからです。">Granted by name, not by role.</td>
+        </tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Issuing a COE" data-ja="COEを発行する手順">Issuing a COE</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Type the staff name" data-ja="スタッフ名を入力する">Type the staff name</strong><p data-en="The screen immediately shows the four facts a certificate prints: company, position, hire date, and either 'Currently employed' or the last working day." data-ja="入力すると、証明書に印字される4項目（法人・役職・入社日・在職中か最終出社日か）がその場で表示されます。">The screen shows the four facts a certificate prints.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Enter the date the employee asked" data-ja="本人が請求した日を入力する">Enter the date the employee asked</strong><p data-en="The due date and the overdue warning are both counted from this date." data-ja="期限日と超過警告はこの日付から計算されます。">The deadline is counted from this date.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Click Log this request" data-ja="Log this request をクリック">Click Log this request</strong><p data-en="It moves to 'Waiting to be issued'. If anything is missing the button is not shown at all — see below." data-ja="「Waiting to be issued」に移ります。項目が足りない場合はボタン自体が表示されません（下記参照）。">It moves to 'Waiting to be issued'.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Check the signatory name" data-ja="署名者名を確認する">Check the signatory name</strong><p data-en="It defaults to whoever is logged in, and can be changed per issue. The name typed here is the one printed on the certificate." data-ja="既定値はログイン中の本人で、発行のたびに変更できます。ここに入力した名前がそのまま証明書に印字されます。">The name typed here is printed on the certificate.</p></div></li>
+        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Click Approve and issue" data-ja="Approve and issue をクリック">Click Approve and issue</strong><p data-en="A confirmation appears first. The PDF is then available from the Issued list, and stays available afterwards." data-ja="先に確認ダイアログが出ます。発行後はIssued一覧からPDFを取得でき、後からでも再取得できます。">A confirmation appears first, then the PDF is available.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="When the screen refuses to issue" data-ja="発行が拒否されるとき">When the screen refuses to issue</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px" data-en="If the position, hire date, company, or (for a leaver) the last working day is not on record, the screen says 'This COE cannot be issued yet' and lists exactly which ones are missing. This is deliberate. A wrong date on a certificate is worse than a late certificate, and anything typed in as a guess is printed as fact." data-ja="役職・入社日・法人・（退職者なら）最終出社日のいずれかが未登録の場合、「This COE cannot be issued yet」と表示され、足りない項目が名指しで出ます。これは意図した動作です。日付の誤った証明書は、遅れた証明書より深刻で、推測で埋めた値はそのまま事実として印字されます。">Missing fields are named rather than guessed. A wrong date is worse than a late certificate.</p>
+      <div class="chip-row">
+        <span class="chip amber" data-en="Position is not on record" data-ja="役職が未登録">Position is not on record</span>
+        <span class="chip amber" data-en="Hire date is not on record" data-ja="入社日が未登録">Hire date is not on record</span>
+        <span class="chip amber" data-en="Company is not on record" data-ja="法人が未登録">Company is not on record</span>
+        <span class="chip amber" data-en="Last working day is not on record" data-ja="最終出社日が未登録">Last working day is not on record</span>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin-top:14px" data-en="Fix them under Employment Details (next section), then come back. The last working day comes from the HR separation record, so if it is missing, the separation has not been entered yet." data-ja="次のセクション「Employment Details」で登録してから戻ってきてください。最終出社日はHRの退職記録から取得しているため、未登録の場合は退職手続きがまだ入力されていません。">Fix them under Employment Details, then come back.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Re-issuing" data-ja="再発行について">Re-issuing</div>
+      <p style="color:var(--muted);font-size:13px" data-en="Re-issue creates a new copy and keeps the old one. The Issued list shows how many times a certificate has been issued and who signed each time, so a replacement copy never quietly overwrites the original." data-ja="再発行は新しい写しを作り、以前のものも残します。Issued一覧には発行回数と各回の署名者が表示されるため、差し替えが元の証明書を黙って上書きすることはありません。">Re-issue creates a new copy and keeps the old one, with the signatory of each.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════ EMPLOYMENT DETAILS ═══════════ -->
+  <div class="section" id="sec-employment-details">
+    <div class="section-hero">
+      <div class="hero-icon">🗂️</div>
+      <div>
+        <div class="section-title" data-en="Employment Details" data-ja="役職・入社日・法人の登録">Employment Details</div>
+        <div class="section-path">Admin → Staff → Quick Links → Employment Details</div>
+        <div class="section-desc" data-en="The branch-by-branch work list of people whose position, hire date or company is not yet recorded." data-ja="役職・入社日・法人のいずれかが未登録の人を、店舗別に一覧にした作業リストです。">The work list of people whose employment facts are not yet recorded.</div>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="tip-icon">📄</span>
+      <span data-en="Fill a row only from the contract or the 201 file. A hire date entered as a guess is printed on the certificate exactly as typed, and no one downstream can tell it was a guess. Leaving a row blank breaks nothing — the COE screen names the gap when someone tries to issue one." data-ja="契約書または201ファイルで確認できた人だけ入力してください。推測で入れた入社日はそのまま証明書に印字され、後からは推測だったと判別できません。空欄のままでも支障はありません — COEを発行しようとした時点で、足りない項目が画面に出ます。">Fill a row only from the contract. A guessed date is printed as fact; blank is safe.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="How to use it" data-ja="使い方">How to use it</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Pick a branch" data-ja="店舗を選ぶ">Pick a branch</strong><p data-en="The tabs across the top show how many people at each branch still have a gap." data-ja="上部のタブに、店舗ごとの未入力人数が表示されます。">The tabs show how many people at each branch still have a gap.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Fill only what the contract confirms" data-ja="契約書で確認できた項目だけ入力する">Fill only what the contract confirms</strong><p data-en="Position is the job title — Service Crew, Kitchen Crew, and so on. The system rejects an access role name such as STAFF or INVENTORY_PURCHASING, because those are permissions and not job titles." data-ja="Positionは職名です（Service Crew / Kitchen Crew など）。STAFF や INVENTORY_PURCHASING のようなアクセスロール名は拒否されます。これらは権限であって職名ではありません。">Position is the job title. Access role names such as STAFF are rejected.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save that person" data-ja="その人を保存する">Save that person</strong><p data-en="Saving writes the hire date to both the roster and the payroll profile at once, so the two cannot drift apart." data-ja="保存すると、入社日が名簿と給与プロファイルの両方に同時に書き込まれ、両者がずれることがなくなります。">Saving writes the hire date to the roster and payroll together.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Company" data-ja="所属法人について">Company</div>
+      <p style="color:var(--muted);font-size:13px" data-en="Two values: SUSHIZEN, and 7CZ ANGEL CORP. for the back-office members employed by it. There is no default and nothing is inferred — the company is printed on the certificate, so confirm it rather than assume it." data-ja="値は2つです：SUSHIZEN と、一部のバックオフィスメンバーが所属する 7CZ ANGEL CORP.。既定値も自動判定もありません。法人名は証明書に印字されるため、推測せず確認してください。">SUSHIZEN, or 7CZ ANGEL CORP. Nothing is inferred — confirm it rather than assume.</p>
     </div>
   </div>
 
