@@ -385,3 +385,49 @@ Camilla の作業リストの **18%で入力が消える**ところだった。�
    Camilla（COE の運用者）か Marithel（BIR 記録の保管担当）が候補。**唯一の未決事項。**
 3. ~~署名者名~~ → **上記 E**。発行ごとに選択（既定値あり）で確定。
 4. ~~SEPARATED 4名の最終出社日~~ → **スキップ確定**（HRマネージャーが別途対応）。
+
+---
+
+## 実装結果（2026-08-29 完了・本番稼働中）
+
+| Phase | 内容 | コミット |
+|---|---|---|
+| **0** | `hr_separation.last_working_date` → `staff_master.status='SEPARATED'` の自動同期（worker 00:00 UTC ＋ `create_separation` 直後） | backend |
+| **A** | `staff_master.company` / `.position` 追加、Staff 作成フォームで必須化、未入力一覧 `/admin/staff/employment-details` | backend / `AdminOnboardingLinks` |
+| **B** | `/admin/coe`（起票・3日期限・承認・PDF・再発行履歴） | `307eeb75` / `ad1a0b95` |
+
+### 「完了の判定」の結果
+
+- ✅ Camilla が Peter に依頼せず起票できる（`HR_STAFF` に `channel.admin.coe.view`）
+- ✅ 役職・入社日・法人が空の人は**発行できず、足りない項目が名指しで出る**
+  （本番確認: Camilla Gadingan で "Position is not on record" 他2件）
+- ✅ 3日超は赤帯＋件数バナー
+- ✅ 再発行は `coe_documents.issue_no` に積み、過去号も取得できる
+- ✅ 新規スタッフ登録で役職・入社日・法人が空のまま保存できない
+
+### 設計上の判断
+
+- **PDF は別テーブル `coe_documents`**（教訓29。一覧クエリが画像列を引かない）
+- **承認は新ロール `COE_APPROVER`**。ADMIN 流用はしない（11名・うち2名テスト）
+- **署名者は発行のたびに入力**。証明書に印字されるのはその名前
+- **法人の自動判定はしない**。推測値はそのまま証明書に印字される
+
+### やらかしと対処 — 「職名っぽい列」を測らずに信用した
+
+`manila_staff_profiles.position` を職名としてバックフィルしたが、この列の非空値は
+**全件がアクセスロール名**（`STAFF` 21 / `INVENTORY_PURCHASING` 8 / `ADMIN` 2 /
+`CK_MANILA` 2 / `MANILA_STAFF` 1）で本物の職名はゼロだった。結果、33名が「役職あり」と
+判定され、COE に `employed ... as INVENTORY_PURCHASING` と印字される状態になった。
+**空欄なら拒否経路が止めたものを、埋めたせいで通した。**
+
+塞いだ箇所（1つでも残すと戻る）:
+
+1. バックフィルを削除
+2. ロールキーと完全一致する値だけを消す移行（手入力の職名は残す・再実行で無害）
+3. `set_employment_details` が書き込み時にロールキーを拒否（roster の Role 列からの
+   コピペがこの経路で入る）
+4. **読み出しの `COALESCE(NULLIF(sm.position,''), p.position, '')` を両経路から削除** —
+   3まで直しても、payroll 側から同じ33件がAPIに戻ってきた（実測で確認）
+
+この仕様書は最初のページに「`staff_master.role` はアクセス権限であって職名ではない」と
+書いていた。似た名前の隣の列に同じ罠があることを疑わなかった。

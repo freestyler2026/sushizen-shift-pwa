@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-29 (Management Channel の配信不達 と COE 発行を Session 2 から移送 — 未着手)
+Last updated: 2026-08-29 (COE 発行 Phase 0/A/B 完了・本番稼働。Management Channel の配信不達は未着手)
 
 ---
 
@@ -27,10 +27,9 @@ Compliance Score の分母に残るとマネージャーの点を下げ続ける
 
 ---
 
-## 📥 COE（在職・退職証明書）の発行 — 未着手
+## ✅ COE（在職・退職証明書）の発行 — Phase A / B 完了（2026-08-29）
 
-Session 2 から移送（2026-08-29）。仕様書: [docs/ai/handoff/coe-issuance.md](handoff/coe-issuance.md)
-（**着手前に必ず通読**。実測値・触るファイル・確認事項まで入っている）
+仕様書: [docs/ai/handoff/coe-issuance.md](handoff/coe-issuance.md)
 
 **DOLE Labor Advisory 06-20 — 請求から3日以内の発行義務。** 遅延・拒否は従業員が
 DOLE に申立てる事由になる。現状 COE は退職チェックリストの項目としてしか存在せず、
@@ -38,8 +37,37 @@ DOLE に申立てる事由になる。現状 COE は退職チェックリスト�
 
 | Phase | 内容 | 状態 |
 |---|---|---|
-| **A** | `staff_master.company` 追加／Staff 作成フォームで役職・入社日・法人を必須化／未入力者の一括入力画面 | 未着手 |
-| **B** | COE 発行（請求日・3日期限・承認・PDF・再発行履歴） | 未着手 |
+| **0** | `hr_separation` → `staff_master.status` の自動同期（worker 00:00 UTC） | **完了** |
+| **A** | `staff_master.company` / `.position` 追加／Staff 作成フォームで必須化／未入力一覧 `/admin/staff/employment-details` | **完了** |
+| **B** | COE 発行画面 `/admin/coe`（請求日・3日期限・承認・PDF・再発行履歴） | **完了**（`307eeb75` / `ad1a0b95`） |
+
+### 画面と権限
+
+| 画面 | 誰が |
+|---|---|
+| `/admin/coe` 起票 | `channel.admin.coe.view` — `HR_STAFF`（Camilla）と承認者5名 |
+| `/admin/coe` 承認・PDF発行 | `channel.admin.coe.approve` — 新ロール **`COE_APPROVER`** ＋ HQ |
+| `/admin/staff/employment-details` | 名簿を編集できる人（Staff の Quick Links から） |
+
+`COE_APPROVER` を付与済み: Ayako Nishimura / Yusuke Uejima / Peter Villafuerte /
+Richard S. Gante / Francis Ibana。**広いロールを流用していない** — 証明書は退職者の
+次の勤務先に渡る文書で、ADMIN は11名（うち2名がテストアカウント）いる。
+
+### ⚠️ `manila_staff_profiles.position` は職名ではない（2026-08-29 実際にやらかした）
+
+この列の非空値は**全件がアクセスロール名**（`STAFF` 21 / `INVENTORY_PURCHASING` 8 /
+`ADMIN` 2 / `CK_MANILA` 2 / `MANILA_STAFF` 1）で、本物の職名は**ゼロ**。
+これを `staff_master.position` にバックフィルした結果、33名が「役職あり」と判定され、
+**COE に "employed ... as INVENTORY_PURCHASING" と印字される状態**になっていた。
+空欄なら拒否経路が止めたはずのものを、埋めたことで通してしまった。
+
+3か所で塞いだ: バックフィル削除／ロールキーだけを消す移行（手入力の職名は残る）／
+`set_employment_details` が書き込み時にロールキーを拒否。**読み出しの
+`COALESCE(sm.position, p.position)` フォールバックも両経路から外した** — これを残すと
+名簿を消しても payroll 側から同じ値が戻る（実際に戻った）。
+
+> 仕様書には最初から「`staff_master.role` はアクセス権限であって職名ではない」と
+> 書いてあった。似た名前の列を、中身を測らずに信用したのが原因。
 
 ### ⚠️ 入社日の自動推定は実装しないこと
 
@@ -54,6 +82,15 @@ DOLE に申立てる事由になる。現状 COE は退職チェックリスト�
 必須にすると、電話番号を直しに来た人が保存のために知らない入社日を入力する。
 **COE は法的文書で、「遅い COE」より「日付が違う COE」の方が深刻**（教訓34と同型）。
 **止めるのは COE 発行時**にし、足りない項目を名指しする。西村さん承認済みの方針。
+
+### 残っている作業（人が決めること）
+
+- **役職・入社日の一括入力**（役職88名・入社日36名・法人88名）。`/admin/staff/employment-details`
+  に店舗別の作業リストがある。契約書・201ファイルが要るので、担当を決める必要がある
+  （Camilla か Marithel）。**未入力のままでも支障はない** — COE を出そうとした時点で
+  足りない項目が画面に出る。
+- Marithel に **7CZ 所属メンバー**を確認する（法人の既定値は入れていない。推測すると
+  そのまま証明書に印字される）。
 
 ---
 
