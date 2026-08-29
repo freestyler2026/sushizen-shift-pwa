@@ -204,6 +204,115 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   return <span className={BADGE_INFO}>{status}</span>;
 }
 
+// ─── Answer rates ─────────────────────────────────────────────────────────────
+
+type RateRow = {
+  type: string;
+  generated: number;
+  per_day: number;
+  sent: number;
+  answered: number;
+  answer_rate: number | null;
+  scored: boolean;
+};
+
+/** Which exception types are worth sending, measured rather than assumed.
+ *
+ *  Types get added over time and nobody looks back. product_score_c grew to
+ *  three quarters of everything the channel raised and was answered twice in
+ *  eleven sends, while rush_check_missing was answered three times out of three.
+ *  Read this monthly: a type that stops being answered should stop being sent.
+ */
+function AnswerRates({ city }: { city: string }) {
+  const [rows, setRows] = useState<RateRow[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/management/type-response-rates?city=${encodeURIComponent(city)}&days=30`,
+          { headers: getAuthHeaders(getAuth()) },
+        );
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setRows(d.rows || []);
+      } catch { /* the page works without it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [city]);
+
+  if (!rows || rows.length === 0) return null;
+  const perDay = rows.reduce((n, r) => n + r.per_day, 0);
+  const neverSent = rows.filter(r => r.sent === 0);
+
+  return (
+    <div className={GLASS_CARD + " mb-5 p-4"}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <div>
+          <div className="text-sm font-semibold text-zinc-100">
+            What this channel sends — last 30 days
+          </div>
+          <div className={T_CAPTION + " mt-0.5"}>
+            {perDay.toFixed(1)} raised per day
+            {neverSent.length > 0
+              ? ` · ${neverSent.length} type${neverSent.length === 1 ? "" : "s"} never sent`
+              : ""}
+          </div>
+        </div>
+        <span className="text-xs text-zinc-400">{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="text-left text-zinc-500">
+                <th className="pb-2 pr-3 font-medium">Type</th>
+                <th className="pb-2 pr-3 text-right font-medium">Per day</th>
+                <th className="pb-2 pr-3 text-right font-medium">Sent</th>
+                <th className="pb-2 pr-3 text-right font-medium">Answered</th>
+                <th className="pb-2 pr-3 text-right font-medium">Rate</th>
+                <th className="pb-2 font-medium">Scored</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {rows.map(r => (
+                <tr key={r.type} className="border-t border-white/5">
+                  <td className="py-1.5 pr-3 text-zinc-200">{fmtLabel(r.type)}</td>
+                  <td className="py-1.5 pr-3 text-right text-zinc-300">{r.per_day}</td>
+                  <td className="py-1.5 pr-3 text-right text-zinc-300">{r.sent}</td>
+                  <td className="py-1.5 pr-3 text-right text-zinc-300">{r.answered}</td>
+                  <td className={`py-1.5 pr-3 text-right font-semibold ${
+                    r.answer_rate === null ? "text-zinc-500"
+                      : r.answer_rate >= 0.6 ? "text-emerald-300"
+                      : r.answer_rate >= 0.3 ? "text-amber-300" : "text-rose-300"
+                  }`}>
+                    {/* Never sent is not a zero answer rate. One is the back
+                        office's to explain, the other the manager's. */}
+                    {r.answer_rate === null ? "never sent" : `${Math.round(r.answer_rate * 100)}%`}
+                  </td>
+                  <td className="py-1.5 text-zinc-400">{r.scored ? "yes" : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className={T_CAPTION + " mt-3"}>
+            A type nobody answers is not reaching anyone in a form they can act on.
+            Fix the wording or stop sending it — leaving it in place is how a channel
+            becomes something people ignore.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── Send Modal ───────────────────────────────────────────────────────────────
 
 interface SendModalProps {
@@ -216,7 +325,40 @@ interface SendModalProps {
   sending: boolean;
 }
 
+type OwnerPreview = {
+  staff_name: string;
+  substitute: string;
+  on_shift: boolean | null;
+  discord_user_id: string;
+  reason: string;
+};
+
 function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, onClose, sending }: SendModalProps) {
+  const [owner, setOwner] = useState<OwnerPreview | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const date = String(task.context?.date || "");
+        const params = new URLSearchParams({ city: task.city, branch: task.branch });
+        if (date) params.set("on_date", date);
+        const res = await fetch(`/api/admin/management/owner-preview?${params}`, {
+          headers: getAuthHeaders(getAuth()),
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setOwner(d);
+      } catch { /* the modal still works without it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [task.id]);
+
+  // on_shift === false is the only case worth raising. null means there is no
+  // published shift to read, which is not the same as "off", and treating it as
+  // one would put a warning on every task.
+  const offShift = owner?.on_shift === false;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className={GLASS_CARD + " w-full max-w-lg p-6"}>
@@ -234,6 +376,38 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {owner && !owner.staff_name ? (
+          <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-950/20 p-3">
+            <p className="text-sm font-semibold text-rose-200">No manager rostered</p>
+            <p className="mt-1 text-[13px] text-rose-100/80">
+              {owner.reason || `${task.branch} has nobody on duty for this day.`} Sending is
+              blocked until someone is set under Management → Assignments.
+            </p>
+          </div>
+        ) : null}
+
+        {offShift ? (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-950/15 p-3">
+            <p className="text-sm font-semibold text-amber-200">
+              {owner?.staff_name} is not on the published shift for this day
+            </p>
+            <p className="mt-1 text-[13px] text-amber-100/80">
+              {owner?.substitute
+                ? `The stand-in for ${task.branch} is ${owner.substitute}.`
+                : `No stand-in is set for ${task.branch}.`}{" "}
+              Nothing is switched automatically — the published shift is not always
+              right, and a silent switch delivers to someone whose branch it is not.
+            </p>
+          </div>
+        ) : null}
+
+        {owner?.staff_name && !owner.discord_user_id ? (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-950/10 p-3 text-[13px] text-amber-100/80">
+            {owner.staff_name} has no Discord ID recorded, so no notification will
+            be posted. They would have to open the page themselves.
+          </div>
+        ) : null}
 
         {template ? (
           <div className="mb-4">
@@ -277,11 +451,16 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
         <div className="flex gap-3">
           <button
             onClick={onConfirm}
-            disabled={sending || (!template && !customMessage.trim())}
+            disabled={sending || (!template && !customMessage.trim())
+                       || (owner !== null && !owner.staff_name)}
             className={PRIMARY_BUTTON + " flex-1 flex items-center justify-center gap-2"}
           >
             <Send className="h-4 w-4" />
-            {sending ? "Sending…" : "Send Instruction"}
+            {sending
+              ? "Sending…"
+              : owner?.staff_name
+                ? `Send to ${owner.staff_name}`
+                : "Send Instruction"}
           </button>
           <button onClick={onClose} className={SECONDARY_BUTTON}>Cancel</button>
         </div>
@@ -1140,12 +1319,23 @@ export default function BODashboardPage() {
           template_key: sendingTask.type,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // The server refuses to send a Manila task with no owner. Say which
+        // branch and what to do — "Failed, try again" would send the person
+        // round the same loop, and retrying cannot help.
+        throw new Error(data?.detail || `HTTP ${res.status}`);
+      }
+      // The task is recorded either way; a ping that did not leave is worth
+      // knowing about rather than assuming.
+      if (data?.notified && data.notified.sent === false) {
+        setError(`Sent, but Discord was not notified — ${data.notified.reason}.`);
+      }
       setSendingTask(null);
       setCustomMessage("");
       await loadTasks(true);
     } catch (e) {
-      alert("Failed to send instruction. Please try again.");
+      setError(e instanceof Error ? e.message : "Failed to send instruction.");
     } finally {
       setSending(false);
     }
@@ -1164,6 +1354,7 @@ export default function BODashboardPage() {
       <div className="mx-auto max-w-5xl px-4 pt-6">
         <MgmtChannelTabBar active="bo" />
         <AutoCheckBanner runs={jobRuns} city={cityFilter} />
+        <AnswerRates city={cityFilter} />
 
 
         {/* Header */}

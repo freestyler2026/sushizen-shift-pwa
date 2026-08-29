@@ -371,6 +371,12 @@ export default function NavBar() {
   const [inboxBadge, setInboxBadge] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
   const [nteBadge, setNteBadge] = useState(0);
+  // Management Inbox: what is waiting on the person looking at this bar.
+  // Before the roster existed the inbox was addressed to a branch, so there was
+  // nothing to count — and nothing distinguished "nothing for me" from "eleven
+  // things nobody told me about".
+  const [myMgmtBadge, setMyMgmtBadge] = useState(0);
+  const [myMgmtOverdue, setMyMgmtOverdue] = useState(0);
   const [pettyCashBadge, setPettyCashBadge] = useState(0);
   const [expenseBadge, setExpenseBadge] = useState(0);
   const [transportBadge, setTransportBadge] = useState(0);
@@ -682,6 +688,34 @@ export default function NavBar() {
       window.clearInterval(id);
       window.removeEventListener(BADGE_EVENTS.inbox, onRefresh);
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMgmtBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.hasSession && !auth?.accessToken) {
+          if (!cancelled) { setMyMgmtBadge(0); setMyMgmtOverdue(0); }
+          return;
+        }
+        const res = await fetch(`/api/store/management/badge`, {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setMyMgmtBadge(Number(data?.count ?? 0));
+          setMyMgmtOverdue(Number(data?.overdue ?? 0));
+        }
+      } catch {}
+    };
+    void fetchMgmtBadge();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchMgmtBadge();
+    }, 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
   // NTE notification badge: unread notices for staff
@@ -1176,9 +1210,18 @@ export default function NavBar() {
           ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
           : item.href === "/store/my-nte"
           ? { ...item, badgeCount: nteBadge, badgeWarning: nteBadge > 0 }
+          : item.href === "/store/management/inbox"
+          ? {
+              ...item,
+              badgeCount: myMgmtBadge,
+              // Red once something has sat a full day, because that is the
+              // point at which it escalates to someone else.
+              badgeCritical: myMgmtOverdue > 0,
+              badgeWarning: myMgmtBadge > 0 && myMgmtOverdue === 0,
+            }
           : item,
       );
-  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge]);
+  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue]);
 
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS

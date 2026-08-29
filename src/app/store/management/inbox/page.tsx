@@ -652,13 +652,19 @@ export default function ManagerInboxPage() {
     cityLock || (auth?.city as string) || "manila",
   );
   const branchOptions = BRANCHES[city] || BRANCHES.manila;
-  const [branch, setBranch] = useState(branchOptions[0].value);
+  // Empty branch means "the tasks addressed to me". That is the default now:
+  // this page used to open on a branch dropdown, so finding your own work meant
+  // knowing to pick the right store, and 322 tasks reached nobody.
+  const [branch, setBranch] = useState("");
+  const [viewer, setViewer] = useState("");
 
   // Moving city must move the branch with it, or the page asks the API for a
   // Dubai branch while showing Manila.
   useEffect(() => {
     const opts = BRANCHES[city] || BRANCHES.manila;
-    if (!opts.some(o => o.value === branch)) setBranch(opts[0].value);
+    // "" is a valid selection — it means me — so only correct a branch that
+    // belongs to the other city.
+    if (branch && !opts.some(o => o.value === branch)) setBranch("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
 
@@ -693,6 +699,7 @@ export default function ManagerInboxPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTasks(data.tasks || []);
+      setViewer(String(data.viewer || ""));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -783,13 +790,21 @@ export default function ManagerInboxPage() {
               />
             </>
           )}
-          <span className={T_LABEL}>Branch</span>
+          <span className={T_LABEL}>Showing</span>
           <SelectDark
             value={branch}
             onChange={v => setBranch(v)}
-            options={branchOptions}
-            className="w-40 text-sm"
+            options={[
+              { value: "", label: viewer ? `Assigned to me (${viewer})` : "Assigned to me" },
+              ...branchOptions,
+            ]}
+            className="w-56 text-sm"
           />
+          {!branch ? (
+            <span className={T_CAPTION}>
+              Only what is addressed to you. Pick a branch to see a whole store.
+            </span>
+          ) : null}
           {!canSwitchCity && (
             <span className={T_CAPTION}>
               {city === "dubai" ? "Dubai" : "Manila"} — your account is set to this city

@@ -38,6 +38,148 @@ interface MatrixRow {
   in_catalogue: boolean;
 }
 
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Who a store task is addressed to, by branch and weekday.
+ *
+ *  The BO table above answers "which back-office person handles this kind of
+ *  exception". This one answers "who at the store is being told", which is a
+ *  different question and had no answer at all: 321 of 322 tasks carried no name.
+ *
+ *  It rotates by weekday because the real arrangement does — TAFT is Ayako on
+ *  Monday and Francis the rest of the week — and a single owner per branch
+ *  cannot say that.
+ */
+function OwnerRoster({ city }: { city: string }) {
+  const [data, setData] = useState<{
+    branches: Record<string, string[]>;
+    substitutes: Record<string, string>;
+    discord: { staff_name: string; discord_user_id: string; display_name: string }[];
+    missing_discord_id: string[];
+  } | null>(null);
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/management/owner-roster?city=${encodeURIComponent(city)}`, {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) return;
+      setData(await res.json());
+    } catch { /* leave the rest of the page usable */ }
+  }, [city]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const setCell = async (branch: string, weekday: number | null, staff_name: string,
+                         substitute = false) => {
+    setBusy(`${branch}:${weekday ?? "sub"}`);
+    setMsg("");
+    try {
+      const res = await fetch(`/api/admin/management/owner-roster?city=${encodeURIComponent(city)}`, {
+        method: "PUT",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, weekday, staff_name, substitute }),
+      });
+      const d = await res.json().catch(() => ({}));
+      // The server checks the name against the roster. A typo would otherwise be
+      // silent: the task carries a name nobody has, the send guard sees a filled
+      // field, and the message goes nowhere.
+      if (!res.ok) throw new Error(d?.detail || `HTTP ${res.status}`);
+      setData(d);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (!data) return null;
+  const branches = Object.keys(data.branches).sort();
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-white/70">
+        Store owners by weekday
+      </h2>
+      <p className={`${T_CAPTION} mb-3`}>
+        Who receives a task raised for this branch on this day. A blank cell means
+        nothing can be sent for that branch on that weekday — the send button
+        refuses rather than delivering to nobody.
+      </p>
+
+      {msg && (
+        <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+          {msg}
+        </div>
+      )}
+      {data.missing_discord_id.length > 0 && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <p className="text-sm text-amber-200">
+            <strong>{data.missing_discord_id.join(", ")}</strong> {data.missing_discord_id.length === 1 ? "has" : "have"} no
+            Discord ID, so no notification is posted for them. They would have to open
+            the page themselves.
+          </p>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-[13px]">
+          <thead>
+            <tr className={TABLE_HEADER}>
+              <th className="px-3 py-2 text-left">Branch</th>
+              {WEEKDAYS.map((d) => <th key={d} className="px-2 py-2 text-left">{d}</th>)}
+              <th className="px-3 py-2 text-left">Stand-in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {branches.map((b) => (
+              <tr key={b} className={TABLE_ROW}>
+                <td className="px-3 py-2 font-semibold text-white">{b}</td>
+                {WEEKDAYS.map((_, i) => (
+                  <td key={i} className="px-2 py-1.5">
+                    <input
+                      defaultValue={data.branches[b][i] || ""}
+                      placeholder="—"
+                      disabled={busy === `${b}:${i}`}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (data.branches[b][i] || "")) void setCell(b, i, v);
+                      }}
+                      className="w-32 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus:border-violet-500/50"
+                    />
+                  </td>
+                ))}
+                <td className="px-3 py-1.5">
+                  <input
+                    defaultValue={data.substitutes[b] || ""}
+                    placeholder="—"
+                    disabled={busy === `${b}:sub`}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (data.substitutes[b] || "")) void setCell(b, null, v, true);
+                    }}
+                    className="w-36 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus:border-violet-500/50"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className={`${T_CAPTION} mt-2`}>
+        The stand-in is offered when the owner is not on the published shift. It is
+        never applied automatically — the published shift is not always right, and a
+        silent switch delivers to someone whose branch it is not.
+      </p>
+    </div>
+  );
+}
+
+
 export default function ManagementAssignmentsPage() {
   const router = useRouter();
   const [city, setCity] = useState<"manila" | "dubai">("manila");
@@ -187,6 +329,8 @@ export default function ManagementAssignmentsPage() {
           {error}
         </div>
       )}
+
+      <OwnerRoster city={"manila"} />
 
       {/* Ownership is per page in the design — one person, one page, one manual.
           The per-type table below stays for exceptions to that, but the page is
