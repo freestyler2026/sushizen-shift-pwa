@@ -49,7 +49,7 @@ type OTRequest = {
   submitted_at: string;
 };
 
-type ModalAction = "manager_approve" | "mark_paid" | "reject";
+type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
 
 const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
 const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
@@ -156,6 +156,9 @@ export default function AdminOvertimePage() {
       if (modalAction === "manager_approve") {
         endpoint = `/api/admin/overtime/${reviewing.id}/manager-approve`;
         body = { note: actionNote };
+      } else if (modalAction === "remove_from_payroll") {
+        endpoint = `/api/admin/overtime/${reviewing.id}/remove-from-payroll`;
+        body = { note: actionNote };
       } else if (modalAction === "mark_paid") {
         endpoint = `/api/admin/overtime/${reviewing.id}/mark-paid`;
         body = { note: actionNote };
@@ -228,10 +231,12 @@ export default function AdminOvertimePage() {
 
   const modalTitle = modalAction === "manager_approve" ? "Approve this overtime"
     : modalAction === "mark_paid" ? "Add this overtime to payroll"
+    : modalAction === "remove_from_payroll" ? "Take this overtime out of payroll"
     : "Reject OT Request";
 
   const modalConfirmLabel = modalAction === "manager_approve" ? "Approve"
     : modalAction === "mark_paid" ? "Add to Payroll"
+    : modalAction === "remove_from_payroll" ? "Remove from Payroll"
     : "Reject";
 
   const modalConfirmClass = modalAction === "reject"
@@ -404,6 +409,17 @@ export default function AdminOvertimePage() {
                           Add to Payroll
                         </button>
                       )}
+                      {/* The one action here that moves money, so it gets a way
+                          back. Fixing the attendance record by hand does not
+                          work — the next sync rewrites it from the request. */}
+                      {r.status === "paid" && canStage2 && (
+                        <button
+                          onClick={() => openModal(r, "remove_from_payroll")}
+                          className="rounded-xl border border-amber-500/25 bg-amber-900/10 px-3 py-2 text-xs text-amber-300 hover:bg-amber-900/30 transition"
+                        >
+                          Remove from Payroll
+                        </button>
+                      )}
                       {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (
                         <button
                           onClick={() => openModal(r, "reject")}
@@ -473,6 +489,14 @@ export default function AdminOvertimePage() {
                                 className="rounded-lg border border-green-500/30 bg-green-900/20 px-2 py-1 text-xs text-green-300 hover:bg-green-900/40 transition whitespace-nowrap"
                               >
                                 Add to Payroll
+                              </button>
+                            )}
+                            {r.status === "paid" && canStage2 && (
+                              <button
+                                onClick={() => openModal(r, "remove_from_payroll")}
+                                className="rounded-lg border border-amber-500/25 bg-amber-900/10 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/30 transition whitespace-nowrap"
+                              >
+                                Remove from Payroll
                               </button>
                             )}
                             {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (
