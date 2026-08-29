@@ -60,7 +60,7 @@ Send を押せない」を全都市に効かせると、ドバイが恒久的に
 
 | 店舗 | 月 | 火 | 水 | 木 | 金 | 土 | 日 |
 |---|---|---|---|---|---|---|---|
-| **TAFT** | Yukihiro Nishimura | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana |
+| **TAFT** | Ayako Nishimura | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana |
 | **PAR** | Peter Villafuerte | Peter Villafuerte | Peter Villafuerte | Richard S. Gante | Peter Villafuerte | Richard S. Gante | Richard S. Gante |
 | **CUB** | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Yusuke Uejima |
 | **CK** | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Yusuke Uejima |
@@ -69,13 +69,16 @@ Send を押せない」を全都市に効かせると、ドバイが恒久的に
 原文: 「Taft➡️Francis（火〜日曜日）、月曜日とFrancisが休んだら私 /
 Paranaque➡️Richard木、土日、残りはPeter / CK/Cubao➡️月水金Richard、火木土日植嶋さん」
 
+⚠️ **原文の「私」＝西村さんは、2026-08-29 に `Ayako Nishimura` へ差し替え。**
+理由は「開発と経営で店舗管理はできない」。**TAFT 月曜も、Francis 休務時の代理も Ayako。**
+`Yukihiro Nishimura` は当番表に載せないこと。
+
 **当番表は画面から編集できるようにする。** 人は入れ替わる。
 置き場は `/admin/management/assignments`（BO側の担当割り当てが既にある画面）。
 
 在籍確認済み（2026-08-29・全員 ACTIVE）:
 `Francis Ibana`(MANILA_MANAGER) / `Richard S. Gante`(MANILA_MANAGEMENT) /
-`Peter Villafuerte`(HR_MANAGER) / `Yusuke Uejima`(HQ) / `Yukihiro Nishimura`(HQ) /
-`Ayako Nishimura`(HQ)
+`Peter Villafuerte`(HR_MANAGER) / `Yusuke Uejima`(HQ) / `Ayako Nishimura`(HQ)
 
 ⚠️ **`Francis Angelo Dizon` という別人がいる**（実在確認済み）。部分一致で引かず、フルネームで保持すること。
 
@@ -100,9 +103,8 @@ Discord 表示名で、名簿と一致しない（実データで各1名に一�
 | `Yusuke Uejima` | yuejim | `448139655448100865` |
 | `Ayako Nishimura` | マハロ | `871028335315124225` |
 | **`Francis Ibana`** | — | **未取得** |
-| **`Yukihiro Nishimura`** | — | **未取得**（Web Push は購読済み） |
 
-⚠️ **Francis Ibana が最重要。** TAFT の火〜日を担当し、TAFT は最も件数の多い店舗
+⚠️ **未取得は Francis Ibana の1件だけ。** TAFT の火〜日を担当し、TAFT は最も件数の多い店舗
 （`product_score_c` だけで1日12.4件）。**IDが無いと、一番届けたい相手に届かない。**
 Web Push も未購読なので代替経路も無い。
 
@@ -126,6 +128,9 @@ Yusuke は CUB / CK の火木土日の担当でもあるため、素直に実装
 
 ⚠️ **一般則として実装すること。**「エスカレーション先が担当者本人と一致したら、次の宛先へ」。
 名前を2つ書き分けるだけの実装にすると、**担当表が変わった瞬間に同じ輪が戻る。**
+
+⚠️ **Ayako は TAFT 月曜の担当でもあるため、上げ先は Yusuke ⇄ Ayako の相互になる。**
+これは意図どおり — 2人が最上位で、この上は無い。**3段目を足さないこと。**
 
 ---
 
@@ -217,6 +222,25 @@ BO ダッシュボードに上の表を常設する。**答えられていない
 これが形骸化を止める唯一の仕組み。無いと、追加された型が誰にも読まれないまま積み上がる
 （`product_score_c` がまさにそれ）。月1回見る運用にする。
 
+### ⚠️ 要約化は Compliance Score の目盛りを変える（見落とし注意）
+
+`app/manager_score_api.py` の `TASK_COMPONENTS` は
+`complaints = ["complaint_no_photo", "product_score_c"]`（重み15）。
+そして `complaint_no_photo` は**一度も送られていない**ので、
+**この成分は実質 `product_score_c` だけで決まっている。**
+
+要約化すると、TAFT の `complaints` の母数が **週約85件 → 週約7件**になる。
+スコアは `answered / sent` の比なので比自体は残るが、**1件落としたときの重さが約12倍になる**
+（成分の 1.2% → 14%、総合点で 約0.18点 → 約2.1点）。
+
+対処は2つ。**どちらも実装すること。**
+
+1. **切替日を記録し、それを跨いだ週次比較をしない。** 記録が無いと「8月より9月のほうが
+   点が低い」が運用の悪化に見える。実際は目盛りが変わっただけ。
+2. **`complaint_no_photo` の扱いを先に決める**（上記②）。止めるなら `complaints` 成分は
+   `product_score_c` 単独になると明記する。残すなら送れる形に直す。**どちらも選ばないと、
+   重み15の成分が「一度も送らない型」と「要約1通」の混成のままになる。**
+
 ### 修正後の見込み
 
 ```
@@ -277,12 +301,11 @@ BO ダッシュボードに上の表を常設する。**答えられていない
 ## ⚠️ 実装中に必ず踏む罠
 
 ### 担当3名が `city='dubai'` 登録
-`Yusuke Uejima` / `Yukihiro Nishimura` / `Ayako Nishimura` の3名は
-`staff_master.city='dubai'` / `branch_code='HQ'`（実データで確認）。
-**タスクは `city='manila'`。受信箱は city で絞る。**
+`Yusuke Uejima` と `Ayako Nishimura` は `staff_master.city='dubai'` / `branch_code='HQ'`
+（実データで確認）。**タスクは `city='manila'`。受信箱は city で絞る。**
 
 該当するのは **TAFT月曜・CUB/CKの火木土日・エスカレーション全件** —
-**当番表を正しく作っても、この3人の分だけ届かない**という結果になりうる。
+**当番表を正しく作っても、この2人の分だけ届かない**という結果になりうる。
 **Impersonation で実機確認すること**（教訓27。合成トークンでは嘘の結果が出る）。
 
 ### Send のガードを全都市に効かせない
@@ -352,13 +375,13 @@ Session 2 でクリア済み（下記）。**一度も届いていないので�
 | # | 内容 | 影響 | 止まるもの |
 |---|---|---|---|
 | 1 | **`ALL` 系統の担当** | 現在2件。全店に関わる例外が入る | `ALL` のタスクのみ送信不可のまま。他は動く |
-| 2 | **「Francis が休んだら私」の判定** | TAFT の代理 | TAFT の代理運用のみ。当番表どおりなら動く |
-| 3 | **`Francis Ibana` と `Yukihiro Nishimura` の Discord ユーザーID** | Phase 3 のみ | **TAFT の通知のみ**（最も件数が多い店舗）。他5系統は送れる |
+| 2 | **「Francis が休んだら Ayako」の判定方法** | TAFT の代理 | TAFT の代理運用のみ。当番表どおりなら動く |
+| 3 | **`Francis Ibana` の Discord ユーザーID** | Phase 3 のみ | **TAFT 火〜日の通知のみ**（最も件数が多い）。他は送れる |
 
 **2 について**: 公開シフト（`shift_published_rows`）から自動判定するか、当番表に「代理」列を
 持たせて手動にするか。**自動にする場合は公開シフトが正しいことが前提**（教訓18: 公開シフトが
 誤っているケースは実在する）。**推測で外すと通知が誰にも届かない。**
 
-**3 について**: 経路自体は決着した（チャンネル投稿＋メンション）。4名分のIDは受領済みで、
-残るのは Francis Ibana と Yukihiro Nishimura の2件。**Francis は TAFT 火〜日の担当**なので、
-ここが埋まらないと Phase 3 で一番件数の多い経路だけが動かない。
+**3 について**: 経路は決着（チャンネル投稿＋メンション）。当番表の5名中4名のIDは受領済みで、
+**残りは Francis Ibana の1件だけ。** TAFT 火〜日の担当なので、ここが埋まらないと
+Phase 3 で一番件数の多い経路だけが動かない。
