@@ -32,7 +32,7 @@ Send を押せない」を全都市に効かせると、ドバイが恒久的に
 
 ## すぐ着手してよい
 
-**未確定が2件あるが、どちらも Phase 0・1・2 を止めない**（→ 末尾「未確定」）。
+**未確定が3件あるが、どれも Phase 0・1・2 を止めない**（→ 末尾「未確定」）。
 先に読むのはここまでの節と「決まっていること」「なぜ届かないか」で足りる。
 
 ### 最初の30分
@@ -79,17 +79,42 @@ Paranaque➡️Richard木、土日、残りはPeter / CK/Cubao➡️月水金Ric
 
 ⚠️ **`Francis Angelo Dizon` という別人がいる**（実在確認済み）。部分一致で引かず、フルネームで保持すること。
 
-### 通知の経路 → **Discord**
+### 通知の経路 → **Discord チャンネル投稿＋ `<@ユーザーID>` メンション**
 
-⚠️ **個人宛に送る手段が今は無い。** `send_discord_message(city, message)`
-（`app/attendance_discord.py`）は**都市単位の webhook** で、Manila チャンネルへの一斉投稿。
-個人宛の既存経路は Web Push（VAPID / `push_subscriptions` が `discord_user_id → staff_name`）だが、
-**本番の購読は全5件で、Francis / Richard / Peter / Yusuke の4名は未購読**（購読済みは
-西村さんと綾子さんのみ）。届けたい当人に届く経路が無い。
+`send_discord_message(city, message)`（`app/attendance_discord.py`）は**都市単位の webhook**
+で、Manila チャンネルへの一斉投稿しかできない。個人宛の既存経路は Web Push
+（VAPID / `push_subscriptions` が `discord_user_id → staff_name`）だが、**本番の購読は全5件**で、
+購読済みは西村さんと綾子さんのみ。**Francis / Richard / Peter / Yusuke は未購読。**
 
-推奨は **チャンネル投稿＋ `<@ユーザーID>` メンション**。4名の Discord ユーザーIDを一度
-聞けば済み、既存 webhook に乗る。**Phase 3 の判断待ちで Phase 0〜2 を止めないこと**
-（受信箱とバッジだけで「送ったのに誰も見ない」は解消する）。
+→ 既存 webhook にメンションを載せる方式を採る。**端末側の作業が要らない**のが理由。
+
+#### ユーザーID対応表（2026-08-29 西村さん提供）
+
+`staff_master.staff_name` は**下の左列で固定**すること。西村さんから来た表記は
+Discord 表示名で、名簿と一致しない（実データで各1名に一意対応することは確認済み）。
+
+| `staff_name`（名簿・これが正） | Discord 表示名 | `discord_user_id` |
+|---|---|---|
+| `Peter Villafuerte` | Peter John Villafuerte | `1458636250171965551` |
+| `Richard S. Gante` | Richard Gante | `1519927893398917202` |
+| `Yusuke Uejima` | yuejim | `448139655448100865` |
+| `Ayako Nishimura` | マハロ | `871028335315124225` |
+| **`Francis Ibana`** | — | **未取得** |
+| **`Yukihiro Nishimura`** | — | **未取得**（Web Push は購読済み） |
+
+⚠️ **Francis Ibana が最重要。** TAFT の火〜日を担当し、TAFT は最も件数の多い店舗
+（`product_score_c` だけで1日12.4件）。**IDが無いと、一番届けたい相手に届かない。**
+Web Push も未購読なので代替経路も無い。
+
+⚠️ 対応表は**画面から編集できる形**にすること（当番表と同じ理由。人は入れ替わる）。
+置き場は当番表と同じ `/admin/management/assignments` が自然。
+
+⚠️ **IDが未登録の担当者には、メンション無しで投稿しない。** 誰宛か分からない投稿が
+チャンネルに流れるだけになり、今と同じ「送ったのに誰も見ない」に戻る。
+未登録ならタスクは送信不可にし、理由を画面に出すこと（Phase 1 の宛先ガードと同じ扱い）。
+
+**Phase 0〜2 はこの表の完成を待たずに進めてよい**（受信箱とバッジだけで
+「送ったのに誰も見ない」は解消する）。
 
 ### エスカレーション先 → 24時間無反応で
 ```
@@ -328,10 +353,12 @@ Session 2 でクリア済み（下記）。**一度も届いていないので�
 |---|---|---|---|
 | 1 | **`ALL` 系統の担当** | 現在2件。全店に関わる例外が入る | `ALL` のタスクのみ送信不可のまま。他は動く |
 | 2 | **「Francis が休んだら私」の判定** | TAFT の代理 | TAFT の代理運用のみ。当番表どおりなら動く |
-| 3 | **Discord の個人宛経路** | Phase 3 のみ | Phase 3 のみ。0〜2 は通知無しで成立する |
+| 3 | **`Francis Ibana` と `Yukihiro Nishimura` の Discord ユーザーID** | Phase 3 のみ | **TAFT の通知のみ**（最も件数が多い店舗）。他5系統は送れる |
 
 **2 について**: 公開シフト（`shift_published_rows`）から自動判定するか、当番表に「代理」列を
 持たせて手動にするか。**自動にする場合は公開シフトが正しいことが前提**（教訓18: 公開シフトが
 誤っているケースは実在する）。**推測で外すと通知が誰にも届かない。**
 
-**3 について**: 4名の Discord ユーザーIDを聞ければメンション方式で解決する。
+**3 について**: 経路自体は決着した（チャンネル投稿＋メンション）。4名分のIDは受領済みで、
+残るのは Francis Ibana と Yukihiro Nishimura の2件。**Francis は TAFT 火〜日の担当**なので、
+ここが埋まらないと Phase 3 で一番件数の多い経路だけが動かない。

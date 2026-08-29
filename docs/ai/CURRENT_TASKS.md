@@ -42,10 +42,14 @@ BO が送った10件に返信は0件。
 
 Phase 0 後の見込み: **31.4件/日 → 10.6件/日、担当1人あたり 約15件 → 4〜5件。**
 
-⚠️ **Discord に個人宛の経路が今は無い。** `send_discord_message` は都市単位の webhook で
-Manila チャンネルへの一斉投稿。個人宛は Web Push だが**本番の購読は全5件で、
-Francis / Richard / Peter / Yusuke は未購読**。推奨はチャンネル投稿＋`<@ID>` メンション
-（4名の Discord ユーザーIDを一度聞けば済む）。**Phase 0〜2 はこの判断を待たずに進めてよい。**
+**通知の経路は決着**（2026-08-29）: `send_discord_message` は都市単位の webhook しか無いので、
+**チャンネル投稿＋`<@ID>` メンション**方式を採る。ユーザーIDは Peter / Richard / Yusuke / Ayako
+の4名分を受領済み（対応表は仕様書に記載。**名簿の `staff_name` を正とすること** — 提供された
+表記は Discord 表示名で名簿と一致しない）。
+
+⚠️ **`Francis Ibana` と `Yukihiro Nishimura` のIDが未取得。** Francis は TAFT 火〜日の担当で、
+TAFT は最も件数の多い店舗（`product_score_c` だけで1日12.4件）。**IDが無いと一番届けたい相手に
+届かない**うえ、Web Push も未購読なので代替経路も無い。**Phase 0〜2 はこれを待たずに進めてよい。**
 
 **決定済み**: 担当は**曜日で交代する当番表**（店舗＝担当者1人ではない）／通知は **Discord** ／
 エスカレーションは **Yusuke Uejima**、ただし担当が本人のときは **Ayako Nishimura**
