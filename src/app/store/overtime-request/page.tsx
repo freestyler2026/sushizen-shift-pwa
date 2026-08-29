@@ -36,6 +36,8 @@ type OTRequest = {
   ot_minutes: number;
   reason: string;
   status: "pending" | "manager_approved" | "paid" | "approved" | "rejected";
+  payroll_start?: string | null;
+  payroll_end?: string | null;
   reviewed_by: string;
   reviewed_at: string | null;
   review_note: string;
@@ -44,9 +46,9 @@ type OTRequest = {
 };
 
 function statusBadge(status: string) {
-  if (status === "paid")             return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Paid</span>;
+  if (status === "paid")             return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />In payroll</span>;
   if (status === "approved")         return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
-  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><Clock className="h-3 w-3" />Mgmt Confirmed</span>;
+  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><Clock className="h-3 w-3" />Approved</span>;
   if (status === "rejected")         return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Pending</span>;
 }
@@ -124,7 +126,11 @@ export default function OvertimeRequestPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || `Error ${res.status}`);
-      setRequests((data.requests ?? []).filter((r: OTRequest) => r.status !== "paid"));
+      // Paid requests used to be filtered out here, so overtime disappeared
+      // from the employee's own history at the exact moment it was secured —
+      // sixteen of them, with a "Paid" badge written below that could never
+      // render. This is the list they check against their payslip.
+      setRequests(data.requests ?? []);
     } catch (e) {
       setHistoryError(e instanceof Error ? e.message : "Failed to load history");
     } finally {
@@ -358,7 +364,18 @@ export default function OvertimeRequestPage() {
                       </span>
                     </p>
                     {r.status === "manager_approved" && (
-                      <p className="text-xs text-blue-300 border-t border-white/10 pt-2">✓ Direct management confirmed. Awaiting payroll processing.</p>
+                      <p className="text-xs text-blue-300 border-t border-white/10 pt-2">
+                        ✓ Approved by your manager. It has not been added to payroll yet.
+                      </p>
+                    )}
+                    {r.status === "paid" && (
+                      <p className="text-xs text-emerald-300 border-t border-white/10 pt-2">
+                        {/* Which payday. It is the only thing anyone wanted to know,
+                            and the screen could not answer it before. */}
+                        ✓ Added to payroll{r.payroll_start && r.payroll_end
+                          ? ` — paid in the ${r.payroll_start} – ${r.payroll_end} period`
+                          : ""}.
+                      </p>
                     )}
                     {r.review_note && (
                       <p className="text-xs text-white/50 border-t border-white/10 pt-2">Note: {r.review_note}</p>

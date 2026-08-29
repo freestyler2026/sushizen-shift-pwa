@@ -56,9 +56,11 @@ const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"
 const STAGE2_ROLES   = new Set(["ADMIN", "HQ"]);
 
 function statusBadge(status: string) {
-  if (status === "paid")             return <span className={BADGE_SUCCESS}><Banknote className="h-3 w-3" />Paid</span>;
+  if (status === "paid")             return <span className={BADGE_SUCCESS}><Banknote className="h-3 w-3" />In payroll</span>;
   if (status === "approved")         return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />Approved</span>;
-  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><UserCheck className="h-3 w-3" />Mgr Confirmed</span>;
+  // "Mgr Confirmed" did not say the part that matters: the hours are not in
+  // payroll yet and will not be paid until someone adds them.
+  if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><UserCheck className="h-3 w-3" />Approved · not in payroll</span>;
   if (status === "rejected")         return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Pending</span>;
 }
@@ -224,12 +226,12 @@ export default function AdminOvertimePage() {
   const paid            = requests.filter((r) => r.status === "paid" || r.status === "approved");
   const totalPaidMin    = paid.reduce((s, r) => s + r.ot_minutes, 0);
 
-  const modalTitle = modalAction === "manager_approve" ? "Confirm Direct Management Approval"
-    : modalAction === "mark_paid" ? "Mark as Paid (Payroll Processed)"
+  const modalTitle = modalAction === "manager_approve" ? "Approve this overtime"
+    : modalAction === "mark_paid" ? "Add this overtime to payroll"
     : "Reject OT Request";
 
-  const modalConfirmLabel = modalAction === "manager_approve" ? "Confirm Approval"
-    : modalAction === "mark_paid" ? "Mark Paid"
+  const modalConfirmLabel = modalAction === "manager_approve" ? "Approve"
+    : modalAction === "mark_paid" ? "Add to Payroll"
     : "Reject";
 
   const modalConfirmClass = modalAction === "reject"
@@ -268,16 +270,24 @@ export default function AdminOvertimePage() {
           </div>
         </div>
 
-        {/* Flow explanation */}
-        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-zinc-400 flex-wrap">
-          <span className="flex items-center gap-1 text-amber-300 font-medium"><Clock className="h-3 w-3" />Pending</span>
-          <span>→</span>
-          <span className="flex items-center gap-1 text-blue-300 font-medium"><UserCheck className="h-3 w-3" />Mgr Confirmed</span>
-          <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter / Ayako)</span>
-          <span>→</span>
-          <span className="flex items-center gap-1 text-green-300 font-medium"><Banknote className="h-3 w-3" />Paid</span>
-          <span className="text-zinc-600">(Yamada / Ayako)</span>
-          <span className="ml-auto text-zinc-500">Staff notified at each stage via Inbox</span>
+        {/* Flow explanation. The second step is the one that moves money, so it
+            says so — "Mark Paid" read like bookkeeping after the fact. */}
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-xs text-zinc-400 flex-wrap">
+            <span className="flex items-center gap-1 text-amber-300 font-medium"><Clock className="h-3 w-3" />Pending</span>
+            <span>→</span>
+            <span className="flex items-center gap-1 text-blue-300 font-medium"><UserCheck className="h-3 w-3" />Approved</span>
+            <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter / Ayako)</span>
+            <span>→</span>
+            <span className="flex items-center gap-1 text-green-300 font-medium"><Banknote className="h-3 w-3" />In payroll</span>
+            <span className="text-zinc-600">(Yamada / Ayako)</span>
+            <span className="ml-auto text-zinc-500">Staff notified at each step</span>
+          </div>
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            Approving does not pay anything. Overtime reaches payroll only when it is
+            added, and it lands in the period containing the work date — so it can be
+            approved as it comes in and added after the cut-off.
+          </p>
         </div>
 
         {/* KPI summary */}
@@ -327,7 +337,7 @@ export default function AdminOvertimePage() {
                 clearable={true}
                 options={[
                   { value: "pending",          label: "Pending (Stage 1)" },
-                  { value: "manager_approved", label: "Mgr Confirmed (Stage 2)" },
+                  { value: "manager_approved", label: "Approved · not in payroll" },
                   { value: "paid",             label: "Paid" },
                   { value: "rejected",         label: "Rejected" },
                 ]}
@@ -383,7 +393,7 @@ export default function AdminOvertimePage() {
                           onClick={() => openModal(r, "manager_approve")}
                           className="flex-1 rounded-xl border border-blue-500/30 bg-blue-900/20 px-3 py-2 text-xs font-semibold text-blue-300 hover:bg-blue-900/40 transition"
                         >
-                          Confirm (S1)
+                          Approve
                         </button>
                       )}
                       {r.status === "manager_approved" && canStage2 && (
@@ -391,7 +401,7 @@ export default function AdminOvertimePage() {
                           onClick={() => openModal(r, "mark_paid")}
                           className="flex-1 rounded-xl border border-green-500/30 bg-green-900/20 px-3 py-2 text-xs font-semibold text-green-300 hover:bg-green-900/40 transition"
                         >
-                          Mark Paid
+                          Add to Payroll
                         </button>
                       )}
                       {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (
@@ -454,7 +464,7 @@ export default function AdminOvertimePage() {
                                 onClick={() => openModal(r, "manager_approve")}
                                 className="rounded-lg border border-blue-500/30 bg-blue-900/20 px-2 py-1 text-xs text-blue-300 hover:bg-blue-900/40 transition whitespace-nowrap"
                               >
-                                Confirm (S1)
+                                Approve
                               </button>
                             )}
                             {r.status === "manager_approved" && canStage2 && (
@@ -462,7 +472,7 @@ export default function AdminOvertimePage() {
                                 onClick={() => openModal(r, "mark_paid")}
                                 className="rounded-lg border border-green-500/30 bg-green-900/20 px-2 py-1 text-xs text-green-300 hover:bg-green-900/40 transition whitespace-nowrap"
                               >
-                                Mark Paid
+                                Add to Payroll
                               </button>
                             )}
                             {(r.status === "pending" || r.status === "manager_approved") && canStage1 && (

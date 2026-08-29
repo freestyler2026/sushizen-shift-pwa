@@ -942,9 +942,15 @@ export default function DtrUploadPage() {
                 <div className="rounded-xl border border-violet-500/20 bg-violet-900/10 px-4 py-3 text-xs text-violet-300 flex items-start gap-2">
                   <Info size={13} className="mt-0.5 flex-none" />
                   <span>
-                    Approved OT requests from the OS Overtime page are listed below.
-                    Click <strong>Sync to DTR</strong> to write approved hours into each staff member&apos;s
-                    attendance record. OT is also auto-synced the moment it is approved.
+                    {/* This button used to pull in anything a manager had merely
+                        approved, while the automatic path counted only what had
+                        been added to payroll. One press moved 52.6 unapproved-for-
+                        payment hours into the run. Both now follow the same rule. */}
+                    Overtime that has been <strong>added to payroll</strong> on the Overtime page
+                    is listed below, and is written to each attendance record automatically.
+                    <strong> Re-sync</strong> only repairs a period whose records were rebuilt —
+                    it does not add anything new. Overtime that is approved but not yet
+                    added to payroll is not included.
                   </span>
                 </div>
 
@@ -993,7 +999,7 @@ export default function DtrUploadPage() {
                     {otSyncing
                       ? <Loader2 size={12} className="animate-spin"/>
                       : <Zap size={12}/>}
-                    Sync to DTR ({otApprovals.length} records)
+                    Re-sync to DTR ({otApprovals.length} records)
                   </button>
                 </div>
 
