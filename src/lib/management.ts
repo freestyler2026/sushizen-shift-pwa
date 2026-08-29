@@ -50,11 +50,20 @@ export function fillTemplate(message: string, context?: TaskContext | null): str
   });
 }
 
-/** Readable stand-ins for the placeholders we know about. */
+/** Readable stand-ins for the placeholders we know about.
+ *
+ *  An unfilled one is not cosmetic: the substitution happens here, in the
+ *  browser, and the result is stored as the message the manager keeps. When the
+ *  product-score template was rewritten around {count} and {summary}, the two
+ *  hundred tasks raised before it had neither key, and six went to TAFT reading
+ *  "{count} product(s) scored C or below today. {summary}". Anything named in a
+ *  template belongs here too. */
 const FALLBACKS: Record<string, string> = {
   item: "This item",
   staff_name: "A staff member",
   order_id: "A product",
+  count: "Some",
+  summary: "(details on the Back Office record)",
 };
 
 /** "Box12 Set — 30 / 80 pcs (37.5% of par)" for the shortfall types. */

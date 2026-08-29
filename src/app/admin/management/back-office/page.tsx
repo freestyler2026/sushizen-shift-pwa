@@ -970,11 +970,19 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
             <div className="text-xs text-amber-300 mt-0.5 tabular-nums truncate">{shortfall}</div>
           )}
           <div className="flex items-center gap-3 mt-0.5">
+            {/* manager_name is who the task is addressed to, not who answered
+                it. This read "Replied by: <name>" on every row — harmless while
+                almost no task had an addressee, and wrong on all of them once
+                the duty roster started filling it in. */}
             <span className={T_CAPTION}>
-              {task.manager_name ? (
-                <>Replied by: <span className="text-zinc-300">{task.manager_name}</span></>
+              {task.response ? (
+                <>Replied by: <span className="text-zinc-300">{task.manager_name || "the store"}</span></>
               ) : task.status === "open" ? (
-                <>Not sent yet</>
+                task.manager_name
+                  ? <>Not sent yet — goes to <span className="text-zinc-300">{task.manager_name}</span></>
+                  : <>Not sent yet</>
+              ) : task.manager_name ? (
+                <>Sent to <span className="text-zinc-300">{task.manager_name}</span> · awaiting reply</>
               ) : (
                 <>Awaiting the store’s reply</>
               )}
