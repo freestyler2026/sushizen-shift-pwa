@@ -179,3 +179,17 @@ BILLABLE のままなら needs_review として残す）。
 
 **仕様書: `docs/ai/handoff/nte-automation.md`**（Session 1 はここを読む。
 `docs/ai/CURRENT_TASKS.md` の先頭からリンク済み）
+
+## [2026-08-29] HQ Ayako / COE（在職・退職証明書）の発行機能
+理由: 新規テーブル＋新規ページ＋PDF生成。Session 2 の範囲外。
+      DOLE Labor Advisory 06-20 で請求から3日以内の発行義務があり優先度が高い。
+
+仕様書: `docs/ai/handoff/coe-issuance.md`
+       （`docs/ai/CURRENT_TASKS.md` の先頭からリンク済み）
+
+調査で判明:
+  役職      manila_staff_profiles.position       34/89名
+  入社日    official_hire_date                   58/89名
+  法人区分  7CZ / SUSHIZEN を持つ列が存在しない    0
+  入社日の自動推定は不可（打刻と一致するのは25%。空欄者の初出勤日は全員 2026-04-01
+  ＝勤怠収集の開始日であって入社日ではない）
