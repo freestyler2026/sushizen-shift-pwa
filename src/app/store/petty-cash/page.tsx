@@ -31,9 +31,13 @@ import { labelOf } from "@/lib/branches";
 // procurement, not petty cash. Names come from src/lib/branches.ts so a rename
 // lands here too; this page and the admin one each used to keep their own copy
 // of three stores, which is why Back Office could not be picked on either.
-const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO"] as const;
+const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO", "MGMT"] as const;
+// Management is not a place. It is where the managers who travel between
+// branches book that travel, so it is named here rather than in
+// src/lib/branches.ts, which lists rooms people actually work in.
+const MGMT_LABEL = "Management";
 const BRANCHES = PETTY_CASH_LOCATIONS.map((code) => ({
-  code, label: labelOf("manila", code),
+  code, label: code === "MGMT" ? MGMT_LABEL : labelOf("manila", code),
 }));
 
 const CATEGORIES = [

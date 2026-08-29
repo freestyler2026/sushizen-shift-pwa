@@ -28,10 +28,16 @@ import SelectDark from "@/components/SelectDark";
 
 // Must match the request form's list, or a location people can file against is
 // missing from the screen that reviews what they filed.
-const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO"] as const;
+const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO", "MGMT"] as const;
+// Management is not a place. It is where the managers who travel between
+// branches book that travel, so it is named here rather than in
+// src/lib/branches.ts, which lists rooms people actually work in.
+const MGMT_LABEL = "Management";
 const BRANCHES = [
   { code: "", label: "All branches" },
-  ...PETTY_CASH_LOCATIONS.map((code) => ({ code, label: labelOf("manila", code) })),
+  ...PETTY_CASH_LOCATIONS.map((code) => ({
+    code, label: code === "MGMT" ? MGMT_LABEL : labelOf("manila", code),
+  })),
 ];
 
 const CATEGORIES = [
