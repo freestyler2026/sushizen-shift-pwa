@@ -161,6 +161,48 @@ function getMissingFields(p: StaffProfileMin | undefined): string[] {
   return PAYROLL_REQUIRED.filter(f => !f.check(p)).map(f => f.label);
 }
 
+/** What the `quantity` on a line item is actually counting.
+ *
+ *  Every line printed "N day(s) × ₱rate" regardless. Seven of the eleven codes
+ *  that carry a quantity are not days: night differential, overtime, rest-day
+ *  and holiday premium are hours, late and undertime are minutes, and the
+ *  half-period basic is a fraction of a month. "2.5 day(s) × ₱103.35" for two
+ *  and a half hours of night differential is not a rounding quibble — it is the
+ *  wrong unit next to a peso figure on a payslip.
+ *
+ *  Taken from the quantity= arguments in manila_payroll_engine.py; keep the two
+ *  in step when a new item code is added. An unmapped code prints no unit at
+ *  all, which is honest, rather than guessing at one. */
+const ITEM_QTY_UNIT: Record<string, "hour" | "day" | "minute" | "fraction"> = {
+  // hourly_rate × hours
+  NIGHT_DIFF_REGULAR:            "hour",
+  NIGHT_DIFF_OT:                 "hour",
+  OT_PAY:                        "hour",
+  REST_DAY_PAY:                  "hour",
+  SPECIAL_HOLIDAY_PREM:          "hour",
+  SPECIAL_HOLIDAY_RESTDAY_PREM:  "hour",
+  REGULAR_HOLIDAY_WORKED_PREM:   "hour",
+  REGULAR_HOLIDAY_RESTDAY_PREM:  "hour",
+  // (hourly_rate ÷ 60) × minutes
+  LATE_DEDUCTION:                "minute",
+  UNDERTIME_DEDUCTION:           "minute",
+  // daily_rate × days
+  ABSENT_DEDUCTION:              "day",
+  SPECIAL_HOLIDAY_NWNP:          "day",
+  REGULAR_HOLIDAY_UNQUALIFIED:   "day",
+  MONTHLY_BASIC_PRORATED:        "day",
+  SIL_EARNED:                    "day",
+  // monthly_rate × 0.5 — half a cut-off, not half a day
+  MONTHLY_BASIC:                 "fraction",
+};
+
+function qtyUnitLabel(itemCode: string, quantity: number): string {
+  const u = ITEM_QTY_UNIT[itemCode];
+  if (!u || u === "fraction") return "";
+  const plural = Math.abs(quantity) === 1 ? "" : "s";
+  return u === "hour" ? ` hour${plural}` : u === "minute" ? ` minute${plural}` : ` day${plural}`;
+}
+
 const fmtPHP = (v: number | null | undefined) =>
   v == null ? "—" : "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -1361,7 +1403,10 @@ function PayslipDetail({
                         </div>
                         {item.quantity != null && item.unit_rate != null && (
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.quantity} day(s) × {canSeeSalary ? `₱${item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : "₱ ****"}
+                            {item.quantity}{qtyUnitLabel(item.item_code, item.quantity)} × {canSeeSalary ? `₱${item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : "₱ ****"}
+                            {ITEM_QTY_UNIT[item.item_code] === "fraction" ? (
+                              <span className="text-slate-600"> (half the cut-off)</span>
+                            ) : null}
                           </p>
                         )}
                         {item.note && (
