@@ -545,7 +545,24 @@ export default function AdminOvertimePage() {
             {modalAction === "manager_approve" && (
               <div className="flex items-start gap-2 rounded-lg border border-blue-800/40 bg-blue-950/20 p-3 text-xs text-blue-300">
                 <UserCheck className="h-4 w-4 shrink-0 mt-0.5" />
-                Confirming as direct management. Staff will be notified and the request will move to Stage 2 (payroll).
+                Approving does not pay anything. The hours reach payroll only when
+                someone adds them, which can be after the cut-off — they land in the
+                period containing the work date either way.
+              </div>
+            )}
+            {modalAction === "mark_paid" && (
+              <div className="flex items-start gap-2 rounded-lg border border-green-800/40 bg-green-950/20 p-3 text-xs text-green-300">
+                <Banknote className="h-4 w-4 shrink-0 mt-0.5" />
+                This puts the hours on the payslip for the period containing the work
+                date. It can be undone with Remove from Payroll while that period is
+                still open.
+              </div>
+            )}
+            {modalAction === "remove_from_payroll" && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-800/40 bg-amber-950/20 p-3 text-xs text-amber-300">
+                <Banknote className="h-4 w-4 shrink-0 mt-0.5" />
+                The hours come off the attendance record and the request goes back to
+                approved, so it can be added to a later period. The staff member is told.
               </div>
             )}
             <div>
