@@ -4,33 +4,41 @@ Last updated: 2026-08-29 (COE 発行 Phase 0/A/B 完了・本番稼働。Managem
 
 ---
 
-## 📥 Management Channel — 送信が誰にも届いていない — 未着手
+## 📥 Management Channel — 送信が誰にも届いていない — 未着手・着手可
 
-Session 2 から移送（2026-08-29）。仕様書:
-[docs/ai/handoff/management-channel-delivery.md](handoff/management-channel-delivery.md)（**着手前に必ず通読**）
+仕様書: [docs/ai/handoff/management-channel-delivery.md](handoff/management-channel-delivery.md)
+（**着手前に必ず通読**。実装順に並べてある。最初に読むのは冒頭3節でよい）
 
 **Send は誰にも送っていない。** status を `sent` にして `task_messages` に1行書くだけで、
 **宛先も通知も存在しない。** 308件中 `manager_name` が入っているのは1件（"Test Manager"）。
-BO が送った10件に返信は0件。マネージャーは自分でページを開き店舗を選ぶ以外に知る方法が無い。
+BO が送った10件に返信は0件。
 
-```
-1. 宛先を人にする＋未設定なら送信不可   ← これが無いと2〜5は動かない
-2. 本人宛の受信箱＋NavBar バッジ
-3. 送信時の通知（WhatsApp / Discord）
-4. BO 側に既読・回答の状態を出す
-5. 24時間無反応のエスカレーション
-```
+| Phase | 内容 | 状態 |
+|---|---|---|
+| **1** | 当番表で `manager_name` を埋める／宛先未設定なら Send 不可 | 未着手 |
+| **2** | 本人宛の受信箱＋NavBar バッジ | 未着手 |
+| **3** | Discord 通知 | 未着手 |
+| **4** | BO 側に既読・回答の状態 | 未着手 |
+| **5** | 24時間無反応のエスカレーション | 未着手 |
 
-**2026-08-29 に西村さんから回答**: 通知は **Discord**、エスカレーション先は **Yusuke Uejima**、
-担当は**曜日で交代する当番表**（店舗＝担当者1人ではない — 仕様書の表を見ること）。
-⚠️ 積み残し4点あり: `ALL` の担当未定 / Francis の休み判定 / **エスカレーションが Yusuke 本人に戻る** /
-**Yusuke・西村さんは `city='dubai'` 登録でマニラのタスクが見えない可能性**。
+**1と2だけで「送ったのに誰も見ない」は解消する。**
+
+**決定済み**: 担当は**曜日で交代する当番表**（店舗＝担当者1人ではない）／通知は **Discord** ／
+エスカレーションは **Yusuke Uejima**、ただし担当が本人のときは **Ayako Nishimura**
+（一般則として実装。名前2つの書き分けにすると当番表変更で輪が戻る）。
+
+⚠️ **`Yusuke Uejima` / `Yukihiro Nishimura` / `Ayako Nishimura` は `city='dubai'` 登録。**
+タスクは manila で受信箱は city で絞るため、**当番表を正しく作ってもこの3人の分だけ届かない**
+可能性がある。TAFT月曜・CUB/CKの火木土日・エスカレーション全件が該当。Impersonation で実機確認。
 
 **Session 2 で対応済み**: 宙に浮いていた90件をクリア（バックアップ
 `_management_tasks_backup_20260829`）。`sent_at=NULL` にしてあるのは、届いていない90件が
 Compliance Score の分母に残るとマネージャーの点を下げ続けるため。**実績に数えないこと。**
 
+**未確定2件（Phase 1・2 は止めない）**: `ALL` 系統の担当／「Francis が休んだら西村さん」の判定方法。
+
 ---
+
 
 ## ✅ COE（在職・退職証明書）の発行 — Phase A / B 完了（2026-08-29）
 
