@@ -193,3 +193,10 @@ BILLABLE のままなら needs_review として残す）。
   法人区分  7CZ / SUSHIZEN を持つ列が存在しない    0
   入社日の自動推定は不可（打刻と一致するのは25%。空欄者の初出勤日は全員 2026-04-01
   ＝勤怠収集の開始日であって入社日ではない）
+
+## [2026-08-29] 西村さん / Management Channel の Send が誰にも届いていない
+理由: 通知連携＋店舗マネージャー対応表の新設。Session 2 の範囲外。
+
+仕様書: `docs/ai/handoff/management-channel-delivery.md`
+
+Session 2 で対応済み: 宙に浮いた90件をクリア（`_management_tasks_backup_20260829` に退避）。

@@ -1,6 +1,29 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-29 (COE 発行を Session 2 から移送 — 未着手 / NTE は Phase 0〜C デプロイ済み)
+Last updated: 2026-08-29 (Management Channel の配信不達 と COE 発行を Session 2 から移送 — 未着手)
+
+---
+
+## 📥 Management Channel — 送信が誰にも届いていない — 未着手
+
+Session 2 から移送（2026-08-29）。仕様書:
+[docs/ai/handoff/management-channel-delivery.md](handoff/management-channel-delivery.md)（**着手前に必ず通読**）
+
+**Send は誰にも送っていない。** status を `sent` にして `task_messages` に1行書くだけで、
+**宛先も通知も存在しない。** 308件中 `manager_name` が入っているのは1件（"Test Manager"）。
+BO が送った10件に返信は0件。マネージャーは自分でページを開き店舗を選ぶ以外に知る方法が無い。
+
+```
+1. 宛先を人にする＋未設定なら送信不可   ← これが無いと2〜5は動かない
+2. 本人宛の受信箱＋NavBar バッジ
+3. 送信時の通知（WhatsApp / Discord）
+4. BO 側に既読・回答の状態を出す
+5. 24時間無反応のエスカレーション
+```
+
+**Session 2 で対応済み**: 宙に浮いていた90件をクリア（バックアップ
+`_management_tasks_backup_20260829`）。`sent_at=NULL` にしてあるのは、届いていない90件が
+Compliance Score の分母に残るとマネージャーの点を下げ続けるため。**実績に数えないこと。**
 
 ---
 
