@@ -144,6 +144,16 @@ type OtSyncResult = {
   total_ot_records: number;
   period_id: number;
   date_range: string;
+  /** Rows whose overtime was withdrawn because the request behind it is no
+   *  longer paid — named, so the reader can check it picked the right ones. */
+  cleared?: { staff_name: string; work_date: string; hours_removed: number }[];
+};
+
+type OtAwaiting = {
+  count: number;
+  hours: number;
+  date_range: string;
+  rows: { id: string; staff_name: string; branch_code: string; work_date: string; ot_minutes: number }[];
 };
 
 function manilaRowStatus(row: ManilaAttRow): string {
@@ -306,6 +316,7 @@ export default function DtrUploadPage() {
   const [otApprovalsLoading, setOtApprovalsLoading] = useState(false);
   const [otSyncing, setOtSyncing]           = useState(false);
   const [otSyncResult, setOtSyncResult]     = useState<OtSyncResult | null>(null);
+  const [otAwaiting, setOtAwaiting]         = useState<OtAwaiting | null>(null);
   const [otTabError, setOtTabError]         = useState("");
 
   const loadDtrRecords = useCallback(async (periodId: string) => {
@@ -396,6 +407,14 @@ export default function DtrUploadPage() {
     setOtApprovalsLoading(true);
     setOtTabError("");
     try {
+      // Approved but never added: the number that says how much of this period's
+      // overtime would go unpaid if nobody presses Add to Payroll.
+      void (async () => {
+        try {
+          const a = await apiFetch(`${API}/ot-awaiting-payroll?period_id=${periodId}`);
+          if (a.ok) setOtAwaiting(await a.json() as OtAwaiting);
+        } catch { /* the tab still works without it */ }
+      })();
       const r = await apiFetch(`${API}/ot-approvals?period_id=${periodId}`);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json() as OtApprovalRow[];
@@ -962,6 +981,49 @@ export default function DtrUploadPage() {
                 )}
 
                 {/* Sync result */}
+                {otAwaiting && otAwaiting.count > 0 && (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-900/15 px-4 py-3">
+                    <p className="text-sm font-semibold text-amber-200">
+                      {otAwaiting.count} approved overtime request{otAwaiting.count === 1 ? "" : "s"}
+                      {" "}({otAwaiting.hours}h) are not in this period&apos;s payroll
+                    </p>
+                    <p className="mt-1 text-xs text-amber-100/75">
+                      Approving does not pay anything. These will not appear on any payslip
+                      until someone presses <strong>Add to Payroll</strong> on the Overtime page —
+                      and the staff would find that out on payday.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-100/60">
+                      {otAwaiting.rows.slice(0, 8).map((r) => (
+                        <span key={r.id}>
+                          {r.work_date} · {r.staff_name} · {Math.floor(r.ot_minutes / 60)}h
+                          {String(r.ot_minutes % 60).padStart(2, "0")}m
+                        </span>
+                      ))}
+                      {otAwaiting.rows.length > 8 ? <span>+{otAwaiting.rows.length - 8} more</span> : null}
+                    </div>
+                  </div>
+                )}
+
+                {otSyncResult && otSyncResult.cleared && otSyncResult.cleared.length > 0 && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-900/15 px-4 py-3">
+                    <p className="text-sm font-semibold text-red-200">
+                      Removed overtime from {otSyncResult.cleared.length} attendance record
+                      {otSyncResult.cleared.length === 1 ? "" : "s"}
+                    </p>
+                    <p className="mt-1 text-xs text-red-100/75">
+                      The overtime request behind these was rejected or withdrawn, so the hours
+                      no longer belong on the payslip.
+                    </p>
+                    <div className="mt-2 flex flex-col gap-0.5 text-[11px] text-red-100/70">
+                      {otSyncResult.cleared.map((c) => (
+                        <span key={`${c.staff_name}-${c.work_date}`}>
+                          {c.work_date} · {c.staff_name} · −{c.hours_removed}h
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {otSyncResult && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-4 flex flex-wrap gap-6">
                     <div className="text-center">

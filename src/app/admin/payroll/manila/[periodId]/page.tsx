@@ -1606,7 +1606,36 @@ export default function ManilaPayrollPeriodPage() {
       }
     } catch { /* ignore check failure, proceed */ }
 
-    // 2. Check missing profile data
+    // 2. Overtime that was approved but never added to payroll.
+    //
+    // This is the last moment it can be caught. After the run is computed the
+    // number is fixed, and the person who worked those hours finds out on
+    // payday. A warning, not a block — computing without it is sometimes what
+    // the operator means to do, and refusing outright would be one more thing
+    // to work around.
+    try {
+      const a = await apiFetch(`${API}/ot-awaiting-payroll?period_id=${periodId}`);
+      if (a.ok) {
+        const w = await a.json() as {
+          count: number; hours: number;
+          rows: { staff_name: string; work_date: string }[];
+        };
+        if (w.count > 0) {
+          const who = w.rows.slice(0, 6)
+            .map(r => `  ${r.work_date}  ${r.staff_name}`).join("\n");
+          const more = w.rows.length > 6 ? `\n  …and ${w.rows.length - 6} more` : "";
+          const ok = window.confirm(
+            `${w.count} approved overtime request(s) — ${w.hours}h — are not in this ` +
+            `period's payroll.\n\n${who}${more}\n\n` +
+            `Approving does not pay anything. These will not appear on any payslip ` +
+            `until "Add to Payroll" is pressed on the Overtime page.\n\n` +
+            `Compute anyway?`);
+          if (!ok) return;
+        }
+      }
+    } catch { /* never block computing on this check failing */ }
+
+    // 3. Check missing profile data
     if (profiles.size > 0) {
       const missing: MissingEntry[] = runs
         .map(r => ({ staff_name: r.staff_name, missing: getMissingFields(profiles.get(r.staff_name)) }))
