@@ -158,6 +158,41 @@ Tricia は逆に、19日前に退職しているのにロールとログイン�
 `status='SEPARATED'` でロールを剥奪するため（2026-08-28 実装）、
 反映した瞬間にその人の権限が消える。**意図した動作だが、実行前に対象者を名前で確認すること**（教訓21）。
 
+### D-2. 承認者は5名。**当番表は権限に写さない** <span>確定</span>
+
+西村さんから提示されたのは、店舗ごと・曜日ごとの**当番表**である。
+
+```
+Taft        Francis（火〜日） / 月曜と Francis 休みは Ayako
+Paranaque   Richard（木・土・日） / 残りは Peter
+CK・Cubao   Richard（月・水・金） / Uejima（火・木・土・日）
+```
+
+**これを曜日ルールとして実装してはいけない。**当番表の目的は
+「いつでも誰かが対応できる」ことであり、曜日で承認者を縛ると、
+**シフトを交代した日に、実際に出ている人が承認できなくなる。**
+当番表が教えているのは<b>誰に権限を渡すか</b>であって、<b>いつ誰が使えるか</b>ではない。
+
+COE は法人単位の対外文書で、店舗業務ではない。**店舗スコープも付けない。**
+申請画面に対象者の所属を表示すれば、自然に担当者が拾う。強制はしない。
+
+付与対象（全員 ACTIVE を確認済み）:
+
+| 氏名 | 所属 | 現在の付与ロール |
+|---|---|---|
+| Ayako Nishimura | dubai / HQ | HQ |
+| Yusuke Uejima | dubai / HQ | HQ |
+| Peter Villafuerte | manila / BO | HR_MANAGER, MANILA_MANAGEMENT |
+| Richard S. Gante | manila / CUB | MANILA_MANAGEMENT, MANILA_MANAGER |
+| Francis Ibana | manila / CUB | MANILA_MANAGEMENT, MANILA_MANAGER |
+
+⚠️ **Francis は同名が2名いる。** `Francis Angelo Dizon`（PAR・STAFF・ロールなし）ではなく
+`Francis Ibana` と判断した。**付与前に確認すること。**取り違えると
+権限のないスタッフに対外文書の承認を渡すことになる。
+
+> この構成でも依頼の目的は達成される。Peter は**全件の発行**から
+> **Paranaque分の承認**に減り、作成は Camilla が行う。
+
 ### D. 承認者は既存ロールを流用しない
 
 `ADMIN` は `staff_auth.role` には**存在せず**、`staff_role_assignments` に11名いる（教訓25）。
@@ -218,7 +253,8 @@ COE は法的文書で、**間違った日付の証明書は無いより悪い**
 - 入社日の正を `official_hire_date` に決め、`staff_master.hired_at` を同期または表示専用にする
 - `hr_separation` → `staff_master`（`status` / 最終出社日）の反映を実装。
   **`last_working_date <= 今日` で発火**。既存2名のうち Tricia のみが対象
-- SEPARATED 4名の最終出社日を `hr_separation` に登録（HR に確認が要る）
+- ~~SEPARATED 4名の最終出社日を登録~~ → **この4名はスキップする**（HRマネージャーが別途対応）。
+  COE 側は「最終出社日が無い退職者は発行を拒否し、名指しする」だけでよい
 
 ### Phase A — 項目を持てるようにする
 - **法人区分の列を追加**。置き場は `staff_master.company`（両都市を含む名簿なので、
@@ -272,10 +308,9 @@ COE は法的文書で、**間違った日付の証明書は無いより悪い**
 
 ## 実装前に西村さんに確認すること
 
-1. ~~承認者の範囲~~ → **上記 D**。COE 専用の権限キーを作る方針。
-   **付与する人を名前で決める必要がある。**
+1. ~~承認者の範囲~~ → **上記 D-2** で5名に確定。曜日ルールは実装しない。
+   **ただし Francis の同名2名の確認だけ残っている。**
 2. **一括入力を誰にやらせるか**（役職55名・入社日31名。契約書・201ファイルが要る）。
-   Camilla（COE の運用者）か Marithel（BIR 記録の保管担当）が候補。
+   Camilla（COE の運用者）か Marithel（BIR 記録の保管担当）が候補。**唯一の未決事項。**
 3. ~~署名者名~~ → **上記 E**。発行ごとに選択（既定値あり）で確定。
-4. **SEPARATED 4名の最終出社日**（Anna Rose Quimno / Christian Jhay Ibuan Tibar /
-   Jason Mark Fabillar / Rommel Bernardo）。HR に記録があるか。無ければ COE を出せない。
+4. ~~SEPARATED 4名の最終出社日~~ → **スキップ確定**（HRマネージャーが別途対応）。
