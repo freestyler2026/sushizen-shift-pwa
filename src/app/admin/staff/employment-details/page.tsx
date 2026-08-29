@@ -99,7 +99,7 @@ export default function EmploymentDetailsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as any)?.detail || `HTTP ${res.status}`);
-      setMsg({ kind: "ok", text: `${r.staff_name} を保存しました。` });
+      setMsg({ kind: "ok", text: `Saved ${r.staff_name}.` });
       setDraft((p) => {
         const n = { ...p };
         delete n[r.staff_name];
@@ -128,9 +128,9 @@ export default function EmploymentDetailsPage() {
           <FileText className="h-5 w-5 text-sky-400" />
         </div>
         <div>
-          <h1 className={T_PAGE_TITLE}>Employment Details — 未入力の一覧</h1>
+          <h1 className={T_PAGE_TITLE}>Employment Details — what is still missing</h1>
           <p className={T_CAPTION}>
-            在職証明書（COE）に印字される項目です。契約書を見ながら、埋められる人から埋めてください。
+            These three fields are printed on a Certificate of Employment. Fill them in from the contract, whoever you can.
           </p>
         </div>
       </div>
@@ -139,11 +139,12 @@ export default function EmploymentDetailsPage() {
           source is the failure this whole feature exists to avoid. */}
       <div className={`${GLASS_CARD} p-4`}>
         <p className="text-[13px] text-neutral-300">
-          <b>全部を今日埋める必要はありません。</b>契約書で確認できた人だけ保存してください。
-          分からない入社日を推測で入れると、その値がそのまま証明書に印字されます。
+          <b>You do not have to finish this today.</b> Save only the people you could
+          confirm against a contract. A hire date you guessed is printed on the
+          certificate exactly as typed.
           <span className="text-neutral-400">
             {" "}
-            未入力のままでも支障はなく、COE を発行しようとした時点で「何が足りないか」が表示されます。
+            Leaving a row blank breaks nothing — the COE screen names what is missing when someone tries to issue one.
           </span>
         </p>
       </div>
@@ -151,10 +152,10 @@ export default function EmploymentDetailsPage() {
       {summary ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            ["未入力の人数", summary.total],
-            ["役職なし", summary.missing_position],
-            ["入社日なし", summary.missing_hire_date],
-            ["法人なし", summary.missing_company],
+            ["People with gaps", summary.total],
+            ["No position", summary.missing_position],
+            ["No hire date", summary.missing_hire_date],
+            ["No company", summary.missing_company],
           ].map(([label, n]) => (
             <div key={String(label)} className={`${GLASS_CARD} p-4`}>
               <div className={T_CAPTION}>{label}</div>
@@ -178,7 +179,7 @@ export default function EmploymentDetailsPage() {
 
       <div className={`${GLASS_CARD} space-y-4 p-5`}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={T_SECTION}>店舗</span>
+          <span className={T_SECTION}>Branch</span>
           {branches.map((b) => {
             const n = (rows ?? []).filter((r) => (r.branch_code || "?") === b).length;
             return (
@@ -199,10 +200,10 @@ export default function EmploymentDetailsPage() {
         </div>
 
         {loading && rows === null ? (
-          <p className={`${T_CAPTION} py-8 text-center`}>読み込み中…</p>
+          <p className={`${T_CAPTION} py-8 text-center`}>Loading…</p>
         ) : shown.length === 0 ? (
           <p className={`${T_CAPTION} py-8 text-center`}>
-            この店舗の未入力はありません。
+            Nothing missing at this branch.
           </p>
         ) : (
           <div className="space-y-3">
@@ -232,7 +233,7 @@ export default function EmploymentDetailsPage() {
                       className={`${PRIMARY_BUTTON} flex items-center gap-1.5 text-xs disabled:opacity-40`}
                     >
                       <Check className="h-3.5 w-3.5" />
-                      {savingFor === r.staff_name ? "保存中…" : "保存"}
+                      {savingFor === r.staff_name ? "Saving…" : "Save"}
                     </button>
                   </div>
 
@@ -242,7 +243,7 @@ export default function EmploymentDetailsPage() {
                       <input
                         value={d.position ?? r.position}
                         onChange={(e) => set(r.staff_name, { position: e.target.value })}
-                        placeholder={r.position ? "" : "未入力"}
+                        placeholder={r.position ? "" : "Not on record"}
                         className={INPUT_CLASS}
                       />
                     </div>
@@ -257,7 +258,7 @@ export default function EmploymentDetailsPage() {
                       />
                       {r.roster_hire_date && r.roster_hire_date !== r.hire_date ? (
                         <p className="mt-1 text-[11px] text-amber-300/80">
-                          名簿側は {r.roster_hire_date}。保存すると両方が揃います。
+                          The roster says {r.roster_hire_date}. Saving lines both up.
                         </p>
                       ) : null}
                     </div>
@@ -268,7 +269,7 @@ export default function EmploymentDetailsPage() {
                         onChange={(v) => set(r.staff_name, { company: v })}
                         className={SELECT_CLASS}
                         options={[
-                          { value: "", label: "— 未選択 —" },
+                          { value: "", label: "— Not set —" },
                           { value: "SUSHIZEN", label: "SUSHIZEN" },
                           { value: "7CZ", label: "7CZ ANGEL CORP." },
                         ]}
