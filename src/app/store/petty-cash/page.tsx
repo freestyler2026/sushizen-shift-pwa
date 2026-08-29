@@ -22,14 +22,19 @@ import {
   T_LABEL,
   T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
+import { labelOf } from "@/lib/branches";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRANCHES = [
-  { code: "PAR",  label: "Paranaque" },
-  { code: "CUB",  label: "Cubao" },
-  { code: "TAFT", label: "Taft" },
-];
+// Where petty cash may be spent. Listed deliberately rather than taken from the
+// whole manila list, which also holds CK and the warehouse — those buy through
+// procurement, not petty cash. Names come from src/lib/branches.ts so a rename
+// lands here too; this page and the admin one each used to keep their own copy
+// of three stores, which is why Back Office could not be picked on either.
+const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO"] as const;
+const BRANCHES = PETTY_CASH_LOCATIONS.map((code) => ({
+  code, label: labelOf("manila", code),
+}));
 
 const CATEGORIES = [
   "Cleaning Supplies",
@@ -246,7 +251,7 @@ export default function PettyCashPage() {
   const auth = getAuth();
 
   // Form state
-  const [branch, setBranch]       = useState(BRANCHES[0].code);
+  const [branch, setBranch]       = useState<string>(BRANCHES[0].code);
   const [staffName, setStaffName] = useState(auth?.staffName || "");
   const [category, setCategory]   = useState(CATEGORIES[0]);
   const [amount, setAmount]       = useState("");

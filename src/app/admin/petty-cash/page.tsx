@@ -21,15 +21,17 @@ import {
   TAB_ACTIVE,
   TAB_INACTIVE,
 } from "@/lib/ui-tokens";
+import { labelOf } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// Must match the request form's list, or a location people can file against is
+// missing from the screen that reviews what they filed.
+const PETTY_CASH_LOCATIONS = ["PAR", "CUB", "TAFT", "BO"] as const;
 const BRANCHES = [
   { code: "", label: "All branches" },
-  { code: "PAR",  label: "Paranaque" },
-  { code: "CUB",  label: "Cubao" },
-  { code: "TAFT", label: "Taft" },
+  ...PETTY_CASH_LOCATIONS.map((code) => ({ code, label: labelOf("manila", code) })),
 ];
 
 const CATEGORIES = [
