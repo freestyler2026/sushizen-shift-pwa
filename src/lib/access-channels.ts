@@ -29,6 +29,7 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/admin/cash-management", { channel: "admin.cash_management", match: "prefix", admin: true }],
   ["/admin/ck-label-compliance", { channel: "admin.ck_label_compliance", match: "prefix", admin: true }],
   ["/admin/ck/par-levels", { channel: "admin.ck_par_levels", match: "prefix", admin: true }],
+  ["/admin/coe", { channel: "admin.coe", match: "prefix", admin: true }],
   ["/admin/cold-chain", { channel: "admin.cold_chain", match: "prefix", admin: true }],
   ["/admin/cost-calculation", { channel: "admin.cost_calculation", match: "prefix", admin: true }],
   ["/admin/daily-check", { channel: "admin.daily_check", match: "prefix", admin: true }],

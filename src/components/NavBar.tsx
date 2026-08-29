@@ -246,6 +246,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" },
+  { href: "/admin/coe", label: "Certificate of Employment", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/nte", label: "NTE Management", icon: ShieldAlert, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
@@ -423,6 +424,9 @@ export default function NavBar() {
     if (href === "/admin/meal-allowance") return canAccessMealAllowanceAdmin(auth);
     if (href === "/admin/probation") return canAccessProbationAdmin(auth);
     if (href === "/admin/employee-cases") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/employee-cases", auth);
+    // Preparing a request is HR work; issuing needs channel.admin.coe.approve,
+    // which the API enforces. Seeing the page is not the same as signing one.
+    if (href === "/admin/coe") return ["HQ", "ADMIN", "HR_MANAGER"].includes(role) || channelAccessForRoute("/admin/coe", auth);
     if (href === "/admin/nte") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/nte", auth);
     if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/recruitment", auth);
     if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role) || channelAccessForRoute("/admin/hr/onboarding", auth);
