@@ -47,6 +47,7 @@
 | Inventory系ページ（Items / Count Templates / Recipes / POS Sync / Hub / Productions / CK・WH Inventory / Daily Inventory / Disposal / Backup / Full Count / Spot Check / Transfers / Qty・Cost Adj / Ledger） | **Inventory Manual** | `docs/manuals/inventory-manual.html` |
 | Procurement系ページ（**Store Supplier Orders** / Approval Inbox / CK Orders / POs / Invoices / Payments / Vendors / Scorecards / Risk Lab / KPI / Exceptions / Cold Chain / Delivery Schedule / Whitelist / Catalog / Receiving / Evaluation） | **Procurement Manual** | `docs/manuals/procurement-manual.html` |
 | Payroll系ページ（Manila Payroll / Dubai Payroll / Adjustments / Transactions / Loans / Leave Salary / Staff Profiles / Gov Tables / DTR Upload / Allowances / Remittances / My Pay / Inquiries） | **Payroll Manual** | `docs/manuals/payroll-manual.html` |
+| 残業（**Overtime Requests** / Add to Payroll / DTR の OT 同期 / 未加算警告） | **Overtime to Payroll** | `docs/manuals/overtime-manual.html` |
 | Store Operation Management Channel（BO Dashboard / Manager Inbox / Exception Templates / Pattern Detection / Area Manager Review） | **Management Channel Manual** | `docs/manuals/management-channel-manual.html` |
 | Management Channel の**配信**（当番表 / 送信ガード / Discord通知 / エスカレーション / 送信量の決め方） | **Management Channel Delivery** | `docs/manuals/management-channel-delivery-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
@@ -72,6 +73,11 @@
    - file_path: docs/manuals/payroll-manual.html
    - url: https://claude.ai/code/artifact/8f872423-b304-402b-9125-29666285a6ce   ← Payroll Manual
    - favicon: 💰
+
+   - file_path: docs/manuals/overtime-manual.html
+   - url: https://claude.ai/code/artifact/eb8926ea-2755-4b3a-a946-543b137cc823   ← Overtime to Payroll
+   - favicon: ⏱️
+   ※ 申請→Approve→Add to Payroll→給与計算の流れ専用。Payroll Manual とは役割が別。
 
    - file_path: docs/manuals/management-channel-manual.html
    - url: https://claude.ai/code/artifact/5dbc366b-bd8e-4aca-80bd-763f8ddbe9e3   ← Management Channel Manual

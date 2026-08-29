@@ -1,0 +1,698 @@
+<title>Sushi ZEN — Overtime to Payroll</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0D1220; --surface: #162035; --surface2: #1E2D47; --border: #273A57;
+  --accent: #34D399; --accent-dim: rgba(52,211,153,0.12); --accent-glow: rgba(52,211,153,0.28);
+  --text: #E2E8F0; --muted: #7A90AA;
+  --red: #F87171; --red-dim: rgba(248,113,113,0.12); --red-border: rgba(248,113,113,0.35);
+  --orange: #FB923C; --orange-dim: rgba(251,146,60,0.12); --orange-border: rgba(251,146,60,0.35);
+  --green: #34D399; --green-dim: rgba(52,211,153,0.12); --green-border: rgba(52,211,153,0.35);
+  --blue: #60A5FA; --blue-dim: rgba(96,165,250,0.12); --blue-border: rgba(96,165,250,0.3);
+  --sidebar-w: 250px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1220; --surface: #162035; --surface2: #1E2D47; --border: #273A57;
+    --text: #E2E8F0; --muted: #7A90AA; --accent: #34D399;
+    --accent-dim: rgba(52,211,153,0.12); --accent-glow: rgba(52,211,153,0.28);
+    --red: #F87171; --red-dim: rgba(248,113,113,0.12); --red-border: rgba(248,113,113,0.35);
+    --orange: #FB923C; --orange-dim: rgba(251,146,60,0.12); --orange-border: rgba(251,146,60,0.35);
+    --green: #34D399; --green-dim: rgba(52,211,153,0.12); --green-border: rgba(52,211,153,0.35);
+    --blue: #60A5FA; --blue-dim: rgba(96,165,250,0.12); --blue-border: rgba(96,165,250,0.3);
+  }
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #EDF3F1; --surface: #FFFFFF; --surface2: #F1F6F4; --border: #C7D8D2;
+    --text: #14251F; --muted: #4E6660; --accent: #047857;
+    --accent-dim: rgba(4,120,87,0.09); --accent-glow: rgba(4,120,87,0.22);
+    --red: #DC2626; --red-dim: rgba(220,38,38,0.08); --red-border: rgba(220,38,38,0.3);
+    --orange: #C2410C; --orange-dim: rgba(194,65,12,0.08); --orange-border: rgba(194,65,12,0.3);
+    --green: #047857; --green-dim: rgba(4,120,87,0.09); --green-border: rgba(4,120,87,0.3);
+    --blue: #1D4ED8; --blue-dim: rgba(29,78,216,0.08); --blue-border: rgba(29,78,216,0.28);
+  }
+}
+:root[data-theme="dark"]  { --bg:#0D1220; --surface:#162035; --surface2:#1E2D47; --border:#273A57; --text:#E2E8F0; --muted:#7A90AA; --accent:#34D399; --accent-dim:rgba(52,211,153,0.12); --accent-glow:rgba(52,211,153,0.28); --red:#F87171; --red-dim:rgba(248,113,113,0.12); --red-border:rgba(248,113,113,0.35); --orange:#FB923C; --orange-dim:rgba(251,146,60,0.12); --orange-border:rgba(251,146,60,0.35); --green:#34D399; --green-dim:rgba(52,211,153,0.12); --green-border:rgba(52,211,153,0.35); --blue:#60A5FA; --blue-dim:rgba(96,165,250,0.12); --blue-border:rgba(96,165,250,0.3); }
+:root[data-theme="light"] { --bg:#EDF3F1; --surface:#FFFFFF; --surface2:#F1F6F4; --border:#C7D8D2; --text:#14251F; --muted:#4E6660; --accent:#047857; --accent-dim:rgba(4,120,87,0.09); --accent-glow:rgba(4,120,87,0.22); --red:#DC2626; --red-dim:rgba(220,38,38,0.08); --red-border:rgba(220,38,38,0.3); --orange:#C2410C; --orange-dim:rgba(194,65,12,0.08); --orange-border:rgba(194,65,12,0.3); --green:#047857; --green-dim:rgba(4,120,87,0.09); --green-border:rgba(4,120,87,0.3); --blue:#1D4ED8; --blue-dim:rgba(29,78,216,0.08); --blue-border:rgba(29,78,216,0.28); }
+
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.72; font-size: 14px; }
+body.en .ja { display: none; }
+body.en .en { display: block; }
+body:not(.en) .en { display: none; }
+body:not(.en) .ja { display: block; }
+.en, .ja { display: block; }
+span.en, span.ja { display: inline; }
+
+.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 calc(var(--sidebar-w) + 20px); }
+.topbar-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.lang-toggle { display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--surface2); }
+.lang-btn { padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--muted); }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+.sidebar { position: fixed; top: 52px; left: 0; bottom: 0; width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 0 40px; }
+.sidebar-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .10em; text-transform: uppercase; padding: 14px 16px 4px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 16px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 500; border-left: 3px solid transparent; }
+.nav-item:hover { color: var(--text); background: var(--accent-dim); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+.nav-icon { font-size: 13px; flex-shrink: 0; }
+
+.main { margin-left: var(--sidebar-w); margin-top: 52px; padding: 36px 40px 100px; max-width: 900px; }
+.section { display: none; }
+.section.active { display: block; }
+@media (max-width: 820px) {
+  .sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .topbar { padding-left: 20px; position: static; }
+  .main { margin-left: 0; margin-top: 0; padding: 24px 18px 80px; }
+}
+
+.hero-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 26px; }
+.hero-icon { width: 52px; height: 52px; border-radius: 12px; background: var(--accent-dim); border: 1px solid var(--accent-glow); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.section-title { font-size: 22px; font-weight: 700; color: var(--text); text-wrap: balance; }
+.section-path { font-size: 11px; color: var(--accent); font-family: 'SF Mono', 'Fira Code', monospace; margin-top: 2px; letter-spacing: .04em; }
+.section-desc { font-size: 13px; color: var(--muted); margin-top: 5px; }
+
+.headline { background: linear-gradient(135deg, var(--accent-dim) 0%, rgba(96,165,250,0.06) 100%); border: 1px solid var(--accent-glow); border-radius: 12px; padding: 20px 24px; margin-bottom: 22px; }
+.headline-quote { font-size: 16px; font-weight: 700; color: var(--accent); line-height: 1.55; }
+.headline-sub { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); margin-bottom: 10px; }
+.card.red-border { border-color: var(--red-border); }
+.card.green-border { border-color: var(--green-border); }
+.card.blue-border { border-color: var(--blue-border); }
+.card p { font-size: 13px; color: var(--muted); }
+.card p + p { margin-top: 9px; }
+.card p strong, li strong, td strong { color: var(--text); }
+
+.flow { display: flex; flex-direction: column; gap: 3px; margin: 16px 0; }
+.flow-row { display: flex; gap: 10px; }
+.flow-num { width: 26px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; font-size: 11px; font-weight: 800; color: var(--accent); padding-top: 13px; }
+.flow-box { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--surface2); }
+.flow-box.pay { border-color: var(--green-border); background: var(--green-dim); }
+.flow-box.hold { border-color: var(--blue-border); background: var(--blue-dim); }
+.flow-who { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.flow-name { font-size: 13px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.flow-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.flow-arrow { padding-left: 38px; color: var(--muted); font-size: 13px; height: 16px; }
+
+.steps { list-style: none; }
+.step { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.step:last-child { border-bottom: none; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.step-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.step-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.tbl-wrap { overflow-x: auto; margin: 12px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 440px; }
+th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--muted); font-weight: 700; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.muted { color: var(--muted); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: var(--surface2); color: var(--text); white-space: nowrap; }
+.pill.amber { background: var(--orange-dim); color: var(--orange); border-color: var(--orange-border); }
+.pill.blue  { background: var(--blue-dim);  color: var(--blue);  border-color: var(--blue-border); }
+.pill.green { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+.pill.red   { background: var(--red-dim);   color: var(--red);   border-color: var(--red-border); }
+
+.tip { display: flex; gap: 10px; border-radius: 8px; padding: 12px 15px; margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+.tip.info    { background: var(--blue-dim);   border: 1px solid var(--blue-border); }
+.tip.warn    { background: var(--orange-dim); border: 1px solid var(--orange-border); }
+.tip.success { background: var(--green-dim);  border: 1px solid var(--green-border); }
+.tip.danger  { background: var(--red-dim);    border: 1px solid var(--red-border); }
+.tip-icon { flex-shrink: 0; font-size: 15px; }
+.tip strong { color: var(--text); }
+
+.mock { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 12px 0; background: var(--surface); }
+.mock-head { background: var(--surface2); padding: 9px 14px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+.mock-body { padding: 14px; }
+.mock-warn { border-radius: 7px; padding: 10px 13px; font-size: 12px; margin-bottom: 10px; }
+.mock-warn.amber { background: var(--orange-dim); border: 1px solid var(--orange-border); color: var(--orange); }
+.mock-warn b { display: block; margin-bottom: 3px; }
+.mock-btn { display: inline-block; padding: 7px 15px; border-radius: 7px; font-size: 12px; font-weight: 700; background: var(--accent); color: #fff; }
+.mock-btn.ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11.5px; background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--blue); }
+pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11.5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--text); margin: 10px 0; line-height: 1.6; }
+ul.plain { list-style: none; margin-top: 8px; }
+ul.plain li { font-size: 12.5px; color: var(--muted); padding: 5px 0 5px 18px; position: relative; }
+ul.plain li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
+h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8px; }
+</style>
+
+<div class="topbar">
+  <div class="topbar-title">Overtime → Payroll</div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">JP</button>
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+  </div>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label"><span class="ja">まず読む</span><span class="en">Start here</span></div>
+  <div class="nav-item active" onclick="show('changed')">
+    <span class="nav-icon">🔄</span><span class="ja">何が変わったか</span><span class="en">What changed</span>
+  </div>
+  <div class="nav-item" onclick="show('flow')">
+    <span class="nav-icon">🔁</span><span class="ja">OT が給与に届くまで</span><span class="en">How overtime reaches payroll</span>
+  </div>
+  <div class="nav-item" onclick="show('status')">
+    <span class="nav-icon">🏷️</span><span class="ja">状態の読み方</span><span class="en">Reading the status</span>
+  </div>
+  <div class="sidebar-label"><span class="ja">役割ごと</span><span class="en">By role</span></div>
+  <div class="nav-item" onclick="show('staff')">
+    <span class="nav-icon">🙋</span><span class="ja">スタッフ</span><span class="en">Staff</span>
+  </div>
+  <div class="nav-item" onclick="show('manager')">
+    <span class="nav-icon">✅</span><span class="ja">店舗マネージャー</span><span class="en">Store manager</span>
+  </div>
+  <div class="nav-item" onclick="show('payroll')">
+    <span class="nav-icon">💰</span><span class="ja">給与担当 / HQ</span><span class="en">Payroll / HQ</span>
+  </div>
+  <div class="sidebar-label"><span class="ja">その他</span><span class="en">Reference</span></div>
+  <div class="nav-item" onclick="show('trouble')">
+    <span class="nav-icon">🛠️</span><span class="ja">困ったとき</span><span class="en">When something looks wrong</span>
+  </div>
+  <div class="nav-item" onclick="show('inside')">
+    <span class="nav-icon">⚙️</span><span class="ja">仕組み</span><span class="en">How it works inside</span>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- ═══════════ WHAT CHANGED ═══════════ -->
+<div class="section active" id="section-changed">
+  <div class="hero-header">
+    <div class="hero-icon">🔄</div>
+    <div>
+      <div class="section-title"><span class="ja">何が変わったか</span><span class="en">What changed</span></div>
+      <div class="section-path">2026-08-29</div>
+      <div class="section-desc">
+        <span class="ja">Bayzat と同じ考え方に戻しました。動きは元から近かったのですが、画面の言葉がそう見えていませんでした。</span>
+        <span class="en">Back to the way Bayzat worked. The behaviour was already close — the words on the screen did not say so.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="headline">
+    <div class="headline-quote">
+      <span class="ja">承認しただけでは、給与には入りません。</span>
+      <span class="en">Approving does not put anything in payroll.</span>
+    </div>
+    <div class="headline-sub">
+      <span class="ja">OT が明細に載るのは、誰かが <strong>Add to Payroll</strong> を押したときだけです。だから「その場で承認して、カットオフ後にまとめて給与へ入れる」ができます。</span>
+      <span class="en">Overtime reaches a payslip only when someone presses <strong>Add to Payroll</strong>. That is what makes "approve as it comes in, add after the cut-off" possible.</span>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th></th>
+        <th><span class="ja">これまで</span><span class="en">Before</span></th>
+        <th><span class="ja">これから</span><span class="en">Now</span></th>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">1段目</span><span class="en">Step 1</span></strong></td>
+        <td class="muted">Confirm (S1)</td>
+        <td><span class="pill blue">Approve</span></td>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">2段目</span><span class="en">Step 2</span></strong></td>
+        <td class="muted">Mark Paid</td>
+        <td><span class="pill green">Add to Payroll</span></td>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">承認後の状態</span><span class="en">After approval</span></strong></td>
+        <td class="muted">Mgr Confirmed</td>
+        <td><span class="pill blue">Approved · not in payroll</span></td>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">取り消し</span><span class="en">Undo</span></strong></td>
+        <td class="muted"><span class="ja">できなかった</span><span class="en">Not possible</span></td>
+        <td><span class="pill amber">Remove from Payroll</span></td>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">スタッフの履歴</span><span class="en">Staff history</span></strong></td>
+        <td class="muted"><span class="ja">給与に入ると<strong>消えた</strong></span><span class="en"><strong>Disappeared</strong> once in payroll</span></td>
+        <td><span class="ja">残る＋<strong>支払われる期間</strong>を表示</span><span class="en">Stays, and <strong>names the payday period</strong></span></td>
+      </tr>
+      <tr>
+        <td><strong><span class="ja">押し忘れ</span><span class="en">Forgetting</span></strong></td>
+        <td class="muted"><span class="ja">気づく手段なし</span><span class="en">Nothing showed it</span></td>
+        <td><span class="ja">2か所で警告</span><span class="en">Warned in two places</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title"><span class="ja">直した不具合</span><span class="en">Defects fixed</span></div>
+    <ul class="plain">
+      <li><span class="ja"><strong>給与に入った OT がスタッフの履歴から消えていました。</strong>16件が該当。稼いだ本人が、確定した瞬間に見られなくなっていました。</span>
+          <span class="en"><strong>Overtime vanished from the employee's own history once it was in payroll</strong> — sixteen of them. It disappeared from the person who earned it at the moment it was secured.</span></li>
+      <li><span class="ja"><strong>却下したのに時間が残っていた行が2件</strong>（計2.5時間）。そのままなら支払われていました。削除済みです。</span>
+          <span class="en"><strong>Two records kept their hours after the request was rejected</strong> — 2.5 hours that would have been paid. Removed.</span></li>
+      <li><span class="ja"><strong>給与期間の無い日に「給与に追加しました」と通知が飛んでいました。</strong>実際には何も書かれていませんでした。今は拒否します。</span>
+          <span class="en"><strong>Adding overtime for a date with no payroll period told the employee it had been added</strong> when nothing was written. It now refuses.</span></li>
+      <li><span class="ja"><strong>一括同期ボタンが承認済みまで取り込んでいました。</strong>1回押すと52.6時間が入る状態でした。</span>
+          <span class="en"><strong>The bulk sync button pulled in merely-approved overtime</strong> — one press would have added 52.6 hours.</span></li>
+      <li><span class="ja"><strong>給与に入れた後、取り消す方法がありませんでした。</strong>勤怠を手で直しても次の同期で書き戻されていました。</span>
+          <span class="en"><strong>There was no way back once overtime was in payroll.</strong> Correcting the attendance record by hand was undone by the next sync.</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════ FLOW ═══════════ -->
+<div class="section" id="section-flow">
+  <div class="hero-header">
+    <div class="hero-icon">🔁</div>
+    <div>
+      <div class="section-title"><span class="ja">OT が給与に届くまで</span><span class="en">How overtime reaches payroll</span></div>
+      <div class="section-desc">
+        <span class="ja">4段階です。3段目までは、まだお金は動きません。</span>
+        <span class="en">Four steps. Nothing moves money until the third.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-num">1</div>
+      <div class="flow-box">
+        <div class="flow-who"><span class="ja">スタッフ</span><span class="en">Staff</span></div>
+        <div class="flow-name"><span class="ja">OT を申請する</span><span class="en">Submit the overtime</span></div>
+        <div class="flow-desc"><span class="ja">Overtime Request から、日付・時間・理由を入力します。事前（Pre）でも事後（Post）でも構いません。</span>
+          <span class="en">On the Overtime Request page: date, hours, reason. Before the shift (Pre) or after it (Post) are both fine.</span></div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">2</div>
+      <div class="flow-box hold">
+        <div class="flow-who"><span class="ja">店舗マネージャー</span><span class="en">Store manager</span></div>
+        <div class="flow-name">Approve</div>
+        <div class="flow-desc"><span class="ja">その残業が実際にあったかを確認します。<strong>ここではまだ給与に入りません。</strong>状態は <span class="pill blue">Approved · not in payroll</span> になります。</span>
+          <span class="en">Confirms the overtime really happened. <strong>Nothing enters payroll here.</strong> The status becomes <span class="pill blue">Approved · not in payroll</span>.</span></div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">3</div>
+      <div class="flow-box pay">
+        <div class="flow-who"><span class="ja">給与担当 / HQ</span><span class="en">Payroll / HQ</span></div>
+        <div class="flow-name">Add to Payroll</div>
+        <div class="flow-desc"><span class="ja"><strong>ここで初めて給与に入ります。</strong>勤怠記録に時間が書き込まれ、状態は <span class="pill green">In payroll</span> に。スタッフには「どの期間で支払われるか」が通知されます。</span>
+          <span class="en"><strong>This is where it enters payroll.</strong> The hours are written to the attendance record, the status becomes <span class="pill green">In payroll</span>, and the employee is told which period will pay it.</span></div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">4</div>
+      <div class="flow-box">
+        <div class="flow-who"><span class="ja">給与計算</span><span class="en">Payroll run</span></div>
+        <div class="flow-name">Compute All</div>
+        <div class="flow-desc"><span class="ja">その期間の明細を計算します。押す前に、<strong>まだ給与に入っていない承認済み OT があれば警告</strong>が出ます。</span>
+          <span class="en">Calculates the payslips for the period. Before it runs, it <strong>warns about approved overtime that is not in payroll yet</strong>.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip success">
+    <span class="tip-icon">📅</span>
+    <div>
+      <span class="ja"><strong>OT は「働いた日」が属する期間に入ります。</strong>承認した日でも、追加した日でもありません。8/14 の OT を 9月に追加しても、8/11〜8/25 の給与に入ります。<strong>だから、カットオフを気にせず随時 Approve できます。</strong></span>
+      <span class="en"><strong>Overtime lands in the period containing the day it was worked</strong> — not the day it was approved, not the day it was added. Overtime from 14 Aug added in September still belongs to the 11–25 Aug payroll. <strong>That is why it is safe to approve as it comes in.</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ STATUS ═══════════ -->
+<div class="section" id="section-status">
+  <div class="hero-header">
+    <div class="hero-icon">🏷️</div>
+    <div>
+      <div class="section-title"><span class="ja">状態の読み方</span><span class="en">Reading the status</span></div>
+      <div class="section-desc">
+        <span class="ja">4つだけです。「給与に入っているか」で読み分けます。</span>
+        <span class="en">Four of them. The question each answers is: is it in payroll or not?</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th><span class="ja">表示</span><span class="en">Badge</span></th>
+        <th><span class="ja">意味</span><span class="en">Meaning</span></th>
+        <th><span class="ja">給与</span><span class="en">In payroll?</span></th>
+        <th><span class="ja">次にすること</span><span class="en">What happens next</span></th>
+      </tr>
+      <tr>
+        <td><span class="pill amber">Pending</span></td>
+        <td class="muted"><span class="ja">申請済み。まだ誰も見ていない</span><span class="en">Submitted, not yet reviewed</span></td>
+        <td class="muted"><span class="ja">いいえ</span><span class="en">No</span></td>
+        <td class="muted"><span class="ja">マネージャーが Approve / Reject</span><span class="en">A manager approves or rejects</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill blue">Approved · not in payroll</span></td>
+        <td class="muted"><span class="ja">残業は認められた</span><span class="en">The overtime is accepted</span></td>
+        <td class="muted"><span class="ja"><strong>まだ入っていません</strong></span><span class="en"><strong>Not yet</strong></span></td>
+        <td class="muted"><span class="ja">給与担当が Add to Payroll</span><span class="en">Payroll adds it</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill green">In payroll</span></td>
+        <td class="muted"><span class="ja">明細に載る</span><span class="en">It will appear on the payslip</span></td>
+        <td class="muted"><span class="ja"><strong>はい</strong></span><span class="en"><strong>Yes</strong></span></td>
+        <td class="muted"><span class="ja">その期間の給与日に支払い</span><span class="en">Paid on that period's payday</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill red">Rejected</span></td>
+        <td class="muted"><span class="ja">認められなかった</span><span class="en">Not accepted</span></td>
+        <td class="muted"><span class="ja">いいえ</span><span class="en">No</span></td>
+        <td class="muted"><span class="ja">理由が Note に入ります</span><span class="en">The reason is in the note</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">💡</span>
+    <div>
+      <span class="ja"><span class="pill blue">Approved · not in payroll</span> は「承認されたのに払われない」という意味ではありません。<strong>「認められた。あとは給与処理を待つだけ」</strong>という状態です。給与日の前に必ず Add to Payroll されます。</span>
+      <span class="en"><span class="pill blue">Approved · not in payroll</span> does not mean approved-but-unpaid. It means <strong>accepted, waiting on payroll processing</strong> — and it is added before the payday it belongs to.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ STAFF ═══════════ -->
+<div class="section" id="section-staff">
+  <div class="hero-header">
+    <div class="hero-icon">🙋</div>
+    <div>
+      <div class="section-title"><span class="ja">スタッフの方へ</span><span class="en">For staff</span></div>
+      <div class="section-path">Overtime Request</div>
+      <div class="section-desc">
+        <span class="ja">申請して、状態を見て、給与明細と突き合わせるまで。</span>
+        <span class="en">Submitting, watching the status, and checking it against your payslip.</span>
+      </div>
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li class="step"><span class="step-num">1</span><div>
+      <div class="step-title"><span class="ja">申請する</span><span class="en">Submit</span></div>
+      <div class="step-desc"><span class="ja">日付・開始/終了時刻・理由を入力します。理由は具体的に書いてください（例:「Lack of manpower and high volume of orders」）。マネージャーはこれを見て判断します。</span>
+        <span class="en">Enter the date, the start and end time, and the reason. Be specific — "Lack of manpower and high volume of orders" — because this is what the manager decides on.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">2</span><div>
+      <div class="step-title"><span class="ja">状態を確認する</span><span class="en">Watch the status</span></div>
+      <div class="step-desc"><span class="ja">同じページの下に履歴が出ます。<strong>給与に入った分も消えずに残ります。</strong>各段階で Inbox に通知も届きます。</span>
+        <span class="en">Your history is below the form on the same page. <strong>Items that have gone into payroll stay in the list.</strong> You also get an Inbox notification at each step.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">3</span><div>
+      <div class="step-title"><span class="ja">いつ払われるかを見る</span><span class="en">See which payday</span></div>
+      <div class="step-desc"><span class="ja"><span class="pill green">In payroll</span> になると、その下に支払われる期間が出ます。</span>
+        <span class="en">Once it reads <span class="pill green">In payroll</span>, the period that will pay it is shown underneath.</span></div>
+    </div></li>
+  </ol>
+
+  <div class="mock">
+    <div class="mock-head"><span class="ja">履歴の表示例</span><span class="en">Your history — example</span></div>
+    <div class="mock-body">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <strong style="font-size:13px">2026-08-14</strong>
+        <span class="pill green">In payroll</span>
+        <span style="color:var(--muted);font-size:12px">18:00–20:00 (2h)</span>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--green)">
+        ✓ Added to payroll — paid in the 2026-08-11 – 2026-08-25 period.
+      </p>
+    </div>
+  </div>
+
+  <div class="tip success">
+    <span class="tip-icon">🧾</span>
+    <div>
+      <span class="ja"><strong>給与明細と突き合わせられます。</strong>この期間の明細を受け取ったら、OT の時間が合っているか確認してください。合わないときは、この履歴の画面を見せて相談してください。</span>
+      <span class="en"><strong>Check it against your payslip.</strong> When that period's payslip arrives, confirm the overtime hours match. If they do not, show this history screen when you ask.</span>
+    </div>
+  </div>
+
+  <div class="tip warn">
+    <span class="tip-icon">⏳</span>
+    <div>
+      <span class="ja"><span class="pill blue">Approved · not in payroll</span> のまま数日続くのは正常です。給与担当はカットオフのあとにまとめて処理します。<strong>給与日を過ぎても <span class="pill blue">Approved</span> のままなら、マネージャーに伝えてください。</strong></span>
+      <span class="en">Sitting at <span class="pill blue">Approved · not in payroll</span> for a few days is normal — payroll processes these after the cut-off. <strong>If it is still Approved after the payday it belongs to, tell your manager.</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MANAGER ═══════════ -->
+<div class="section" id="section-manager">
+  <div class="hero-header">
+    <div class="hero-icon">✅</div>
+    <div>
+      <div class="section-title"><span class="ja">店舗マネージャーの方へ</span><span class="en">For store managers</span></div>
+      <div class="section-path">Admin → Overtime Requests</div>
+      <div class="section-desc">
+        <span class="ja">判断するのは「その残業が実際にあったか」だけです。支払いのタイミングは考えなくて構いません。</span>
+        <span class="en">Your only judgment is whether the overtime really happened. Timing of payment is not your concern.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title">Approve</div>
+    <p><span class="ja"><strong>Approve は支払いではありません。</strong>「この残業は事実だ」と確認するだけです。押した時点で給与には何も入りません。</span>
+      <span class="en"><strong>Approve is not payment.</strong> It records that the overtime is real. Nothing enters payroll when you press it.</span></p>
+    <p><span class="ja">だから<strong>カットオフを待つ必要はありません。</strong>申請が来たその日に処理してください。記憶が新しいうちのほうが正確に判断できます。</span>
+      <span class="en">So <strong>there is no need to wait for a cut-off.</strong> Deal with requests the day they arrive, while you still remember the shift.</span></p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title">Reject</div>
+    <p><span class="ja">認められない場合は Reject し、<strong>理由を必ず書いてください。</strong>本人の履歴と通知にそのまま表示されます。理由の無い却下は、同じ申請が繰り返される原因になります。</span>
+      <span class="en">Reject what you cannot accept, and <strong>always write the reason</strong> — it appears in the employee's history and notification. A rejection with no reason produces the same request again next week.</span></p>
+    <p><span class="ja">既に給与に入ったものは Reject できません。給与担当が Remove from Payroll で戻したあとに却下します。</span>
+      <span class="en">Overtime already in payroll cannot be rejected. Payroll takes it back out first with Remove from Payroll.</span></p>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">👥</span>
+    <div>
+      <span class="ja">Approve できるのは ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER です。Add to Payroll は HQ / ADMIN のみ。<strong>承認する人と、給与に入れる人は分けてあります。</strong></span>
+      <span class="en">Approving is for ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER. Adding to payroll is HQ / ADMIN only. <strong>The person who approves and the person who pays are deliberately different.</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PAYROLL ═══════════ -->
+<div class="section" id="section-payroll">
+  <div class="hero-header">
+    <div class="hero-icon">💰</div>
+    <div>
+      <div class="section-title"><span class="ja">給与担当 / HQ の方へ</span><span class="en">For payroll and HQ</span></div>
+      <div class="section-path">Admin → Overtime Requests / Manila Payroll</div>
+      <div class="section-desc">
+        <span class="ja">Add to Payroll は、OT が給与に入る唯一の経路です。</span>
+        <span class="en">Add to Payroll is the only route overtime takes into payroll.</span>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">カットオフの手順</span><span class="en">The cut-off routine</span></h3>
+  <ol class="steps">
+    <li class="step"><span class="step-num">1</span><div>
+      <div class="step-title"><span class="ja">Overtime Requests を開く</span><span class="en">Open Overtime Requests</span></div>
+      <div class="step-desc"><span class="ja"><span class="pill blue">Approved · not in payroll</span> の一覧が、その期間に入れるべき候補です。</span>
+        <span class="en">Everything at <span class="pill blue">Approved · not in payroll</span> is a candidate for this period.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">2</span><div>
+      <div class="step-title"><span class="ja">Add to Payroll を押す</span><span class="en">Press Add to Payroll</span></div>
+      <div class="step-desc"><span class="ja">1件ずつです。勤怠記録に時間が書かれ、本人に「どの期間で支払われるか」が通知されます。</span>
+        <span class="en">One at a time. The hours are written to the attendance record and the employee is told which period pays them.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">3</span><div>
+      <div class="step-title"><span class="ja">DTR の Overtime タブで残りを確認</span><span class="en">Check the DTR Overtime tab</span></div>
+      <div class="step-desc"><span class="ja">未加算がある場合、上部に件数と時間が出ます。日付・氏名も並びます。</span>
+        <span class="en">If anything is still not added, the count and hours are at the top, with the dates and names.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">4</span><div>
+      <div class="step-title">Compute All</div>
+      <div class="step-desc"><span class="ja">押した瞬間にも同じ警告が出ます。<strong>ここが最後の分岐点です。</strong>計算後は数字が固定され、本人は給与日に気づきます。</span>
+        <span class="en">The same warning appears here. <strong>This is the last moment to catch it</strong> — after the run the number is fixed and the employee finds out on payday.</span></div>
+    </div></li>
+  </ol>
+
+  <div class="mock">
+    <div class="mock-head"><span class="ja">Compute All を押したとき</span><span class="en">At Compute All</span></div>
+    <div class="mock-body">
+      <div class="mock-warn amber">
+        <b>12 approved overtime request(s) — 33.58h — are not in this period's payroll.</b>
+        2026-08-11  Aliana Manuel<br>
+        2026-08-11  Marithel Queri<br>
+        …and 10 more<br><br>
+        Approving does not pay anything. These will not appear on any payslip until
+        "Add to Payroll" is pressed on the Overtime page.
+      </div>
+      <span class="mock-btn">Compute anyway</span>
+      <span class="mock-btn ghost" style="margin-left:8px">Cancel</span>
+    </div>
+  </div>
+  <div class="tip info">
+    <span class="tip-icon">🚦</span>
+    <div>
+      <span class="ja"><strong>止めるのではなく警告にしてあります。</strong>OT を入れずに計算したい場面は実際にあるためです。意図してそうする場合は Compute anyway で進めてください。</span>
+      <span class="en"><strong>It warns rather than blocks</strong>, because computing without that overtime is sometimes what you mean to do. Continue with Compute anyway when it is.</span>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">間違えたとき — Remove from Payroll</span><span class="en">If you get it wrong — Remove from Payroll</span></h3>
+  <div class="card green-border">
+    <p><span class="ja"><span class="pill green">In payroll</span> の行に <strong>Remove from Payroll</strong> が出ます。押すと勤怠から時間が落ち、状態は <span class="pill blue">Approved · not in payroll</span> に戻ります。あとで別の期間に入れ直せます。本人にも通知が届きます。</span>
+      <span class="en">Rows at <span class="pill green">In payroll</span> carry a <strong>Remove from Payroll</strong> button. The hours come off the attendance record, the status returns to <span class="pill blue">Approved · not in payroll</span>, and it can be added to a later period. The employee is told.</span></p>
+    <div class="tip warn">
+      <span class="tip-icon">🔒</span>
+      <div>
+        <span class="ja"><strong>期間が draft でなくなると使えません。</strong>確認済みの給与から黙って抜くと、明細と記録が食い違ったまま誰も気づかない状態になるためです。その場合は給与側で調整してください。</span>
+        <span class="en"><strong>It stops working once the period is past draft.</strong> Quietly pulling overtime out of a reviewed payroll would leave the payslip and the record disagreeing with nobody told. Adjust through payroll instead.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">🚫</span>
+    <div>
+      <span class="ja"><strong>勤怠の OT 時間を手で直しても直りません。</strong>次の同期が申請の内容で書き戻します。Remove from Payroll を使ってください。</span>
+      <span class="en"><strong>Editing the overtime hours on the attendance record by hand does not hold.</strong> The next sync rewrites them from the request. Use Remove from Payroll.</span>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">給与期間が無い日の OT</span><span class="en">Overtime dated outside any period</span></h3>
+  <div class="card">
+    <p><span class="ja">給与期間がまだ作られていない日付の OT は、Add to Payroll が拒否されます。</span>
+      <span class="en">Adding overtime for a date no payroll period covers is refused.</span></p>
+    <pre>No payroll period covers 2026-08-28 yet, so this cannot be
+added to payroll. Create the period first under Manila Payroll,
+then add it.</pre>
+    <p><span class="ja">Manila Payroll でその期間を作ってから追加してください。<strong>以前は状態だけ変わって何も書かれず、本人には「給与に追加した」と通知が飛んでいました。</strong></span>
+      <span class="en">Create the period under Manila Payroll first, then add it. <strong>Previously the status changed, nothing was written, and the employee was told it had been added.</strong></span></p>
+  </div>
+</div>
+
+<!-- ═══════════ TROUBLE ═══════════ -->
+<div class="section" id="section-trouble">
+  <div class="hero-header">
+    <div class="hero-icon">🛠️</div>
+    <div>
+      <div class="section-title"><span class="ja">困ったとき</span><span class="en">When something looks wrong</span></div>
+      <div class="section-desc">
+        <span class="ja">症状から原因へ。</span>
+        <span class="en">Symptom to cause.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">給与明細に OT が載っていない</span><span class="en">The overtime is not on the payslip</span></div>
+    <p><span class="ja">Overtime Request の履歴でその日の状態を見てください。<span class="pill blue">Approved · not in payroll</span> なら、<strong>まだ給与に入れられていません。</strong>マネージャーか給与担当に伝えてください。<span class="pill green">In payroll</span> なのに載っていない場合は、表示されている期間と明細の期間が合っているか確認してください。</span>
+      <span class="en">Check the status for that day in your Overtime Request history. At <span class="pill blue">Approved · not in payroll</span> it <strong>has not been added yet</strong> — tell your manager or payroll. If it says <span class="pill green">In payroll</span>, check that the period shown matches the payslip's period.</span></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">Add to Payroll が拒否される</span><span class="en">Add to Payroll is refused</span></div>
+    <p><span class="ja">その日を含む給与期間がまだありません。Manila Payroll で期間を作ってから追加してください。</span>
+      <span class="en">No payroll period covers that day yet. Create it under Manila Payroll, then add.</span></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">Remove from Payroll が押せない / 拒否される</span><span class="en">Remove from Payroll is missing or refused</span></div>
+    <p><span class="ja">ボタンは <span class="pill green">In payroll</span> の行にだけ出ます。拒否される場合は、その期間が既に draft ではありません。給与側で調整してください。</span>
+      <span class="en">The button only appears on <span class="pill green">In payroll</span> rows. If it refuses, that period is no longer a draft — adjust through payroll.</span></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">同期を押しても勤怠の OT が変わらない</span><span class="en">Re-sync does not change the attendance hours</span></div>
+    <p><span class="ja">正常です。同期は<strong>既に給与に入っているものを書き直すだけ</strong>で、新しく追加はしません。追加は Overtime ページの Add to Payroll です。</span>
+      <span class="en">That is correct. The sync <strong>only rewrites what is already in payroll</strong>; it never adds anything. Adding happens on the Overtime page.</span></p>
+  </div>
+</div>
+
+<!-- ═══════════ INSIDE ═══════════ -->
+<div class="section" id="section-inside">
+  <div class="hero-header">
+    <div class="hero-icon">⚙️</div>
+    <div>
+      <div class="section-title"><span class="ja">仕組み</span><span class="en">How it works inside</span></div>
+      <div class="section-desc">
+        <span class="ja">保守する人向け。数字の出どころです。</span>
+        <span class="en">For whoever maintains this — where the numbers come from.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p><span class="ja">給与エンジンは OT 申請を直接読みません。読むのは <code>manila_attendance_daily.approved_ot_hours</code>（勤怠記録の列）です。<strong>Add to Payroll だけがこの列に書きます。</strong></span>
+      <span class="en">The payroll engine never reads overtime requests. It reads <code>manila_attendance_daily.approved_ot_hours</code> on the attendance record. <strong>Add to Payroll is the only thing that writes it.</strong></span></p>
+    <pre><span class="ja">申請 (status=paid)  →  勤怠の approved_ot_hours  →  給与計算
+                     ↑ ここだけが唯一の経路</span><span class="en">request (status=paid) → attendance approved_ot_hours → payroll
+                       ↑ the only path in</span></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">同期は「照合」です</span><span class="en">The sync is a reconciliation</span></div>
+    <p><span class="ja">給与に入っている分を書き、<strong>入っていないのに残っている分は落とします。</strong>何度実行しても同じ状態に収束します。</span>
+      <span class="en">It writes what is in payroll and <strong>withdraws what is not</strong>. Running it repeatedly converges on the same state.</span></p>
+    <p><span class="ja">落とす対象は<strong>その人・その日に OT 申請がある場合だけ</strong>に限定しています。勤怠の OT を持つ63行のうち<strong>47行は申請と無関係</strong>（DTRアップロードや手入力）で、無条件に落とすとそれらを全部消してしまうためです。</span>
+      <span class="en">The withdrawal is limited to <strong>days that have an overtime request</strong> for that person. Of the 63 attendance rows carrying overtime, <strong>47 have no request behind them</strong> — DTR upload or a hand edit — and an unconditional rule would have erased every one.</span></p>
+    <p><span class="ja">落とした行は件数ではなく<strong>氏名と時間で</strong>画面に出ます。「2件消しました」では正しい2件だったか確認できないためです。</span>
+      <span class="en">Withdrawn rows are shown <strong>by name and amount</strong>, not as a count — "2 cleared" gives nobody a way to check it took the right two.</span></p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr><th><span class="ja">場所</span><span class="en">Where</span></th><th><span class="ja">中身</span><span class="en">What</span></th></tr>
+      <tr><td><code>overtime_requests</code></td><td class="muted"><span class="ja">申請と状態（pending / manager_approved / paid / rejected）</span><span class="en">Requests and status</span></td></tr>
+      <tr><td><code>manila_attendance_daily.approved_ot_hours</code></td><td class="muted"><span class="ja">給与が読む唯一の値</span><span class="en">The only value payroll reads</span></td></tr>
+      <tr><td><code>manila_payroll_periods</code></td><td class="muted"><span class="ja">作業日から期間を引く</span><span class="en">Maps a work date to a period</span></td></tr>
+    </table>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">🌍</span>
+    <div>
+      <span class="ja"><strong>この連携はマニラのみです。</strong>ドバイの OT 申請はこの経路を通らず、マニラの勤怠には入りません。</span>
+      <span class="en"><strong>This link is Manila only.</strong> Dubai overtime requests do not travel this path and never reach the Manila attendance records.</span>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(function (s) { s.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
+  var el = document.getElementById('section-' + id);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function (n) {
+    if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function setLang(lang) {
+  if (lang === 'en') {
+    document.body.classList.add('en');
+    document.getElementById('btn-en').classList.add('active');
+    document.getElementById('btn-ja').classList.remove('active');
+  } else {
+    document.body.classList.remove('en');
+    document.getElementById('btn-ja').classList.add('active');
+    document.getElementById('btn-en').classList.remove('active');
+  }
+}
+setLang('ja');
+</script>
