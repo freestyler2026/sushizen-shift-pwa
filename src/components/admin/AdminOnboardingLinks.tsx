@@ -40,6 +40,16 @@ export default function AdminOnboardingLinks({ compact = false }: Props) {
         </Link>
 
         <Link
+          href="/admin/staff/employment-details"
+          className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
+        >
+          <div className="text-sm font-semibold">Employment Details</div>
+          <div className="mt-1 text-xs text-neutral-400">
+            Position, hire date and company — needed before a COE can be issued.
+          </div>
+        </Link>
+
+        <Link
           href="/setup-pin"
           className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
         >

@@ -79,6 +79,10 @@ export default function CreateStaffPage() {
 
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [maritalStatus, setMaritalStatus] = useState<string>("");
+  // Manila only — printed on the Certificate of Employment and unrecoverable later.
+  const [position, setPosition] = useState("");
+  const [hireDate, setHireDate] = useState("");
+  const [company, setCompany] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -136,6 +140,9 @@ export default function CreateStaffPage() {
         pin: pin.trim(),
         date_of_birth: dateOfBirth.trim() || undefined,
         marital_status: maritalStatus || undefined,
+        position: position.trim() || undefined,
+        hire_date: hireDate || undefined,
+        company: company || undefined,
       });
       setResult(res);
       setDisplayName("");
@@ -143,6 +150,9 @@ export default function CreateStaffPage() {
       setStatus("ACTIVE");
       setDateOfBirth("");
       setMaritalStatus("");
+      setPosition("");
+      setHireDate("");
+      setCompany("");
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to create staff"));
     } finally {
@@ -230,6 +240,63 @@ export default function CreateStaffPage() {
                 ]}
               />
             </div>
+
+            {/* Manila only. Dubai staff belong to neither Philippine company, and
+                DOLE's Certificate of Employment rule does not reach them. */}
+            {city === "manila" ? (
+              <>
+                <div className="md:col-span-2 rounded-xl border border-amber-500/25 bg-amber-950/10 px-3 py-2">
+                  <p className="text-[12px] text-amber-200/90">
+                    次の3項目は<b>在職証明書（COE）に印字されます</b>。契約書を見ながら入力してください。
+                    後から打刻などで復元することはできません。
+                  </p>
+                </div>
+
+                <div>
+                  <div className={T_LABEL + " mb-1.5"}>
+                    Position / Job Title <span className="text-rose-300">*</span>
+                  </div>
+                  <input
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="Service Crew / Kitchen Staff など"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+
+                <div>
+                  <div className={T_LABEL + " mb-1.5"}>
+                    Hire Date <span className="text-rose-300">*</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={hireDate}
+                    min="2025-08-01"
+                    onChange={(e) => setHireDate(e.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    契約書の入社日。マニラ1号店の準備開始が2025年8月のため、それ以前は入力できません。
+                  </p>
+                </div>
+
+                <div>
+                  <div className={T_LABEL + " mb-1.5"}>
+                    Employing Company <span className="text-rose-300">*</span>
+                  </div>
+                  <SelectDark
+                    value={company}
+                    onChange={setCompany}
+                    className={SELECT_CLASS}
+                    options={[
+                      { value: "", label: "— 選択してください —" },
+                      { value: "SUSHIZEN", label: "SUSHIZEN" },
+                      { value: "7CZ", label: "7CZ ANGEL CORP." },
+                    ]}
+                  />
+                </div>
+              </>
+            ) : null}
 
             <div>
               <div className={T_LABEL + " mb-1.5"}>Role</div>
