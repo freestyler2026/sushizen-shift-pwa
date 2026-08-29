@@ -51,6 +51,9 @@ type Run = {
   minimum_wage_compliant: boolean | null;
   status: string;
   computed_at: string | null;
+  /** Newest adjustment for this staff and period. Later than computed_at means
+   *  the figures below do not include it yet. */
+  last_adjustment_at?: string | null;
   published_at: string | null;
   published_by: string | null;
 };
@@ -160,6 +163,15 @@ function getMissingFields(p: StaffProfileMin | undefined): string[] {
 
 const fmtPHP = (v: number | null | undefined) =>
   v == null ? "—" : "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Manila local time. These stamps are compared against each other in the
+ *  stale-payslip banner, so the reader has to see the same clock the office
+ *  works to rather than UTC. */
+const fmtDateTime = (v: string | null | undefined) =>
+  v == null ? "—" : new Date(v).toLocaleString("en-PH", {
+    timeZone: "Asia/Manila", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 
 const fmtPHPAbs = (v: number | null | undefined) =>
   v == null ? "—" : "₱" + Math.abs(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1091,6 +1103,20 @@ function PayslipDetail({
   const earningsTotal   = earnings.reduce((s, i) => s + (i.amount ?? 0), 0);
   const deductionsTotal = deductions.reduce((s, i) => s + Math.abs(i.amount ?? 0), 0);
 
+  // An adjustment added after the run was computed is not in gross_pay or
+  // net_pay — those only move at Compute All. The panel used to show the live
+  // earnings total next to the stale stored figures with nothing between them,
+  // sixty pesos apart, and it read as an arithmetic mistake.
+  const staleByAdjustment = Boolean(
+    run.last_adjustment_at && run.computed_at &&
+    new Date(run.last_adjustment_at).getTime() > new Date(run.computed_at).getTime()
+  );
+  // Belt and braces: even without a timestamp, never print a subtraction whose
+  // answer is not the number beside it.
+  const netMatchesItems = run.net_pay != null &&
+    Math.abs((earningsTotal - deductionsTotal) - run.net_pay) < 0.01;
+  const showNetWorking = canSeeSalary && !staleByAdjustment && netMatchesItems;
+
   // Computation basis string
   const basisParts: string[] = [];
   if (run.monthly_rate != null && run.salary_divisor != null && run.days_worked != null) {
@@ -1292,6 +1318,23 @@ function PayslipDetail({
           </p>
         ) : (
           <>
+            {/* Said before the figures, not after. The numbers below are the
+                ones payroll reads off and questions, so the reason they look
+                wrong belongs above them. */}
+            {staleByAdjustment && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-900/15 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-200">
+                  This payslip does not include the latest adjustment
+                </p>
+                <p className="mt-1 text-xs text-amber-100/80">
+                  An adjustment was made {fmtDateTime(run.last_adjustment_at)}, after this
+                  payslip was computed {fmtDateTime(run.computed_at)}. Gross Pay and Net Pay
+                  are still the earlier figures. Run <strong>Compute All</strong> to bring
+                  them up to date.
+                </p>
+              </div>
+            )}
+
             {/* ── Earnings ── */}
             {earnings.length > 0 && (
               <section>
@@ -1420,11 +1463,15 @@ function PayslipDetail({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-violet-300/70 uppercase tracking-wide font-semibold mb-0.5">Net Pay</p>
-                    {canSeeSalary && (
+                    {showNetWorking ? (
                       <p className="text-[11px] text-slate-500">
                         {fmtPHP(earningsTotal)} − {fmtPHP(deductionsTotal)}
                       </p>
-                    )}
+                    ) : canSeeSalary ? (
+                      <p className="text-[11px] text-amber-300">
+                        Not yet recomputed — run Compute All
+                      </p>
+                    ) : null}
                   </div>
                   <p className="text-2xl font-black text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(run.net_pay) : "₱ ****"}</p>
                 </div>
@@ -1728,6 +1775,15 @@ export default function ManilaPayrollPeriodPage() {
   }, [loadPeriod, selectedRun]);
 
   // Sort runs
+  // Runs whose adjustments are newer than their figures. Adding an adjustment
+  // never recomputes anything, so without this the only clue was a gross and a
+  // net that quietly disagreed with the lines above them.
+  const adjustedAfterCompute = useMemo(() => new Set(
+    runs.filter(r => r.last_adjustment_at && r.computed_at &&
+                     new Date(r.last_adjustment_at).getTime() > new Date(r.computed_at).getTime())
+        .map(r => r.id)
+  ), [runs]);
+
   const sortedRuns = [...runs].sort((a, b) => {
     const va: string|number = sortBy === "name" ? a.staff_name : (a.net_pay ?? 0);
     const vb: string|number = sortBy === "name" ? b.staff_name : (b.net_pay ?? 0);
@@ -2118,6 +2174,16 @@ export default function ManilaPayrollPeriodPage() {
                               <AlertTriangle size={12} className="text-amber-400 flex-none" />
                             )}
                             <span className={selectedRun?.id === run.id ? "text-violet-300 font-medium" : "text-white"}>{run.staff_name}</span>
+                            {/* Visible without opening each payslip — the figures
+                                in this row are the ones that are out of date. */}
+                            {adjustedAfterCompute.has(run.id) && (
+                              <span
+                                title="An adjustment was made after this payslip was computed — run Compute All"
+                                className="rounded px-1.5 py-0.5 text-[10px] font-bold text-amber-300 bg-amber-900/25 border border-amber-500/40 whitespace-nowrap"
+                              >
+                                needs recompute
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-2.5 text-right text-slate-300 tabular-nums">{canSeeSalary ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-600">****</span>}</td>
