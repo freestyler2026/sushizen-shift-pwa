@@ -245,7 +245,54 @@ COE を発行できません
 
 ## 実装の範囲
 
-### Phase 0 — 印字する値を正しくする（Session 1 追加）
+### Phase 0 — 印字する値を正しくする（Session 1 追加） <span>実施済 2026-08-29</span>
+
+**完了分:**
+
+- ✅ `Ricardo Lamis III` の `staff_master.hired_at` を 2025-02-24 → **2025-12-28** に修正
+- ✅ `hr_separation` → `staff_master` の反映を実装（`sync_separations_to_master`）。
+  **`last_working_date <= 今日` で発火**。worker が毎日マニラ08:10に実行、
+  `create_separation` の末尾でも呼ぶ（遡り入力を翌日まで待たせないため）。
+  **SEPARATED 方向にしか動かさない** —— 復職は Staff ページでの明示操作にする
+- ✅ 実行結果：`Tricia Andrea Estrada`（最終出社 2026-08-10）を SEPARATED 化。
+  `resolve_staff_access_profile` が `role=STAFF / 権限0` を返すことを確認。
+  `Aaron Jay Pamplona`（最終出社 2026-08-31）は ACTIVE のまま・権限46を維持
+
+**判断を保留した分:**
+
+- ⚠️ **入社日の残る不一致2件は上書きしていない。** 2つの列は冗長なコピーではなく、
+  **別々の機能が読んでいる**ことが判明した:
+
+  | 列 | 読んでいる機能 |
+  |---|---|
+  | `staff_master.hired_at` | **試用期間**（`db_probation.py` の新入社員判定） |
+  | `manila_staff_profiles.official_hire_date` | **給与**（日割り計算） |
+
+  一括同期すると試用期間側の判定が動く。どちらが正しいか分からないまま上書きするのは、
+  この仕様書が禁じている「推測して埋める」ことそのもの。**契約書での確認が要る:**
+
+  | 氏名 | `staff_master` | 給与プロファイル | 差 |
+  |---|---|---|---:|
+  | Alex Delgado | 2026-01-26 | 2026-01-06 | 20日 |
+  | Gerald Solomon | 2026-06-15 | 2026-06-18 | 3日 |
+
+  **COE は `official_hire_date` を読む**（不正値ゼロ・カバー率が高い）ため、
+  この2件が未解決でも COE の実装は進められる。
+
+- ⚠️ **`Anthony Plaza` が名簿に無い。** `manila_staff_profiles` と勤怠には居るが
+  `staff_master` に無く、**8/11〜8/25 に稼働している現役スタッフ**。
+  名簿への追加は HR の判断なので実施していない。
+  他の8名（`Alyza Arabela Lagrimas` ほか）は4月のみの稼働で、初期の離職者と思われる。
+
+  → **一括入力画面は `manila_staff_profiles` ではなく `staff_master` を軸にすること。**
+  そうしないと Camilla の作業リストに退職済み8名が並ぶ。
+
+**担当者確定:** 一括入力は **Camilla Gadingan**。管理者が承認時に値を検証する二段構えにする。
+BO（本部）から着手する —— 入社日欠損8/11 が集中しており、契約書が同じ office にある。
+
+---
+
+### Phase 0 の当初計画（参考）
 
 COE は法的文書で、**間違った日付の証明書は無いより悪い**というのがこの仕様書自身の主張である。
 その主張に従うなら、値を印字する機能より先に値を直す。新規実装を伴わない。
