@@ -10,7 +10,7 @@
 > `_provider_management_unanswered`（`app/waiting_api.py`）。
 
 Session 2 → Session 1（2026-08-29）。**通知連携と当番表の新設が要るため移送。**
-発端は西村さん自身が Send を押して「どこに送られたのか分からない」と気づいたこと。
+発端は あや子さん が Send を押して「どこに送られたのか分からない」と気づいたこと。
 
 ---
 
