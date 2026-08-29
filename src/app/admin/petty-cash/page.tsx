@@ -200,9 +200,13 @@ function SummaryTab({ summary }: { summary: SummaryRow[] }) {
 function RequestCard({
   req: initialReq,
   onAction,
+  canDecide,
+  myName,
 }: {
   req: PCRequest;
   onAction: () => void;
+  canDecide: boolean;
+  myName: string;
 }) {
   const [req, setReq]               = useState(initialReq);
   const [open, setOpen]             = useState(false);
@@ -302,8 +306,21 @@ function RequestCard({
             </div>
           )}
 
-          {/* PENDING actions */}
-          {req.status === "PENDING" && (
+          {/* PENDING actions — the server refuses these too; hiding them here
+              only saves someone from pressing a button that cannot work. */}
+          {req.status === "PENDING" && !canDecide && (
+            <p className="rounded-lg bg-white/4 px-3 py-2 text-xs text-white/50">
+              Waiting for HQ to approve this.
+            </p>
+          )}
+          {req.status === "PENDING" && canDecide
+            && req.requested_by.trim().toLowerCase() === myName.trim().toLowerCase() && (
+            <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              This is your own request — someone else in HQ has to approve it.
+            </p>
+          )}
+          {req.status === "PENDING" && canDecide
+            && req.requested_by.trim().toLowerCase() !== myName.trim().toLowerCase() && (
             <div className="space-y-2">
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Notes (optional)</label>
@@ -376,6 +393,16 @@ export default function AdminPettyCashPage() {
     if (!a) { router.replace("/login"); return; }
     if (!canAccessAdminNav(a) && a.role !== "HQ") { router.replace("/week"); }
   }, [router]);
+
+  // Deciding is HQ and ADMIN; everyone else keeps the list but not the buttons.
+  const [canDecide, setCanDecide] = useState(false);
+  const [myName, setMyName]       = useState("");
+  useEffect(() => {
+    const a = getAuth();
+    const role = String(a?.role || "").toUpperCase();
+    setCanDecide(role === "HQ" || role === "ADMIN");
+    setMyName(String(a?.staffName || ""));
+  }, []);
 
   const [tab, setTab]           = useState<"list" | "summary">("list");
   const [statusFilter, setStatusFilter] = useState("PENDING");
@@ -518,7 +545,8 @@ export default function AdminPettyCashPage() {
               </p>
             )}
             {requests.map((r) => (
-              <RequestCard key={r.id} req={r} onAction={load} />
+              <RequestCard key={r.id} req={r} onAction={load}
+                canDecide={canDecide} myName={myName} />
             ))}
           </div>
         )}
