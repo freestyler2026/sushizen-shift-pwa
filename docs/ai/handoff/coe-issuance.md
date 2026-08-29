@@ -97,6 +97,84 @@ Peter Villafuerte / Jason Mark Fabillar …  全員 2026-04-01
 
 ---
 
+## Session 1 の検証で確定した事項（2026-08-29 追記）
+
+上記の数値は本番データで**すべて再現できた**（一致率25.5%、初出勤の 2026-04-01 集中10名、
+`render_nte_letter_pdf` の実在）。推定を作らない判断・編集フォームを塞がない判断は正しい。
+そのうえで、仕様書が触れていなかった4点を確定させた。
+
+### A. 法人区分は**マニラ限定**。ドバイには関係しない
+
+`SUSHIZEN` / `7CZ` は**フィリピンの法人**であり、7CZ は
+**バックオフィスメンバーの一部の在籍法人**（全員フィリピン在住）。
+`staff_master` は両都市の名簿（dubai 73 / manila 94）なので、
+**この2択を全員に必須化してはいけない。**
+
+- マニラのバックオフィス（`branch_code='BO'`）は **14名（うち在籍12名）**。7CZ はこの中の一部
+- **ドバイ73名は COE の対象外**（DOLE はフィリピンの規則）。法人区分も不要
+- 必須化するのは **city='manila' のときだけ**
+
+> ドバイにも法人は2つある（RAMENZEN RESTAURANT LLC / ZEN FOOD LABS DMCC）が、
+> これは VAT 申告の単位であり COE とは別系統。将来 VAT 実装で法人マスタを作るなら
+> そちらと統合できるが、**COE のために先回りして作る必要はない。**
+
+### B. 入社日の正は `manila_staff_profiles.official_hire_date`
+
+両方に値がある37名のうち**3名が不一致**だった。判定基準ができたので確定できる ——
+マニラのレストランは **2025年8月**に開業準備を開始しており、それ以前の入社日はあり得ない。
+
+```
+staff_master.hired_at         < 2025-08:  1件  ← Ricardo Lamis III (2025-02-24) 不正
+official_hire_date            < 2025-08:  0件
+カバー率                       58 / 89  vs  staff_master 40 / 94
+```
+
+**`official_hire_date` を正とする。** 件数が多く、不正値がゼロ。
+`staff_master.hired_at` は表示専用にするか、`official_hire_date` から同期する。
+**Ricardo Lamis III の `staff_master.hired_at` は誤りとして修正する**（正 2025-12-28）。
+
+### C. 退職は `hr_separation` が正。`staff_master` へ**自動反映**する
+
+HR が `hr_separation` に先に入力し、Admin スタッフがそれを聞いて `staff_master` に登録している。
+**連携が存在しないため、2つの登録簿の重なりがゼロになっている。**
+
+```
+staff_master.status='SEPARATED'  4名 — 全員 hr_separation に記録なし（最終出社日が取れない）
+hr_separation                    2名 — どちらも SEPARATED になっていない
+```
+
+⚠️ **発火は「登録時」ではなく「最終出社日の到来」で行うこと。**
+実データで両方のケースが出ている:
+
+| 氏名 | 最終出社日 | `staff_master` | 保持ロール | ログイン |
+|---|---|---|---|---|
+| Tricia Andrea Estrada | 2026-08-10（**19日前**） | ON_LEAVE | INVENTORY_PURCHASING | **可能** |
+| Aaron Jay Pamplona | 2026-08-31（2日後） | ACTIVE | MANILA_STAFF | 可能（**正しい**） |
+
+Aaron はまだ在籍しているので ACTIVE が正しく、登録時に発火させると**在職者を締め出す**。
+Tricia は逆に、19日前に退職しているのにロールとログインが生きている。
+
+**この連携は権限に直結する。** `resolve_staff_access_profile` は
+`status='SEPARATED'` でロールを剥奪するため（2026-08-28 実装）、
+反映した瞬間にその人の権限が消える。**意図した動作だが、実行前に対象者を名前で確認すること**（教訓21）。
+
+### D. 承認者は既存ロールを流用しない
+
+`ADMIN` は `staff_auth.role` には**存在せず**、`staff_role_assignments` に11名いる（教訓25）。
+内訳は **Test Account / Test Admin Account の2件**、SEPARATED 1名（ゲート済）、
+残る8名は**店舗・バックオフィスのスタッフでマネージメントではない**。
+HQ と合わせると16名になる。
+
+依頼文の「私か他のマネージメント」はこの16名を指していない。
+**COE 専用の権限キーを作り、実際のマネージメントにだけ付ける**（教訓32：広い鍵を使い回さない）。
+Petty Cash に揃える必然性はない —— あちらは社内の金銭処理、COE は対外文書で誤りの向きが違う。
+
+### E. 署名者名 <span>確定</span>
+
+**発行ごとに選択（既定値あり）**。固定にすると署名者交代のたびにコード変更が要る。
+
+---
+
 ## 決定済みの方針（西村さん承認済み・再検討不要）
 
 ### 1. 新規登録は必須にする
@@ -130,6 +208,17 @@ COE を発行できません
 ---
 
 ## 実装の範囲
+
+### Phase 0 — 印字する値を正しくする（Session 1 追加）
+
+COE は法的文書で、**間違った日付の証明書は無いより悪い**というのがこの仕様書自身の主張である。
+その主張に従うなら、値を印字する機能より先に値を直す。新規実装を伴わない。
+
+- `Ricardo Lamis III` の `staff_master.hired_at` を修正（2025-02-24 → 2025-12-28）
+- 入社日の正を `official_hire_date` に決め、`staff_master.hired_at` を同期または表示専用にする
+- `hr_separation` → `staff_master`（`status` / 最終出社日）の反映を実装。
+  **`last_working_date <= 今日` で発火**。既存2名のうち Tricia のみが対象
+- SEPARATED 4名の最終出社日を `hr_separation` に登録（HR に確認が要る）
 
 ### Phase A — 項目を持てるようにする
 - **法人区分の列を追加**。置き場は `staff_master.company`（両都市を含む名簿なので、
@@ -183,8 +272,10 @@ COE を発行できません
 
 ## 実装前に西村さんに確認すること
 
-1. **承認者の範囲。** 依頼文は「私か他のマネージメント」。Petty Cash は 2026-08-29 に
-   **HQ + ADMIN**（自己承認禁止）に揃えた。**COE も同じでよいか、HQ のみにするか。**
-   ※ ADMIN は現在10名おり、うち2つはテストアカウント。
-2. **一括入力を誰にやらせるか**（役職55名・入社日31名。契約書が要る）。
-3. **署名者名（AUTHORIZED SIGNATORY）を固定にするか、発行ごとに選ぶか。**
+1. ~~承認者の範囲~~ → **上記 D**。COE 専用の権限キーを作る方針。
+   **付与する人を名前で決める必要がある。**
+2. **一括入力を誰にやらせるか**（役職55名・入社日31名。契約書・201ファイルが要る）。
+   Camilla（COE の運用者）か Marithel（BIR 記録の保管担当）が候補。
+3. ~~署名者名~~ → **上記 E**。発行ごとに選択（既定値あり）で確定。
+4. **SEPARATED 4名の最終出社日**（Anna Rose Quimno / Christian Jhay Ibuan Tibar /
+   Jason Mark Fabillar / Rommel Bernardo）。HR に記録があるか。無ければ COE を出せない。
