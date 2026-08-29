@@ -138,9 +138,54 @@ task_messages
 
 ---
 
-## 実装前に西村さんに確認すること
+## 回答済み（2026-08-29 西村さん）
 
-1. **店舗ごとの担当マネージャー。** TAFT / PAR / CUB / CK / ALL の5系統。
-   `ALL` と `CK` は誰が受けるか未定。
-2. **通知の経路。** WhatsApp と Discord のどちらを主にするか（両方は通知過多になる）。
-3. **エスカレーション先。** 24時間無反応のときエリアマネージャーは誰か。
+### 通知の経路 → **Discord**
+WhatsApp は使わない。既存の Discord 連携に乗せる。
+
+### エスカレーション先 → **Yusuke Uejima**
+24時間無反応のとき。⚠️ **下記「積み残し3」を読むこと。**
+
+### 担当マネージャー → **曜日で交代する当番表**
+
+⚠️ **仕様がここで変わる。** 当初は「店舗＝担当者1人」を想定していたが、実際は曜日輪番。
+`management_tasks.manager_name` を埋めるには、**タスクの日付から曜日を出して引く**必要がある。
+
+| 店舗 | 月 | 火 | 水 | 木 | 金 | 土 | 日 |
+|---|---|---|---|---|---|---|---|
+| **TAFT** | Yukihiro Nishimura | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana | Francis Ibana |
+| **PAR** | Peter Villafuerte | Peter Villafuerte | Peter Villafuerte | Richard S. Gante | Peter Villafuerte | Richard S. Gante | Richard S. Gante |
+| **CUB** | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Yusuke Uejima |
+| **CK** | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Richard S. Gante | Yusuke Uejima | Yusuke Uejima |
+| **ALL** | — | — | — | — | — | — | — |
+
+原文: 「Taft➡️Francis（火〜日曜日）、月曜日とFrancisが休んだら私 /
+Paranaque➡️Richard木、土日、残りはPeter / CK/Cubao➡️月水金Richard、火木土日植嶋さん」
+
+**当番表はハードコードせず、画面から編集できるようにすること。** 人は入れ替わる。
+置き場は `/admin/management/assignments`（BO側の担当割り当てが既にある画面）。
+
+DBで在籍確認済み（2026-08-29）:
+`Francis Ibana`(MANILA_MANAGER) / `Richard S. Gante`(MANILA_MANAGEMENT) /
+`Peter Villafuerte`(HR_MANAGER) / `Yusuke Uejima`(HQ) / `Yukihiro Nishimura`(HQ) — 全員 ACTIVE。
+⚠️ **`Francis Angelo Dizon` という別人がいる。** 部分一致で引かず、フルネームで保持すること。
+
+---
+
+## 積み残し — 着手前に西村さんに確認すること
+
+1. **`ALL` 系統の担当が未定**（現在2件）。全店に関わる例外はここに入る。
+   決まるまで、`ALL` のタスクは送信不可のまま残る。
+
+2. **「Francis が休んだら私」をどう判定するか。**
+   公開シフト（`shift_published_rows`）から休みを読むか、当番表に「代理」列を持たせて
+   手動運用にするか。**シフトから自動判定する場合、公開シフトが正しいことが前提になる**
+   （教訓18: 公開シフトが誤っているケースは実在する）。**推測で外すと通知が誰にも届かない。**
+
+3. ⚠️ **エスカレーションが自分に戻る。**
+   Yusuke Uejima は **CUB / CK の火木土日の担当**であり、同時に**エスカレーション先**。
+   彼が対応しなかったタスクは彼自身に上がる。**別の宛先（西村さん？）が要る。**
+
+4. ⚠️ **Yusuke Uejima と Yukihiro Nishimura は `staff_master.city='dubai'` で登録されている。**
+   タスクは `city='manila'`。受信箱は city で絞るため、**そのままでは自分宛が見えない可能性が高い。**
+   実装時に必ず実機で確認すること（Impersonation を使う。教訓27）。
