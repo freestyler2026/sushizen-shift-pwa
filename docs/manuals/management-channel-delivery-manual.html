@@ -1,0 +1,885 @@
+<title>Sushi ZEN — Management Channel Delivery</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0D1220; --surface: #162035; --surface2: #1E2D47; --border: #273A57;
+  --accent: #818CF8; --accent-dim: rgba(129,140,248,0.12); --accent-glow: rgba(129,140,248,0.25);
+  --text: #E2E8F0; --muted: #7A90AA;
+  --red: #F87171; --red-dim: rgba(248,113,113,0.12); --red-border: rgba(248,113,113,0.35);
+  --orange: #FB923C; --orange-dim: rgba(251,146,60,0.12); --orange-border: rgba(251,146,60,0.35);
+  --green: #34D399; --green-dim: rgba(52,211,153,0.12); --green-border: rgba(52,211,153,0.35);
+  --blue: #60A5FA; --violet: #A78BFA; --amber: #F59E0B;
+  --sidebar-w: 248px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1220; --surface: #162035; --surface2: #1E2D47; --border: #273A57;
+    --text: #E2E8F0; --muted: #7A90AA; --accent: #818CF8;
+    --accent-dim: rgba(129,140,248,0.12); --accent-glow: rgba(129,140,248,0.25);
+    --red: #F87171; --red-dim: rgba(248,113,113,0.12); --red-border: rgba(248,113,113,0.35);
+    --orange: #FB923C; --orange-dim: rgba(251,146,60,0.12); --orange-border: rgba(251,146,60,0.35);
+    --green: #34D399; --green-dim: rgba(52,211,153,0.12); --green-border: rgba(52,211,153,0.35);
+  }
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #EEF2FA; --surface: #FFFFFF; --surface2: #F0F4FF; --border: #C8D4E8;
+    --text: #1A2540; --muted: #536380; --accent: #6366F1;
+    --accent-dim: rgba(99,102,241,0.09); --accent-glow: rgba(99,102,241,0.2);
+    --red: #DC2626; --red-dim: rgba(220,38,38,0.08); --red-border: rgba(220,38,38,0.3);
+    --orange: #EA580C; --orange-dim: rgba(234,88,12,0.08); --orange-border: rgba(234,88,12,0.3);
+    --green: #059669; --green-dim: rgba(5,150,105,0.08); --green-border: rgba(5,150,105,0.3);
+  }
+}
+:root[data-theme="dark"]  { --bg:#0D1220; --surface:#162035; --surface2:#1E2D47; --border:#273A57; --text:#E2E8F0; --muted:#7A90AA; --accent:#818CF8; --accent-dim:rgba(129,140,248,0.12); --accent-glow:rgba(129,140,248,0.25); --red:#F87171; --red-dim:rgba(248,113,113,0.12); --red-border:rgba(248,113,113,0.35); --orange:#FB923C; --orange-dim:rgba(251,146,60,0.12); --orange-border:rgba(251,146,60,0.35); --green:#34D399; --green-dim:rgba(52,211,153,0.12); --green-border:rgba(52,211,153,0.35); }
+:root[data-theme="light"] { --bg:#EEF2FA; --surface:#FFFFFF; --surface2:#F0F4FF; --border:#C8D4E8; --text:#1A2540; --muted:#536380; --accent:#6366F1; --accent-dim:rgba(99,102,241,0.09); --accent-glow:rgba(99,102,241,0.2); --red:#DC2626; --red-dim:rgba(220,38,38,0.08); --red-border:rgba(220,38,38,0.3); --orange:#EA580C; --orange-dim:rgba(234,88,12,0.08); --orange-border:rgba(234,88,12,0.3); --green:#059669; --green-dim:rgba(5,150,105,0.08); --green-border:rgba(5,150,105,0.3); }
+
+body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.7; font-size: 14px; }
+
+body.en .ja { display: none; }
+body.en .en { display: block; }
+body:not(.en) .en { display: none; }
+body:not(.en) .ja { display: block; }
+.en, .ja { display: block; }
+span.en, span.ja { display: inline; }
+
+.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 calc(var(--sidebar-w) + 20px); }
+.topbar-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.lang-toggle { display: flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--surface2); }
+.lang-btn { padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--muted); }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+.sidebar { position: fixed; top: 52px; left: 0; bottom: 0; width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 0 40px; }
+.sidebar-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .10em; text-transform: uppercase; padding: 12px 16px 4px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 16px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 500; border-left: 3px solid transparent; }
+.nav-item:hover { color: var(--text); background: var(--accent-dim); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+.nav-icon { font-size: 13px; flex-shrink: 0; }
+
+.main { margin-left: var(--sidebar-w); margin-top: 52px; padding: 36px 40px 100px; max-width: 900px; }
+.section { display: none; }
+.section.active { display: block; }
+@media (max-width: 820px) {
+  .sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .topbar { padding-left: 20px; position: static; }
+  .main { margin-left: 0; margin-top: 0; padding: 24px 18px 80px; }
+}
+
+.hero-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 26px; }
+.hero-icon { width: 52px; height: 52px; border-radius: 12px; background: var(--accent-dim); border: 1px solid var(--accent-glow); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.section-title { font-size: 22px; font-weight: 700; color: var(--text); text-wrap: balance; }
+.section-path { font-size: 11px; color: var(--accent); font-family: 'SF Mono', 'Fira Code', monospace; margin-top: 2px; letter-spacing: .04em; }
+.section-desc { font-size: 13px; color: var(--muted); margin-top: 5px; line-height: 1.7; }
+
+.philosophy { background: linear-gradient(135deg, rgba(129,140,248,0.10) 0%, rgba(167,139,250,0.07) 100%); border: 1px solid var(--accent-glow); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+.philosophy-quote { font-size: 16px; font-weight: 600; color: var(--accent); font-style: italic; line-height: 1.6; }
+.philosophy-sub { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); margin-bottom: 10px; }
+.card.red-border { border-color: var(--red-border); }
+.card.green-border { border-color: var(--green-border); }
+.card p { font-size: 13px; color: var(--muted); }
+.card p + p { margin-top: 9px; }
+.card p strong, .card li strong { color: var(--text); }
+
+.flow { display: flex; flex-direction: column; gap: 3px; margin: 16px 0; }
+.flow-row { display: flex; align-items: stretch; gap: 10px; }
+.flow-num { width: 28px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; font-size: 11px; font-weight: 800; color: var(--accent); padding-top: 14px; }
+.flow-box { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--surface2); }
+.flow-box.highlight { border-color: var(--accent-glow); background: var(--accent-dim); }
+.flow-box.stop { border-color: var(--red-border); background: var(--red-dim); }
+.flow-who { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.flow-name { font-size: 13px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.flow-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.flow-arrow { display: flex; justify-content: flex-start; padding-left: 42px; color: var(--muted); font-size: 13px; height: 16px; }
+
+.steps { list-style: none; }
+.step { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.step:last-child { border-bottom: none; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.step-body { flex: 1; }
+.step-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.step-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.tbl-wrap { overflow-x: auto; margin: 12px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 460px; }
+th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--muted); font-weight: 700; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.muted { color: var(--muted); }
+.good { color: var(--green); font-weight: 700; }
+.bad  { color: var(--red); font-weight: 700; }
+.warn-t { color: var(--orange); font-weight: 700; }
+
+.tip { display: flex; gap: 10px; border-radius: 8px; padding: 12px 15px; margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+.tip.info    { background: rgba(96,165,250,0.07); border: 1px solid rgba(96,165,250,0.3); }
+.tip.warn    { background: var(--orange-dim); border: 1px solid var(--orange-border); }
+.tip.success { background: var(--green-dim); border: 1px solid var(--green-border); }
+.tip.danger  { background: var(--red-dim); border: 1px solid var(--red-border); }
+.tip.accent  { background: var(--accent-dim); border: 1px solid var(--accent-glow); }
+.tip-icon { flex-shrink: 0; font-size: 15px; }
+.tip strong { color: var(--text); }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--text); }
+.chip.red { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+.chip.green { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+.chip.accent { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-glow); }
+
+.mock { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 12px 0; background: var(--surface); }
+.mock-head { background: var(--surface2); padding: 9px 14px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+.mock-body { padding: 14px; }
+.mock-warn { border-radius: 7px; padding: 10px 13px; font-size: 12px; margin-bottom: 10px; }
+.mock-warn.amber { background: var(--orange-dim); border: 1px solid var(--orange-border); color: var(--orange); }
+.mock-warn.red { background: var(--red-dim); border: 1px solid var(--red-border); color: var(--red); }
+.mock-warn b { display: block; margin-bottom: 2px; }
+.mock-btn { display: inline-block; padding: 7px 15px; border-radius: 7px; font-size: 12px; font-weight: 700; background: var(--accent); color: #fff; }
+.mock-btn.off { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11.5px; background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--blue); }
+pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11.5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--text); margin: 10px 0; line-height: 1.6; }
+ul.plain { list-style: none; margin-top: 8px; }
+ul.plain li { font-size: 12.5px; color: var(--muted); padding: 5px 0 5px 18px; position: relative; }
+ul.plain li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
+h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8px; }
+</style>
+
+<div class="topbar">
+  <div class="topbar-title">Management Channel — Delivery</div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">JP</button>
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+  </div>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-label"><span class="ja">読む順</span><span class="en">Read in order</span></div>
+  <div class="nav-item active" onclick="show('why')">
+    <span class="nav-icon">🔍</span>
+    <span class="ja">なぜ変えたか</span><span class="en">Why this changed</span>
+  </div>
+  <div class="nav-item" onclick="show('flow')">
+    <span class="nav-icon">🔁</span>
+    <span class="ja">1日の流れ</span><span class="en">A day in the channel</span>
+  </div>
+  <div class="nav-item" onclick="show('roster')">
+    <span class="nav-icon">📅</span>
+    <span class="ja">当番表</span><span class="en">The duty roster</span>
+  </div>
+  <div class="nav-item" onclick="show('send')">
+    <span class="nav-icon">📤</span>
+    <span class="ja">送信画面の警告</span><span class="en">What Send tells you</span>
+  </div>
+  <div class="nav-item" onclick="show('volume')">
+    <span class="nav-icon">⚖️</span>
+    <span class="ja">送る量の決め方</span><span class="en">Deciding the volume</span>
+  </div>
+  <div class="sidebar-label"><span class="ja">運用</span><span class="en">Operating it</span></div>
+  <div class="nav-item" onclick="show('hq')">
+    <span class="nav-icon">🧭</span>
+    <span class="ja">HQ がやること</span><span class="en">What HQ does</span>
+  </div>
+  <div class="nav-item" onclick="show('trouble')">
+    <span class="nav-icon">🛠️</span>
+    <span class="ja">うまくいかないとき</span><span class="en">When it looks wrong</span>
+  </div>
+  <div class="nav-item" onclick="show('changes')">
+    <span class="nav-icon">📋</span>
+    <span class="ja">変更点の一覧</span><span class="en">What changed, exactly</span>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- ═══════════ WHY ═══════════ -->
+<div class="section active" id="section-why">
+  <div class="hero-header">
+    <div class="hero-icon">🔍</div>
+    <div>
+      <div class="section-title"><span class="ja">なぜ変えたか</span><span class="en">Why this changed</span></div>
+      <div class="section-path">2026-08-29</div>
+      <div class="section-desc">
+        <span class="ja">きっかけは、西村さんが Send を押して「どこに送られたのか分からない」と気づいたことです。</span>
+        <span class="en">It started when Nishimura-san pressed Send and could not tell where it had gone.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="philosophy">
+    <div class="philosophy-quote">
+      <span class="ja">Send は、誰にも送っていませんでした。</span>
+      <span class="en">Send was not sending to anyone.</span>
+    </div>
+    <div class="philosophy-sub">
+      <span class="ja">status を <code>sent</code> にして履歴を1行書くだけで、宛先も通知も存在しませんでした。マネージャーが知る方法は「自分でページを開き、正しい店舗をドロップダウンで選ぶ」だけでした。</span>
+      <span class="en">It set status to <code>sent</code> and wrote one history row. There was no addressee and no notification. The only way a manager could find out was to open the page themselves and pick the right branch from a dropdown.</span>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title"><span class="ja">調査で分かったこと</span><span class="en">What the data showed</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th><span class="ja">項目</span><span class="en">Measure</span></th><th><span class="ja">実測</span><span class="en">Actual</span></th></tr>
+        <tr><td><span class="ja">タスク総数</span><span class="en">Tasks in total</span></td><td class="num">322</td></tr>
+        <tr><td><span class="ja">宛先が入っていたもの</span><span class="en">With a name on them</span></td><td class="num bad">1<span class="muted"> ("Test Manager")</span></td></tr>
+        <tr><td><span class="ja">BO が送ったメッセージ → 返信</span><span class="en">Messages BO sent → replies</span></td><td class="num">10 → <span class="bad">0</span></td></tr>
+        <tr><td><span class="ja">宛先が空のまま「送信済み」</span><span class="en">Marked sent with no addressee</span></td><td class="num bad">90</td></tr>
+      </table>
+    </div>
+    <p>
+      <span class="ja">この90件は8/29にクリアしましたが、<strong>同じ日のうちに11件が再発</strong>しました（10:02〜10:48 の46分間）。穴は生きていて、1日あたり約11件のペースで溜まり続けていたということです。</span>
+      <span class="en">Those 90 were cleared on 29 August, and <strong>eleven more appeared the same day</strong>, between 10:02 and 10:48. The hole was still open, refilling at roughly eleven a day.</span>
+    </p>
+  </div>
+
+  <h3 class="sub"><span class="ja">配送だけ直すと、かえって悪くなる</span><span class="en">Fixing delivery alone would have made it worse</span></h3>
+
+  <div class="card">
+    <p>
+      <span class="ja">宛先を付けて通知を鳴らすだけなら簡単でした。しかしマニラは<strong>1日31.4件</strong>のタスクを生成しており、そのうち<strong>21.3件が <code>product_score_c</code></strong>（QC写真1枚につき1行）でした。TAFT だけで1日12.4件です。</span>
+      <span class="en">Adding an addressee and a notification would have been the easy half. But Manila raises <strong>31.4 tasks a day</strong>, and <strong>21.3 of them were <code>product_score_c</code></strong> — one row per QC photo. TAFT alone accounted for 12.4 a day.</span>
+    </p>
+    <p>
+      <span class="ja">そのまま通知を通すと、担当1人に1日約15通が届きます。4分の3は「写真1枚がC評価」で、受け取った側に次の動作がありません。<strong>1週間で通知を切られます。</strong></span>
+      <span class="en">Turn delivery on as it was, and one manager receives about fifteen notifications a day, three quarters of them "a photo scored C" with no obvious next action. <strong>They mute it within a week.</strong></span>
+    </p>
+    <div class="tip danger">
+      <span class="tip-icon">⚠️</span>
+      <div>
+        <span class="ja"><strong>そして今より悪くなります。</strong>記録上は「送信済み」になり、Manager Compliance Score の分母に入り、<strong>届いていないのに本人の点が下がります。</strong>クリアした90件と同じ構図が、通知付きで再生産されるところでした。</span>
+        <span class="en"><strong>And that is worse than today.</strong> The tasks read as delivered, land in the Manager Compliance Score denominator, and <strong>cost the manager points for messages they never saw</strong> — the same shape as the ninety we cleared, reproduced with a notification attached.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title"><span class="ja">だから、量を決める工程を先に入れた</span><span class="en">So the volume was decided first</span></div>
+    <p>
+      <span class="ja">答えられている型と、そうでない型は、すでにデータで分かれていました。違いは<strong>「受け取った人の次の動作が一意に決まるか」</strong>です。</span>
+      <span class="en">The data already separated the types that get answered from the ones that do not. The difference is <strong>whether the message leaves the reader with one obvious next action</strong>.</span>
+    </p>
+    <div class="tbl-wrap">
+      <table>
+        <tr>
+          <th><span class="ja">型</span><span class="en">Type</span></th>
+          <th class="num"><span class="ja">送信</span><span class="en">Sent</span></th>
+          <th class="num"><span class="ja">回答</span><span class="en">Answered</span></th>
+          <th class="num"><span class="ja">回答率</span><span class="en">Rate</span></th>
+        </tr>
+        <tr><td><code>rush_check_missing</code></td><td class="num">3</td><td class="num">3</td><td class="num good">100%</td></tr>
+        <tr><td><code>backup_below_50 / 70</code></td><td class="num">2</td><td class="num">2</td><td class="num good">100%</td></tr>
+        <tr><td><code>disposal_missing</code></td><td class="num">4</td><td class="num">2</td><td class="num warn-t">50%</td></tr>
+        <tr><td><code>product_score_c</code></td><td class="num">11</td><td class="num">2</td><td class="num bad">18%</td></tr>
+      </table>
+    </div>
+    <p>
+      <span class="ja"><code>rush_check_missing</code> の本文は「Dinner 18:00 のチェックが未提出です」で、やることが1つに決まります。<code>product_score_c</code> は「15:15 に投稿された商品がC」で、次に何をするか決まりません。</span>
+      <span class="en"><code>rush_check_missing</code> reads "the Dinner 18:00 check has not been submitted" — one thing to do. <code>product_score_c</code> read "the product scored at 15:15 got a C", which leaves the reader with nothing decided.</span>
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════ FLOW ═══════════ -->
+<div class="section" id="section-flow">
+  <div class="hero-header">
+    <div class="hero-icon">🔁</div>
+    <div>
+      <div class="section-title"><span class="ja">1日の流れ</span><span class="en">A day in the channel</span></div>
+      <div class="section-desc">
+        <span class="ja">検出から回答まで。どこで人が判断し、どこで自動が止まるかを示します。</span>
+        <span class="en">From detection to reply — where a person decides, and where the automation stops.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-num">1</div>
+      <div class="flow-box">
+        <div class="flow-who"><span class="ja">システム</span><span class="en">System</span></div>
+        <div class="flow-name"><span class="ja">検出（自動・毎日）</span><span class="en">Detection, daily and automatic</span></div>
+        <div class="flow-desc">
+          <span class="ja">欠品・廃棄未記録・ラッシュチェック未提出・QC低評価などを検出し、<code>management_tasks</code> に積みます。<strong>この時点で宛先が入ります</strong>（次項の当番表から自動）。</span>
+          <span class="en">Shortfalls, missing disposal records, unsubmitted rush checks and low QC scores land in <code>management_tasks</code>. <strong>The addressee is filled in here</strong>, from the duty roster.</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">2</div>
+      <div class="flow-box highlight">
+        <div class="flow-who"><span class="ja">システム</span><span class="en">System</span></div>
+        <div class="flow-name"><span class="ja">QC低評価は「店舗ごと1日1通」にまとめる</span><span class="en">Low QC scores are summarised once a day per branch</span></div>
+        <div class="flow-desc">
+          <span class="ja">写真1枚ごとではなく、その日の分をまとめた1通になります。まだ送っていない要約には、その日のうちに新しい評価が追記されます。<strong>送信済みの要約は書き換えません</strong>（読んだ人が答えたあとに設問が変わってしまうため）。</span>
+          <span class="en">One message for the day, not one per photo. A summary still in the queue grows as more scores arrive; <strong>one already sent is never edited</strong>, because that would change the question after the manager answered it.</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">3</div>
+      <div class="flow-box">
+        <div class="flow-who">Back Office</div>
+        <div class="flow-name"><span class="ja">1件ずつ見て Send を押す</span><span class="en">Review each one and press Send</span></div>
+        <div class="flow-desc">
+          <span class="ja">Management → Back Office。ボタンには<strong>宛先の名前が出ます</strong>（例: 「Send to Francis Ibana」）。宛先が決まらない店舗では<strong>押せません</strong>。</span>
+          <span class="en">Management → Back Office. The button <strong>carries the name</strong> — "Send to Francis Ibana". Where no owner is rostered, it <strong>cannot be pressed</strong>.</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">4</div>
+      <div class="flow-box highlight">
+        <div class="flow-who">Discord</div>
+        <div class="flow-name"><span class="ja">本人をメンションして投稿</span><span class="en">Posted to the channel, mentioning them</span></div>
+        <div class="flow-desc">
+          <span class="ja">都市のチャンネルに投稿し、<code>@担当者</code> を付けます。<strong>Discord ID が未登録の人には投稿しません</strong> — 宛名のない投稿は「送ったのに誰も見ない」に戻るからです。</span>
+          <span class="en">A post to the city channel with <code>@owner</code> on it. <strong>Nobody without a recorded Discord ID gets a post</strong> — an unaddressed post is exactly the failure this replaces.</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">5</div>
+      <div class="flow-box">
+        <div class="flow-who"><span class="ja">担当マネージャー</span><span class="en">The manager</span></div>
+        <div class="flow-name"><span class="ja">受信箱で受け取り、回答する</span><span class="en">Receives it in the inbox and replies</span></div>
+        <div class="flow-desc">
+          <span class="ja">Management Inbox は<strong>既定で「自分宛」</strong>を表示します。NavBar のバッジに件数が出て、<strong>24時間を超えると赤</strong>になります。店舗を選べば従来どおり店舗全体も見られます。</span>
+          <span class="en">The Management Inbox opens on <strong>"Assigned to me"</strong>. The navigation badge shows the count and turns <strong>red once something has waited a full day</strong>. The branch dropdown still shows a whole store.</span>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row">
+      <div class="flow-num">6</div>
+      <div class="flow-box stop">
+        <div class="flow-who"><span class="ja">24時間 無反応のとき</span><span class="en">If 24 hours pass with no reply</span></div>
+        <div class="flow-name"><span class="ja">Waiting for Someone に上がる</span><span class="en">It appears in Waiting for Someone</span></div>
+        <div class="flow-desc">
+          <span class="ja">上げ先は「担当者本人でない最初の人」です。<strong>Francis → Yusuke さん / Yusuke さん → Ayako さん</strong>。自分が落としたものが自分に戻ることはありません。</span>
+          <span class="en">It goes to the first person in the chain who is not the owner: <strong>Francis → Yusuke / Yusuke → Ayako</strong>. Nobody is ever handed back their own missed task.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">ℹ️</span>
+    <div>
+      <span class="ja"><strong>自動で決まるのは1〜2と6だけです。</strong>3（送るかどうか）と、担当が休みのときの切替は人が決めます。自動判定が誤ったときに黙って別人へ届くのを避けるためです。</span>
+      <span class="en"><strong>Only steps 1, 2 and 6 are automatic.</strong> Whether to send, and whether to switch when an owner is off, are decided by a person — so that a wrong reading never silently delivers to someone else.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ ROSTER ═══════════ -->
+<div class="section" id="section-roster">
+  <div class="hero-header">
+    <div class="hero-icon">📅</div>
+    <div>
+      <div class="section-title"><span class="ja">当番表</span><span class="en">The duty roster</span></div>
+      <div class="section-path">Admin → Management → Assignments</div>
+      <div class="section-desc">
+        <span class="ja">「その店舗のその曜日に、誰が受け取るか」。タスクの宛先はここから自動で決まります。</span>
+        <span class="en">Who receives a task raised for this branch on this weekday. Every task's addressee comes from here.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip accent">
+    <span class="tip-icon">📌</span>
+    <div>
+      <span class="ja"><strong>「店舗＝担当者1人」ではありません。</strong>担当は曜日で交代します。だからタスクの<strong>日付から曜日を出して</strong>引きます。</span>
+      <span class="en"><strong>A branch does not have one owner.</strong> Ownership rotates by weekday, so the lookup uses <strong>the task's own date</strong>.</span>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th><span class="ja">店舗</span><span class="en">Branch</span></th>
+        <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+        <th><span class="ja">代理</span><span class="en">Stand-in</span></th>
+      </tr>
+      <tr>
+        <td><strong>TAFT</strong></td>
+        <td>Ayako</td><td>Francis</td><td>Francis</td><td>Francis</td><td>Francis</td><td>Francis</td><td>Francis</td>
+        <td>Ayako</td>
+      </tr>
+      <tr>
+        <td><strong>PAR</strong></td>
+        <td>Peter</td><td>Peter</td><td>Peter</td><td>Richard</td><td>Peter</td><td>Richard</td><td>Richard</td>
+        <td class="muted">—</td>
+      </tr>
+      <tr>
+        <td><strong>CUB</strong></td>
+        <td>Richard</td><td>Yusuke</td><td>Richard</td><td>Yusuke</td><td>Richard</td><td>Yusuke</td><td>Yusuke</td>
+        <td class="muted">—</td>
+      </tr>
+      <tr>
+        <td><strong>CK</strong></td>
+        <td>Richard</td><td>Yusuke</td><td>Richard</td><td>Yusuke</td><td>Richard</td><td>Yusuke</td><td>Yusuke</td>
+        <td class="muted">—</td>
+      </tr>
+      <tr>
+        <td><strong>ALL</strong></td>
+        <td colspan="7" style="text-align:center">Yusuke</td>
+        <td class="muted">—</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">ALL は「全店に配る」ではありません</span><span class="en">ALL is not "send to every branch"</span></div>
+    <p>
+      <span class="ja"><code>ALL</code> のタスクは全社KPI（prime cost / food cost が閾値超過）です。1店舗のマネージャーには実行できません。<strong>1人が全社として答えるもの</strong>なので、Yusuke さん1名を宛先にしています。4店舗に同じものを配ると、誰も自分の担当だと思いません。</span>
+      <span class="en"><code>ALL</code> tasks are company-wide KPI breaches — prime cost and food cost — which no single store manager can act on. <strong>One person answers for the company</strong>, so they go to Yusuke. Copied to four branches, nobody would treat it as theirs.</span>
+    </p>
+  </div>
+
+  <h3 class="sub"><span class="ja">編集のしかた</span><span class="en">Editing it</span></h3>
+  <ol class="steps">
+    <li class="step"><span class="step-num">1</span><div class="step-body">
+      <div class="step-title"><span class="ja">Admin → Management → Assignments を開く</span><span class="en">Open Admin → Management → Assignments</span></div>
+      <div class="step-desc"><span class="ja">「Store owners by weekday」の表がこの当番表です。</span><span class="en">The table headed "Store owners by weekday".</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">2</span><div class="step-body">
+      <div class="step-title"><span class="ja">セルに名前を入れてフォーカスを外す</span><span class="en">Type a name in a cell and click away</span></div>
+      <div class="step-desc"><span class="ja">その場で保存されます。<strong>名簿に登録された正式名で入力してください</strong>（例: <code>Richard S. Gante</code>。<code>Richard Gante</code> ではありません）。</span><span class="en">It saves on blur. <strong>Use the exact registered name</strong> — <code>Richard S. Gante</code>, not <code>Richard Gante</code>.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">3</span><div class="step-body">
+      <div class="step-title"><span class="ja">空欄にすると、その曜日は送信不可になる</span><span class="en">A blank cell blocks sending for that weekday</span></div>
+      <div class="step-desc"><span class="ja">誰にも届かないまま「送信済み」になるより、送れないほうが安全だからです。</span><span class="en">Refusing is safer than recording a delivery that reached no one.</span></div>
+    </div></li>
+  </ol>
+
+  <div class="tip warn">
+    <span class="tip-icon">⚠️</span>
+    <div>
+      <span class="ja">名前は<strong>名簿と照合されます</strong>。存在しない名前は保存できません。誤字を許すと、タスクには名前が入っているのに誰にも届かない——という一番分かりにくい壊れ方をします。</span>
+      <span class="en">Names are <strong>checked against the staff roster</strong> and a name nobody has is refused. A typo would otherwise produce the worst failure of all: a task that looks addressed and reaches nobody.</span>
+    </div>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">💬</span>
+    <div>
+      <span class="ja">Discord ID が未登録の担当者がいると、同じ画面の上部に<strong>名前を挙げて警告</strong>します。その人には通知が飛びません。</span>
+      <span class="en">If a rostered owner has no Discord ID, the same screen <strong>names them in a warning</strong>. No notification is posted for that person.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SEND ═══════════ -->
+<div class="section" id="section-send">
+  <div class="hero-header">
+    <div class="hero-icon">📤</div>
+    <div>
+      <div class="section-title"><span class="ja">送信画面の警告</span><span class="en">What Send tells you</span></div>
+      <div class="section-path">Admin → Management → Back Office</div>
+      <div class="section-desc">
+        <span class="ja">押す前に、宛先と「届かない理由」が画面に出ます。押したあと気づく設計にしていません。</span>
+        <span class="en">The addressee, and any reason it will not arrive, appear before you press — not after.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mock">
+    <div class="mock-head"><span class="ja">送信ダイアログ（例）</span><span class="en">Send dialog — example</span></div>
+    <div class="mock-body">
+      <div class="mock-warn amber">
+        <b><span class="ja">Francis Ibana は公開シフトに入っていません</span><span class="en">Francis Ibana is not on the published shift for this day</span></b>
+        <span class="ja">TAFT の代理は Ayako Nishimura です。自動では切り替えません。</span>
+        <span class="en">The stand-in for TAFT is Ayako Nishimura. Nothing is switched automatically.</span>
+      </div>
+      <span class="mock-btn">Send to Francis Ibana</span>
+      <span class="mock-btn off" style="margin-left:8px">Cancel</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">出る警告は3種類</span><span class="en">Three warnings</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <tr>
+          <th><span class="ja">表示</span><span class="en">Warning</span></th>
+          <th><span class="ja">意味</span><span class="en">Meaning</span></th>
+          <th><span class="ja">送信</span><span class="en">Send</span></th>
+        </tr>
+        <tr>
+          <td class="bad"><span class="ja">当番が未設定</span><span class="en">No manager rostered</span></td>
+          <td class="muted"><span class="ja">その店舗のその曜日に担当がいない</span><span class="en">Nobody is on duty for that branch on that weekday</span></td>
+          <td class="bad"><span class="ja">不可</span><span class="en">Blocked</span></td>
+        </tr>
+        <tr>
+          <td class="warn-t"><span class="ja">シフトに入っていない</span><span class="en">Not on the published shift</span></td>
+          <td class="muted"><span class="ja">担当は決まっているが、その日は出勤予定がない</span><span class="en">There is an owner, but no shift published for them that day</span></td>
+          <td><span class="ja">可（判断は人）</span><span class="en">Allowed — you decide</span></td>
+        </tr>
+        <tr>
+          <td class="warn-t"><span class="ja">Discord ID が未登録</span><span class="en">No Discord ID</span></td>
+          <td class="muted"><span class="ja">送信は記録されるが、通知は飛ばない</span><span class="en">The send is recorded but no notification is posted</span></td>
+          <td><span class="ja">可</span><span class="en">Allowed</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">なぜシフトで自動切替しないのか</span><span class="en">Why the shift does not switch it for you</span></div>
+    <p>
+      <span class="ja"><strong>公開シフトは、誤っていることがあります。</strong>実際に「正しい打刻 × 誤ったシフト」が35行あった一方、その逆は9行でした。自動で切り替えると、誤っていたときに<strong>黙って別人に届きます</strong>。届いた側は自分の店ではないので何もせず、本人には来ていない——誰も気づけません。</span>
+      <span class="en"><strong>The published shift is sometimes wrong.</strong> We have measured 35 rows where the clock-in was right and the shift was not, against 9 the other way. Switch automatically on a wrong reading and it <strong>delivers to the wrong person in silence</strong> — they do nothing because it is not their branch, and the real owner never hears.</span>
+    </p>
+    <p>
+      <span class="ja">Send を押すのは元から人です。<strong>人がいる唯一の瞬間に事実を出して、判断はその人に委ねます。</strong>シフトが間違っていれば、名前を見て無視できます。</span>
+      <span class="en">A person is already there at the Send press. <strong>Put the fact in front of them and let them decide.</strong> If the shift is wrong, they can see the name and ignore the warning.</span>
+    </p>
+    <div class="tip success">
+      <span class="tip-icon">🛟</span>
+      <div>
+        <span class="ja">仮に間違った人に送っても、<strong>24時間で Yusuke さんに上がります</strong>。取り返しはつきます。</span>
+        <span class="en">Even if it goes to the wrong person, it <strong>escalates to Yusuke within 24 hours</strong>. Nothing is lost permanently.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">📨</span>
+    <div>
+      <span class="ja">送信後、通知が飛ばなかった場合は画面上部に<strong>「Sent, but Discord was not notified — 理由」</strong>と出ます。タスクは記録されているので、必要なら口頭で伝えてください。</span>
+      <span class="en">If the post did not go out, the page says <strong>"Sent, but Discord was not notified — reason"</strong>. The task is recorded either way; tell them another way if it matters.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ VOLUME ═══════════ -->
+<div class="section" id="section-volume">
+  <div class="hero-header">
+    <div class="hero-icon">⚖️</div>
+    <div>
+      <div class="section-title"><span class="ja">送る量の決め方</span><span class="en">Deciding the volume</span></div>
+      <div class="section-desc">
+        <span class="ja">形骸化させないための仕組みです。ここが一番重要です。</span>
+        <span class="en">The part that keeps this from becoming a ritual nobody performs.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title"><span class="ja">やったこと 3つ</span><span class="en">Three changes</span></div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body">
+        <div class="step-title"><span class="ja">QC低評価を店舗別1日1通の要約に</span><span class="en">Low QC scores became one summary a day per branch</span></div>
+        <div class="step-desc"><span class="ja">8/18 のデータで検証: <strong>32枚 → 3タスク</strong>（TAFT 20件 / PAR 7件 / CUB 5件）。</span><span class="en">Verified against 18 August: <strong>32 photos became 3 tasks</strong> — TAFT 20, PAR 7, CUB 5.</span></div>
+      </div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body">
+        <div class="step-title"><span class="ja">一度も送られていない3型を廃止</span><span class="en">Three types that were never once sent were retired</span></div>
+        <div class="step-desc"><span class="ja"><code>complaint_no_photo</code> / <code>pm_backup_missing</code> / <code>salmon_yield_alert</code>。1か月間まったく送られておらず、1日2.5件の「送らない検出」を生み続けていました。<strong>生成そのものを止めています。</strong></span><span class="en"><code>complaint_no_photo</code>, <code>pm_backup_missing</code>, <code>salmon_yield_alert</code>. Not one of them was forwarded in a month — 2.5 a day of detection producing no instruction. <strong>They are stopped at the source.</strong></span></div>
+      </div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body">
+        <div class="step-title"><span class="ja">型ごとの回答率を画面に常設</span><span class="en">Per-type answer rates are on the dashboard</span></div>
+        <div class="step-desc"><span class="ja">Back Office の上部「What this channel sends — last 30 days」。<strong>答えられていない型は送るのをやめる</strong>——これが唯一の自浄機構です。</span><span class="en">"What this channel sends — last 30 days", at the top of Back Office. <strong>A type that stops being answered should stop being sent</strong> — this is the only self-correcting part.</span></div>
+      </div></li>
+    </ol>
+  </div>
+
+  <h3 class="sub"><span class="ja">結果</span><span class="en">The result</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th></th>
+        <th class="num"><span class="ja">変更前</span><span class="en">Before</span></th>
+        <th class="num"><span class="ja">変更後</span><span class="en">After</span></th>
+      </tr>
+      <tr><td><code>product_score_c</code></td><td class="num">21.3 <span class="muted">/day</span></td><td class="num good">3 <span class="muted">/day</span></td></tr>
+      <tr><td><span class="ja">その他</span><span class="en">Everything else</span></td><td class="num">10.1 <span class="muted">/day</span></td><td class="num">7.6 <span class="muted">/day</span></td></tr>
+      <tr><td><strong><span class="ja">合計</span><span class="en">Total</span></strong></td><td class="num"><strong>31.4</strong></td><td class="num good"><strong>10.6</strong></td></tr>
+      <tr><td><strong><span class="ja">担当1人あたり</span><span class="en">Per manager</span></strong></td><td class="num bad"><strong>≈15</strong></td><td class="num good"><strong>4〜5</strong></td></tr>
+    </table>
+  </div>
+  <div class="tip success">
+    <span class="tip-icon">✅</span>
+    <div>
+      <span class="ja"><strong>4〜5件なら1件ずつ判断できます。</strong>件数を減らすことが、そのまま送信の質になります。</span>
+      <span class="en"><strong>Four or five can be judged one at a time.</strong> Reducing the count is what makes each send a decision rather than a queue-clearing click.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">要約化でスコアの目盛りが変わっています</span><span class="en">The summary changed the scale of the score</span></div>
+    <p>
+      <span class="ja">Manager Compliance Score の <code>complaints</code> 成分（重み15）は、実質 <code>product_score_c</code> だけで決まります。要約化で母数が<strong>週約85件 → 週約7件</strong>になりました。比は残りますが、<strong>1件落としたときの重さが約12倍</strong>になります（総合点で約0.18点 → 約2.1点）。</span>
+      <span class="en">The <code>complaints</code> component of the Manager Compliance Score (weight 15) is effectively <code>product_score_c</code> alone. Summarising moved its denominator from about 85 a week to about 7. The ratio survives, but <strong>one miss now costs roughly twelve times as much</strong> — about 0.18 points became about 2.1.</span>
+    </p>
+    <div class="tip warn">
+      <span class="tip-icon">📉</span>
+      <div>
+        <span class="ja"><strong>切替日を跨いだ週次比較はしないでください。</strong>「8月より9月のほうが点が低い」は、現場の悪化ではなく目盛りが変わっただけ、という可能性があります。</span>
+        <span class="en"><strong>Do not compare weeks across the cutover.</strong> "September scores worse than August" may be the scale moving, not the stores slipping.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ HQ ═══════════ -->
+<div class="section" id="section-hq">
+  <div class="hero-header">
+    <div class="hero-icon">🧭</div>
+    <div>
+      <div class="section-title"><span class="ja">HQ がやること</span><span class="en">What HQ does</span></div>
+      <div class="section-desc">
+        <span class="ja">日々の運用は BO とマネージャーです。HQ が見るのは3つだけです。</span>
+        <span class="en">Day to day this belongs to BO and the managers. There are three things HQ looks at.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">① 月に1回 — 回答率を見る</span><span class="en">① Once a month — read the answer rates</span></div>
+    <p>
+      <span class="ja">Back Office 上部の「What this channel sends」を開きます。<strong>回答率が下がり続けている型は、送るのをやめるか本文を直します。</strong>放置すると、その型が誰にも読まれないまま積み上がります。<code>product_score_c</code> がまさにそれでした。</span>
+      <span class="en">Open "What this channel sends" at the top of Back Office. <strong>A type whose answer rate keeps falling should either be reworded or stopped.</strong> Left alone, it piles up unread — which is exactly what happened to <code>product_score_c</code>.</span>
+    </p>
+    <div class="tip info">
+      <span class="tip-icon">📊</span>
+      <div>
+        <span class="ja">「never sent」と「0%」は違います。<strong>前者は BO が説明することで、後者はマネージャーが説明することです。</strong>だから表では区別して表示しています。</span>
+        <span class="en">"Never sent" and "0%" are different. <strong>The first is the back office's to explain, the second the manager's</strong> — so the table shows them differently.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">② 人が入れ替わったら — 当番表を直す</span><span class="en">② When people change — update the roster</span></div>
+    <p>
+      <span class="ja">Assignments で当番表と代理を直します。<strong>Discord ID も同じ画面で管理します。</strong>未登録の人がいると画面が名前を挙げて警告します。</span>
+      <span class="en">Update the roster and the stand-in on Assignments. <strong>Discord IDs live on the same screen</strong>, and anyone missing one is named in a warning.</span>
+    </p>
+    <div class="tip warn">
+      <span class="tip-icon">👤</span>
+      <div>
+        <span class="ja">退職者を当番表に残さないでください。宛先は入るのに本人は使えない、という状態になります。<strong>退職手続き（Staff の在籍状態を SEPARATED に）とセットで確認してください。</strong></span>
+        <span class="en">Do not leave a departed employee on the roster: tasks would carry a name that nobody can act on. <strong>Check it alongside marking them SEPARATED on the Staff page.</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">③ Waiting for Someone に上がってきたもの</span><span class="en">③ Whatever reaches Waiting for Someone</span></div>
+    <p>
+      <span class="ja">24時間回答のないものが載ります。上げ先は Yusuke さん、Yusuke さん本人が担当だった場合は Ayako さんです。<strong>ここに毎日同じ店舗が並ぶなら、当番表か本文のどちらかが実態に合っていません。</strong></span>
+      <span class="en">Anything unanswered for 24 hours lands here, addressed to Yusuke — or to Ayako when Yusuke was the owner. <strong>If the same branch appears every day, either the roster or the wording does not match reality.</strong></span>
+    </p>
+  </div>
+
+  <h3 class="sub"><span class="ja">やらなくてよいこと</span><span class="en">What HQ does not need to do</span></h3>
+  <ul class="plain">
+    <li><span class="ja">宛先を手で入れる — 検出時に当番表から自動で入ります</span><span class="en">Fill in addressees — detection does it from the roster</span></li>
+    <li><span class="ja">通知を手で送る — Send を押した時点で投稿されます</span><span class="en">Send notifications by hand — pressing Send posts it</span></li>
+    <li><span class="ja">未回答を探し回る — 24時間で自動的に上がってきます</span><span class="en">Hunt for unanswered items — they come to you after 24 hours</span></li>
+  </ul>
+</div>
+
+<!-- ═══════════ TROUBLE ═══════════ -->
+<div class="section" id="section-trouble">
+  <div class="hero-header">
+    <div class="hero-icon">🛠️</div>
+    <div>
+      <div class="section-title"><span class="ja">うまくいかないとき</span><span class="en">When it looks wrong</span></div>
+      <div class="section-desc">
+        <span class="ja">症状から原因へ。ほとんどは当番表か Discord ID です。</span>
+        <span class="en">Symptom to cause. Most of it is the roster or a missing Discord ID.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title"><span class="ja">「送信できません」と出て押せない</span><span class="en">"Cannot send" and the button is dead</span></div>
+    <p>
+      <span class="ja">その店舗のその曜日に当番がいません。メッセージに店舗名が出ています。<strong>Assignments でその曜日のセルを埋めてください。</strong></span>
+      <span class="en">No owner is rostered for that branch on that weekday; the message names the branch. <strong>Fill that weekday's cell on Assignments.</strong></span>
+    </p>
+    <p class="muted">
+      <span class="ja">これはマニラだけの制限です。ドバイは対象外なので従来どおり動きます。</span>
+      <span class="en">This applies to Manila only. Dubai is out of scope for this channel and behaves as before.</span>
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">送ったのに Discord に何も出ない</span><span class="en">Sent, but nothing appeared in Discord</span></div>
+    <p>
+      <span class="ja">担当者の Discord ID が未登録です。画面に<strong>「Sent, but Discord was not notified — no Discord id recorded for ○○」</strong>と出ているはずです。Assignments の上部にも名前が出ます。</span>
+      <span class="en">That owner has no Discord ID. The page will have said <strong>"Sent, but Discord was not notified — no Discord id recorded for …"</strong>, and Assignments names them too.</span>
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">マネージャーが「自分宛が出ない」と言う</span><span class="en">A manager says nothing is assigned to them</span></div>
+    <p>
+      <span class="ja">受信箱は<strong>名簿の登録名で照合</strong>します。当番表に入れた名前が名簿と1文字でも違うと一致しません。Assignments のセルを名簿の正式名で入れ直してください。</span>
+      <span class="en">The inbox matches on the <strong>registered name</strong>. A roster entry that differs by even one character will not match. Re-enter it exactly as the staff roster has it.</span>
+    </p>
+    <div class="tip warn">
+      <span class="tip-icon">🧑‍🤝‍🧑</span>
+      <div>
+        <span class="ja">名簿には <strong>Francis Ibana</strong> と <strong>Francis Angelo Dizon</strong> という別人がいます。部分一致で判断しないでください。</span>
+        <span class="en">The roster holds two different people — <strong>Francis Ibana</strong> and <strong>Francis Angelo Dizon</strong>. Never match on part of a name.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">QC の低評価が個別に出てこない</span><span class="en">Low QC scores no longer appear individually</span></div>
+    <p>
+      <span class="ja">仕様です。店舗ごと1日1通の要約にまとまっています。要約の本文に<strong>時刻・グレード・点数・投稿者</strong>が1行ずつ入っているので、そこから QC チャンネルの写真を特定できます。</span>
+      <span class="en">That is intended — they are collected into one summary per branch per day. Each line carries <strong>the time, the grade, the score and who posted it</strong>, which is how you find the photo in the QC channel.</span>
+    </p>
+    <pre>TAFT — 3 product(s) scored C or below today.
+15:15  C  32.9  Alexandra
+17:40  F  28.1  Alex Delgado
+19:05  C  33.4  Alexandra</pre>
+    <div class="tip info">
+      <span class="tip-icon">🔤</span>
+      <div>
+        <span class="ja">型の名前は <code>product_score_c</code> ですが、<strong>D と F も含みます</strong>。だから各行にグレードを出しています。「C以下」の見出しだけだと F が埋もれます。</span>
+        <span class="en">The type is called <code>product_score_c</code> but <strong>carries D and F too</strong>. That is why the grade is on every line — a heading that only says "C or below" buries the F.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">廃止した型を戻したい</span><span class="en">Bringing a retired type back</span></div>
+    <p>
+      <span class="ja">デプロイは不要です。環境変数で戻せます。</span>
+      <span class="en">No deploy needed — an environment variable brings it back.</span>
+    </p>
+    <pre>heroku config:set MANAGEMENT_ENABLE_TYPES=pm_backup_missing -a sushizen-shift-app</pre>
+  </div>
+</div>
+
+<!-- ═══════════ CHANGES ═══════════ -->
+<div class="section" id="section-changes">
+  <div class="hero-header">
+    <div class="hero-icon">📋</div>
+    <div>
+      <div class="section-title"><span class="ja">変更点の一覧</span><span class="en">What changed, exactly</span></div>
+      <div class="section-path">2026-08-29</div>
+      <div class="section-desc">
+        <span class="ja">前後の対比です。監査と、後から読む人のための記録です。</span>
+        <span class="en">Before and after — a record for audit and for whoever reads this next.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th><span class="ja">対象</span><span class="en">Area</span></th>
+        <th><span class="ja">変更前</span><span class="en">Before</span></th>
+        <th><span class="ja">変更後</span><span class="en">After</span></th>
+      </tr>
+      <tr>
+        <td><span class="ja">宛先</span><span class="en">Addressee</span></td>
+        <td class="muted"><span class="ja">322件中1件のみ</span><span class="en">1 task out of 322</span></td>
+        <td><span class="ja">曜日別当番表から自動充当</span><span class="en">Filled from a weekday roster</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">送信</span><span class="en">Sending</span></td>
+        <td class="muted"><span class="ja">宛先が空でも押せた</span><span class="en">Allowed with no addressee</span></td>
+        <td><span class="ja">宛先が無ければ拒否（マニラ）</span><span class="en">Refused without one (Manila)</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">通知</span><span class="en">Notification</span></td>
+        <td class="muted"><span class="ja">無し</span><span class="en">None</span></td>
+        <td><span class="ja">Discord にメンション付きで投稿</span><span class="en">Discord post with a mention</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">受信箱</span><span class="en">Inbox</span></td>
+        <td class="muted"><span class="ja">店舗を選ぶ。誰が見ているか判別不能</span><span class="en">Pick a branch; could not tell who was asking</span></td>
+        <td><span class="ja">既定で「自分宛」＋NavBar バッジ</span><span class="en">Opens on "Assigned to me", with a badge</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">未回答</span><span class="en">Unanswered</span></td>
+        <td class="muted"><span class="ja">誰も気づかない</span><span class="en">Nobody noticed</span></td>
+        <td><span class="ja">24時間で Waiting for Someone に</span><span class="en">Waiting for Someone after 24 hours</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">QC 低評価</span><span class="en">Low QC scores</span></td>
+        <td class="muted"><span class="ja">写真1枚＝1タスク（1日21.3件）</span><span class="en">One task per photo (21.3/day)</span></td>
+        <td><span class="ja">店舗別1日1通の要約（1日3件）</span><span class="en">One summary a day per branch (3/day)</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">未送信の3型</span><span class="en">Three unsent types</span></td>
+        <td class="muted"><span class="ja">生成され続ける（1日2.5件）</span><span class="en">Generated forever (2.5/day)</span></td>
+        <td><span class="ja">生成停止・採点対象外</span><span class="en">Stopped, and out of the score</span></td>
+      </tr>
+      <tr>
+        <td><span class="ja">品質の把握</span><span class="en">Seeing quality</span></td>
+        <td class="muted"><span class="ja">手段なし</span><span class="en">No way to see it</span></td>
+        <td><span class="ja">型ごとの回答率を常設表示</span><span class="en">Per-type answer rates on the dashboard</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <h3 class="sub"><span class="ja">後片付け（実施済み）</span><span class="en">Cleanup already done</span></h3>
+  <div class="card">
+    <ul class="plain">
+      <li><span class="ja"><strong>90件</strong>（宛先が空のまま送信済み）を 8/29 にクローズ。バックアップ <code>_management_tasks_backup_20260829</code></span><span class="en"><strong>90 tasks</strong> marked sent with no addressee were closed on 29 Aug. Backup: <code>_management_tasks_backup_20260829</code></span></li>
+      <li><span class="ja"><strong>14件</strong>（その後に発生した同種）を削除。<strong>27件</strong>（廃止した3型）を削除。バックアップ <code>_management_tasks_deleted_20260829</code>（41行）</span><span class="en"><strong>14 more</strong> of the same kind, and <strong>27 rows</strong> of the three retired types, were deleted. Backup: <code>_management_tasks_deleted_20260829</code>, 41 rows</span></li>
+      <li><span class="ja">未送信のマニラ<strong>22件</strong>に宛先を後埋め（Francis 11 / Peter 5 / Richard 4 / Yusuke 2）</span><span class="en"><strong>22 unsent Manila tasks</strong> had owners filled in — Francis 11, Peter 5, Richard 4, Yusuke 2</span></li>
+    </ul>
+    <div class="tip warn">
+      <span class="tip-icon">📌</span>
+      <div>
+        <span class="ja">削除した27行のうち <code>pm_backup_missing</code> の<strong>1件だけ、実際にマネージャーが回答していました</strong>。仕事の記録としては本物なので、必要ならバックアップ表から復元できます。</span>
+        <span class="en">Of the 27 deleted rows, <strong>one <code>pm_backup_missing</code> had a genuine reply</strong>. It is a real record of work done and can be restored from the backup table if wanted.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="ja">この変更の対象範囲</span><span class="en">Scope of this change</span></div>
+    <p>
+      <span class="ja"><strong>マニラのみ</strong>（TAFT / PAR / CUB / CK / ALL）。ドバイは営業4年目で安定しているため今回は対象外です。ドバイでもタスクは生成され続けますが、送信ガードはかかりません——かけると、当番表の無いドバイが恒久的に送信不可になるためです。</span>
+      <span class="en"><strong>Manila only</strong> — TAFT, PAR, CUB, CK and ALL. Dubai is in its fourth year and stable, so it is out of scope. Tasks are still raised there, but the send guard does not apply: with no roster, guarding Dubai would make it permanently unsendable.</span>
+    </p>
+  </div>
+</div>
+
+</main>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  var el = document.getElementById('section-' + id);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function (n) {
+    if (n.getAttribute('onclick') === "show('" + id + "')") n.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function setLang(lang) {
+  if (lang === 'en') {
+    document.body.classList.add('en');
+    document.getElementById('btn-en').classList.add('active');
+    document.getElementById('btn-ja').classList.remove('active');
+  } else {
+    document.body.classList.remove('en');
+    document.getElementById('btn-ja').classList.add('active');
+    document.getElementById('btn-en').classList.remove('active');
+  }
+}
+setLang('ja');
+</script>
