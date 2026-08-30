@@ -25,6 +25,9 @@ type Gap = {
   position: string;
   hire_date: string;
   roster_hire_date: string | null;
+  /** What the person answered on My Details. A claim, not the record. */
+  claimed_hire_date: string | null;
+  claimed_at: string | null;
 };
 
 type GapResp = {
@@ -34,13 +37,20 @@ type GapResp = {
   missing_position: number;
   missing_hire_date: number;
   missing_company: number;
+  awaiting_confirmation: number;
 };
 
-/** Manila's first restaurant began fitting out in August 2025. Anything earlier
- *  is a typo — one such row (2025-02-24) was already on the roster. */
-const EARLIEST_HIRE = "2025-08-01";
+/** A typo here is not cosmetic: leave is counted from this date, so a wrong
+ *  year silently buys or withholds days. Manila fitted out its first site in
+ *  August 2025 — one row already read 2025-02-24 — and Dubai opened in 2022. */
+const EARLIEST_HIRE: Record<string, string> = {
+  manila: "2025-08-01",
+  dubai: "2022-01-01",
+};
+const TODAY = new Date().toISOString().slice(0, 10);
 
 export default function EmploymentDetailsPage() {
+  const [city, setCity] = useState("manila");
   const [rows, setRows] = useState<Gap[] | null>(null);
   const [summary, setSummary] = useState<GapResp | null>(null);
   const [branch, setBranch] = useState("BO");
@@ -53,9 +63,10 @@ export default function EmploymentDetailsPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/admin/staff/employment-gaps?city=manila`, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetch(
+        `/api/admin/staff/employment-gaps?city=${encodeURIComponent(city)}`,
+        { headers: { "Content-Type": "application/json" }, cache: "no-store" },
+      );
       const data = (await res.json()) as GapResp;
       if (!res.ok) throw new Error((data as any)?.detail || `HTTP ${res.status}`);
       setRows(data.rows || []);
@@ -65,7 +76,7 @@ export default function EmploymentDetailsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [city]);
 
   useEffect(() => {
     void load();
@@ -81,9 +92,9 @@ export default function EmploymentDetailsPage() {
     [rows, branch]
   );
 
-  const save = async (r: Gap) => {
-    const d = draft[r.staff_name] || {};
-    const body: Record<string, unknown> = { city: "manila", display_name: r.staff_name };
+  const save = async (r: Gap, override?: Partial<Gap>) => {
+    const d = { ...(draft[r.staff_name] || {}), ...(override || {}) };
+    const body: Record<string, unknown> = { city: r.city, display_name: r.staff_name };
     if (d.position !== undefined) body.position = d.position;
     if (d.hire_date !== undefined) body.hire_date = d.hire_date;
     if (d.company !== undefined) body.company = d.company;
@@ -99,7 +110,18 @@ export default function EmploymentDetailsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as any)?.detail || `HTTP ${res.status}`);
-      setMsg({ kind: "ok", text: `Saved ${r.staff_name}.` });
+      // The date reaching the roster but not the payroll profile is a
+      // half-applied change: leave accrual reads the payroll profile, and
+      // sixteen roster members have no such row.
+      const t = (data as any)?.updated || {};
+      setMsg(
+        t.payroll_profile_updated === false
+          ? {
+              kind: "err",
+              text: `${r.staff_name}: saved to the roster, but there is no payroll profile to write the hire date to. Leave will not accrue until one exists.`,
+            }
+          : { kind: "ok", text: `Saved ${r.staff_name}.` },
+      );
       setDraft((p) => {
         const n = { ...p };
         delete n[r.staff_name];
@@ -128,9 +150,11 @@ export default function EmploymentDetailsPage() {
           <FileText className="h-5 w-5 text-sky-400" />
         </div>
         <div>
-          <h1 className={T_PAGE_TITLE}>Employment Details — what is still missing</h1>
+          <h1 className={T_PAGE_TITLE}>Employment Details（役職・入社日・会社）</h1>
           <p className={T_CAPTION}>
-            These three fields are printed on a Certificate of Employment. Fill them in from the contract, whoever you can.
+            The hire date is also what leave is counted from, so it is confirmed here and
+            nowhere else. Staff give their own answer on My Details; accept it against the
+            contract.
           </p>
         </div>
       </div>
@@ -150,12 +174,13 @@ export default function EmploymentDetailsPage() {
       </div>
 
       {summary ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {[
             ["People with gaps", summary.total],
             ["No position", summary.missing_position],
             ["No hire date", summary.missing_hire_date],
             ["No company", summary.missing_company],
+            ["Staff answered, awaiting you", summary.awaiting_confirmation],
           ].map(([label, n]) => (
             <div key={String(label)} className={`${GLASS_CARD} p-4`}>
               <div className={T_CAPTION}>{label}</div>
@@ -178,6 +203,32 @@ export default function EmploymentDetailsPage() {
       ) : null}
 
       <div className={`${GLASS_CARD} space-y-4 p-5`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={T_SECTION}>City</span>
+          {[
+            { value: "manila", label: "Manila" },
+            { value: "dubai", label: "Dubai" },
+          ].map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCity(c.value)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                city === c.value
+                  ? "border-violet-500/40 bg-violet-950/30 text-violet-200"
+                  : "border-white/10 bg-white/[0.02] text-neutral-400 hover:border-white/20"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+          <span className="ml-2 text-[11px] text-neutral-500">
+            {city === "dubai"
+              ? "Dubai needs the hire date only — a Certificate of Employment is a Philippine document."
+              : "Position and company are printed on the COE."}
+          </span>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <span className={T_SECTION}>Branch</span>
           {branches.map((b) => {
@@ -237,7 +288,8 @@ export default function EmploymentDetailsPage() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className={`grid grid-cols-1 gap-3 ${r.city === "dubai" ? "sm:grid-cols-1" : "sm:grid-cols-3"}`}>
+                    {r.city !== "dubai" ? (
                     <div>
                       <div className={T_LABEL + " mb-1"}>Position</div>
                       <input
@@ -247,21 +299,47 @@ export default function EmploymentDetailsPage() {
                         className={INPUT_CLASS}
                       />
                     </div>
+                    ) : null}
                     <div>
                       <div className={T_LABEL + " mb-1"}>Hire Date</div>
                       <input
                         type="date"
-                        min={EARLIEST_HIRE}
+                        min={EARLIEST_HIRE[r.city] ?? "2020-01-01"}
+                        max={TODAY}
                         value={d.hire_date ?? r.hire_date}
                         onChange={(e) => set(r.staff_name, { hire_date: e.target.value })}
                         className={INPUT_CLASS}
                       />
+                      {/* What the person said, and one click to accept it. Kept
+                          visibly separate from the field: their answer is a
+                          claim until HR has it against the contract, because
+                          this date decides how much leave they are owed. */}
+                      {r.claimed_hire_date ? (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-950/15 px-2 py-1.5">
+                          <span className="text-[11px] text-amber-200/90">
+                            They said <b className="tabular-nums">{r.claimed_hire_date}</b>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={savingFor === r.staff_name}
+                            onClick={() => save(r, { hire_date: r.claimed_hire_date! })}
+                            className="rounded-md border border-amber-400/40 px-2 py-0.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15 disabled:opacity-40"
+                          >
+                            Use this
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-neutral-500">
+                          No answer from them yet.
+                        </p>
+                      )}
                       {r.roster_hire_date && r.roster_hire_date !== r.hire_date ? (
                         <p className="mt-1 text-[11px] text-amber-300/80">
                           The roster says {r.roster_hire_date}. Saving lines both up.
                         </p>
                       ) : null}
                     </div>
+                    {r.city !== "dubai" ? (
                     <div>
                       <div className={T_LABEL + " mb-1"}>Company</div>
                       <SelectDark
@@ -275,6 +353,7 @@ export default function EmploymentDetailsPage() {
                         ]}
                       />
                     </div>
+                    ) : null}
                   </div>
                 </div>
               );
