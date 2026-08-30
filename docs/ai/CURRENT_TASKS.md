@@ -16,6 +16,49 @@ Last updated: 2026-08-30（VAT 実装は確認3件待ちで中断。当日の不
 
 ---
 
+## ✅ 出産休暇の期間管理 — Leave Cases（2026-08-30）
+
+**日次の行だけでは「105日がいつ始まったか」を書けない。** 産後60日の下限も検証できず、
+実際の出産日が動いたときに切り直せない。同じ欠勤が途中で性質を変えることも表現できない
+（Lynde さんは 8/21 から医師の指示による Approved Leave で、法定産休はまだ始まっていない）。
+
+**Absences ページ → Leave Cases** に「期間」を1件のレコードとして持たせた。
+
+| 種別 | 日数 |
+|---|---|
+| Maternity — live childbirth | 105 |
+| Maternity — solo parent | 120 |
+| Maternity — 流産・緊急終了 | 60 |
+| Medical leave（無給） | 任意 |
+| Approved leave（無給） | 任意 |
+
+**書き込む前に内訳を出す。** 入力中に「105日 / 9-12→12-25 / 産前69・産後36」と表示し、
+```
+69 days fall before the birth; the most that may be taken before it is 45.
+Only 36 days fall after the birth; the minimum is 60. Extending to 2027-01-18 meets it.
+[Extend to 2027-01-18 and save]
+```
+と警告と**下限を満たす終了日のボタン**を出す。拒否ではなく延長を提案する形にした
+（予定日より遅い出産で下限を割るのは通常の事態のため）。
+
+### 実装上の要点
+
+- **`manila_attendance_daily.maternity_leave_flag` を新設**。`paid_leave_flag` は流用しない
+  — あれは `SIL_EARNED` として満額給与の上に**日給を上乗せ支給**する（Phase 0 の未修正バグ）
+- 控除判定で **`absent_without_pay` より先に**このフラグを見る。DTR同期は `absent_without_pay`
+  を毎回書き換えるが、このフラグは `ON CONFLICT` の UPDATE 句に無いので**同期で消えない**
+- SIL の消化日数からも除外（産休はSSS給付＋会社の差額負担であって法定有給ではない）
+- 取り消しは**ケース識別子で照合**するので、同じ日に手入力された行は残る
+- **開始日より前には一切書かない**
+- **有給の非産休休暇は未対応**。`paid_leave_flag` が必要で、上記の二重払いを先に直す必要がある
+
+**検証**: 本番で 25/25 PASS（分割計算・境界・生成・再生成で孤児が残らない・控除0・既存行を壊さない）。
+実ブラウザで警告と延長ボタンの表示まで確認。テストデータは全て削除済み。
+
+Payroll マニュアル更新済み → [Payroll Manual](../manuals/payroll-manual.html)
+
+---
+
 ## ✅ 入社日の収集 — 本人申告＋HR確定（2026-08-30）
 
 **有給（SIL / UAE年次有給）の起算点は入社日。それが揃っていない。**
