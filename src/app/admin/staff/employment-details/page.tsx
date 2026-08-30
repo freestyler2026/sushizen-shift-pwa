@@ -91,7 +91,10 @@ export default function EmploymentDetailsPage() {
   // Dubai, so the page read "Nothing missing at this branch" over 73 people who
   // were missing one. Fall back to the first branch that actually exists.
   useEffect(() => {
-    if (branches.length > 0 && !branches.includes(branch)) setBranch(branches[0]);
+    if (branches.length === 0 || branches.includes(branch)) return;
+    // "?" is the people with no branch recorded. Opening on it puts the least
+    // identifiable group first; prefer a real branch when there is one.
+    setBranch(branches.find((b) => b !== "?") ?? branches[0]);
   }, [branches, branch]);
 
   const shown = useMemo(
