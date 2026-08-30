@@ -59,7 +59,7 @@ interface ManagementTask {
   response: string | null;
   response_action: string | null;
   response_note: string | null;
-  context: Record<string, string | number | boolean | null> | null;
+  context: Record<string, unknown> | null;
   missed_by_manager: boolean;
   created_at: string;
   sent_at: string | null;
@@ -670,6 +670,85 @@ function TaskPhoto({ taskId }: { taskId: number }) {
   );
 }
 
+// ─── Per-photo answers ────────────────────────────────────────────────────────
+
+interface ScoredItem {
+  score_id?: string | number;
+  scored_at?: string;
+  total_score?: string | number;
+  grade?: string;
+  posted_by?: string;
+}
+interface ItemAnswer {
+  cause?: string;
+  action?: string;
+  note?: string;
+  feedback_discord?: boolean;
+  feedback_kitchen?: boolean;
+  answered_by?: string;
+}
+
+/**
+ * What the manager said about each scored photo, and where they said it.
+ *
+ * The rolled-up Manager Response below can only show one line for a task that
+ * covers a whole day of photos, and it never showed the channel at all — so
+ * "feedback given" gave the back office nothing to go and read. Reviewing
+ * whether feedback is actually reaching Discord starts here.
+ */
+function PerPhotoAnswers({ task }: { task: ManagementTask }) {
+  const items = (task.context?.items as ScoredItem[] | undefined) || [];
+  const answers = (task.context?.answers as Record<string, ItemAnswer> | undefined) || {};
+  if (items.length === 0 || Object.keys(answers).length === 0) return null;
+
+  return (
+    <div>
+      <div className={T_LABEL + " mb-1.5"}>Per-photo answers</div>
+      <div className="space-y-1.5">
+        {items.map((it, i) => {
+          const key = String(it.score_id ?? i);
+          const a = answers[key];
+          return (
+            <div
+              key={key}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-white/8 bg-white/4 px-2.5 py-1.5 text-xs"
+            >
+              <span className="font-semibold tabular-nums text-white">{it.scored_at || "—"}</span>
+              <span className="tabular-nums text-amber-300">
+                {it.grade || "C"} {it.total_score ?? ""}
+              </span>
+              {a ? (
+                <>
+                  <span className="text-emerald-300">{(a.cause || "").replace(/_/g, " ")}</span>
+                  {a.action && (
+                    <>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-sky-300">{a.action.replace(/_/g, " ")}</span>
+                    </>
+                  )}
+                  {a.feedback_discord && (
+                    <span className="rounded-full border border-violet-400/50 bg-violet-500/20 px-2 py-0.5 font-semibold text-violet-200">
+                      Discord
+                    </span>
+                  )}
+                  {a.feedback_kitchen && (
+                    <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 font-semibold text-zinc-300">
+                      Kitchen
+                    </span>
+                  )}
+                  {a.note && <span className="text-zinc-400">{a.note}</span>}
+                </>
+              ) : (
+                <span className="text-amber-400/80">not answered yet</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Handling record ──────────────────────────────────────────────────────────
 
 interface Handling {
@@ -1038,6 +1117,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
               )}
             </div>
           )}
+          <PerPhotoAnswers task={task} />
           {task.response && (
             <div>
               <div className={T_LABEL + " mb-1"}>Manager Response</div>

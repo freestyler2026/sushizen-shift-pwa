@@ -36,6 +36,35 @@ import {
 type Severity = "red" | "yellow" | "green";
 type TaskStatus = "open" | "sent" | "responded" | "closed" | "escalated";
 
+/** One scored photo inside a product-score alert. */
+interface ScoredItem {
+  score_id?: string | number;
+  scored_at?: string;
+  total_score?: string | number;
+  grade?: string;
+  posted_by?: string;
+  food_category?: string;
+}
+
+/** The answer recorded against one scored photo. */
+interface ItemAnswer {
+  cause?: string;
+  action?: string;
+  note?: string;
+  feedback_discord?: boolean;
+  feedback_kitchen?: boolean;
+  training_note?: string;
+  answered_by?: string;
+  answered_at?: string;
+}
+
+interface TaskContextShape {
+  items?: ScoredItem[];
+  answers?: Record<string, ItemAnswer>;
+  handling?: ItemAnswer | null;
+  [k: string]: unknown;
+}
+
 interface ManagementTask {
   id: number;
   city: string;
@@ -48,10 +77,20 @@ interface ManagementTask {
   response: string | null;
   response_action: string | null;
   response_note: string | null;
-  context: Record<string, string | number | boolean | null> | null;
+  context: TaskContextShape | null;
   created_at: string;
   sent_at: string | null;
   responded_at: string | null;
+}
+
+function scoredItems(task: ManagementTask): ScoredItem[] {
+  const raw = task.context?.items;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(it => it && typeof it === "object");
+}
+
+function itemKey(it: ScoredItem): string {
+  return String(it.score_id ?? "");
 }
 
 type ResponseOption = MgmtResponseOption;
@@ -359,6 +398,7 @@ interface TaskCardProps {
     note: string,
     channels?: string[],
     trainingNote?: string,
+    itemId?: string | null,
   ) => Promise<void>;
 }
 
@@ -371,12 +411,13 @@ interface TaskCardProps {
  * was actually about. Showing it here is the difference between judging the food
  * and guessing at it.
  */
-function TaskPhoto({ taskId, base }: { taskId: number; base: "store" | "admin" }) {
+function TaskPhoto({ taskId, base, item }: { taskId: number; base: "store" | "admin"; item?: string }) {
   const [failed, setFailed] = useState(false);
   const [full, setFull] = useState(false);
   if (failed) return null;
-  const src = `/api/${base}/management/tasks/${taskId}/photo`;
-  const thumb = `${src}?size=thumb`;
+  const q = item ? `?item=${encodeURIComponent(item)}` : "";
+  const src = `/api/${base}/management/tasks/${taskId}/photo${q}`;
+  const thumb = `${src}${q ? "&" : "?"}size=thumb`;
   return (
     <>
       <button
@@ -407,29 +448,88 @@ function TaskPhoto({ taskId, base }: { taskId: number; base: "store" | "admin" }
   );
 }
 
-function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
-  const [responding, setResponding] = useState(false);
+/**
+ * Where the feedback was given, on a recorded answer.
+ *
+ * "Feedback given" records that something was said, not where — and the whole
+ * point of preferring Discord is that the rest of the team can read it. Without
+ * this the back office has to open Discord and guess whether a message exists.
+ */
+function ChannelBadges({ answer }: { answer: ItemAnswer | null | undefined }) {
+  const on: string[] = [];
+  if (answer?.feedback_discord) on.push("Discord");
+  if (answer?.feedback_kitchen) on.push("Kitchen");
+  if (on.length === 0) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {on.map(c => (
+        <span
+          key={c}
+          className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+            c === "Discord"
+              ? "border-violet-400/50 bg-violet-500/20 text-violet-200"
+              : "border-white/15 bg-white/10 text-zinc-300"
+          }`}
+        >
+          {c}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** A recorded answer, read-only. */
+function AnsweredBlock({ answer, compact }: { answer: ItemAnswer; compact?: boolean }) {
+  return (
+    <div className={`rounded-xl bg-emerald-900/20 border border-emerald-500/20 ${compact ? "p-2.5" : "p-3"} text-sm`}>
+      {!compact && <div className={T_LABEL + " mb-1"}>Your Response</div>}
+      <div className="font-medium text-emerald-300">
+        {(answer.cause || "").replace(/_/g, " ")}
+      </div>
+      {answer.action && (
+        <div className="text-xs text-emerald-400/80 mt-0.5">
+          → {answer.action.replace(/_/g, " ")}
+        </div>
+      )}
+      <ChannelBadges answer={answer} />
+      {answer.note && <div className="text-xs text-zinc-400 mt-1.5">{answer.note}</div>}
+    </div>
+  );
+}
+
+/**
+ * The cause / action / channel picker for one thing that needs answering.
+ *
+ * Its own component so a task covering several scored photos can hold several
+ * independent answers — previously one set of chips stood for the whole day,
+ * and a manager who picked "portion" was recorded as saying that about every
+ * photo in the alert.
+ */
+function AnswerForm({
+  options,
+  actionOptions,
+  responseLabel,
+  actionLabel,
+  onSubmit,
+}: {
+  options: ResponseOption[];
+  actionOptions: ResponseOption[];
+  responseLabel: string;
+  actionLabel: string;
+  onSubmit: (a: { cause: string; action: string | null; note: string; channels: string[] }) => Promise<void>;
+}) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [actionKey, setActionKey] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const options = getOptions(task, template);
-  const actionOptions = template?.action_options ?? [];
-  const shortfall = shortfallSummary(task.context);
-  const isResponded = task.status === "responded" || task.status === "closed" || submitted;
-
-  // Free text is required when either stage's chosen option asks for it.
-  const pickedCause  = options.find(o => o.key === selectedKey);
-  const pickedAction = actionOptions.find(o => o.key === actionKey);
-  // Choosing "feedback given" from a list records that something was said but not
-  // where — which is the part the back office needs in order to check it. Same for
-  // training: one line of what it covered.
   const [channels, setChannels] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const pickedCause = options.find(o => o.key === selectedKey);
+  const pickedAction = actionOptions.find(o => o.key === actionKey);
   const isFeedback = /feedback/i.test(actionKey || selectedKey || "");
   const isTraining = /training|retrain|coach/i.test(actionKey || selectedKey || "");
   const toggleChannel = (c: string) =>
-    setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+    setChannels(prev => (prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]));
 
   const needsNote =
     !!pickedCause?.require_note || !!pickedAction?.require_note ||
@@ -443,6 +543,124 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
     (!isFeedback || channels.length > 0) &&
     (!isTraining || !!note.trim());
 
+  async function submit() {
+    if (!canSubmit || busy) return;
+    setBusy(true);
+    try {
+      await onSubmit({ cause: selectedKey!, action: actionKey, note: note.trim(), channels });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <OptionGroup
+        label={responseLabel}
+        options={options}
+        selected={selectedKey}
+        onSelect={key => { setSelectedKey(key); setNote(""); }}
+      />
+
+      {actionOptions.length > 0 && selectedKey && (
+        <div className="mt-4">
+          <OptionGroup
+            label={actionLabel}
+            options={actionOptions}
+            selected={actionKey}
+            onSelect={setActionKey}
+          />
+        </div>
+      )}
+
+      {isFeedback && (
+        <div className="mt-4">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Where did you give the feedback?
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "discord", label: "Discord" },
+              { key: "kitchen", label: "Kitchen" },
+            ].map(c => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => toggleChannel(c.key)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                  channels.includes(c.key)
+                    ? "border-violet-500/60 bg-violet-500/20 text-white"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isTraining && (
+        <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          What did the training cover? (one line)
+        </div>
+      )}
+
+      {(needsNote || isTraining) && (
+        <textarea
+          className="mt-3 w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none"
+          rows={2}
+          placeholder={isTraining ? "e.g. Re-checked plating standard for salmon nigiri" : notePlaceholder}
+          value={note}
+          onChange={e => setNote(e.target.value)}
+        />
+      )}
+
+      {selectedKey && (
+        <button
+          onClick={submit}
+          disabled={busy || !canSubmit}
+          className={PRIMARY_BUTTON + " mt-3 w-full flex items-center justify-center gap-2 disabled:opacity-40"}
+        >
+          {busy ? (
+            <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
+          ) : (
+            <><CheckCircle2 className="h-4 w-4" /> Confirm Response</>
+          )}
+        </button>
+      )}
+      {selectedKey && !canSubmit && !busy && (
+        <div className="text-xs text-amber-400/80 mt-2 text-center">
+          {actionOptions.length > 0 && !actionKey
+            ? `Select ${actionLabel} to continue`
+            : isFeedback && channels.length === 0
+            ? "Say where the feedback was given to continue"
+            : "Please add a short note to continue"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
+  const [submitted, setSubmitted] = useState(false);
+
+  const options = getOptions(task, template);
+  const actionOptions = template?.action_options ?? [];
+  const shortfall = shortfallSummary(task.context);
+  const isResponded = task.status === "responded" || task.status === "closed" || submitted;
+
+  // A product-score alert covers every photo the branch scored that day. Three
+  // C grades hours apart are three incidents, so each one is answered on its
+  // own; one card, several answers. Everything else answers once.
+  const items = scoredItems(task);
+  const answers = task.context?.answers ?? {};
+  const perItem = items.length > 1;
+  const answeredCount = items.filter(it => answers[itemKey(it)]).length;
+
+  const responseLabel = template?.response_label || "Select your response";
+  const actionLabel = template?.action_label || "Action Taken";
+
   const sevColor =
     task.severity === "red"    ? "border-red-500/40 bg-red-950/20" :
     task.severity === "yellow" ? "border-amber-500/40 bg-amber-950/20" :
@@ -453,15 +671,16 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
     task.severity === "yellow" ? "bg-amber-400" :
     "bg-emerald-400";
 
-  async function handleSubmit() {
-    if (!canSubmit || responding) return;
-    setResponding(true);
-    try {
-      await onRespond(task, selectedKey!, actionKey, note.trim(), channels, isTraining ? note.trim() : "");
-      setSubmitted(true);
-    } finally {
-      setResponding(false);
-    }
+  async function submitFor(
+    itemId: string | null,
+    a: { cause: string; action: string | null; note: string; channels: string[] },
+  ) {
+    const isTraining = /training|retrain|coach/i.test(a.action || a.cause || "");
+    await onRespond(
+      task, a.cause, a.action, a.note, a.channels,
+      isTraining ? a.note : "", itemId,
+    );
+    if (!itemId) setSubmitted(true);
   }
 
   return (
@@ -502,108 +721,78 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
       )}
 
       {/* Response section */}
-      {isResponded ? (
-        <div className="rounded-xl bg-emerald-900/20 border border-emerald-500/20 p-3 text-sm">
-          <div className={T_LABEL + " mb-1"}>Your Response</div>
-          <div className="font-medium text-emerald-300">
-            {(task.response || selectedKey || "").replace(/_/g, " ")}
+      {perItem ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className={T_LABEL}>Answer each photo</div>
+            <span className="text-xs font-semibold tabular-nums text-zinc-400">
+              {answeredCount} / {items.length} done
+            </span>
           </div>
-          {(task.response_action || actionKey) && (
-            <div className="text-xs text-emerald-400/80 mt-0.5">
-              → {(task.response_action || actionKey || "").replace(/_/g, " ")}
-            </div>
-          )}
-          {(task.response_note || note) && (
-            <div className="text-xs text-zinc-400 mt-1">{task.response_note || note}</div>
-          )}
+
+          {items.map((it, i) => {
+            const key = itemKey(it) || String(i);
+            const saved = answers[key];
+            return (
+              <div
+                key={key}
+                className={`rounded-xl border p-3 ${
+                  saved ? "border-emerald-500/25 bg-emerald-950/10" : "border-white/10 bg-white/5"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2 text-xs">
+                  <span className="font-semibold tabular-nums text-white">{it.scored_at || "—"}</span>
+                  <span className="rounded px-1.5 py-0.5 font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30">
+                    {it.grade || "C"} {it.total_score ?? ""}
+                  </span>
+                  {it.posted_by && <span className="text-zinc-400 truncate">{it.posted_by}</span>}
+                </div>
+
+                <TaskPhoto taskId={task.id} base="store" item={itemKey(it)} />
+
+                <div className="mt-3">
+                  {saved ? (
+                    <AnsweredBlock answer={saved} compact />
+                  ) : (
+                    <AnswerForm
+                      options={options}
+                      actionOptions={actionOptions}
+                      responseLabel={responseLabel}
+                      actionLabel={actionLabel}
+                      onSubmit={a => submitFor(key, a)}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      ) : isResponded ? (
+        <AnsweredBlock
+          answer={{
+            cause: task.response || "",
+            action: task.response_action || "",
+            note: task.response_note || "",
+            // Recorded since the channel picker was added, but never shown —
+            // the screen said "feedback given" and stopped there.
+            feedback_discord: !!task.context?.handling?.feedback_discord,
+            feedback_kitchen: !!task.context?.handling?.feedback_kitchen,
+          }}
+        />
       ) : (
         <div>
-          <OptionGroup
-            label={template?.response_label || "Select your response"}
+          {items.length === 1 && task.type === "product_score_c" && (
+            <div className="mb-3">
+              <TaskPhoto taskId={task.id} base="store" item={itemKey(items[0])} />
+            </div>
+          )}
+          <AnswerForm
             options={options}
-            selected={selectedKey}
-            onSelect={key => { setSelectedKey(key); setNote(""); }}
+            actionOptions={actionOptions}
+            responseLabel={responseLabel}
+            actionLabel={actionLabel}
+            onSubmit={a => submitFor(null, a)}
           />
-
-          {task.type === "product_score_c" && <TaskPhoto taskId={task.id} base="store" />}
-
-
-          {/* Second stage — only for exception types whose template defines one. */}
-          {actionOptions.length > 0 && selectedKey && (
-            <div className="mt-4">
-              <OptionGroup
-                label={template?.action_label || "Action Taken"}
-                options={actionOptions}
-                selected={actionKey}
-                onSelect={setActionKey}
-              />
-            </div>
-          )}
-
-          {isFeedback && (
-            <div className="mt-4">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Where did you give the feedback?
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: "discord", label: "Discord" },
-                  { key: "kitchen", label: "Kitchen" },
-                ].map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() => toggleChannel(c.key)}
-                    className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                      channels.includes(c.key)
-                        ? "border-violet-500/60 bg-violet-500/20 text-white"
-                        : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isTraining && (
-            <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              What did the training cover? (one line)
-            </div>
-          )}
-
-          {(needsNote || isTraining) && (
-            <textarea
-              className="mt-3 w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 resize-none"
-              rows={2}
-              placeholder={isTraining ? "e.g. Re-checked plating standard for salmon nigiri" : notePlaceholder}
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
-          )}
-
-          {selectedKey && (
-            <button
-              onClick={handleSubmit}
-              disabled={responding || !canSubmit}
-              className={PRIMARY_BUTTON + " mt-3 w-full flex items-center justify-center gap-2 disabled:opacity-40"}
-            >
-              {responding ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
-              ) : (
-                <><CheckCircle2 className="h-4 w-4" /> Confirm Response</>
-              )}
-            </button>
-          )}
-          {selectedKey && !canSubmit && !responding && (
-            <div className="text-xs text-amber-400/80 mt-2 text-center">
-              {actionOptions.length > 0 && !actionKey
-                ? `Select ${template?.action_label || "Action Taken"} to continue`
-                : "Please add a short note to continue"}
-            </div>
-          )}
         </div>
       )}
 
@@ -723,6 +912,7 @@ export default function ManagerInboxPage() {
     note: string,
     channels?: string[],
     trainingNote?: string,
+    itemId?: string | null,
   ) {
     const headers = getAuthHeaders(getAuth());
     const body: Record<string, unknown> = { response };
@@ -730,6 +920,7 @@ export default function ManagerInboxPage() {
     if (note) body.response_note = note;
     if (channels && channels.length > 0) body.feedback_channels = channels;
     if (trainingNote) body.training_note = trainingNote;
+    if (itemId) body.item_id = itemId;
     const res = await fetch(`/api/store/management/tasks/${task.id}/respond`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },

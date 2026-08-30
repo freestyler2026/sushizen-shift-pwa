@@ -30,7 +30,10 @@ export interface ActionTemplate {
   action_label: string | null;
 }
 
-export type TaskContext = Record<string, string | number | boolean | null>;
+/** A task's context. `items` and `answers` hold objects, so this cannot be
+ *  narrowed to scalars — the placeholder substitution below simply skips
+ *  anything that is not a scalar rather than printing "[object Object]". */
+export type TaskContext = Record<string, unknown>;
 
 /**
  * Substitute {placeholders} in a template message from a task's context.
@@ -46,6 +49,7 @@ export function fillTemplate(message: string, context?: TaskContext | null): str
   return message.replace(/\{(\w+)\}/g, (whole, key: string) => {
     const v = ctx[key];
     if (v === undefined || v === null || v === "") return FALLBACKS[key] ?? whole;
+    if (typeof v === "object") return FALLBACKS[key] ?? whole;
     return String(v);
   });
 }
@@ -69,7 +73,7 @@ const FALLBACKS: Record<string, string> = {
 /** "Box12 Set — 30 / 80 pcs (37.5% of par)" for the shortfall types. */
 export function shortfallSummary(context?: TaskContext | null): string | null {
   if (!context) return null;
-  const { item, qty, par_qty, unit, pct } = context;
+  const { item, qty, par_qty, unit, pct } = context as Record<string, string | number | undefined>;
   if (item === undefined || qty === undefined || par_qty === undefined) return null;
   return `${item} — ${qty} / ${par_qty} ${unit ?? ""} (${pct}% of par)`.replace(/\s+/g, " ");
 }
