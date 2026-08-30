@@ -16,6 +16,39 @@ Last updated: 2026-08-30（VAT 実装は確認3件待ちで中断。当日の不
 
 ---
 
+## ✅ 入社日の収集 — 本人申告＋HR確定（2026-08-30）
+
+**有給（SIL / UAE年次有給）の起算点は入社日。それが揃っていない。**
+
+```
+マニラ  staff_master.hired_at            89名中 41件
+        manila_staff_profiles.official   50/69（2つが一致していない）
+ドバイ  dubai_staff_profiles.hire_date    63名中 0件  ← 誰も書いたことがない
+```
+
+- **スタッフ側**: `/my-contact`（My Details）に入社日を追加。**申告は `hire_date_claimed` に入るだけで、`hired_at` には触れない**。自己申告がそのまま通ると、申告次第で勤続年数＝有給日数を自分で作れてしまう
+- **HR側**: `/admin/staff/employment-details`（Employment Details（役職・入社日・会社））。本人の申告を横に表示し「Use this」で採用。**Manila / Dubai 両方**
+- 不正日付は拒否（都市別の下限：マニラ 2025-08-01 / ドバイ 2022-01-01、未来日不可）
+
+### ⚠️ 一度作った `/admin/staff/hire-dates` は削除した
+
+`set_employment_details` の docstring に「2列が既に307日ズレたことがある。**1箇所から書くことがそれを防いでいる**」と明記されているのに、私は2箇所目を作った（教訓20）。**確定処理は既存の writer に統合済み。**
+
+あわせて Staff ページのカードを整理：
+- `Pending Staff Setup` と `Onboarding Dashboard` が**同じページを指していた** → 1枚に統合
+- `Employment Details` は Staff ページに**載っていなかった**（Create Staff Record の中からしか行けない）→ 追加
+- カードは7枚のまま、行き先はすべて別
+
+**検証**: 本番で 24/24 PASS。ドバイの `dubai_staff_profiles.hire_date` に**初めて書き込みが通った**ことを確認。
+
+### 未了
+
+- **画面の目視確認**（セッション切れのため未実施。ログイン後に実施可）
+- ドバイ73名・マニラ48名が未回答。**英語の案内文が必要**
+- 次は Phase 0（`staff_sil_balances` / `staff_leave_balances` の統合と `SIL_EARNED` 二重払い）
+
+---
+
 ## ✅ ドバイ給与 — OS移行日のペナルティを免除（2026-08-30）
 
 OS が正となったのは **2026-07-10**。その前日は練習でClock inのみ、初日はさらに5件の
