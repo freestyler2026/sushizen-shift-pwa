@@ -105,6 +105,7 @@ export function HighRatingsCard({
   active,
   defaultDateFrom,
   defaultDateTo,
+  datesFollowParent = false,
 }: {
   city: LowRatingCity;
   title: string;
@@ -114,6 +115,11 @@ export function HighRatingsCard({
   active: boolean;
   defaultDateFrom: string;
   defaultDateTo: string;
+  /** Take the date range from the page's own filter instead of asking again.
+   *  Two Apply buttons on one screen is one too many: the encoders reported
+   *  re-filtering the same records repeatedly, and half of that was this card
+   *  keeping its own dates. */
+  datesFollowParent?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -134,6 +140,23 @@ export function HighRatingsCard({
   const [applied, setApplied] = useState<FilterState>(defaultFilters);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<HighRatingRow | null>(null);
+
+  // Following the page filter means there is nothing left to press Apply for,
+  // so the remaining choices take effect as they are made.
+  const setFilter = useCallback((patch: Partial<FilterState>) => {
+    setPending((p) => ({ ...p, ...patch }));
+    if (datesFollowParent) {
+      setApplied((a) => ({ ...a, ...patch }));
+      setOffset(0);
+    }
+  }, [datesFollowParent]);
+
+  useEffect(() => {
+    if (!datesFollowParent) return;
+    setPending((p) => ({ ...p, dateFrom: defaultDateFrom, dateTo: defaultDateTo }));
+    setApplied((a) => ({ ...a, dateFrom: defaultDateFrom, dateTo: defaultDateTo }));
+    setOffset(0);
+  }, [datesFollowParent, defaultDateFrom, defaultDateTo]);
   const [saveBusy, setSaveBusy] = useState(false);
   const [reviewModalText, setReviewModalText] = useState<string | null>(null);
 
@@ -274,29 +297,41 @@ export function HighRatingsCard({
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3 border-b border-white/5 px-5 py-3">
-        <label className="flex flex-col gap-1">
-          <span className={T_LABEL}>From</span>
-          <input
-            type="date"
-            value={pending.dateFrom}
-            onChange={(e) => setPending((p) => ({ ...p, dateFrom: e.target.value }))}
-            className={INPUT_CLASS + " w-36"}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={T_LABEL}>To</span>
-          <input
-            type="date"
-            value={pending.dateTo}
-            onChange={(e) => setPending((p) => ({ ...p, dateTo: e.target.value }))}
-            className={INPUT_CLASS + " w-36"}
-          />
-        </label>
+        {datesFollowParent ? (
+          <div className="flex flex-col gap-1">
+            <span className={T_LABEL}>Dates</span>
+            <span className="text-sm tabular-nums text-zinc-300">
+              {applied.dateFrom} → {applied.dateTo}
+              <span className={T_CAPTION + " ml-2"}>from the filter above</span>
+            </span>
+          </div>
+        ) : (
+          <>
+            <label className="flex flex-col gap-1">
+              <span className={T_LABEL}>From</span>
+              <input
+                type="date"
+                value={pending.dateFrom}
+                onChange={(e) => setPending((p) => ({ ...p, dateFrom: e.target.value }))}
+                className={INPUT_CLASS + " w-36"}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={T_LABEL}>To</span>
+              <input
+                type="date"
+                value={pending.dateTo}
+                onChange={(e) => setPending((p) => ({ ...p, dateTo: e.target.value }))}
+                className={INPUT_CLASS + " w-36"}
+              />
+            </label>
+          </>
+        )}
         <label className="flex flex-col gap-1">
           <span className={T_LABEL}>Aggregator</span>
           <select
             value={pending.aggregator}
-            onChange={(e) => setPending((p) => ({ ...p, aggregator: e.target.value }))}
+            onChange={(e) => setFilter({ aggregator: e.target.value })}
             className={SELECT_CLASS + " w-32"}
           >
             <option value="">All</option>
@@ -311,7 +346,7 @@ export function HighRatingsCard({
           <span className={T_LABEL}>Branch</span>
           <select
             value={pending.branch}
-            onChange={(e) => setPending((p) => ({ ...p, branch: e.target.value }))}
+            onChange={(e) => setFilter({ branch: e.target.value })}
             className={SELECT_CLASS + " w-36"}
           >
             <option value="">All</option>
@@ -327,27 +362,31 @@ export function HighRatingsCard({
             id={`hide-boost-${city}`}
             type="checkbox"
             checked={pending.hideBoost}
-            onChange={(e) => setPending((p) => ({ ...p, hideBoost: e.target.checked }))}
+            onChange={(e) => setFilter({ hideBoost: e.target.checked })}
             className="h-4 w-4 rounded border border-white/20 bg-white/10 accent-amber-400"
           />
           <label htmlFor={`hide-boost-${city}`} className={T_LABEL + " cursor-pointer whitespace-nowrap"}>
             Hide rating boost
           </label>
         </div>
-        <button type="button" onClick={applyFilters} className={PRIMARY_BUTTON + " self-end"}>
-          Apply
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPending(defaultFilters);
-            setApplied(defaultFilters);
-            setOffset(0);
-          }}
-          className={SECONDARY_BUTTON + " self-end"}
-        >
-          Reset
-        </button>
+        {datesFollowParent ? null : (
+          <>
+            <button type="button" onClick={applyFilters} className={PRIMARY_BUTTON + " self-end"}>
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPending(defaultFilters);
+                setApplied(defaultFilters);
+                setOffset(0);
+              }}
+              className={SECONDARY_BUTTON + " self-end"}
+            >
+              Reset
+            </button>
+          </>
+        )}
       </div>
 
       {/* Stats bar */}

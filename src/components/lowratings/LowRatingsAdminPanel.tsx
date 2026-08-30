@@ -343,8 +343,14 @@ export function LowRatingsAdminPanel() {
   }, [approverSelectOptions, rows]);
 
   // Summary rows: use all loaded rows (client-side, no extra API call)
+  // Saved rows only. A new row starts at one star, so two rows being typed
+  // added two 1-star counts to the branch totals before anybody had decided
+  // what they were. A summary that counts what has not been recorded yet is
+  // worse than no summary.
   const summaryRows = useMemo(() =>
-    rows.map((r) => ({ branch: r.branch, aggregator: r.aggregator, rating: r.rating as number })),
+    rows
+      .filter((r) => !r._isDraft)
+      .map((r) => ({ branch: r.branch, aggregator: r.aggregator, rating: r.rating as number })),
     [rows],
   );
 
@@ -577,6 +583,7 @@ export function LowRatingsAdminPanel() {
         active={canLoad}
         defaultDateFrom={dateFrom}
         defaultDateTo={dateTo}
+        datesFollowParent
       />
     </div>
   );
