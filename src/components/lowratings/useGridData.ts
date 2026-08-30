@@ -105,6 +105,9 @@ export function useGridData(
   const [ratingCounts, setRatingCounts] = useState<Record<string, number>>({ "1": 0, "2": 0, "3": 0 });
   const rowsRef = useRef<GridRowState[]>([]);
   rowsRef.current = rows;
+  // Anything typed and not yet saved. Read by the page to hold off the
+  // automatic reload that fires when a new version is deployed.
+  const hasDrafts = rows.some((r) => r._isDraft);
 
   const buildListQs = useCallback(() => {
     const p = new URLSearchParams({
@@ -135,7 +138,14 @@ export function useGridData(
         throw new Error("Invalid response");
       }
       const list = Array.isArray(data.rows) ? data.rows : [];
-      setRows(list.map((r) => fromApiRow(r)));
+      // Keep the rows being typed. This used to replace the whole grid with
+      // whatever the server returned, and a refetch happens after every save,
+      // on every filter change and on every date change — so entering two
+      // ratings meant losing the second one the moment the first was saved.
+      setRows((prev) => {
+        const drafts = prev.filter((r) => r._isDraft);
+        return [...drafts, ...list.map((r) => fromApiRow(r))];
+      });
       setTotal(Number(data.total || 0));
       const rc = data.rating_counts || {};
       setRatingCounts({
@@ -267,6 +277,7 @@ export function useGridData(
 
   return {
     rows,
+    hasDrafts,
     loading,
     error,
     setError,

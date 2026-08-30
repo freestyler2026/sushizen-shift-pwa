@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { getAuth } from "@/lib/auth";
+import { useUnsavedGuard } from "@/lib/unsavedGuard";
 import {
   GLASS_CARD,
   INPUT_CLASS,
@@ -29,11 +30,40 @@ import { LowRatingsGrid } from "@/components/lowratings/LowRatingsGrid";
 import { useGridData } from "@/components/lowratings/useGridData";
 import { HighRatingsCard } from "@/components/analytics/HighRatingsCard";
 
+/** Local YYYY-MM-DD. toISOString() is UTC and turns a Manila evening into
+ *  yesterday, which is the wrong day to be encoding. */
+function isoDay(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const FILTER_KEY = "sz-low-ratings-filter";
+
+/** Seven days, not three months.
+ *
+ *  The old default reached back a quarter, so in August the page opened on May
+ *  and listed a thousand rows to scroll past for today's handful. Worse, it was
+ *  recomputed on every mount: whatever range had been chosen was thrown away by
+ *  the next reload, which is the "it goes back to May" the encoders reported. */
 function defaultRange() {
   const to = new Date();
   const from = new Date();
-  from.setMonth(from.getMonth() - 3);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  from.setDate(from.getDate() - 6);
+  return { from: isoDay(from), to: isoDay(to) };
+}
+
+/** The range last chosen on this device, so a reload does not undo it. */
+function savedRange(): { from: string; to: string } {
+  if (typeof window === "undefined") return defaultRange();
+  try {
+    const raw = sessionStorage.getItem(FILTER_KEY);
+    if (raw) {
+      const v = JSON.parse(raw) as { from?: string; to?: string };
+      if (v.from && v.to) return { from: v.from, to: v.to };
+    }
+  } catch {
+    /* storage unavailable — fall through to the default */
+  }
+  return defaultRange();
 }
 
 // ── Summary table: branch × aggregator matrix ────────────────────────────────
@@ -207,7 +237,7 @@ export function LowRatingsAdminPanel() {
   const [approverOptionsLoading, setApproverOptionsLoading] = useState(false);
   const approverNameRef = useRef("");
   approverNameRef.current = approverName;
-  const range = useMemo(() => defaultRange(), []);
+  const range = useMemo(() => savedRange(), []);
   const [dateFrom, setDateFrom] = useState(range.from);
   const [dateTo, setDateTo] = useState(range.to);
   const [filterBranch, setFilterBranch] = useState("");
@@ -280,8 +310,28 @@ export function LowRatingsAdminPanel() {
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [approverOptions, approverName]);
 
-  const { rows, loading, error, total, ratingCounts, refetch, addRow, deleteRow, updateCell, commitDraft } =
+  const { rows, hasDrafts, loading, error, total, ratingCounts, refetch, addRow, deleteRow, updateCell, commitDraft } =
     useGridData(city, approverName, pin, dateFrom, dateTo, canLoad, filterBranch, filterAggregator);
+
+  // Hold the automatic reload while somebody is mid-entry. A deploy landing at
+  // the wrong moment used to take the half-typed row with it.
+  useUnsavedGuard("low-ratings-grid", hasDrafts);
+
+  // Remember the range on this device. Recomputing the default on every mount
+  // is what made the page snap back to May.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTER_KEY, JSON.stringify({ from: dateFrom, to: dateTo }));
+    } catch {
+      /* storage unavailable — the page still works, it just forgets */
+    }
+  }, [dateFrom, dateTo]);
+
+  const setDay = useCallback((d: Date) => {
+    const s = isoDay(d);
+    setDateFrom(s);
+    setDateTo(s);
+  }, []);
 
   const picSelectOptions = useMemo(() => {
     const s = new Set(approverSelectOptions);
@@ -381,6 +431,53 @@ export function LowRatingsAdminPanel() {
               className={"mt-1 w-full " + INPUT_CLASS}
             />
           </label>
+        </div>
+
+        {/* Encoding is a daily job, so the day it is done for is one click away.
+            The range still exists for looking back; this is for getting to the
+            handful of rows that need typing today. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={T_CAPTION}>Jump to</span>
+          {[
+            { label: "Today", days: 0 },
+            { label: "Yesterday", days: 1 },
+          ].map((b) => {
+            const d = new Date();
+            d.setDate(d.getDate() - b.days);
+            const iso = isoDay(d);
+            const on = dateFrom === iso && dateTo === iso;
+            return (
+              <button
+                key={b.label}
+                type="button"
+                onClick={() => setDay(d)}
+                className={
+                  "rounded-lg border px-3 py-1 text-xs font-semibold transition-colors " +
+                  (on
+                    ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
+                    : "border-white/10 text-zinc-400 hover:border-white/25 hover:text-white")
+                }
+              >
+                {b.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              const r = defaultRange();
+              setDateFrom(r.from);
+              setDateTo(r.to);
+            }}
+            className="rounded-lg border border-white/10 px-3 py-1 text-xs font-semibold text-zinc-400 transition-colors hover:border-white/25 hover:text-white"
+          >
+            Last 7 days
+          </button>
+          {hasDrafts ? (
+            <span className="ml-auto rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-200">
+              Unsaved row — Save it before changing the date
+            </span>
+          ) : null}
         </div>
 
         {/* ── Branch + Aggregator filters ── */}
