@@ -103,7 +103,17 @@ export default function HireDatesPage() {
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) throw new Error(j?.detail || `HTTP ${res.status}`);
-      setMsg({ kind: "ok", text: `${r.staff_name} — confirmed ${value}` });
+      // Some roster rows have no payroll profile. The date lands on the roster
+      // either way, but leave accrual reads the payroll profile — so a partial
+      // write has to say so rather than report a plain success.
+      setMsg(
+        j?.payroll_profile_updated === false
+          ? {
+              kind: "err",
+              text: `${r.staff_name} — confirmed ${value} on the roster, but there is no payroll profile to write it to. Leave will not accrue until one exists.`,
+            }
+          : { kind: "ok", text: `${r.staff_name} — confirmed ${value}` },
+      );
       await load();
     } catch (e) {
       setMsg({ kind: "err", text: `${r.staff_name}: ${e instanceof Error ? e.message : e}` });
