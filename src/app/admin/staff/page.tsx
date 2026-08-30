@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   BarChart2,
+  CalendarDays,
   Check,
   ClipboardList,
   ClockAlert,
@@ -1010,6 +1011,15 @@ export default function AdminStaffPage() {
               color: "text-emerald-400",
               border: "border-emerald-500/20",
               bg: "from-emerald-500/10 to-teal-500/5",
+            },
+            {
+              href: "/admin/staff/hire-dates",
+              label: "Hire Dates",
+              desc: "Staff enter their own start date; confirm it here against the contract. Leave entitlement counts from the confirmed date only.",
+              icon: CalendarDays,
+              color: "text-violet-300",
+              border: "border-violet-500/20",
+              bg: "from-violet-500/10 to-fuchsia-500/5",
             },
             {
               href: "/admin/staff/audit",

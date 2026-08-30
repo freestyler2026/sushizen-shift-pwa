@@ -197,7 +197,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
-  { href: "/my-contact",             label: "My Phone Number",     icon: Phone,         match: "exact" },
+  { href: "/my-contact",             label: "My Details",          icon: Phone,         match: "exact" },
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
