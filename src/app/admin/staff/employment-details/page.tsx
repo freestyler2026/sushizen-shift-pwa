@@ -87,6 +87,13 @@ export default function EmploymentDetailsPage() {
     return Array.from(set).sort();
   }, [rows]);
 
+  // Switching city leaves the old branch selected — "BO" does not exist in
+  // Dubai, so the page read "Nothing missing at this branch" over 73 people who
+  // were missing one. Fall back to the first branch that actually exists.
+  useEffect(() => {
+    if (branches.length > 0 && !branches.includes(branch)) setBranch(branches[0]);
+  }, [branches, branch]);
+
   const shown = useMemo(
     () => (rows ?? []).filter((r) => (r.branch_code || "?") === branch),
     [rows, branch]
@@ -174,14 +181,21 @@ export default function EmploymentDetailsPage() {
       </div>
 
       {summary ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {[
-            ["People with gaps", summary.total],
-            ["No position", summary.missing_position],
-            ["No hire date", summary.missing_hire_date],
-            ["No company", summary.missing_company],
-            ["Staff answered, awaiting you", summary.awaiting_confirmation],
-          ].map(([label, n]) => (
+        <div className={`grid grid-cols-2 gap-3 ${city === "dubai" ? "sm:grid-cols-3" : "sm:grid-cols-5"}`}>
+          {(city === "dubai"
+            ? ([
+                ["People with gaps", summary.total],
+                ["No hire date", summary.missing_hire_date],
+                ["Staff answered, awaiting you", summary.awaiting_confirmation],
+              ] as [string, number][])
+            : ([
+                ["People with gaps", summary.total],
+                ["No position", summary.missing_position],
+                ["No hire date", summary.missing_hire_date],
+                ["No company", summary.missing_company],
+                ["Staff answered, awaiting you", summary.awaiting_confirmation],
+              ] as [string, number][])
+          ).map(([label, n]) => (
             <div key={String(label)} className={`${GLASS_CARD} p-4`}>
               <div className={T_CAPTION}>{label}</div>
               <div className="mt-1 text-2xl font-bold tabular-nums text-neutral-100">{n as number}</div>
