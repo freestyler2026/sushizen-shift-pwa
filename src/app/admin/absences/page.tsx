@@ -10,6 +10,7 @@ import {
   BarChart2,
   CalendarDays,
   CalendarOff,
+  CalendarRange,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -419,6 +420,313 @@ function ReportCitySection({
         </table>
       </div>
     </div>
+  );
+}
+
+
+// ── Leave Cases ─────────────────────────────────────────────────────────────
+
+type LeaveType = { key: string; label: string; days: number | null; maternity: boolean };
+type LeaveCase = {
+  id: number; staff_name: string; leave_type: string; label: string;
+  start_date: string; end_date: string | null; edd: string | null;
+  actual_delivery_date: string | null; sss_notified_at: string | null;
+  status: string; days_generated: number; maternity: boolean; note: string;
+};
+type Schedule = {
+  end_date: string; total_days: number | null;
+  prenatal_days?: number; postnatal_days?: number;
+  suggested_end_date?: string; warnings: string[]; blockers: string[];
+};
+
+/**
+ * A stretch of leave, held as one record.
+ *
+ * The 105 days may be split around the birth but at least 60 must fall after
+ * it, and that is settled against the actual delivery date rather than the
+ * estimate. So the arithmetic is shown here before anything is written — a
+ * screen that reports a short postnatal period after laying down 105 day rows
+ * has reported it too late.
+ */
+function LeaveCases({ city, staffOptions }: { city: string; staffOptions: string[] }) {
+  const [rows, setRows] = useState<LeaveCase[]>([]);
+  const [types, setTypes] = useState<LeaveType[]>([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [staff, setStaff] = useState("");
+  const [type, setType] = useState("maternity_105");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [edd, setEdd] = useState("");
+  const [delivery, setDelivery] = useState("");
+  const [sssAt, setSssAt] = useState("");
+  const [note, setNote] = useState("");
+  const [sched, setSched] = useState<Schedule | null>(null);
+
+  const spec = types.find(t => t.key === type);
+  const isMaternity = !!spec?.maternity;
+  const needsEnd = spec ? spec.days === null : false;
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/leave-cases?city=${encodeURIComponent(city)}`, {
+        headers: buildHeaders(), cache: "no-store",
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.detail || `HTTP ${res.status}`);
+      setRows(j.rows || []);
+      setTypes(j.types || []);
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    }
+  }, [city]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const body = () => ({
+    case_id: editId, city, staff_name: staff, leave_type: type,
+    start_date: start, end_date: end, edd,
+    actual_delivery_date: delivery, sss_notified_at: sssAt, note,
+  });
+
+  // Re-run whenever a date that changes the split changes, so the numbers on
+  // screen always describe the form as it stands rather than as it was.
+  useEffect(() => {
+    if (!start || !type) { setSched(null); return; }
+    if (needsEnd && !end) { setSched(null); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/admin/leave-cases/preview", {
+          method: "POST",
+          headers: buildHeaders(),
+          body: JSON.stringify(body()),
+        });
+        const j = await res.json().catch(() => null);
+        if (!cancelled) setSched(res.ok ? (j as Schedule) : null);
+      } catch { if (!cancelled) setSched(null); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, start, end, delivery, needsEnd]);
+
+  function reset() {
+    setEditId(null); setStaff(""); setType("maternity_105"); setStart("");
+    setEnd(""); setEdd(""); setDelivery(""); setSssAt(""); setNote(""); setSched(null);
+  }
+
+  function edit(r: LeaveCase) {
+    setEditId(r.id); setStaff(r.staff_name); setType(r.leave_type);
+    setStart(r.start_date); setEnd(r.end_date || ""); setEdd(r.edd || "");
+    setDelivery(r.actual_delivery_date || ""); setSssAt(r.sss_notified_at || "");
+    setNote(r.note || ""); setOpen(true);
+  }
+
+  async function save(endOverride?: string) {
+    if (!staff || !start) { setMsg({ kind: "err", text: "Staff and start date are required." }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch("/api/admin/leave-cases", {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ ...body(), end_date: endOverride ?? end }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.detail || `HTTP ${res.status}`);
+      setMsg({ kind: "ok", text: `${staff}: ${j.absence_days} day(s) recorded, ${j.start_date} → ${j.end_date}.` });
+      reset(); setOpen(false); await load();
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(false); }
+  }
+
+  async function withdraw(r: LeaveCase) {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/leave-cases/${r.id}`, {
+        method: "DELETE", headers: buildHeaders(),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.detail || `HTTP ${res.status}`);
+      setMsg({ kind: "ok", text: `${r.staff_name}: ${j.days_removed} day(s) withdrawn.` });
+      await load();
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(false); }
+  }
+
+  const active = rows.filter(r => r.status === "active");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.15 }}
+      className={GLASS_CARD + " p-5"}
+    >
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <CalendarRange className="h-4 w-4 text-violet-400" />
+        <h2 className={T_SECTION}>Leave Cases</h2>
+        <span className={T_CAPTION}>
+          Maternity and other long leave. The days are written from the case, not entered one by one.
+        </span>
+        <button
+          onClick={() => { reset(); setOpen(o => !o); }}
+          className={`${SMALL_BUTTON} ml-auto`}
+        >
+          {open ? "Close" : "New case"}
+        </button>
+      </div>
+
+      {msg && (
+        <div className={`mb-3 rounded-lg border p-2.5 text-sm ${
+          msg.kind === "ok"
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+            : "border-red-500/30 bg-red-500/10 text-red-200"}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {open && (
+        <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <div className={T_LABEL + " mb-1"}>Staff</div>
+              <SelectDark value={staff} onChange={setStaff} options={staffOptions} placeholder="Select staff" />
+            </div>
+            <div className="sm:col-span-2">
+              <div className={T_LABEL + " mb-1"}>Type</div>
+              <SelectDark
+                value={type}
+                onChange={setType}
+                options={types.map(t => ({ value: t.key, label: t.label }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <div>
+              <div className={T_LABEL + " mb-1"}>Leave starts</div>
+              <input type="date" className={INPUT_CLASS} value={start}
+                     onChange={e => setStart(e.target.value)} />
+            </div>
+            {needsEnd && (
+              <div>
+                <div className={T_LABEL + " mb-1"}>Leave ends</div>
+                <input type="date" className={INPUT_CLASS} value={end}
+                       onChange={e => setEnd(e.target.value)} />
+              </div>
+            )}
+            {isMaternity && (
+              <>
+                <div>
+                  <div className={T_LABEL + " mb-1"}>Expected date (EDD)</div>
+                  <input type="date" className={INPUT_CLASS} value={edd}
+                         onChange={e => setEdd(e.target.value)} />
+                </div>
+                <div>
+                  <div className={T_LABEL + " mb-1"}>Actual delivery</div>
+                  <input type="date" className={INPUT_CLASS} value={delivery}
+                         onChange={e => setDelivery(e.target.value)} />
+                  <div className={T_CAPTION + " mt-1"}>Fill in later; the split is settled against this.</div>
+                </div>
+                <div>
+                  <div className={T_LABEL + " mb-1"}>SSS notified</div>
+                  <input type="date" className={INPUT_CLASS} value={sssAt}
+                         onChange={e => setSssAt(e.target.value)} />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div>
+            <div className={T_LABEL + " mb-1"}>Note</div>
+            <input className={INPUT_CLASS} value={note} onChange={e => setNote(e.target.value)}
+                   placeholder="Doctor's certificate ref, application date, anything HR will need later" />
+          </div>
+
+          {sched && (
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
+              <div className="text-zinc-200">
+                <span className="tabular-nums">{sched.total_days}</span> day(s) ·{" "}
+                <span className="tabular-nums">{start}</span> →{" "}
+                <span className="tabular-nums">{sched.end_date}</span>
+                {sched.prenatal_days !== undefined && (
+                  <span className="text-zinc-400">
+                    {" "}· before the birth <span className="tabular-nums">{sched.prenatal_days}</span>,
+                    after <span className="tabular-nums">{sched.postnatal_days}</span>
+                  </span>
+                )}
+              </div>
+              {sched.blockers.map((b, i) => (
+                <div key={i} className="mt-1.5 text-red-300">{b}</div>
+              ))}
+              {sched.warnings.map((w, i) => (
+                <div key={i} className="mt-1.5 text-amber-300">{w}</div>
+              ))}
+              {sched.suggested_end_date && (
+                <button
+                  onClick={() => save(sched.suggested_end_date)}
+                  disabled={busy}
+                  className={`${SMALL_BUTTON} mt-2 border-amber-400/40 text-amber-200`}
+                >
+                  Extend to {sched.suggested_end_date} and save
+                </button>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={() => save()}
+            disabled={busy || !staff || !start || !!sched?.blockers?.length}
+            className={PRIMARY_BUTTON + " w-full disabled:opacity-40"}
+          >
+            {busy ? "Saving…" : editId ? "Update case and re-write the days" : "Create case and write the days"}
+          </button>
+        </div>
+      )}
+
+      {active.length === 0 ? (
+        <p className={T_CAPTION}>No leave cases for this city.</p>
+      ) : (
+        <div className="space-y-2">
+          {active.map(r => (
+            <div key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="min-w-[10rem] flex-1">
+                <div className="text-sm font-medium text-white">{r.staff_name}</div>
+                <div className={T_CAPTION}>{r.label}</div>
+              </div>
+              <div className="text-xs tabular-nums text-zinc-300">
+                {r.start_date} → {r.end_date || "—"}
+                <span className="ml-2 text-zinc-500">{r.days_generated} days</span>
+              </div>
+              {r.maternity && (
+                <div className="text-xs text-zinc-400">
+                  {r.actual_delivery_date
+                    ? <>born {r.actual_delivery_date}</>
+                    : r.edd ? <>due {r.edd}</> : null}
+                  {!r.sss_notified_at && (
+                    <span className="ml-2 rounded border border-amber-500/40 px-1.5 py-0.5 text-amber-300">
+                      SSS not notified
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="ml-auto flex gap-2">
+                <button onClick={() => edit(r)} className={SMALL_BUTTON}>Edit</button>
+                <button onClick={() => withdraw(r)} disabled={busy}
+                        className={`${SMALL_BUTTON} border-red-500/30 text-red-300`}>
+                  Withdraw
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -1385,6 +1693,9 @@ export default function AdminAbsencesPage() {
             </button>
           </div>
         </motion.div>
+
+        {/* ── Leave Cases ───────────────────────────────────────────────── */}
+        <LeaveCases city={city} staffOptions={staffOptions} />
 
         {/* ── History Filters ──────────────────────────────────────────── */}
         <div className={`${GLASS_CARD} p-5`}>
