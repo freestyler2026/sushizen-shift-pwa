@@ -57,6 +57,9 @@ type CalcResult = {
   monthly_late_penalty_count: number;
   date_range?: string;
   message?: string;
+  grace_waived_count?: number;
+  grace_window?: string;
+  grace_waived?: { staff_name: string; work_date: string; subtype: string }[];
 };
 
 type StaffGroup = "all" | "parttime";
@@ -486,6 +489,25 @@ export default function DubaiPayrollPage() {
                             <span>Missing punch: <span className="text-red-300">{res.missing_punch_count}</span></span>
                             <span>Break excess: <span className="text-red-300">{res.break_excess_count}</span></span>
                             <span>Monthly late penalty: <span className="text-orange-300">{res.monthly_late_penalty_count}</span></span>
+                          </div>
+                        )}
+                        {!!res.grace_waived_count && res.grace_waived_count > 0 && (
+                          <div className="mt-2 rounded-lg border border-sky-500/25 bg-sky-900/15 p-2.5">
+                            <div className="text-xs font-semibold text-sky-300">
+                              {res.grace_waived_count} punch {res.grace_waived_count === 1 ? "penalty" : "penalties"} waived — go-live grace
+                              {res.grace_window && (
+                                <span className="ml-1.5 font-mono font-normal text-slate-400">{res.grace_window}</span>
+                              )}
+                            </div>
+                            {/* Listed by name. A penalty that quietly fails to appear is
+                                indistinguishable from one the engine forgot to compute. */}
+                            <div className="mt-1.5 max-h-32 overflow-y-auto text-xs text-slate-400">
+                              {(res.grace_waived ?? []).map((w, i) => (
+                                <div key={i} className="tabular-nums">
+                                  {w.work_date} · {w.staff_name} · {w.subtype.replace(/_/g, " ")}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         <p className="mt-2 text-xs text-slate-500">
