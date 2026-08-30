@@ -84,3 +84,7 @@ scripts/foodpanda/*-api-discovery.json
 
 # Worktree-local Claude instructions (Session 2 rules etc.) — never shared with main
 CLAUDE.local.md
+
+# Finder-style duplicates ("main 2.py", "routes.d 2.ts") — never intentional,
+# and a committed one poisons grep. `git add -f` if you ever want one.
+* [0-9].*
