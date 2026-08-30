@@ -318,6 +318,12 @@ function NoteCell({ note, category }: { note?: string | null; category?: string 
   );
 }
 
+/** Label for the range the displayed rows came from — never for the pickers. */
+function rangeLabel(r: { from: string; to: string } | null): string {
+  if (!r) return "";
+  return r.from === r.to ? r.from : `${r.from} → ${r.to}`;
+}
+
 // ── Absence Report city section ────────────────────────────────────────────
 
 function ReportCitySection({
@@ -450,6 +456,10 @@ export default function AdminAbsencesPage() {
   const [reportManila, setReportManila] = useState<AbsenceRow[] | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  // The range the rows on screen actually came from. The heading used to read
+  // the pickers instead, so pressing Today relabelled yesterday's rows as
+  // today's until someone thought to press Load Report.
+  const [reportLoadedRange, setReportLoadedRange] = useState<{ from: string; to: string } | null>(null);
 
   // History state
   const [filterStaffName, setFilterStaffName] = useState<string>("");
@@ -569,10 +579,12 @@ export default function AdminAbsencesPage() {
       ]);
       setReportDubai(Array.isArray(rd?.rows) ? rd.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
       setReportManila(Array.isArray(rm?.rows) ? rm.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
+      setReportLoadedRange({ from: reportDateFrom, to: reportDateTo });
     } catch (e: any) {
       setReportError(e?.message || String(e));
       setReportDubai(null);
       setReportManila(null);
+      setReportLoadedRange(null);
     } finally {
       setReportLoading(false);
     }
@@ -624,12 +636,16 @@ export default function AdminAbsencesPage() {
     setRows(null);
   }, [city]);
 
-  // Auto-load report when auth becomes ready
+  // Auto-load the report when auth becomes ready, and again whenever the range
+  // changes — the range buttons read as "show me this", so leaving the old rows
+  // up until someone presses Load Report is a screen that disagrees with itself.
+  // Debounced because the range picker sets `from` and `to` in separate updates
+  // and the pair in between is a range nobody asked for.
   useEffect(() => {
     if (!canAuth) return;
-    loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAuth]);
+    const t = setTimeout(() => { loadReport(); }, 400);
+    return () => clearTimeout(t);
+  }, [canAuth, loadReport]);
 
   // Fetch absence review staleness on mount
   useEffect(() => {
@@ -1034,13 +1050,13 @@ export default function AdminAbsencesPage() {
               <div className="flex flex-col items-center py-8 gap-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500/50" />
                 <p className="text-sm text-neutral-400">No absences recorded for this period</p>
-                <p className={T_CAPTION}>{reportDateFrom === reportDateTo ? reportDateFrom : `${reportDateFrom} → ${reportDateTo}`}</p>
+                <p className={T_CAPTION}>{rangeLabel(reportLoadedRange)}</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-500">
-                    {reportDateFrom === reportDateTo ? reportDateFrom : `${reportDateFrom} → ${reportDateTo}`}
+                    {rangeLabel(reportLoadedRange)}
                   </span>
                   <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_ERROR}`}>
                     {reportTotal} total
