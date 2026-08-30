@@ -43,7 +43,7 @@ export default function AdminOnboardingLinks({ compact = false }: Props) {
           href="/admin/staff/employment-details"
           className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
         >
-          <div className="text-sm font-semibold">Employment Details（役職・入社日・会社）</div>
+          <div className="text-sm font-semibold">Employment Details — Position · Hire Date · Company</div>
           <div className="mt-1 text-xs text-neutral-400">
             Confirm the hire date against the contract — leave is counted from it — plus position and company for the COE.
           </div>

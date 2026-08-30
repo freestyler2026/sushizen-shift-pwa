@@ -1004,7 +1004,7 @@ export default function AdminStaffPage() {
               : []),
             {
               href: "/admin/staff/employment-details",
-              label: "Employment Details（役職・入社日・会社）",
+              label: "Employment Details — Position · Hire Date · Company",
               desc: "Confirm each person's hire date against the contract — leave is counted from it — plus position and company for the COE. Manila and Dubai.",
               icon: CalendarDays,
               color: "text-violet-300",

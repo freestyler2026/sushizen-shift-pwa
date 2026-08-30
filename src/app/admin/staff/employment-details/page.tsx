@@ -2,8 +2,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { FileText, Check } from "lucide-react";
+import { FileText, Check, ChevronLeft } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
@@ -155,12 +156,20 @@ export default function EmploymentDetailsPage() {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="mx-auto max-w-6xl space-y-6 px-4 py-8"
     >
+      <Link
+        href="/admin/staff"
+        className="inline-flex items-center gap-1 text-sm text-neutral-400 transition-colors hover:text-white"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back to Staff Master
+      </Link>
+
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-500/20 to-blue-500/10">
           <FileText className="h-5 w-5 text-sky-400" />
         </div>
         <div>
-          <h1 className={T_PAGE_TITLE}>Employment Details（役職・入社日・会社）</h1>
+          <h1 className={T_PAGE_TITLE}>Employment Details — Position · Hire Date · Company</h1>
           <p className={T_CAPTION}>
             The hire date is also what leave is counted from, so it is confirmed here and
             nowhere else. Staff give their own answer on My Details; accept it against the
