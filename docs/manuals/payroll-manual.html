@@ -407,6 +407,10 @@ td.muted{color:var(--muted);font-size:12px}
       <span class="tip-icon">ℹ️</span>
       <span data-en="Night premium does NOT stack with public holiday premium — if a night shift overlaps a public holiday, the holiday rate takes priority." data-ja="深夜手当は祝日割増とは重複しません。深夜シフトが祝日と重なる場合、祝日レートが優先されます。">Night premium does NOT stack with public holiday premium — holiday rate takes priority on overlap.</span>
     </div>
+    <div class="tip" style="margin-top:10px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Go-live grace (2026-07-09 to 2026-07-10): punch penalties are NOT charged for these two dates. The OS became the system of record on 07-10; the day before, staff clocked in only to practise, and Bayzat holds the real in/out pair for 07-09. Break excess is also waived, but only on a day that already lost a punch — a shift with no clock-out leaves the break open, so the recorded break minutes are an artefact of the same missed punch, not a real break. Additions (night premium) are still paid in full: a grace period must never reduce what someone earned. Adjust without a deploy: heroku config:set PUNCH_GRACE_DUBAI=&quot;2026-07-09..2026-07-10&quot; (empty string switches it off). Waived rows are listed by name on the Generate result panel." data-ja="移行猶予（2026-07-09〜2026-07-10）：この2日間は打刻ペナルティを課しません。OSが正となったのは07-10で、その前日は練習のためClock inのみ、07-09の正しい打刻はBayzatにあります。休憩超過も免除しますが、同じ日に打刻漏れがある場合のみです — 退勤打刻が無いシフトは休憩が閉じないため、記録された休憩時間は同じ打刻漏れの副産物であって実際の休憩ではありません。加算（深夜手当など）は全額支払います。猶予が支給額を減らしてはいけません。デプロイ不要で変更可：heroku config:set PUNCH_GRACE_DUBAI=&quot;2026-07-09..2026-07-10&quot;（空文字で無効化）。免除した行はGenerate結果パネルに氏名つきで表示されます。">Go-live grace 2026-07-09→07-10: punch penalties are not charged for these two dates (OS became the system of record on 07-10). Break excess is waived only on a day that also lost a punch. Additions are still paid in full. Configurable via PUNCH_GRACE_DUBAI.</span>
+    </div>
   </div>
 </div>
 
