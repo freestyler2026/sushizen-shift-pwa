@@ -465,12 +465,19 @@ All Tailwind class constants live here — import these instead of writing raw c
 
 4. **Sheet proposals removal pending in backend too** — `shift_sheet_sync_proposals` schema + CRUD functions still imported.
 
-5. **iCloud sync conflict files in `app/`**:
-   - `app/db 2.py` (33,425 lines) — older snapshot
-   - `app/db 3.py` (35,008 lines)
-   - `app/main 2.py` (21,620 lines)
-   - Stale `.tmp_*.pyc` files at repo root
-   - Confirmed not imported (Python can't import filenames with spaces). Should be deleted.
+5. **iCloud sync conflict files in `app/` — deleted 2026-08-30**:
+   - `app/db 2.py`, `app/db 3.py`, `app/main 2.py` are gone. They were committed by
+     mistake in `b321dd67` (2026-04-21) and never imported (Python can't import a
+     filename with a space), but grep matched them, so a session could patch a dead
+     copy and conclude the fix did not work. Every definition unique to a copy had
+     been removed from the live file on purpose — Bayzat/Drive (`e38cea86`), cost
+     spreadsheet sync (`fb438851`), `replace_published_week_from_draft` (`597a0790`).
+   - `.gitignore` now drops `* [0-9].*` in both repos, so another copy cannot be
+     committed. `tsconfig.json` excludes `**/* ?.ts(x)` for the same reason on the
+     frontend — a stray `.next-dev/types/routes.d 2.ts` was the sole source of every
+     error `npx tsc --noEmit` reported, masking any real one.
+   - Still present, untracked: `.tmp_main_sheets.pyc` and
+     `.tmp_supplier_invoice_ingestion_sheets.pyc` at the backend repo root (March).
 
 6. **Two payroll systems coexist for Dubai** (legacy XLSX-import + Phase 2 operational), plus Manila v5 separate.
 
