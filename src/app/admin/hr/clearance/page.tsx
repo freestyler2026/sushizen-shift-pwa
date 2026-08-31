@@ -54,6 +54,7 @@ type ClearanceCase = {
   employee_email: string;
   separation_type: SeparationType;
   last_working_day: string | null;
+  days_since_last_day?: number | null;
   created_by: string;
   hr_signoff_by: string;
   hr_signoff_at: string | null;
@@ -138,6 +139,65 @@ function fmtDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
+
+/** What is outstanding, above the list.
+ *
+ *  Six cases were open with someone waiting between 21 and 74 days for their
+ *  final pay, PHP 48,585 between them. Every one of those facts existed in the
+ *  data and none of them were on the screen -- the list was ordered by when the
+ *  case was typed, so the oldest was not even at the top.
+ */
+function OutstandingSummary({ cases }: { cases: ClearanceCase[] }) {
+  const active = cases.filter((c) => c.status === "active");
+  if (active.length === 0) return null;
+
+  const byCurrency = new Map<string, number>();
+  active.forEach((c) => {
+    const amt = c.fp_total ?? 0;
+    if (amt > 0) {
+      const cur = c.fp_currency || "PHP";
+      byCurrency.set(cur, (byCurrency.get(cur) ?? 0) + amt);
+    }
+  });
+
+  const waits = active
+    .map((c) => c.days_since_last_day)
+    .filter((d): d is number => typeof d === "number");
+  const oldest = waits.length ? Math.max(...waits) : null;
+  const over30 = waits.filter((d) => d >= 30).length;
+
+  return (
+    <div className={`${GLASS_CARD} flex flex-wrap items-baseline gap-x-6 gap-y-2`}>
+      <span className="text-sm text-white/70">
+        <span className="text-lg font-semibold text-white tabular-nums">{active.length}</span>{" "}
+        case{active.length === 1 ? "" : "s"} open
+      </span>
+      {[...byCurrency.entries()].map(([cur, total]) => (
+        <span key={cur} className="text-sm text-white/70">
+          <span className="text-lg font-semibold text-white tabular-nums">
+            {fmt(total, cur)}
+          </span>{" "}
+          not yet released
+        </span>
+      ))}
+      {oldest !== null && (
+        <span className={`text-sm ${oldest >= 30 ? "text-amber-300" : "text-white/70"}`}>
+          oldest <span className="font-semibold tabular-nums">{oldest}</span> days
+        </span>
+      )}
+      {over30 > 0 && (
+        <span className="text-sm text-amber-300">
+          {over30} past 30 days
+        </span>
+      )}
+      <span className={`${T_CAPTION} w-full`}>
+        Oldest first. A case only leaves this list when it reaches stage 6 or is
+        cancelled.
+      </span>
+    </div>
+  );
+}
+
 
 // ─── Create case modal ────────────────────────────────────────────────────────
 
@@ -923,6 +983,30 @@ function CaseCard({ c, onUpdated, onCancel }: {
               {c.department && `${c.department} · `}{c.position}
               {c.last_working_day && ` · LWD ${fmtDate(c.last_working_day)}`}
             </p>
+            {c.status === "active" && (
+              <p className="mt-1 text-sm">
+                {typeof c.days_since_last_day === "number" && (
+                  <span
+                    className={
+                      c.days_since_last_day >= 30
+                        ? "font-medium text-amber-300"
+                        : "text-white/50"
+                    }
+                  >
+                    {c.days_since_last_day} days since last working day
+                  </span>
+                )}
+                {(c.fp_total ?? 0) > 0 && (
+                  <span className="text-white/50">
+                    {" · "}
+                    <span className="tabular-nums text-white/80">
+                      {fmt(c.fp_total, c.fp_currency)}
+                    </span>{" "}
+                    not yet released
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
             <span className={`text-xs font-medium ${statusColor}`}>{stageBadge}</span>
@@ -1094,6 +1178,7 @@ export default function HrClearancePage() {
           <div className={`${GLASS_CARD} text-center text-white/40 py-12`}>No cases found</div>
         ) : (
           <div className="space-y-3">
+            <OutstandingSummary cases={cases} />
             {cases.map(c => (
               <CaseCard
                 key={c.id}

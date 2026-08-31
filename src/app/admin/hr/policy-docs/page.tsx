@@ -49,6 +49,9 @@ type AckReport = {
   acknowledged: AckEntry[];
   acknowledged_count: number;
   acknowledgement_deadline: string | null;
+  pending?: string[];
+  pending_count?: number;
+  expected_count?: number;
 };
 
 const CATEGORIES = ["Policy", "Memo", "Announcement", "Guideline", "SOP"];
@@ -291,12 +294,32 @@ function AckReportPanel({ doc, onClose }: { doc: PolicyDoc; onClose: () => void 
 
       {report && (
         <div className="space-y-3">
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className={BADGE_SUCCESS}><CheckCircle2 size={11} /> {total} Acknowledged</span>
+            {(report.pending_count ?? 0) > 0 && (
+              <span className={BADGE_WARNING}>
+                {report.pending_count} still to acknowledge
+              </span>
+            )}
             {doc.acknowledgement_deadline && (
               <span className={BADGE_WARNING}><Clock size={11} /> Deadline: {fmtDate(doc.acknowledgement_deadline)}</span>
             )}
           </div>
+
+          {/* Who has not acknowledged. This panel could only ever show who
+              complied, which is the half you cannot act on -- four documents
+              reached their deadline with 1 of 126 acknowledged and no way to
+              see who to ask. */}
+          {(report.pending_count ?? 0) > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-300">
+                Not yet acknowledged ({report.pending_count} of {report.expected_count})
+              </p>
+              <div className="max-h-48 overflow-y-auto rounded-lg bg-amber-500/5 p-2 text-sm leading-relaxed text-amber-100/80">
+                {(report.pending ?? []).join(", ")}
+              </div>
+            </div>
+          )}
 
           {total === 0 ? (
             <p className="text-sm text-zinc-500 italic">No acknowledgements yet.</p>
