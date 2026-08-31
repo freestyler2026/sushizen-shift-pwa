@@ -170,6 +170,54 @@ function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
   );
 }
 
+
+/**
+ * Rows whose status says they went out but that carry no sent_at.
+ *
+ * sent_at is the clock the rest of the channel runs on — the 30-minute
+ * escalation, the missed-by-manager log and the Area Manager score all start
+ * from it. A row without it drops out of all three and nothing looks wrong,
+ * which is exactly how this went unnoticed the first time. Silent when there is
+ * nothing to say.
+ */
+function SentStampBanner({ city }: { city: string }) {
+  const [gap, setGap] = useState<{ count: number; rows: { id: number; type: string; branch: string }[] } | null>(null);
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/management/integrity?city=${encodeURIComponent(city === "all" ? "" : city)}`,
+          { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!dead) setGap({ count: j.count || 0, rows: j.rows || [] });
+      } catch {
+        /* the banner is a safety net, not a feature — never break the page */
+      }
+    })();
+    return () => { dead = true; };
+  }, [city]);
+
+  if (!gap || gap.count === 0) return null;
+  return (
+    <div className="mb-4 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-2.5 text-sm text-red-100 flex items-start gap-2">
+      <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-400" />
+      <div>
+        <b>{gap.count} task(s) are marked as sent but carry no send time.</b> Escalation,
+        the missed-by-manager log and the Area Manager score all count from that
+        time, so these are being left out of every one of them. Tell the OS team.
+        <div className="mt-1 text-xs text-red-200/80">
+          {gap.rows.slice(0, 8).map(r => `#${r.id} ${r.branch} ${r.type}`).join(" · ")}
+          {gap.count > 8 ? ` · +${gap.count - 8} more` : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function fmtLabel(type: string) {
   return fmtExceptionType(type);
 }
@@ -1450,6 +1498,7 @@ export default function BODashboardPage() {
       <div className="mx-auto max-w-5xl px-4 pt-6">
         <MgmtChannelTabBar active="bo" />
         <AutoCheckBanner runs={jobRuns} city={cityFilter} />
+        <SentStampBanner city={cityFilter} />
         <AnswerRates city={cityFilter} />
 
 
