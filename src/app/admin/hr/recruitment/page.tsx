@@ -968,6 +968,7 @@ type Overview = {
   plans: HiringPlan[];
   stalled: { full_name: string; position_applied: string; days_waiting: number; since: string }[];
   stalled_count: number;
+  stalled_shown?: number;
   awaiting_offer: { full_name: string; position_applied: string; days_waiting: number }[];
   openings_with_no_candidates: {
     position: string; branch: string; openings: number;
@@ -998,11 +999,13 @@ function PlansView({
   loading,
   onReload,
   onNewPlan,
+  onClosePlan,
 }: {
   data: Overview | null;
   loading: boolean;
   onReload: () => void;
   onNewPlan: () => void;
+  onClosePlan: (p: HiringPlan) => void;
 }) {
   if (loading && !data) return <p className={`${T_BODY} p-6`}>Loading…</p>;
   if (!data) return null;
@@ -1048,13 +1051,18 @@ function PlansView({
                     : ""}
                 </p>
               </div>
-              <p className="text-sm tabular-nums text-zinc-300">
-                <span className="text-lg font-bold text-white">{p.filled}</span>
-                <span className="text-zinc-500"> / {p.headcount} filled</span>
-                {p.remaining > 0 && (
-                  <span className="ml-2 text-amber-300">{p.remaining} to go</span>
-                )}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm tabular-nums text-zinc-300">
+                  <span className="text-lg font-bold text-white">{p.filled}</span>
+                  <span className="text-zinc-500"> / {p.headcount} filled</span>
+                  {p.remaining > 0 && (
+                    <span className="ml-2 text-amber-300">{p.remaining} to go</span>
+                  )}
+                </p>
+                <button className={SMALL_BUTTON} onClick={() => onClosePlan(p)}>
+                  Mark done
+                </button>
+              </div>
             </div>
 
             <ProgressBar filled={p.filled} total={p.headcount} />
@@ -1150,8 +1158,10 @@ function PlansView({
                   </div>
                 ))}
               </div>
-              {stalled.length > 40 && (
-                <p className={`${T_CAPTION} mt-2`}>and {stalled.length - 40} more</p>
+              {data.stalled_count > Math.min(stalled.length, 40) && (
+                <p className={`${T_CAPTION} mt-2`}>
+                  and {data.stalled_count - Math.min(stalled.length, 40)} more
+                </p>
               )}
             </>
           )}
@@ -2391,6 +2401,32 @@ export default function HRRecruitmentPage() {
     }
   };
 
+  const handleClosePlan = async (p: HiringPlan) => {
+    const auth = authRef.current;
+    if (!auth) return;
+    // Says what else moved: closing a plan closes the openings under it, and
+    // that should not happen behind the user's back.
+    if (!window.confirm(
+      `Mark "${p.name}" as done? Any of its openings that are still active will ` +
+      `be closed too.`
+    )) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/hiring-plans/${p.id}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(auth),
+        body: JSON.stringify({ status: "done" }),
+      });
+      if (!res.ok) { setError(await errorDetail(res)); return; }
+      const body = await res.json().catch(() => ({}));
+      const n = Number(body?.requisitions_changed || 0);
+      if (n > 0) setError("");
+      void loadOverview();
+      void loadData();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleCreatePlan = async (data: {
     name: string; branch: string; opening_date: string;
     positions: { position: string; openings: number; priority: string }[];
@@ -2704,6 +2740,7 @@ export default function HRRecruitmentPage() {
           loading={loadingOverview}
           onReload={() => void loadOverview()}
           onNewPlan={() => setShowNewPlan(true)}
+          onClosePlan={handleClosePlan}
         />
       ) : (
         <>
