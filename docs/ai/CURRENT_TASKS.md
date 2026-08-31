@@ -16,6 +16,27 @@ Last updated: 2026-08-31（HR Phase 0〜3 ＋ HR Today 本番反映済み）
 
 ---
 
+## ✅ 現金NTE整理 ＋ 画面統合（2026-08-31・13/13検証）
+
+**97件を一括Dismiss**（`within_tolerance` / 実行者 Yukihiro Nishimura / 「Below the PHP 20 tolerance now in force」）。
+```
+170件 → DISMISSED 97 / DRAFT 73     22人 → 17人
+処理した中の最大差異 ₱12.00        残りの最小差異 ₱22.00
+```
+全て±₱20以内のものだけ。**1つでも₱20を超える差異を含む下書きは除外**（実害を消さないため）。
+
+**画面の整理**
+1. **レジ差異の始末書を共有コンポーネント化** — `src/components/CashDiscrepancyNotices.tsx`。
+   Notice to Explain の「Cash Discrepancies」タブと Cash Management の両方で同じものを描画。
+   **コピーを2つ作らない**（片方だけ直る事故を防ぐ）
+2. **メニューの「NTE Management」を削除** — 「Notice to Explain」と並んでいて名前から区別不能だった。
+   `/admin/nte`（DOLE正式手続き）は **「Formal Case (DOLE)」タブ**から入る。ページ自体は残存
+   - ⚠️ **データは統合していない。** `staff_nte_records`(21・簡易) と `nte_case`(3・正式) は別のまま。
+     どちらの手続きに載せるかは労務判断であり、システムが自動で決めてよいものではない
+3. **Onboarding から `submitted` / `na` を削除** — 144件中0件で未使用。
+   Submitted の進捗バーは Verified と常に同じ数字を描いていたので1本に。
+   **読み取り側は両ステータスを引き続き理解する**（選択肢を消すことと、データを消せることは別）
+
 ## ✅ HR Today（2026-08-31・14/14検証）— `/admin/hr/today`
 
 **9ページを巡回しないと分からなかったものを1画面に。** 新規テーブル・新規集計ロジックはゼロ。
