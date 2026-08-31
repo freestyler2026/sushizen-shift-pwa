@@ -16,6 +16,41 @@ Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映�
 
 ---
 
+## ✅ HR Performance Phase 1（2026-08-31 完了・23/23検証）
+
+**「期限超過39件」は過大だった。** 21件は `staff_regularization` で既に REGULARIZED 済み（連携が無いだけ）、
+1件は退職者、2件は名簿外。**実際は15件。**
+
+| | 前 | 後 |
+|---|---:|---:|
+| 期限超過の行 | 39 | 18 |
+| うち在籍・未判断 | 36 | **15** |
+| pending の schedule 行 | 177 | 155 |
+
+**設計上の最重要点: 正社員化は `staff_regularization` が唯一の正**（Ayako さんが11名を確定済み）。
+Performance 側で `hr_performance_reviews` に書くと**3つ目の記録先**になるため、
+`record_review_outcome` は regularize のとき `update_regularization_status()` を呼ぶ。
+
+- `update_regularization_status()` が schedule 行も閉じる（Onboarding 画面から確定しても連動）
+- 3ヶ月行は `completed` ではなく **`superseded`**（誰もその面談をしていないため）
+- `backfill_regularization_schedule()` を1回実行 → 11名・completed 11 / superseded 11
+- `overdue_reviews()` が在籍者のみを `due` に、非在籍を `not_employed` に分離
+- `hr_performance_reviews` に `outcome` / `outcome_reason` 列を追加
+- ⚠️ マイグレーションは **`ensure_review_tables`** に置くこと（`ensure_hr_tables` に置いて一度失敗した）
+- ⚠️ `hr_review_schedule` は (city, staff_name, review_type, scheduled_date) が一意。extend は `ON CONFLICT DO NOTHING`
+
+**残っている15件（要判断・在籍中）**
+```
+Ricardo Lamis III      probation 463d / 6mo 373d
+Karen Jane Borja       probation 248d / 6mo 158d
+Louiela Chica          probation 203d / 6mo 113d
+James Ray Pata         probation 203d / 6mo 113d
+Victoria Lim / Angelica Regondola          probation 48d
+Samantha Varca / Mary Jane Tegerero        probation 43d
+Jennyleen Valera Pepelar 13d / Cathrina Calimlim 8d / Mark Arvin Ocampo 3d
+```
+非在籍のため除外: Tricia Andrea Estrada(SEPARATED) / Anthony Plaza / Junowel Coronado Trespecios（名簿外）
+
 ## ✅ HR 5ページ Phase 0（2026-08-31 完了・動作変更なし）
 
 **Recruitment と同型の問題が Performance / NTE / Policy / Clearance / Onboarding にも存在。**
