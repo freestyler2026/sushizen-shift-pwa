@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-31（Recruitment 段階1〜4 本番反映済み。Aaron Jay Pamplona 誤退職を復旧）
+Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映済み）
 
 ---
 
@@ -15,6 +15,41 @@ Last updated: 2026-08-31（Recruitment 段階1〜4 本番反映済み。Aaron Ja
 | マニラ 8/26〜 の給与期間 | 下記 | 期間が無く承認済み OT 3件が Add to Payroll できない | 未作成 |
 
 ---
+
+## ✅ HR 5ページ Phase 0（2026-08-31 完了・動作変更なし）
+
+**Recruitment と同型の問題が Performance / NTE / Policy / Clearance / Onboarding にも存在。**
+Phase 0 は「既にあるデータを見せるだけ」に限定し、既存の操作を1つも変えていない。
+
+| 実測（改修前） | 数字 |
+|---|---|
+| Performance: 評価予定 177件 / 実際の評価 | **0件**（期限超過39件） |
+| NTE: ACTIVE 21件 / 解決 | **0件**（最古130日） |
+| NTE: 現金ドラフト 168件 / 承認 | **0件** |
+| Policy: 4文書 × マニラ在籍63名 / 確認 | **各1名**（期限 2026-08-31） |
+| Clearance: 進行中 | 5件・₱48,584.88・最長74日 |
+| Onboarding: 144項目 / verified | 30件（法定書類は 1/9） |
+
+**Phase 0 実装（27/27 検証済み）**
+1. `channel.admin.nte.view/.manage` を `DEFAULT_ROLE_GRANTS` に追加（0ロール→ADMIN/HR_MANAGER/MANILA_MANAGEMENT、18名が到達可能に）
+   - ⚠️ 教訓33: DBだけ触っても巻き戻る。シード側の編集が必須だった
+2. `list_hr_clearance_cases` を **最終出社日の古い順**に変更＋`days_since_last_day` を返す。UIに滞留日数・未払額・合計サマリを追加
+3. `get_policy_acknowledgement_report` に **pending（未確認者）** を追加（docstringは以前から約束していたが未実装だった）。`policy_acknowledgement_gaps()` ＋ `run_policy_reminders()` を worker に追加
+   - 配信は既存の `send_discord_message` を流用（教訓20: 2本目を作らない）
+   - 送信頻度: 期限3日前 / 1日前 / 当日 / 以後7日ごと
+
+**未着手（Phase 1〜4）**
+- Phase 1: Performance の1タップ判断（Recruitment 段階2と同型）
+- Phase 2: NTE のクローズ操作 ＋ 現金ドラフト168件の担当者・一括処理
+- Phase 3: Onboarding の法定書類ブロック ／ Clearance↔Offboarding の不一致表示
+- Phase 4: COE（**必要性をピーターさんに確認してから**判断）
+
+**判明した構造問題（未修正）**
+- Clearance 9件中8件に Offboarding 記録が無く、1件は退職理由が不一致（termination / contract_end）
+- 同一人物の重複: Shawn Patrick Saint Lozana ×2（理由も相違）、Jason Mark Fabillar ×2
+- 名簿の重複行: Norhaida が2行（STAFF / MANILA_MANAGEMENT）
+- 退職・休職者8名がロール割り当てを保持（Jason Mark Fabillar は SEPARATED で3ロール）
+- Clearance で最終給与計算中の5名が名簿上 `ON_LEAVE`（教訓34: ON_LEAVE はロールを保持する）
 
 ## ✅ HR Recruitment — 進捗管理の作り直し（2026-08-31 段階1〜4 完了）
 
