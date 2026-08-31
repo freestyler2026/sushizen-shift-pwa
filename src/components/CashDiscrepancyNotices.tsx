@@ -98,7 +98,18 @@ export default function NteView() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || "Failed.");
-      setMsg({ ok: true, text: `${d.dismissed} draft(s) dismissed for ${g.staff_name}.` });
+      // Two people can work this list at once, and the server names back the
+      // ones that had already moved. Saying so beats a count that quietly does
+      // not add up to what was on screen a moment ago.
+      const skipped = Array.isArray(d.skipped) ? d.skipped.length : 0;
+      setMsg({
+        ok: true,
+        text:
+          `${d.dismissed} draft(s) dismissed for ${g.staff_name}.` +
+          (skipped > 0
+            ? ` ${skipped} had already been actioned by someone else — the list is refreshed.`
+            : ""),
+      });
       load();
     } catch (e: any) { setMsg({ ok: false, text: e.message }); }
     finally { setBusy(null); }
