@@ -891,9 +891,107 @@ type AddApplicantForm = {
   source: string;
   referrer_name: string;
   requisition_id: string;
+  assigned_branch: string;
   notes: string;
   applied_date: string;
 };
+
+const OTHER_POSITION = "__other";
+
+/** One field for "what are they applying for", instead of two.
+ *
+ *  It used to be a free-text Position box with an optional Requisition dropdown
+ *  underneath it. People fill a form from the top, so the box that had to be
+ *  typed got typed and the one that was useful got skipped: 115 of 132
+ *  applicants are tied to no requisition, and "store manager" reached the
+ *  database spelt five different ways.
+ *
+ *  Picking the requisition now sets the position and the branch, so this is
+ *  fewer keystrokes than before rather than more.
+ */
+function PositionPicker({
+  requisitions,
+  requisitionId,
+  positionApplied,
+  onChange,
+}: {
+  requisitions: Requisition[];
+  requisitionId: string;
+  positionApplied: string;
+  onChange: (patch: {
+    requisition_id: string;
+    position_applied: string;
+    assigned_branch: string;
+  }) => void;
+}) {
+  // Held here rather than inferred from the values, so choosing "Other" and then
+  // clearing the text does not silently snap back to "nothing selected".
+  const [isOther, setIsOther] = useState(!requisitionId && positionApplied !== "");
+
+  const pick = (v: string) => {
+    if (v === OTHER_POSITION) {
+      setIsOther(true);
+      onChange({ requisition_id: "", position_applied: "", assigned_branch: "" });
+      return;
+    }
+    setIsOther(false);
+    if (!v) {
+      onChange({ requisition_id: "", position_applied: "", assigned_branch: "" });
+      return;
+    }
+    const r = requisitions.find((x) => x.id === v);
+    onChange({
+      requisition_id: v,
+      position_applied: r?.position ?? "",
+      assigned_branch: r?.branch ?? "",
+    });
+  };
+
+  return (
+    <div className="space-y-2">
+      <SelectDark
+        className={`${SELECT_CLASS} mt-1`}
+        value={requisitionId || (isOther ? OTHER_POSITION : "")}
+        onChange={pick}
+        options={[
+          { value: "", label: "— Select an open position —" },
+          ...requisitions.map((r) => ({
+            value: r.id,
+            label: `${r.position} — ${r.branch}${r.priority === "urgent" ? "  (urgent)" : ""}`,
+          })),
+          { value: OTHER_POSITION, label: "Other — not on the list" },
+        ]}
+      />
+      {isOther && (
+        <input
+          type="text"
+          autoFocus
+          placeholder="Type the position"
+          className={INPUT_CLASS}
+          value={positionApplied}
+          onChange={(e) =>
+            onChange({
+              requisition_id: "",
+              position_applied: e.target.value,
+              assigned_branch: "",
+            })
+          }
+        />
+      )}
+      {requisitionId && (
+        <p className={T_CAPTION}>
+          Linked to this requisition, so it counts toward that opening.
+        </p>
+      )}
+      {isOther && (
+        <p className={T_CAPTION}>
+          Not linked to any requisition — this candidate will not appear against an
+          opening. Raise a requisition if this role is really being hired for.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function AddApplicantModal({
   requisitions,
@@ -915,6 +1013,7 @@ function AddApplicantModal({
     source: "referral",
     referrer_name: "",
     requisition_id: "",
+    assigned_branch: "",
     notes: "",
     applied_date: today,
   });
@@ -953,12 +1052,12 @@ function AddApplicantModal({
             />
           </div>
           <div className="col-span-2">
-            <label className={T_LABEL}>Position Applied</label>
-            <input
-              type="text"
-              className={`${INPUT_CLASS} mt-1`}
-              value={form.position_applied}
-              onChange={(e) => set("position_applied", e.target.value)}
+            <label className={T_LABEL}>Applying for *</label>
+            <PositionPicker
+              requisitions={requisitions}
+              requisitionId={form.requisition_id}
+              positionApplied={form.position_applied}
+              onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
             />
           </div>
           <div>
@@ -1005,18 +1104,6 @@ function AddApplicantModal({
               />
             </div>
           )}
-          <div className="col-span-2">
-            <label className={T_LABEL}>Requisition (optional)</label>
-            <SelectDark
-              className={`${SELECT_CLASS} mt-1`}
-              value={form.requisition_id}
-              onChange={v => set("requisition_id", v)}
-              options={[
-                { value: "", label: "— None —" },
-                ...requisitions.map(r => ({ value: r.id, label: `${r.position} — ${r.branch} (${r.priority})` })),
-              ]}
-            />
-          </div>
           <div>
             <label className={T_LABEL}>Applied Date</label>
             <input
@@ -1046,7 +1133,7 @@ function AddApplicantModal({
         <div className="flex gap-2 pt-1">
           <button
             className={PRIMARY_BUTTON}
-            disabled={saving || !form.full_name.trim()}
+            disabled={saving || !form.full_name.trim() || !form.position_applied.trim()}
             onClick={handleSubmit}
           >
             {saving ? "Saving..." : "Add Applicant"}
@@ -1072,6 +1159,240 @@ type AddRequisitionForm = {
   requested_by: string;
   notes: string;
 };
+
+// ─── Add Several Modal ────────────────────────────────────────────────────────
+
+type BulkAddResult = { created_count: number; skipped: string[] };
+
+/** A stack of resumes is one event, not fifteen separate ones.
+ *
+ *  Fifteen candidates were entered through the single-applicant modal on
+ *  2026-08-26 and ten more on 08-31. The position, the source and the date are
+ *  the same for the whole stack, so they are asked once here and only the names
+ *  are typed -- which is fewer keystrokes than the spreadsheet this replaces.
+ */
+function BulkAddModal({
+  requisitions,
+  onSave,
+  onClose,
+  saving,
+}: {
+  requisitions: Requisition[];
+  onSave: (data: {
+    names: string[];
+    position_applied: string;
+    requisition_id: string;
+    assigned_branch: string;
+    source: string;
+    referrer_name: string;
+    applied_date: string;
+  }) => Promise<{ error: string | null; result: BulkAddResult | null }>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [position, setPosition] = useState({
+    requisition_id: "",
+    position_applied: "",
+    assigned_branch: "",
+  });
+  const [source, setSource] = useState("walk_in");
+  const [referrer, setReferrer] = useState("");
+  const [appliedDate, setAppliedDate] = useState(today);
+  const [names, setNames] = useState<string[]>([""]);
+  const [submitError, setSubmitError] = useState("");
+  const [result, setResult] = useState<BulkAddResult | null>(null);
+  const rowRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const filled = names.map((n) => n.trim()).filter(Boolean);
+
+  const setName = (i: number, v: string) =>
+    setNames((prev) => {
+      const next = [...prev];
+      next[i] = v;
+      // Always keep one empty row at the end, the way a spreadsheet does.
+      if (i === next.length - 1 && v.trim()) next.push("");
+      return next;
+    });
+
+  // Pasting a column of names from a spreadsheet fills a row each, rather than
+  // dropping the whole block into one field.
+  const handlePaste = (i: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData("text");
+    if (!/[\n\t]/.test(text)) return;
+    e.preventDefault();
+    const parts = text.split(/[\n\t]+/).map((x) => x.trim()).filter(Boolean);
+    setNames((prev) => {
+      const next = [...prev];
+      next.splice(i, 1, ...parts);
+      if (next[next.length - 1]?.trim()) next.push("");
+      return next;
+    });
+  };
+
+  const removeRow = (i: number) =>
+    setNames((prev) => (prev.length === 1 ? [""] : prev.filter((_, j) => j !== i)));
+
+  const handleSubmit = async () => {
+    setSubmitError("");
+    setResult(null);
+    const r = await onSave({
+      names: filled,
+      position_applied: position.position_applied,
+      requisition_id: position.requisition_id,
+      assigned_branch: position.assigned_branch,
+      source,
+      referrer_name: referrer,
+      applied_date: appliedDate,
+    });
+    if (r.error) setSubmitError(r.error);
+    else setResult(r.result);
+  };
+
+  if (result) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+        <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-4`}>
+          <p className={T_SECTION}>
+            {result.created_count} candidate{result.created_count === 1 ? "" : "s"} added
+          </p>
+          {result.skipped.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+              <p className="text-sm font-medium text-amber-300">
+                {result.skipped.length} skipped — already in the pipeline for this position
+              </p>
+              <p className="mt-1 text-xs text-amber-200/70">{result.skipped.join(", ")}</p>
+            </div>
+          )}
+          <button className={PRIMARY_BUTTON} onClick={onClose}>Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+        <div className="flex items-center justify-between">
+          <p className={T_SECTION}>Add Several Candidates</p>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className={T_CAPTION}>
+          Set the position once, then type the names. Paste a column from a
+          spreadsheet and it fills a row each.
+        </p>
+
+        <div>
+          <label className={T_LABEL}>Applying for *</label>
+          <PositionPicker
+            requisitions={requisitions}
+            requisitionId={position.requisition_id}
+            positionApplied={position.position_applied}
+            onChange={setPosition}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={T_LABEL}>Source</label>
+            <SelectDark
+              className={`${SELECT_CLASS} mt-1`}
+              value={source}
+              onChange={setSource}
+              options={[
+                { value: "walk_in", label: "Walk-in" },
+                { value: "referral", label: "Referral" },
+                { value: "jobstreet", label: "JobStreet" },
+                { value: "facebook", label: "Facebook" },
+                { value: "other", label: "Other" },
+              ]}
+            />
+          </div>
+          <div>
+            <label className={T_LABEL}>Applied Date</label>
+            <input
+              type="date"
+              className={`${INPUT_CLASS} mt-1`}
+              value={appliedDate}
+              onChange={(e) => setAppliedDate(e.target.value)}
+            />
+          </div>
+          {source === "referral" && (
+            <div className="col-span-2">
+              <label className={T_LABEL}>Referrer Name</label>
+              <input
+                type="text"
+                className={`${INPUT_CLASS} mt-1`}
+                value={referrer}
+                onChange={(e) => setReferrer(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className={T_LABEL}>Names</label>
+          <div className="mt-1 space-y-1.5">
+            {names.map((n, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-5 shrink-0 text-right text-xs tabular-nums text-white/30">
+                  {i + 1}
+                </span>
+                <input
+                  ref={(el) => { rowRefs.current[i] = el; }}
+                  type="text"
+                  className={INPUT_CLASS}
+                  value={n}
+                  placeholder={i === 0 ? "Full name" : ""}
+                  onChange={(e) => setName(i, e.target.value)}
+                  onPaste={(e) => handlePaste(i, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      rowRefs.current[i + 1]?.focus();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="shrink-0 rounded-lg p-1.5 text-zinc-500 hover:bg-white/10 hover:text-white"
+                  onClick={() => removeRow(i)}
+                  aria-label={`Remove row ${i + 1}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {submitError && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {submitError}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            className={PRIMARY_BUTTON}
+            disabled={saving || filled.length === 0 || !position.position_applied.trim()}
+            onClick={handleSubmit}
+          >
+            {saving
+              ? "Saving…"
+              : `Add ${filled.length} candidate${filled.length === 1 ? "" : "s"}`}
+          </button>
+          <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AddRequisitionModal({
   onSave,
@@ -1238,6 +1559,8 @@ export default function HRRecruitmentPage() {
   const [error, setError] = useState("");
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [showAddApplicant, setShowAddApplicant] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [savingBulk, setSavingBulk] = useState(false);
   const [showAddRequisition, setShowAddRequisition] = useState(false);
   const [showRequisitionsList, setShowRequisitionsList] = useState(false);
   const [savingApplicant, setSavingApplicant] = useState(false);
@@ -1357,6 +1680,44 @@ export default function HRRecruitmentPage() {
     }
   };
 
+  const handleBulkAdd = async (data: {
+    names: string[];
+    position_applied: string;
+    requisition_id: string;
+    assigned_branch: string;
+    source: string;
+    referrer_name: string;
+    applied_date: string;
+  }): Promise<{ error: string | null; result: BulkAddResult | null }> => {
+    const auth = authRef.current;
+    if (!auth) return { error: "Not signed in.", result: null };
+    setSavingBulk(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/applicants/bulk`, {
+        method: "POST",
+        headers: getAuthHeaders(auth),
+        body: JSON.stringify({ city: "manila", ...data }),
+      });
+      if (res.status === 401) {
+        redirectToLogin();
+        return { error: "Your session has expired. Redirecting to login\u2026", result: null };
+      }
+      if (!res.ok) return { error: `Failed to save: ${await errorDetail(res)}`, result: null };
+      const body = await res.json();
+      return {
+        error: null,
+        result: {
+          created_count: Number(body?.created_count || 0),
+          skipped: (body?.skipped || []) as string[],
+        },
+      };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e), result: null };
+    } finally {
+      setSavingBulk(false);
+    }
+  };
+
   const handleAddRequisition = async (
     form: AddRequisitionForm
   ): Promise<string | null> => {
@@ -1466,6 +1827,13 @@ export default function HRRecruitmentPage() {
             >
               <ClipboardList className="h-4 w-4" />
               + Requisition
+            </button>
+            <button
+              className={`${SECONDARY_BUTTON} flex items-center gap-1.5`}
+              onClick={() => setShowBulkAdd(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Several
             </button>
             <button
               className={`${PRIMARY_BUTTON} flex items-center gap-1.5`}
@@ -1614,6 +1982,14 @@ export default function HRRecruitmentPage() {
           onSave={handleAddApplicant}
           onClose={() => setShowAddApplicant(false)}
           saving={savingApplicant}
+        />
+      )}
+      {showBulkAdd && (
+        <BulkAddModal
+          requisitions={requisitions}
+          onSave={handleBulkAdd}
+          onClose={() => { setShowBulkAdd(false); void loadData(); }}
+          saving={savingBulk}
         />
       )}
       {showAddRequisition && (
