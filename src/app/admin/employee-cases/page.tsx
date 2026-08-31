@@ -52,6 +52,7 @@ import {
   Eye,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import CashDiscrepancyNotices from "@/components/CashDiscrepancyNotices";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ type DashboardData = {
   requests?: NteRequest[];
 };
 
-type PageTab = "board" | "request" | "pending" | "issue" | "history" | "catalog" | "ir" | "cases";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "catalog" | "ir" | "cases" | "cash" | "formal";
 
 const VIOLATION_CATEGORIES: { code: string; label: string; icon: string }[] = [
   { code: "ATT",  label: "Attendance",          icon: "🕐" },
@@ -2260,6 +2261,8 @@ export default function EmployeeCasesPage() {
             { id: "pending",  label: `Pending${pendingIssuance > 0 ? ` (${pendingIssuance})` : ""}` },
             { id: "issue",    label: "Issue Notice" },
             { id: "history",  label: "Case History" },
+            { id: "cash",     label: "Cash Discrepancies" },
+            { id: "formal",   label: "Formal Case (DOLE)" },
             ...(isHQ ? [{ id: "catalog" as PageTab, label: "Templates" }] : []),
             ...(isHR ? [{ id: "ir" as PageTab, label: "New IR" }] : []),
             ...(isHR ? [{ id: "cases" as PageTab, label: "Case Queue" }] : []),
@@ -3115,6 +3118,54 @@ export default function EmployeeCasesPage() {
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* Tab 3: Case History                                                 */}
       {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* Cash discrepancy notices were only on Cash Management, filed by where
+          the data came from rather than by whose job it is — so the people who
+          work notices never saw them, and 170 drafts sat for three months. Same
+          component, both places. */}
+      {/* The formal pipeline used to be a second menu entry called "NTE
+          Management", beside this one called "Notice to Explain" — two names
+          that gave no way to tell them apart. One way in now, and the page says
+          which process it is. */}
+      {tab === "formal" && (
+        <div className={`${GLASS_CARD} space-y-3 p-5`}>
+          <p className="text-base font-semibold text-white">
+            Formal disciplinary case — the DOLE process
+          </p>
+          <p className={`${T_BODY} max-w-prose`}>
+            Use this when a matter has to follow the statutory steps: incident
+            report, notice issued and served, the employee&apos;s written
+            explanation, a hearing, and a decision — each with its own deadline.
+            It keeps the record a labour case is judged on.
+          </p>
+          <p className={`${T_BODY} max-w-prose`}>
+            For an everyday notice that does not need the full process, stay on
+            the other tabs here.
+          </p>
+          <a
+            href="/admin/nte"
+            className={`${PRIMARY_BUTTON} inline-flex w-fit items-center gap-1.5`}
+          >
+            Open the formal case pipeline
+            <ChevronRight className="h-4 w-4" />
+          </a>
+          <p className={T_CAPTION}>
+            The two keep separate records for now. Which one a matter belongs in
+            is a decision for HR, not something the system should merge on its own.
+          </p>
+        </div>
+      )}
+
+      {tab === "cash" && (
+        <div className="space-y-3">
+          <p className={T_CAPTION}>
+            Drafted automatically when a cash report is out by more than the
+            tolerance. They are notices, so they are handled here as well as on
+            Cash Management.
+          </p>
+          <CashDiscrepancyNotices />
+        </div>
+      )}
+
       {tab === "history" && (
         <div className="space-y-4">
           {/* Filters */}

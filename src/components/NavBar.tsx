@@ -247,8 +247,11 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/today", label: "HR Today", icon: Sunrise, adminOnly: true, match: "prefix" },
+  // One entry, not two. "Notice to Explain" and "NTE Management" sat side by
+  // side with names that gave no way to tell them apart: the first is the
+  // everyday notice, the second the formal DOLE case pipeline. The formal one
+  // is reached from a tab inside the first, so there is one way in.
   { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" },
-  { href: "/admin/nte", label: "NTE Management", icon: ShieldAlert, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },

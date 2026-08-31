@@ -91,11 +91,16 @@ const CATEGORIES = [
   { key: "orientation", label: "Orientation", icon: "🎓" },
 ] as const;
 
+// Submitted and N/A are gone from the picker: across 144 items neither has ever
+// been chosen. A choice nobody makes still costs everybody the moment spent
+// deciding it is not the one they want.
+//
+// The rendering below still understands them, because removing an option is not
+// the same as being able to remove data, and nothing guarantees a row somewhere
+// does not hold one.
 const ITEM_STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
   { value: "pending", label: "Pending" },
-  { value: "submitted", label: "Submitted" },
   { value: "verified", label: "Verified" },
-  { value: "na", label: "N/A" },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -782,16 +787,11 @@ function RecordCard({
 
       <div className={DIVIDER} style={{ margin: "0.75rem 0" }} />
 
+      {/* One bar, not two. Submitted counts submitted-plus-verified and nothing
+          has ever been Submitted, so the two bars always drew the same number —
+          two identical figures make a reader look for the difference. */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-amber-300/80">Submitted</span>
-          <span className="text-xs text-amber-300 font-medium tabular-nums">
-            {record.submitted_count}/{total}
-          </span>
-        </div>
-        <ProgressBar value={record.submitted_count} total={total} color="amber" />
-
-        <div className="flex items-center justify-between gap-2 mt-1">
           <span className="text-xs text-emerald-400/80">Verified</span>
           <span className="text-xs text-emerald-400 font-medium tabular-nums">
             {record.verified_count}/{total}
