@@ -305,6 +305,184 @@ function ReviewDetailPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Decide a scheduled review ────────────────────────────────────────────────
+
+type ReviewOutcome = { key: string; label: string; hint: string };
+type ReviewReason = { key: string; label: string };
+
+const NEEDS_REASON = new Set([
+  "needs_improvement", "end_probation", "extend", "do_not_regularize", "below",
+]);
+
+/** The decision, in one action.
+ *
+ *  Recording a review meant thirteen fields — five scores, a review period, and
+ *  a Reviewed By that had to be typed. 177 reviews were scheduled and not one
+ *  was ever written. When the only path is expensive the result is not bad
+ *  records, it is no records.
+ *
+ *  Reviewer and date are not asked for. The full scored form is still there for
+ *  the reviews that warrant it.
+ */
+function ReviewDecisionModal({
+  item,
+  outcomes,
+  reasons,
+  onSubmit,
+  onClose,
+  onFullReview,
+  saving,
+}: {
+  item: ScheduleItem;
+  outcomes: ReviewOutcome[];
+  reasons: ReviewReason[];
+  onSubmit: (data: {
+    outcome: string; reason: string; notes: string; next_review_date: string;
+  }) => Promise<string | null>;
+  onClose: () => void;
+  onFullReview: () => void;
+  saving: boolean;
+}) {
+  const [outcome, setOutcome] = useState("");
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [nextDate, setNextDate] = useState("");
+  const [error, setError] = useState("");
+
+  const reasonRequired = NEEDS_REASON.has(outcome);
+  const dateRequired = outcome === "extend";
+  const noteRequired = reason === "other";
+  const ready =
+    !!outcome &&
+    (!reasonRequired || !!reason) &&
+    (!dateRequired || !!nextDate) &&
+    (!noteRequired || !!notes.trim());
+
+  const submit = async () => {
+    setError("");
+    const err = await onSubmit({ outcome, reason, notes, next_review_date: nextDate });
+    if (err) setError(err);
+    else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{item.staff_name}</p>
+            <p className={T_CAPTION}>
+              {REVIEW_TYPE_LABELS[item.review_type]} · scheduled {item.scheduled_date}
+              {item.days_until_due < 0 && (
+                <span className="text-red-400">
+                  {" "}· {Math.abs(item.days_until_due)} days overdue
+                </span>
+              )}
+            </p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div>
+          <p className={T_LABEL}>What is your decision?</p>
+          <div className="mt-2 grid gap-2">
+            {outcomes.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => { setOutcome(o.key); setReason(""); }}
+                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                  outcome === o.key
+                    ? "border-violet-500/50 bg-violet-500/15 text-violet-100"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                <span className="block text-sm font-semibold">{o.label}</span>
+                {o.hint && <span className="block text-xs opacity-70">{o.hint}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {dateRequired && (
+          <div>
+            <p className={T_LABEL}>New review date *</p>
+            <input
+              type="date"
+              className={`${INPUT_CLASS} mt-1`}
+              value={nextDate}
+              onChange={(e) => setNextDate(e.target.value)}
+            />
+          </div>
+        )}
+
+        {outcome && (
+          <div>
+            <p className={T_LABEL}>
+              Reason {reasonRequired ? "*" : <span className="opacity-60">(optional)</span>}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {reasons.map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => setReason(reason === r.key ? "" : r.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                    reason === r.key
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                      : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {outcome && (
+          <div>
+            <p className={T_LABEL}>
+              Note {noteRequired ? "*" : <span className="opacity-60">(optional)</span>}
+            </p>
+            <textarea
+              className={`${TEXTAREA_CLASS} mt-1`}
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {error}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <button className={PRIMARY_BUTTON} disabled={!ready || saving} onClick={submit}>
+            {saving ? "Saving…" : "Save decision"}
+          </button>
+          <button className={SECONDARY_BUTTON} onClick={onFullReview}>
+            Full scored review instead
+          </button>
+        </div>
+        <p className={T_CAPTION}>
+          Recorded against you, dated today. Scores are optional — this records
+          the decision. Salary is changed separately in Payroll.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 export default function HRPerformancePage() {
   const router = useRouter();
   const [authReady, setAuthReady] = useState(false);
@@ -329,6 +507,10 @@ export default function HRPerformancePage() {
   const [prefillName, setPrefillName] = useState("");
   const [prefillType, setPrefillType] = useState<ReviewType | "">("");
   const [prefillScheduleId, setPrefillScheduleId] = useState("");
+  const [decideItem, setDecideItem] = useState<ScheduleItem | null>(null);
+  const [savingDecision, setSavingDecision] = useState(false);
+  const [outcomeMap, setOutcomeMap] = useState<Record<string, ReviewOutcome[]>>({});
+  const [reasonList, setReasonList] = useState<ReviewReason[]>([]);
   const [form, setForm] = useState({
     staff_name: "",
     review_type: "" as ReviewType | "",
@@ -401,6 +583,22 @@ export default function HRPerformancePage() {
       setScheduleLoading(false);
     }
   }, [daysAhead]);
+
+  useEffect(() => {
+    const a = getAuth();
+    if (!authReady || !a) return;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/hr/reviews/outcomes`, {
+          headers: getAuthHeaders(a),
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        setOutcomeMap((d?.outcomes ?? {}) as Record<string, ReviewOutcome[]>);
+        setReasonList((d?.reasons ?? []) as ReviewReason[]);
+      } catch { /* the full form still works */ }
+    })();
+  }, [authReady]);
 
   useEffect(() => {
     if (authReady && activeTab === "upcoming") void fetchSchedule();
@@ -550,6 +748,31 @@ export default function HRPerformancePage() {
   };
 
   // ── Start Review from schedule ──
+  const handleDecision = async (data: {
+    outcome: string; reason: string; notes: string; next_review_date: string;
+  }): Promise<string | null> => {
+    const a = getAuth();
+    if (!a || !decideItem) return "Not signed in.";
+    setSavingDecision(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/reviews/schedule/${decideItem.id}/outcome`,
+        { method: "POST", headers: getAuthHeaders(a), body: JSON.stringify(data) },
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return d?.detail || `HTTP ${res.status}`;
+      }
+      await fetchSchedule();
+      void fetchReviews();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingDecision(false);
+    }
+  };
+
   const handleStartReview = (item: ScheduleItem) => {
     setPrefillName(item.staff_name);
     setPrefillType(item.review_type);
@@ -673,10 +896,10 @@ export default function HRPerformancePage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => handleStartReview(item)}
-                  className={`${SECONDARY_BUTTON} flex shrink-0 items-center gap-1.5 text-sm`}
+                  onClick={() => setDecideItem(item)}
+                  className={`${PRIMARY_BUTTON} flex shrink-0 items-center gap-1.5 text-sm`}
                 >
-                  Start Review
+                  Decide
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
@@ -1009,6 +1232,18 @@ export default function HRPerformancePage() {
           review={selectedReview}
           onClose={() => setSelectedReview(null)}
           onAcknowledge={handleAcknowledge}
+        />
+      )}
+
+      {decideItem && (
+        <ReviewDecisionModal
+          item={decideItem}
+          outcomes={outcomeMap[decideItem.review_type] ?? []}
+          reasons={reasonList}
+          onSubmit={handleDecision}
+          onClose={() => setDecideItem(null)}
+          onFullReview={() => { handleStartReview(decideItem); setDecideItem(null); }}
+          saving={savingDecision}
         />
       )}
     </div>
