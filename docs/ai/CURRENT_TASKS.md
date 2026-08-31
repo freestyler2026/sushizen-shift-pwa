@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映済み）
+Last updated: 2026-08-31（HR Phase 0〜3 ＋ HR Today 本番反映済み）
 
 ---
 
@@ -15,6 +15,36 @@ Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映�
 | マニラ 8/26〜 の給与期間 | 下記 | 期間が無く承認済み OT 3件が Add to Payroll できない | 未作成 |
 
 ---
+
+## ✅ HR Today（2026-08-31・14/14検証）— `/admin/hr/today`
+
+**9ページを巡回しないと分からなかったものを1画面に。** 新規テーブル・新規集計ロジックはゼロ。
+
+```
+HR — what needs you today
+
+● 55 candidates are waiting on a decision      longest 47 days     → recruitment
+● 20 notices are still open                    18 unanswered, 130d → employee-cases
+● 15 employment decisions are overdue          longest 463 days    → performance
+●  8 new hires are missing legal documents     working 18–56 days  → onboarding
+●  5 people waiting for their final pay        ₱48,584.88, 74d     → clearance
+●  4 policies need acknowledging               62/63, due today    → policy-docs
+○ 170 cash discrepancy drafts                  22 people, 83d      → cash-management
+○ The departure records do not agree           1不一致/1重複/6欠落  → clearance
+```
+
+**設計上の要点**
+- **数字は各ページの関数から取る。ここでは数えない。** → 画面とリンク先が食い違えない
+- **項目ごとに try で囲む。** 1つ失敗しても他は出て、失敗した行だけ灰色＋エラー内容を表示
+  （検証中に実際に発動。`policy_acknowledgement_gaps` は `app/db.py` にあるのに
+   `db_hr.py` 内で無修飾呼び出し → その行だけ NameError 表示、他7行は正常）
+- 赤（要対応）→ 黄 → 不明 の順に自動ソート
+- ⚠️ `nte_draft_summary()` は **branch 単位で city を見ない**。Dubai にマニラの170件が出たので
+  `city != manila` では出さないようにした
+
+**権限**: `channel.admin.hr_today.view` を ADMIN / HR_MANAGER / MANILA_MANAGEMENT に付与（18名）。
+⚠️ **HR_STAFF（Camilla さん）はカスタムロールなので Role Management での付与が必要。**
+デプロイ後 **「Resync System Channels」の実行が必須**。
 
 ## ✅ Phase 0〜3 敵対的再検証（2026-08-31・7件修正・19/19）
 
