@@ -16,6 +16,29 @@ Last updated: 2026-08-31（HR Phase 0〜3 ＋ HR Today 本番反映済み）
 
 ---
 
+## ✅ 現金NTE 30日超の償却 ＋ 実装範囲の全体検証（2026-08-31・45/45 ＋ 追加検証）
+
+**30日超の57件を Dismiss**（`other` / 「Over 30 days old — too late to investigate the drawer」）。
+```
+73件 → DISMISSED 154 / DRAFT 16     17人 → 5人
+```
+⚠️ **償却額に ₱1,997,380（2026-06-15 PAR）が含まれる。入力ミスの可能性が高いが、要確認。**
+他に ₱7,001 / ₱6,000 / ₱4,539×4（同日重複）/ ₱4,018×2。差異の合計 ₱2,075,662。
+**`cash_reports` 本体は無傷**（Dismiss は記録上の判断であり、元データは消えない）。
+
+**全体検証 45/45 + 追加プローブ**
+- HR Today の8項目すべてがリンク先の関数と数値一致
+- HR Today は **0.21秒**（8セクション）
+- 存在しない都市・空のキューでは**行ごと消える**（0件表示しない）
+- 締切のない要確認文書は0件（あれば `policy_acknowledgement_gaps` から漏れる設計なので要注意）
+- Dismiss 済み154件すべてに実行者名あり
+- 残16件すべてが閾値超（最小 ₱249）
+
+**見つけて直した1件（F1）**: 共有化した現金NTEセクションは Cash Management と
+Notice to Explain の両方にあり、片方で処理してももう片方は再読込まで古いまま。
+サーバーは既処理IDを返しているのにUIが件数しか出しておらず、画面と数が合わない理由が伝わらなかった
+→ 「N had already been actioned by someone else — the list is refreshed.」を表示するよう修正。
+
 ## ✅ 現金NTE整理 ＋ 画面統合（2026-08-31・13/13検証）
 
 **97件を一括Dismiss**（`within_tolerance` / 実行者 Yukihiro Nishimura / 「Below the PHP 20 tolerance now in force」）。
