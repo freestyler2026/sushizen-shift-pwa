@@ -16,6 +16,33 @@ Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映�
 
 ---
 
+## ✅ NTE Phase 2（2026-08-31 完了・29/29検証）
+
+**「UIにボタンが無い」は誤読だった。** Close ボタンは History タブに存在した。
+問題は**押しても何も記録しないこと**（`window.confirm` → `resolved_by` のみPOST。
+`resolution_note` は21件中0件）と、タブが All Status で開き未対応が埋もれること。
+
+| 実測 | 数字 |
+|---|---|
+| `staff_nte_records` ACTIVE / 解決済み | 21 / **0**（最古130日） |
+| うち弁明の記録あり | **2 / 21** |
+| `cash_nte_drafts` DRAFT / 承認 | **170 / 0**（22名・最古83日・increasing） |
+| 一覧の limit | 100（**70件が誰にも見えていなかった**） |
+
+**実装**
+- `list_staff_nte_records()` / `record_nte_explanation()`（ACTIVEのまま）/ `close_nte()`（結果＋理由）
+- 既存 Close を**置き換え**（並行経路を作らない）。penalty / withdrawn はメモ必須
+- History タブの既定を **ACTIVE** に
+- `dismiss_nte_draft()` — **「確認したが発行不要」という選択肢が存在しなかった**のが168件滞留の原因。
+  唯一の出口が最重量アクションのキューは処理されない
+- `dismiss_nte_drafts_bulk()` / `nte_draft_summary()`（22名にまとめる）/ limit 100→500
+- 書き込み系は `_require_manage`（view ではなく manage）
+
+**未着手**
+- 古いドラフトの自動失効（60日など）。現状キューは伸び続ける
+- `nte_requests` の APPROVED 6件が未発行（最古42日）・PENDING 1件が42日
+- `nte_case`(3件・正式フロー) と `staff_nte_records`(21件・簡易) の二重管理は未整理
+
 ## ✅ HR Performance Phase 1（2026-08-31 完了・23/23検証）
 
 **「期限超過39件」は過大だった。** 21件は `staff_regularization` で既に REGULARIZED 済み（連携が無いだけ）、
