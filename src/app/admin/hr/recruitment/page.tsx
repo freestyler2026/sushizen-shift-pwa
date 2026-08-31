@@ -18,6 +18,7 @@ import {
   TAB_INACTIVE,
   T_PAGE_TITLE,
   T_SECTION,
+  T_CARD_TITLE,
   T_LABEL,
   T_BODY,
   T_CAPTION,
@@ -26,6 +27,8 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
   BADGE_ACCENT,
+  TABLE_ROW,
+  TABLE_HEADER,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
 
@@ -80,6 +83,13 @@ type Requisition = {
   requested_by: string;
   notes: string;
   created_at: string;
+  openings?: number;
+  candidate_count?: number;
+  filled_count?: number;
+  offer_count?: number;
+  interviewed_count?: number;
+  remaining?: number;
+  days_to_target?: number | null;
 };
 
 type InterviewSchedule = {
@@ -922,6 +932,441 @@ function DetailPanel({
   );
 }
 
+// ─── Hiring plans ─────────────────────────────────────────────────────────────
+
+type PlanPosition = {
+  id: string;
+  position: string;
+  branch: string;
+  priority: string;
+  status: string;
+  openings: number;
+  target_start_date: string | null;
+  candidate_count: number;
+  filled_count: number;
+  offer_count: number;
+  interviewed_count: number;
+  remaining: number;
+};
+
+type HiringPlan = {
+  id: string;
+  name: string;
+  branch: string;
+  opening_date: string | null;
+  status: string;
+  created_by: string;
+  days_to_opening: number | null;
+  positions: PlanPosition[];
+  headcount: number;
+  filled: number;
+  remaining: number;
+  at_risk: string[];
+};
+
+type Overview = {
+  plans: HiringPlan[];
+  stalled: { full_name: string; position_applied: string; days_waiting: number; since: string }[];
+  stalled_count: number;
+  awaiting_offer: { full_name: string; position_applied: string; days_waiting: number }[];
+  openings_with_no_candidates: {
+    position: string; branch: string; openings: number;
+    target_start_date: string | null; days_to_target: number | null;
+  }[];
+  overdue_requisitions: number;
+};
+
+function ProgressBar({ filled, total }: { filled: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((filled / total) * 100)) : 0;
+  const tone =
+    pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-violet-500" : "bg-amber-500";
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+      <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/** The owner's screen: will these stores be staffed in time.
+ *
+ *  Built because the answer used to live across nineteen requisition rows that
+ *  nobody closed, a hundred and thirty applicant cards, and several dozen
+ *  spreadsheets. A red bar is the only reason to open anything.
+ */
+function PlansView({
+  data,
+  loading,
+  onReload,
+  onNewPlan,
+}: {
+  data: Overview | null;
+  loading: boolean;
+  onReload: () => void;
+  onNewPlan: () => void;
+}) {
+  if (loading && !data) return <p className={`${T_BODY} p-6`}>Loading…</p>;
+  if (!data) return null;
+
+  const { plans, stalled, awaiting_offer, openings_with_no_candidates } = data;
+
+  return (
+    <div className="space-y-6 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className={T_SECTION}>Hiring Plans</h2>
+        <button className={SMALL_BUTTON} onClick={onReload}>
+          <RefreshCw className="mr-1 inline h-3.5 w-3.5" /> Reload
+        </button>
+        <button
+          className={`${PRIMARY_BUTTON} ml-auto flex items-center gap-1.5`}
+          onClick={onNewPlan}
+        >
+          <Plus className="h-4 w-4" />
+          New Hiring Plan
+        </button>
+      </div>
+
+      {plans.length === 0 ? (
+        <div className={`${GLASS_CARD} p-6`}>
+          <p className={T_BODY}>
+            No active hiring plan. A plan is one store opening or expansion — its
+            roles, how many of each, and the date it has to be ready by.
+          </p>
+        </div>
+      ) : (
+        plans.map((p) => (
+          <div key={p.id} className={`${GLASS_CARD} p-5 space-y-4`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <p className={T_CARD_TITLE}>{p.name}</p>
+                <p className={T_CAPTION}>
+                  {p.branch || "—"}
+                  {p.opening_date ? ` · opens ${p.opening_date}` : ""}
+                  {p.days_to_opening !== null && p.days_to_opening !== undefined
+                    ? p.days_to_opening >= 0
+                      ? ` · ${p.days_to_opening} days to go`
+                      : ` · ${Math.abs(p.days_to_opening)} days overdue`
+                    : ""}
+                </p>
+              </div>
+              <p className="text-sm tabular-nums text-zinc-300">
+                <span className="text-lg font-bold text-white">{p.filled}</span>
+                <span className="text-zinc-500"> / {p.headcount} filled</span>
+                {p.remaining > 0 && (
+                  <span className="ml-2 text-amber-300">{p.remaining} to go</span>
+                )}
+              </p>
+            </div>
+
+            <ProgressBar filled={p.filled} total={p.headcount} />
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-[13px]">
+                <thead>
+                  <tr className={TABLE_HEADER}>
+                    <th className="px-3 py-2 text-left">Position</th>
+                    <th className="px-3 py-2 text-right">Filled</th>
+                    <th className="px-3 py-2 text-right">Candidates</th>
+                    <th className="px-3 py-2 text-right">Interviewed</th>
+                    <th className="px-3 py-2 text-right">Offers out</th>
+                    <th className="px-3 py-2 text-left">State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.positions.map((i) => {
+                    const atRisk = i.remaining > 0 && i.offer_count === 0;
+                    return (
+                      <tr key={i.id} className={TABLE_ROW}>
+                        <td className="px-3 py-2 font-medium text-white">
+                          {i.position}
+                          {i.priority === "urgent" && (
+                            <span className="ml-2 text-[10px] uppercase tracking-wide text-red-400">
+                              urgent
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {i.filled_count}/{i.openings}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {i.candidate_count || <span className="text-white/25">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {i.interviewed_count || <span className="text-white/25">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {i.offer_count || <span className="text-white/25">—</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          {i.status === "closed" ? (
+                            <span className={BADGE_SUCCESS}>Filled</span>
+                          ) : atRisk ? (
+                            <span className={BADGE_WARNING}>
+                              {i.candidate_count === 0 ? "No candidates" : "No offer out"}
+                            </span>
+                          ) : (
+                            <span className={BADGE_INFO}>In progress</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {p.at_risk.length > 0 && (
+              <p className="text-sm text-amber-300">
+                At risk for the opening date: {p.at_risk.join(", ")}
+              </p>
+            )}
+          </div>
+        ))
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className={`${GLASS_CARD} p-5`}>
+          <p className={T_SECTION}>Waiting on a decision</p>
+          <p className={`${T_CAPTION} mb-3`}>
+            Interviewed more than a week ago and still not decided.
+          </p>
+          {stalled.length === 0 ? (
+            <p className={T_BODY}>Nobody is waiting. </p>
+          ) : (
+            <>
+              <p className="mb-2 text-2xl font-bold tabular-nums text-amber-300">
+                {data.stalled_count}
+              </p>
+              <div className="max-h-64 space-y-1 overflow-y-auto">
+                {stalled.slice(0, 40).map((s) => (
+                  <div
+                    key={`${s.full_name}-${s.since}`}
+                    className="flex items-baseline justify-between gap-3 border-b border-white/5 py-1"
+                  >
+                    <span className="truncate text-sm text-white">{s.full_name}</span>
+                    <span className={`${T_CAPTION} truncate`}>{s.position_applied}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-amber-400">
+                      {s.days_waiting}d
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stalled.length > 40 && (
+                <p className={`${T_CAPTION} mt-2`}>and {stalled.length - 40} more</p>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className={`${GLASS_CARD} p-5`}>
+            <p className={T_SECTION}>Offers out</p>
+            {awaiting_offer.length === 0 ? (
+              <p className={`${T_BODY} mt-2`}>None.</p>
+            ) : (
+              <div className="mt-2 space-y-1">
+                {awaiting_offer.map((a) => (
+                  <div key={a.full_name} className="flex items-baseline justify-between gap-3">
+                    <span className="truncate text-sm text-white">{a.full_name}</span>
+                    <span className={`${T_CAPTION} truncate`}>{a.position_applied}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-zinc-400">
+                      {a.days_waiting}d
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={`${GLASS_CARD} p-5`}>
+            <p className={T_SECTION}>Openings with nobody in the running</p>
+            <p className={`${T_CAPTION} mb-2`}>
+              {data.overdue_requisitions} open requisition
+              {data.overdue_requisitions === 1 ? " is" : "s are"} past their target date.
+            </p>
+            {openings_with_no_candidates.length === 0 ? (
+              <p className={T_BODY}>None.</p>
+            ) : (
+              <div className="max-h-52 space-y-1 overflow-y-auto">
+                {openings_with_no_candidates.map((o, i) => (
+                  <div
+                    key={`${o.branch}-${o.position}-${i}`}
+                    className="flex items-baseline justify-between gap-3 border-b border-white/5 py-1"
+                  >
+                    <span className="truncate text-sm text-white">{o.position}</span>
+                    <span className={`${T_CAPTION} truncate`}>{o.branch}</span>
+                    {o.days_to_target !== null && o.days_to_target < 0 && (
+                      <span className="shrink-0 text-xs tabular-nums text-red-400">
+                        {Math.abs(o.days_to_target)}d late
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type PlanPositionDraft = { position: string; openings: string; priority: string };
+
+function NewPlanModal({
+  onSave,
+  onClose,
+  saving,
+}: {
+  onSave: (data: {
+    name: string; branch: string; opening_date: string;
+    positions: { position: string; openings: number; priority: string }[];
+  }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [branch, setBranch] = useState("");
+  const [openingDate, setOpeningDate] = useState("");
+  const [rows, setRows] = useState<PlanPositionDraft[]>([
+    { position: "", openings: "1", priority: "normal" },
+  ]);
+  const [error, setError] = useState("");
+
+  const setRow = (i: number, patch: Partial<PlanPositionDraft>) =>
+    setRows((prev) => {
+      const next = prev.map((r, j) => (j === i ? { ...r, ...patch } : r));
+      if (i === next.length - 1 && next[i].position.trim()) {
+        next.push({ position: "", openings: "1", priority: "normal" });
+      }
+      return next;
+    });
+
+  const valid = rows.filter((r) => r.position.trim());
+  const headcount = valid.reduce((n, r) => n + Math.max(1, Number(r.openings) || 1), 0);
+
+  const submit = async () => {
+    setError("");
+    const err = await onSave({
+      name,
+      branch,
+      opening_date: openingDate,
+      positions: valid.map((r) => ({
+        position: r.position.trim(),
+        openings: Math.max(1, Number(r.openings) || 1),
+        priority: r.priority,
+      })),
+    });
+    if (err) setError(err);
+    else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+        <div className="flex items-center justify-between">
+          <p className={T_SECTION}>New Hiring Plan</p>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className={T_CAPTION}>
+          One store opening or expansion. Every role below becomes its own
+          requisition, so you raise them once instead of one at a time.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className={T_LABEL}>Plan name *</label>
+            <input
+              type="text"
+              className={`${INPUT_CLASS} mt-1`}
+              placeholder="e.g. Cubao (QC) opening"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={T_LABEL}>Branch</label>
+            <input
+              type="text"
+              className={`${INPUT_CLASS} mt-1`}
+              placeholder="e.g. Cubao"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={T_LABEL}>Opening date</label>
+            <input
+              type="date"
+              className={`${INPUT_CLASS} mt-1`}
+              value={openingDate}
+              onChange={(e) => setOpeningDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={T_LABEL}>Roles and how many of each</label>
+          <div className="mt-1 space-y-1.5">
+            {rows.map((r, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  className={INPUT_CLASS}
+                  placeholder={i === 0 ? "e.g. Store Manager" : ""}
+                  value={r.position}
+                  onChange={(e) => setRow(i, { position: e.target.value })}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  className={`${INPUT_CLASS} w-20 shrink-0`}
+                  value={r.openings}
+                  onChange={(e) => setRow(i, { openings: e.target.value })}
+                />
+                <div className="w-32 shrink-0">
+                  <SelectDark
+                    value={r.priority}
+                    onChange={(v) => setRow(i, { priority: v })}
+                    options={[
+                      { value: "normal", label: "Normal" },
+                      { value: "urgent", label: "Urgent" },
+                    ]}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className={`${T_CAPTION} mt-2`}>
+            {valid.length} role{valid.length === 1 ? "" : "s"} · {headcount} people
+          </p>
+        </div>
+
+        {error && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            className={PRIMARY_BUTTON}
+            disabled={saving || !name.trim() || valid.length === 0}
+            onClick={submit}
+          >
+            {saving ? "Saving…" : `Create ${valid.length} requisition${valid.length === 1 ? "" : "s"}`}
+          </button>
+          <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Interview Outcome ────────────────────────────────────────────────────────
 
 type OutcomeReason = { key: string; label: string };
@@ -1369,6 +1814,7 @@ type AddRequisitionForm = {
   priority: string;
   requested_by: string;
   notes: string;
+  openings: string;
 };
 
 // ─── Add Several Modal ────────────────────────────────────────────────────────
@@ -1623,6 +2069,7 @@ function AddRequisitionModal({
     priority: "normal",
     requested_by: "",
     notes: "",
+    openings: "1",
   });
   const [submitError, setSubmitError] = useState("");
   const set = (k: keyof AddRequisitionForm, v: string) =>
@@ -1702,6 +2149,16 @@ function AddRequisitionModal({
             />
           </div>
           <div>
+            <label className={T_LABEL}>How many people</label>
+            <input
+              type="number"
+              min={1}
+              className={`${INPUT_CLASS} mt-1`}
+              value={form.openings}
+              onChange={(e) => set("openings", e.target.value)}
+            />
+          </div>
+          <div>
             <label className={T_LABEL}>Priority</label>
             <SelectDark
               className={`${SELECT_CLASS} mt-1`}
@@ -1775,6 +2232,11 @@ export default function HRRecruitmentPage() {
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
+  const [view, setView] = useState<"pipeline" | "plans">("pipeline");
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [showNewPlan, setShowNewPlan] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
   const [showAddRequisition, setShowAddRequisition] = useState(false);
   const [showRequisitionsList, setShowRequisitionsList] = useState(false);
   const [savingApplicant, setSavingApplicant] = useState(false);
@@ -1847,9 +2309,28 @@ export default function HRRecruitmentPage() {
     }
   }, [redirectToLogin]);
 
+  const loadOverview = useCallback(async () => {
+    const auth = authRef.current;
+    if (!auth) return;
+    setLoadingOverview(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/recruitment-overview?city=manila`, {
+        cache: "no-store",
+        headers: getAuthHeaders(auth),
+      });
+      if (res.ok) setOverview((await res.json()) as Overview);
+    } catch { /* the pipeline view still works */ } finally {
+      setLoadingOverview(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (accessReady) void loadData();
   }, [accessReady, loadData]);
+
+  useEffect(() => {
+    if (accessReady && view === "plans") void loadOverview();
+  }, [accessReady, view, loadOverview]);
 
   // Fetched rather than hard-coded, so the chips shown here are exactly the
   // values the database will accept.
@@ -1907,6 +2388,34 @@ export default function HRRecruitmentPage() {
       return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingApplicant(false);
+    }
+  };
+
+  const handleCreatePlan = async (data: {
+    name: string; branch: string; opening_date: string;
+    positions: { position: string; openings: number; priority: string }[];
+  }): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth) return "Not signed in.";
+    setSavingPlan(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/hiring-plans`, {
+        method: "POST",
+        headers: getAuthHeaders(auth),
+        body: JSON.stringify({ city: "manila", ...data }),
+      });
+      if (res.status === 401) {
+        redirectToLogin();
+        return "Your session has expired. Redirecting to login\u2026";
+      }
+      if (!res.ok) return await errorDetail(res);
+      void loadOverview();
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingPlan(false);
     }
   };
 
@@ -1983,7 +2492,11 @@ export default function HRRecruitmentPage() {
       const res = await fetch(`${API_BASE}/api/admin/hr/requisitions`, {
         method: "POST",
         headers: getAuthHeaders(auth),
-        body: JSON.stringify({ city: "manila", ...form }),
+        body: JSON.stringify({
+          city: "manila",
+          ...form,
+          openings: Math.max(1, Number(form.openings) || 1),
+        }),
       });
       if (res.status === 401) {
         redirectToLogin();
@@ -2066,7 +2579,20 @@ export default function HRRecruitmentPage() {
       {/* ── Page Header ── */}
       <div className="shrink-0 border-b border-white/10 bg-[#0d1117]/80 backdrop-blur px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
+            <div className={TAB_CONTAINER}>
+              {([["pipeline", "Pipeline"], ["plans", "Plans"]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  className={view === k ? TAB_ACTIVE : TAB_INACTIVE}
+                  onClick={() => setView(k)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <button
               className={`${SECONDARY_BUTTON} flex items-center gap-1.5`}
@@ -2140,10 +2666,23 @@ export default function HRRecruitmentPage() {
                 {requisitions.map((r) => (
                   <div key={r.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs min-w-[160px]">
                     <p className="font-semibold text-white">{r.branch} — {r.position}</p>
-                    <p className="text-zinc-400 capitalize">{r.reason.replace("_", " ")} · {r.priority}</p>
+                    <p className="text-zinc-400 capitalize">{r.reason?.replace("_", " ")} · {r.priority}</p>
+                    <p className="mt-1 tabular-nums text-zinc-300">
+                      {r.filled_count ?? 0}/{r.openings ?? 1} filled
+                      {(r.candidate_count ?? 0) > 0 && (
+                        <span className="text-zinc-500"> · {r.candidate_count} candidates</span>
+                      )}
+                    </p>
+                    {(r.candidate_count ?? 0) === 0 && (
+                      <p className="mt-0.5 text-amber-400">No candidates yet</p>
+                    )}
                     <p className="text-zinc-500 mt-0.5">by {r.requested_by}</p>
                     {r.target_start_date && (
-                      <p className="text-zinc-600 mt-0.5">Start: {r.target_start_date}</p>
+                      <p className={`mt-0.5 ${(r.days_to_target ?? 0) < 0 ? "text-red-400" : "text-zinc-600"}`}>
+                        Start: {r.target_start_date}
+                        {(r.days_to_target ?? 0) < 0 &&
+                          ` · ${Math.abs(r.days_to_target ?? 0)}d late`}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -2159,78 +2698,89 @@ export default function HRRecruitmentPage() {
         )}
       </div>
 
-      {/* ── Main area: Kanban + Detail Panel ── */}
-      <div className="flex">
-        {/* Kanban Board */}
-        <div className="flex-1 overflow-x-auto">
-          <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
-            {KANBAN_COLUMNS.map((col) => {
-              const cards = grouped[col.id] || [];
-              return (
-                <div
-                  key={col.id}
-                  className={`flex min-w-0 flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3`}
-                >
-                  {/* Column header */}
-                  <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-white/8">
-                    <span className="text-sm font-semibold text-zinc-200">{col.label}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-bold text-zinc-300 tabular-nums">
-                      {cards.length}
-                    </span>
-                  </div>
+      {view === "plans" ? (
+        <PlansView
+          data={overview}
+          loading={loadingOverview}
+          onReload={() => void loadOverview()}
+          onNewPlan={() => setShowNewPlan(true)}
+        />
+      ) : (
+        <>
+          {/* ── Main area: Kanban + Detail Panel ── */}
+          <div className="flex">
+            {/* Kanban Board */}
+            <div className="flex-1 overflow-x-auto">
+              <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
+                {KANBAN_COLUMNS.map((col) => {
+                  const cards = grouped[col.id] || [];
+                  return (
+                    <div
+                      key={col.id}
+                      className={`flex min-w-0 flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3`}
+                    >
+                      {/* Column header */}
+                      <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-white/8">
+                        <span className="text-sm font-semibold text-zinc-200">{col.label}</span>
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-bold text-zinc-300 tabular-nums">
+                          {cards.length}
+                        </span>
+                      </div>
 
-                  <div className="space-y-2 p-2">
-                    {cards.length === 0 ? (
-                      <p className="text-center text-xs text-zinc-600 pt-6">Empty</p>
-                    ) : (
-                      cards.map((applicant) => (
-                        <KanbanCard
-                          key={applicant.id}
-                          applicant={applicant}
-                          onSelect={() => setSelectedApplicant(applicant)}
-                          onQuickStatus={handleQuickStatus}
-                          onRecordOutcome={setOutcomeFor}
-                          nextStatus={getNextStatus(applicant.status)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                      <div className="space-y-2 p-2">
+                        {cards.length === 0 ? (
+                          <p className="text-center text-xs text-zinc-600 pt-6">Empty</p>
+                        ) : (
+                          cards.map((applicant) => (
+                            <KanbanCard
+                              key={applicant.id}
+                              applicant={applicant}
+                              onSelect={() => setSelectedApplicant(applicant)}
+                              onQuickStatus={handleQuickStatus}
+                              onRecordOutcome={setOutcomeFor}
+                              nextStatus={getNextStatus(applicant.status)}
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* Detail Panel (right slide-in) */}
-        {selectedApplicant && (
-          <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col">
-            <DetailPanel
-              key={selectedApplicant.id}
-              applicant={selectedApplicant}
-              onClose={() => setSelectedApplicant(null)}
-              onStatusChange={handleStatusChange}
-              onRecordOutcome={setOutcomeFor}
-            />
+            {/* Detail Panel (right slide-in) */}
+            {selectedApplicant && (
+              <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col">
+                <DetailPanel
+                  key={selectedApplicant.id}
+                  applicant={selectedApplicant}
+                  onClose={() => setSelectedApplicant(null)}
+                  onStatusChange={handleStatusChange}
+                  onRecordOutcome={setOutcomeFor}
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Mobile detail panel: bottom sheet */}
-      {selectedApplicant && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setSelectedApplicant(null)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 h-[85vh] overflow-hidden flex flex-col rounded-t-2xl border-t border-white/10 bg-[#0d1117] p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DetailPanel
-              key={selectedApplicant.id}
-              applicant={selectedApplicant}
-              onClose={() => setSelectedApplicant(null)}
-              onStatusChange={handleStatusChange}
-              onRecordOutcome={setOutcomeFor}
-            />
-          </div>
-        </div>
+          {/* Mobile detail panel: bottom sheet */}
+          {selectedApplicant && (
+            <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setSelectedApplicant(null)}>
+              <div
+                className="absolute bottom-0 left-0 right-0 h-[85vh] overflow-hidden flex flex-col rounded-t-2xl border-t border-white/10 bg-[#0d1117] p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DetailPanel
+                  key={selectedApplicant.id}
+                  applicant={selectedApplicant}
+                  onClose={() => setSelectedApplicant(null)}
+                  onStatusChange={handleStatusChange}
+                  onRecordOutcome={setOutcomeFor}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals */}
@@ -2240,6 +2790,13 @@ export default function HRRecruitmentPage() {
           onSave={handleAddApplicant}
           onClose={() => setShowAddApplicant(false)}
           saving={savingApplicant}
+        />
+      )}
+      {showNewPlan && (
+        <NewPlanModal
+          onSave={handleCreatePlan}
+          onClose={() => setShowNewPlan(false)}
+          saving={savingPlan}
         />
       )}
       {outcomeFor && (
