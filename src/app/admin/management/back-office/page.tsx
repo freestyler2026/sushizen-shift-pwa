@@ -1060,6 +1060,14 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
                 task.manager_name
                   ? <>Not sent yet — goes to <span className="text-zinc-300">{task.manager_name}</span></>
                   : <>Not sent yet</>
+              ) : !task.sent_at ? (
+                // Closed without ever going out — the auto-close sweep when the
+                // report turned up, the seven-day expiry, or a bulk clear. 208
+                // of these read "Sent … awaiting reply", which is wrong twice:
+                // nothing was sent, and nothing is being awaited.
+                <>Closed without being sent</>
+              ) : task.status === "closed" ? (
+                <>Sent to <span className="text-zinc-300">{task.manager_name || "the store"}</span> · closed</>
               ) : task.manager_name ? (
                 <>Sent to <span className="text-zinc-300">{task.manager_name}</span> · awaiting reply</>
               ) : (
