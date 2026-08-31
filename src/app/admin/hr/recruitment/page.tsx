@@ -58,7 +58,14 @@ type Applicant = {
   assigned_branch?: string;
   latest_score?: number;
   latest_recommendation?: string;
+  latest_outcome_reason?: string;
 };
+
+/** The two points where a decision is actually made. Past these, moving someone
+ *  on without saying why is what left 55 candidates undecided for up to 49 days. */
+function needsOutcome(status: KanbanStatus) {
+  return status === "scheduled" || status === "interviewed";
+}
 
 type Requisition = {
   id: string;
@@ -199,11 +206,13 @@ function KanbanCard({
   applicant,
   onSelect,
   onQuickStatus,
+  onRecordOutcome,
   nextStatus,
 }: {
   applicant: Applicant;
   onSelect: () => void;
   onQuickStatus: (id: string, status: KanbanStatus) => void;
+  onRecordOutcome: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -242,20 +251,35 @@ function KanbanCard({
         <div className="mt-1.5">{scoreDisplay(applicant.latest_score)}</div>
       )}
 
-      {/* Quick status button */}
-      {nextStatus && (
+      {/* Decision point: say what happened rather than just moving the card */}
+      {needsOutcome(applicant.status) ? (
         <div className="mt-2">
           <button
             className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
             onClick={(e) => {
               e.stopPropagation();
-              onQuickStatus(applicant.id, nextStatus);
+              onRecordOutcome(applicant);
             }}
           >
-            <ChevronRight className="h-3 w-3" />
-            {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+            <ClipboardList className="h-3 w-3" />
+            {applicant.status === "scheduled" ? "Record outcome" : "Decide"}
           </button>
         </div>
+      ) : (
+        nextStatus && (
+          <div className="mt-2">
+            <button
+              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickStatus(applicant.id, nextStatus);
+              }}
+            >
+              <ChevronRight className="h-3 w-3" />
+              {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+            </button>
+          </div>
+        )
       )}
     </div>
   );
@@ -503,10 +527,12 @@ function DetailPanel({
   applicant,
   onClose,
   onStatusChange,
+  onRecordOutcome,
 }: {
   applicant: Applicant;
   onClose: () => void;
   onStatusChange: (id: string, status: KanbanStatus) => void;
+  onRecordOutcome: (a: Applicant) => void;
 }) {
   const [tab, setTab] = useState<"info" | "interview" | "evaluation">("info");
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
@@ -704,12 +730,27 @@ function DetailPanel({
               {/* Status */}
               <div>
                 <p className={T_LABEL}>Status</p>
+                {needsOutcome(localStatus) && (
+                  <button
+                    className={`${PRIMARY_BUTTON} mt-2 flex w-full items-center justify-center gap-2`}
+                    onClick={() => onRecordOutcome(applicant)}
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Record interview outcome
+                  </button>
+                )}
                 <SelectDark
                   className={`${SELECT_CLASS} mt-2`}
                   value={localStatus}
                   onChange={v => void handleStatusChange(v as KanbanStatus)}
                   options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
                 />
+                {needsOutcome(localStatus) && (
+                  <p className={`${T_CAPTION} mt-1`}>
+                    Moving them with this dropdown records no reason. Use the button
+                    above so the decision can be explained later.
+                  </p>
+                )}
                 {statusChanging && (
                   <p className={`${T_CAPTION} mt-1`}>Updating...</p>
                 )}
@@ -876,6 +917,176 @@ function DetailPanel({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Interview Outcome ────────────────────────────────────────────────────────
+
+type OutcomeReason = { key: string; label: string };
+
+const OUTCOME_BUTTONS: {
+  key: "proceed" | "hold" | "pass";
+  label: string;
+  hint: string;
+  cls: string;
+}[] = [
+  {
+    key: "proceed",
+    label: "Proceed to offer",
+    hint: "Moves them to Offer Sent",
+    cls: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
+  },
+  {
+    key: "hold",
+    label: "Hold",
+    hint: "Stays in Interviewed, with the reason on record",
+    cls: "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25",
+  },
+  {
+    key: "pass",
+    label: "Not proceeding",
+    hint: "Moves them to Rejected",
+    cls: "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25",
+  },
+];
+
+/** The decision and the record, in one action.
+ *
+ *  Setting the status was one click; recording the interview was a six-field
+ *  form and evaluating it an eight-field one. Everyone took the click, so 92
+ *  people sat at or past "interviewed" backed by 3 interview records and 5
+ *  evaluations, and all 16 rejections were filed without a reason.
+ *
+ *  Interviewer and date are not asked for -- the signed-in user and today are
+ *  already known, and a field that is asked for is a field that gets skipped.
+ */
+function InterviewOutcomeModal({
+  applicant,
+  reasons,
+  onSubmit,
+  onClose,
+  saving,
+}: {
+  applicant: Applicant;
+  reasons: OutcomeReason[];
+  onSubmit: (data: { outcome: string; reason: string; notes: string }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [outcome, setOutcome] = useState<"" | "proceed" | "hold" | "pass">("");
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+
+  const reasonRequired = outcome === "hold" || outcome === "pass";
+  const noteRequired = reason === "other";
+  const ready =
+    !!outcome &&
+    (!reasonRequired || !!reason) &&
+    (!noteRequired || !!notes.trim());
+
+  const submit = async () => {
+    setError("");
+    const err = await onSubmit({ outcome, reason, notes });
+    if (err) setError(err);
+    else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{applicant.full_name}</p>
+            <p className={T_CAPTION}>{applicant.position_applied}</p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div>
+          <p className={T_LABEL}>How did the interview go?</p>
+          <div className="mt-2 grid gap-2">
+            {OUTCOME_BUTTONS.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => {
+                  setOutcome(b.key);
+                  setReason("");
+                }}
+                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                  outcome === b.key ? b.cls : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                <span className="block text-sm font-semibold">{b.label}</span>
+                <span className="block text-xs opacity-70">{b.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {outcome && (
+          <div>
+            <p className={T_LABEL}>
+              Reason {reasonRequired ? "*" : <span className="opacity-60">(optional)</span>}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {reasons.map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => setReason(reason === r.key ? "" : r.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                    reason === r.key
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                      : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {outcome && (
+          <div>
+            <p className={T_LABEL}>
+              Note {noteRequired ? "*" : <span className="opacity-60">(optional)</span>}
+            </p>
+            <textarea
+              className={`${TEXTAREA_CLASS} mt-1`}
+              rows={2}
+              value={notes}
+              placeholder={noteRequired ? "Say what happened" : ""}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button className={PRIMARY_BUTTON} disabled={!ready || saving} onClick={submit}>
+            {saving ? "Saving…" : "Save outcome"}
+          </button>
+          <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
+        </div>
+        <p className={T_CAPTION}>
+          Recorded against you, dated today. A full scored evaluation can still be
+          added from the candidate&apos;s Evaluation tab.
+        </p>
       </div>
     </div>
   );
@@ -1561,6 +1772,9 @@ export default function HRRecruitmentPage() {
   const [showAddApplicant, setShowAddApplicant] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
+  const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
+  const [savingOutcome, setSavingOutcome] = useState(false);
+  const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [showAddRequisition, setShowAddRequisition] = useState(false);
   const [showRequisitionsList, setShowRequisitionsList] = useState(false);
   const [savingApplicant, setSavingApplicant] = useState(false);
@@ -1637,6 +1851,22 @@ export default function HRRecruitmentPage() {
     if (accessReady) void loadData();
   }, [accessReady, loadData]);
 
+  // Fetched rather than hard-coded, so the chips shown here are exactly the
+  // values the database will accept.
+  useEffect(() => {
+    if (!accessReady) return;
+    const auth = authRef.current;
+    if (!auth) return;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/hr/interview-outcome-reasons`, {
+          headers: getAuthHeaders(auth),
+        });
+        if (res.ok) setOutcomeReasons(((await res.json())?.reasons ?? []) as OutcomeReason[]);
+      } catch { /* the modal still works; the reason chips just stay empty */ }
+    })();
+  }, [accessReady]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   // Extract a human-readable detail from a failed JSON response (backend
@@ -1677,6 +1907,31 @@ export default function HRRecruitmentPage() {
       return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingApplicant(false);
+    }
+  };
+
+  const handleRecordOutcome = async (
+    data: { outcome: string; reason: string; notes: string }
+  ): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth || !outcomeFor) return "Not signed in.";
+    setSavingOutcome(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${outcomeFor.id}/interview-outcome`,
+        { method: "POST", headers: getAuthHeaders(auth), body: JSON.stringify(data) },
+      );
+      if (res.status === 401) {
+        redirectToLogin();
+        return "Your session has expired. Redirecting to login\u2026";
+      }
+      if (!res.ok) return await errorDetail(res);
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingOutcome(false);
     }
   };
 
@@ -1934,6 +2189,7 @@ export default function HRRecruitmentPage() {
                           applicant={applicant}
                           onSelect={() => setSelectedApplicant(applicant)}
                           onQuickStatus={handleQuickStatus}
+                          onRecordOutcome={setOutcomeFor}
                           nextStatus={getNextStatus(applicant.status)}
                         />
                       ))
@@ -1953,6 +2209,7 @@ export default function HRRecruitmentPage() {
               applicant={selectedApplicant}
               onClose={() => setSelectedApplicant(null)}
               onStatusChange={handleStatusChange}
+              onRecordOutcome={setOutcomeFor}
             />
           </div>
         )}
@@ -1970,6 +2227,7 @@ export default function HRRecruitmentPage() {
               applicant={selectedApplicant}
               onClose={() => setSelectedApplicant(null)}
               onStatusChange={handleStatusChange}
+              onRecordOutcome={setOutcomeFor}
             />
           </div>
         </div>
@@ -1982,6 +2240,15 @@ export default function HRRecruitmentPage() {
           onSave={handleAddApplicant}
           onClose={() => setShowAddApplicant(false)}
           saving={savingApplicant}
+        />
+      )}
+      {outcomeFor && (
+        <InterviewOutcomeModal
+          applicant={outcomeFor}
+          reasons={outcomeReasons}
+          onSubmit={handleRecordOutcome}
+          onClose={() => setOutcomeFor(null)}
+          saving={savingOutcome}
         />
       )}
       {showBulkAdd && (
