@@ -257,8 +257,18 @@
 
 <!-- SIDEBAR -->
 <nav class="sidebar">
-  <div class="sidebar-label" data-en="HR Modules" data-ja="HR モジュール">HR Modules</div>
-  <div class="nav-item active" onclick="show('probation')">
+  <div class="sidebar-label" data-en="Start here" data-ja="ここから">Start here</div>
+  <div class="nav-item active" onclick="show('today')">
+    <span class="nav-icon">🌅</span>
+    <span data-en="HR Today" data-ja="HR Today（本日の対応）">HR Today</span>
+  </div>
+  <div class="nav-item" onclick="show('whatsnew')">
+    <span class="nav-icon">✨</span>
+    <span data-en="What changed (Aug 2026)" data-ja="変更点（2026年8月）">What changed</span>
+  </div>
+
+  <div class="sidebar-label" style="margin-top:16px;" data-en="HR Modules" data-ja="HR モジュール">HR Modules</div>
+  <div class="nav-item" onclick="show('probation')">
     <span class="nav-icon">🔰</span>
     <span data-en="Probation" data-ja="試用期間">Probation</span>
   </div>
@@ -303,8 +313,109 @@
 <!-- MAIN CONTENT -->
 <main class="main">
 
+  <!-- ═══════════ HR TODAY ═══════════ -->
+  <div class="section active" id="sec-today">
+    <div class="section-hero">
+      <div class="hero-icon">🌅</div>
+      <div>
+        <div class="section-title" data-en="HR Today" data-ja="HR Today（本日の対応）">HR Today</div>
+        <div class="section-path">Admin → HR Today</div>
+        <div class="section-desc" data-en="Everything across HR that needs a person today, on one screen. Open this first." data-ja="HR全体で本日対応が必要なものを1画面に集約。毎日ここから開いてください。">Everything across HR that needs a person today, on one screen.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Why this page exists" data-ja="このページを作った理由">Why this page exists</div>
+      <p class="muted" style="font-size:13px;" data-en="HR work lives on nine separate pages. The only way to know whether any of them needed attention was to open all nine, and nobody does that. Four policy deadlines, PHP 48,585 of unreleased final pay, fifteen overdue employment decisions and twenty-one unanswered notices were all sitting unnoticed at the same time." data-ja="HRの業務は9ページに分かれており、対応が必要かを知るには9ページすべてを開くしかありませんでした。実際には誰も巡回しません。その結果、規則の確認期限4件・未払い最終給与₱48,585・期限超過の雇用判断15件・未対応の始末書21件が、同時に誰にも気づかれないまま滞留していました。">HR work lives on nine separate pages.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="What a line looks like" data-ja="表示例">What a line looks like</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Line" data-ja="行">Line</th><th data-en="Opens" data-ja="遷移先">Opens</th></tr>
+          <tr><td data-en="55 candidates are waiting on a decision" data-ja="55名の候補者が判断待ち">55 candidates are waiting on a decision</td><td class="muted">HR Recruitment</td></tr>
+          <tr><td data-en="20 notices are still open" data-ja="始末書20件が未完了">20 notices are still open</td><td class="muted">Notice to Explain</td></tr>
+          <tr><td data-en="15 employment decisions are overdue" data-ja="雇用に関する判断15件が期限超過">15 employment decisions are overdue</td><td class="muted">HR Performance</td></tr>
+          <tr><td data-en="8 new hires are missing legal documents" data-ja="新入社員8名の法定書類が未提出">8 new hires are missing legal documents</td><td class="muted">HR Onboarding</td></tr>
+          <tr><td data-en="5 people waiting for their final pay" data-ja="最終給与の支払い待ち5名">5 people waiting for their final pay</td><td class="muted">HR Clearance</td></tr>
+          <tr><td data-en="4 policies need acknowledging" data-ja="規則4件が確認待ち">4 policies need acknowledging</td><td class="muted">Policy Documents</td></tr>
+        </table>
+      </div>
+      <div class="chip-row">
+        <span class="chip red" data-en="Red — needs action now" data-ja="赤 — 至急対応">Red — needs action now</span>
+        <span class="chip amber" data-en="Amber — needs a decision" data-ja="黄 — 判断が必要">Amber — needs a decision</span>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title" data-en="The figures are not counted here" data-ja="数字はこの画面で数えていません">The figures are not counted here</div>
+        <p class="muted" style="font-size:13px;" data-en="Every number is read from the page it links to. This screen cannot tell you something different from what you find when you follow it." data-ja="すべての数字は遷移先のページから読み取っています。この画面が遷移先と違うことを表示することは構造上ありません。">Every number is read from the page it links to.</p>
+      </div>
+      <div class="card">
+        <div class="card-title" data-en="A line disappears when it is done" data-ja="対応が終わると行が消えます">A line disappears when it is done</div>
+        <p class="muted" style="font-size:13px;" data-en="Nothing shows as zero. When everything is clear the page says: Nothing needs you today." data-ja="0件の行は表示されません。すべて片付くと「Nothing needs you today.」と表示されます。">Nothing shows as zero.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="If a line is greyed out" data-ja="行が灰色になっている場合">If a line is greyed out</div>
+      <p class="muted" style="font-size:13px;" data-en="That check could not run, and the error is shown on the line itself. The rest of the page still works — one broken corner never blanks the screen. Report it; do not work around it." data-ja="そのチェックが実行できなかったことを意味し、原因が行に表示されます。他の行は正常に動作します（1箇所の不具合で画面全体が空になることはありません）。回避せず報告してください。">That check could not run; the rest still works.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════ WHAT CHANGED ═══════════ -->
+  <div class="section" id="sec-whatsnew">
+    <div class="section-hero">
+      <div class="hero-icon">✨</div>
+      <div>
+        <div class="section-title" data-en="What changed — August 2026" data-ja="変更点 — 2026年8月">What changed — August 2026</div>
+        <div class="section-path" data-en="Read this if you used the OS before" data-ja="以前からOSをお使いの方はこちらをご確認ください">Read this if you used the OS before</div>
+        <div class="section-desc" data-en="Every change below removes typing rather than adding it." data-ja="以下の変更はすべて、入力を増やすのではなく減らすものです。">Every change below removes typing rather than adding it.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Why the changes were made" data-ja="変更の背景">Why the changes were made</div>
+      <p class="muted" style="font-size:13px;" data-en="The OS gave two ways to record the same fact — a quick one and a slow one — and only the slow one kept a record. Everyone took the quick one, so the effort went in and the information did not come out: 92 candidates past 'interviewed' against 3 interview records, 177 reviews scheduled and none ever written, 21 notices open and none with a reason on file. That is a design problem, not a diligence problem." data-ja="同じ事実を記録する方法が2つあり（速い方法と時間のかかる方法）、記録が残るのは時間のかかる方だけでした。当然みな速い方を選ぶため、労力は投入されているのに情報が残りませんでした。面接済み92名に対し面接記録3件、評価予定177件に対し記録0件、未完了の始末書21件すべてに理由の記録なし。これは担当者の姿勢ではなく設計の問題です。">The OS gave two ways to record the same fact, and only the slow one kept a record.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Changes by page" data-ja="ページ別の変更点">Changes by page</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Page" data-ja="ページ">Page</th><th data-en="Before" data-ja="変更前">Before</th><th data-en="Now" data-ja="変更後">Now</th></tr>
+          <tr><td><strong>HR Today</strong></td><td class="muted" data-en="Nine pages to check" data-ja="9ページを巡回">Nine pages to check</td><td class="muted" data-en="One screen, new" data-ja="1画面に集約（新規）">One screen, new</td></tr>
+          <tr><td><strong>HR Recruitment</strong></td><td class="muted" data-en="Type the position, then pick a requisition marked optional" data-ja="職種を手入力し、その下の「任意」の求人票を別途選択">Type the position, then pick an optional requisition</td><td class="muted" data-en="One field, Applying for. Add Several for a stack of resumes" data-ja="「Applying for」1項目に統合。複数名は「Add Several」で一括">One field. Add Several for a stack</td></tr>
+          <tr><td><strong>HR Recruitment</strong></td><td class="muted" data-en="Six-field interview form and an eight-field evaluation" data-ja="6項目の面接記録＋8項目の評価フォーム">Six-field form plus an eight-field evaluation</td><td class="muted" data-en="Proceed / Hold / Not proceeding — three taps" data-ja="Proceed／Hold／Not proceeding の3タップ">Three taps</td></tr>
+          <tr><td><strong>HR Performance</strong></td><td class="muted" data-en="Thirteen fields including five scores" data-ja="5段階スコア×5を含む13項目">Thirteen fields</td><td class="muted" data-en="Decide — one decision, one reason. Scores optional" data-ja="「Decide」で判断＋理由。スコアは任意">Decide — scores optional</td></tr>
+          <tr><td><strong>HR Onboarding</strong></td><td class="muted" data-en="Five fields per item, sixteen items per hire" data-ja="1項目5フィールド×16項目">Five fields per item</td><td class="muted" data-en="Mark verified — one tap. Legal documents counted separately" data-ja="「Mark verified」1タップ。法定書類を独立表示">One tap</td></tr>
+          <tr><td><strong>Notice to Explain</strong></td><td class="muted" data-en="Close recorded nothing about what was decided" data-ja="Closeしても決定内容が一切残らない">Close recorded nothing</td><td class="muted" data-en="Close asks how it ends, with a reason" data-ja="Closeで結果と理由を記録">Close asks how it ends</td></tr>
+          <tr><td><strong>HR Clearance</strong></td><td class="muted" data-en="Ordered by when the case was typed" data-ja="ケース作成日順">Ordered by when it was typed</td><td class="muted" data-en="Oldest first, with days waiting and the amount unpaid" data-ja="最終出社日が古い順。待機日数と未払額を表示">Oldest first, with days and amount</td></tr>
+          <tr><td><strong>Policy Documents</strong></td><td class="muted" data-en="Only who had acknowledged" data-ja="確認済みの人だけ表示">Only who had acknowledged</td><td class="muted" data-en="Who has NOT, by name, plus Discord reminders" data-ja="未確認者を氏名で表示＋Discord通知">Who has NOT, by name</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="The rule behind all of it" data-ja="全体を貫く原則">The rule behind all of it</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="A decision takes three taps or fewer" data-ja="判断は3タップ以内">A decision takes three taps or fewer</strong><p data-en="Anything slower does not get recorded at all." data-ja="それ以上かかる記録は、結局書かれません。">Anything slower does not get recorded.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Your name and the date are never asked for" data-ja="氏名と日付は聞きません">Your name and the date are never asked for</strong><p data-en="The system knows who is signed in and what day it is. A field that is asked for is a field that gets skipped." data-ja="ログイン中の本人と当日で自動記録します。入力を求める項目は飛ばされる項目です。">The system already knows.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="A reason is asked only where it will be questioned later" data-ja="理由は後で必ず聞かれる場面だけ">A reason is asked only where it will be questioned later</strong><p data-en="Holding or rejecting someone needs one; moving them forward does not." data-ja="保留・見送りには必要ですが、前に進める判断には不要です。">Holding or rejecting needs one; proceeding does not.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="The detailed forms are still there" data-ja="詳細フォームは残しています">The detailed forms are still there</strong><p data-en="Scored evaluations and full interview records remain one button away for the cases that warrant them." data-ja="スコア付き評価や詳細な面接記録は、必要な場面のためにボタン1つで開けます。">One button away when warranted.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="If a step here does not match your screen" data-ja="手順が画面と違う場合">If a step here does not match your screen</div>
+      <p class="muted" style="font-size:13px;" data-en="Tell us. Do not work around it. Every problem fixed in August was found by looking at the data, not because anyone complained — we would rather hear about the next one sooner." data-ja="回避せずにご連絡ください。8月に修正した問題はすべてデータを調べて発見したもので、報告があったからではありません。次の問題はもっと早く知りたいと考えています。">Tell us. Do not work around it.</p>
+    </div>
+  </div>
+
   <!-- ═══════════ PROBATION ═══════════ -->
-  <div class="section active" id="sec-probation">
+  <div class="section" id="sec-probation">
     <div class="section-hero">
       <div class="hero-icon">🔰</div>
       <div>
@@ -584,6 +695,33 @@
       <div class="card-title" data-en="Employee View (My Notices)" data-ja="従業員側の表示（My Notices）">Employee View — My Notices</div>
       <p class="muted" data-en="Employees can see their NTE cases and submit written responses at: Staff → My Notices. They can view the NTE letter and type their explanation directly in the OS. No paper forms needed." data-ja="従業員はStaff → My NoticesでNTEケースを確認し、書面による説明をOS上で直接提出できます。紙の書類は不要です。">Employees view NTE cases and submit explanations at Staff → My Notices. No paper needed.</p>
     </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — closing a notice" data-ja="8月の変更 — 始末書のクローズ">New in August — closing a notice</div>
+      <p class="muted" style="font-size:13px;" data-en="Closing used to be a confirmation box that recorded only who clicked it. Across 21 open notices not one had a reason on file. Closing now asks how it ends." data-ja="従来のCloseは確認ダイアログのみで、押した人しか記録されませんでした。未完了21件のうち理由が記録されていたものは0件です。現在は結果を選択します。">Closing now asks how it ends.</p>
+      <div class="chip-row">
+        <span class="chip green" data-en="Close — no action" data-ja="不問として終了">Close — no action</span>
+        <span class="chip blue" data-en="Close — written warning" data-ja="警告を実施して終了">Close — written warning</span>
+        <span class="chip amber" data-en="Close — penalty applied" data-ja="処分を適用して終了">Close — penalty applied</span>
+        <span class="chip red" data-en="Withdraw the notice" data-ja="発行を撤回">Withdraw the notice</span>
+      </div>
+      <ol class="steps" style="margin-top:12px;">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Record the explanation first" data-ja="まず弁明を記録">Record the explanation first</strong><p data-en="If the employee answered, save what they said before closing. Having given them the chance to answer is what a labour case turns on — 19 of 21 notices had nothing on file. Saving it does not close the case." data-ja="従業員から回答があった場合は、クローズ前にその内容を保存してください。弁明の機会を与えた記録は労務紛争で決定的です（21件中19件は未記録でした）。保存してもケースはクローズされません。">Saving the explanation does not close the case.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Then choose how it ends" data-ja="次に結果を選択">Then choose how it ends</strong><p data-en="Penalty and Withdraw need a note saying what was decided. Your name and the date are recorded for you." data-ja="処分と撤回は、決定内容のメモが必須です。氏名と日付は自動記録されます。">Penalty and Withdraw need a note.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Find them from the board" data-ja="ボードから一覧へ">Find them from the board</strong><p data-en="The red Active Notices figure on the board is now the way in — press it and the list opens filtered to the open ones. Case History also opens on Active rather than All." data-ja="ボードの赤い「Active Notices」の数字を押すと、未完了で絞り込んだ一覧が開きます。Case History も既定でActiveを表示します。">Press the red Active Notices figure.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Two new tabs" data-ja="新しい2つのタブ">Two new tabs</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th data-en="Tab" data-ja="タブ">Tab</th><th data-en="What it is" data-ja="内容">What it is</th></tr>
+          <tr><td><strong data-en="Cash Discrepancies" data-ja="Cash Discrepancies">Cash Discrepancies</strong></td><td class="muted" data-en="Notices drafted automatically when a cash report is out by more than the tolerance, currently PHP 20. They used to sit only on Cash Management, where the people who handle notices never saw them — 170 accumulated over three months without one being actioned. Dismiss is a real option: if a difference was within tolerance, explained, or handled at the branch, dismissing it records the review without putting a notice on anyone's file." data-ja="レジ報告の差異が許容範囲（現在±₱20）を超えたときに自動生成される始末書の下書きです。従来はCash Managementにのみ表示され、始末書を扱う担当者の目に触れませんでした（3ヶ月で170件が未処理のまま蓄積）。「Dismiss」も正当な選択肢です。許容範囲内・説明済み・店舗で対応済みの場合、Dismissすれば誰の記録にも始末書を残さずに確認したことを記録できます。">Auto-drafted cash discrepancy notices. Dismiss is a real option.</td></tr>
+          <tr><td><strong data-en="Formal Case (DOLE)" data-ja="Formal Case（DOLE正式手続き）">Formal Case (DOLE)</strong></td><td class="muted" data-en="The statutory process — incident report, notice served, written explanation, hearing, decision, each with its own deadline. It used to be a second menu entry called NTE Management, beside this one called Notice to Explain, with no way to tell them apart. The two keep separate records: which process a matter belongs in is HR's decision." data-ja="法定手続き（事案報告→通知送達→弁明書→聴聞→決定、各段階に期限）です。従来は「NTE Management」として別メニューに並んでおり、「Notice to Explain」との区別がつきませんでした。記録は別々のままです。どちらの手続きに載せるかはHRの判断事項です。">The statutory process, reached from here instead of a second menu entry.</td></tr>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- ═══════════ RECRUITMENT ═══════════ -->
@@ -650,6 +788,17 @@
       <span class="tip-icon">💡</span>
       <span data-en="Use Job Requisitions to pre-define the position, branch, and target start date before posting. This links hired candidates to the open slot automatically." data-ja="採用前にJob Requisitionでポジション・店舗・目標入社日を設定しておくと、採用決定後に自動的に空きポストと紐付きます。">Use Job Requisitions to pre-define the position before posting.</span>
     </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — how you add and decide" data-ja="8月の変更 — 登録と判断の手順">New in August — how you add and decide</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Applying for — one field, not two" data-ja="「Applying for」— 2項目を1つに統合">Applying for — one field, not two</strong><p data-en="Pick the opening and the job title and branch fill themselves in. You never type a job title again, and the candidate is linked to that opening automatically. 115 of 132 candidates used to be linked to nothing." data-ja="求人票を選ぶと職種と店舗が自動入力されます。職種を手で打つ必要はなくなり、候補者は自動的にその求人票に紐づきます（従来は132名中115名がどの求人票にも紐づいていませんでした）。">Pick the opening; the title and branch fill themselves in.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Add Several for a stack of resumes" data-ja="履歴書がまとまって来たら「Add Several」">Add Several for a stack of resumes</strong><p data-en="Set the position, source and date once, then type only the names. Paste a column from a spreadsheet and it fills a row each. A name already in the pipeline for that opening is skipped and named back." data-ja="職種・応募経路・日付を一度だけ設定し、あとは氏名のみ入力します。スプレッドシートの列を貼り付けると1名1行に展開されます。同じ求人票に既にいる名前は登録せず、スキップした氏名を表示します。">Set the position once, then type only the names.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="After the interview — three taps" data-ja="面接後 — 3タップ">After the interview — three taps</strong><p data-en="Proceed to offer / Hold / Not proceeding, plus one reason for the last two. Your name and today's date are filled in. That single action saves the interview record, the recommendation and the reason." data-ja="「Proceed to offer／Hold／Not proceeding」を選び、後者2つは理由を1つ選択します。氏名と日付は自動です。この1操作で面接記録・推薦区分・理由がすべて保存されます。">Proceed / Hold / Not proceeding, plus a reason.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Openings close themselves" data-ja="求人票は自動でクローズ">Openings close themselves</strong><p data-en="A requisition now says how many people it needs and closes when that many are hired. If a hire falls through it reopens on its own. Closing them is no longer anybody's job." data-ja="求人票に必要人数を設定でき、その人数の採用が完了すると自動的にクローズします。採用が流れた場合は自動的に再オープンします。手動でのクローズ作業は不要になりました。">Set how many people are needed; it closes itself.</p></div></li>
+        <li class="step"><span class="step-num">5</span><div class="step-body"><strong data-en="Plans tab — a whole store opening" data-ja="Plans タブ — 新店舗の採用計画">Plans tab — a whole store opening</strong><p data-en="List each role and how many of each, submit once, and every requisition is created. The plan then shows filled/needed, candidates, interviews and offers per role — this is the report; nothing needs preparing on top of it." data-ja="役職と必要人数を並べて1回送信すると、求人票がまとめて作成されます。以後、役職ごとの充足状況・候補者数・面接数・オファー数が表示されます。この画面がそのまま報告になります。">List the roles once; every requisition is created.</p></div></li>
+      </ol>
+    </div>
   </div>
 
   <!-- ═══════════ ONBOARDING ═══════════ -->
@@ -678,7 +827,7 @@
       <div class="card-title" data-en="Creating an Onboarding Record" data-ja="入社手続きレコードの作成">Creating an Onboarding Record</div>
       <ol class="steps">
         <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click New Onboarding" data-ja="New Onboardingをクリック">Click New Onboarding</strong><p data-en="Enter the new employee's name and branch." data-ja="新入社員の名前と店舗を入力します。">Enter name and branch.</p></div></li>
-        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Record appears in list" data-ja="一覧にレコードが表示される">Record appears in list</strong><p data-en="The dual progress bars show submitted (amber) and verified (green) counts." data-ja="提出済み（アンバー）と確認済み（グリーン）の2本のプログレスバーが表示されます。">Dual progress bars: submitted (amber) and verified (green).</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Record appears in list" data-ja="一覧にレコードが表示される">Record appears in list</strong><p data-en="The card shows verified out of total, days since the start date, and — separately — how many documents required by law are still missing." data-ja="カードには確認済み件数、入社からの経過日数、そして法律上必要な書類の未提出件数が別枠で表示されます。">Verified count, days since start, and the legal documents outstanding.</p></div></li>
       </ol>
     </div>
 
@@ -686,9 +835,9 @@
       <div class="card-title" data-en="Processing Each Document Item" data-ja="各書類アイテムの処理">Processing Each Document Item</div>
       <ol class="steps">
         <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Click the record" data-ja="レコードをクリック">Click the record</strong><p data-en="The detail panel expands with all checklist items grouped by category." data-ja="詳細パネルが開き、カテゴリ別のチェックリストが表示されます。">Detail panel expands with all items.</p></div></li>
-        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Update each item's status" data-ja="各アイテムのステータスを更新">Update status</strong><p data-en="Dropdown: Pending → Submitted → Verified → N/A. Also enter ID/reference number, date issued, and notes." data-ja="ドロップダウン：Pending → Submitted → Verified → N/A。ID番号・発行日・メモも入力します。">Pending → Submitted → Verified → N/A.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Update each item's status" data-ja="各アイテムのステータスを更新">Update status</strong><p data-en="Press Mark verified — one tap. Your name and the date are recorded for you. ID number, date issued and notes are there when the reference matters, but nothing else is required." data-ja="「Mark verified」を1回押すだけです。氏名と日付は自動で記録されます。ID番号・発行日・メモは、参照番号が必要な場合のために残してありますが、入力は必須ではありません。">Press Mark verified — one tap.</p></div></li>
         <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Save per item" data-ja="アイテムごとに保存">Save per item</strong><p data-en="Click Save on each row." data-ja="各行のSaveボタンをクリックします。">Click Save on each row.</p></div></li>
-        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Mark Complete" data-ja="完了としてマーク">Mark Complete</strong><p data-en="Once all items are Submitted, Verified, or N/A — the Mark Complete button activates. Click it to finalize." data-ja="全アイテムがSubmitted・Verified・N/Aになると「Mark Complete」ボタンが有効化されます。">Active once all items are resolved.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Mark Complete" data-ja="完了としてマーク">Mark Complete</strong><p data-en="Once every item is verified the record completes on its own. Submitted and N/A were removed from the picker: across 144 items neither had ever been chosen." data-ja="全項目が確認済みになるとレコードは自動的に完了します。SubmittedとN/Aは選択肢から削除しました（144件中1件も使われていなかったため）。">Completes on its own once every item is verified.</p></div></li>
       </ol>
     </div>
 
@@ -719,6 +868,17 @@
     <div class="tip">
       <span class="tip-icon">💡</span>
       <span data-en="Items marked N/A still count toward completion. Use N/A for documents that don't apply to this employee (e.g. a visa for a local hire)." data-ja="N/Aとしたアイテムも完了数にカウントされます。該当しない書類（例：ローカル採用へのビザ）にはN/Aを使用してください。">Items marked N/A count toward completion.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="Documents required by law" data-ja="法律上必要な書類">Documents required by law</div>
+      <p class="muted" style="font-size:13px;" data-en="A food business cannot staff a line without these three, so they are counted on their own and shown on the card. They were verified for one of nine people while five had been working over a month." data-ja="飲食店はこの3点なしに人を配置できません。そのため独立して集計し、カードに表示します（従来は9名中1名しか確認されておらず、うち5名は1ヶ月以上勤務していました）。">Counted on their own, and shown on the card.</p>
+      <div class="chip-row">
+        <span class="chip red" data-en="NBI Clearance" data-ja="NBIクリアランス">NBI Clearance</span>
+        <span class="chip red" data-en="Health Certificate" data-ja="健康証明書">Health Certificate</span>
+        <span class="chip red" data-en="Food Handler Certificate" data-ja="食品取扱者証">Food Handler Certificate</span>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:10px;" data-en="The card also shows how many days ago the person started, so a gap that has been open for two months does not read the same as one from yesterday." data-ja="カードには入社からの経過日数も表示されます。2ヶ月放置されている未提出と昨日の未提出が同じに見えないようにするためです。">The card shows how many days ago they started.</p>
     </div>
   </div>
 
@@ -772,6 +932,25 @@
       <span class="tip-icon">💡</span>
       <span data-en="Add specific comments per category — these are shown to the employee and used to set improvement targets. Scores without comments have less coaching value." data-ja="カテゴリごとに具体的なコメントを入力してください。従業員に表示され、改善目標の設定に活用されます。コメントのないスコアはコーチング効果が低くなります。">Add specific comments per category — shown to the employee and used for improvement targets.</span>
     </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — Decide" data-ja="8月の変更 — Decide（判断）">New in August — Decide</div>
+      <p class="muted" style="font-size:13px;" data-en="177 reviews had been scheduled and not one was ever written, because the only way to record one was the thirteen-field form. The decision is now three taps and the scores are optional." data-ja="評価予定177件に対し記録は0件でした。記録する唯一の方法が13項目のフォームだったためです。現在は3タップで判断を記録でき、スコアは任意です。">177 reviews were scheduled and none was ever written.</p>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <tr><th data-en="Review" data-ja="考課">Review</th><th data-en="Your choices" data-ja="選択肢">Your choices</th></tr>
+          <tr><td data-en="Probation (3 months)" data-ja="試用期間（3ヶ月）">Probation (3 months)</td><td class="muted" data-en="On track / Needs improvement / End probation" data-ja="On track（順調）／Needs improvement（要改善）／End probation（試用期間終了）">On track / Needs improvement / End probation</td></tr>
+          <tr><td data-en="Regularization (6 months)" data-ja="正社員化（6ヶ月）">Regularization (6 months)</td><td class="muted" data-en="Regularize / Extend probation / Do not regularize" data-ja="Regularize（正社員化）／Extend probation（試用期間延長）／Do not regularize（正社員化しない）">Regularize / Extend probation / Do not regularize</td></tr>
+          <tr><td data-en="Annual" data-ja="年次">Annual</td><td class="muted" data-en="Exceeds / Meets / Below expectations" data-ja="Exceeds（期待超）／Meets（期待どおり）／Below（期待未満）">Exceeds / Meets / Below</td></tr>
+        </table>
+      </div>
+      <div class="chip-row">
+        <span class="chip green" data-en="Regularize writes to the regularization tracker — not a second place" data-ja="Regularize は正社員化トラッカーに記録されます（二重管理しません）">Regularize writes to the tracker</span>
+        <span class="chip blue" data-en="Extending asks for a new date, which must be in the future" data-ja="延長は新しい考課日（未来日）の入力が必要">Extending asks for a future date</span>
+        <span class="chip amber" data-en="Scores are optional — salary is changed separately in Payroll" data-ja="スコアは任意。昇給は Payroll 側で別途処理します">Scores optional; salary changes in Payroll</span>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:10px;" data-en="Reviews scheduled for people who have left are listed separately below the main list, so the backlog is the real number rather than one padded with names nobody can act on." data-ja="退職者の考課予定は一覧の下に別枠で表示します。対応不可能な名前で件数が水増しされないようにするためです。">Reviews for people who have left are listed separately.</p>
+    </div>
   </div>
 
   <!-- ═══════════ OFFBOARDING ═══════════ -->
@@ -820,6 +999,16 @@
         <span class="tip-icon">💡</span>
         <span data-en="Each checklist item has its own status dropdown (Pending / Done / N/A), notes, and Done By field. Save each row individually. Click Mark Complete when all items are resolved." data-ja="各チェックリストアイテムに個別のステータス（Pending/Done/N/A）・メモ・担当者フィールドがあります。行ごとに保存し、全件解決後にMark Completeをクリックします。">Each item has its own status, notes, and Done By. Save per row.</span>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — a record the schedule contradicts is held back" data-ja="8月の変更 — シフトと矛盾する記録は保留されます">New in August — a record the schedule contradicts is held back</div>
+      <p class="muted" style="font-size:13px;" data-en="A test record left on the system in error was applied automatically twenty days later: a line cook lost his roles and his login at midnight while 25 shifts were still published for him and he had clocked in six days earlier. Nobody found out until he asked why his name was in offboarding." data-ja="誤って残されたテストレコードが20日後に自動適用され、あるライン調理担当者が深夜に権限とログインを失いました。当時、その方には25日分のシフトが公開済みで、6日前にも出勤していました。本人が「なぜ自分の名前が退職手続きにあるのか」と申告するまで、誰も気づきませんでした。">A leftover test record was applied automatically twenty days later.</p>
+      <p class="muted" style="font-size:13px; margin-top:8px;" data-en="The system now looks at what the person actually does — shifts still published beyond the leaving date, or attendance recorded beyond it — and holds that record back rather than applying it. The reason is shown on the row itself, with what to do next." data-ja="現在は、その方が実際に行っていること（最終出社日より後の公開シフト、最終出社日より後の打刻）を確認し、矛盾する場合はその記録だけ適用を保留します。理由と次の対応は該当行に表示されます。">The system now checks what the person actually does.</p>
+      <div class="chip-row">
+        <span class="chip amber" data-en="Not applied — still scheduled for 25 shifts, through 2026-09-29" data-ja="未適用 — 2026-09-29まで25日分のシフトが公開済み">Not applied — still scheduled</span>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:10px;" data-en="Records also show who filed them. Every record on file before August had that field blank, so when a staff member asked who had put a name there, nobody could answer." data-ja="登録者も記録されるようになりました。8月以前のレコードはすべて空欄で、「誰が登録したのか」という問い合わせに答えられませんでした。">Records now show who filed them.</p>
     </div>
   </div>
 
@@ -927,6 +1116,22 @@
       <span class="tip-icon">💡</span>
       <span data-en="The Loaned Company Assets section auto-loads from the Assets module. Any unreturned assets are shown with a warning — resolve these before finalizing." data-ja="「貸出会社資産」セクションはAssetsモジュールから自動取得されます。未返却の資産がある場合は警告が表示されます。確定前に解決してください。">Loaned assets auto-load from the Assets module. Resolve warnings before finalizing.</span>
     </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — the oldest case is at the top" data-ja="8月の変更 — 待機が長い案件が最上部に">New in August — the oldest case is at the top</div>
+      <p class="muted" style="font-size:13px;" data-en="The list was ordered by when the case was typed, so the person who had been waiting longest was at the bottom. Five people were between 21 and 74 days past their last working day, holding PHP 48,585 between them, and neither the wait nor the money was on the screen." data-ja="従来はケース作成日順だったため、最も長く待っている方が最下部に表示されていました。最終出社日から21〜74日経過した5名が合計₱48,585を受け取れないまま、待機日数も金額も画面に出ていませんでした。">The longest wait used to be at the bottom.</p>
+      <div class="chip-row">
+        <span class="chip amber" data-en="Days since the last working day, on every row" data-ja="各行に最終出社日からの経過日数">Days since the last working day</span>
+        <span class="chip amber" data-en="The amount not yet released" data-ja="未払いの金額">The amount not yet released</span>
+        <span class="chip blue" data-en="A total above the list" data-ja="一覧上部に合計を表示">A total above the list</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="When the two departure records disagree" data-ja="退職記録が食い違っている場合">When the two departure records disagree</div>
+      <p class="muted" style="font-size:13px;" data-en="A departure is recorded in two places — here and in HR Offboarding — and they had drifted apart. Of nine clearance cases only one had a matching offboarding record, and that one called it a termination while offboarding called it a contract end. Those mean different things." data-ja="退職は Clearance と HR Offboarding の2箇所に記録されますが、内容が乖離していました。Clearance 9件のうち Offboarding に記録があるのは1件のみで、その1件も「解雇」と「契約満了」で食い違っていました。労務上まったく意味が異なります。">A departure is recorded in two places, and they had drifted apart.</p>
+      <p class="muted" style="font-size:13px; margin-top:8px;" data-en="A panel above the list now names the gaps, the disagreements and the cases that may be the same person twice. Nothing is corrected automatically: an offboarding record is what removes someone's roles and login overnight, and that is not a decision to make from a name match." data-ja="一覧上部のパネルに、記録漏れ・不一致・同一人物の重複疑いを表示します。自動修正は行いません。Offboarding のレコードは夜間処理で権限とログインを剥奪する入力となるため、氏名の一致だけで判断してよいものではないからです。">Nothing is corrected automatically, and the page says why.</p>
+    </div>
   </div>
 
   <!-- ═══════════ POLICY DOCUMENTS ═══════════ -->
@@ -1024,6 +1229,15 @@
     <div class="tip">
       <span class="tip-icon">💡</span>
       <span data-en="Acknowledgement is permanent and cannot be undone. Once a staff member enters their PIN and confirms, the record is stored with a timestamp and cannot be removed." data-ja="受領確認は取り消しできません。スタッフがPINを入力して確認すると、タイムスタンプとともに記録され、削除できません。">Acknowledgement is permanent. Once confirmed with PIN, the record cannot be removed.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-en="New in August — who has NOT acknowledged" data-ja="8月の変更 — 未確認者の表示">New in August — who has NOT acknowledged</div>
+      <p class="muted" style="font-size:13px;" data-en="The panel could only ever show who had complied, which is the half you cannot act on. Four documents reached their deadline with one person of sixty-three having acknowledged, and there was no way to see who to ask." data-ja="従来は確認済みの人しか表示できませんでした。対応が必要なのは残り半分です。4文書が63名中1名の確認のまま期限を迎えましたが、誰に依頼すべきかを確認する手段がありませんでした。">The panel could only show who had complied.</p>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="The pending list, by name" data-ja="未確認者を氏名で表示">The pending list, by name</strong><p data-en="Open a document's acknowledgement report and the people who have not acknowledged are listed, with the count against the total expected." data-ja="文書の確認レポートを開くと、未確認者の氏名が対象者数とともに一覧表示されます。">Listed with the count against the total expected.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Reminders now go out" data-ja="リマインダーが自動送信されます">Reminders now go out</strong><p data-en="Publishing a document used to notify nobody. A reminder is now posted three days before the deadline, one day before, on the day, and weekly while it stays outstanding — spaced so it does not become noise." data-ja="従来、文書を公開しても誰にも通知されませんでした。現在は期限の3日前・1日前・当日、以後は未確認の間7日ごとに通知します。毎日送ると読まれなくなるため、この間隔にしています。">Three days before, one day before, on the day, then weekly.</p></div></li>
+      </ol>
     </div>
   </div>
 
@@ -1128,7 +1342,7 @@
 
 <script>
   let currentLang = 'en';
-  let currentSection = 'probation';
+  let currentSection = 'today';
 
   function setLang(lang) {
     currentLang = lang;
