@@ -925,6 +925,7 @@ function NteView() {
   const [reasons, setReasons] = useState<{ key: string; label: string }[]>([]);
   const [groupReason, setGroupReason] = useState("");
   const [groupNote, setGroupNote] = useState("");
+  const [tolerance, setTolerance] = useState<number | null>(null);
   const [busy, setBusy]   = useState<string | null>(null);
   const [msg, setMsg]     = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -938,8 +939,10 @@ function NteView() {
       .catch(() => {}).finally(() => setLoading(false));
     fetch(`${API_BASE}/api/admin/cash-reports/nte/summary`, {
       headers: getAuthHeaders(getAuth()),
-    }).then((r) => r.json()).then((d) => setGroups(d.groups || []))
-      .catch(() => {});
+    }).then((r) => r.json()).then((d) => {
+      setGroups(d.groups || []);
+      if (typeof d.tolerance === "number") setTolerance(d.tolerance);
+    }).catch(() => {});
     fetch(`${API_BASE}/api/admin/cash-reports/nte/reasons`, {
       headers: getAuthHeaders(getAuth()),
     }).then((r) => r.json()).then((d) => setReasons(d.reasons || []))
@@ -1036,10 +1039,26 @@ function NteView() {
             </p>
           </div>
           <p className="text-xs leading-relaxed text-white/50">
-            Issuing a notice is not the only option. If a discrepancy was within
-            tolerance, already explained, or handled at the branch, dismiss it —
-            that records the review without putting a notice on anyone&apos;s file.
+            {tolerance !== null && (
+              <>
+                A notice is drafted only when a report is out by more than{" "}
+                <span className="font-medium text-white/70">
+                  ₱{tolerance.toLocaleString("en-PH")}
+                </span>
+                . Below that it is treated as a counting difference and nothing
+                is raised.{" "}
+              </>
+            )}
+            Issuing a notice is not the only option either. If a discrepancy was
+            already explained or handled at the branch, dismiss it — that records
+            the review without putting a notice on anyone&apos;s file.
           </p>
+          {tolerance !== null && groups.length > 0 && (
+            <p className="text-xs text-white/40">
+              Drafts raised before this threshold existed are still listed, so
+              older ones may be below it.
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="min-w-[220px] flex-1">
