@@ -697,6 +697,12 @@ function NteCloseModal({
 
         <div>
           <p className={T_LABEL}>How does this end?</p>
+          {outcomes.length === 0 && (
+            <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              The list of outcomes could not be loaded, so there is nothing to
+              choose. Reload the page and try again — nothing has been changed.
+            </p>
+          )}
           <div className="mt-2 grid gap-2">
             {outcomes.map((o) => (
               <button
@@ -2213,12 +2219,20 @@ export default function EmployeeCasesPage() {
 
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className={KPI_CARD}>
+        <button
+          type="button"
+          onClick={() => { setHistoryStatusFilter("ACTIVE"); setTab("history"); }}
+          className={`${KPI_CARD} text-left transition-colors hover:bg-white/8`}
+          title="Open the list of active notices"
+        >
           <p className={KPI_LABEL}>Active Notices</p>
           <p className={`${KPI_VALUE} ${totalActive > 0 ? "text-red-400" : ""}`}>
             {loading ? "—" : totalActive}
           </p>
-        </div>
+          {totalActive > 0 && (
+            <p className="mt-0.5 text-[11px] text-red-300/70">Tap to work through them</p>
+          )}
+        </button>
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>Total Notices</p>
           <p className={KPI_VALUE}>{loading ? "—" : totalNtes}</p>

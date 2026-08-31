@@ -390,6 +390,12 @@ function ReviewDecisionModal({
 
         <div>
           <p className={T_LABEL}>What is your decision?</p>
+          {outcomes.length === 0 && (
+            <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              The list of decisions could not be loaded, so there is nothing to
+              choose. Reload the page and try again — nothing has been changed.
+            </p>
+          )}
           <div className="mt-2 grid gap-2">
             {outcomes.map((o) => (
               <button
