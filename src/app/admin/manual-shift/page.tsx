@@ -1949,11 +1949,30 @@ export default function ManualShiftPage() {
                               ? { ...s, role: "DAY_OFF" }
                               : s
                           );
-                          // Approved Day Off overrides published shifts (approval updates draft only, not published)
                           const publishedIsAlreadyDayOff = normalizedShifts.length === 1 && normalizedShifts[0].role === "DAY_OFF";
-                          const isApprovedDayOff = !publishedIsAlreadyDayOff && approvedDayOffs.has(`${name}|${d}`);
+                          const hasApprovedDayOff = approvedDayOffs.has(`${name}|${d}`);
+                          // The badge stands in for an empty cell, never over a
+                          // published one. It used to override whatever was
+                          // published, so Joanna Mae Saraos read "Day Off
+                          // approved" on 2026-09-01 while 9:00-18:00 was live and
+                          // showing on her own My Shift — the manager who had
+                          // just set it could not see that it had worked, and
+                          // would not have expected her in.
+                          const isApprovedDayOff = hasApprovedDayOff && normalizedShifts.length === 0;
+                          // Still worth saying: an approved day-off nobody has
+                          // applied to this cell yet. Shown beside the shift
+                          // rather than instead of it.
+                          const dayOffPending = hasApprovedDayOff && normalizedShifts.length > 0 && !publishedIsAlreadyDayOff;
                           return (
-                            <td key={d} className="px-1 py-1 text-center align-top">
+                            <td key={d} className="relative px-1 py-1 text-center align-top">
+                              {dayOffPending && (
+                                <span
+                                  title="An approved Day Off request exists for this day, but the published schedule below is what the staff member sees. Change the cell if the day off should apply."
+                                  className="absolute left-1 top-0.5 z-10 rounded bg-amber-400/90 px-1 text-[8px] font-bold uppercase tracking-wide text-amber-950"
+                                >
+                                  day off req
+                                </span>
+                              )}
                               {isApprovedDayOff ? (
                                 <button
                                   type="button"
