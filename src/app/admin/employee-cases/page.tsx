@@ -1080,13 +1080,6 @@ export default function EmployeeCasesPage() {
       }
       const data: DashboardData = await res.json();
       setNtes(Array.isArray(data.ntes) ? data.ntes : []);
-      if (closeOutcomes.length === 0) {
-        // Fetched, so the buttons are exactly what the server will accept.
-        void fetch("/api/admin/nte/close-outcomes", { headers: authHeaders() })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => { if (d?.outcomes) setCloseOutcomes(d.outcomes); })
-          .catch(() => {});
-      }
       setTemplates(Array.isArray(data.templates) ? data.templates : []);
       setRequests(Array.isArray(data.requests) ? data.requests : []);
 
@@ -1376,6 +1369,15 @@ export default function EmployeeCasesPage() {
   };
 
   // ── Close Case ─────────────────────────────────────────────────────────────
+  // Fetched once, so the outcome buttons are exactly what the server accepts.
+  useEffect(() => {
+    void fetch("/api/admin/nte/close-outcomes", { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.outcomes) setCloseOutcomes(d.outcomes); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Closing used to be a bare confirm() that posted only who clicked it. Every
   // one of the 21 open notices would have closed with no reason on file -- the
   // resolution_note column has never held a single value. The outcome is now
