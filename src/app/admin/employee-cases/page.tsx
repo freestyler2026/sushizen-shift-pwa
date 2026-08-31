@@ -614,6 +614,144 @@ function TemplateModal({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Closing a notice ─────────────────────────────────────────────────────────
+
+/** Closing used to be window.confirm() and a POST carrying only who clicked it.
+ *  The resolution_note column has never held a value, so 21 open notices would
+ *  all have closed saying nothing about what was decided. */
+function NteCloseModal({
+  nte,
+  outcomes,
+  onClose,
+  onSubmitClose,
+  onSubmitExplanation,
+}: {
+  nte: NteRecord;
+  outcomes: { key: string; label: string; hint: string }[];
+  onClose: () => void;
+  onSubmitClose: (id: string, outcome: string, note: string) => Promise<string | null>;
+  onSubmitExplanation: (id: string, explanation: string) => Promise<string | null>;
+}) {
+  const [outcome, setOutcome] = useState("");
+  const [note, setNote] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const noteRequired = outcome === "penalty" || outcome === "withdrawn";
+  const ready = !!outcome && (!noteRequired || !!note.trim());
+
+  const days = nte.issued_date
+    ? Math.max(0, Math.round(
+        (Date.now() - new Date(nte.issued_date).getTime()) / 86400000))
+    : null;
+
+  const run = async (fn: () => Promise<string | null>) => {
+    setErr(""); setBusy(true);
+    const e = await fn();
+    setBusy(false);
+    if (e) setErr(e); else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-semibold text-white">{nte.staff_name}</p>
+            <p className={T_CAPTION}>
+              Issued {fmtDate(nte.issued_date)}
+              {days !== null && <span className="text-amber-300"> · open {days} days</span>}
+            </p>
+          </div>
+          <button className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {!nte.explanation_text && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-sm font-medium text-amber-300">
+              No explanation on file
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-200/70">
+              Having given the employee a chance to answer is what a labour case
+              turns on. Record what they said before closing, if they answered.
+            </p>
+            <textarea
+              className={`${TEXTAREA_CLASS} mt-2`}
+              rows={2}
+              placeholder="What the employee said"
+              value={explanation}
+              onChange={(e) => setExplanation(e.target.value)}
+            />
+            <button
+              className={`${SMALL_BUTTON} mt-2`}
+              disabled={busy || !explanation.trim()}
+              onClick={() => void run(() => onSubmitExplanation(nte.id, explanation))}
+            >
+              Save explanation, keep open
+            </button>
+          </div>
+        )}
+
+        <div>
+          <p className={T_LABEL}>How does this end?</p>
+          <div className="mt-2 grid gap-2">
+            {outcomes.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setOutcome(o.key)}
+                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                  outcome === o.key
+                    ? "border-violet-500/50 bg-violet-500/15 text-violet-100"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                <span className="block text-sm font-semibold">{o.label}</span>
+                {o.hint && <span className="block text-xs opacity-70">{o.hint}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {outcome && (
+          <div>
+            <p className={T_LABEL}>
+              Note {noteRequired ? "*" : <span className="opacity-60">(optional)</span>}
+            </p>
+            <textarea
+              className={`${TEXTAREA_CLASS} mt-1`}
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        )}
+
+        {err && (
+          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            {err}
+          </p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            className={PRIMARY_BUTTON}
+            disabled={!ready || busy}
+            onClick={() => void run(() => onSubmitClose(nte.id, outcome, note))}
+          >
+            {busy ? "Saving…" : "Close the case"}
+          </button>
+          <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function EmployeeCasesPage() {
   const router = useRouter();
   const [accessReady, setAccessReady] = useState(false);
@@ -624,6 +762,10 @@ export default function EmployeeCasesPage() {
 
   // Data state
   const [ntes, setNtes] = useState<NteRecord[]>([]);
+  const [closeTarget, setCloseTarget] = useState<NteRecord | null>(null);
+  const [closeOutcomes, setCloseOutcomes] = useState<
+    { key: string; label: string; hint: string }[]
+  >([]);
   const [ranking, setRanking] = useState<StaffRanking[]>([]);
   const [templates, setTemplates] = useState<NteTemplate[]>([]);
   const [requests, setRequests] = useState<NteRequest[]>([]);
@@ -853,7 +995,9 @@ export default function EmployeeCasesPage() {
 
   // Case History tab state
   const [historyNameFilter, setHistoryNameFilter] = useState("");
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<"ALL" | "ACTIVE" | "RESOLVED">("ALL");
+  // Defaults to ACTIVE: 21 notices sat open, the oldest 130 days, while the tab
+  // opened on "All Status" and buried them among the closed ones.
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<"ALL" | "ACTIVE" | "RESOLVED">("ACTIVE");
 
   // Templates tab state
   const [templateModal, setTemplateModal] = useState<{
@@ -936,6 +1080,13 @@ export default function EmployeeCasesPage() {
       }
       const data: DashboardData = await res.json();
       setNtes(Array.isArray(data.ntes) ? data.ntes : []);
+      if (closeOutcomes.length === 0) {
+        // Fetched, so the buttons are exactly what the server will accept.
+        void fetch("/api/admin/nte/close-outcomes", { headers: authHeaders() })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => { if (d?.outcomes) setCloseOutcomes(d.outcomes); })
+          .catch(() => {});
+      }
       setTemplates(Array.isArray(data.templates) ? data.templates : []);
       setRequests(Array.isArray(data.requests) ? data.requests : []);
 
@@ -1225,23 +1376,49 @@ export default function EmployeeCasesPage() {
   };
 
   // ── Close Case ─────────────────────────────────────────────────────────────
-  const handleResolveNte = async (nteId: string, staffName: string) => {
-    if (!window.confirm(`Close this case for ${staffName}?`)) return;
-    setError("");
+  // Closing used to be a bare confirm() that posted only who clicked it. Every
+  // one of the 21 open notices would have closed with no reason on file -- the
+  // resolution_note column has never held a single value. The outcome is now
+  // part of closing rather than an afterthought.
+  const submitNteClose = async (
+    nteId: string, outcome: string, note: string,
+  ): Promise<string | null> => {
     try {
-      const res = await fetch(
-        `/api/admin/cases/${nteId}/close`,
-        {
-          method: "POST",
-          headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ resolved_by: currentUser }),
-        }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(`/api/admin/nte/staff-records/${nteId}/close`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome, note }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return d?.detail || `HTTP ${res.status}`;
+      }
       setSuccessMsg("Case closed.");
       await loadData();
+      return null;
     } catch (e: any) {
-      setError(e?.message || "Failed to close case");
+      return e?.message || "Failed to close case";
+    }
+  };
+
+  const submitNteExplanation = async (
+    nteId: string, explanation: string,
+  ): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/admin/nte/staff-records/${nteId}/explanation`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ explanation }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        return d?.detail || `HTTP ${res.status}`;
+      }
+      setSuccessMsg("Explanation recorded.");
+      await loadData();
+      return null;
+    } catch (e: any) {
+      return e?.message || "Failed to record the explanation";
     }
   };
 
@@ -3029,9 +3206,7 @@ export default function EmployeeCasesPage() {
                           {nte.status === "ACTIVE" && (
                             <button
                               type="button"
-                              onClick={() =>
-                                void handleResolveNte(nte.id, nte.staff_name)
-                              }
+                              onClick={() => setCloseTarget(nte)}
                               className={`${SMALL_BUTTON} flex items-center gap-1`}
                             >
                               <CheckCircle className="h-3.5 w-3.5" />
@@ -5105,6 +5280,16 @@ export default function EmployeeCasesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {closeTarget && (
+        <NteCloseModal
+          nte={closeTarget}
+          outcomes={closeOutcomes}
+          onClose={() => setCloseTarget(null)}
+          onSubmitClose={submitNteClose}
+          onSubmitExplanation={submitNteExplanation}
+        />
       )}
     </div>
   );
