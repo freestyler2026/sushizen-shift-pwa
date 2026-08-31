@@ -101,6 +101,8 @@
    - file_path: docs/manuals/emergency-reporting.html
    - url: https://claude.ai/code/artifact/9b1b9346-202a-4c94-9dd3-2ad3f39cd702   ← Emergency Reporting（スタッフ向け）
    - favicon: 🚨
+   ※ これだけ英語・スマホ1画面スクロール。読者が店舗スタッフで、
+     緊急時に端末で読むため。他マニュアル（日本語・サイドバー式）と体裁を揃えないこと。
 
    - file_path: docs/manuals/recruitment-guide.html
    - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（HRスタッフ向け）
@@ -108,8 +110,6 @@
    ※ 英語。読者はマニラのHRスタッフ・HRマネージャー。
      「入力が増えるのではなく減る」という論旨が定着の条件なので、
      機能追加として書き直さないこと。HR Manual とは役割が別。
-   ※ これだけ英語・スマホ1画面スクロール。読者が店舗スタッフで、
-     緊急時に端末で読むため。他マニュアル（日本語・サイドバー式）と体裁を揃えないこと。
 ```
 
 **更新対象の判断基準:**
