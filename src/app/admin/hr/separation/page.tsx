@@ -86,6 +86,12 @@ type SeparationRecord = {
   pending_count: number;
   created_at: string;
   items?: SeparationItem[];
+  contradiction?: {
+    future_shifts?: number;
+    last_shift?: string;
+    worked_after?: string;
+    check_failed?: string;
+  } | null;
 };
 
 const ALLOWED_ROLES = ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"];
@@ -399,6 +405,13 @@ function DetailPanel({
             <SepTypeBadge type={detail.separation_type} />
             <StatusBadge status={detail.status} />
           </div>
+          <p className={T_BODY + " mt-1.5"}>
+            Filed by{" "}
+            <span className="font-medium text-zinc-300">
+              {detail.created_by || "— not recorded"}
+            </span>
+            {detail.created_at ? ` on ${detail.created_at.slice(0, 10)}` : ""}
+          </p>
         </div>
         <button
           onClick={onClose}
@@ -807,6 +820,36 @@ function AddSeparationModal({
 
 // ─── Separation card ──────────────────────────────────────────────────────────
 
+function ContradictionNotice({ record }: { record: SeparationRecord }) {
+  const c = record.contradiction;
+  if (!c) return null;
+
+  const facts: string[] = [];
+  if (c.future_shifts) {
+    facts.push(
+      `still scheduled for ${c.future_shifts} shift${c.future_shifts === 1 ? "" : "s"}` +
+        (c.last_shift ? `, through ${c.last_shift}` : "")
+    );
+  }
+  if (c.worked_after) facts.push(`clocked in on ${c.worked_after}`);
+  if (c.check_failed) facts.push("this check could not run");
+  if (!facts.length) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+      <p className="text-sm font-medium text-amber-300">
+        Not applied — this person is {facts.join(", and ")}.
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-amber-200/70">
+        Their roles and login are untouched while the record and the schedule
+        disagree. If they really have left, clear their remaining shifts; if this
+        record is wrong, delete it. To close the account now, set the status on
+        the Staff page.
+      </p>
+    </div>
+  );
+}
+
 function SeparationCard({
   record,
   onClick,
@@ -836,6 +879,10 @@ function SeparationCard({
           </p>
         )}
       </div>
+
+      {/* What the live data says against this record. Shown here because this
+          list is where somebody first notices a name that should not be on it. */}
+      <ContradictionNotice record={record} />
 
       {/* Progress */}
       <ProgressBar done={record.done_count} total={record.total_items} />
