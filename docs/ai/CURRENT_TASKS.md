@@ -16,6 +16,44 @@ Last updated: 2026-08-31（Recruitment 段階1〜4 ＋ HR Phase 0 本番反映�
 
 ---
 
+## ✅ HR Phase 3（2026-08-31 完了・15/15検証）
+
+### Onboarding
+**1名あたり16項目 × 5フィールド（status / ID番号 / 発行日 / 備考 / Verified By手入力）＝ 80項目。**
+だから9名中5名が入社1〜2ヶ月で記録ゼロだった。
+
+| 氏名 | 入社から | 法定3点 | 全16項目 |
+|---|---:|---:|---:|
+| Patrick Danel Santiago | 56日 | 0/3 | 0/16 |
+| Nicko Villacorte | 55日 | 0/3 | 0/16 |
+| Gessa Gregorio | 47日 | 0/3 | 0/16 |
+| Mayorico Furio | 35日 | 0/3 | 0/16 |
+| Anthony Andales | 32日 | 0/3 | 0/16 |
+| Mona Medrano | 26日 | 0/3 | 0/16 |
+| Francis Angelo Dizon | 26日 | 0/3 | 12/16 |
+| Daisy Rose P. Javier | 18日 | 1/3 | 2/16 |
+| Renz Erick Matudan | 27日 | **3/3** | **16/16** |
+
+- `LEGALLY_REQUIRED_ONBOARDING_ITEMS = {NBI_CLEARANCE, HEALTH_CERT, FOOD_HANDLER}`
+  → **列を足さずテンプレート定数を唯一の正に**（144行のバックフィル不要）
+- `legal_total` / `legal_verified` / `legal_outstanding` / `days_since_start` を一覧に追加
+- **「Mark verified」1タップ**。`verified_by` はトークンから（PATCH側で解決）
+- ⚠️ psycopg2 は `%(name)s` と `%s` の混在不可。位置指定に統一した
+
+### Clearance ↔ Offboarding
+```
+Offboarding 記録なし     6件（Jason Mark Fabillar / Shawn / Norhaida /
+                             John Jeffrey / Jason Mark S. Fabillar / Istrael）
+退職理由の不一致         1件  Tricia: clearance=termination / offboarding=contract_end
+同一人物の重複の疑い     1件  Jason Mark Fabillar ＆ Jason Mark S. Fabillar
+```
+- `clearance_offboarding_mismatches()` は**表示のみ。自動修正しない。**
+  Offboarding レコードは深夜掃引の入力なので、名寄せで作ると教訓38の再発になる
+- 重複判定は**姓名（先頭語＋末尾語）**で照合。完全一致だとミドルネーム有無で別人になる。
+  `possible_duplicates` という名前にしてあるのは、同姓同名の別人がありうるため
+
+**未着手**: `submitted` ステータスは144件中0件で未使用のまま（削除はしていない）
+
 ## ✅ NTE Phase 2（2026-08-31 完了・29/29検証）
 
 **「UIにボタンが無い」は誤読だった。** Close ボタンは History タブに存在した。
