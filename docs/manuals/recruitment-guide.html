@@ -1,0 +1,661 @@
+<title>Sushi ZEN Recruitment Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ink:        #17202B;
+    --ink-soft:   #3D4A55;
+    --muted:      #66757F;
+    --paper:      #F4F6F6;
+    --surface:    #FFFFFF;
+    --line:       #DFE4E4;
+    --line-soft:  #EAEEEE;
+    --accent:     #2C6058;
+    --accent-ink: #234E47;
+    --accent-soft:#E1EBE8;
+    --flag:       #A8542A;
+    --flag-soft:  #F6EAE2;
+    --good:       #3A7458;
+    --good-soft:  #E4EFE8;
+
+    --measure: 34rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #E6ECEB;
+      --ink-soft:   #B9C4C6;
+      --muted:      #8A989E;
+      --paper:      #121A21;
+      --surface:    #1A242C;
+      --line:       #2C3A43;
+      --line-soft:  #232F37;
+      --accent:     #87BAAF;
+      --accent-ink: #A6CEC4;
+      --accent-soft:#1E3038;
+      --flag:       #D89468;
+      --flag-soft:  #2E2622;
+      --good:       #7CB394;
+      --good-soft:  #1D2C25;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink:        #E6ECEB;
+    --ink-soft:   #B9C4C6;
+    --muted:      #8A989E;
+    --paper:      #121A21;
+    --surface:    #1A242C;
+    --line:       #2C3A43;
+    --line-soft:  #232F37;
+    --accent:     #87BAAF;
+    --accent-ink: #A6CEC4;
+    --accent-soft:#1E3038;
+    --flag:       #D89468;
+    --flag-soft:  #2E2622;
+    --good:       #7CB394;
+    --good-soft:  #1D2C25;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.15rem, 4vw, 2rem) 6rem;
+  }
+
+  h1, h2, h3 {
+    font-family: Newsreader, Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    text-wrap: balance;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 5.5vw, 3rem);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+  }
+
+  h2 {
+    font-size: clamp(1.45rem, 3.5vw, 1.85rem);
+    line-height: 1.2;
+    margin-bottom: 0.6rem;
+  }
+
+  h3 {
+    font-size: 1.12rem;
+    line-height: 1.35;
+    margin-bottom: 0.35rem;
+  }
+
+  p { margin: 0 0 1rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent-ink); }
+
+  strong { font-weight: 600; }
+
+  .lede {
+    font-family: Newsreader, Georgia, serif;
+    font-size: clamp(1.15rem, 2.6vw, 1.35rem);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 32rem;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  header {
+    padding-bottom: 2.25rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 3rem;
+  }
+
+  .meta {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 1.75rem;
+  }
+
+  section { margin-bottom: 3.75rem; }
+  section > h2 { margin-bottom: 1rem; }
+
+  /* --- measured evidence ------------------------------------------------ */
+
+  .facts {
+    display: grid;
+    gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1.75rem 0;
+  }
+
+  .fact {
+    background: var(--surface);
+    padding: 1.05rem 1.1rem 1.15rem;
+  }
+
+  .fact b {
+    display: block;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--flag);
+    margin-bottom: 0.35rem;
+  }
+
+  .fact span {
+    display: block;
+    font-size: 0.87rem;
+    line-height: 1.4;
+    color: var(--ink-soft);
+  }
+
+  /* --- before / after --------------------------------------------------- */
+
+  .change {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.4rem 1.35rem 1.5rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .change > h3 { margin-bottom: 0.75rem; }
+
+  .ba {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    margin: 0.9rem 0 1rem;
+  }
+
+  .ba > div {
+    border-radius: 8px;
+    padding: 0.85rem 0.95rem 0.9rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .ba .was { background: var(--flag-soft); }
+  .ba .now { background: var(--good-soft); }
+
+  .ba h4 {
+    margin: 0 0 0.35rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .ba .was h4 { color: var(--flag); }
+  .ba .now h4 { color: var(--good); }
+
+  .takeaway {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  .takeaway::before {
+    content: "→ ";
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* --- procedures ------------------------------------------------------- */
+
+  .task {
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    gap: 0 1rem;
+    padding: 1.6rem 0;
+    border-top: 1px solid var(--line-soft);
+    align-items: start;
+  }
+
+  .task:first-of-type { border-top: 1px solid var(--line); }
+
+  .task .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    color: var(--accent);
+    padding-top: 0.22rem;
+  }
+
+  .task ol, .task ul { margin: 0.7rem 0 0.9rem; padding-left: 1.15rem; }
+  .task li { margin-bottom: 0.35rem; max-width: var(--measure); }
+
+  .screen {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.84rem;
+    line-height: 1.55;
+    background: var(--accent-soft);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    margin: 0.85rem 0 1rem;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  kbd, .ui {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.86em;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+    white-space: nowrap;
+  }
+
+  .note {
+    border-left: 2px solid var(--accent);
+    padding: 0.15rem 0 0.15rem 1rem;
+    margin: 1.2rem 0;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+  }
+
+  .note p { margin-bottom: 0.5rem; }
+
+  .ask {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.5rem 1.4rem;
+  }
+
+  .ask ul { margin: 0.9rem 0 0; padding-left: 1.15rem; }
+  .ask li { margin-bottom: 0.6rem; max-width: var(--measure); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.93rem;
+    margin: 1.1rem 0;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.6rem 0.7rem;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .scroller { overflow-x: auto; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Manila HR · Workforce OS</span>
+  <h1>The Recruitment page has been rebuilt</h1>
+  <p class="lede">
+    It was asking you to do the same job twice and only keeping the half that
+    took longer. That is fixed. Everything below is less typing than before,
+    not more.
+  </p>
+  <p class="meta">For HR staff and the HR Manager · Updated 31 August 2026</p>
+</header>
+
+<section>
+  <h2>First, this was our fault, not yours</h2>
+
+  <p>
+    We looked at how the Recruitment page has actually been used, and the numbers
+    show the work is being done. In the last two weeks alone, 49 new candidates
+    were entered and 22 of them were manager or head chef candidates. That is a
+    lot of sourcing.
+  </p>
+
+  <p>
+    What we also found is that the page gave you <strong>two ways to record the
+    same thing</strong> — a quick one and a slow one — and only the slow one kept
+    any record. Anyone would take the quick one. So the effort went in and the
+    information did not come out:
+  </p>
+
+  <div class="facts">
+    <div class="fact">
+      <b>115 / 132</b>
+      <span>candidates were tied to no job requisition, so no opening could show its own progress</span>
+    </div>
+    <div class="fact">
+      <b>74</b>
+      <span>different spellings of job titles across 132 entries — “store manager” appeared five ways</span>
+    </div>
+    <div class="fact">
+      <b>92 vs 3</b>
+      <span>candidates marked interviewed or beyond, against 3 interview records on file</span>
+    </div>
+    <div class="fact">
+      <b>0 / 16</b>
+      <span>rejections had a reason recorded, so no one could answer why a candidate was passed over</span>
+    </div>
+  </div>
+
+  <p>
+    None of that is a diligence problem. It is a design problem, and we have
+    changed the design.
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow">What changed</span>
+  <h2>Four changes, all of them fewer keystrokes</h2>
+
+  <div class="change">
+    <h3>1. One field for the job, instead of two</h3>
+    <div class="ba">
+      <div class="was">
+        <h4>Before</h4>
+        Type the position by hand, then find the matching requisition in a second
+        dropdown marked “optional”.
+      </div>
+      <div class="now">
+        <h4>Now</h4>
+        One field, <span class="ui">Applying for</span>. Pick the opening and the
+        job title and branch fill themselves in.
+      </div>
+    </div>
+    <p class="takeaway">You stop typing job titles altogether, and the candidate is
+      linked to the opening automatically.</p>
+  </div>
+
+  <div class="change">
+    <h3>2. Add a whole stack of resumes at once</h3>
+    <div class="ba">
+      <div class="was">
+        <h4>Before</h4>
+        One window per candidate. Fifteen walk-ins on 26 August meant opening the
+        same form fifteen times.
+      </div>
+      <div class="now">
+        <h4>Now</h4>
+        <span class="ui">Add Several</span>. Choose the position, source and date
+        once, then type only the names.
+      </div>
+    </div>
+    <p class="takeaway">You can paste a column of names straight from a spreadsheet
+      and it fills one row each.</p>
+  </div>
+
+  <div class="change">
+    <h3>3. Recording an interview is now three taps</h3>
+    <div class="ba">
+      <div class="was">
+        <h4>Before</h4>
+        A six-field interview form and an eight-field evaluation form — or one
+        click that moved the card and saved nothing.
+      </div>
+      <div class="now">
+        <h4>Now</h4>
+        <span class="ui">Proceed to offer</span> / <span class="ui">Hold</span> /
+        <span class="ui">Not proceeding</span>, plus one reason.
+      </div>
+    </div>
+    <p class="takeaway">Your name and today’s date are filled in for you. You are
+      never asked for them again.</p>
+  </div>
+
+  <div class="change">
+    <h3>4. Openings close themselves</h3>
+    <div class="ba">
+      <div class="was">
+        <h4>Before</h4>
+        Requisitions stayed open forever. All 19 on file were still open, 16 of
+        them past their target start date.
+      </div>
+      <div class="now">
+        <h4>Now</h4>
+        Each opening says how many people it needs, and closes on its own once
+        that many are hired.
+      </div>
+    </div>
+    <p class="takeaway">Closing requisitions is no longer a job anybody has to
+      remember.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">How to use it</span>
+  <h2>The four things you will do</h2>
+
+  <div class="task">
+    <div class="n">01</div>
+    <div>
+      <h3>Adding candidates</h3>
+      <p>For one person use <span class="ui">Add Applicant</span>. For a stack of
+        resumes use <span class="ui">Add Several</span> — it is much faster.</p>
+      <ol>
+        <li>Set <span class="ui">Applying for</span> to the opening they are for.</li>
+        <li>Set the source and the date the applications came in. Once, for the whole stack.</li>
+        <li>Type the names, one per line. Press <kbd>Enter</kbd> to go to the next.</li>
+      </ol>
+      <div class="screen">Applying for   [ Manager — Cubao (urgent)  ▾ ]
+Source [ Walk-in ▾ ]   Applied Date [ 2026-08-26 ]
+
+  1  [ Jed Calunod             ]
+  2  [ Jan Christian Tan       ]
+  3  [                         ]
+
+           [ Add 2 candidates ]</div>
+      <p>If the same name is already in the pipeline for that opening, it will not
+        be added twice — you will be told which names were skipped.</p>
+      <div class="note">
+        <p><strong>If the job is not in the list</strong>, choose
+          <span class="ui">Other</span> and type it. The page will tell you that
+          this candidate will not count toward any opening. That is fine for a
+          speculative application — but if the role is really being hired for,
+          raise a requisition for it instead.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="task">
+    <div class="n">02</div>
+    <div>
+      <h3>After an interview</h3>
+      <p>On the candidate’s card, press <span class="ui">Record outcome</span>
+        (or <span class="ui">Decide</span> if they were already interviewed).</p>
+      <div class="screen">How did the interview go?
+
+  [ Proceed to offer ]   moves them to Offer Sent
+  [ Hold             ]   stays in Interviewed, reason on record
+  [ Not proceeding   ]   moves them to Rejected
+
+Reason *
+  (Not enough experience) (Salary too high)
+  (Failed the trade test) (Did not attend)
+  (Cannot work the schedule) (Another candidate is stronger)
+  (Withdrew / took another job) (Other)</div>
+      <ul>
+        <li><strong>Proceed to offer</strong> — no reason needed.</li>
+        <li><strong>Hold</strong> and <strong>Not proceeding</strong> — please pick
+          one reason. These are the two that get asked about weeks later.</li>
+        <li><strong>Other</strong> — add a short note saying what happened.</li>
+      </ul>
+      <p>That single action saves the interview record, your name, the date, the
+        recommendation and the reason. You do not need to fill in anything else.</p>
+      <div class="note">
+        <p>The old status dropdown is still there for fixing mistakes, but it
+          records no reason — so please use the buttons for real decisions.</p>
+        <p>The detailed scored evaluation form is still available under the
+          <span class="ui">Evaluation</span> tab if you want to use it for senior
+          roles. It is optional.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="task">
+    <div class="n">03</div>
+    <div>
+      <h3>Raising an opening</h3>
+      <p>Use <span class="ui">+ Requisition</span> for a single role. It now asks
+        <span class="ui">How many people</span> — put the real number rather than
+        creating the same row twice.</p>
+      <p>Each opening now shows its own progress wherever it appears:</p>
+      <div class="screen">Cubao — Manager
+  0/1 filled · 9 candidates
+  Start: 2026-07-10 · 52d late</div>
+      <p>When the last person is hired, the opening closes by itself. If someone
+        you hired falls through, change their status back and the opening reopens
+        on its own.</p>
+    </div>
+  </div>
+
+  <div class="task">
+    <div class="n">04</div>
+    <div>
+      <h3>Opening a new branch — the Plans tab</h3>
+      <p>A new store is one plan, not fourteen separate requisitions. Switch to
+        <span class="ui">Plans</span> at the top of the page and press
+        <span class="ui">New Hiring Plan</span>.</p>
+      <ol>
+        <li>Name the plan, set the branch and the opening date.</li>
+        <li>List each role and how many of each.</li>
+        <li>Submit once. Every requisition is created for you.</li>
+      </ol>
+      <p>From then on, the plan shows where the whole opening stands:</p>
+      <div class="screen">Cubao (QC) opening        opens 2026-09-30 · 30 days to go
+                                    3 / 7 filled   4 to go
+████████░░░░░░░░░░░░
+
+Position         Filled  Candidates  Interviewed  Offers  State
+Store Manager    0/1     22          16           —       No offer out
+Head Chef        0/1      8           5           —       No offer out
+Line Cook        3/3      3           3           —       Filled
+Kitchen Asst     0/2      —           —           —       No candidates</div>
+      <p>When the store is fully staffed, press <span class="ui">Mark done</span>.
+        It will tell you that the openings underneath will be closed too.</p>
+      <div class="note">
+        <p><strong>This is the report.</strong> Nothing needs to be prepared for
+          management on top of this screen — it is the same screen they look at.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">This week</span>
+  <h2>What we are asking for</h2>
+
+  <div class="ask">
+    <p>Three things, in this order:</p>
+    <ul>
+      <li>
+        <strong>Decide on the 55 candidates who are waiting.</strong> The
+        <span class="ui">Plans</span> tab lists everyone interviewed more than a
+        week ago with no decision. The longest has been waiting 47 days. Manager
+        and head chef candidates first, please.
+      </li>
+      <li>
+        <strong>Close the openings that are already filled.</strong> Nineteen are
+        still marked open. Set the right number of people on the ones still
+        needed, and reset the target dates that have passed.
+      </li>
+      <li>
+        <strong>Use the outcome buttons from now on.</strong> Every interview from
+        today should end with Proceed, Hold or Not proceeding, and a reason for the
+        last two.
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>If something does not look right</h2>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr><th>What you see</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>“This candidate is already hired”</td>
+          <td>You are recording an interview outcome for someone already hired.
+              Change their status back first if the hire fell through.</td>
+        </tr>
+        <tr>
+          <td>“This opening is already filled (2 of 2)”</td>
+          <td>You are reopening a full opening. Raise <span class="ui">How many
+              people</span> at the same time to reopen it.</td>
+        </tr>
+        <tr>
+          <td>“N skipped — already in the pipeline”</td>
+          <td>Those names were already added for that opening, so they were not
+              duplicated. Nothing is lost.</td>
+        </tr>
+        <tr>
+          <td>A candidate shows no star rating</td>
+          <td>Normal. Stars only appear when someone fills in the full scored
+              evaluation. A three-tap outcome does not give a score, and that is
+              not the same as scoring them zero.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Anything else that looks wrong, or any step here that does not match what is
+    on your screen — tell us. Do not work around it. Every problem described at
+    the top of this page was found by looking at the data, not by anyone
+    complaining, and we would rather hear about the next one sooner.</p>
+</section>
+
+<footer>
+  Sushi ZEN Workforce OS · Recruitment · This guide describes the page as
+  deployed on 31 August 2026.
+</footer>
+
+</div>

@@ -53,6 +53,7 @@
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
+| Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 
 **Republish 手順:**
 ```
@@ -100,6 +101,13 @@
    - file_path: docs/manuals/emergency-reporting.html
    - url: https://claude.ai/code/artifact/9b1b9346-202a-4c94-9dd3-2ad3f39cd702   ← Emergency Reporting（スタッフ向け）
    - favicon: 🚨
+
+   - file_path: docs/manuals/recruitment-guide.html
+   - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（HRスタッフ向け）
+   - favicon: 🧭
+   ※ 英語。読者はマニラのHRスタッフ・HRマネージャー。
+     「入力が増えるのではなく減る」という論旨が定着の条件なので、
+     機能追加として書き直さないこと。HR Manual とは役割が別。
    ※ これだけ英語・スマホ1画面スクロール。読者が店舗スタッフで、
      緊急時に端末で読むため。他マニュアル（日本語・サイドバー式）と体裁を揃えないこと。
 ```
