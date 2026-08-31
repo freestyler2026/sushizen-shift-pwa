@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, RefreshCw, Save } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
@@ -245,7 +245,7 @@ export default function ManagementAssignmentsPage() {
         body: JSON.stringify({ city, page_key: pageKey, staff_name: staffName }),
       });
       if (!res.ok) throw new Error((await res.text()).slice(0, 200) || `Save failed (${res.status})`);
-      setSaved(staffName ? `${staffName} をこのページの担当にしました` : "担当を外しました");
+      setSaved(staffName ? `${staffName} now owns this page` : "Owner cleared");
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -279,6 +279,33 @@ export default function ManagementAssignmentsPage() {
 
   const unowned = rows.filter((r) => !r.owner);
   const unownedOpen = unowned.reduce((n, r) => n + r.open_count, 0);
+
+  // An owner who is not on this city's ACTIVE roster still owns the type. The
+  // dropdown was built from the roster alone, so those names had no option to
+  // select and every one of them rendered as "no owner" -- the table said
+  // nobody while the record said Yuri Yamada (Dubai) and Camille Santos (not on
+  // any roster). Carry them into the options so the screen shows what is stored.
+  const offRoster = useMemo(() => {
+    const onRoster = new Set(staff);
+    const assigned = new Set<string>();
+    rows.forEach((r) => { if (r.owner) assigned.add(r.owner); });
+    boPages.forEach((p) => { if (p.owner) assigned.add(p.owner); });
+    return [...assigned].filter((n) => !onRoster.has(n)).sort();
+  }, [rows, boPages, staff]);
+
+  const cityLabel = city === "dubai" ? "Dubai" : "Manila";
+
+  const ownerOptions = (current: string) => {
+    const onRoster = new Set(staff);
+    const extras = [...new Set(
+      current && !onRoster.has(current) ? [...offRoster, current] : offRoster
+    )];
+    return [
+      { value: "", label: "— no owner —" },
+      ...staff.map((n) => ({ value: n, label: n })),
+      ...extras.map((n) => ({ value: n, label: `${n} — not on the ${cityLabel} roster` })),
+    ];
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -342,35 +369,32 @@ export default function ManagementAssignmentsPage() {
           <div key={p.key} className={`${GLASS_CARD} flex flex-wrap items-center gap-3 px-4 py-3`}>
             <div className="min-w-[200px]">
               <div className="text-sm font-semibold text-white">{p.label}</div>
-              <div className={T_CAPTION}>{p.slot} · {p.types.length} 種別</div>
+              <div className={T_CAPTION}>{p.slot} · {p.types.length} types</div>
             </div>
             {p.open_total > 0 && (
               <div className="text-xs">
-                {p.red > 0 && <span className="text-red-300">赤 {p.red}</span>}
+                {p.red > 0 && <span className="text-red-300">{p.red} red</span>}
                 {p.red > 0 && p.yellow > 0 && <span className="text-zinc-600"> · </span>}
-                {p.yellow > 0 && <span className="text-amber-300">黄 {p.yellow}</span>}
+                {p.yellow > 0 && <span className="text-amber-300">{p.yellow} yellow</span>}
               </div>
             )}
             {p.owner_conflict.length > 0 && (
-              <div className="text-xs text-amber-300">分割: {p.owner_conflict.join(" / ")}</div>
+              <div className="text-xs text-amber-300">Split: {p.owner_conflict.join(" / ")}</div>
             )}
             <div className="ml-auto min-w-[220px]">
               <SelectDark
                 value={p.owner}
                 onChange={(v) => void savePageOwner(p.key, v)}
-                options={[
-                  { value: "", label: "— no owner —" },
-                  ...staff.map((n) => ({ value: n, label: n })),
-                ]}
+                options={ownerOptions(p.owner)}
               />
             </div>
           </div>
         ))}
-        {boPages.length === 0 && <div className={T_CAPTION}>読み込み中…</div>}
+        {boPages.length === 0 && <div className={T_CAPTION}>Loading…</div>}
       </div>
 
       <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-white/70">
-        種別ごとの上書き
+        Per-type overrides
       </h2>
       <div className={`${GLASS_CARD} overflow-hidden p-0`}>
         <div className="overflow-x-auto">
@@ -421,10 +445,7 @@ export default function ManagementAssignmentsPage() {
                     <SelectDark
                       value={r.owner}
                       onChange={(v) => setOwner(r.exception_type, v)}
-                      options={[
-                        { value: "", label: "— no owner —" },
-                        ...staff.map((n) => ({ value: n, label: n })),
-                      ]}
+                      options={ownerOptions(r.owner)}
                     />
                   </td>
                 </tr>
