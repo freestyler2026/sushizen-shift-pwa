@@ -53,6 +53,7 @@ type OnboardingItem = {
   notes: string;
   submitted_at: string;
   verified_by: string;
+  legally_required?: boolean;
 };
 
 type OnboardingRecord = {
@@ -67,6 +68,10 @@ type OnboardingRecord = {
   total_items: number;
   submitted_count: number;
   verified_count: number;
+  legal_total?: number;
+  legal_verified?: number;
+  legal_outstanding?: number;
+  days_since_start?: number | null;
   pending_count: number;
   created_at: string;
   items?: OnboardingItem[];
@@ -161,6 +166,30 @@ function ItemRow({
     draft.notes !== item.notes ||
     draft.verified_by !== item.verified_by;
 
+  const handleVerify = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      // verified_by is filled in by the server from the session.
+      const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/items/${item.id}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(getAuth()),
+        body: JSON.stringify({ status: "verified" }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const who = data?.verified_by || draft.verified_by;
+      setDraft((prev) => ({ ...prev, status: "verified", verified_by: who }));
+      onUpdated({ ...item, status: "verified", verified_by: who });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setErr("");
@@ -203,7 +232,14 @@ function ItemRow({
         <div className="mt-0.5">{statusIcon(draft.status)}</div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className={itemLabelClass(draft.status)}>{item.item_label}</span>
+            <span className={itemLabelClass(draft.status)}>
+              {item.item_label}
+              {item.legally_required && (
+                <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300 ring-1 ring-amber-500/30">
+                  required by law
+                </span>
+              )}
+            </span>
             <SelectDark
               value={draft.status}
               onChange={(v) =>
@@ -260,6 +296,19 @@ function ItemRow({
 
           <div className="mt-2 flex items-center justify-end gap-2">
             {saved && <span className="text-xs text-emerald-400">Saved</span>}
+            {draft.status !== "verified" && (
+              // Sixteen rows per person, five fields each, and Verified By had
+              // to be typed on every one. Five of nine people have nothing
+              // recorded weeks after starting. The common case is one tap now;
+              // the fields stay for when the reference number matters.
+              <button
+                onClick={() => void handleVerify()}
+                disabled={saving}
+                className={`${SMALL_BUTTON} text-emerald-300`}
+              >
+                Mark verified
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={saving || !isDirty}
@@ -710,7 +759,26 @@ function RecordCard({
         {record.position || "—"}
         {record.branch ? ` · ${record.branch}` : ""}
       </p>
-      <p className={`${T_CAPTION} mt-0.5`}>Start: {record.start_date || "—"}</p>
+      <p className={`${T_CAPTION} mt-0.5`}>
+        Start: {record.start_date || "—"}
+        {typeof record.days_since_start === "number" && (
+          <span className={record.days_since_start > 30 ? " text-amber-300" : ""}>
+            {" "}· {record.days_since_start} days ago
+          </span>
+        )}
+      </p>
+
+      {/* The three the law is behind, counted on their own. Verified for one of
+          nine people, while five have been on the line for over a month. */}
+      {(record.legal_outstanding ?? 0) > 0 && (
+        <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-300">
+          {record.legal_outstanding} of {record.legal_total} required by law still
+          missing
+          <span className="block font-normal text-amber-200/70">
+            NBI Clearance · Health Certificate · Food Handler
+          </span>
+        </p>
+      )}
 
       <div className={DIVIDER} style={{ margin: "0.75rem 0" }} />
 

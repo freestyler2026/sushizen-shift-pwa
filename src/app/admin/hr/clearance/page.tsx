@@ -147,6 +147,96 @@ function fmtDate(iso: string | null) {
  *  data and none of them were on the screen -- the list was ordered by when the
  *  case was typed, so the oldest was not even at the top.
  */
+type OffboardingCheck = {
+  missing_offboarding: { employee_name: string; clearance_type: string; clearance_last_day: string }[];
+  missing_count: number;
+  type_disagreements: { employee_name: string; clearance_type: string; offboarding_type: string }[];
+  disagreement_count: number;
+  possible_duplicates: { names: string[]; types: string[]; last_working_days: string[]; n: number }[];
+  duplicate_count: number;
+};
+
+/** Where the two registers of one departure disagree.
+ *
+ *  Nine cases exist here and one has a matching offboarding record — and that
+ *  one calls it termination while offboarding calls it contract_end. Those mean
+ *  different things. Shown, never reconciled: an offboarding record is what the
+ *  nightly sweep reads to take away roles and logins, and that is not a
+ *  decision to make from a name match.
+ */
+function OffboardingCheckPanel({ city }: { city: string }) {
+  const [data, setData] = useState<OffboardingCheck | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/admin/hr/clearance/offboarding-check?city=${encodeURIComponent(city)}`, {
+      headers: getAuthHeaders(getAuth()),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setData(d))
+      .catch(() => {});
+  }, [city]);
+
+  if (!data) return null;
+  const total = data.missing_count + data.disagreement_count + data.duplicate_count;
+  if (total === 0) return null;
+
+  return (
+    <div className={`${GLASS_CARD} space-y-3 border-amber-500/25`}>
+      <p className="text-sm font-semibold text-amber-300">
+        The clearance list and the offboarding list do not agree
+      </p>
+
+      {data.disagreement_count > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-300/80">
+            Different reason on each screen
+          </p>
+          {data.type_disagreements.map((r) => (
+            <p key={r.employee_name} className="mt-1 text-sm text-white">
+              {r.employee_name}
+              <span className="text-white/50">
+                {" "}— clearance says <span className="text-amber-200">{r.clearance_type}</span>,
+                offboarding says <span className="text-amber-200">{r.offboarding_type}</span>
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {data.duplicate_count > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-300/80">
+            Possibly the same person, twice
+          </p>
+          {data.possible_duplicates.map((r) => (
+            <p key={r.names.join("|")} className="mt-1 text-sm text-white">
+              {r.names.join("  /  ")}
+              <span className="text-white/50"> — {r.last_working_days.join(", ")}</span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {data.missing_count > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-300/80">
+            No offboarding record ({data.missing_count})
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-white/70">
+            {data.missing_offboarding.map((r) => r.employee_name).join(", ")}
+          </p>
+        </div>
+      )}
+
+      <p className={T_CAPTION}>
+        Nothing here is corrected automatically. An offboarding record is what
+        removes someone&apos;s roles and login overnight, so it is raised by a
+        person on the Offboarding page, not by matching names.
+      </p>
+    </div>
+  );
+}
+
 function OutstandingSummary({ cases }: { cases: ClearanceCase[] }) {
   const active = cases.filter((c) => c.status === "active");
   if (active.length === 0) return null;
@@ -1179,6 +1269,7 @@ export default function HrClearancePage() {
         ) : (
           <div className="space-y-3">
             <OutstandingSummary cases={cases} />
+            <OffboardingCheckPanel city={cityFilter || "manila"} />
             {cases.map(c => (
               <CaseCard
                 key={c.id}
