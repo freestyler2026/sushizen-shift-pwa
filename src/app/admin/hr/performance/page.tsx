@@ -508,6 +508,12 @@ export default function HRPerformancePage() {
   const [prefillType, setPrefillType] = useState<ReviewType | "">("");
   const [prefillScheduleId, setPrefillScheduleId] = useState("");
   const [decideItem, setDecideItem] = useState<ScheduleItem | null>(null);
+  // Who is no longer employed. Three of the overdue rows are for people who have
+  // left or were never on the roster; leaving them in the list makes the backlog
+  // look bigger than it is, and a list that overstates gets ignored.
+  const [notEmployed, setNotEmployed] = useState<
+    { id: string; staff_name: string }[]
+  >([]);
   const [savingDecision, setSavingDecision] = useState(false);
   const [outcomeMap, setOutcomeMap] = useState<Record<string, ReviewOutcome[]>>({});
   const [reasonList, setReasonList] = useState<ReviewReason[]>([]);
@@ -577,6 +583,15 @@ export default function HRPerformancePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSchedule(Array.isArray(data?.schedule) ? data.schedule : Array.isArray(data) ? data : []);
+      try {
+        const ov = await fetch(`${API_BASE}/api/admin/hr/reviews/overdue?city=manila`, {
+          headers: getAuthHeaders(a), cache: "no-store",
+        });
+        if (ov.ok) {
+          const d = await ov.json();
+          setNotEmployed(Array.isArray(d?.not_employed) ? d.not_employed : []);
+        }
+      } catch { /* the list still works, it just includes the leavers */ }
     } catch (e) {
       setScheduleError(e instanceof Error ? e.message : "Failed to load schedule");
     } finally {
@@ -789,9 +804,16 @@ export default function HRPerformancePage() {
   }
 
   // ── Alert summary counts ──
-  const overdueCount = schedule.filter((s) => s.alert_level === "OVERDUE").length;
-  const urgentCount = schedule.filter((s) => s.alert_level === "URGENT").length;
-  const soonCount = schedule.filter((s) => s.alert_level === "SOON").length;
+  // The reviews that are actually somebody's to do. Rows for people who have
+  // left stay out of the count and are named separately, so the backlog is the
+  // real number rather than one padded with names nobody can act on.
+  const notEmployedIds = new Set(notEmployed.map((n) => n.id));
+  const actionable = schedule.filter((s) => !notEmployedIds.has(s.id));
+  const hiddenLeavers = schedule.filter((s) => notEmployedIds.has(s.id));
+
+  const overdueCount = actionable.filter((s) => s.alert_level === "OVERDUE").length;
+  const urgentCount = actionable.filter((s) => s.alert_level === "URGENT").length;
+  const soonCount = actionable.filter((s) => s.alert_level === "SOON").length;
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6">
@@ -841,7 +863,7 @@ export default function HRPerformancePage() {
           </div>
 
           {/* Alert summary badges */}
-          {schedule.length > 0 && (
+          {actionable.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <span className={alertBadgeClass("OVERDUE")}>
                 <AlertCircle className="mr-1 h-3 w-3" />
@@ -872,7 +894,17 @@ export default function HRPerformancePage() {
           )}
 
           {/* Cards */}
-          {!scheduleLoading && schedule.length === 0 && !scheduleError && (
+          {hiddenLeavers.length > 0 && (
+            <p className={`${T_CAPTION} rounded-lg bg-white/5 px-3 py-2`}>
+              {hiddenLeavers.length} more {hiddenLeavers.length === 1 ? "review is" : "reviews are"} scheduled for
+              people who are no longer on the roster
+              {" "}({[...new Set(hiddenLeavers.map((h) => h.staff_name))].join(", ")}).
+              They are left out of the counts above — close their record on the
+              Staff page if they really have left.
+            </p>
+          )}
+
+          {!scheduleLoading && actionable.length === 0 && !scheduleError && (
             <div className={`${GLASS_CARD} px-6 py-10 text-center`}>
               <Star className="mx-auto mb-3 h-8 w-8 text-neutral-600" />
               <p className={T_BODY}>No upcoming reviews in the next {daysAhead} days.</p>
@@ -880,7 +912,7 @@ export default function HRPerformancePage() {
           )}
 
           <div className="space-y-3">
-            {schedule.map((item) => (
+            {actionable.map((item) => (
               <div key={item.id} className={`${GLASS_CARD} p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
