@@ -1,6 +1,95 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」判定 ＋ マニラ日次売上の欠損検知）
+Last updated: 2026-09-02（BO Dashboard 監査 ＋ コスト警告の埋没を修正）
+
+---
+
+## ✅ BO Dashboard: コスト警告が誰にも届かないまま捨てられていた（2026-09-02・修正済み）
+
+**マニラ全277件を実データで監査した結果。ドバイはこのページを使っていないため対象外。**
+
+### 一番重い事実
+
+`CLOSED 204` のうち **返信を経たものは0件**。closed_by は `system (historical backfill)` 99 /
+`cleanup-2026-08-29` 82 / `auto-expired` 13 / `auto-resolved` 10 で、**人間が閉じたものは0**。
+open → sent → responded → closed の一巡は**一度も完了していない**。
+
+その 82件の一括クローズに、**全社Redのコスト警告2件**（`kpi_prime_cost_critical` /
+`kpi_food_cost_critical`、2026-08-21生成・`sent_at = null`）が混ざっていた。
+種別の内訳は `product_score_c` 176件（64%）に対しコスト系は0.7%。**ノイズに埋もれて一緒に掃かれた。**
+
+### 原因は3つあり、全部直した
+
+| # | 原因 | 修正 |
+|---|---|---|
+| 1 | **誰も呼んでいなかった** — `push_kpi_alerts_to_management_tasks` は `/admin/mgmt-accounting` のボタン専用。結果を読む画面と起動する画面が別で、全社で2件しか存在しなかった | `run_mgmt_kpi_alerts`（worker・毎日 23:00 UTC ＝ マニラ07:00）。10日までは前月も対象 |
+| 2 | **期限切れで消えた** — `expire_stale_management_tasks` は未送信7日超を無条件クローズ | `MGMT_NEVER_EXPIRE_PREFIXES`（既定 `kpi_`）で除外。7日超の未送信は毎回 `STILL UNSENT` としてログに出す |
+| 3 | **閉じられると再生成が止まる仕様だった** | dedup を「受信箱にある」「誰かに送信済み」だけスキップに変更。**未送信のまま閉じられたものは復活する** |
+
+**除外の線引きは severity ではなく「タスクの性質」。** 「19日の廃棄記録を出せ」は1週間後には無意味なので
+期限切れが正しく、実際この掃引が消してきたのは全部その種類（red の `product_score_c` 8件を含む）。
+
+### 一覧の並び順を変更
+
+**旧: 重要度 → 新しい順**（＝一番長く待っている案件が最下部）。
+**新: コスト → 重要度 → 待ち時間が長い順。** Closedのみ新しい順（記録でありキューではないため）。
+並び順は画面に文字で表示（`Cost first, then red, then longest waiting`）。
+
+### 並び順だけでは足りなかった
+
+デプロイ後に件数が 277→278 に増えたのにリストが10件のままだったので発覚。
+**`BO_PAGES` にtypeが載っていないタスクはページフィルタに落とされ、そもそも表示されない。**
+`check_mgmt_kpi_alerts` は実行可能な警告を7種類出すのに、`operations_safety` には
+`kpi_food_cost_critical` / `kpi_prime_cost_critical` の2種類しか登録されていなかった。残り5種類を追加。
+
+**その5種類で最も鋭いもの**: `kpi_outlier_order` —
+**2026-08-18 TAFT「You Ling Zhi Sauce」PHP 74,700（500KG）**。同一品目の通常は PHP 74（0.5KG）で **1000倍**。
+承認の有無に関わらずその月のフードコストに入る。8/18からどこにも表示されていなかった。
+
+### 毎晩鳴らす前に実データで確認したこと
+
+`revenue_decline` は 9/1 時点で `days_covered=1`（1日 ₱74,292 vs 8月平均 183,367）で **「-59.5%」と鳴っていた**。
+日数で割って比較しても1日は1ヶ月と比較できない。平均以下の日は全体の約半分なので、
+そのまま毎晩動かせば教訓39の再演だった。→ **月が丸1週間そろうまで判定しない**（`MGMT_REV_TREND_MIN_DAYS`、既定7）。
+
+### 環境変数（デプロイ不要）
+
+```bash
+heroku config:set MGMT_KPI_ALERTS_ENABLED=0 -a sushizen-shift-app        # 夜間pushを止める
+heroku config:set MGMT_REV_TREND_MIN_DAYS=5 -a sushizen-shift-app        # 売上判定の下限日数
+heroku config:set MGMT_NEVER_EXPIRE_PREFIXES=kpi_ -a sushizen-shift-app  # 期限切れ除外の接頭辞
+```
+
+### ⚠️ 私が本番で起こした事故（復旧済み・教訓54）
+
+除外が効いているかを確かめるため `expire_stale_management_tasks(city, days=0)` を**本番で実行**し、
+**未送信openタスク89件（ドバイ79・マニラ10）を実際にクローズした**。
+`closed_by='auto-expired' AND closed_at > NOW() - INTERVAL '20 minutes'` で自分が触った行だけ特定して全件復旧。
+**掃引が `closed_by` に固有名を書いていなければ、正規のauto-expiredと混ざって戻せなかった。**
+
+### 未着手（ユーザー確認待ち）
+
+**B. 止まっているキューを流す** — `RESPONDED` 41件を閉じる唯一の経路が `HandlingPanel`（8項目・折りたたみ）内の
+チェックボックスで、277件中8回しか使われず**0件しか閉じていない**。1タップのCloseが要る（教訓3）。
+`SENT` 22件は全件 `missed_by_manager = TRUE`（最古13日）だが、KPIカードは「SENT (AWAITING)」としか言わない。
+
+**C. エスカレーションを生かす** — `escalate_stale_management_tasks` は `pm_backup_missing` のみ対象で、
+マニラに該当種別が無いため `escalated_at` は**全件0**。
+
+**D. 網羅性** — `Attendance & HR` はオーナー無し・タスク生成実績ゼロなのに、マネージャースコアの**20%**を占める。
+マネージャースコア CK=0 は coverage 40%（7要素中3要素）で、0点か未計測か画面から判別できない。
+
+**E. 表示** — サイドバーのバッジ79はドバイの件数（ページはマニラ固定）。
+ページチップは not-closed、リストは open で数が合わない。`mine` が0件だと黙って全件表示。
+Patterns の `Taft`/`TAFT` 分裂、id=4 の `last_seen < first_seen`。
+
+**評価の矛盾** — People の既定並びは credits（83%が `quality_high`＝写真枚数）。
+Alex Delgado は credits **5位/37** かつ Patterns で **red / NTE候補**（11.5% vs 支店中央値7.1%）。
+Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブページが同じ人物を逆に並べ、互いの判定を出さない。**
+`report_on_time` 80件は全てスタッフ名が空で、期限内報告はリーダーボードに1点も入らない。
+
+**言語** — `check_mgmt_kpi_alerts` の title/message は日本語。管理会計マニュアルが日本語なので
+オーナー向けとして意図的な可能性があり、勝手に英語化していない。BO Dashboard は英語画面なので要判断。
 
 ---
 
