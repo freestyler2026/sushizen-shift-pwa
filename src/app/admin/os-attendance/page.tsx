@@ -234,6 +234,29 @@ interface SessionRow {
   breaks: BreakRecord[];
   violations: string[];
   has_open_break: boolean;
+  /** Why a day has no punches. Absent from older responses. */
+  day_status?: string;
+  scheduled_start?: number | null;
+  scheduled_end?: number | null;
+}
+
+/** A day with no punch used to produce no row, so the dates either side sat
+    together and an absence looked like an ordinary gap in the calendar. */
+const DAY_STATUS: Record<string, { label: string; cls: string }> = {
+  absent:        { label: "absent",          cls: "bg-red-900/60 text-red-300" },
+  no_record:     { label: "no record",       cls: "bg-red-900/60 text-red-300" },
+  shift_invalid: { label: "shift invalid",   cls: "bg-red-900/60 text-red-300" },
+  no_punch:      { label: "no punch",        cls: "bg-orange-900/60 text-orange-300" },
+  rest_day:      { label: "rest day",        cls: "bg-zinc-800 text-zinc-400" },
+  paid_leave:    { label: "paid leave",      cls: "bg-sky-900/60 text-sky-300" },
+  off:           { label: "off",             cls: "bg-zinc-800 text-zinc-500" },
+};
+
+function fmtHour(h?: number | null): string {
+  if (h === null || h === undefined) return "";
+  const hh = Math.floor(h) % 24;
+  const mm = Math.round((h - Math.floor(h)) * 60);
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
 interface StaffReport {
@@ -355,6 +378,11 @@ function StaffReportTab({ city }: { city: string }) {
               { label: "Days Worked", value: String(report.summary.work_days) },
               { label: "Total Work", value: fmtMin(report.summary.total_work_min) },
               { label: "Total Break", value: fmtMin(report.summary.total_break_min) },
+              // The count that matters before payroll: days the person was
+              // rostered and did not punch. It used to be invisible.
+              { label: "No Punch", value: String(
+                  report.sessions.filter((x) => x.day_status && x.day_status !== "worked"
+                    && x.day_status !== "rest_day" && x.day_status !== "off").length) },
             ].map(({ label, value }) => (
               <div key={label} className={`${GLASS_CARD} p-4 text-center`}>
                 <div className="text-xl font-bold text-white">{value}</div>
@@ -383,7 +411,11 @@ function StaffReportTab({ city }: { city: string }) {
               <tbody>
                 {report.sessions.map((s, i) => {
                   const hasViolation = s.violations.length > 0;
-                  const rowBg = hasViolation ? "bg-red-950/20" : i % 2 === 0 ? "bg-zinc-900/30" : "";
+                  const st = s.day_status && s.day_status !== "worked" ? DAY_STATUS[s.day_status] : undefined;
+                  const needsAttention = s.day_status === "absent" || s.day_status === "no_record"
+                    || s.day_status === "shift_invalid";
+                  const rowBg = hasViolation || needsAttention
+                    ? "bg-red-950/20" : i % 2 === 0 ? "bg-zinc-900/30" : "";
                   const firstBreak = s.breaks[0] ?? null;
                   return (
                     <tr key={s.work_date} className={`border-b border-white/5 ${rowBg}`}>
@@ -403,6 +435,16 @@ function StaffReportTab({ city }: { city: string }) {
                       </td>
                       <td className="py-2.5 pr-3 tabular-nums text-white font-semibold">{fmtMin(s.net_work_min)}</td>
                       <td className="py-2.5">
+                        {st && (
+                          <span
+                            className={`inline-block mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`}
+                            title={s.scheduled_start != null
+                              ? `Scheduled ${fmtHour(s.scheduled_start)}–${fmtHour(s.scheduled_end)}`
+                              : "No shift published"}
+                          >
+                            {st.label}
+                          </span>
+                        )}
                         {s.violations.map((v, vi) => (
                           <span key={vi} className={`inline-block mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                             v.includes("overrun") ? "bg-red-900/60 text-red-300" :
