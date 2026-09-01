@@ -71,8 +71,7 @@ heroku config:set MGMT_NEVER_EXPIRE_PREFIXES=kpi_ -a sushizen-shift-app  # 期�
 
 **B. 止まっているキューを流す — 2026-09-02 実装済み（下の節を参照）**
 
-**C. エスカレーションを生かす** — `escalate_stale_management_tasks` は `pm_backup_missing` のみ対象で、
-マニラに該当種別が無いため `escalated_at` は**全件0**。
+**C. エスカレーションを生かす — 2026-09-02 実装済み（下の節を参照）**
 
 **D. 網羅性** — `Attendance & HR` はオーナー無し・タスク生成実績ゼロなのに、マネージャースコアの**20%**を占める。
 マネージャースコア CK=0 は coverage 40%（7要素中3要素）で、0点か未計測か画面から判別できない。
@@ -86,6 +85,82 @@ Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブ�
 
 **言語** — `check_mgmt_kpi_alerts` の title/message は日本語。管理会計マニュアルが日本語なので
 オーナー向けとして意図的な可能性があり、勝手に英語化していない。BO Dashboard は英語画面なので要判断。
+
+---
+
+## ✅ BO Dashboard C: エスカレーションを作業画面に出した（2026-09-02・実装済み）
+
+### ⚠️ 先に訂正 — 私の当初の指摘は2点間違っていた
+
+**① 「エスカレーションは一度も発火していない」は誤り。**
+24時間エスカレーションは **Waiting for Someone で正常に動いていた**（`_provider_management_unanswered`）。
+実際に6件が Yusuke さん宛で載っている。正しくは
+「**`escalated_at` が立たないので、作業画面（BO Dashboard）と Area Review には出ていなかった**」。
+
+**② 「SENT 最古13日」は `created_at` の値で、`sent_at` では約79時間（3.3日）。**
+送信済みで7日を超えているものは0件。
+
+### 実際の問題: 同じ事実について3画面が別のことを言っていた
+
+| 画面 | 表示 |
+|---|---|
+| Waiting for Someone | **6件**（Yusuke さん宛・正常） |
+| BO Dashboard の Escalated バッジ | **0件** |
+| Area Manager Review の escalated 列 | **0件** |
+
+`escalate_stale_management_tasks` は `pm_backup_missing`（30分）にしか `escalated_at` を立てず、
+マニラにこの種別は存在しない。**作業をする画面だけが、上に上がったことを知らない状態**だった。
+
+配信マニュアルはエリアマネージャーに
+「**未回答を探し回る必要はない — 24時間で自動的に上がってきます**」と約束している。
+その約束は Waiting 側では果たされていたが、BOスタッフ側からは何も見えていなかった。
+
+### 実装
+
+- `escalate_stale_management_tasks` に**24時間ルール**を追加（送信済み・未回答・**宛先が入っている**もののみ）
+- **Waiting for Someone と完全に同じ条件**を使う。だから両画面が必ず同じ件数になる
+- `MGMT_ESCALATE_MINUTES` と `MGMT_ESCALATION_CHAIN` を **`db.py` に1本化**し、`waiting_api` が import。
+  期限を2箇所に手で書くと必ずずれる（教訓32）
+- **severity は塗り替えない。** red は検知時点の「今すぐ対応」の意味。古くなったことも red にすると
+  色の意味が2つになり、並び順の意味が消える。バッジが信号
+- 宛先が空のタスクは対象外 — 誰にも渡していないものは「マネージャーが無視した」ではなく、
+  エリアマネージャーの画面にBOの積み残しを載せることになる
+- バッジに**宛先を表示**（`Escalated → Yusuke Uejima`）。「どこかで何かが起きた」ではなく「今これは誰のものか」
+
+```bash
+heroku config:set MGMT_ESCALATE_MINUTES=720 -a sushizen-shift-app   # 12時間に変更
+heroku config:set MGMT_ESCALATION_CHAIN="Yusuke Uejima,Ayako Nishimura" -a sushizen-shift-app
+```
+
+### 本番での検証
+
+デプロイ後、**worker が自動で実行して6件を立てた**（私が手で叩く前に済んでいた）。
+
+```
+共有定義: db 1440分 / waiting 1440分 → SAME
+chain: ('Yusuke Uejima', 'Ayako Nishimura')
+  担当が Yusuke さん本人のとき → Ayako さん（正しく1人ずらす）
+escalated 6件: 全て TAFT / product_score_c / Francis Ibana / 79h / → Yusuke Uejima
+severity 変化なし（red は元から red の1件のみ）
+2回目の実行: escalated=0（冪等）
+BO Dashboard 6 = Waiting 6 ✅
+```
+
+### Area Review が0なのは仕様どおり（バグではない）
+
+Area Review は `created_at` で週を切る。該当6件は **8/19作成・8/29送信**、現在の週は 8/31開始。
+つまり「今週のエスカレーション0件」は正しい。
+
+⚠️ ただし**設計上の論点は残る**: 別の週に作られたタスクが今週エスカレーションされても、
+どの週の Area Review にも「エスカレーション」として現れない（作成週に集計されるため）。
+週次スコアの集計軸を変えると過去のマネージャー評価が動くので、**勝手には変えていない**（教訓37）。
+
+### 運用上の発見
+
+**エスカレーション6件は全て TAFT・Francis Ibana・同一種別。**
+しかも **8/19作成 → 8/29送信（10日）→ さらに79時間未回答**。
+配信マニュアル自身が「**ここに毎日同じ店舗が並ぶなら、当番表か本文のどちらかが実態に合っていません**」
+と書いており、その診断が実際に当たっている。Francis Ibana は `repeat_false_claim` パターンの対象でもある。
 
 ---
 

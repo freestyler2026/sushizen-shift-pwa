@@ -2225,6 +2225,27 @@ ul.body-list strong { color: var(--text); }
         This also applies to the 82 tasks bulk-closed as <code>cleanup-2026-08-29</code>: their rows read "Closed by cleanup-2026-08-29 · Reopen", so anything swept away by mistake can be brought back one row at a time.</span>
     </div>
 
+    <div class="tip" style="margin-bottom:10px;">
+      <span class="tip-icon">⬆️</span>
+      <span class="ja"><b>24時間 未回答のタスクに <code>Escalated → 宛先</code> バッジが出るようになった（2026-09-02）。</b>
+        24時間エスカレーション自体は以前から <b>Waiting for Someone では動いていた</b>（Yusuke さん宛、
+        Yusuke さんご本人が担当だった場合は Ayako さん）。しかし <code>escalated_at</code> が立つのは
+        <code>pm_backup_missing</code>（30分）だけで、<b>マニラにこの種別は存在しない</b>。
+        結果、<b>Waiting は6件と言い、作業画面である BO Dashboard と Area Review は0件と言っていた</b>。
+        同じ事実について3画面が別のことを言っている状態だった。<br>
+        現在は <b>Waiting for Someone と完全に同じ条件</b>（送信済み・未回答・宛先あり・24時間）で
+        バッジが出るので、両画面の件数は必ず一致する。期限と宛先チェーンは <code>db.py</code> に1本化されている。<br>
+        <b>severity（🔴🟠）は塗り替えない。</b> 赤は「今すぐ対応」の意味であって「古い」ではない。
+        両方を赤にすると色の意味が2つになり、並び順の意味が失われる。<br>
+        <b>宛先の入っていないタスクは上げない。</b> 誰にも渡していないものは「マネージャーが無視した」ではなく、
+        エリアマネージャーの画面にBOの積み残しを載せることになる。</span>
+      <span class="en"><b>Tasks unanswered for 24 hours now carry an <code>Escalated → name</code> badge (2026-09-02).</b>
+        The 24-hour escalation itself already worked on Waiting for Someone (addressed to Yusuke, or Ayako when Yusuke was the owner). But <code>escalated_at</code> was only ever set for <code>pm_backup_missing</code>, an exception type Manila does not have — so Waiting said six while the BO Dashboard and the Area Manager Review, the screens where the work happens, said zero. Three screens, one fact, two of them wrong.<br>
+        The badge now uses exactly the condition Waiting lists on (sent, unanswered, addressed to a named manager, 24 hours), so the two counts always agree. The deadline and the escalation chain live in one place in <code>db.py</code>.<br>
+        <b>Severity is not repainted.</b> Red means "act now", not "this got old"; making it mean both would cost the ordering its point.<br>
+        <b>Tasks with no addressee are not escalated</b> — an instruction nobody was given was not ignored by a manager, and escalating it would put the back office's own backlog on the area manager's page.</span>
+    </div>
+
     <div class="tip warn" style="margin-bottom:10px;">
       <span class="tip-icon">⚠️</span>
       <span class="ja"><b>店舗の申告と記録が食い違っている場合は、ボタンの上に警告が出る。</b>
