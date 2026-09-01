@@ -5,6 +5,17 @@ import { expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../../setup";
 
+/** Add a blank line to type into.
+ *
+ *  The form used to open with one empty row. Items are picked from a search
+ *  now, and a free-text line has to be asked for -- so there is no "Type item
+ *  name…" box on the page until you press "+ Add manually". */
+function addManualLine() {
+  fireEvent.click(screen.getByText("+ Add manually"));
+  return screen.getByPlaceholderText("Type item name…");
+}
+
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 vi.mock("next/link", () => ({
@@ -151,7 +162,7 @@ describe("/admin/disposal — page structure", () => {
   it("renders city selector with Dubai and Manila options", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
-    const citySelect = screen.getByDisplayValue("Dubai");
+    const citySelect = expectSelectShowing("Dubai");
     expect(citySelect).toBeInTheDocument();
   });
 
@@ -178,7 +189,7 @@ describe("/admin/disposal — page structure", () => {
   it("reporter field pre-filled with auth staff name", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
-    expect(expectSelectShowing("Admin User")).toBeTruthy();
+    expect(screen.getByDisplayValue("Admin User")).toBeInTheDocument();
   });
 });
 
@@ -188,12 +199,13 @@ describe("/admin/disposal — initial line state", () => {
     defaultFetchMocks();
   });
 
-  it("starts with one empty line", async () => {
+  it("starts with no lines at all", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
-    // One line means one Qty input
-    const qtyInputs = screen.getAllByPlaceholderText("Qty");
-    expect(qtyInputs.length).toBe(1);
+    // The form used to open with one empty row. Items are searched for now, so
+    // it opens empty and says so.
+    expect(screen.queryByPlaceholderText("Qty")).not.toBeInTheDocument();
+    expect(screen.getByText("Search above to add items")).toBeInTheDocument();
   });
 
   it("shows '+ Add manually' button adds another line", async () => {
@@ -201,14 +213,14 @@ describe("/admin/disposal — initial line state", () => {
     await waitFor(() => screen.getByText("+ Add manually"));
     fireEvent.click(screen.getByText("+ Add manually"));
     await waitFor(() => {
-      const qtyInputs = screen.getAllByPlaceholderText("Qty");
-      expect(qtyInputs.length).toBe(2);
+      expect(screen.getAllByPlaceholderText("Qty").length).toBe(1);
     });
   });
 
   it("remove button (✕) removes a line", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
+    addManualLine();
     const removeBtn = screen.getByText("✕");
     fireEvent.click(removeBtn);
     await waitFor(() =>
@@ -245,7 +257,7 @@ describe("/admin/disposal — form validation", () => {
     fireEvent.change(reporterInput, { target: { value: "" } });
 
     // Type an item name so line is valid
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Salmon" } });
 
     fireEvent.click(screen.getByText("Submit Disposal Report"));
@@ -273,7 +285,7 @@ describe("/admin/disposal — form submission", () => {
     await waitFor(() => screen.getByText("Disposal Report"));
 
     // Fill item name and quantity
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Salmon" } });
     const qtyInput = screen.getByPlaceholderText("Qty");
     fireEvent.change(qtyInput, { target: { value: "5" } });
@@ -294,7 +306,7 @@ describe("/admin/disposal — form submission", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
 
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Tuna" } });
     const qtyInput = screen.getByPlaceholderText("Qty");
     fireEvent.change(qtyInput, { target: { value: "3" } });
@@ -317,7 +329,7 @@ describe("/admin/disposal — form submission", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
 
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Rice" } });
     const qtyInput = screen.getByPlaceholderText("Qty");
     fireEvent.change(qtyInput, { target: { value: "2" } });
@@ -340,7 +352,7 @@ describe("/admin/disposal — form submission", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
 
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Nori" } });
     const qtyInput = screen.getByPlaceholderText("Qty");
     fireEvent.change(qtyInput, { target: { value: "10" } });
@@ -365,7 +377,7 @@ describe("/admin/disposal — clear button", () => {
     // Add a line to make it non-empty
     fireEvent.click(screen.getByText("+ Add manually"));
     await waitFor(() =>
-      expect(screen.getAllByPlaceholderText("Qty").length).toBe(2)
+      expect(screen.getAllByPlaceholderText("Qty").length).toBe(1)
     );
     fireEvent.click(screen.getByText("Clear"));
     await waitFor(() =>
@@ -383,7 +395,7 @@ describe("/admin/disposal — clear button", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
 
-    const itemInput = screen.getByPlaceholderText("Type item name…");
+    const itemInput = addManualLine();
     fireEvent.change(itemInput, { target: { value: "Wasabi" } });
     fireEvent.change(screen.getByPlaceholderText("Qty"), { target: { value: "1" } });
     fireEvent.click(screen.getByText("Submit Disposal Report"));

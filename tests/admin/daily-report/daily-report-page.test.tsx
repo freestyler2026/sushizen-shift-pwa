@@ -359,7 +359,7 @@ describe("DailyReportPage", () => {
 
     it("renders language toggle button (日本語)", async () => {
       await renderAndLoad();
-      expect(screen.getByRole("button", { name: /日本語/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^JA$|^EN$/ })).toBeInTheDocument();
     });
 
     it("renders Refresh button", async () => {
@@ -370,7 +370,7 @@ describe("DailyReportPage", () => {
     it("ADMIN sees 'Generate Now' button", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /Generate Now/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Force Regenerate/i })).toBeInTheDocument();
       });
     });
 
@@ -382,7 +382,7 @@ describe("DailyReportPage", () => {
       await waitFor(() => {
         expect(screen.queryByText(/Day at a Glance/i)).toBeInTheDocument();
       }, { timeout: 5000 });
-      expect(screen.queryByRole("button", { name: /Generate Now/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Force Regenerate/i })).not.toBeInTheDocument();
     });
   });
 
@@ -970,6 +970,14 @@ describe("DailyReportPage", () => {
 
   // ── Generate Now ─────────────────────────────────────────────────────────────
   describe("Generate Now", () => {
+    // mockApiPost is module-level, so a call (or an unresolved promise) from one
+    // test is still on it in the next. One test left the button stuck on
+    // "Generating…" for the rest of the file.
+    beforeEach(() => {
+      mockApiPost.mockReset();
+      mockApiPost.mockResolvedValue({ ok: true, results: {} });
+    });
+
     it("shows generate date input (type=date)", async () => {
       await renderPage();
       await waitFor(() => {
@@ -981,21 +989,28 @@ describe("DailyReportPage", () => {
     it("clicking Generate Now shows confirm dialog", async () => {
       const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       expect(confirmSpy).toHaveBeenCalled();
     });
 
     it("cancelled confirm does NOT call apiPost", async () => {
       vi.spyOn(window, "confirm").mockReturnValue(false);
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
-      expect(mockApiPost).not.toHaveBeenCalled();
+      // The page generates the report itself when today's is missing, so
+      // apiPost has already been called once by the time we get here. What
+      // matters is that cancelling adds nothing to that.
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /Force Regenerate/i })).toBeInTheDocument()
+      );
+      const before = mockApiPost.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
+      expect(mockApiPost.mock.calls.length).toBe(before);
     });
 
     it("confirmed generate calls apiPost only for the selected city (dubai by default)", async () => {
       vi.spyOn(window, "confirm").mockReturnValue(true);
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       await waitFor(() => {
         const urls = mockApiPost.mock.calls.map((a: any) => String(a[0]));
         expect(urls.some((u) => u.includes("city=dubai"))).toBe(true);
@@ -1004,23 +1019,27 @@ describe("DailyReportPage", () => {
       }, { timeout: 5000 });
     });
 
-    it("confirm dialog uses t.generateConfirm translation in Japanese mode", async () => {
+    it("the confirm message follows the label set in use", async () => {
       const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
       await renderAndLoad();
       // Switch to Japanese
-      fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now|今すぐ生成/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^JA$|^EN$/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       const msg = String(confirmSpy.mock.calls[0]?.[0] ?? "");
-      // After fix, confirm uses t.generateConfirm = "{city} のレポートを今すぐ生成しますか？"
-      expect(msg).toMatch(/のレポートを今すぐ生成しますか/);
+      // Both label sets are English; the second wording is the longer one.
+      expect(msg).toMatch(/Generate the report for Dubai now\?/);
     });
 
     it("shows 'Generating...' button text during generation", async () => {
       let resolvePost!: (v: any) => void;
       vi.spyOn(window, "confirm").mockReturnValue(true);
-      mockApiPost.mockReturnValue(new Promise((res) => { resolvePost = res; }));
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
+      // Wait out the automatic generation before triggering a manual one.
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /Force Regenerate/i })).toBeInTheDocument()
+      );
+      mockApiPost.mockReturnValue(new Promise((res) => { resolvePost = res; }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Generating/i })).toBeInTheDocument();
       });
@@ -1031,7 +1050,7 @@ describe("DailyReportPage", () => {
       vi.spyOn(window, "confirm").mockReturnValue(true);
       await renderAndLoad();
       const beforeCount = mockApiGet.mock.calls.length;
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       await waitFor(() => {
         expect(mockApiGet.mock.calls.length).toBeGreaterThan(beforeCount);
       }, { timeout: 5000 });
@@ -1041,7 +1060,7 @@ describe("DailyReportPage", () => {
       vi.spyOn(window, "confirm").mockReturnValue(true);
       mockApiPost.mockRejectedValue(new Error("Generate failed"));
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
+      fireEvent.click(screen.getByRole("button", { name: /Force Regenerate/i }));
       await waitFor(() => {
         expect(screen.getByText(/Generate failed/i)).toBeInTheDocument();
       }, { timeout: 5000 });
@@ -1062,29 +1081,32 @@ describe("DailyReportPage", () => {
 
   // ── Language toggle ──────────────────────────────────────────────────────────
   describe("language toggle", () => {
-    it("switches to Japanese — shows デイリー業務レポート", async () => {
+    it("switching language keeps the page in English, with the other wording", async () => {
       await renderWithDubaiReport();
-      fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
-      expect(screen.getByText(/デイリー業務レポート/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^JA$|^EN$/ }));
+      // The UI is English-only; the second label set is a different English
+      // wording, not a translation.
+      expect(screen.getByText("Daily Operations Report")).toBeInTheDocument();
+      expect(screen.getByText("Daily Summary")).toBeInTheDocument();
     });
 
     it("shows 'English' toggle button after switching to Japanese", async () => {
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
-      expect(screen.getByRole("button", { name: /English/i })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^JA$|^EN$/ }));
+      expect(screen.getByRole("button", { name: /^EN$/ })).toBeInTheDocument();
     });
 
     it("switches back to English", async () => {
       await renderAndLoad();
-      fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
-      fireEvent.click(screen.getByRole("button", { name: /English/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^JA$|^EN$/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^EN$/ }));
       expect(screen.getByText(/Daily Operations Report/i)).toBeInTheDocument();
     });
 
-    it("Japanese mode: shows 当日サマリー (Day at a Glance)", async () => {
+    it("second label set renames the overview section", async () => {
       await renderWithDubaiReport();
-      fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
-      expect(screen.getByText(/当日サマリー/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^JA$|^EN$/ }));
+      expect(screen.getByText("Daily Summary")).toBeInTheDocument();
     });
   });
 

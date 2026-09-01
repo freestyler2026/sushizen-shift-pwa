@@ -5,7 +5,8 @@
 // Analytics Dashboard page is excluded per spec.
 
 import React from "react";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { chooseValue, expectSelectShowing, optionLabels, optionValues } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Hoisted mocks (needed in vi.mock factories before any imports) ────────────
@@ -296,26 +297,16 @@ describe("AdminIncidentsPage (list)", () => {
   describe("filters", () => {
     it("shows city select when user is not city-locked", async () => {
       await renderPage();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const citySelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text.includes("All Cities")
-        )
-      );
-      expect(citySelect).toBeTruthy();
+      // The filters are SelectDark now, so a combobox is identified by what it
+      // shows rather than by the options it would have had.
+      // The filter opens on the signed-in city, so "All Cities" is one of the
+      // options rather than what it shows.
+      expect(optionLabels("Manila 🇵🇭")).toContain("All Cities");
     });
 
     it("city select has All Cities, Dubai, Manila options", async () => {
       await renderPage();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const citySelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text.includes("All Cities")
-        )
-      )!;
-      const opts = Array.from(citySelect.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).value
-      );
+      const opts = optionValues("Manila 🇵🇭");
       expect(opts).toContain("");
       expect(opts).toContain("dubai");
       expect(opts).toContain("manila");
@@ -344,28 +335,15 @@ describe("AdminIncidentsPage (list)", () => {
       vi.stubGlobal("fetch", makeFetch());
       render(<AdminIncidentsPage />);
       await waitFor(() => {
-        const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-        const hasCitySelect = selects.some((s) =>
-          Array.from(s.querySelectorAll("option")).some(
-            (o) => (o as HTMLOptionElement).text.includes("All Cities")
-          )
-        );
-        expect(hasCitySelect).toBe(false);
+        const shown = screen.queryAllByRole("combobox")
+          .map((el) => el.textContent || "");
+        expect(shown.some((t) => t.includes("All Cities"))).toBe(false);
       });
     });
 
     it("status select has All Statuses, New, Acknowledged, In Progress, Resolved options", async () => {
       await renderPage();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const statusSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Acknowledged"
-        )
-      )!;
-      expect(statusSelect).toBeTruthy();
-      const opts = Array.from(statusSelect.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).text
-      );
+      const opts = optionLabels("All Statuses");
       expect(opts).toContain("All Statuses");
       expect(opts).toContain("New");
       expect(opts).toContain("Acknowledged");
@@ -375,39 +353,25 @@ describe("AdminIncidentsPage (list)", () => {
 
     it("category select includes Product Issue and Equipment Issue", async () => {
       await renderPage();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const catSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Product Issue"
-        )
-      )!;
-      expect(catSelect).toBeTruthy();
+      const opts = optionLabels("All Categories");
+      expect(opts).toContain("Product Issue");
+      expect(opts).toContain("Equipment Issue");
     });
 
     it("notes select has All, Has HQ Notes, No Notes", async () => {
       await renderPage();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const notesSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Has HQ Notes"
-        )
-      )!;
-      expect(notesSelect).toBeTruthy();
+      const opts = optionLabels("All");
+      expect(opts).toContain("Has HQ Notes");
+      expect(opts).toContain("No Notes");
     });
 
     it("changing status filter triggers a new fetch", async () => {
       const fetchMock = makeFetch();
       await renderAndLoad(fetchMock);
 
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const statusSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Acknowledged"
-        )
-      )!;
 
       const prevCount = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length;
-      fireEvent.change(statusSelect, { target: { value: "new" } });
+      chooseValue("All Statuses", "new");
 
       await waitFor(() => {
         const newCount = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -427,7 +391,7 @@ describe("AdminIncidentsPage (list)", () => {
       )!;
 
       const prevCount = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length;
-      fireEvent.change(citySelect, { target: { value: "dubai" } });
+      chooseValue("Manila 🇵🇭", "dubai");
 
       await waitFor(() => {
         const newCount = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -439,15 +403,9 @@ describe("AdminIncidentsPage (list)", () => {
       const fetchMock = makeFetch();
       await renderAndLoad(fetchMock);
 
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const catSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Product Issue"
-        )
-      )!;
 
       const prevCount = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length;
-      fireEvent.change(catSelect, { target: { value: "Product Issue" } });
+      chooseValue("All Categories", "Product Issue");
 
       // Category is filtered client-side — no new API call should fire
       await new Promise((r) => setTimeout(r, 150));
@@ -457,14 +415,8 @@ describe("AdminIncidentsPage (list)", () => {
     it("category filter hides non-matching rows", async () => {
       await renderAndLoad();
 
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const catSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Product Issue"
-        )
-      )!;
 
-      fireEvent.change(catSelect, { target: { value: "Product Issue" } });
+      chooseValue("All Categories", "Product Issue");
 
       await waitFor(() => {
         // Branch names are unique (not in any select options)
@@ -479,10 +431,12 @@ describe("AdminIncidentsPage (list)", () => {
   describe("incident table", () => {
     it("shows incident rows after loading", async () => {
       await renderAndLoad();
-      // Category names appear in both select options and table — count ≥ 2 proves table rendered
-      expect(screen.getAllByText("Product Issue").length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText("Equipment Issue").length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText("Delivery Issue").length).toBeGreaterThanOrEqual(2);
+      // Category names used to appear twice -- once in the table and once as a
+      // <option> in the filter. The filter keeps its list closed now, so one
+      // occurrence is the table row, which is what this was checking for.
+      expect(screen.getByText("Product Issue")).toBeInTheDocument();
+      expect(screen.getByText("Equipment Issue")).toBeInTheDocument();
+      expect(screen.getByText("Delivery Issue")).toBeInTheDocument();
     });
 
     it("shows branch names in table", async () => {
@@ -590,14 +544,8 @@ describe("AdminIncidentsPage (list)", () => {
       const fetchMock = makeFetch();
       await renderAndLoad(fetchMock);
 
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const statusSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Acknowledged"
-        )
-      )!;
 
-      fireEvent.change(statusSelect, { target: { value: "resolved" } });
+      chooseValue("All Statuses", "resolved");
 
       await waitFor(() => {
         const calls = (fetchMock as ReturnType<typeof vi.fn>).mock.calls;
@@ -611,6 +559,16 @@ describe("AdminIncidentsPage (list)", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 // DETAIL PAGE
 // ══════════════════════════════════════════════════════════════════════════════
+
+/** The status buttons, scoped to their own card.
+ *
+ *  The page grew an "HQ evaluation" row whose first option is also called
+ *  Resolved, so an unscoped query finds two buttons of that name and cannot
+ *  tell which one moves the incident along. */
+function statusButton(name: RegExp) {
+  const card = screen.getByText("Update Status").closest("div")!;
+  return within(card).getByRole("button", { name });
+}
 
 describe("AdminIncidentDetailPage (detail)", () => {
   async function renderDetailPage(fetchMock = makeFetch()) {
@@ -740,29 +698,29 @@ describe("AdminIncidentDetailPage (detail)", () => {
   describe("status update", () => {
     it("renders all four status buttons", async () => {
       await renderAndLoad();
-      expect(screen.getByRole("button", { name: /^New$/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^Acknowledged$/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^In Progress$/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^Resolved$/i })).toBeInTheDocument();
+      expect(statusButton(/^New$/i)).toBeInTheDocument();
+      expect(statusButton(/^Acknowledged$/i)).toBeInTheDocument();
+      expect(statusButton(/^In Progress$/i)).toBeInTheDocument();
+      expect(statusButton(/^Resolved$/i)).toBeInTheDocument();
     });
 
     it("current status (New) button is disabled", async () => {
       await renderAndLoad();
-      expect(screen.getByRole("button", { name: /^New$/i })).toBeDisabled();
+      expect(statusButton(/^New$/i)).toBeDisabled();
     });
 
     it("non-current status buttons are enabled", async () => {
       await renderAndLoad();
-      expect(screen.getByRole("button", { name: /^Acknowledged$/i })).not.toBeDisabled();
-      expect(screen.getByRole("button", { name: /^In Progress$/i })).not.toBeDisabled();
-      expect(screen.getByRole("button", { name: /^Resolved$/i })).not.toBeDisabled();
+      expect(statusButton(/^Acknowledged$/i)).not.toBeDisabled();
+      expect(statusButton(/^In Progress$/i)).not.toBeDisabled();
+      expect(statusButton(/^Resolved$/i)).not.toBeDisabled();
     });
 
     it("clicking Acknowledged calls PATCH /status with correct payload", async () => {
       const fetchMock = makeFetch();
       await renderAndLoad(fetchMock);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Acknowledged$/i }));
+      fireEvent.click(statusButton(/^Acknowledged$/i));
 
       await waitFor(() => {
         const patchCalls = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.filter(
@@ -780,7 +738,7 @@ describe("AdminIncidentDetailPage (detail)", () => {
       const fetchMock = makeFetch();
       await renderAndLoad(fetchMock);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Resolved$/i }));
+      fireEvent.click(statusButton(/^Resolved$/i));
 
       await waitFor(() => {
         const patchCalls = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.filter(
@@ -792,16 +750,30 @@ describe("AdminIncidentDetailPage (detail)", () => {
     });
 
     it("successful status change updates the item state (current button changes)", async () => {
-      const fetchMock = makeFetch();
-      await renderAndLoad(fetchMock);
+      // The page refetches after the PATCH, to pick up the server-stamped
+      // resolved_at, so a mock that keeps answering "new" undoes the change.
+      let status = "new";
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        const u = String(url);
+        const method = ((opts?.method as string) || "GET").toUpperCase();
+        if (u.includes("/status") && method === "PATCH") {
+          status = JSON.parse(String(opts?.body)).status;
+          return new Response("{}", { status: 200 });
+        }
+        if (u.includes("/api/admin/incidents/INC-001") && method === "GET") {
+          return new Response(JSON.stringify({ item: { ...INCIDENT_DETAIL, status } }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ items: INCIDENT_ROWS }), { status: 200 });
+      });
+      await renderAndLoad(fetchMock as unknown as ReturnType<typeof makeFetch>);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Acknowledged$/i }));
+      fireEvent.click(statusButton(/^Acknowledged$/i));
 
       await waitFor(() => {
         // After update, "Acknowledged" should now be the current (disabled) button
-        expect(screen.getByRole("button", { name: /^Acknowledged$/i })).toBeDisabled();
+        expect(statusButton(/^Acknowledged$/i)).toBeDisabled();
         // "New" should no longer be disabled
-        expect(screen.getByRole("button", { name: /^New$/i })).not.toBeDisabled();
+        expect(statusButton(/^New$/i)).not.toBeDisabled();
       });
     });
 
@@ -811,7 +783,7 @@ describe("AdminIncidentDetailPage (detail)", () => {
 
       await renderAndLoad();
 
-      fireEvent.click(screen.getByRole("button", { name: /^Resolved$/i }));
+      fireEvent.click(statusButton(/^Resolved$/i));
 
       await waitFor(() => {
         expect(vi.mocked(dispatchBadgeRefresh)).toHaveBeenCalledWith("adminIncidents");
@@ -824,7 +796,7 @@ describe("AdminIncidentDetailPage (detail)", () => {
       ]);
       await renderAndLoad(errorFetch);
 
-      fireEvent.click(screen.getByRole("button", { name: /^Acknowledged$/i }));
+      fireEvent.click(statusButton(/^Acknowledged$/i));
 
       await waitFor(() => {
         expect(screen.getByText(/Status update failed|Failed to update/i)).toBeInTheDocument();

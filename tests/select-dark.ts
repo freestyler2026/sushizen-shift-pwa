@@ -29,8 +29,11 @@ export function selectShowing(text: string): HTMLElement {
   // Text first, then the value it holds. getByDisplayValue was given whichever
   // of the two the author had to hand -- "App Bug Report" in one test and
   // "app-private-report" in the next -- and both name the same control.
-  const hit = all.find((el) => (el.textContent || "").includes(text))
-    ?? all.find((el) => (el as HTMLElement).dataset.value === text);
+  // Exact first, then contains. "All" would otherwise match "All Statuses",
+  // and a test asking for one filter would silently drive another.
+  const hit = all.find((el) => (el.textContent || "").trim() === text)
+    ?? all.find((el) => (el as HTMLElement).dataset.value === text)
+    ?? all.find((el) => (el.textContent || "").includes(text));
   if (!hit) {
     const shown = all.map((el) => {
       const v = (el as HTMLElement).dataset.value;
