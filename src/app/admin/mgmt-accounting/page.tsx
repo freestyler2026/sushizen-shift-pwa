@@ -698,7 +698,12 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
               <p className={`text-xs mt-1 leading-relaxed ${gap ? "text-rose-200/80" : "text-amber-200/85"}`}>
                 {gap ? (
                   <>
-                    {d.days_in_month}日のうち売上が登録されているのは{d.revenue_days}日分のみです。
+                    {/* Measured against the days that have run, not the whole
+                        month: on the 1st it read "0 of 30 days registered",
+                        which sounds like a month of missing entry rather than
+                        a month that has barely started. */}
+                    {d.days_covered ?? d.days_in_month}日経過して、売上が登録されているのは{d.revenue_days}日分のみです
+                    （月全体は{d.days_in_month}日）。
                     不足分は入金データで補っており、店内飲食が含まれていません。
                     利益が実態より低く出ます。日次売上入力をご確認ください。
                   </>
