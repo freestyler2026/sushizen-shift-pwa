@@ -201,6 +201,7 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "m_seasoned_egg",       label: "Seasoned Egg",               unit: "pcs",       section: "hot_section", item_type: "ingredient", item_category: "Processed Meat / Eggs" },
       { key: "m_kikurage",           label: "Kikurage",                   unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Dry Goods / Other" },
       { key: "m_fried_camote",       label: "Fried Camote",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Vegetables" },
+      { key: "m_fried_garlic",       label: "Fried Garlic",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_boiled_cabbage",     label: "Boiled Cabbage",             unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_boiled_beansprout",  label: "Boiled Beansprout",          unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_boiled_carrot",      label: "Boiled Carrot",              unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Vegetables" },
@@ -228,6 +229,7 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "m_br6", label: "Base Roll 6 (Shrimp Tempura Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br7", label: "Base Roll 7 (Crunchy Fish Base Roll)",           unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br9", label: "Base Roll 9",                                    unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
     ],
   },
 ];
@@ -1136,10 +1138,17 @@ export default function BackupReportPage() {
       }
     }
 
+    // A row with a quantity but no name used to be skipped without a word, so a
+    // branch could type a figure, see "submitted", and have it reach nobody.
+    // Paranaque lost Fried Garlic and Base Roll 9 twice this way.
+    const droppedExtras: string[] = [];
     for (const fl of freeLines) {
-      if (!fl.item_name_snapshot.trim()) continue;
+      const named = fl.item_name_snapshot.trim();
       const qty = parseFloat(fl.quantity);
-      if (isNaN(qty) || qty <= 0) continue;
+      const qtyOk = !isNaN(qty) && qty > 0;
+      if (!named && !qtyOk) continue;          // an untouched blank row is fine
+      if (!named) { droppedExtras.push(`a row with quantity ${fl.quantity} has no item name`); continue; }
+      if (!qtyOk) { droppedExtras.push(`"${named}" has no quantity`); continue; }
       lines.push({
         section: "extra",
         item_type: fl.item_type,
@@ -1150,6 +1159,15 @@ export default function BackupReportPage() {
         unit: fl.unit,
         notes: fl.notes,
       });
+    }
+
+    if (droppedExtras.length > 0) {
+      setSubmitError(
+        "Extra Items are incomplete and would not be saved: "
+        + droppedExtras.join("; ")
+        + ". Fill both the item name and the quantity, or clear the row.",
+      );
+      return;
     }
 
     const hasSalmon = salmonEnabled && parseFloat(salmonWholeKg) > 0;
