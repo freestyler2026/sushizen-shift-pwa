@@ -52,6 +52,59 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## ✅ AR Payouts 監査（2026-09-01・修正済み）
+
+### 🔴 1. 照合が「必ず一致する」仕組みだった（最重要）
+
+Bank Amount 欄が**予定額で初期入力**されていた。
+```js
+useState(payout.bank_amount != null ? ... : String(payout.expected_amount))
+```
+そのままSaveすれば予定額がそのまま「銀行入金額」として記録される。
+**両市66件の確認すべてで差額ゼロ**なのは、入金が常に満額だったからではなく、
+**それ以外を記録できなかったから。**
+副題は "confirm receipt against bank statement" だが、何とも照合していなかった。
+
+→ **空欄スタート**に変更。入力すると即座に「Over/Short by X」を表示。
+**差額があるとメモ必須**（差額こそがこのページの成果物）。通貨記号 `(₱)` 固定も修正（ドバイでも円記号だった）。
+
+### 🔴 2. 「Overdue ₱15,521,803.99」は未払いではない
+
+定義は `bank_confirmed = FALSE AND payout_date + 7日 < 今日`。
+**つまり「7日以内に誰もConfirmを押していない」だけ。**
+```
+manila  overdue 824件 ₱15,521,804  期間 2026-02-02 〜 2026-08-23
+        reconciled 53件（Yuri Yamada が 8/22〜8/26 の5日間だけ実施）
+dubai   overdue 1,873件 / reconciled 13件
+```
+**赤字で ₱15.5M と出ると「アグリゲーターが未払い」と読める。** 実際は照合作業の未消化量。
+→ ラベルを **"Not checked yet"** に変更し、
+「Payout was 7+ days ago and nobody has confirmed it against the bank.
+This is what is unchecked — not money the platform owes.」を併記。
+
+### 🟠 3. 同じ入金が2形式で二重計上されていた
+
+重複判定が `ON CONFLICT (platform, payout_id)` で、
+**`602007509154` と `FP_602007509154` は別キー**として通っていた。
+```
+id=6426 PAR 636007519725 8/25 ₱31,505.01  ⇔ id=6045 FP_PARANAQUE FP_636007519725
+id=6427 PAR 602007500348 8/26 ₱ 3,439.38  ⇔ id=6044 FP_PARANAQUE FP_602007500348
+id=6428 PAR 612007626589 8/27 ₱ 1,070.48  ⇔ id=6173 FP_PARANAQUE FP_612007626589
+id=6429 PAR 602007509154 8/28 ₱ 4,639.35  ⇔ id=6225 FP_PARANAQUE FP_602007509154
+                                 計 ₱40,654.22 が二重
+```
+→ INSERT と重複チェックの両方を**接頭辞を除いて比較**するよう変更（どちらの形式が先でも検知）。
+⚠️ **既存4行は削除していない。** 入金記録の削除はオーナー判断。8件とも未確認なので確認履歴は失われない。
+
+### ✅ 問題なかったもの
+```
+負の expected_amount 7件  → チャージバック等。仕様どおり
+未来日の payout_date 10件 → 入金予定。仕様どおり
+payout_date の欠損        → 0件
+```
+
+---
+
 ## ✅ Manual Shift: 削除した行が復活する（2026-09-01・修正済み）
 
 現場報告「ゴミ箱で消しても何度も出てくる」「逆にウッカリ消したら翌週で戻って助かった」。
