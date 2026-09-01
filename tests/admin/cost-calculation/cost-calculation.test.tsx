@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue, expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── next/navigation ───────────────────────────────────────────────────────────
@@ -182,42 +183,42 @@ describe("CostCalculationPage — tab navigation", () => {
   it("renders all 6 section tabs", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    expect(screen.getByText("食材マスタ")).toBeInTheDocument();
-    expect(screen.getByText("加工品マスタ")).toBeInTheDocument();
-    expect(screen.getByText("商品マスタ")).toBeInTheDocument();
-    expect(screen.getByText("新商品用コスト計算")).toBeInTheDocument();
-    expect(screen.getByText("仕入連動")).toBeInTheDocument();
-    expect(screen.getByText("原価率一覧")).toBeInTheDocument();
+    expect(screen.getByText("Ingredient Master")).toBeInTheDocument();
+    expect(screen.getByText("Processed Items")).toBeInTheDocument();
+    expect(screen.getByText("Products")).toBeInTheDocument();
+    expect(screen.getByText("New Product Costing")).toBeInTheDocument();
+    expect(screen.getByText("Invoice Mapping")).toBeInTheDocument();
+    expect(screen.getByText("Cost Rate Overview")).toBeInTheDocument();
   });
 
-  it("renders '連動チェック' link tab", async () => {
+  it("renders 'Sync Check' link tab", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    expect(screen.getByText("連動チェック")).toBeInTheDocument();
+    expect(screen.getByText("Sync Check")).toBeInTheDocument();
   });
 
-  it("'連動チェック' link points to cost-check?city=dubai by default", async () => {
+  it("'Sync Check' link points to cost-check?city=dubai by default", async () => {
     render(<CostCalculationPage />);
-    await screen.findByText("連動チェック");
-    const link = screen.getByRole("link", { name: /連動チェック/i });
+    await screen.findByText("Sync Check");
+    const link = screen.getByRole("link", { name: /Sync Check/i });
     expect(link).toHaveAttribute("href", expect.stringContaining("cost-check"));
     expect(link).toHaveAttribute("href", expect.stringContaining("city=dubai"));
   });
 
-  it("clicking 加工品マスタ tab triggers master item load", async () => {
+  it("clicking Processed Items tab triggers master item load", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("加工品マスタ"));
+    fireEvent.click(screen.getByText("Processed Items"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(calls.some((u) => u.includes("master-items"))).toBe(true);
     });
   });
 
-  it("clicking 仕入連動 tab triggers invoice mapping load", async () => {
+  it("clicking Invoice Mapping tab triggers invoice mapping load", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("仕入連動"));
+    fireEvent.click(screen.getByText("Invoice Mapping"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(
@@ -262,9 +263,7 @@ describe("CostCalculationPage — city state", () => {
     mockAuthReturn = HQ_AUTH;
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    // The city select has options "Dubai" and "Manila" — use getByDisplayValue
-    const select = screen.getByDisplayValue("Dubai") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     expect(sessionStorageMock.getItem("cost_city_selection")).toBe("manila");
   });
 
@@ -273,8 +272,7 @@ describe("CostCalculationPage — city state", () => {
     mockAuthReturn = MANILA_AUTH;
     render(<CostCalculationPage />);
     await screen.findByText("Manila / PHP");
-    const select = screen.getByDisplayValue("Manila") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "dubai" } });
+    chooseValue("Manila", "dubai");
     expect(sessionStorageMock.getItem("cost_city_selection")).toBe("dubai");
   });
 
@@ -397,46 +395,46 @@ describe("CostCalculationPage — master sections", () => {
     });
   });
 
-  it("search placeholder changes to 'Search items or components...' on 加工品マスタ tab", async () => {
+  it("search placeholder changes to 'Search items or components...' on Processed Items tab", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("加工品マスタ"));
+    fireEvent.click(screen.getByText("Processed Items"));
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Search items or components...")).toBeInTheDocument();
     });
   });
 
-  it("加工品マスタ tab calls master-items API with type=processed", async () => {
+  it("Processed Items tab calls master-items API with type=processed", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("加工品マスタ"));
+    fireEvent.click(screen.getByText("Processed Items"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(calls.some((u) => u.includes("type=processed"))).toBe(true);
     });
   });
 
-  it("商品マスタ tab calls master-items API with type=product", async () => {
+  it("Products tab calls master-items API with type=product", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("商品マスタ"));
+    fireEvent.click(screen.getByText("Products"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(calls.some((u) => u.includes("type=product"))).toBe(true);
     });
   });
 
-  it("新商品用コスト計算 tab calls master-items API with type=draft", async () => {
+  it("New Product Costing tab calls master-items API with type=draft", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("新商品用コスト計算"));
+    fireEvent.click(screen.getByText("New Product Costing"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(calls.some((u) => u.includes("type=draft"))).toBe(true);
     });
   });
 
-  it("shows master item rows when 加工品マスタ data loads", async () => {
+  it("shows master item rows when Processed Items data loads", async () => {
     mockCostJson = vi.fn(async (url: string) => {
       if (url.includes("/master-items") && url.includes("type=processed")) {
         return {
@@ -463,14 +461,14 @@ describe("CostCalculationPage — master sections", () => {
     });
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("加工品マスタ"));
+    fireEvent.click(screen.getByText("Processed Items"));
     await screen.findByText("Teriyaki Sauce");
     expect(screen.getByText("Sauce")).toBeInTheDocument();
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-describe("CostCalculationPage — invoice section (仕入連動)", () => {
+describe("CostCalculationPage — invoice section (Invoice Mapping)", () => {
   beforeEach(() => {
     mockAuthReturn = HQ_AUTH;
     mockCanAccessCostAdmin = true;
@@ -487,10 +485,10 @@ describe("CostCalculationPage — invoice section (仕入連動)", () => {
     });
   });
 
-  it("switching to 仕入連動 tab calls invoice API endpoints", async () => {
+  it("switching to Invoice Mapping tab calls invoice API endpoints", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("仕入連動"));
+    fireEvent.click(screen.getByText("Invoice Mapping"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(
@@ -523,15 +521,15 @@ describe("CostCalculationPage — invoice section (仕入連動)", () => {
     });
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("仕入連動"));
+    fireEvent.click(screen.getByText("Invoice Mapping"));
     // When 1 unmatched item loads, selectedUnmatchedItemKey is auto-set → form shows
-    await screen.findByText("新規マッピング作成");
-    expect(screen.getByText("食材検索")).toBeInTheDocument();
+    await screen.findByText("Create New Mapping");
+    expect(screen.getByText("Ingredient Search")).toBeInTheDocument();
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-describe("CostCalculationPage — cost-ratio section (原価率一覧)", () => {
+describe("CostCalculationPage — cost-ratio section (Cost Rate Overview)", () => {
   beforeEach(() => {
     mockAuthReturn = HQ_AUTH;
     mockCanAccessCostAdmin = true;
@@ -547,10 +545,10 @@ describe("CostCalculationPage — cost-ratio section (原価率一覧)", () => {
     });
   });
 
-  it("switching to 原価率一覧 tab loads product master items", async () => {
+  it("switching to Cost Rate Overview tab loads product master items", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("原価率一覧"));
+    fireEvent.click(screen.getByText("Cost Rate Overview"));
     await waitFor(() => {
       const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
       expect(calls.some((u) => u.includes("type=product"))).toBe(true);
@@ -584,7 +582,7 @@ describe("CostCalculationPage — cost-ratio section (原価率一覧)", () => {
     });
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");
-    fireEvent.click(screen.getByText("原価率一覧"));
+    fireEvent.click(screen.getByText("Cost Rate Overview"));
     await screen.findByText("Salmon Roll");
     // "Sushi" appears in both filter button and item row — use getAllByText
     const sushiMatches = screen.getAllByText("Sushi");
