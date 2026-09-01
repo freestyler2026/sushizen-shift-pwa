@@ -225,11 +225,17 @@ async function assertSessionMatchesStore(cookieStr) {
     console.log('  session/store check. Confirm the figures land under the right branch.');
     return;
   }
-  const want = STORE_NAME.toLowerCase().replace(/[^a-z]/g, '');
-  const ok = names.some(n => {
-    const got = n.toLowerCase().replace(/[^a-z]/g, '');
-    return got.includes(want) || want.includes(got);
-  });
+  // Match on the words that actually distinguish the branches, not on the
+  // whole display name. Grab calls Cubao "Sushizen Japanese Restaurant -
+  // Quezon City", which shares no substring with "Sushi Zen - Cubao", so a
+  // whole-name comparison rejected a perfectly good Cubao session.
+  const MARKERS = { PAR: ['paranaque'], TAFT: ['taft'], CUB: ['quezon', 'cubao'] };
+  const markers = MARKERS[STORE_CODE];
+  if (!markers) {
+    console.log(`⚠ No branch marker known for ${STORE_CODE} — skipping the session/store check.`);
+    return;
+  }
+  const ok = names.some(n => markers.some(m => n.toLowerCase().includes(m)));
   if (!ok) {
     console.error(`\n❌ This session belongs to: ${names.join(', ')}`);
     console.error(`   but GRAB_STORE_CODE is ${STORE_CODE} (${STORE_NAME}).`);
