@@ -1370,6 +1370,8 @@ export default function BODashboardPage() {
   // everyone's is a list nobody treats as theirs.
   const [pageFilter, setPageFilter] = useState<string>("mine");
   const [justClosed, setJustClosed] = useState<Set<number>>(new Set());
+  // Exception types whose data source has stopped, from the score API.
+  const [blockedTypes, setBlockedTypes] = useState<string[]>([]);
   const [cityFilter, setCityFilter] = useState<string>(MANAGEMENT_CHANNEL_CITY);
 
   // Send modal
@@ -1463,6 +1465,7 @@ export default function BODashboardPage() {
   useEffect(() => {
     loadTasks();
     loadJobRuns();
+    void loadBlockedSources();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTasks]);
 
@@ -1564,6 +1567,26 @@ export default function BODashboardPage() {
     // Closed work reads newest-first — it is a record, not a queue.
     return a.status === "closed" && b.status === "closed" ? tb - ta : ta - tb;
   });
+
+  // Which components the score API says it cannot measure, mapped back to the
+  // exception types this page groups by, so a page with a dead source does not
+  // report itself as clear.
+  async function loadBlockedSources() {
+    try {
+      const res = await fetch(`/api/admin/management/manager-score?city=${cityFilter}`, {
+        headers: getAuthHeaders(getAuth()),
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const keys: string[] = (j?.blocked_components ?? []).map((b: { key: string }) => b.key);
+      // The score's component keys and this page's exception types are two
+      // different vocabularies; only attendance currently spans both.
+      const TYPES: Record<string, string[]> = { attendance: ["attendance_unverified"] };
+      setBlockedTypes(keys.flatMap((k) => TYPES[k] ?? []));
+    } catch {
+      /* a diagnostic that fails must not take the page with it */
+    }
+  }
 
   async function loadJobRuns() {
     try {
@@ -1974,7 +1997,16 @@ export default function BODashboardPage() {
                       <>
                         {red > 0 && <span className="text-red-300">{red} red</span>}
                         {yellow > 0 && <span className="text-amber-300">{yellow} yellow</span>}
-                        {mine.length === 0 && <span className="text-zinc-500">nothing to do</span>}
+                        {mine.length === 0 && (
+                          // "nothing to do" is only true if we are able to
+                          // look. Attendance & HR has raised nothing since the
+                          // feed behind it stopped in July, and saying
+                          // "nothing to do" about a blind spot is the worst
+                          // thing this page could say.
+                          blockedTypes.some((t) => p.types.includes(t))
+                            ? <span className="text-amber-300">not measurable — see Weekly Review</span>
+                            : <span className="text-zinc-500">nothing to do</span>
+                        )}
                       </>
                     );
                   })()}

@@ -26,6 +26,16 @@ interface ComplianceComponent {
   weight: number;
   value: number | null;
   counted: boolean;
+  /** counted | quiet (nothing happened) | blocked (the feed stopped). */
+  status?: "counted" | "quiet" | "blocked";
+  blocked_reason?: string;
+}
+
+interface BlockedComponent {
+  key: string;
+  label: string;
+  weight: number;
+  reason: string;
 }
 
 interface ComplianceRow {
@@ -36,6 +46,8 @@ interface ComplianceRow {
   /** How much of the design's 100 points this number actually rests on. */
   coverage_pct: number;
   measured_components: number;
+  /** Of the missing weight, how much is missing because a feed stopped. */
+  blocked_weight?: number;
 }
 
 interface BranchScore {
@@ -98,6 +110,7 @@ export default function AreaReviewPage() {
   const [data, setData] = useState<WeekResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
+  const [blockedComponents, setBlockedComponents] = useState<BlockedComponent[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,7 +140,11 @@ export default function AreaReviewPage() {
         `/api/admin/management/manager-score?city=${city}&week_start=${weekStart}`,
         { headers: getAuthHeaders(getAuth()) },
       );
-      if (cs.ok) setCompliance(((await cs.json())?.rows ?? []) as ComplianceRow[]);
+      if (cs.ok) {
+        const j = await cs.json();
+        setCompliance((j?.rows ?? []) as ComplianceRow[]);
+        setBlockedComponents((j?.blocked_components ?? []) as BlockedComponent[]);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -154,6 +171,32 @@ export default function AreaReviewPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
       <MgmtChannelTabBar active="area" />
+
+      {/* Said once at the top, not four times down the table: a feed that has
+          stopped is one problem affecting every branch, and repeating it per
+          row reads as four. Without this the missing weight is invisible --
+          the score drops an unmeasurable component and renormalises, which is
+          the right rule and exactly what hides a dead source. */}
+      {blockedComponents.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs text-amber-100">
+          <div className="font-semibold">
+            {blockedComponents.reduce((n, b) => n + b.weight, 0)} of 100 points cannot be
+            measured — this is not a score of zero, it is no data.
+          </div>
+          <ul className="mt-1.5 space-y-0.5 text-amber-200/90">
+            {blockedComponents.map((b) => (
+              <li key={b.key}>
+                <span className="font-medium">{b.label} ({b.weight}%)</span> — {b.reason}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-1.5 text-amber-200/70">
+            Every branch below is scored on the components that remain, so the numbers are
+            comparable with each other but not with weeks before the source stopped.
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Area Manager Weekly Review</h1>
@@ -269,7 +312,10 @@ export default function AreaReviewPage() {
                         return (
                           <span
                             title={c.components
-                              .map((x) => `${x.label} ${x.weight}%: ${x.value === null ? "n/a" : x.value + "%"}`)
+                              .map((x) => `${x.label} ${x.weight}%: ${
+                                x.value !== null ? x.value + "%"
+                                : x.status === "blocked" ? `not measurable — ${x.blocked_reason}`
+                                : "nothing to measure this week"}`)
                               .join("\n")}
                             className="cursor-help"
                           >
@@ -279,6 +325,14 @@ export default function AreaReviewPage() {
                             <span className="ml-1 text-[10px] text-zinc-500">
                               {c.measured_components}/7
                             </span>
+                            {/* Weight missing because a feed stopped reads
+                                differently from weight missing because the
+                                week was quiet, so it is marked. */}
+                            {(c.blocked_weight ?? 0) > 0 && (
+                              <span className="ml-1 text-[10px] font-semibold text-amber-300">
+                                −{c.blocked_weight}
+                              </span>
+                            )}
                           </span>
                         );
                       })()}
