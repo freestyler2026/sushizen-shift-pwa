@@ -459,6 +459,27 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
   );
 }
 
+
+/**
+ * The sum behind a payslip line, spelled out.
+ *
+ * A staff member asked where "AED 7.2100/h" came from and the payslip could not
+ * tell them. The admin screen has shown quantity x rate all along; the person
+ * whose pay it is could not see it, which is the wrong way round — they are the
+ * one who needs to check it.
+ */
+function lineWorking(
+  item: { quantity: number | null; unit_rate: number | null; amount: number },
+  currency: string,
+): string | null {
+  if (item.quantity == null || item.unit_rate == null) return null;
+  const q = Number(item.quantity);
+  const r = Number(item.unit_rate);
+  if (!Number.isFinite(q) || !Number.isFinite(r) || r === 0) return null;
+  const sym = currency === "AED" ? "AED " : "₱";
+  return `${q.toLocaleString(undefined, { maximumFractionDigits: 4 })} × ${sym}${r.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+}
+
 // ─── Payslip Detail Modal ─────────────────────────────────────────────────────
 
 interface ManilaPayslipItem {
@@ -648,7 +669,14 @@ function PayslipModal({
                       <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-slate-600">{item.label}</span>
-                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                          {lineWorking(item, slip.currency) && (
+                            <p className="text-[11px] tabular-nums text-slate-500">
+                              {lineWorking(item, slip.currency)}
+                            </p>
+                          )}
+                          {item.note && (
+                            <p className="text-[11px] break-words text-slate-400">{item.note}</p>
+                          )}
                         </div>
                         <span className={`text-sm font-medium tabular-nums ml-4 ${item.amount > 0 ? "text-emerald-600" : "text-slate-400"}`}>
                           {item.amount > 0 ? "+" : ""}{fmt(item.amount, slip.currency)}
@@ -663,7 +691,7 @@ function PayslipModal({
                           {item.incurred_at && (
                             <p className="text-[11px] text-slate-400">{fmtDate(item.incurred_at)}</p>
                           )}
-                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                          {item.note && <p className="text-[11px] break-words text-slate-400">{item.note}</p>}
                         </div>
                         <span className="text-sm font-medium text-emerald-600 tabular-nums ml-4">
                           +{fmt(item.amount, slip.currency)}
@@ -708,7 +736,14 @@ function PayslipModal({
                       <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-slate-600">{item.label}</span>
-                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                          {lineWorking(item, slip.currency) && (
+                            <p className="text-[11px] tabular-nums text-slate-500">
+                              {lineWorking(item, slip.currency)}
+                            </p>
+                          )}
+                          {item.note && (
+                            <p className="text-[11px] break-words text-slate-400">{item.note}</p>
+                          )}
                         </div>
                         <span className={`text-sm font-medium tabular-nums ml-4 ${item.amount !== 0 ? "text-red-500" : "text-slate-400"}`}>
                           {item.amount !== 0 ? "−" : ""}{fmt(Math.abs(item.amount), slip.currency)}
@@ -723,7 +758,7 @@ function PayslipModal({
                           {item.incurred_at && (
                             <p className="text-[11px] text-slate-400">{fmtDate(item.incurred_at)}</p>
                           )}
-                          {item.note && <p className="text-[11px] text-slate-400 truncate">{item.note}</p>}
+                          {item.note && <p className="text-[11px] break-words text-slate-400">{item.note}</p>}
                         </div>
                         <span className="text-sm font-medium text-red-500 tabular-nums ml-4">
                           −{fmt(item.amount, slip.currency)}
