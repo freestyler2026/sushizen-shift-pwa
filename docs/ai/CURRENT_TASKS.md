@@ -81,8 +81,25 @@ rush_check_missing (Erica)  open 12 + sent 6 + responded 8 = 26   ← Ownersの�
 **Erica の rush_check_missing は200件上限の影響を受けていない**（33件すべて到達）。
 質問者が見た「20件」と「6件」は、集計と表で条件が違うため。
 
-⚠️ **画面上に「この数字は何を数えているか」の説明が無い。** 数字が押せない・辿れないのは
-設計思想の失敗パターン#7。今回は truncation 表示のみ対応、**件数の定義表示は未対応**。
+### 対応済み: 数字に定義を書き、押せるようにした（失敗パターン#7・#9）
+
+| 画面 | 変更 |
+|---|---|
+| Owners | 列見出しを **「Not closed (open + sent + responded)」** に。件数を**リンク化**し、押すとその種別に絞ったダッシュボードへ |
+| 同上 | Pages の red/yellow も同様にリンク化＋「not closed」と明記 |
+| BO Dashboard | 表の上に **「Showing 26 of 275 loaded — not closed / rush_check_missing ✕ / show everything」** を常時表示 |
+| 同上 | KPIカード4枚を**押せるボタン**に（押すとその状態に絞る） |
+| 同上 | ステータス絞り込みに **「Not closed」** を追加 |
+
+⚠️ **`status=all` でリンクすると26を押して33行（closed 7件込み）が出た。** 同じ食い違いの再来だったので、
+**Ownersの件数と同じ区分（not_closed）を絞り込みに追加**し、リンクをそこへ向けた。**26を押すと26行**になる。
+
+⚠️ **ダッシュボードの初期状態は `statusFilter="open"` / `pageFilter="mine"`。**
+これ自体は妥当だが**画面に出ていなかった**ため、他画面の26に対してここが12なのは
+「絞り込み」ではなく「不具合」に見えていた。現在は明記＋「show everything」を併設。
+
+⚠️ **`useSearchParams()` はビルドを壊す**（プリレンダーページはSuspense境界が必須）。
+`window.location.search` を effect 内で読む形にした。**ビルドを回さないと気づけない**ので必ず `npm run build` すること。
 
 ---
 
