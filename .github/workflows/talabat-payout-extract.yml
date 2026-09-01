@@ -1,10 +1,19 @@
-name: Talabat Dubai — Monthly Payout Extraction
+name: Talabat Dubai — Payout Extraction
 
 on:
   schedule:
-    # 5th of each month at 02:00 UTC = 6:00 AM Dubai time
-    # Runs after month-end so all payout records have settled.
-    - cron: '0 2 5 * *'
+    # Daily at 02:00 UTC = 6:00 AM Dubai.
+    #
+    # This ran on the 5th of each month, but Talabat settles every three or
+    # four days -- so the record sat up to a month behind its own source, and
+    # on 2026-09-01 it was fifteen days stale with two settled payouts sitting
+    # in the portal unfetched. The gap looked exactly like an expired session
+    # and was not one: the session was fine, nothing had asked it for the data.
+    #
+    # A daily run against a rolling window costs one API call per chain and
+    # keeps the record within a day of the source. Re-posting a payout already
+    # held is harmless: the endpoint upserts on payout_id.
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       date_from:
@@ -53,8 +62,11 @@ jobs:
             echo "DATE_TO=${{ github.event.inputs.date_to }}" >> $GITHUB_ENV
           else
             # Previous month: 1st → last day
-            DATE_FROM=$(date -d "$(date +%Y-%m-01) -1 month" +%Y-%m-%d)
-            DATE_TO=$(date -d "$(date +%Y-%m-01) -1 day" +%Y-%m-%d)
+            # A rolling 45 days, not "last calendar month": on a daily
+            # schedule the previous month is the wrong window for most of the
+            # month, and the overlap re-confirms recent payouts cheaply.
+            DATE_FROM=$(date -d '45 days ago' +%Y-%m-%d)
+            DATE_TO=$(date +%Y-%m-%d)
             echo "DATE_FROM=$DATE_FROM" >> $GITHUB_ENV
             echo "DATE_TO=$DATE_TO" >> $GITHUB_ENV
           fi
