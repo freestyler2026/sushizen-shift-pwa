@@ -48,6 +48,9 @@ interface CityData {
   food_cost_rate: number | null; prime_cost_rate: number | null;
   overhead_missing?: boolean;
   overhead_carried_from?: string | null;
+  labor_carried_from?: string | null;
+  /** Inputs taken from another month because this one has none of its own. */
+  carried_inputs?: { field: string; label: string; from: string }[];
   partial_month?: boolean;
   days_covered?: number;
   days_in_month?: number;
@@ -717,6 +720,39 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             </div>
           );
         })}
+
+      {/* Which of these figures are not this month's own.
+          dubai_monthly_labor holds one month (2026-07) and the lookup falls back
+          up to twelve, so August and September both spend July's payroll. The
+          overhead table stops there too. Only overhead said so, in a caption
+          under one card, while the prime cost built from both was called a
+          critical. */}
+      {summary && (() => {
+        const rows = (["dubai", "manila"] as const)
+          .map((k) => ({ k, name: k === "dubai" ? "ドバイ" : "マニラ",
+                         items: summary[k].carried_inputs || [] }))
+          .filter((r) => r.items.length > 0);
+        if (rows.length === 0) return null;
+        return (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-300">前月の数値を使っている項目があります</p>
+            <div className="mt-1.5 space-y-1">
+              {rows.map((r) => (
+                <p key={r.k} className="text-xs leading-relaxed text-amber-200/85">
+                  <span className="font-semibold">{r.name}</span>{" — "}
+                  {r.items.map((i) => `${i.label}は ${i.from} の数値`).join("、")}
+                  。この月の実績ではありません。
+                </p>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-amber-200/70">
+              原価率・プライムコスト・営業利益はこれらを含んで計算されているため、
+              実態とずれます。判断の前に当月分を登録してください
+              （経費は Settings › Overhead、ドバイの人件費は給与ワークブックの取り込み）。
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Rent, utilities and licences have no rows at all for these cities, so the
           margin below is prime cost only. Left unsaid it reads as profit. */}
