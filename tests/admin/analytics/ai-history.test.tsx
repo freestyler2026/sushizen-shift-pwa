@@ -88,13 +88,13 @@ describe("AiHistoryPage", () => {
     // fetch never resolves — loading spinner should be visible
     global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof global.fetch;
     render(<AiHistoryPage />);
-    expect(screen.getByText(/読み込み中/)).toBeInTheDocument();
+    expect(screen.getByText(/Loading/)).toBeInTheDocument();
   });
 
   it("shows empty state when API returns no items", async () => {
     global.fetch = makeFetch([]);
     render(<AiHistoryPage />);
-    await screen.findByText(/保存された分析はまだありません/);
+    await screen.findByText(/No saved analyses yet/);
   });
 
   it("shows error message when API throws", async () => {
@@ -140,7 +140,7 @@ describe("AiHistoryPage", () => {
     await screen.findByText("How was overtime last month?");
     // Click the card header button
     fireEvent.click(screen.getByRole("button", { name: /How was overtime last month/i }));
-    await screen.findByText(/モデル:/);
+    await screen.findByText(/Model:/);
     expect(screen.getByText(/claude-sonnet-4-6/)).toBeInTheDocument();
   });
 
@@ -150,17 +150,17 @@ describe("AiHistoryPage", () => {
     await screen.findByText("How was overtime last month?");
     const btn = screen.getByRole("button", { name: /How was overtime last month/i });
     fireEvent.click(btn);
-    await screen.findByText(/モデル:/);
+    await screen.findByText(/Model:/);
     fireEvent.click(btn);
     await waitFor(() => {
-      expect(screen.queryByText(/モデル:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Model:/)).not.toBeInTheDocument();
     });
   });
 
   it("renders the city filter buttons (All / Dubai / Manila / Both)", async () => {
     global.fetch = makeFetch([]);
     render(<AiHistoryPage />);
-    expect(screen.getByText("すべて")).toBeInTheDocument();
+    expect(screen.getByText("All")).toBeInTheDocument();
     expect(screen.getByText("Dubai")).toBeInTheDocument();
     expect(screen.getByText("Manila")).toBeInTheDocument();
     expect(screen.getByText("Dubai + Manila")).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe("AiHistoryPage", () => {
     render(<AiHistoryPage />);
     fireEvent.click(screen.getByText("Dubai"));
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByText("すべて"));
+    fireEvent.click(screen.getByText("All"));
     await waitFor(() => {
       const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
       const lastUrl = String(calls[calls.length - 1][0]);
@@ -205,7 +205,7 @@ describe("AiHistoryPage", () => {
     render(<AiHistoryPage />);
     await screen.findByText("How was overtime last month?");
     fireEvent.click(screen.getByRole("button", { name: /How was overtime last month/i }));
-    await screen.findByText(/保存者:/);
+    await screen.findByText(/Saved by:/);
     // saved_by empty renders "—"
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });

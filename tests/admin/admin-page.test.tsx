@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import AdminPage from "@/app/admin/page";
 import { buildFetchMock } from "../helpers/fetch-mock";
@@ -823,18 +824,28 @@ describe("RequestCard — expand / collapse / actions", () => {
 // 6. Export section (HQ/ADMIN only)
 // =============================================================================
 describe("Export section (HQ/ADMIN only)", () => {
-  it("shows 'Enter your PIN' when pin is empty and role is not yet verified", async () => {
-    // Default setAdminAuth has no pin → myRole clears to "" after verify effect
-    global.fetch = buildFetchMock([
+  it("trusts the signed-in session rather than re-verifying the role", async () => {
+    // "Enter your PIN so role can be verified" is unreachable. An active
+    // session carries its role, so the page uses that and never calls verify;
+    // and a session whose role is not an admin one cannot open the dashboard
+    // at all. The caption belongs to the older flow where the role was proved
+    // by typing a PIN on this screen.
+    setAuthWithPin("1234");
+    const fetchMock = buildFetchMock([
       { match: "/api/admin/overview", body: MOCK_OVERVIEW },
       { match: "/api/auth/verify", method: "POST", body: { ok: true, role: "STAFF" } },
       { match: "/api/admin/price-check/flagged-count", body: { flagged_count: 0 } },
     ]);
+    global.fetch = fetchMock;
 
     await renderAndWait();
-    await waitFor(() =>
-      expect(screen.getByText(/Enter your PIN so role can be verified/i)).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      const buttons = screen.getAllByRole("button");
+      expect(buttons.find((b) => b.textContent?.includes("Prepare"))).toBeInTheDocument();
+    });
+    expect(
+      fetchMock.mock.calls.filter((c: unknown[]) => String(c[0]).includes("/api/auth/verify")),
+    ).toHaveLength(0);
   });
 
   it("shows Export and Prepare buttons when ADMIN role is verified via pin", async () => {
@@ -864,8 +875,7 @@ describe("Export section (HQ/ADMIN only)", () => {
 
     await renderAndWait();
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: "FINAL" })).toBeInTheDocument();
-      expect(screen.getByRole("option", { name: "DRAFT" })).toBeInTheDocument();
+      expect(optionLabels("FINAL")).toEqual(expect.arrayContaining(["FINAL", "DRAFT"]));
     });
   });
 
@@ -990,83 +1000,18 @@ describe("Export section (HQ/ADMIN only)", () => {
 // 7. Attendance sync
 // =============================================================================
 describe("Attendance sync", () => {
-  it("Sync Bayzat button is disabled when PIN is empty", async () => {
+  // Bayzat ended in the first half of July 2026; DTR is filled from the OS
+  // attendance records now, so this button was removed rather than left to pull
+  // from a source that has stopped answering. The tests that drove it -- PIN
+  // gating, the invalid-PIN message, the already-imported message -- were
+  // exercising a control that is no longer on the page.
+  it("no longer offers the Bayzat sync", async () => {
     global.fetch = makeDefaultFetch();
     await renderAndWait();
-
-    // Default auth has no pin, so button should be disabled
-    const syncBtn = screen.getByRole("button", { name: /Sync Latest Bayzat/i });
-    expect(syncBtn).toBeDisabled();
-  });
-
-  it("Sync Bayzat button is enabled when pin is set in auth", async () => {
-    setAuthWithPin("9999");
-    global.fetch = makeDefaultFetch();
-
-    await renderAndWait();
-    const syncBtn = screen.getByRole("button", { name: /Sync Latest Bayzat/i });
-    expect(syncBtn).not.toBeDisabled();
-  });
-
-  it("shows success message after successful sync", async () => {
-    setAuthWithPin("9999");
-    global.fetch = makeDefaultFetch();
-
-    await renderAndWait();
-    fireEvent.click(screen.getByRole("button", { name: /Sync Latest Bayzat/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Sync complete/i)).toBeInTheDocument();
-    });
-  });
-
-  it("shows 'PINが正しくありません' when sync returns invalid pin error", async () => {
-    setAuthWithPin("9999");
-    global.fetch = buildFetchMock([
-      { match: "/api/admin/overview", body: MOCK_OVERVIEW },
-      { match: "/api/auth/verify", method: "POST", body: { ok: true, role: "ADMIN", staff_name: "Test Admin" } },
-      { match: "/api/admin/price-check/flagged-count", body: { flagged_count: 0 } },
-      {
-        match: "/api/admin/attendance/drive/sync",
-        method: "POST",
-        body: { detail: "Invalid PIN" },
-        status: 403,
-      },
-    ]);
-
-    await renderAndWait();
-    fireEvent.click(screen.getByRole("button", { name: /Sync Latest Bayzat/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/PINが正しくありません/i)).toBeInTheDocument();
-    });
-  });
-
-  it("shows 'already imported' message when sync returns duplicate flag", async () => {
-    setAuthWithPin("9999");
-    global.fetch = buildFetchMock([
-      { match: "/api/admin/overview", body: MOCK_OVERVIEW },
-      { match: "/api/auth/verify", method: "POST", body: { ok: true, role: "ADMIN", staff_name: "Test Admin" } },
-      { match: "/api/admin/price-check/flagged-count", body: { flagged_count: 0 } },
-      {
-        match: "/api/admin/attendance/drive/sync",
-        method: "POST",
-        body: { ok: true, duplicate: true, message: "" },
-      },
-    ]);
-
-    await renderAndWait();
-    fireEvent.click(screen.getByRole("button", { name: /Sync Latest Bayzat/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/既に取り込み済み/i)).toBeInTheDocument();
-    });
+    expect(screen.queryByRole("button", { name: /Bayzat/i })).toBeNull();
   });
 });
 
-// =============================================================================
-// 8. Price check badge
-// =============================================================================
 describe("Price check badge", () => {
   it("does not show price check alert when flagged_count is 0", async () => {
     global.fetch = buildFetchMock([
@@ -1090,7 +1035,7 @@ describe("Price check badge", () => {
 
     await renderAndWait();
     await waitFor(() => {
-      expect(screen.getByText(/3 件の価格変更を検出/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 price changes detected/i)).toBeInTheDocument();
     });
   });
 });
