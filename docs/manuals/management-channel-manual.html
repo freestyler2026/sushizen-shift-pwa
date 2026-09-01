@@ -2151,11 +2151,38 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">並び順（2026-09-02 変更）</span><span class="en">Ordering (changed 2026-09-02)</span></div>
+      <div class="chip-row" style="margin-top:6px;">
+        <span class="chip accent">1. コスト（kpi_*）</span>
+        <span class="chip">2. 🔴 → 🟠 → 🟢</span>
+        <span class="chip">3. 待ち時間が長い順</span>
+      </div>
+      <p style="margin-top:8px;font-size:12px;color:var(--muted);">
+        <span class="ja">以前は「重要度 → <b>新しい順</b>」だったため、一番長く放置されている案件がリストの最下部に沈んでいた。現在は<b>一番古いものが先頭</b>に来る。コスト系（プライムコスト・フードコスト・売上減少・異常発注）は1店舗の作業ではなく全社の数字なので、重要度より上に固定される。並び順はフィルターチップの隣に文字で表示される。<b>Closed だけは新しい順</b>（記録であってキューではないため）。</span>
+        <span class="en">It used to be severity then <b>newest first</b>, which sank the longest-waiting item to the bottom of the list. The item that has waited longest is now at the top. Cost tasks (prime cost, food cost, revenue decline, outlier order) sit above severity because they are the company's numbers, not one store's chore. The rule is printed next to the filter chips. <b>Closed is the exception</b> and still reads newest-first — it is a record, not a queue.</span>
+      </p>
+    </div>
+
+    <div class="tip warn" style="margin-bottom:10px;">
+      <span class="tip-icon">💰</span>
+      <span class="ja"><b>コスト警告は毎朝07:00（マニラ時間）に自動で入るようになった（2026-09-02）。</b>
+        それ以前は Management Accounting ページのボタンを人が押したときだけ作られており、<b>全社で2件（2026-08-21）しか存在しなかった</b>。その2件も未送信のまま8日後に一括クローズされている。
+        コスト警告は<b>期限切れで自動クローズされない</b>（「19日の廃棄記録を出せ」は1週間後には無意味だが、「プライムコストが基準超」は来週も真であるため）。
+        未送信のまま7日を超えたコスト警告は、ワーカーのログに毎回 <code>STILL UNSENT</code> として出る。
+        売上減少は<b>その月が丸1週間そろうまで判定しない</b>（1日分だけの数字を月平均と比べると、平均以下の日は約半分あるので毎朝鳴ってしまう）。</span>
+      <span class="en"><b>Cost alerts now arrive automatically at 07:00 Manila every morning (from 2026-09-02).</b>
+        Before that they were only created when someone pressed a button on the Management Accounting page — a different page from this one — so the whole company had <b>exactly two, both from 2026-08-21</b>, and both were bulk-closed eight days later without ever being sent.
+        Cost alerts are <b>never auto-closed by age</b>: "file the 19th's disposal report" is meaningless a week later, but "prime cost is above target" is still true next week.
+        A cost alert still unsent after 7 days is printed as <code>STILL UNSENT</code> in the worker log every run.
+        Revenue decline is <b>not judged until the month holds a full week</b> — comparing a single day against a monthly average fires on any below-average day, which is about half of them.</span>
+    </div>
+
+    <div class="card" style="margin-bottom:10px;">
       <div class="card-title"><span class="ja">③ タスクリスト</span><span class="en">③ Task List</span></div>
       <div class="mock-card" style="margin:8px 0 0;">
         <div class="mock-header">
           <span class="mock-header-title">Manila — 4 tasks</span>
-          <span style="font-size:11px;color:var(--muted);">🔴 first → 🟠 → oldest first</span>
+          <span style="font-size:11px;color:var(--muted);">💰 cost → 🔴 → 🟠 → oldest first</span>
         </div>
         <div class="mock-row">
           <span class="mock-sev">🔴</span>
