@@ -1199,9 +1199,18 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-white truncate">{fmtLabel(task.type)}</span>
             <span className="text-xs text-zinc-500">{task.branch}</span>
+            {/* Name the person it went to. "Escalated" on its own says
+                something happened somewhere else; the point of escalating is
+                that it is now someone's, and the row should say whose. */}
             {task.escalated_at && (
-              <span className="text-[10px] font-bold uppercase tracking-wide text-red-300 bg-red-500/15 border border-red-500/30 rounded px-1.5 py-0.5">
+              <span
+                className="text-[10px] font-bold uppercase tracking-wide text-red-300 bg-red-500/15 border border-red-500/30 rounded px-1.5 py-0.5"
+                title={`Escalated ${fmtTime(task.escalated_at)}`}
+              >
                 Escalated
+                {typeof task.context?.escalated_to === "string" && task.context.escalated_to
+                  ? ` → ${task.context.escalated_to}`
+                  : ""}
               </span>
             )}
             {task.missed_by_manager && (
