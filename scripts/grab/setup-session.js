@@ -77,22 +77,34 @@ async function main() {
     } catch (_) {}
   });
 
-  // Start at marketing page
-  console.log('Opening GrabMerchant...');
-  await page.goto('https://merchant.grab.com/mrc/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2000);
+  // Straight to the portal, which redirects to the sign-in form on its own.
+  //
+  // This used to open the marketing site and click "Go to Portal" -- and that
+  // button opens a SECOND TAB. The script kept watching the first one, so it
+  // sat on a marketing page (served as GrabMerchant Malaysia, since the login
+  // form never loaded to tell it otherwise) for the full five minutes while
+  // the actual sign-in form was in a window it never looked at. From the
+  // outside it simply looked as though you could not log in.
+  console.log('Opening the GrabMerchant portal sign-in...');
+  await page.goto('https://merchant.grab.com/portal', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForTimeout(3000);
 
-  // Click "Go to Portal" if present
-  try {
-    const portalBtn = await page.getByText('Go to Portal', { exact: true });
-    if (await portalBtn.isVisible()) {
-      console.log('Clicking "Go to Portal"...');
-      await portalBtn.click();
-      await page.waitForTimeout(3000);
-    }
-  } catch (_) {}
+  // If anything still opens a popup, follow it rather than losing the login.
+  context.on('page', async pop => {
+    try {
+      await pop.waitForLoadState('domcontentloaded');
+      console.log(`  (a second window opened: ${pop.url().slice(0, 70)})`);
+    } catch (_) {}
+  });
 
+  const onLogin = page.url().includes('weblogin.grab.com');
   console.log(`\nCurrent URL: ${page.url()}`);
+  if (onLogin) {
+    console.log('✓ Sign-in form reached. Choose the "Username" tab (not Phone or SSO).');
+  } else {
+    console.log('⚠ Not on the sign-in form — the portal may already have a session,');
+    console.log('  or Grab has changed the entry point again.');
+  }
   console.log(`\nPlease log in with: ${CREDS[LOCATION]}`);
   console.log('(Complete 2FA if prompted)\n');
 
@@ -103,7 +115,9 @@ async function main() {
   let loggedIn = false;
 
   while (Date.now() < deadline) {
-    const url = page.url();
+    // Any tab reaching the portal counts -- the sign-in can finish in a popup.
+    const url = context.pages().map(p => p.url())
+      .find(u => u.includes('merchant.grab.com') && !u.includes('/mrc')) || page.url();
     const notAuth = !url.includes('/login') && !url.includes('/signin') &&
                     !url.includes('/auth') && !url.includes('accounts.grab.com') &&
                     !url.includes('weblogin.grab.com');
