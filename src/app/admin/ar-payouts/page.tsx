@@ -130,6 +130,7 @@ function ConfirmModal({
   );
   const [note, setNote] = useState(payout.confirmation_note || "");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const parsed = parseFloat(bankAmount);
   const hasAmount = bankAmount.trim() !== "" && !isNaN(parsed);
@@ -137,15 +138,30 @@ function ConfirmModal({
   const differs = hasAmount && Math.abs(diff) >= 0.01;
 
   const handleSave = async () => {
-    if (!hasAmount || parsed <= 0) { alert("Enter the amount the bank actually received."); return; }
+    // Zero and negative are allowed on purpose. Nothing arrived at all, and a
+    // chargeback that took money back, are the two findings this page exists
+    // to record -- and seven payouts already carry a negative expected amount.
+    // Refusing them meant the only receipts you could write down were the ones
+    // where nothing had gone wrong.
+    if (!hasAmount) { setSaveError("Enter the amount the bank actually received."); return; }
     // A gap between expected and received is the finding this page exists for.
     // Recording it without a word leaves the next reader guessing.
     if (differs && !note.trim()) {
-      alert("The bank amount differs from expected. Add a note saying why before saving.");
+      setSaveError("The bank amount differs from expected. Add a note saying why before saving.");
       return;
     }
     setSaving(true);
-    try { await onSave(parsed, note); } finally { setSaving(false); }
+    setSaveError("");
+    try {
+      await onSave(parsed, note);
+    } catch (e) {
+      // The save used to be fire-and-forget: the modal closed and the list
+      // refreshed whether or not anything had been written, so a refused
+      // confirmation looked exactly like a successful one.
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -206,6 +222,11 @@ function ConfirmModal({
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30 focus:border-violet-500/50 focus:outline-none"
           />
         </div>
+        {saveError && (
+          <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {saveError}
+          </p>
+        )}
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="flex-1 rounded-xl border border-white/10 py-2 text-sm text-white/60 hover:bg-white/5">
             Cancel
@@ -405,20 +426,39 @@ export default function ArPayoutsPage() {
     }
   };
 
+  // Nobody holds channel.admin.ar_payouts.manage -- HQ and ADMIN get in on the
+  // role name alone. So the first person given AR Payouts through Role
+  // Management gets a page full of Confirm buttons that answer 403, and until
+  // this threw, the modal closed on that 403 exactly as it closes on success.
+  // On a page that records money received, a save that quietly does nothing is
+  // worse than one that refuses.
   const handleConfirm = async (bankAmount: number, note: string) => {
     if (!confirmTarget) return;
-    await fetch(`/api/admin/ar-payouts/${confirmTarget.id}/confirm`, {
+    const res = await fetch(`/api/admin/ar-payouts/${confirmTarget.id}/confirm`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bank_amount: bankAmount, confirmed_by: confirmerName, note }),
     });
+    if (!res.ok) {
+      const text = await res.text();
+      let detail = text;
+      try { detail = JSON.parse(text).detail || text; } catch { /* plain-text error */ }
+      throw new Error(`Not saved — ${detail || res.statusText}`);
+    }
     setConfirmTarget(null);
     await fetchPayouts();
   };
 
   const handleUnconfirm = async (payout: ArPayout) => {
-    if (!confirm(`Unconfirm this payout (${PLATFORM_LABEL[payout.platform]} ${payout.payout_id})?`)) return;
-    await fetch(`/api/admin/ar-payouts/${payout.id}/unconfirm`, { method: "PATCH" });
+    if (!confirm(`Unconfirm this payout (${PLATFORM_LABEL[payout.platform] || payout.platform} ${payout.payout_id})?`)) return;
+    const res = await fetch(`/api/admin/ar-payouts/${payout.id}/unconfirm`, { method: "PATCH" });
+    if (!res.ok) {
+      const text = await res.text();
+      let detail = text;
+      try { detail = JSON.parse(text).detail || text; } catch { /* plain-text error */ }
+      alert(`Not undone — ${detail || res.statusText}`);
+      return;
+    }
     await fetchPayouts();
   };
 
