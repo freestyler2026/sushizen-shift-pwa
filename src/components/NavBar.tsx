@@ -128,6 +128,7 @@ import {
   refreshAuthFromApi,
 } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import { MANAGEMENT_CHANNEL_CITY } from "@/lib/management-channel";
 import { RENEWALS_BADGE_EVENT, getRenewalsDismissedCount, readRenewalsBadgeCount, setRenewalsBadgeCount } from "@/lib/renewals";
 import { BADGE_EVENTS } from "@/lib/badgeEvents";
 
@@ -594,7 +595,9 @@ export default function NavBar() {
         // Store exceptions nobody has acted on. 535 of these accumulated while the
         // channel looked quiet, because an empty inbox and an ignored one looked
         // identical from every screen.
-        const mg = await fetch(`${API_BASE}/api/admin/management/badge?city=${encodeURIComponent(cityParam)}`, {
+        // Not cityParam: the BO Dashboard is Manila-only, so the badge has to
+        // count the same city the page will open on. See management-channel.ts.
+        const mg = await fetch(`${API_BASE}/api/admin/management/badge?city=${encodeURIComponent(MANAGEMENT_CHANNEL_CITY)}`, {
           method: "GET", cache: "no-store", headers: getAuthHeaders(auth),
         });
         if (mg.ok && !cancelled) {

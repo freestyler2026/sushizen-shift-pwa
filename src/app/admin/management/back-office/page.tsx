@@ -37,6 +37,7 @@ import {
 } from "@/lib/ui-tokens";
 import { MgmtChannelTabBar } from "../MgmtChannelTabs";
 import { fillTemplate, shortfallSummary, fmtExceptionType } from "@/lib/management";
+import { MANAGEMENT_CHANNEL_CITY } from "@/lib/management-channel";
 import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1240,7 +1241,7 @@ export default function BODashboardPage() {
   // member specific pages and says they "see only their exceptions"; a list of
   // everyone's is a list nobody treats as theirs.
   const [pageFilter, setPageFilter] = useState<string>("mine");
-  const [cityFilter, setCityFilter] = useState<string>("manila");
+  const [cityFilter, setCityFilter] = useState<string>(MANAGEMENT_CHANNEL_CITY);
 
   // Send modal
   const [sendingTask, setSendingTask] = useState<ManagementTask | null>(null);
@@ -1357,10 +1358,34 @@ export default function BODashboardPage() {
     ? pageFilteredTasks.filter(t => t.type === typeFilter)
     : pageFilteredTasks;
 
-  const filteredTasks =
-    statusFilter === "not_closed" ? typeFilteredTasks.filter(t => t.status !== "closed")
-    : statusFilter && statusFilter !== "all" ? typeFilteredTasks.filter(t => t.status === statusFilter)
-    : typeFilteredTasks;
+  const byStatus = (list: ManagementTask[]) =>
+    statusFilter === "not_closed" ? list.filter(t => t.status !== "closed")
+    : statusFilter && statusFilter !== "all" ? list.filter(t => t.status === statusFilter)
+    : list;
+
+  const filteredTasks = byStatus(typeFilteredTasks);
+
+  // The number on a page chip is how many rows pressing it shows -- counted
+  // from the same array the list renders, under the same status filter.
+  //
+  // It used to come from the API's open_total, which counts everything not
+  // closed. So the chips read 25 / - / 30 / 18 while the list, filtered to
+  // Open, held 10. Three numbers on one screen for the same four pages, none
+  // of them wrong on its own, and no way to tell that from looking.
+  const statusOnlyTasks = byStatus(tasks);
+  const pageChipCount = (key: string) => {
+    const pg = pages.find((x) => x.key === key);
+    if (!pg) return 0;
+    const types = new Set(pg.types);
+    return statusOnlyTasks.filter((t) => types.has(t.type)).length;
+  };
+
+  // A task whose type is on no page is invisible: the page filter drops it and
+  // no chip counts it. Five of the seven cost alert types were in that state.
+  const pagedTypes = new Set(pages.flatMap((p) => p.types));
+  const orphanTasks = pages.length === 0
+    ? []
+    : statusOnlyTasks.filter((t) => !pagedTypes.has(t.type));
 
   // Order: cost first, then severity, then the one that has waited longest.
   //
@@ -1630,7 +1655,12 @@ export default function BODashboardPage() {
           </span>
           {pageFilter !== "all" && (
             <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
-              {pageFilter === "mine" ? "my pages" : pageFilter}
+              {/* "mine" falls back to every page when you own none. It used to
+                  still say "my pages", so the screen claimed a filter it was
+                  not applying. */}
+              {pageFilter === "mine"
+                ? (myPages.length > 0 ? "my pages" : "all pages — none assigned to you")
+                : pageFilter}
             </span>
           )}
           {typeFilter && (
@@ -1716,14 +1746,32 @@ export default function BODashboardPage() {
                 >
                   {o.label}
                   {o.key !== "mine" && o.key !== "all" && (() => {
-                    const pg = pages.find((x) => x.key === o.key);
-                    return pg && pg.open_total > 0
-                      ? <span className="ml-1.5 tabular-nums text-zinc-400">{pg.open_total}</span>
+                    const n = pageChipCount(o.key);
+                    return n > 0
+                      ? <span className="ml-1.5 tabular-nums text-zinc-400">{n}</span>
                       : null;
                   })()}
                 </button>
               ))}
             </div>
+
+            {/* A type on no page cannot be reached from any chip and is not in
+                any count. Two red company-wide cost alerts sat in that state
+                for eight days and were bulk-closed unread. Say so instead of
+                letting it be silent. */}
+            {orphanTasks.length > 0 && (
+              <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                <b>{orphanTasks.length} task(s) belong to no page</b> and are hidden unless
+                Page is set to All: {[...new Set(orphanTasks.map((t) => t.type))].join(", ")}.
+                <button
+                  type="button"
+                  onClick={() => setPageFilter("all")}
+                  className="ml-2 underline underline-offset-2 hover:text-white"
+                >
+                  Show them
+                </button>
+              </div>
+            )}
 
             {/* The manual for whatever is being worked, on the page being worked. */}
             {activePages.map((p) => (
