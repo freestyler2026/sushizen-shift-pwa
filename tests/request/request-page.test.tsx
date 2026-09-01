@@ -215,7 +215,7 @@ describe("/request page — form fields", () => {
 
   it("renders Submit button", async () => {
     await renderPage();
-    expect(screen.getByText("Submit")).toBeInTheDocument();
+    expect(screen.getByText("Submit Request")).toBeInTheDocument();
   });
 
   it("renders Clear button", async () => {
@@ -231,12 +231,11 @@ describe("/request page — form fields", () => {
 
   it("shows leave sub-type and days when type is paid_leave", async () => {
     await renderPage();
-    const select = screen.getByDisplayValue("Time Change");
-    fireEvent.change(select, { target: { value: "paid_leave" } });
+    chooseValue("Time Change", "paid_leave");
     await waitFor(() =>
       expect(expectSelectShowing("Annual Leave")).toBeTruthy()
     );
-    expect(expectSelectShowing("1")).toBeTruthy();
+    expect(screen.getByDisplayValue("1")).toBeInTheDocument();
   });
 
   it("shows OT hours field when type is overtime_request", async () => {
@@ -277,7 +276,7 @@ describe("/request page — form fields", () => {
 
   it("shows staff name field pre-filled with auth name", async () => {
     await renderPage();
-    expect(expectSelectShowing("Test Staff")).toBeTruthy();
+    expect(screen.getByDisplayValue("Test Staff")).toBeInTheDocument();
   });
 });
 
@@ -289,7 +288,7 @@ describe("/request page — form validation", () => {
 
   it("shows error when reason is empty", async () => {
     await renderPage();
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText(/Reason must be at least 5 characters/i)).toBeInTheDocument()
     );
@@ -300,7 +299,7 @@ describe("/request page — form validation", () => {
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "hi" },
     });
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText(/Reason must be at least 5 characters/i)).toBeInTheDocument()
     );
@@ -313,7 +312,7 @@ describe("/request page — form validation", () => {
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "need to swap shift please" },
     });
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText(/Counterparty staff name is required/i)).toBeInTheDocument()
     );
@@ -321,7 +320,7 @@ describe("/request page — form validation", () => {
 
   it("clears error when Clear is clicked", async () => {
     await renderPage();
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText(/Reason must be at least 5 characters/i)).toBeInTheDocument()
     );
@@ -332,22 +331,49 @@ describe("/request page — form validation", () => {
   });
 });
 
+/** Fill what a Time Change request requires beyond the reason. The page
+ *  refuses to submit without a requested time, so a test that fills only the
+ *  reason is testing the validation, not the submit. */
+function fillTimeChange(reason = "Need to change my shift time please") {
+  fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
+    target: { value: reason },
+  });
+  fireEvent.change(screen.getByPlaceholderText("e.g. 10-18"), {
+    target: { value: "10-18" },
+  });
+}
+
+/** Answer by URL rather than by call order.
+ *
+ *  These tests queue their responses with mockResolvedValueOnce, which assumes
+ *  the page makes exactly the calls they expect, in that order. It no longer
+ *  does: submitting a Time Change also fires a notify, and the queue then hands
+ *  the submit's response to the wrong call. Matching on the URL survives the
+ *  page loading one more thing.
+ */
+function serve(routes: Record<string, unknown>) {
+  mockFetch.mockImplementation((url: RequestInfo | URL) => {
+    const u = String(url);
+    for (const [fragment, data] of Object.entries(routes)) {
+      if (u.includes(fragment)) return okJson(data);
+    }
+    return okJson({});
+  });
+}
+
 describe("/request page — submit success & form reset", () => {
   beforeEach(() => {
     mockAuth = staffAuth();
-    // staff names + balances OK, then submit OK
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ request_id: "abc-123-def-456" }));
+    serve({
+      "/api/shift_change/submit": { request_id: "abc-123-def-456" },
+      "/api/request/notify": { ok: true },
+    });
   });
 
   it("shows success banner after submit", async () => {
     await renderPage();
-    fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
-      target: { value: "Need to change my shift time please" },
-    });
-    fireEvent.click(screen.getByText("Submit"));
+    fillTimeChange();
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
@@ -356,10 +382,8 @@ describe("/request page — submit success & form reset", () => {
   it("resets reason field after successful submit (bug regression)", async () => {
     await renderPage();
     const reasonField = screen.getByPlaceholderText(/At least 5 characters/i);
-    fireEvent.change(reasonField, {
-      target: { value: "Need to change my shift time please" },
-    });
-    fireEvent.click(screen.getByText("Submit"));
+    fillTimeChange();
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
@@ -371,18 +395,16 @@ describe("/request page — submit success & form reset", () => {
 describe("/request page — submit error", () => {
   beforeEach(() => {
     mockAuth = staffAuth();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(errorResponse(500, "Internal Server Error"));
+    serve({});
+    mockFetch.mockImplementation((url: RequestInfo | URL) =>
+      String(url).includes("/api/shift_change/submit")
+        ? errorResponse(500, "Internal Server Error") : okJson({}));
   });
 
   it("shows error message on failed submit", async () => {
     await renderPage();
-    fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
-      target: { value: "Need to change my shift time please" },
-    });
-    fireEvent.click(screen.getByText("Submit"));
+    fillTimeChange();
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText(/Submit failed/i)).toBeInTheDocument()
     );
@@ -392,10 +414,7 @@ describe("/request page — submit error", () => {
 describe("/request page — overtime submit", () => {
   beforeEach(() => {
     mockAuth = staffAuth();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ ok: true })); // /api/request/notify
+    serve({ "/api/request/notify": { ok: true } });
   });
 
   it("submits overtime via /api/request/notify and shows success", async () => {
@@ -404,7 +423,7 @@ describe("/request page — overtime submit", () => {
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "Worked extra hours covering for absent staff" },
     });
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
@@ -419,7 +438,7 @@ describe("/request page — overtime submit", () => {
     fireEvent.change(reasonField, {
       target: { value: "Worked extra hours covering for absent staff" },
     });
-    fireEvent.click(screen.getByText("Submit"));
+    fireEvent.click(screen.getByText("Submit Request"));
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
@@ -480,10 +499,7 @@ describe("HistoryTab — items display", () => {
 
   beforeEach(() => {
     mockAuth = staffAuth();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ items: [historyItem] }));
+    serve({ "/api/request/notifications/history": { items: [historyItem] } });
   });
 
   it("shows notification type", async () => {
@@ -513,10 +529,7 @@ describe("HistoryTab — items display", () => {
   it("shows leave_days when leave_days = 0 (bug regression)", async () => {
     // Reload with leave_days: 0
     mockFetch.mockReset();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ items: [{ ...historyItem, leave_days: 0 }] }));
+    serve({ "/api/request/notifications/history": { items: [{ ...historyItem, leave_days: 0 }] } });
     await renderPage();
     fireEvent.click(screen.getByText("My History"));
     await waitFor(() =>
@@ -533,26 +546,23 @@ describe("HistoryTab — items display", () => {
   });
 
   it("shows review note when present", async () => {
-    mockFetch.mockReset();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({
+    serve({
+      "/api/request/notifications/history": {
         items: [{ ...historyItem, review_note: "Approved by manager" }],
-      }));
+      },
+    });
     await renderPage();
     fireEvent.click(screen.getByText("My History"));
     await waitFor(() =>
-      expect(screen.getByText("Approved by manager")).toBeInTheDocument()
+      expect(screen.getByText("Note: Approved by manager")).toBeInTheDocument()
     );
   });
 
   it("shows error when API fails", async () => {
     mockFetch.mockReset();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(errorResponse(500, "Server error"));
+    mockFetch.mockImplementation((url: RequestInfo | URL) =>
+      String(url).includes("/api/request/notifications/")
+        ? errorResponse(500, "Server error") : okJson({}));
     await renderPage();
     fireEvent.click(screen.getByText("My History"));
     await waitFor(() =>
@@ -582,10 +592,7 @@ describe("InboxTab — display and review", () => {
 
   beforeEach(() => {
     mockAuth = adminAuth();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ items: [inboxItem] }));
+    serve({ "/api/request/notifications/inbox": { items: [inboxItem] } });
   });
 
   it("shows Pending Inbox heading", async () => {
@@ -623,8 +630,9 @@ describe("InboxTab — display and review", () => {
   it("shows inbox count badge", async () => {
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));
+    // "1" is the badge, and it is also in the item below it.
     await waitFor(() =>
-      expect(screen.getByText("1")).toBeInTheDocument()
+      expect(screen.getAllByText("1").length).toBeGreaterThan(0)
     );
   });
 
@@ -689,7 +697,16 @@ describe("InboxTab — display and review", () => {
   });
 
   it("shows error when review API fails", async () => {
-    mockFetch.mockResolvedValueOnce(errorResponse(500, "Review failed")); // PATCH fails
+    // Keyed on the review endpoint: the failure has to land on the PATCH, not
+    // on whichever call the queue happens to be up to.
+    // Only the inbox gets items: feeding the same list to every endpoint also
+    // filled the counterparty panel, which has an Approve button of its own.
+    mockFetch.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/review")) return errorResponse(500, "Review failed");
+      if (u.includes("/api/request/notifications/inbox")) return okJson({ items: [inboxItem] });
+      return okJson({});
+    });
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));
     await waitFor(() => screen.getByText("Review"));
@@ -703,10 +720,7 @@ describe("InboxTab — display and review", () => {
 
   it("shows empty inbox state when no items", async () => {
     mockFetch.mockReset();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(okJson({ balances: [] }))
-      .mockResolvedValueOnce(okJson({ items: [] }));
+    serve({ "/api/request/notifications/inbox": { items: [] } });
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));
     await waitFor(() =>
@@ -718,16 +732,14 @@ describe("InboxTab — display and review", () => {
 describe("/request page — leave balance display", () => {
   it("shows leave balance badges when API returns balances", async () => {
     mockAuth = staffAuth();
-    mockFetch
-      .mockResolvedValueOnce(okJson({ names: [] }))
-      .mockResolvedValueOnce(
-        okJson({
+    serve({
+      "/api/request/leave-balance": {
           balances: [
             { id: 1, leave_type: "annual_leave", entitled_days: 15, used_days: 3, remaining_days: 12 },
             { id: 2, leave_type: "sick_leave", entitled_days: 10, used_days: 0, remaining_days: 10 },
           ],
-        })
-      );
+      },
+    });
     await renderPage();
     await waitFor(() =>
       expect(screen.getByText("annual leave")).toBeInTheDocument()

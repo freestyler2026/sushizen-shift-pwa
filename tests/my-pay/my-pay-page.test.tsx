@@ -377,7 +377,11 @@ describe("/my-pay — loading and error states", () => {
     // never resolves — keeps loading state active
     mockFetch.mockReturnValue(new Promise(() => {}));
     await renderPage();
-    expect(screen.getByText(/Loading your pay data/i)).toBeInTheDocument();
+    // The summary load starts in an effect that runs after the gate closes, so
+    // asserting immediately is a race -- it passed about one run in three.
+    await waitFor(() =>
+      expect(screen.getByText(/Loading your pay data/i)).toBeInTheDocument()
+    );
   });
 
   it("hides loading spinner after data loads", async () => {
