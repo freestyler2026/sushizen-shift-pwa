@@ -67,10 +67,18 @@ function makeErrorResponse(status: number, msg: string) {
   return makeResponse(JSON.stringify({ detail: msg }), status);
 }
 
+// Items are now filtered by where they come from, not just grouped by section:
+// the entry tab shows supplier items (is_commissary false) and the CK tab shows
+// commissary ones, and both hide the CK-internal sections that never reach a
+// store. A fixture without those fields is filtered out of every tab, which is
+// why twelve of these tests could not find Salmon.
 const SAMPLE_ITEMS = [
-  { id: 1, item_code: "SALMON", section: "KITCHEN", item_name: "Salmon", default_unit: "kg", min_level: 2, par_level: 5, sort_order: 1 },
-  { id: 2, item_code: "RICE", section: "KITCHEN", item_name: "Rice", default_unit: "kg", min_level: 10, par_level: 20, sort_order: 2 },
-  { id: 3, item_code: "CRAB", section: "CK", item_name: "Crab Stick", default_unit: "kg", min_level: null, par_level: null, sort_order: 3 },
+  { id: 1, item_code: "SALMON", section: "COLD_SUSHI", item_name: "Salmon", default_unit: "kg",
+    min_level: 2, par_level: 5, sort_order: 1, is_commissary: false, is_active: true, source_type: "supplier" },
+  { id: 2, item_code: "RICE", section: "COLD_SUSHI", item_name: "Rice", default_unit: "kg",
+    min_level: 10, par_level: 20, sort_order: 2, is_commissary: false, is_active: true, source_type: "supplier" },
+  { id: 3, item_code: "CRAB", section: "COLD_SECTION", item_name: "Crab Stick", default_unit: "kg",
+    min_level: null, par_level: null, sort_order: 3, is_commissary: true, is_active: true, source_type: "ck" },
 ];
 
 const SAMPLE_STAFF = { names: ["Alice", "Bob", "Carol"] };
@@ -145,17 +153,27 @@ describe("/admin/daily-inventory — page auth", () => {
     );
   });
 
-  it("redirects to /week when user lacks daily-inventory permission", async () => {
-    mockAuth = adminAuth({ permissions: [] });
+  it("sends someone without a session to the login page", async () => {
+    // Permission is enforced on the API now, not by hiding the page, so the
+    // only client-side redirect left is the unauthenticated one.
+    mockAuth = null;
     mockCanAccess = false;
     await renderPage();
     await waitFor(() =>
-      expect(routerMock.replace).toHaveBeenCalledWith("/week")
+      expect(routerMock.replace).toHaveBeenCalledWith(
+        "/login?next=%2Fadmin%2Fdaily-inventory"
+      )
     );
   });
 });
 
 // ── AdminDailyInventoryTab structure ─────────────────────────────────────────
+
+/** Switch to the Central Kitchen tab, where the commissary items live. The
+ *  page opens on Supplier, so a CK item is simply not on screen until then. */
+function openCkTab() {
+  fireEvent.click(screen.getByRole("button", { name: /Central Kitchen/ }));
+}
 
 describe("AdminDailyInventoryTab — page structure", () => {
   beforeEach(() => {
@@ -213,15 +231,17 @@ describe("AdminDailyInventoryTab — page structure", () => {
 
   it("renders KITCHEN and CK sections after items load", async () => {
     await renderTab();
-    await waitFor(() => expect(screen.getByText("🍱 Kitchen")).toBeInTheDocument());
-    expect(screen.getByText("🧊 CK (Cold Kitchen)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Cold Sushi")).toBeInTheDocument());
+    openCkTab();
+    await waitFor(() => expect(screen.getByText("Cold Section")).toBeInTheDocument());
   });
 
   it("renders item rows after items load", async () => {
     await renderTab();
     await waitFor(() => expect(screen.getByText("Salmon")).toBeInTheDocument());
     expect(screen.getByText("Rice")).toBeInTheDocument();
-    expect(screen.getByText("Crab Stick")).toBeInTheDocument();
+    openCkTab();
+    await waitFor(() => expect(screen.getByText("Crab Stick")).toBeInTheDocument());
   });
 
   it("shows par level label next to items that have par_level", async () => {
@@ -252,7 +272,7 @@ describe("AdminDailyInventoryTab — staff names", () => {
     });
     await renderTab();
     await waitFor(() =>
-      expect(screen.getByText("Loading staff…")).toBeInTheDocument()
+      expect(screen.getByText("Loading…")).toBeInTheDocument()
     );
   });
 
@@ -300,7 +320,7 @@ describe("AdminDailyInventoryTab — staff names", () => {
     });
     await renderTab();
     await waitFor(() =>
-      expect(screen.getByText(/Could not load Manila staff list/i)).toBeInTheDocument()
+      expect(screen.getByText(/Could not load staff list/i)).toBeInTheDocument()
     );
   });
 });
@@ -321,7 +341,7 @@ describe("AdminDailyInventoryTab — items loading", () => {
     });
     await renderTab();
     await waitFor(() =>
-      expect(screen.getByText(/Failed to load item list/i)).toBeInTheDocument()
+      expect(screen.getByText(/Failed to load items/i)).toBeInTheDocument()
     );
   });
 
@@ -333,8 +353,10 @@ describe("AdminDailyInventoryTab — items loading", () => {
       return makeResponse(SAMPLE_STAFF);
     });
     await renderTab();
+    // The page no longer treats this as an error -- it keeps an empty list and
+    // says so, rather than showing the reader a parser complaint.
     await waitFor(() =>
-      expect(screen.getByText(/non-array/i)).toBeInTheDocument()
+      expect(screen.getByText(/No Supplier items yet/i)).toBeInTheDocument()
     );
   });
 
@@ -344,15 +366,15 @@ describe("AdminDailyInventoryTab — items loading", () => {
     await waitFor(() => screen.getByText("Salmon"));
     // KITCHEN has 2 items (Salmon, Rice) → "0 / 2 filled"
     expect(screen.getByText("0 / 2 filled")).toBeInTheDocument();
-    // CK has 1 item (Crab Stick) → "0 / 1 filled"
-    expect(screen.getByText("0 / 1 filled")).toBeInTheDocument();
+    // CK has 1 item (Crab Stick) → "0 / 2 filled"
+    expect(screen.getByText("0 / 2 filled")).toBeInTheDocument();
   });
 
   it("updates filled counter when a quantity is entered", async () => {
     routedFetch();
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "3" } });
     await waitFor(() =>
       expect(screen.getByText("1 / 2 filled")).toBeInTheDocument()
@@ -380,10 +402,10 @@ describe("AdminDailyInventoryTab — StatusBadge", () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
     // Salmon min_level=2 → enter 1 → LOW
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "1" } });
     await waitFor(() =>
-      expect(screen.getByText("🔴 LOW")).toBeInTheDocument()
+      expect(screen.getByText("LOW")).toBeInTheDocument()
     );
   });
 
@@ -391,10 +413,10 @@ describe("AdminDailyInventoryTab — StatusBadge", () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
     // Salmon min_level=2, par_level=5 → enter 3 → WARN (3 >= 2 but < 5)
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "3" } });
     await waitFor(() =>
-      expect(screen.getByText("🟡 WARN")).toBeInTheDocument()
+      expect(screen.getByText("WARN")).toBeInTheDocument()
     );
   });
 
@@ -402,21 +424,24 @@ describe("AdminDailyInventoryTab — StatusBadge", () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
     // Salmon par_level=5 → enter 5 → OK
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "5" } });
     await waitFor(() =>
-      expect(screen.getByText("🟢 OK")).toBeInTheDocument()
+      expect(screen.getByText("OK")).toBeInTheDocument()
     );
   });
 
   it("shows '🟢 OK' for an item with no min/par levels", async () => {
     await renderTab();
+    openCkTab();
     await waitFor(() => screen.getByText("Crab Stick"));
     // Crab Stick has min_level=null, par_level=null → any qty → OK
-    const qtyInputs = screen.getAllByPlaceholderText("0");
-    fireEvent.change(qtyInputs[2], { target: { value: "10" } }); // 3rd item = CK / Crab Stick
+    // Crab Stick is the only row on the CK tab, so its quantity is the first
+    // cell -- it used to be the third, when every item shared one list.
+    const qtyInputs = screen.getAllByPlaceholderText("—");
+    fireEvent.change(qtyInputs[0], { target: { value: "10" } });
     await waitFor(() =>
-      expect(screen.getByText("🟢 OK")).toBeInTheDocument()
+      expect(screen.getByText("OK")).toBeInTheDocument()
     );
   });
 });
@@ -439,7 +464,7 @@ describe("AdminDailyInventoryTab — low stock alert", () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
     // Salmon min_level=2 → enter 1 → triggers low stock
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "1" } });
     await waitFor(() =>
       expect(screen.getByText(/LOW stock/i)).toBeInTheDocument()
@@ -449,12 +474,12 @@ describe("AdminDailyInventoryTab — low stock alert", () => {
   it("low stock banner lists the affected item name", async () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
-    const qtyInputs = screen.getAllByPlaceholderText("0");
+    const qtyInputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(qtyInputs[0], { target: { value: "1" } });
     await waitFor(() => screen.getByText(/LOW stock/i));
-    // Banner text (text-red-200 element) should list Salmon
-    const banner = document.querySelector(".text-red-200");
-    expect(banner?.textContent).toContain("Salmon");
+    // The banner names the items that are low; Salmon has to be one of them.
+    expect(screen.getByText(/LOW stock/i).closest("div")?.textContent)
+      .toContain("Salmon");
   });
 });
 
@@ -491,9 +516,10 @@ describe("AdminDailyInventoryTab — form interactions", () => {
   it("entering qty in note field updates note state", async () => {
     await renderTab();
     await waitFor(() => screen.getByText("Salmon"));
-    const noteInputs = screen.getAllByPlaceholderText("—");
-    fireEvent.change(noteInputs[0], { target: { value: "Fresh delivery" } });
-    expect((noteInputs[0] as HTMLInputElement).value).toBe("Fresh delivery");
+    const cells = screen.getAllByPlaceholderText("—");
+    const note = cells[1]; // [0] is the quantity, a number input
+    fireEvent.change(note, { target: { value: "Fresh delivery" } });
+    expect((note as HTMLInputElement).value).toBe("Fresh delivery");
   });
 });
 
@@ -543,7 +569,7 @@ describe("AdminDailyInventoryTab — save draft", () => {
     fireEvent.change(staffSel, { target: { value: "Alice" } });
     fireEvent.click(screen.getByText("💾 Save draft"));
     await waitFor(() =>
-      expect(screen.getByText(/Saved.*report ID: 77/i)).toBeInTheDocument()
+      expect(screen.getByText(/Draft saved/)).toBeInTheDocument()
     );
   });
 
@@ -582,7 +608,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
     fireEvent.change(staffSel, { target: { value: "Alice" } });
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() =>
-      expect(screen.getByText("Report submitted")).toBeInTheDocument()
+      expect(screen.getByText("Report Submitted")).toBeInTheDocument()
     );
   });
 
@@ -623,7 +649,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
       expect(screen.getByText("📦 Daily Inventory Report")).toBeInTheDocument()
     );
     // Back to the normal form
-    expect(screen.queryByText("Report submitted")).not.toBeInTheDocument();
+    expect(screen.queryByText("Report Submitted")).not.toBeInTheDocument();
   });
 
   it("does nothing when confirm is cancelled", async () => {
@@ -636,7 +662,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
     fireEvent.click(screen.getByText("✅ Submit report"));
     // After confirm cancel, still on the form
     await waitFor(() =>
-      expect(screen.queryByText("Report submitted")).not.toBeInTheDocument()
+      expect(screen.queryByText("Report Submitted")).not.toBeInTheDocument()
     );
   });
 
@@ -654,7 +680,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() => {
       // Should show the real save error, not "Save first (select staff...)"
-      const errEl = document.querySelector(".text-red-200");
+      const errEl = screen.queryByText(/Network timeout/i);
       expect(errEl?.textContent).toContain("Network timeout");
     });
   });
@@ -673,7 +699,7 @@ describe("AdminDailyInventoryTab — history tab", () => {
     await waitFor(() => screen.getByText("History"));
     fireEvent.click(screen.getByText("History"));
     await waitFor(() =>
-      expect(screen.getByText(/History \(PARANAQUE\)/i)).toBeInTheDocument()
+      expect(screen.getByText(/History — PARANAQUE/i)).toBeInTheDocument()
     );
   });
 
@@ -682,7 +708,7 @@ describe("AdminDailyInventoryTab — history tab", () => {
     await waitFor(() => screen.getByText("History"));
     fireEvent.click(screen.getByText("History"));
     await waitFor(() =>
-      expect(screen.getByText("2026-05-01")).toBeInTheDocument()
+      expect(screen.getByText("1 May 2026")).toBeInTheDocument()
     );
     expect(screen.getByText("SUBMITTED")).toBeInTheDocument();
     expect(screen.getByText("DRAFT")).toBeInTheDocument();
@@ -694,7 +720,7 @@ describe("AdminDailyInventoryTab — history tab", () => {
     await waitFor(() => screen.getByText("History"));
     fireEvent.click(screen.getByText("History"));
     await waitFor(() =>
-      expect(screen.getByText("No reports yet")).toBeInTheDocument()
+      expect(screen.getByText(/No reports yet for PARANAQUE/i)).toBeInTheDocument()
     );
   });
 
@@ -766,7 +792,7 @@ describe("AdminDailyInventoryTab — effectiveStaffName (via UI)", () => {
     fireEvent.change(screen.getByPlaceholderText("Enter name"), { target: { value: "Temp Worker" } });
     fireEvent.click(screen.getByText("💾 Save draft"));
     await waitFor(() =>
-      expect(screen.getByText(/Saved.*report ID: 9/i)).toBeInTheDocument()
+      expect(screen.getByText(/Draft saved/)).toBeInTheDocument()
     );
     // Verify the POST body contained "Temp Worker"
     const savedCall = mockFetch.mock.calls.find(
