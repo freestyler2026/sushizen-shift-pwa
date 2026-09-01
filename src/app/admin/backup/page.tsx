@@ -1144,11 +1144,14 @@ export default function BackupReportPage() {
     const droppedExtras: string[] = [];
     for (const fl of freeLines) {
       const named = fl.item_name_snapshot.trim();
-      const qty = parseFloat(fl.quantity);
-      const qtyOk = !isNaN(qty) && qty > 0;
-      if (!named && !qtyOk) continue;          // an untouched blank row is fine
-      if (!named) { droppedExtras.push(`a row with quantity ${fl.quantity} has no item name`); continue; }
-      if (!qtyOk) { droppedExtras.push(`"${named}" has no quantity`); continue; }
+      const raw = (fl.quantity ?? "").trim();
+      const qty = parseFloat(raw);
+      // Zero counts, here as in the sections above: "we have none of this" is a
+      // reading, not a blank. Only a missing or negative figure is a problem.
+      const qtyOk = raw !== "" && !isNaN(qty) && qty >= 0;
+      if (!named && raw === "") continue;       // an untouched blank row is fine
+      if (!named) { droppedExtras.push(`a row with quantity ${raw} has no item name`); continue; }
+      if (!qtyOk) { droppedExtras.push(`"${named}" has no valid quantity`); continue; }
       lines.push({
         section: "extra",
         item_type: fl.item_type,

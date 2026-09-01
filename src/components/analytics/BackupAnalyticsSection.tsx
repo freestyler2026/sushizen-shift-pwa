@@ -58,6 +58,10 @@ const SECTION_LABELS: Record<string, string> = {
   rolls:        "Sushi Rolls",
   base_roll:    "Base Roll",
   free:         "Free Entry",
+  // The submit page writes "extra"; this file only knew "free", so free-entry
+  // rows arrived unlabelled, uncoloured and uncounted. Paranaque's Fried Garlic
+  // and Base Roll 9 were in the data and still invisible here.
+  extra:        "Free Entry",
 };
 const SECTION_COLORS: Record<string, string> = {
   supplies:     "#60a5fa",
@@ -68,12 +72,19 @@ const SECTION_COLORS: Record<string, string> = {
   rolls:        "#f472b6",
   base_roll:    "#c084fc",
   free:         "#fbbf24",
+  extra:        "#fbbf24",
 };
+
+/** Free-entry rows, under either name the app has used for them. */
+function isFreeEntry(l: { section: string; item_category?: string; item_name_snapshot: string }) {
+  return l.section === "free" || l.section === "extra"
+    || (!l.item_category && !!l.item_name_snapshot);
+}
 
 function sectionBadge(s: string) {
   const label = SECTION_LABELS[s] ?? s;
   const color = SECTION_COLORS[s];
-  if (s === "free") return <span className={BADGE_WARNING}>{label}</span>;
+  if (s === "free" || s === "extra") return <span className={BADGE_WARNING}>{label}</span>;
   if (s === "rolls" || s === "base_roll") return <span className={BADGE_INFO}>{label}</span>;
   return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border" style={{ backgroundColor: `${color}18`, borderColor: `${color}30`, color }}>{label}</span>;
 }
@@ -117,7 +128,7 @@ function EditLineForm({ line, onSave, onCancel }: { line: BackupLine; onSave: (u
 function KpiCards({ reports, city }: { reports: BackupReport[]; city: City }) {
   const allLines = reports.flatMap((r) => r.lines ?? []);
   const total    = allLines.length;
-  const freeForm = allLines.filter((l) => l.section === "free" || (!l.item_category && l.item_name_snapshot)).length;
+  const freeForm = allLines.filter(isFreeEntry).length;
   const standards = getLabelStandards(city);
 
   const shortageLines = allLines.filter((l) => {
@@ -155,7 +166,7 @@ function KpiCards({ reports, city }: { reports: BackupReport[]; city: City }) {
       <div className={`${GLASS_CARD} p-4`}>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">By Section</p>
         <div className="space-y-2">
-          {sectionEntries.slice(0, 5).map(([s, count]) => {
+          {sectionEntries.slice(0, 8).map(([s, count]) => {
             const color = SECTION_COLORS[s] ?? "#a1a1aa";
             return (
               <div key={s} className="space-y-0.5">
@@ -519,7 +530,7 @@ export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }
     setEditingLine(null);
   };
 
-  const totalNeedsReview = reports.reduce((s, r) => s + (r.lines ?? []).filter((l) => l.section === "free" || (!l.item_category && l.item_name_snapshot)).length, 0);
+  const totalNeedsReview = reports.reduce((s, r) => s + (r.lines ?? []).filter(isFreeEntry).length, 0);
 
   return (
     <div className="space-y-4">
@@ -575,7 +586,7 @@ export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }
         <div className="space-y-2">
           {reports.length === 0 && <p className="text-sm text-zinc-500">No reports found for this period.</p>}
           {reports.map((r) => {
-            const freeLines = (r.lines ?? []).filter((l) => l.section === "free" || (!l.item_category && l.item_name_snapshot));
+            const freeLines = (r.lines ?? []).filter(isFreeEntry);
             const isExpanded = expanded === r.id;
             return (
               <div key={r.id} className={`overflow-hidden rounded-xl border transition-colors ${isExpanded ? "border-blue-500/30 bg-blue-500/5" : "border-white/8 bg-white/3 hover:border-blue-500/20"}`}>
@@ -615,7 +626,7 @@ export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }
                               <tr key={l.id} className={TABLE_ROW}>
                                 <td className={`${TABLE_CELL} px-4 w-36`}>{sectionBadge(l.section)}</td>
                                 <td className={`${TABLE_CELL} px-4`}>
-                                  <span className={(l.section === "free" || !l.item_category) ? "text-amber-300 font-medium" : "text-zinc-200"}>
+                                  <span className={isFreeEntry(l) ? "text-amber-300 font-medium" : "text-zinc-200"}>
                                     {l.item_name_snapshot}
                                   </span>
                                   {(l.section === "free" || !l.item_category) && l.item_name_snapshot && (
