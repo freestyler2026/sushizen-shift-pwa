@@ -62,9 +62,13 @@ interface ManagementTask {
   response_note: string | null;
   context: Record<string, unknown> | null;
   missed_by_manager: boolean;
+  // null = the OS has not checked the claim; false = it checked and the report
+  // the store says it filed does not exist.
+  claim_verified: boolean | null;
   created_at: string;
   sent_at: string | null;
   responded_at: string | null;
+  closed_by: string | null;
   closed_at: string | null;
   escalated_at: string | null;
 }
@@ -840,6 +844,108 @@ function Check({
   );
 }
 
+const CLOSE_OUTCOMES: { key: string; label: string; hint: string }[] = [
+  { key: "done",       label: "Handled",         hint: "The store's answer settles it" },
+  { key: "not_needed", label: "No action needed", hint: "It should not have been raised" },
+  { key: "unresolved", label: "Couldn't resolve", hint: "Nothing further we can do" },
+];
+
+/**
+ * Close, in one tap.
+ *
+ * 41 answered tasks had nowhere to go: the only close control was a checkbox at
+ * the bottom of the eight-field form below, used 8 times in 277 tasks and never
+ * once to close anything. So the queue never drained -- of 204 closed tasks,
+ * not one had ever been answered first.
+ *
+ * Who and when are not asked for. They are the signed-in person and now, and a
+ * field you ask for is a field that gets skipped.
+ */
+function CloseBar({
+  task, onChanged,
+}: { task: ManagementTask; onChanged: (t: ManagementTask) => void }) {
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const closed = task.status === "closed";
+  const info = (task.context?.close ?? null) as
+    { outcome?: string; by?: string; at?: string } | null;
+
+  const post = async (path: string, body?: unknown) => {
+    setBusy(path);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/management/tasks/${task.id}/${path}`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      });
+      // Read the body before checking ok: an error here is text, and calling
+      // json() first turns a 403 into an exception that hides the reason.
+      const text = await res.text();
+      if (!res.ok) throw new Error(text.slice(0, 200) || `Failed (${res.status})`);
+      onChanged(JSON.parse(text).task as ManagementTask);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (closed) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs">
+        <span className="text-emerald-300">
+          Closed{info?.outcome ? ` — ${CLOSE_OUTCOMES.find(o => o.key === info.outcome)?.label ?? info.outcome}` : ""}
+        </span>
+        {task.closed_by && <span className="text-zinc-500">by {task.closed_by}</span>}
+        {/* Every one-tap action needs a way back, or people stop using it for
+            fear of the tap they cannot take back. */}
+        <button
+          type="button"
+          onClick={() => void post("reopen")}
+          disabled={!!busy}
+          className="ml-auto rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-semibold text-zinc-300 hover:bg-white/10 hover:text-white disabled:opacity-50"
+        >
+          {busy ? "Working…" : "Reopen"}
+        </button>
+        {err && <div className="w-full text-red-400">{err}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className={T_LABEL}>Close</div>
+        {CLOSE_OUTCOMES.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            title={o.hint}
+            onClick={() => void post("close", { outcome: o.key })}
+            disabled={!!busy}
+            className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-zinc-200 transition-colors hover:border-violet-400/50 hover:bg-violet-500/20 hover:text-white disabled:opacity-50"
+          >
+            {busy === "close" ? "Closing…" : o.label}
+          </button>
+        ))}
+        <span className="text-[11px] text-zinc-500">
+          Recorded as you, now. Reopen if you pick the wrong one.
+        </span>
+      </div>
+      {/* The record already disagrees with what the store said. Say so before
+          the tap, not after -- the audit line records it either way. */}
+      {task.claim_verified === false && (
+        <div className="mt-1.5 text-[11px] text-amber-300">
+          The report this claims was filed does not exist. &quot;Handled&quot; will be recorded
+          with that noted.
+        </div>
+      )}
+      {err && <div className="mt-1.5 text-xs text-red-400">{err}</div>}
+    </div>
+  );
+}
+
 /**
  * What was done about this exception.
  *
@@ -890,7 +996,11 @@ function HandlingPanel({
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className={T_LABEL}>Handling</div>
+        {/* Named so the split from the one-tap Close above is obvious: this is
+            the detailed record, kept for the cases that need photo / issue /
+            training detail. The heavy form is not removed, it is moved off the
+            common path. */}
+        <div className={T_LABEL}>Full handling record</div>
         {saved?.handled_at ? (
           <span className="text-[11px] text-emerald-300">
             {saved.handled_by} · {fmtTime(saved.handled_at)}
@@ -1206,6 +1316,9 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
             </div>
           )}
           {task.type === "product_score_c" && <TaskPhoto taskId={task.id} />}
+          {/* Above the handling form, not inside it: this is the common exit
+              and that one is the detailed record for the cases that need it. */}
+          {onHandled && <CloseBar task={task} onChanged={onHandled} />}
           {onHandled && <HandlingPanel task={task} onSaved={onHandled} />}
           <TaskThread taskId={task.id} />
         </div>
@@ -1340,6 +1453,7 @@ export default function BODashboardPage() {
   const sentCount      = tasks.filter(t => t.status === "sent").length;
   const respondedCount = tasks.filter(t => t.status === "responded").length;
   const closedCount    = tasks.filter(t => t.status === "closed").length;
+  const sentMissedCount = tasks.filter(t => t.status === "sent" && t.missed_by_manager).length;
 
   // Filter by status client-side (tasks are always fetched for all statuses for accurate KPI counts)
   const me = getAuth()?.staffName || "";
@@ -1621,11 +1735,24 @@ export default function BODashboardPage() {
             disagree with no way to see which rows made it up. */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           {[
-            { key: "open",      label: "Open", value: openCount, color: "text-violet-400" },
-            { key: "sent",      label: "Sent (Awaiting)", value: sentCount, color: "text-amber-400" },
-            { key: "responded", label: "Responded", value: respondedCount, color: "text-emerald-400" },
-            { key: "closed",    label: "Closed", value: closedCount, color: "text-zinc-400" },
-          ].map(({ key, label, value, color }) => (
+            { key: "open",      label: "Open", value: openCount, color: "text-violet-400",
+              note: "" },
+            // "Awaiting" reads as "the clock is still running". For all 22 of
+            // Manila's it had already stopped -- every one was past its SLA,
+            // the oldest by thirteen days -- and no number on this screen said
+            // so. The card now says how many are overdue, or nothing when none
+            // are, so the word only appears when it means something.
+            { key: "sent",      label: "Sent (Awaiting)", value: sentCount, color: "text-amber-400",
+              note: sentMissedCount > 0
+                ? (sentMissedCount === sentCount
+                    ? "all past SLA"
+                    : `${sentMissedCount} past SLA`)
+                : "" },
+            { key: "responded", label: "Responded", value: respondedCount, color: "text-emerald-400",
+              note: respondedCount > 0 ? "waiting to be closed" : "" },
+            { key: "closed",    label: "Closed", value: closedCount, color: "text-zinc-400",
+              note: "" },
+          ].map(({ key, label, value, color, note }) => (
             <button
               key={label}
               type="button"
@@ -1636,6 +1763,13 @@ export default function BODashboardPage() {
             >
               <div className={KPI_LABEL}>{label}</div>
               <div className={KPI_VALUE + " " + color}>{value}</div>
+              {note && (
+                <div className={`text-[11px] font-semibold ${
+                  key === "sent" ? "text-red-300" : "text-zinc-500"
+                }`}>
+                  {note}
+                </div>
+              )}
             </button>
           ))}
         </div>
