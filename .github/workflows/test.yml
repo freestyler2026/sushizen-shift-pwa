@@ -10,6 +10,13 @@ jobs:
   frontend-tests:
     name: Frontend Tests (Vitest)
     runs-on: ubuntu-latest
+    # Without this a hanging suite holds a runner for GitHub's six-hour maximum.
+    # Ten of them piled up today and took the whole Actions concurrency with
+    # them, so the daily Grab, Careem, Keeta and Talabat payout extractors --
+    # the jobs that put money into the AR records -- sat queued behind a test
+    # run that was never going to finish. A test suite failing is ordinary; a
+    # test suite stopping every other job is not.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
