@@ -1787,8 +1787,23 @@ export default function BODashboardPage() {
                       Split between: {p.owner_conflict.join(" / ")}
                     </span>
                   )}
-                  {p.red > 0 && <span className="text-red-300">{p.red} red</span>}
-                  {p.yellow > 0 && <span className="text-amber-300">{p.yellow} yellow</span>}
+                  {/* Counted the same way as the chip and the list. These came
+                      from the API's not-closed figures, so once the chip was
+                      fixed this line sat next to it saying "19 red 6 yellow"
+                      against a chip of 3 -- the same disease one row down. */}
+                  {(() => {
+                    const types = new Set(p.types);
+                    const mine = statusOnlyTasks.filter((t) => types.has(t.type));
+                    const red = mine.filter((t) => t.severity === "red").length;
+                    const yellow = mine.filter((t) => t.severity === "yellow").length;
+                    return (
+                      <>
+                        {red > 0 && <span className="text-red-300">{red} red</span>}
+                        {yellow > 0 && <span className="text-amber-300">{yellow} yellow</span>}
+                        {mine.length === 0 && <span className="text-zinc-500">nothing to do</span>}
+                      </>
+                    );
+                  })()}
                 </div>
                 <ActionManual page={p} />
               </div>
