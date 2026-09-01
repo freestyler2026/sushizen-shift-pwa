@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { chooseValue, expectSelectShowing, optionLabels, optionValues, selectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── next/link ──────────────────────────────────────────────────────────────────
@@ -133,8 +134,8 @@ describe("ManualShiftPage — page structure", () => {
   it("renders City label and select with Dubai/Manila options", async () => {
     await renderPage();
     expect(screen.getByText("City")).toBeInTheDocument();
-    const citySelect = screen.getByRole("combobox");
-    const options = Array.from(citySelect.querySelectorAll("option")).map((o) => o.textContent);
+    // SelectDark keeps its list closed, so ask for the labels it offers.
+    const options = optionLabels("Dubai");
     expect(options).toContain("Dubai");
     expect(options).toContain("Manila");
   });
@@ -155,9 +156,13 @@ describe("ManualShiftPage — page structure", () => {
     expect(screen.getByRole("button", { name: /Load Staff & Shifts/i })).toBeInTheDocument();
   });
 
-  it("renders Bayzat Import button", async () => {
+  it("offers the two ways shifts get loaded, once staff are on the grid", async () => {
+    // The Bayzat Excel import is gone; a week is filled from the base schedule
+    // already in the database, or from the AI draft.
     await renderPage();
-    expect(screen.getByTitle(/Import shift schedule from a Bayzat Excel export/i)).toBeInTheDocument();
+    await loadStaff();
+    expect(screen.getByText(/Load from DB/i)).toBeInTheDocument();
+    expect(screen.getByText(/Load AI Draft/i)).toBeInTheDocument();
   });
 });
 
@@ -175,19 +180,17 @@ describe("ManualShiftPage — empty state (before load)", () => {
     expect(screen.getByText("📅")).toBeInTheDocument();
   });
 
-  it("does NOT show Edit Grid tab before staff loads", async () => {
+  it("shows the tabs before staff load, but nothing to publish into", async () => {
+    // The tabs are part of the page; the grid and its publish footer only
+    // exist once there are staff rows to edit.
     await renderPage();
-    expect(screen.queryByRole("button", { name: /✏️ Edit Grid/i })).toBeNull();
-  });
-
-  it("does NOT show Save & Publish button before staff loads", async () => {
-    await renderPage();
-    expect(screen.queryByRole("button", { name: /Save & Publish/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /✏️ Edit Grid/i })).toBeInTheDocument();
+    expect(screen.queryByText(/🚀/)).toBeNull();
   });
 
   it("does NOT show Reload from Server button before staff loads", async () => {
     await renderPage();
-    expect(screen.queryByRole("button", { name: /↺ Reload from Server/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Load from DB/i })).toBeNull();
   });
 
   it("does NOT show Load from DB button before staff loads", async () => {
@@ -202,8 +205,7 @@ describe("ManualShiftPage — city selector", () => {
 
   it("defaults city to dubai from auth", async () => {
     await renderPage();
-    const citySelect = screen.getByRole("combobox") as HTMLSelectElement;
-    expect(citySelect.value).toBe("dubai");
+    expect((selectShowing("Dubai") as HTMLElement).dataset.value).toBe("dubai");
   });
 
   it("defaults branch button label to first Dubai branch (Business Bay)", async () => {
@@ -214,8 +216,7 @@ describe("ManualShiftPage — city selector", () => {
 
   it("switching city to Manila resets to first Manila branch (Paranaque)", async () => {
     await renderPage();
-    const citySelect = screen.getByRole("combobox");
-    fireEvent.change(citySelect, { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => {
       expect(screen.getByText("Paranaque")).toBeInTheDocument();
     });
@@ -228,8 +229,7 @@ describe("ManualShiftPage — city selector", () => {
     // Staff should be loaded
     expect(screen.getByText("Alice Cohen")).toBeInTheDocument();
     // Now switch city
-    const citySelect = screen.getByRole("combobox");
-    fireEvent.change(citySelect, { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     // Empty state should reappear
     await screen.findByText(/Select city, branch and week/i, {}, { timeout: 3000 });
   });
@@ -239,16 +239,13 @@ describe("ManualShiftPage — city selector", () => {
     vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, city: "manila" } as any);
     vi.stubGlobal("fetch", makeFetch());
     render(<ManualShiftPage />);
-    // Switch to Manila
-    const citySelect = screen.getByRole("combobox");
-    fireEvent.change(citySelect, { target: { value: "manila" } });
     await loadStaff();
     // Open a cell
     const plusButtons = screen.getAllByRole("button", { name: "+" });
     fireEvent.click(plusButtons[0]);
     // Modal should show Manila roles — Cashier is Manila-only
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: "Cashier" })).toBeInTheDocument();
+      expect(optionLabels("CK")).toContain("Cashier");
     }, { timeout: 3000 });
   });
 });
@@ -320,20 +317,20 @@ describe("ManualShiftPage — load staff & shifts", () => {
   it("shows Save & Publish button after staff loads", async () => {
     await renderPage();
     await loadStaff();
-    expect(screen.getByRole("button", { name: /Save & Publish/i })).toBeInTheDocument();
+    expect(screen.getByText(/🚀/)).toBeInTheDocument();
   });
 
   it("shows Reload from Server button after staff loads", async () => {
     await renderPage();
     await loadStaff();
-    expect(screen.getByRole("button", { name: /↺ Reload from Server/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Load from DB/i })).toBeInTheDocument();
   });
 
   it("shows Load from DB button after staff loads", async () => {
     await renderPage();
     await loadStaff();
     await waitFor(() => {
-      expect(screen.getByTitle(/Load this week.*shifts.*from the Bayzat/i)).toBeInTheDocument();
+      expect(screen.getByTitle(/from the base schedule already in the database/i)).toBeInTheDocument();
     });
   });
 
@@ -455,7 +452,7 @@ describe("ManualShiftPage — grid with existing shifts", () => {
     await loadStaff();
     // After loading, 1 shift → description says "1 shift"
     await waitFor(() => {
-      expect(screen.getByText(/Publishes 1 shift/i)).toBeInTheDocument();
+      expect(screen.getByText(/applies only the cells that changed/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 });
@@ -545,10 +542,10 @@ describe("ManualShiftPage — edit modal", () => {
     fireEvent.click(plusButtons[0]);
     await screen.findByText("Start", {}, { timeout: 2000 });
     // The Start and End selects — set start > end
-    const [startSelect, endSelect] = screen.getAllByRole("combobox").slice(-3, -1);
-    // Set start to 17, end to 9 — invalid
-    fireEvent.change(startSelect, { target: { value: "17" } });
-    fireEvent.change(endSelect, { target: { value: "9" } });
+    // Start after end: the modal must refuse to save it. End first -- both
+    // selects show 9:00 for a moment, and the first match is the start.
+    chooseValue("17:00", "9");
+    chooseValue("9:00", "17");
     // Save button should be disabled
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -632,9 +629,8 @@ describe("ManualShiftPage — edit modal", () => {
     const plusButtons = screen.getAllByRole("button", { name: "+" });
     fireEvent.click(plusButtons[0]);
     await screen.findByText("Role", {}, { timeout: 2000 });
-    expect(screen.getByRole("option", { name: "PIC" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "CDP" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Area Manager" })).toBeInTheDocument();
+    const roles = optionLabels("CK");
+    for (const r of ["PIC", "CDP", "Area Manager"]) expect(roles).toContain(r);
   });
 
   it("Dubai role options do NOT include Cashier (Manila-only)", async () => {
@@ -653,10 +649,7 @@ describe("ManualShiftPage — edit modal", () => {
     fireEvent.click(plusButtons[0]);
     await screen.findByText("Role", {}, { timeout: 2000 });
     // Find the Role select specifically by label
-    const roleSelect = screen.getAllByRole("combobox").find(
-      (s) => Array.from(s.querySelectorAll("option")).some((o) => (o as HTMLOptionElement).value === "OTHER")
-    )!;
-    fireEvent.change(roleSelect, { target: { value: "OTHER" } });
+    chooseValue("CK", "OTHER");
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Role name")).toBeInTheDocument();
     }, { timeout: 2000 });
@@ -664,6 +657,17 @@ describe("ManualShiftPage — edit modal", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
+/** Make one cell dirty, the only thing that gives publish anything to send.
+ *  Loading a published week no longer counts as a change -- that is the point
+ *  of the cell-level model: publishing applies what you touched and leaves the
+ *  rest of the week alone. */
+async function editOneCell() {
+  fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+  await screen.findByRole("button", { name: "Save" }, { timeout: 2000 });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText(/cell edited — not yet published/i, {}, { timeout: 3000 });
+}
+
 describe("ManualShiftPage — publish flow", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
@@ -671,8 +675,8 @@ describe("ManualShiftPage — publish flow", () => {
     await renderPage();
     await loadStaff();
     // No shifts added — click publish
-    fireEvent.click(screen.getByRole("button", { name: /Save & Publish/i }));
-    await screen.findByText(/No shifts to publish/i, {}, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /🚀/ }));
+    await screen.findByText(/Nothing to publish/i, {}, { timeout: 3000 });
   });
 
   it("successful publish switches to Published View", async () => {
@@ -698,7 +702,8 @@ describe("ManualShiftPage — publish flow", () => {
     await renderPage(fetchMock);
     await loadStaff();
     await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
-    fireEvent.click(screen.getByRole("button", { name: /Save & Publish/i }));
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀/ }));
     // After publish, goes to Published View
     await waitFor(() => {
       expect(screen.getByText(/Published Schedule/i)).toBeInTheDocument();
@@ -723,12 +728,13 @@ describe("ManualShiftPage — publish flow", () => {
           rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
         },
       },
-      { match: "/api/admin/shifts/manual_publish", body: { detail: "Permission denied" }, status: 403, method: "POST" },
+      { match: "/api/admin/shifts/publish_week_cells", body: { detail: "Permission denied" }, status: 403, method: "POST" },
     ]);
     await renderPage(fetchMock);
     await loadStaff();
     await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
-    fireEvent.click(screen.getByRole("button", { name: /Save & Publish/i }));
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀/ }));
     await screen.findByText(/Permission denied/i, {}, { timeout: 5000 });
   });
 
@@ -937,8 +943,9 @@ describe("ManualShiftPage — helper utilities via rendering", () => {
     const plusButtons = screen.getAllByRole("button", { name: "+" });
     fireEvent.click(plusButtons[0]);
     await screen.findByText("Role", {}, { timeout: 2000 });
+    const roles = optionLabels("CK");
     ["CK", "SV", "BA", "HK", "SC", "MGR"].forEach((role) => {
-      expect(screen.getByRole("option", { name: role })).toBeInTheDocument();
+      expect(roles).toContain(role);
     });
   });
 });
@@ -1066,7 +1073,7 @@ describe("ManualShiftPage — Load AI Draft button", () => {
 describe("ManualShiftPage — draft persistence (localStorage)", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
-  it("Unsaved draft badge appears after editing a cell", async () => {
+  it("badge counts the cells waiting to be published", async () => {
     await renderPage();
     await loadStaff();
     // Add a shift via the modal
@@ -1076,7 +1083,7 @@ describe("ManualShiftPage — draft persistence (localStorage)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     // Draft badge should appear
     await waitFor(() => {
-      expect(screen.getByText(/Unsaved draft/i)).toBeInTheDocument();
+      expect(screen.getByText(/1 cell edited — not yet published/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 });
