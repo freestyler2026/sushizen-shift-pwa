@@ -147,9 +147,58 @@ POST /api/admin/management/tasks/{id}/reopen
 | 閉じていない行の reopen | ✅ 409 |
 | 存在しないID | ✅ 404 |
 
-⚠️ **テストで触った3件（900/927/928）は完全復旧済み** — status/note/closed_by/closed_at を元に戻し、
-テストが作った `task_messages` 8件と `context.close`/`reopened` も削除。残留0件を確認（教訓54）。
+⚠️ **テストで触った4件（506/900/927/928）は完全復旧済み** — status/note/closed_by/closed_at を元に戻し、
+テストが作った `task_messages` 12件と `context.close`/`reopened` も削除。残留0件を確認（教訓54）。
 最初の往復は修正デプロイ前に走らせたため927のメモを汚染しており、それも戻した。
+
+### 検証で見つけて直した3件（2026-09-02）
+
+**① 閉じた行が即座に消え、約束した Undo に手が届かなかった（重要）**
+
+APIの往復テストは全部通っていたが、**実際にボタンを押したら発覚**した。
+Responded で絞り込んだ状態で Close を押すと行が即消え、
+**「Reopen if you pick the wrong one」と書いてあるすぐ下でその Reopen が消える**。
+Closed に切り替えれば辿り着けるが、それを知らないと辿り着けない。
+**約束を書いておいて破る方が、最初から書かないより悪い。**
+
+→ そのセッション中に閉じた行は **Refresh を押すまでリストに残す**（`justClosed`）。
+Reopen が同じ場所に出たままで、「kept here until you press Refresh」と理由も表示する。
+Refresh が「もう終わり」の明示操作。
+
+**② reopen が `closed_by` に空文字を残していた** → NULL に統一。
+**③ reopen がメモ無しのタスクを空文字で復元していた** → NULL に統一。
+
+②③はどちらも「無かった」と「空だった」が別状態になる問題。
+
+### ⚠️ 未解決: この経路には認可が無い（ユーザー判断待ち）
+
+`/api/admin/management/tasks/*` は **close/reopen を含めて権限を一切見ていない**。
+`admin_auth_gate` はログイン済みかを見るだけ（教訓26）で、`ADMIN_AUTHZ_MODE` は現在 **off**。
+つまり**ログインできる167名の誰でも**管理タスクを閉じられる。
+
+**これは今回の追加で生まれた穴ではない** — 既存の `PATCH /tasks/{id}` が同じことをできる（status を直接書ける）。
+close/reopen だけ塞いでも実効的な意味は無く、**チャンネル全体を塞ぐ話**になる。
+
+⚠️ **単純に `channel.admin.management_back_office.view` で塞ぐと実務が止まる:**
+
+| 担当者 | 担当タスク数 | 権限保有 |
+|---|---:|---|
+| Aliana Manuel | 85 | ✅（172権限） |
+| **Camille Santos** | **69** | **❌（14権限のみ）** |
+| Erica May Sadiasa | 51 | ✅（172権限） |
+| Yusuke Uejima | 16 | ✅（`*`） |
+| Yuri Yamada | 1 | ✅（`*`） |
+
+**Camille Santos は2番目に多く担当していながら、この権限を持っていない。**
+先に権限を付けてから塞がないと、実際に働いている人を止める（教訓32）。
+
+またこのチャンネルには **`.view` しか権限が存在しない**（`.manage` が無い）。
+閲覧と「タスクを閉じる」を分けたいなら `.manage` の新設が要る。
+
+**判断が必要な点:**
+1. Camille Santos に権限を付けるか（あるいは彼女のロールに付けるか）
+2. `channel.admin.management_back_office.manage` を新設して書き込み系を分けるか
+3. まず `ADMIN_AUTHZ_MODE=log` ＋ `ADMIN_AUTHZ_ENFORCE=/api/admin/management` で**実測してから**塞ぐか（教訓28の手順）
 
 ---
 
