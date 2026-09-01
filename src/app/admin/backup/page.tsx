@@ -29,7 +29,13 @@ import SelectDark from "@/components/SelectDark";
 
 type TemplateItem = {
   key: string;
+  /** Stored on the report and joined to backup_par_levels by exact match.
+      Never change one without the other, or the par check stops silently. */
   label: string;
+  /** What the staff see. The base rolls are known on the floor by the product,
+      not the number, so five submissions typed "Crunchy Salmon Base Roll" into
+      Extra Items while Base Roll 8 sat filled in on the same report. */
+  display?: string;
   unit: string;
   section: string;
   item_type: "ingredient" | "menu_item";
@@ -222,13 +228,13 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
     id: "base_roll",
     label: "Base Roll",
     items: [
-      { key: "m_br1", label: "Base Roll 1 (California Base Roll)",             unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br2", label: "Base Roll 2 (Cucumber Crabstick Mayo Roll)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br3", label: "Base Roll 3 (Spicy Tuna & Quezo Base Roll)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br4", label: "Base Roll 4 (Cucumber Crabstick & Mango Base Roll)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br6", label: "Base Roll 6 (Shrimp Tempura Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br7", label: "Base Roll 7 (Crunchy Fish Base Roll)",           unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br1", label: "Base Roll 1 (California Base Roll)", display: "California Base Roll (Base Roll 1)",             unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br2", label: "Base Roll 2 (Cucumber Crabstick Mayo Roll)", display: "Cucumber Crabstick Mayo Roll (Base Roll 2)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br3", label: "Base Roll 3 (Spicy Tuna & Quezo Base Roll)", display: "Spicy Tuna & Quezo Base Roll (Base Roll 3)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br4", label: "Base Roll 4 (Cucumber Crabstick & Mango Base Roll)", display: "Cucumber Crabstick & Mango Base Roll (Base Roll 4)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br6", label: "Base Roll 6 (Shrimp Tempura Base Roll)", display: "Shrimp Tempura Base Roll (Base Roll 6)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br7", label: "Base Roll 7 (Crunchy Fish Base Roll)", display: "Crunchy Fish Base Roll (Base Roll 7)",           unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)", display: "Crunchy Salmon Base Roll (Base Roll 8)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br9", label: "Base Roll 9",                                    unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
     ],
   },
@@ -933,7 +939,7 @@ function TemplateSectionBlock({
                 <div key={item.key}>
                   <div className="flex items-center justify-between mb-1 gap-1">
                     <label className="text-xs text-zinc-400 flex-1 leading-tight break-words min-w-0">
-                      {item.label}
+                      {item.display ?? item.label}
                     </label>
                     {std && (
                       <span className="shrink-0 text-[9px] font-semibold text-zinc-600 tabular-nums">
