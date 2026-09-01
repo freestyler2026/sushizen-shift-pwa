@@ -360,7 +360,12 @@ async function main() {
     console.error('\n❌ SESSION_EXPIRED — run: node scripts/keeta/setup-session.js');
     await browser.close();
     try { fs.unlinkSync(tmpSession); } catch (_) {}
-    process.exit(0);
+    // Exiting 0 here kept the daily workflow green while it imported nothing.
+    // Grab's ran and reported success every morning for six days after the
+    // session died, so the one signal anybody was watching said the opposite
+    // of the truth. An expired session is not a code bug, but it is a failed
+    // run, and the check should say so.
+    process.exit(1);
   }
 
   // ── 1b. Make sure the reports we want actually exist ────────────────────

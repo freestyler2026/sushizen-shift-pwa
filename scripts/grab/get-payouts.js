@@ -127,7 +127,12 @@ async function fetchDailySummary(cookieStr, day) {
 
   if (status === 401 || status === 403) {
     console.error('\n❌ SESSION_EXPIRED — run: node scripts/grab/setup-session.js <store>');
-    process.exit(0);   // exit 0 so CI does not flag the whole workflow
+    // Exiting 0 here kept the daily workflow green while it imported nothing.
+    // Grab's ran and reported success every morning for six days after the
+    // session died, so the one signal anybody was watching said the opposite
+    // of the truth. An expired session is not a code bug, but it is a failed
+    // run, and the check should say so.
+    process.exit(1);
   }
   if (status === 400 && /Min from/.test(text)) {
     // Grab only serves roughly the last six months; asking for anything older
