@@ -245,7 +245,7 @@ interface SessionRow {
 const DAY_STATUS: Record<string, { label: string; cls: string }> = {
   absent:        { label: "absent",          cls: "bg-red-900/60 text-red-300" },
   no_record:     { label: "no record",       cls: "bg-red-900/60 text-red-300" },
-  shift_invalid: { label: "shift invalid",   cls: "bg-red-900/60 text-red-300" },
+  day_off:       { label: "day off",         cls: "bg-zinc-800 text-zinc-400" },
   no_punch:      { label: "no punch",        cls: "bg-orange-900/60 text-orange-300" },
   rest_day:      { label: "rest day",        cls: "bg-zinc-800 text-zinc-400" },
   paid_leave:    { label: "paid leave",      cls: "bg-sky-900/60 text-sky-300" },
@@ -382,7 +382,8 @@ function StaffReportTab({ city }: { city: string }) {
               // rostered and did not punch. It used to be invisible.
               { label: "No Punch", value: String(
                   report.sessions.filter((x) => x.day_status && x.day_status !== "worked"
-                    && x.day_status !== "rest_day" && x.day_status !== "off").length) },
+                    && x.day_status !== "rest_day" && x.day_status !== "off"
+                    && x.day_status !== "day_off").length) },
             ].map(({ label, value }) => (
               <div key={label} className={`${GLASS_CARD} p-4 text-center`}>
                 <div className="text-xl font-bold text-white">{value}</div>
@@ -412,8 +413,7 @@ function StaffReportTab({ city }: { city: string }) {
                 {report.sessions.map((s, i) => {
                   const hasViolation = s.violations.length > 0;
                   const st = s.day_status && s.day_status !== "worked" ? DAY_STATUS[s.day_status] : undefined;
-                  const needsAttention = s.day_status === "absent" || s.day_status === "no_record"
-                    || s.day_status === "shift_invalid";
+                  const needsAttention = s.day_status === "absent" || s.day_status === "no_record";
                   const rowBg = hasViolation || needsAttention
                     ? "bg-red-950/20" : i % 2 === 0 ? "bg-zinc-900/30" : "";
                   const firstBreak = s.breaks[0] ?? null;
