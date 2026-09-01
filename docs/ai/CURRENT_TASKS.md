@@ -52,6 +52,53 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## ✅ 遅刻アラートの3点改修（2026-09-01・本番反映済み）
+
+### 1. 未出勤のまま経過したものだけ再通知
+
+`OPENING_ESCALATION_MIN = (60, 120)` — 20分で1回目、**その後60分・120分で再通知**。
+条件は「まだ打刻していない」かつ「誰も `I'll handle it` と返していない」。
+**到着した人は二度と通知されない。** 再通知の宛先は1回目を受け取った人だけ。
+
+※1回目を20分より遅らせるのは逆効果（空いた開店シフトは早く埋める必要がある）。
+**区別しているのは1回目のタイミングではなく、その後鳴り続けるかどうか。**
+
+### 2. DM受信者を5名に
+
+```
+ON : Yuri Yamada / Ayako Nishimura / Yukihiro Nishimura / Yusuke Uejima / Peter Villafuerte
+off: Rafael, Dubai Office, Dubai Office 2, Aliana, CYRINE, Camilla, Erica, Ruby, Rose Ann（9名）
+```
+**削除ではなく `is_active=false`。** 戻す場合はフラグを戻すだけ。
+※Peter Villafuerte はこの表に未登録だったので追加（IDは `management_channel_discord` 等から確定）。
+※`shift_late_alert_recipients` の "Jay Nishimura" は Yukihiro Nishimura と同一Discord ID。表示名を統一。
+
+### 3. 新ページ `/admin/unworked-shifts`（Unworked Shifts）
+
+**「誰も出勤しなかったシフト」321件**を記録・表示。
+アラートが `Auto-expired` に到達するのは「その日が終わっても打刻が無かった」場合だけ
+（遅刻して出勤すればその場で解決される）ので、**この状態＝シフトに穴が空いた日**。
+
+日付の羅列ではなく**支店別・人別・曜日別**を先に出す（人員配置を変える単位がこの3つのため）。
+支店をクリックすると下の一覧が絞られる。
+
+現状の実データ:
+```
+支店別  PAR 122 / TAFT 72 / CUB 48 / CK 31 ... （マニラ278 : ドバイ43）
+曜日別  土61 / 日51 / 火46 / 木44 ... （週末が最多）
+人別    Anthony M. Tabios 18 / Aldrin Jay Alowa 17 / Aaron Jay Pamplona 14 ...
+```
+⚠️ **人別は「原因」ではない。** ロタに載らなかった承認済み休暇もここに入る。画面にもその旨を明記済み。
+
+権限: `channel.admin.unworked_shifts.view`（HQ/ADMIN/HR_MANAGER/DUBAI_MANAGEMENT/MANILA_MANAGEMENT）。
+NavBar・`access_control.py`・`access-channels.ts` を同時更新済み（教訓11・26）。
+**マニュアル自動更新テーブルに該当する系統が無いため、マニュアル更新は行っていない。**
+
+⚠️ **Vercelが2コミット分ビルドしなかった。** GitHubには到達していたがWebhookの取りこぼし。
+空コミットで再トリガーして復旧。デプロイ後は `curl` で実際にルートが200を返すか確認すること。
+
+---
+
 ## ✅ 遅刻アラートが「入れ替え済みのシフト」で鳴っていた（2026-09-01・修正済み）
 
 現場報告: Francis Ibana を 8:39（ドバイ時間）に TAFT 13:00 へ変更したのに、
