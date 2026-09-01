@@ -52,6 +52,40 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## ✅ BO Dashboard: 件数と表が合わない（2026-09-01・修正済み）
+
+現場報告「Ownersの件数が表に全部出ていない」。**原因は2つあり、片方は実在の欠陥だった。**
+
+### 欠陥: 一覧が200件で打ち切られていた
+
+```
+manila の management_tasks   275件
+ダッシュボードの取得         200件（limit=200）
+届いていなかった              75件
+  product_score_c  63 / disposal_missing 10 / KPI 2
+```
+**KPIカードも同じ配列から数えているので、カードの数字も過少だった。**
+`kpi_food_cost_critical` と `kpi_prime_cost_critical` は**一度も画面に出たことがなかった**。
+
+→ limit 2000 に変更（275件全て到達を確認）。
+→ APIが `total` / `returned` / `truncated` を返し、**足りないときは「Showing N of M tasks」と画面に表示**。
+
+### もう1つ: 件数と表が別のものを数えている（仕様どおり）
+
+Owners の件数は **`status <> 'closed'`** の集計:
+```
+rush_check_missing (Erica)  open 12 + sent 6 + responded 8 = 26   ← Ownersの数字
+                            closed 7 は除外
+表を「Sent」で絞ると 6件
+```
+**Erica の rush_check_missing は200件上限の影響を受けていない**（33件すべて到達）。
+質問者が見た「20件」と「6件」は、集計と表で条件が違うため。
+
+⚠️ **画面上に「この数字は何を数えているか」の説明が無い。** 数字が押せない・辿れないのは
+設計思想の失敗パターン#7。今回は truncation 表示のみ対応、**件数の定義表示は未対応**。
+
+---
+
 ## ✅ 法定控除の計算根拠を明細に追加（2026-09-01・本番反映済み）
 
 SSS / PhilHealth / Pag-IBIG / BIR は**最も質問が来る項目なのに説明が最も薄かった**。
