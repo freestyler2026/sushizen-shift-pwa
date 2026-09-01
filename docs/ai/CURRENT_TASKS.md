@@ -73,8 +73,7 @@ heroku config:set MGMT_NEVER_EXPIRE_PREFIXES=kpi_ -a sushizen-shift-app  # 期�
 
 **C. エスカレーションを生かす — 2026-09-02 実装済み（下の節を参照）**
 
-**D. 網羅性** — `Attendance & HR` はオーナー無し・タスク生成実績ゼロなのに、マネージャースコアの**20%**を占める。
-マネージャースコア CK=0 は coverage 40%（7要素中3要素）で、0点か未計測か画面から判別できない。
+**D. 網羅性 — 2026-09-02 実装済み（下の節を参照）**
 
 **E. 表示 — 2026-09-02 実装済み（下の節を参照）**
 
@@ -85,6 +84,73 @@ Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブ�
 
 **言語** — `check_mgmt_kpi_alerts` の title/message は日本語。管理会計マニュアルが日本語なので
 オーナー向けとして意図的な可能性があり、勝手に英語化していない。BO Dashboard は英語画面なので要判断。
+
+---
+
+## ✅ BO Dashboard D: Attendance が8週間「測れていない」ことを画面に出した（2026-09-02・実装済み）
+
+### ⚠️ 先に訂正 — 私の当初の指摘は2点間違っていた
+
+**① 「attendance が20%を占めるのにゼロなのでスコアが歪む」は誤り。**
+`manager_score_api.py` は**測れない要素を0点にせず除外して重みを再正規化する**設計で、docstring に明記もされている。
+歪んでいない。
+
+**② 「CK=0 が0点か未計測か判別できない」も誤り。**
+APIは `coverage_pct` と `measured_components` を返し、画面も `3/7` と出していた。
+CKの0は**実測3要素での本物の0点**。
+
+### 実際の問題 — 根本原因は検知器ではなくデータ源
+
+`attendance_unverified` の検知器は**存在し、毎日動いている**（`errors=0`）。
+生成ゼロの理由はもう1階層下だった:
+
+```
+detect_attendance_anomalies → actual_attendance（Bayzatの取込先）
+  actual_attendance の最終行 = 2026-07-08（マニラ）… 55日前
+  os_attendance_sessions      = 2026-09-01（生きている・6,555行）
+```
+
+**打刻データはOS側（`os_attendance_sessions`）に移行済みなのに、突合クエリが古い取込先を読んだままだった。**
+（メモ「DTR source (Manila): Bayzat ended July 2026 first half」と一致）
+
+結果、**設計上100点満点のうち20点が、全支店・全週で約8週間ずっと測れていない**。
+しかも**スコア側の正しい設計（測れない要素は除外）が、それを完全に隠していた**。
+
+### 何が本当に危なかったか
+
+**「今週は衛生の指摘が無かった」と「勤怠のデータ源が7月に死んだ」が、画面上まったく同じに見えていた。**
+どちらも `6/7` の欠けとしか表示されない。前者は健全、後者は障害。
+
+### 実装
+
+要素に `status` を追加: `counted` / `quiet`（今週は何も無かった）/ `blocked`（見る手段が無い）。
+
+- **Weekly Review 冒頭にバナー**（支店ごとに4回ではなく**1回**。死んだ取込先は1つの問題であって4つではない）
+- 各スコアに欠損した重みを `−20` と表示
+- ツールチップが `nothing to measure this week` と `not measurable — <理由>` を区別
+- **BO Dashboard の Attendance & HR が `nothing to do` → `not measurable — see Weekly Review`**
+  （見えていない場所について「やることなし」と言うのは、この画面が出しうる最悪の表示）
+
+判定は7日（`MGMT_SCORE_STALE_SOURCE_DAYS`）。週次バッチや連休を誤検知しない幅。
+
+### 本番での確認
+
+```
+API: blocked_components = [{attendance, 20%, "actual_attendance has no rows since 2026-07-08 (55 days)"}]
+     PAR → blocked:[attendance] / quiet:[hygiene, coaching]   ← 2種類の欠損が分離できている
+画面: 「20 of 100 points cannot be measured — this is not a score of zero, it is no data.」
+     各行に −20、Attendance & HR は「not measurable — see Weekly Review」
+```
+
+### ⚠️ 未実施（別タスク・要判断）
+
+**突合クエリを `os_attendance_sessions` に張り替える本修正はしていない。**
+`_comparison_query_base()` のCTE連鎖は **DTR・給与の突合も読んでいる**ため、
+Dの副作用として触ると影響範囲が読めない。独立した変更＋独立した検証が要る。
+**それまで勤怠20点は測れないまま**で、今回はそれが画面に出るようにしただけ。
+
+**別途発見**: `manila_attendance_daily` の最新 `work_date` が **2027-09-29**（1年先）。
+`dubai_attendance_daily` は 2026-08-31 で正常。年の打ち間違いの可能性が高い。未調査。
 
 ---
 
