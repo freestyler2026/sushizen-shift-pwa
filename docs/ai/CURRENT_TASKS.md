@@ -52,6 +52,54 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## ✅ AR Payouts 第2次監査 — 欠測検知・自動取込・締切（2026-09-01）
+
+### 1. セッション切れの欠測を検知する（新規）
+`app/db_ar_gaps.py` `ar_payout_gaps()` — 各ストリームを**自身の履歴のp90**と比較。
+```
+platform_stale  プラットフォーム全体が止まった（=セッション切れ）
+store_behind    兄弟店舗が入金されたのに来ていない店舗（閾値は半サイクル）
+roster_changed  店舗コードが総入れ替え。店舗別の判定は不可能と明示
+```
+実測結果は**5件のみ**（Grab 6日停止 / Smiles 3店舗 / Talabat コード入替）。
+Foodpanda・Careem・Noon・Keeta は正しく非検知。
+⚠️ **中央値は使わない** — Foodpandaは週次バッチで中央値1日、p90=4〜5。
+
+閾値はデプロイ不要で調整可:
+```bash
+heroku config:set AR_GAP_GRACE_DAYS=3 AR_GAP_GRACE_RATIO=0.5 -a sushizen-shift-app
+```
+
+### 2. 取込の自動化（セッション回復時の自動追加）
+`worker.py` `run_ar_payout_auto_sync` — **毎時** Drive を取込。
+同期本体は `app/services/ar_sync.py` `run_drive_sync()` に切り出し、ボタンと worker が同一経路。
+`run_ar_payout_gap_check` は日次でDiscord通知（市別）。
+停止: `heroku config:set AR_PAYOUT_AUTO_SYNC_ENABLED=0`
+
+### 3. 8/1以前を未チェック件数から除外（オーナー指示）
+`ar_check_cutoff` テーブル（市別）。**行は消さず、ステータスも "unchecked" のまま**、
+件数から外すだけ。画面に除外件数を併記。
+```
+manila  824 -> 56   （768件を除外）
+dubai  1873 -> 125  （1728件を除外）
+```
+
+### 4. 監査で追加発見・修正した4件
+| 内容 | 影響 |
+|---|---|
+| **Confirm が `res.ok` を見ていなかった** | 403/404でもモーダルが閉じ、確認済みに見える |
+| **`parsed <= 0` を拒否** | 「入金ゼロ」「チャージバック」が記録できない（負の予定額は既に7件） |
+| **`channel.admin.ar_payouts.manage` が死に権限** | Role Managementで配ると全Confirmが無言で403 |
+| **KPIが careem_balance 30行を含む** | AED 90,925 の二重計上（表側は最初から除外していた） |
+| Keeta/Talabat/Noon/Smiles が `PLATFORM_LABEL` に無い | Dubaiの絞り込みが空白ボタン3つ。Smilesは絞り込み自体が無かった |
+
+### ⏳ オーナー判断待ち
+- **重複4行 id=6426〜6429（PHP 40,654.22）** — 削除するかどうか。8件とも未確認なので確認履歴は失われない
+- **Talabat の店舗コード統一** — 3体制混在（AVS/RZ/SZ ⇔ 671526/673913/698589 ⇔ AB/AM/ARJ/…）。統一するまで店舗別の入金追跡はできない
+- **Grab 6日分・Smiles 3店舗8月分** — ポータルに再ログインしてエクスポート。Driveに置けば自動で取り込まれる
+
+---
+
 ## ✅ AR Payouts 監査（2026-09-01・修正済み）
 
 ### 🔴 1. 照合が「必ず一致する」仕組みだった（最重要）
