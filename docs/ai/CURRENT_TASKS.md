@@ -1,6 +1,48 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-01（OT「How busy」判定 ＋ マニラ日次売上の欠損検知・本番反映済み）
+Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」判定 ＋ マニラ日次売上の欠損検知）
+
+---
+
+## ✅ コンソールエラー3件の調査（2026-09-01）
+
+### 1. `SyntaxError: Unexpected identifier 'zen'` — 修正済み（重要）
+
+`layout.tsx` の **ChunkLoadError 自動復旧スクリプトが3週間動いていなかった**（2026-08-09 の e0901e8e から）。
+
+```js
+// テンプレートリテラル内の \' がコンパイル時に素の ' になり、JS文字列が途中で終端
+el.innerHTML = '...onclick="sessionStorage.removeItem(\'zen:reload-attempt\')..."';
+                                                      ↑ ここで文字列が閉じる
+```
+
+**構文エラーはスクリプト全体を殺すので、末尾の `addEventListener` が一度も登録されていなかった。**
+デプロイ後に古いHTMLを掴んだ端末が自動リロードされず放置される状態だった。
+→ innerHTML文字列をやめて DOM API で構築。`node --check` で検証、本番で確認済み。
+
+### 2. `React error #418`（hydration mismatch）— 一部修正
+
+管理ページのHTMLは **エッジキャッシュから全ユーザーに同一配信**（`x-vercel-cache: HIT`）。
+サーバーには localStorage が無いので**常に未ログイン状態で描画**される。
+`useState(getAuth)` で初回描画から認証を読むページは、必ずここで食い違う。
+
+**`/admin/overtime` だけは実害があった** — 権限ガードが初回描画で走り、
+**アクセス権のあるマネージャーに毎回「Access denied」が一瞬表示**されていた。→ `mounted` ガードで修正。
+
+サンプルした10ページの現状:
+
+| サーバーHTMLが本文を描画 | #418 | 実害 |
+|---|---|---|
+| overtime / hr/today / staff/roles / cash-management | 出ない | なし |
+| analytics / payroll/manila / procurement/pos / week / my-pay / draft | **出る** | 描画のやり直しのみ（嘘の文言は出ない） |
+
+⚠️ **残り約半数は未対応。** `getAuth()` を使うページは208ファイルあり一括対応は影響が大きい。
+**「そのページが全ユーザーに何と言っているか」を `curl` で確認し、嘘になるページから直す。**
+
+### 3. `401` — 対応不要
+
+トークン期限切れ→`refreshAuthFromApi` による正常なリフレッシュ。
+クリーンなロードでは再現せず。ブラウザが失敗リクエストを一律ログするだけ。
 
 ---
 
