@@ -466,6 +466,18 @@ npx tsc --noEmit
     - 診断は**ヘッドレスで公開ページのフォーム要素を読むだけ**でできる（認証情報は不要）。`inputs` に `Enter your username` が出るかどうかで、到達しているかが一目で分かる。
     - 待機ループは `page.url()` ではなく `context.pages()` を見る。サインインが別窓で完了しても拾える。
 
+52. **モジュールのモックを「使うものだけ列挙」で書くと、共有コンポーネントが1つアイコンを足した日に全滅する** → 各テストが `vi.mock("lucide-react", () => ({ 使うアイコンだけ }))` としていた。`SelectDark` が `ChevronDown` を描画するため、native `<select>` 一括置換で SelectDark が全管理ページに入った瞬間、**30ファイルのモックが不足**になった。（2026-09-01 発見・修正）
+    - **症状がエラーの場所を指さない。** モックに無いキーへのアクセスでReactがレンダー中に例外→ページが空→全アサーションが `Unable to find an element with the text: ...` で落ちる。**アイコンではなく文言を探しに行く。**
+    - しかも各アサーションが5秒タイムアウトを待つため、**752件×5秒でスイートが数時間**になり `timeout-minutes` の無いCIが並列枠を6時間占有した（教訓50）。
+    - 対策は `tests/lucide-mock.ts`（Proxyで任意のアイコンを解決／assertしたいものだけ名前を付ける）。
+    - ⚠️ **`get` トラップだけでは効かない。** vitest は `key in module` を先に見て自前の "No X export is defined on the mock" を投げる。**`has` トラップが必須。**
+
+53. **native `<select>` を独自コンポーネントに置き換えたら、`role="combobox"` と `aria-expanded` を必ず付ける — テスト以前にアクセシビリティの実害** → `SelectDark` は素の `<button>` で、role も aria-expanded も aria-label も無かった。スクリーンリーダーには**名前の無いボタン**としか聞こえない。テスト側も `getByRole("combobox")` で53件落ちていた。（2026-09-01 修正）
+    - **`getByDisplayValue` と `fireEvent.change` はARIAをいくら足しても救えない。** display value は値を保持するフォーム部品の概念で、change イベントは発火先の control を要求する。テスト側を「開いてクリック」に書き換えるしかない（`tests/select-dark.ts`）。
+    - `data-value` を trigger と option に持たせると、**表示文言ではなくページが受け取る値**で選べるので変換がほぼ1:1になる。
+    - ⚠️ **`getByDisplayValue` の一括置換は禁止。** テキスト入力にも使われており、私は一律変換して401→403に悪化させた。**選択肢か入力欄かを1件ずつ見ること。**
+    - 残課題: SelectDark の大半が **aria-label 無し**で描画されている（既定名が全部 "— Select —" になる）。同一ページに2つあると区別できない。名前付けは未実施。
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 41. **`dangerouslySetInnerHTML` のテンプレートリテラル内で `\'` を書くと、ブラウザに届く前に素の `'` になる** → `layout.tsx` の ChunkLoadError 復旧スクリプトが `onclick="...removeItem(\'zen:reload-attempt\')..."` を innerHTML 文字列に埋めており、テンプレートリテラルが `\'` を `'` に変換した結果、JS文字列が途中で終端して `Uncaught SyntaxError: Unexpected identifier 'zen'` になっていた。**構文エラーはスクリプト全体を殺すので、末尾の `addEventListener` が一度も登録されていなかった** — デプロイ後に古いHTMLを掴んだ端末が自動リロードされず、白画面のまま放置される。**2026-08-09 から3週間、全ページで発動していた。**（2026-09-01 修正）

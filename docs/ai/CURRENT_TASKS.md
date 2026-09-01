@@ -101,6 +101,51 @@ Smiles   5支店すべて 8/31 まで（ARJ・JLT は nil月）
 
 ---
 
+## 🟡 CI: Frontend Tests 調査結果（2026-09-01）
+
+```
+752件失敗・数時間  →  400件失敗・87秒
+```
+
+### 原因は3つで、systemicなのは最初の2つだけ
+
+**① lucide-react のモックが許可リストだった（systemic・修正済み）**
+`SelectDark` が `ChevronDown` を描画するため、native `<select>` 一括置換で30ファイルのモックが不足に。
+モックに無いキーへのアクセス→レンダー中に例外→ページが空→**全アサーションが「文言が見つからない」で落ちる**
+（アイコンを指さない）。各5秒タイムアウトでスイートが数時間に。
+→ `tests/lucide-mock.ts`。⚠️ **`get` だけでなく `has` トラップが必須**（vitestが `key in module` を先に見る）。
+
+**② SelectDark に combobox のセマンティクスが無かった（systemic・修正済み・実害あり）**
+素の `<button>` で `role` / `aria-expanded` / `aria-label` すべて無し。
+**スクリーンリーダーには名前の無いボタンとしか聞こえない。** テストも `getByRole("combobox")` で53件失敗。
+→ `role="combobox"` `aria-expanded` `aria-haspopup` `aria-label` `role="listbox"` `role="option"` を付与。
+併せて `data-value` を trigger と option に持たせ、テストが値で選べるように。
+
+**③ ページが変わったのにテストが古い（systemicではない・未着手）**
+残り400件はほぼこれ。1ファイルずつ製品側の変更を確認する作業で、機械的変換はできない。
+
+### 残り400件の内訳（上位）
+```
+ 65  my-pay              本人確認ゲートが追加され、テストは全てそれ以前のもの
+ 31  request             「Submit」が無い
+ 26  swap-approve        counterparty approval の文言変更
+ 26  daily-inventory     遷移先アサーション（/week）のずれ
+ 24  private-report      値と表示文言の取り違え（getByDisplayValueに値を渡していた）
+ 20  baseroll-prep / 19 manual-shift / 16 cost-calculation / 16 incidents ...
+ 72  8件未満の28ファイル
+```
+
+### ⚠️ やってはいけないこと（実際に悪化させた）
+**`getByDisplayValue` の一括置換は禁止。** テキスト入力にも使われている。
+一律変換して401→403に悪化させ、revertした。**選択肢か入力欄かを1件ずつ見ること。**
+
+### 残課題
+- SelectDark の大半が **`aria-label` 無し**で描画されている。既定名が全て "— Select —" になるため、
+  同一ページに2つあると `getByRole("combobox", {name})` で区別できない。名前付けは未実施
+- 上記③の400件
+
+---
+
 ## 🔴 CI: Frontend Tests が全ワークフローを止めている（2026-09-01）
 
 `.github/workflows/test.yml` に `timeout-minutes` が無く、vitest がハングすると
