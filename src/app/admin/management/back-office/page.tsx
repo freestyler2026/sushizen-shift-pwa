@@ -862,8 +862,8 @@ const CLOSE_OUTCOMES: { key: string; label: string; hint: string }[] = [
  * field you ask for is a field that gets skipped.
  */
 function CloseBar({
-  task, onChanged,
-}: { task: ManagementTask; onChanged: (t: ManagementTask) => void }) {
+  task, onChanged, justClosed,
+}: { task: ManagementTask; onChanged: (t: ManagementTask) => void; justClosed?: boolean }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const closed = task.status === "closed";
@@ -898,6 +898,11 @@ function CloseBar({
           Closed{info?.outcome ? ` — ${CLOSE_OUTCOMES.find(o => o.key === info.outcome)?.label ?? info.outcome}` : ""}
         </span>
         {task.closed_by && <span className="text-zinc-500">by {task.closed_by}</span>}
+        {justClosed && (
+          <span className="text-[11px] text-zinc-500">
+            · kept here until you press Refresh
+          </span>
+        )}
         {/* Every one-tap action needs a way back, or people stop using it for
             fear of the tap they cannot take back. */}
         <button
@@ -1180,9 +1185,10 @@ interface TaskRowProps {
   onClaim?: (task: ManagementTask) => void;
   currentUser?: string;
   onHandled?: (task: ManagementTask) => void;
+  justClosed?: boolean;
 }
 
-function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentUser, onHandled }: TaskRowProps) {
+function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentUser, onHandled, justClosed }: TaskRowProps) {
   const shortfall = shortfallSummary(task.context);
   return (
     <div className={TABLE_ROW + " border-white/8"}>
@@ -1318,7 +1324,7 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
           {task.type === "product_score_c" && <TaskPhoto taskId={task.id} />}
           {/* Above the handling form, not inside it: this is the common exit
               and that one is the detailed record for the cases that need it. */}
-          {onHandled && <CloseBar task={task} onChanged={onHandled} />}
+          {onHandled && <CloseBar task={task} onChanged={onHandled} justClosed={justClosed} />}
           {onHandled && <HandlingPanel task={task} onSaved={onHandled} />}
           <TaskThread taskId={task.id} />
         </div>
@@ -1354,6 +1360,7 @@ export default function BODashboardPage() {
   // member specific pages and says they "see only their exceptions"; a list of
   // everyone's is a list nobody treats as theirs.
   const [pageFilter, setPageFilter] = useState<string>("mine");
+  const [justClosed, setJustClosed] = useState<Set<number>>(new Set());
   const [cityFilter, setCityFilter] = useState<string>(MANAGEMENT_CHANNEL_CITY);
 
   // Send modal
@@ -1417,6 +1424,8 @@ export default function BODashboardPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTasks(data.tasks || []);
+      // Refresh is the deliberate "I am finished with those" action.
+      setJustClosed(new Set());
       // If it is ever short again, say so rather than looking complete.
       setTaskTotal(typeof data.total === "number" ? data.total : null);
     } catch (e: unknown) {
@@ -1455,6 +1464,18 @@ export default function BODashboardPage() {
   const closedCount    = tasks.filter(t => t.status === "closed").length;
   const sentMissedCount = tasks.filter(t => t.status === "sent" && t.missed_by_manager).length;
 
+  // Tasks closed in this sitting. Held in the list so their Reopen stays
+  // reachable; cleared by Refresh, which is the deliberate "I'm done" action.
+  const handleTaskChanged = (t: ManagementTask) => {
+    setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x)));
+    setJustClosed((prev) => {
+      const next = new Set(prev);
+      if (t.status === "closed") next.add(t.id);
+      else next.delete(t.id);
+      return next;
+    });
+  };
+
   // Filter by status client-side (tasks are always fetched for all statuses for accurate KPI counts)
   const me = getAuth()?.staffName || "";
   const myPages = pages.filter((p) => p.owner && p.owner === me);
@@ -1472,9 +1493,19 @@ export default function BODashboardPage() {
     ? pageFilteredTasks.filter(t => t.type === typeFilter)
     : pageFilteredTasks;
 
+  // A row you just closed stays put until the next Refresh, so the Reopen it
+  // offers is still there when you realise you picked the wrong outcome.
+  //
+  // Without this the row vanishes the instant you tap a chip -- while the chip
+  // is sitting under the words "Reopen if you pick the wrong one". The undo
+  // exists, but you would have to know to go and find it under Closed, which
+  // is a promise the screen makes and then breaks.
+  const keptVisible = (t: ManagementTask) => justClosed.has(t.id);
   const byStatus = (list: ManagementTask[]) =>
-    statusFilter === "not_closed" ? list.filter(t => t.status !== "closed")
-    : statusFilter && statusFilter !== "all" ? list.filter(t => t.status === statusFilter)
+    statusFilter === "not_closed"
+      ? list.filter(t => t.status !== "closed" || keptVisible(t))
+    : statusFilter && statusFilter !== "all"
+      ? list.filter(t => t.status === statusFilter || keptVisible(t))
     : list;
 
   const filteredTasks = byStatus(typeFilteredTasks);
@@ -1984,7 +2015,8 @@ export default function BODashboardPage() {
                   onToggle={() => toggleExpand(task.id)}
                   onClaim={claimTask}
                   currentUser={getAuth()?.staffName || ""}
-                  onHandled={(t) => setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x)))}
+                  onHandled={handleTaskChanged}
+                  justClosed={justClosed.has(task.id)}
                 />
               ))}
             </div>
