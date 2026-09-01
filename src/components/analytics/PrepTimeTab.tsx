@@ -101,11 +101,37 @@ function prepMinColor(avg: number) {
   return "text-red-400 bg-red-500/10";
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-const monthStart = () => {
+// Local calendar date, not UTC. toISOString() shifts to UTC, so for anyone east
+// of it "today" became yesterday for part of the morning and that day's records
+// fell outside the range.
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const today = () => ymd(new Date());
+
+/** Days of context the tab always opens with, even at the start of a month. */
+const MIN_DEFAULT_DAYS = 14;
+
+/**
+ * Month to date — but never a window so short there is nothing to look at.
+ *
+ * The range used to be exactly the 1st through today, so on the 1st of every
+ * month the tab opened showing a single day. Early on that day most stores have
+ * not recorded anything yet, and because the store selector is built from the
+ * loaded rows, those stores vanished from the dropdown entirely — which reads
+ * as "Taft is gone" rather than "nothing yet this morning".
+ */
+const defaultFrom = () => {
   const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const floor = new Date(d.getFullYear(), d.getMonth(), d.getDate() - (MIN_DEFAULT_DAYS - 1));
+  return ymd(first < floor ? first : floor);
+};
+
+/** Wide window used only to populate the store list, so it never loses a store. */
+const optionsFrom = () => {
+  const d = new Date();
+  return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 89));
 };
 
 /**
@@ -146,10 +172,16 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
   const [branchFilter, setBranchFilter] = useState("");
   const [branchCity, setBranchCity] = useState("");
-  const [dateFrom, setDateFrom] = useState(monthStart());
+  const [dateFrom, setDateFrom] = useState(defaultFrom());
   const [dateTo, setDateTo] = useState(today());
 
   const [stats, setStats] = useState<PrepTimeStat[]>([]);
+  // Every store that has recorded a prep time in the last 90 days, so the
+  // dropdown keeps offering a store whose records simply have not arrived yet
+  // today. Read from the same endpoint as `stats` rather than the static branch
+  // list, because the two disagree on Cubao's code (BRANCHES says CUB, the
+  // records say CUBAO) and a mismatch would show the store twice.
+  const [knownStores, setKnownStores] = useState<PrepTimeStat[]>([]);
   const [records, setRecords] = useState<PrepTimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -191,6 +223,26 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
       setLoading(false);
     }
   }, [params, branchFilter]);
+
+  // Refreshed when the city changes, not on every date change — the store list
+  // must not follow the window it is meant to outlive.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const p: Record<string, string> = {
+          approver_name: approverName, pin,
+          date_from: optionsFrom(), date_to: today(),
+        };
+        if (cityFilter) p.city = cityFilter;
+        const res = await apiFetch(`/api/admin/prep-time/stats?${new URLSearchParams(p).toString()}`);
+        if (!cancelled) setKnownStores(res.stats || []);
+      } catch {
+        if (!cancelled) setKnownStores([]); // fall back to whatever is in range
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [approverName, pin, cityFilter]);
 
   // Load hourly history from server when branch selected
   const loadHourlyHistory = useCallback(async () => {
@@ -299,12 +351,25 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   }, [hourlyRows]);
 
   // Branch options derived from stats
+  // Stores in the chosen window first, then any other store that records prep
+  // times, marked so the absence is stated rather than left to be inferred from
+  // a missing row.
   const branchOptions = useMemo(() => {
+    const inRange = new Set(stats.map(s => s.branch_code).filter(Boolean));
     const seen = new Set<string>();
-    return stats
-      .filter(s => s.branch_code && !seen.has(s.branch_code) && seen.add(s.branch_code))
-      .map(s => ({ value: s.branch_code, label: `${s.branch_code} (${s.city})` }));
-  }, [stats]);
+    const opts: { value: string; label: string }[] = [];
+    for (const s of [...stats, ...knownStores]) {
+      if (!s.branch_code || seen.has(s.branch_code)) continue;
+      seen.add(s.branch_code);
+      opts.push({
+        value: s.branch_code,
+        label: inRange.has(s.branch_code)
+          ? `${s.branch_code} (${s.city})`
+          : `${s.branch_code} (${s.city}) — no records in this range`,
+      });
+    }
+    return opts;
+  }, [stats, knownStores]);
 
   const handleSaveHourlyHistory = async () => {
     if (!branchFilter) return;
