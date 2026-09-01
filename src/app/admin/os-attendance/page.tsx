@@ -236,6 +236,7 @@ interface SessionRow {
   has_open_break: boolean;
   /** Why a day has no punches. Absent from older responses. */
   day_status?: string;
+  note?: string;
   scheduled_start?: number | null;
   scheduled_end?: number | null;
 }
@@ -246,6 +247,9 @@ const DAY_STATUS: Record<string, { label: string; cls: string }> = {
   absent:        { label: "absent",          cls: "bg-red-900/60 text-red-300" },
   no_record:     { label: "no record",       cls: "bg-red-900/60 text-red-300" },
   day_off:       { label: "day off",         cls: "bg-zinc-800 text-zinc-400" },
+  awol:          { label: "AWOL",            cls: "bg-red-900/60 text-red-300" },
+  resigned:      { label: "resigned",        cls: "bg-zinc-800 text-zinc-400" },
+  double_account:{ label: "double account",  cls: "bg-amber-900/60 text-amber-300" },
   no_punch:      { label: "no punch",        cls: "bg-orange-900/60 text-orange-300" },
   rest_day:      { label: "rest day",        cls: "bg-zinc-800 text-zinc-400" },
   paid_leave:    { label: "paid leave",      cls: "bg-sky-900/60 text-sky-300" },
@@ -383,7 +387,7 @@ function StaffReportTab({ city }: { city: string }) {
               { label: "No Punch", value: String(
                   report.sessions.filter((x) => x.day_status && x.day_status !== "worked"
                     && x.day_status !== "rest_day" && x.day_status !== "off"
-                    && x.day_status !== "day_off").length) },
+                    && x.day_status !== "day_off" && x.day_status !== "resigned").length) },
             ].map(({ label, value }) => (
               <div key={label} className={`${GLASS_CARD} p-4 text-center`}>
                 <div className="text-xl font-bold text-white">{value}</div>
@@ -413,7 +417,8 @@ function StaffReportTab({ city }: { city: string }) {
                 {report.sessions.map((s, i) => {
                   const hasViolation = s.violations.length > 0;
                   const st = s.day_status && s.day_status !== "worked" ? DAY_STATUS[s.day_status] : undefined;
-                  const needsAttention = s.day_status === "absent" || s.day_status === "no_record";
+                  const needsAttention = s.day_status === "absent" || s.day_status === "no_record"
+                    || s.day_status === "awol";
                   const rowBg = hasViolation || needsAttention
                     ? "bg-red-950/20" : i % 2 === 0 ? "bg-zinc-900/30" : "";
                   const firstBreak = s.breaks[0] ?? null;
@@ -438,9 +443,12 @@ function StaffReportTab({ city }: { city: string }) {
                         {st && (
                           <span
                             className={`inline-block mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`}
-                            title={s.scheduled_start != null
-                              ? `Scheduled ${fmtHour(s.scheduled_start)}–${fmtHour(s.scheduled_end)}`
-                              : "No shift published"}
+                            title={[
+                              s.note ? `Note: ${s.note}` : "",
+                              s.scheduled_start != null
+                                ? `Scheduled ${fmtHour(s.scheduled_start)}–${fmtHour(s.scheduled_end)}`
+                                : "No shift published",
+                            ].filter(Boolean).join(" · ")}
                           >
                             {st.label}
                           </span>
