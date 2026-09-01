@@ -1179,6 +1179,30 @@ export default function ManualShiftPage() {
   function deleteStaffFromGrid(staffName: string) {
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
     const totalShifts = datesWithShifts.length;
+
+    // A sheet is often where a rotating person's whole schedule is written,
+    // not where they work. Francis Ibana's September lives on the CK sheet —
+    // 30 of 31 days — while the cells themselves say TAFT, PAR and CK. Removing
+    // him from CK to "tidy up" would have deleted the month.
+    //
+    // So before clearing a row, say which branches its cells actually name.
+    const otherBranches = Array.from(new Set(
+      datesWithShifts
+        .flatMap((d) => {
+          const cell = gridData[staffName]?.[d];
+          const list = Array.isArray(cell) ? cell : cell ? [cell] : [];
+          return list.map((c) => (c.branch_code || "").toUpperCase());
+        })
+        .filter((b) => b && b !== branchCode.toUpperCase())
+    ));
+    if (otherBranches.length > 0 && !window.confirm(
+      `Careful — these shifts are not ${branchCode} work.\n\n` +
+      `"${stripRoleSuffix(staffName)}" has shifts on this sheet assigned to ` +
+      `${otherBranches.join(", ")}. This sheet is being used to write their ` +
+      `rotation, not to say where they work.\n\n` +
+      `Clearing the row deletes those shifts too. Continue?`
+    )) return;
+
     if (!window.confirm(
       `Remove "${stripRoleSuffix(staffName)}" from the ${branchCode} sheet?\n\n` +
       `${totalShifts} shift(s) this week will be cleared, and they leave the published ` +
