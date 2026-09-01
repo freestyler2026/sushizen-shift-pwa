@@ -189,6 +189,57 @@ async function postWebhook(payload) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Refuse to run when the session and GRAB_STORE_CODE disagree.
+ *
+ * fetchDailySummary asks for a merchant group, not a store: the session decides
+ * whose money comes back, and GRAB_STORE_CODE only decides what it gets called.
+ * Nothing connected the two. Running the Paranaque session with
+ * GRAB_STORE_CODE=TAFT returns Paranaque's figures and files them under Taft --
+ * verified, both TAFT and CUB came back with Paranaque's exact totals -- and
+ * nothing downstream could ever tell, because the numbers are real, just
+ * attributed to the wrong branch.
+ *
+ * The per-order endpoint does name the store, so one page of it is enough to
+ * check before writing anything.
+ */
+async function assertSessionMatchesStore(cookieStr) {
+  const params = new URLSearchParams({
+    merchant_group_id: MERCHANT_GROUP,
+    from: DATE_FROM, to: DATE_TO,
+    transaction_status: 'completed',
+    currency: 'PHP', limit: '20', offset: '0',
+  });
+  let names = [];
+  try {
+    // grabGet returns { status, text } -- not parsed JSON.
+    const resp = await grabGet(cookieStr, `https://merchant.grab.com/mex/finances/v2/transactions?${params}`);
+    const j = JSON.parse(resp.text);
+    const rows = j?.data?.results || j?.data || j?.results || [];
+    names = [...new Set((Array.isArray(rows) ? rows : [])
+      .map(r => r.store_name).filter(Boolean))];
+  } catch (_) { /* fall through to the "cannot tell" branch below */ }
+
+  if (!names.length) {
+    console.log('⚠ Could not read a store name from this session — skipping the');
+    console.log('  session/store check. Confirm the figures land under the right branch.');
+    return;
+  }
+  const want = STORE_NAME.toLowerCase().replace(/[^a-z]/g, '');
+  const ok = names.some(n => {
+    const got = n.toLowerCase().replace(/[^a-z]/g, '');
+    return got.includes(want) || want.includes(got);
+  });
+  if (!ok) {
+    console.error(`\n❌ This session belongs to: ${names.join(', ')}`);
+    console.error(`   but GRAB_STORE_CODE is ${STORE_CODE} (${STORE_NAME}).`);
+    console.error('   Refusing to run — it would file one branch\'s money under another.');
+    console.error(`   Use scripts/grab/${STORE_CODE.toLowerCase()}-session.json, or set GRAB_STORE_CODE to match.`);
+    process.exit(1);
+  }
+  console.log(`✓ Session belongs to ${names.join(', ')} — matches ${STORE_CODE}`);
+}
+
 async function main() {
   if (!DATE_FROM || !DATE_TO) {
     console.error('DATE_FROM and DATE_TO must be set (e.g. 2026-08-01 / 2026-08-22)');
@@ -204,6 +255,8 @@ async function main() {
   const extractedAt  = new Date().toISOString();
 
   const days = eachDay(DATE_FROM, DATE_TO);
+  await assertSessionMatchesStore(cookieStr);
+
   console.log(`\nFetching daily settlement summaries (${days.length} day(s))...`);
 
   const rows = [];
