@@ -47,6 +47,18 @@ type OTRequest = {
   paid_by: string;
   paid_at: string | null;
   submitted_at: string;
+  workload?: Workload;
+};
+
+/** Whether the night was actually busy — advisory, never blocks an approval. */
+type Workload = {
+  level: "ok" | "watch" | "check" | "unknown";
+  headline: string;
+  demand: { orders: number; usual: number; pct: number; sample_days: number } | null;
+  staffing: { rostered: number; usual: number } | null;
+  hour_detail: { orders_in_window: number; hours: number[] } | null;
+  same_night_requests: number;
+  basis?: string;
 };
 
 type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
@@ -75,13 +87,84 @@ function formatMinutes(m: number): string {
   return `${Math.floor(m / 60)}h${m % 60 > 0 ? `${m % 60}m` : ""}`;
 }
 
+const WORKLOAD_STYLE: Record<string, string> = {
+  ok: "border-emerald-500/40 bg-emerald-900/25 text-emerald-300",
+  watch: "border-amber-500/40 bg-amber-900/25 text-amber-300",
+  check: "border-red-500/40 bg-red-900/25 text-red-300",
+  unknown: "border-white/15 bg-white/5 text-white/45",
+};
+
+/**
+ * How busy the night actually was. Expands on click, because a colour nobody
+ * can interrogate gets ignored, and the numbers behind it are the whole point.
+ */
+function WorkloadCell({ w }: { w?: Workload }) {
+  const [open, setOpen] = useState(false);
+  if (!w) return <span className="text-xs text-white/30">—</span>;
+  const d = w.demand;
+  const label =
+    w.level === "unknown" ? "No data"
+      : d ? `${d.pct >= 0 ? "+" : ""}${d.pct}% orders`
+      : "—";
+
+  return (
+    <div className="min-w-[150px]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${WORKLOAD_STYLE[w.level] ?? WORKLOAD_STYLE.unknown}`}
+      >
+        {label}
+      </button>
+      {w.same_night_requests > 1 && (
+        <span className="mt-1 block text-[11px] text-amber-300/80">
+          {w.same_night_requests} people extended here that night
+        </span>
+      )}
+      {open && (
+        <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2 text-[11px] leading-relaxed text-white/70">
+          <p className="font-medium text-white/90">{w.headline}</p>
+          {d && (
+            <p>
+              Orders that day: <span className="text-white">{d.orders}</span> · usual{" "}
+              <span className="text-white">{d.usual}</span>
+            </p>
+          )}
+          {w.staffing ? (
+            <p>
+              On shift during these hours: <span className="text-white">{w.staffing.rostered}</span> ·
+              usual <span className="text-white">{w.staffing.usual}</span>
+            </p>
+          ) : (
+            <p className="text-white/40">Roster for these hours not available</p>
+          )}
+          {w.hour_detail && (
+            <p>
+              Orders inside the overtime hours: <span className="text-white">{w.hour_detail.orders_in_window}</span>
+            </p>
+          )}
+          {w.basis && <p className="text-white/40">Compared against the {w.basis}.</p>}
+          <p className="text-white/40">
+            Busy ≥ +15%, quiet ≤ −15%. This never blocks an approval.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminOvertimePage() {
   const [auth] = useState(getAuth);
   const apiBase = "";
   const userCity = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const role = (auth?.role || "").toUpperCase();
   const canSwitchCity = ["ADMIN", "HQ"].includes(role);
-  const canStage1 = STAGE1_ROLES.has(role);
+  // The role list alone is a lie: it omitted DUBAI_MANAGEMENT, so Manila
+  // management could confirm Dubai overtime while Dubai management could not.
+  // Keep the list, but let the permission open the same door, so Role
+  // Management actually decides who reviews.
+  const perms = auth?.permissions || [];
+  const canStage1 = STAGE1_ROLES.has(role) || perms.includes("channel.admin.overtime.manage");
   const canStage2 = STAGE2_ROLES.has(role);
 
   const [activeCity, setActiveCity] = useState<"dubai" | "manila">(userCity);
@@ -293,6 +376,14 @@ export default function AdminOvertimePage() {
             added, and it lands in the period containing the work date — so it can be
             approved as it comes in and added after the cut-off.
           </p>
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            <span className="text-zinc-400">How busy</span> compares that day&apos;s orders,
+            and the people rostered across the overtime hours, against the same weekday at
+            the same branch over the previous 9 weeks. Green is a night at least 15% busier
+            than usual; amber is an ordinary night, and says so more firmly when the branch
+            was also fully staffed. Tap a badge for the numbers. It is there to inform the
+            decision, not to make it — nothing is blocked or rejected by it.
+          </p>
         </div>
 
         {/* KPI summary */}
@@ -386,6 +477,7 @@ export default function AdminOvertimePage() {
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
+                    <WorkloadCell w={r.workload} />
                     {r.manager_approved_by && (
                       <p className="text-xs text-blue-400">Stage 1: {r.manager_approved_by}</p>
                     )}
@@ -444,6 +536,7 @@ export default function AdminOvertimePage() {
                       <th className={TABLE_CELL}>Type</th>
                       <th className={TABLE_CELL}>OT Time</th>
                       <th className={TABLE_CELL}>Reason</th>
+                      <th className={TABLE_CELL}>How busy</th>
                       <th className={TABLE_CELL}>Status</th>
                       <th className={TABLE_CELL}>Actions</th>
                     </tr>
@@ -472,6 +565,7 @@ export default function AdminOvertimePage() {
                             <span className="block text-green-400 text-xs mt-0.5">💳 {r.paid_by}</span>
                           )}
                         </td>
+                        <td className={TABLE_CELL}><WorkloadCell w={r.workload} /></td>
                         <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
                         <td className={TABLE_CELL}>
                           <div className="flex flex-col gap-1">
