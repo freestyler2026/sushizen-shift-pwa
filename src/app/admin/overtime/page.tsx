@@ -155,6 +155,11 @@ function WorkloadCell({ w }: { w?: Workload }) {
 
 export default function AdminOvertimePage() {
   const [auth] = useState(getAuth);
+  // getAuth() reads localStorage, which the server does not have, so the first
+  // client render disagrees with the prerendered HTML (React #418) and the
+  // refusal below flashes before the session is known.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const apiBase = "";
   const userCity = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const role = (auth?.role || "").toUpperCase();
@@ -297,6 +302,16 @@ export default function AdminOvertimePage() {
     } finally {
       setExporting(false);
     }
+  }
+
+  // This page's HTML is prerendered and served from the edge cache, identical
+  // for everyone, so the server always renders it as a signed-out visitor. Say
+  // nothing until the browser has read the session: rendering the refusal
+  // straight away put "Access denied — Manager or above required." on screen
+  // for a moment on every cold load, telling managers they had lost access
+  // they still had.
+  if (!mounted) {
+    return <div className="min-h-screen" aria-busy="true" />;
   }
 
   if (!auth || !REVIEWER_ROLES.has(auth.role ?? "")) {
