@@ -35,12 +35,12 @@ interface Row {
 // a report that arrived and a report somebody read are different facts and the
 // old view could only show the first.
 const STAGE_STYLE: Record<Stage, { bg: string; text: string; label: string }> = {
-  missing:   { bg: "bg-red-500/15 border-red-500/30",       text: "text-red-300",     label: "未提出" },
-  not_due:   { bg: "bg-white/[0.03] border-white/10",        text: "text-zinc-500",    label: "期限前" },
-  submitted: { bg: "bg-amber-500/12 border-amber-500/25",    text: "text-amber-300",   label: "提出済・未確認" },
-  reviewed:  { bg: "bg-emerald-500/12 border-emerald-500/25",text: "text-emerald-300", label: "確認済" },
-  issue:     { bg: "bg-orange-500/15 border-orange-500/30",  text: "text-orange-300",  label: "問題あり" },
-  action:    { bg: "bg-sky-500/12 border-sky-500/25",        text: "text-sky-300",     label: "対応済" },
+  missing:   { bg: "bg-red-500/15 border-red-500/30",       text: "text-red-300",     label: "Not submitted" },
+  not_due:   { bg: "bg-white/[0.03] border-white/10",        text: "text-zinc-500",    label: "Not due yet" },
+  submitted: { bg: "bg-amber-500/12 border-amber-500/25",    text: "text-amber-300",   label: "Submitted, not checked" },
+  reviewed:  { bg: "bg-emerald-500/12 border-emerald-500/25",text: "text-emerald-300", label: "Checked" },
+  issue:     { bg: "bg-orange-500/15 border-orange-500/30",  text: "text-orange-300",  label: "Issue found" },
+  action:    { bg: "bg-sky-500/12 border-sky-500/25",        text: "text-sky-300",     label: "Handled" },
 };
 
 function Cell({ row, onReview }: { row: Row; onReview: (r: Row, issue: boolean, note: string) => Promise<void> }) {
@@ -60,7 +60,7 @@ function Cell({ row, onReview }: { row: Row; onReview: (r: Row, issue: boolean, 
         className={`w-full rounded-lg border px-2 py-1.5 text-left ${st.bg} ${canReview ? "cursor-pointer" : "cursor-default"}`}
       >
         <div className={`text-[11px] font-semibold ${st.text}`}>{st.label}</div>
-        {row.late && <div className="text-[10px] text-red-300">遅れて提出</div>}
+        {row.late && <div className="text-[10px] text-red-300">Submitted late</div>}
         {row.reviewed_by && <div className="text-[10px] text-zinc-500">{row.reviewed_by}</div>}
       </button>
 
@@ -69,11 +69,11 @@ function Cell({ row, onReview }: { row: Row; onReview: (r: Row, issue: boolean, 
           <label className="flex items-center gap-1.5 text-[11px] text-zinc-300">
             <input type="checkbox" checked={issue} onChange={(e) => setIssue(e.target.checked)}
                    className="h-3 w-3 accent-orange-500" />
-            内容に問題があった
+            Something was wrong with it
           </label>
           {issue && (
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-              placeholder="何が問題か"
+              placeholder="What was wrong"
               className={INPUT_CLASS + " mt-1 w-full text-[11px]"} />
           )}
           <button
@@ -82,7 +82,7 @@ function Cell({ row, onReview }: { row: Row; onReview: (r: Row, issue: boolean, 
             onClick={async () => { setBusy(true); await onReview(row, issue, note); setBusy(false); setOpen(false); }}
             className="mt-1.5 w-full rounded bg-violet-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-violet-400 disabled:opacity-50"
           >
-            {busy ? "…" : "確認したと記録"}
+            {busy ? "…" : "Record as checked"}
           </button>
         </div>
       )}
@@ -166,9 +166,9 @@ export default function RequiredReportsPage() {
       </div>
 
       <p className={`${T_CAPTION} mb-4 max-w-3xl`}>
-        <strong>提出されたことと、確認されたことは別です。</strong>
-        提出だけでは内容が正しいか分かりません。セルを押して「確認したと記録」してください。
-        問題があればその場で記録します。期限前のものは灰色で、未提出とは区別されます。
+        <strong>Submitted and checked are not the same thing.</strong>
+        A submission alone does not tell you the contents are right. Press a cell and record it as checked.
+        If something is wrong, record it there and then. Anything not yet due is grey, and is not the same as not submitted.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -181,7 +181,7 @@ export default function RequiredReportsPage() {
       </div>
 
       {error && <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-      {loading && <div className={T_CAPTION}>読み込み中…</div>}
+      {loading && <div className={T_CAPTION}>Loading…</div>}
 
       {!loading && (
         <div className={`${GLASS_CARD} overflow-x-auto p-0`}>
@@ -189,8 +189,8 @@ export default function RequiredReportsPage() {
             <thead>
               <tr className="border-b border-white/10">
                 <th className={`${T_LABEL} px-3 py-2 text-left`}>Required Item</th>
-                <th className={`${T_LABEL} px-3 py-2 text-left`}>期限</th>
-                <th className={`${T_LABEL} px-3 py-2 text-left`}>担当</th>
+                <th className={`${T_LABEL} px-3 py-2 text-left`}>Due</th>
+                <th className={`${T_LABEL} px-3 py-2 text-left`}>Owner</th>
                 {branches.map((b) => (
                   <th key={b} className={`${T_LABEL} px-3 py-2 text-left`}>{b}</th>
                 ))}

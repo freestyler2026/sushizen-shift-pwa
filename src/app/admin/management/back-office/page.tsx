@@ -915,15 +915,15 @@ function HandlingPanel({
           <Check
             checked={!!form.photo_checked}
             onChange={(v) => setForm((f) => ({ ...f, photo_checked: v }))}
-            label="提出写真を確認した"
+            label="Checked the submitted photo"
           />
 
           <div className="space-y-1.5">
-            <div className={T_LABEL}>問題の有無</div>
+            <div className={T_LABEL}>Anything wrong?</div>
             <div className="flex flex-wrap items-center gap-3">
               {[
-                { v: false, l: "問題なし" },
-                { v: true,  l: "問題あり" },
+                { v: false, l: "Nothing wrong" },
+                { v: true,  l: "Found an issue" },
               ].map((o) => (
                 <label key={String(o.v)} className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-300">
                   <input
@@ -950,7 +950,7 @@ function HandlingPanel({
                   value={form.issue_detail ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, issue_detail: e.target.value }))}
                   rows={2}
-                  placeholder="問題の内容"
+                  placeholder="What was wrong"
                   className={INPUT_CLASS + " w-full text-xs"}
                 />
               </div>
@@ -962,24 +962,24 @@ function HandlingPanel({
             <Check
               checked={!!form.feedback_discord}
               onChange={(v) => setForm((f) => ({ ...f, feedback_discord: v }))}
-              label="Discord でフィードバックした"
+              label="Gave feedback on Discord"
             />
             <Check
               checked={!!form.feedback_kitchen}
               onChange={(v) => setForm((f) => ({ ...f, feedback_kitchen: v }))}
-              label="キッチンでフィードバックした"
+              label="Gave feedback in the kitchen"
             />
             <Check
               checked={!!form.training_done}
               onChange={(v) => setForm((f) => ({ ...f, training_done: v }))}
-              label="トレーニングを実施した"
+              label="Ran training"
             />
             {form.training_done && (
               <textarea
                 value={form.training_note ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, training_note: e.target.value }))}
                 rows={2}
-                placeholder="トレーニング内容"
+                placeholder="What the training covered"
                 className={INPUT_CLASS + " w-full text-xs"}
               />
             )}
@@ -988,7 +988,7 @@ function HandlingPanel({
           {err && <div className="text-xs text-red-400">{err}</div>}
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
-            <Check checked={closeTask} onChange={setCloseTask} label="対応完了として閉じる" />
+            <Check checked={closeTask} onChange={setCloseTask} label="Close — this is handled" />
             <button
               type="button"
               onClick={() => void submit()}
@@ -1715,11 +1715,11 @@ export default function BODashboardPage() {
                     : <span className="text-red-300">No owner set</span>}
                   {p.owner_conflict.length > 0 && (
                     <span className="text-amber-300">
-                      分割されています: {p.owner_conflict.join(" / ")}
+                      Split between: {p.owner_conflict.join(" / ")}
                     </span>
                   )}
-                  {p.red > 0 && <span className="text-red-300">赤 {p.red}</span>}
-                  {p.yellow > 0 && <span className="text-amber-300">黄 {p.yellow}</span>}
+                  {p.red > 0 && <span className="text-red-300">{p.red} red</span>}
+                  {p.yellow > 0 && <span className="text-amber-300">{p.yellow} yellow</span>}
                 </div>
                 <ActionManual page={p} />
               </div>

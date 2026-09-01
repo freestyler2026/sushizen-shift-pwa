@@ -269,7 +269,7 @@ export default function AreaReviewPage() {
                         return (
                           <span
                             title={c.components
-                              .map((x) => `${x.label} ${x.weight}%: ${x.value === null ? "対象なし" : x.value + "%"}`)
+                              .map((x) => `${x.label} ${x.weight}%: ${x.value === null ? "n/a" : x.value + "%"}`)
                               .join("\n")}
                             className="cursor-help"
                           >
