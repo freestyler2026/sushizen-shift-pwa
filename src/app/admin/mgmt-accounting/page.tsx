@@ -631,8 +631,21 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
           <b className="text-slate-300">食材費</b>はその月に<b className="text-slate-300">仕入れた</b>額であり、
           消費した額ではありません。
           <br />
-          <b className="text-slate-300">日次P&amp;L</b>タブは食材費を同じ仕入実績から日割りするため、食材費は一致します。
-          売上はPOSの計上額を使うため差が出ます。月単位の把握はこのページ、日々の動きは日次P&amp;Lをご覧ください。
+          <br />
+          {/* The note said the two tabs agree on food cost. They do not. Daily
+              P&L multiplies each day's revenue by the month's food-cost rate —
+              both cities' daily cogs/revenue is the monthly ratio to four
+              decimals — so where the daily revenue is on a different basis the
+              food cost moves with it. Dubai matched only because its daily
+              revenue is the same payout figure; Manila's daily revenue is POS
+              and 16% lower, and its food cost came out 16% lower to match. */}
+          <b className="text-slate-300">日次P&amp;L</b>タブは<b className="text-slate-300">別の集計</b>です。
+          売上はPOSの計上額、食材費は<b className="text-slate-300">その売上に原価率を掛けた按分値</b>で、
+          仕入実績そのものではありません。2026-08 のマニラは売上・食材費とも当ページより 16% 低く出ます
+          （ドバイは売上の出所が同じため一致）。
+          人件費も出所が異なります（当ページは給与ワークブック、日次は給与明細）。
+          <b className="text-slate-300">金額の判断はこのページ</b>、
+          日次P&amp;Lは<b className="text-slate-300">日々の増減の傾向</b>にお使いください。
         </p>
       </div>
 
