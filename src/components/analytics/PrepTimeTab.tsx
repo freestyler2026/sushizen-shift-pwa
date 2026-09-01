@@ -50,6 +50,15 @@ interface PrepTimeStat {
   count_slow: number;
 }
 
+/** Rows the figures above leave out, and why. */
+interface ExcludedCounts {
+  unread_photo?: number;
+  too_short?: number;
+  wrong_platform?: number;
+  total?: number;
+  floor_minutes?: number;
+}
+
 interface HourlyRow {
   work_date: string;
   hour_of_day: number;
@@ -182,6 +191,9 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   // list, because the two disagree on Cubao's code (BRANCHES says CUB, the
   // records say CUBAO) and a mismatch would show the store twice.
   const [knownStores, setKnownStores] = useState<PrepTimeStat[]>([]);
+  // What the figures above leave out. A filter nobody can see is a filter
+  // nobody can question — and here it removes most of the Dubai rows.
+  const [excluded, setExcluded] = useState<ExcludedCounts | null>(null);
   const [records, setRecords] = useState<PrepTimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -218,6 +230,7 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
         apiFetch(`/api/admin/prep-time/records?limit=${recLimit}&${params()}`),
       ]);
       setStats(statsRes.stats || []);
+      setExcluded(statsRes.excluded || null);
       setRecords(recsRes.records || []);
     } finally {
       setLoading(false);
@@ -524,6 +537,27 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
       {/* Per-store stats table */}
       {stats.length > 0 && (
         <div className={`${GLASS_CARD} p-4 overflow-x-auto`}>
+          {excluded && ((excluded.unread_photo || 0) + (excluded.too_short || 0) + (excluded.wrong_platform || 0)) > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-white/60">
+              <span className="font-semibold text-amber-300">
+                Counting {(excluded.total || 0) - (excluded.unread_photo || 0) - (excluded.too_short || 0) - (excluded.wrong_platform || 0)} of {excluded.total} records.
+              </span>{" "}
+              Left out:{" "}
+              {(excluded.wrong_platform || 0) > 0 && (
+                <><b>{excluded.wrong_platform}</b> whose delivery platform does not operate in that
+                city — the receipt was never actually read. </>
+              )}
+              {(excluded.unread_photo || 0) > 0 && (
+                <><b>{excluded.unread_photo}</b> where the reader returned its own example instead of
+                the photo. </>
+              )}
+              {(excluded.too_short || 0) > 0 && (
+                <><b>{excluded.too_short}</b> under {excluded.floor_minutes} minutes — an order marked
+                ready almost as it arrived is a button press, not preparation. </>
+              )}
+              Every one is still in the list below, tagged. Nothing was deleted.
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-3">
             <h3 className="text-sm font-semibold text-white/80">Store Summary</h3>
             {branchFilter && (
