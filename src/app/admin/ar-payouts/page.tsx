@@ -81,11 +81,21 @@ const fmt = (n: number | null | undefined) => fmtAmount(n, "PHP");
 const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s + (s.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "2-digit" }) : "—";
 
-const PLATFORM_LABEL: Record<string, string> = { grab: "Grab", foodpanda: "Foodpanda", careem: "Careem" };
+// Keeta, Talabat, Noon and Smiles were all reconciling here with no entry in
+// this map, so their filter buttons rendered as three blank chips and every
+// badge in the table fell through to the raw lowercase key.
+const PLATFORM_LABEL: Record<string, string> = {
+  grab: "Grab", foodpanda: "Foodpanda", careem: "Careem",
+  keeta: "Keeta", talabat: "Talabat", noon: "Noon", smiles: "Smiles",
+};
 const PLATFORM_COLOR: Record<string, string> = {
   grab: "text-green-400 bg-green-500/10 border-green-500/25",
   foodpanda: "text-pink-400 bg-pink-500/10 border-pink-500/25",
   careem: "text-teal-300 bg-teal-500/10 border-teal-500/25",
+  keeta: "text-yellow-300 bg-yellow-500/10 border-yellow-500/25",
+  talabat: "text-orange-300 bg-orange-500/10 border-orange-500/25",
+  noon: "text-amber-300 bg-amber-500/10 border-amber-500/25",
+  smiles: "text-sky-300 bg-sky-500/10 border-sky-500/25",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -476,8 +486,8 @@ export default function ArPayoutsPage() {
             <h1 className={T_PAGE_TITLE}>AR Payouts</h1>
             <p className="mt-1 text-sm text-white/40">
               {cityTab === "dubai"
-                ? "Careem settlement tracking (AED) — confirm receipt against bank statement"
-                : "Grab & Foodpanda settlement tracking — confirm receipt against bank statement"}
+                ? "Careem, Keeta, Talabat, Noon & Smiles settlements (AED) — confirm receipt against bank statement"
+                : "Grab & Foodpanda settlements (PHP) — confirm receipt against bank statement"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -806,7 +816,7 @@ export default function ArPayoutsPage() {
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
           {/* Platform — options differ by city */}
-          {(cityTab === "dubai" ? ["all", "careem", "keeta", "talabat", "noon"] : ["all", "grab", "foodpanda"]).map((p) => (
+          {(cityTab === "dubai" ? ["all", "careem", "keeta", "talabat", "noon", "smiles"] : ["all", "grab", "foodpanda"]).map((p) => (
             <button
               key={p}
               onClick={() => setPlatformFilter(p)}
