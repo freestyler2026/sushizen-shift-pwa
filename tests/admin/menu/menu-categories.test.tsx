@@ -139,8 +139,12 @@ describe("MenuCategoriesPage — city switcher", () => {
   it("switching city triggers a new data load", async () => {
     render(<MenuCategoriesPage />);
     await screen.findByText("New Category");
+    // Click the city that is not already selected -- clicking the current one
+    // is a no-op, and which one that is depends on the signed-in city.
+    const current = screen.getByRole("button", { name: "dubai" })
+      .className.includes("bg-violet") ? "manila" : "dubai";
     const callsBefore = mockMenuGet.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "dubai" }));
+    fireEvent.click(screen.getByRole("button", { name: current }));
     await waitFor(() => {
       expect(mockMenuGet.mock.calls.length).toBeGreaterThan(callsBefore);
     });

@@ -222,9 +222,20 @@ describe("saveProcurementSession / defaultProcurementName / defaultProcurementPi
   });
 
   it("saveProcurementSession persists name and pin to sessionStorage", () => {
+    // A cached name is only used when it belongs to the person signed in --
+    // otherwise the previous user's name would be pre-filled on a shared
+    // terminal, and their PIN entered against it.
+    saveProcurementSession("Auth User", "5678");
+    expect(defaultProcurementName()).toBe("Auth User");
+    // The PIN deliberately does not come back from sessionStorage: a stale one
+    // there would bypass the backend check after a PIN change and produce
+    // "Invalid PIN" instead. Only a verified auth.pin is used.
+    expect(defaultProcurementPin()).toBe("9999");
+  });
+
+  it("ignores a cached name belonging to somebody else", () => {
     saveProcurementSession("Jay Nishimura", "5678");
-    expect(defaultProcurementName()).toBe("Jay Nishimura");
-    expect(defaultProcurementPin()).toBe("5678");
+    expect(defaultProcurementName()).toBe("Auth User");
   });
 
   it("clearProcurementSession removes saved session", () => {
@@ -236,8 +247,8 @@ describe("saveProcurementSession / defaultProcurementName / defaultProcurementPi
   });
 
   it("saveProcurementSession does not save empty name", () => {
-    saveProcurementSession("Jay", "1234"); // first save
-    saveProcurementSession("", "9876");    // empty name → not overwritten
-    expect(defaultProcurementName()).toBe("Jay");
+    saveProcurementSession("Auth User", "1234"); // first save
+    saveProcurementSession("", "9876");          // empty name → not overwritten
+    expect(defaultProcurementName()).toBe("Auth User");
   });
 });

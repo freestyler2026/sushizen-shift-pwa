@@ -219,7 +219,9 @@ describe("ProcurementPosPage", () => {
     // Wait for the page to become accessible (allowed = true)
     const input = await screen.findByPlaceholderText("Request ID");
     fireEvent.change(input, { target: { value: "r-1" } });
-    const loadBtn = screen.getByRole("button", { name: /Load Request/i });
+    // The page loads once on mount, so the button reads "Loading…" until that
+    // settles; clicking before then does nothing.
+    const loadBtn = await screen.findByRole("button", { name: /Load Request/i }, { timeout: 5000 });
     fireEvent.click(loadBtn);
     await screen.findByText(/VendorABC/i);
   });
@@ -231,7 +233,9 @@ describe("ProcurementPosPage", () => {
     // Wait for the page to become accessible (allowed = true)
     const input = await screen.findByPlaceholderText("Request ID");
     fireEvent.change(input, { target: { value: "r-bad" } });
-    const loadBtn = screen.getByRole("button", { name: /Load Request/i });
+    // The page loads once on mount, so the button reads "Loading…" until that
+    // settles; clicking before then does nothing.
+    const loadBtn = await screen.findByRole("button", { name: /Load Request/i }, { timeout: 5000 });
     fireEvent.click(loadBtn);
     await screen.findByText("PO load error");
   });

@@ -7,6 +7,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── next/navigation ────────────────────────────────────────────────────────────
@@ -196,13 +197,13 @@ describe("StaffRolesPage — auth guard", () => {
   beforeEach(() => { mockCanRoleManagement = false; mockSearchParams = new URLSearchParams(); });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it("shows HQ-only restriction message for non-HQ user", async () => {
+  it("names who Role Management is for for non-HQ user", async () => {
     const { canAccessRoleManagement, refreshAuthFromApi } = await import("@/lib/auth");
     vi.mocked(canAccessRoleManagement).mockReturnValue(false);
     vi.mocked(refreshAuthFromApi).mockResolvedValue(HQ_AUTH as any);
     vi.stubGlobal("fetch", makeRolesFetch());
     render(<StaffRolesPage />);
-    await screen.findByText(/Role Management is available only to HQ users/i, {}, { timeout: 5000 });
+    await screen.findByText(/Role Management is available only to HQ and Admin users/i, {}, { timeout: 5000 });
   });
 
   it("shows Role Management heading and tab buttons for HQ user", async () => {
@@ -356,16 +357,12 @@ describe("StaffRolesPage — Channels tab", () => {
     render(<StaffRolesPage />);
     await screen.findByText("Role Management", {}, { timeout: 5000 });
     await screen.findAllByText("Staff Channel", {}, { timeout: 5000 });
-    // Toggle Custom Role (currently unassigned) by selecting "all cities" in its select
-    const selects = await screen.findAllByRole("combobox", {}, { timeout: 4000 });
-    // Change one select to trigger dirty state
-    if (selects.length > 0) {
-      fireEvent.change(selects[0], { target: { value: "" } });
-      await waitFor(() => {
-        const saveBtn = screen.getByRole("button", { name: /Save Channel Access/i });
-        expect(saveBtn).not.toBeDisabled();
-      }, { timeout: 3000 });
-    }
+    // Grant a role access to a channel: the matrix is dirty, so Save opens up.
+    await screen.findAllByRole("combobox", {}, { timeout: 4000 });
+    chooseValue("No Access", "all");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Save Channel Access/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
   });
 
   it("Save Channel Access call succeeds and disables save button", async () => {
@@ -373,19 +370,16 @@ describe("StaffRolesPage — Channels tab", () => {
     render(<StaffRolesPage />);
     await screen.findByText("Role Management", {}, { timeout: 5000 });
     await screen.findAllByText("Staff Channel", {}, { timeout: 5000 });
-    const selects = await screen.findAllByRole("combobox", {}, { timeout: 4000 });
-    if (selects.length > 0) {
-      fireEvent.change(selects[0], { target: { value: "all" } });
-      await waitFor(() => {
-        const saveBtn = screen.getByRole("button", { name: /Save Channel Access/i });
-        expect(saveBtn).not.toBeDisabled();
-      }, { timeout: 3000 });
-      fireEvent.click(screen.getByRole("button", { name: /Save Channel Access/i }));
-      await waitFor(() => {
-        const saveBtn = screen.getByRole("button", { name: /Save Channel Access/i });
-        expect(saveBtn).toBeDisabled();
-      }, { timeout: 5000 });
-    }
+    await screen.findAllByRole("combobox", {}, { timeout: 4000 });
+    chooseValue("No Access", "all");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Save Channel Access/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Save Channel Access/i }));
+    // Saved: nothing left unsent, so the button closes again.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Save Channel Access/i })).toBeDisabled();
+    }, { timeout: 5000 });
   });
 
   it("Create Channel form is visible", async () => {

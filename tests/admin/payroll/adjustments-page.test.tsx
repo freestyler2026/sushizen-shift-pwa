@@ -2,6 +2,7 @@
 
 import React from "react";
 import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
+import { optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const BASE_AUTH = { staffName: "Jay", city: "manila" as const, role: "ADMIN" as const, accessToken: "tok", permissions: ["*"] };
@@ -37,7 +38,7 @@ describe("AdjustmentsPage", () => {
   afterEach(() => cleanup());
 
   it("redirects to /week for non-admin role", async () => {
-    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any });
+    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any, permissions: [] });
     setupFetch();
     render(<AdjustmentsPage />);
     await waitFor(() => { expect(routerMock.replace).toHaveBeenCalledWith("/week"); });
@@ -103,9 +104,8 @@ describe("AdjustmentsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(2);
     }, { timeout: 5000 });
-    // getAllByRole("option") returns options from all selects
-    const options = screen.getAllByRole("option");
-    const optionTexts = options.map(o => o.textContent?.trim());
+    // SelectDark keeps its list closed, so ask the filter what it offers.
+    const optionTexts = optionLabels("All Types");
     expect(optionTexts).toContain("All Types");
     expect(optionTexts).toContain("Additions");
     expect(optionTexts).toContain("Deductions");

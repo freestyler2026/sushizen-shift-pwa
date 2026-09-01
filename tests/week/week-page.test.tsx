@@ -2,6 +2,7 @@
 
 import React from "react";
 import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
+import { chooseValue, expectSelectShowing, optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── framer-motion stub ────────────────────────────────────────────────────────
@@ -147,8 +148,10 @@ describe("WeekPage", () => {
       setupApiGet();
       render(<WeekPage />);
       await waitFor(() => {
-        expect(screen.getByRole("option", { name: "Dubai" })).toBeInTheDocument();
-        expect(screen.getByRole("option", { name: "Manila" })).toBeInTheDocument();
+        // SelectDark keeps its list closed; ask what it offers.
+        const labels = optionLabels("Manila");
+        expect(labels).toContain("Dubai");
+        expect(labels).toContain("Manila");
       });
     });
 
@@ -497,8 +500,8 @@ describe("WeekPage", () => {
     it("switches city when selector is changed", async () => {
       setupApiGet();
       render(<WeekPage />);
-      await waitFor(() => screen.getByRole("option", { name: "Dubai" }));
-      fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "dubai" } });
+      await waitFor(() => expectSelectShowing("Manila"));
+      chooseValue("Manila", "dubai");
       await waitFor(() => {
         const weekCalls = mockApiGet.mock.calls.filter(([url]) =>
           String(url).includes("city=dubai")

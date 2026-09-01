@@ -224,11 +224,11 @@ describe("DiscordInboxPage", () => {
       });
     });
 
-    it("shows Japanese 403 message on API 403", async () => {
+    it("shows the 403 message on API 403", async () => {
       mockFetch.mockResolvedValue(mockJsonResponse({}, 403));
       render(<DiscordInboxPage />);
       await waitFor(() => {
-        expect(screen.getByText(/アクセス権限がありません/)).toBeInTheDocument();
+        expect(screen.getByText(/You do not have permission to access this page/)).toBeInTheDocument();
       });
     });
 

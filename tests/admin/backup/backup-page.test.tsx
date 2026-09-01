@@ -234,7 +234,7 @@ describe("/admin/backup — page structure", () => {
   it("reporter field pre-filled with auth staff name", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    expect(expectSelectShowing("Admin User")).toBeTruthy();
+    expect(screen.getByDisplayValue("Admin User")).toBeInTheDocument();
   });
 
   it("Dubai template shows 'Condiments & Supplies' section", async () => {

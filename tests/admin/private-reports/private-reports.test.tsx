@@ -161,10 +161,15 @@ describe("AdminPrivateReportsPage — auth guard", () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it("shows permission error for unauthorized user", () => {
+  it("shows permission error for unauthorized user", async () => {
+    // The check awaits a session refresh, so nothing is decided synchronously.
     mockCanAccess = false;
     render(<AdminPrivateReportsPage />);
-    expect(screen.getByText(/Private Reports page is available only to HQ\/HR Manager\/Admin/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Private Reports page is available only to HQ\/HR Manager\/Admin/i),
+      ).toBeInTheDocument()
+    );
   });
 
   it("shows 'Private Reports' page title for authorized user", async () => {

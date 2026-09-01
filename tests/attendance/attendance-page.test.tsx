@@ -190,8 +190,10 @@ describe("AttendancePage — auth guard", () => {
     });
   });
 
-  it("redirects non-attendance role to /request", async () => {
-    // Set a role that cannot access attendance
+  it("lets any signed-in role in — attendance is for everybody", async () => {
+    // canAccessAttendancePage is "are you signed in" now: clocking in and out
+    // is not an admin function, and a role list here would lock people out of
+    // their own timesheet. The only redirect left is for no session at all.
     window.localStorage.setItem(
       "sushizen_shift_auth",
       JSON.stringify({
@@ -199,7 +201,7 @@ describe("AttendancePage — auth guard", () => {
         city: "manila",
         role: "BLOCKED",
         accessToken: "t",
-        permissions: ["channel.week"], // no attendance permission
+        permissions: ["channel.week"],
       })
     );
 
@@ -207,7 +209,7 @@ describe("AttendancePage — auth guard", () => {
     render(<Page />);
 
     await waitFor(() => {
-      expect(routerMock.replace).toHaveBeenCalledWith("/request");
+      expect(routerMock.replace).not.toHaveBeenCalledWith("/request");
     });
   });
 });

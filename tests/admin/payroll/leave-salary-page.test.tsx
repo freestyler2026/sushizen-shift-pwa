@@ -75,7 +75,7 @@ describe("LeaveSalaryPage", () => {
   });
 
   it("redirects to /week for non-allowed role", async () => {
-    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any });
+    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any, permissions: [] });
     setupFetch();
     render(<LeaveSalaryPage />);
     await waitFor(() => { expect(routerMock.replace).toHaveBeenCalledWith("/week"); });
@@ -84,7 +84,7 @@ describe("LeaveSalaryPage", () => {
   it("renders page title", () => {
     setupFetch();
     render(<LeaveSalaryPage />);
-    expect(screen.getByText(/Leave Salary/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Leave Salary/i).length).toBeGreaterThan(0);
   });
 
   it("shows Dubai and Manila toggle buttons", () => {

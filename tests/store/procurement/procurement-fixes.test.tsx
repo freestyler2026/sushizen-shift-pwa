@@ -204,15 +204,15 @@ describe("Fix 1: Drawer footer — status-aware footer buttons", () => {
     expect(receiveLink!.textContent).toMatch(/receive now/i);
   });
 
-  it("RECEIVED → footer shows 'File Claim' link pointing to claim page", async () => {
-    await renderAndOpenDrawer("RECEIVED");
-    const links = screen.getAllByRole("link");
-    const claimLink = links.find((l) => {
-      const href = l.getAttribute("href") || "";
-      return href.includes("/store/procurement/claim") && href.includes("request_id=r1");
-    });
-    expect(claimLink).toBeTruthy();
-    expect(claimLink!.textContent).toMatch(/file claim/i);
+  it("a RECEIVED request is no longer listed here — it is finished", async () => {
+    // RECEIVED is terminal, so the home list (which shows what still needs
+    // store attention) does not carry it and its drawer cannot be opened from
+    // here. The File Claim link lives on the Receiving page instead. This test
+    // used to open that drawer from this list.
+    setupMocks("RECEIVED");
+    await act(async () => { render(<StoreProcurementHomePage />); });
+    await waitFor(() => expect(screen.getByText(/^Requests/)).toBeInTheDocument());
+    expect(screen.queryByText("REQ-r1")).not.toBeInTheDocument();
   });
 
   it("DRAFT footer link does NOT show 'Receive Now'", async () => {
@@ -400,9 +400,10 @@ describe("Fix 3: branches.ts — CK and WH in Manila", () => {
     expect(normalizeBranchCode("manila", "Central Kitchen")).toBe("CK");
   });
 
-  it("BRANCHES.dubai does NOT include WH", () => {
+  it("BRANCHES.dubai includes WH — Dubai has a warehouse too", () => {
+    // This asserted the opposite when Warehouse was a Manila-only facility.
     const wh = BRANCHES.dubai.find((b) => b.code === "WH");
-    expect(wh).toBeUndefined();
+    expect(wh).toEqual({ code: "WH", name: "Warehouse" });
   });
 
   it("BRANCHES.dubai does include CK", () => {

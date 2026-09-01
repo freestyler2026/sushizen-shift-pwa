@@ -302,7 +302,7 @@ describe("PriceCheckPage", () => {
     });
 
     it("redirects to /admin when role is STAFF (not in allowed list)", async () => {
-      await setupAuth({ role: "STAFF" });
+      await setupAuth({ role: "STAFF", permissions: [] });
       vi.stubGlobal("fetch", makeFetch());
       render(<PriceCheckPage />);
       await waitFor(() => {
@@ -311,7 +311,7 @@ describe("PriceCheckPage", () => {
     });
 
     it("redirects to /admin when role is MANAGER (not in allowed list)", async () => {
-      await setupAuth({ role: "MANAGER" });
+      await setupAuth({ role: "MANAGER", permissions: [] });
       vi.stubGlobal("fetch", makeFetch());
       render(<PriceCheckPage />);
       await waitFor(() => {

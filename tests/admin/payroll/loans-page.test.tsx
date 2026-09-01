@@ -71,7 +71,7 @@ describe("LoansPage", () => {
   });
 
   it("redirects to /week for non-allowed role", async () => {
-    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any });
+    vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any, permissions: [] });
     setupFetch();
     render(<LoansPage />);
     await waitFor(() => { expect(routerMock.replace).toHaveBeenCalledWith("/week"); });

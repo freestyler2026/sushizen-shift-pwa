@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue, optionLabels, selectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── next/link ────────────────────────────────────────────────────────────────
@@ -381,10 +382,8 @@ describe("AdminAbsencesPage — scope section", () => {
 
   it("shows city select with Dubai selected initially", async () => {
     render(<AdminAbsencesPage />);
-    const citySelect = screen.getAllByRole("combobox").find(
-      (el) => el.getAttribute("value") === "dubai" || (el as HTMLSelectElement).value === "dubai"
-    );
-    expect(citySelect).toBeDefined();
+    // SelectDark holds its value on the trigger.
+    expect((selectShowing("Dubai") as HTMLElement).dataset.value).toBe("dubai");
   });
 
   it("changing city triggers staff reload", async () => {
@@ -395,9 +394,7 @@ describe("AdminAbsencesPage — scope section", () => {
       expect(mockFetch.mock.calls.some(([url]: [string]) => String(url).includes("/staff_master/names"))).toBe(true);
     });
     const callsBefore = mockFetch.mock.calls.length;
-    const citySelects = screen.getAllByRole("combobox");
-    const citySelect = citySelects[0];
-    fireEvent.change(citySelect, { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(callsBefore);
     });
@@ -431,13 +428,7 @@ describe("AdminAbsencesPage — single upsert", () => {
     });
 
     // Select staff from the first staff-name select
-    const selects = screen.getAllByRole("combobox");
-    // The staff name select is in the Single Upsert section - find it by its default option
-    const staffSelect = selects.find(
-      (s) => (s as HTMLSelectElement).options[0]?.text === "Select staff"
-    );
-    expect(staffSelect).toBeDefined();
-    fireEvent.change(staffSelect!, { target: { value: "Tanaka Yuki" } });
+    chooseValue("Select staff", "Tanaka Yuki");
 
     fireEvent.click(screen.getByRole("button", { name: /Save/i }));
 
@@ -456,10 +447,7 @@ describe("AdminAbsencesPage — single upsert", () => {
     await waitFor(() => {
       expect(mockFetch.mock.calls.some(([url]: [string]) => String(url).includes("/staff_master/names"))).toBe(true);
     });
-    const staffSelect = screen.getAllByRole("combobox").find(
-      (s) => (s as HTMLSelectElement).options[0]?.text === "Select staff"
-    );
-    fireEvent.change(staffSelect!, { target: { value: "Tanaka Yuki" } });
+    chooseValue("Select staff", "Tanaka Yuki");
     fireEvent.click(screen.getByRole("button", { name: /Save/i }));
     await screen.findByText(/Saved.*Tanaka Yuki/i);
   });
@@ -471,22 +459,14 @@ describe("AdminAbsencesPage — single upsert", () => {
     await waitFor(() => {
       expect(mockFetch.mock.calls.some(([url]: [string]) => String(url).includes("/staff_master/names"))).toBe(true);
     });
-    const staffSelect = screen.getAllByRole("combobox").find(
-      (s) => (s as HTMLSelectElement).options[0]?.text === "Select staff"
-    );
-    fireEvent.change(staffSelect!, { target: { value: "Tanaka Yuki" } });
+    chooseValue("Select staff", "Tanaka Yuki");
     fireEvent.click(screen.getByRole("button", { name: /Save/i }));
     await screen.findByText(/Invalid PIN/i);
   });
 
   it("absence type select includes all 8 types", async () => {
     render(<AdminAbsencesPage />);
-    const absenceTypeSelects = screen.getAllByRole("combobox").filter((s) => {
-      const opts = Array.from((s as HTMLSelectElement).options).map((o) => o.text);
-      return opts.includes("Day Off");
-    });
-    expect(absenceTypeSelects.length).toBeGreaterThan(0);
-    const opts = Array.from((absenceTypeSelects[0] as HTMLSelectElement).options).map((o) => o.text);
+    const opts = optionLabels("Day Off");
     expect(opts).toContain("Day Off");
     expect(opts).toContain("Vacation Leave");
     expect(opts).toContain("Medical Leave");

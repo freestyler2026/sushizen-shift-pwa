@@ -113,7 +113,7 @@ describe("InventoryTabs", () => {
       render(<InventoryTabs />);
       expect(screen.getByText("Overview")).toBeInTheDocument();
       expect(screen.getByText("Ingredients / Products")).toBeInTheDocument();
-      expect(screen.getByText("Sales Menu BOM")).toBeInTheDocument();
+      expect(screen.getByText("Count Templates")).toBeInTheDocument();
       expect(screen.getByText("Quick Spot Check")).toBeInTheDocument();
       expect(screen.getByText("Quantity Adjustments")).toBeInTheDocument();
       expect(screen.getByText("Cost Adjustments")).toBeInTheDocument();

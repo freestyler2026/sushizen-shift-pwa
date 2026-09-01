@@ -77,6 +77,7 @@
 
 import React from "react";
 import { render, screen, waitFor, act, fireEvent, within } from "@testing-library/react";
+import { chooseValue, optionLabels } from "#tests/select-dark";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildFetchMock, buildFailFetch } from "../helpers/fetch-mock";
@@ -326,8 +327,7 @@ describe("OtherItemsBackupForm", () => {
     render(<BaserollPrepPage />);
     await waitFor(() => expect(screen.getByText(/Condiments & Supplies/)).toBeInTheDocument());
 
-    const branchSelect = screen.getAllByRole("combobox")[0];
-    const optionTexts = within(branchSelect).getAllByRole("option").map((o) => o.textContent);
+    const optionTexts = optionLabels("Paranaque");
     expect(optionTexts).toContain("Paranaque");
     expect(optionTexts).toContain("Cubao");
     expect(optionTexts).toContain("Taft");
@@ -337,8 +337,7 @@ describe("OtherItemsBackupForm", () => {
     render(<BaserollPrepPage />);
     await waitFor(() => expect(screen.getByText(/Condiments & Supplies/)).toBeInTheDocument());
 
-    const branchSelect = screen.getAllByRole("combobox")[0];
-    const optionTexts = within(branchSelect).getAllByRole("option").map((o) => o.textContent);
+    const optionTexts = optionLabels("Paranaque");
     expect(optionTexts).not.toContain("Central Kitchen");
     expect(optionTexts).not.toContain("Back Office");
   });
@@ -347,8 +346,7 @@ describe("OtherItemsBackupForm", () => {
     render(<BaserollPrepPage />);
     await waitFor(() => expect(screen.getByText(/Condiments & Supplies/)).toBeInTheDocument());
 
-    const shiftSelect = screen.getAllByRole("combobox")[1];
-    const optionTexts = within(shiftSelect).getAllByRole("option").map((o) => o.textContent);
+    const optionTexts = optionLabels("Closing");
     expect(optionTexts).toContain("Closing");
     expect(optionTexts).toContain("Morning");
     expect(optionTexts).toContain("Midday");
@@ -419,9 +417,9 @@ describe("OtherItemsBackupForm", () => {
     await waitFor(() => expect(screen.getByText("Soy Sauce")).toBeInTheDocument());
 
     // Change branch → Cubao
-    await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "CUB");
+    chooseValue("Paranaque", "CUB");
     // Change shift → Morning
-    await userEvent.selectOptions(screen.getAllByRole("combobox")[1], "morning");
+    chooseValue("Closing", "morning");
     // Fill Soy Sauce
     await user.type(screen.getAllByPlaceholderText("—")[0], "200");
     await user.click(screen.getByRole("button", { name: /Submit Backup/i }));

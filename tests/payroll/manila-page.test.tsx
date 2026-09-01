@@ -10,16 +10,23 @@
  * - Error state rendered when API fails
  */
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { chooseValue } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setAdminAuth, routerMock } from "../setup";
 import { buildFetchMock, buildFailFetch } from "../helpers/fetch-mock";
+
+// The new-period form opens on the current month, so a fixture pinned to May
+// 2026 never matched and the 1st-half link came back null.
+const NOW = new Date();
+const CUR_YEAR = NOW.getFullYear();
+const CUR_MONTH = NOW.getMonth() + 1;
 
 const PERIOD_DRAFT = {
   id: 1,
   period_label: "May 2026 — 1st Half",
   period_half: 1,
-  year: 2026,
-  month: 5,
+  year: CUR_YEAR,
+  month: CUR_MONTH,
   start_date: "2026-05-01",
   end_date: "2026-05-15",
   first_half_period_id: null,
@@ -166,14 +173,10 @@ describe("ManilaPayrollPage — period list", () => {
 
     await waitFor(() => fireEvent.click(screen.getByRole("button", { name: /new period/i })));
 
-    // The "Half" <select> is the 2nd combobox (after Month).
-    // It has a visible label "Half" but no htmlFor, so use getAllByRole + index.
-    await act(async () => {
-      const selects = screen.getAllByRole("combobox");
-      // selects[0] = Month, selects[1] = Half
-      const halfSelect = selects[selects.length - 1];
-      fireEvent.change(halfSelect, { target: { value: "2" } });
-    });
+    // Half is a SelectDark, opening on the first half.
+    // fireEvent already wraps in act; nesting it here flushed the open state
+    // away before the list could be read.
+    chooseValue("1", "2"); // found by the value it holds, not its wording
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /create/i }));
