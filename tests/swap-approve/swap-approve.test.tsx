@@ -84,6 +84,17 @@ async function fillForm(reqId = "req-001", staffName?: string, pin = "1234", not
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+/** Approve or reject, through the confirmation the page now asks for.
+ *
+ *  This used to be a window.confirm(). It is an in-page panel now, which names
+ *  the request and says the action cannot be undone -- a better thing to put in
+ *  front of an irreversible action, and something a browser dialog cannot do.
+ *  Clicking the first button only opens it; the second one commits. */
+function act2(action: "Approve" | "Reject") {
+  fireEvent.click(screen.getByRole("button", { name: action }));
+  fireEvent.click(screen.getByRole("button", { name: `Yes, ${action}` }));
+}
+
 describe("SwapApprovePage", () => {
   beforeEach(() => {
     mockAuth = null;
@@ -180,7 +191,7 @@ describe("SwapApprovePage", () => {
     it("renders the 'Counterparty approval' badge", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/counterparty approval/i)).toBeInTheDocument();
+        expect(screen.getByText("Counterparty")).toBeInTheDocument();
       });
     });
 
@@ -349,19 +360,19 @@ describe("SwapApprovePage", () => {
       });
       await fillForm();
       fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-      expect(global.confirm).toHaveBeenCalledWith(
-        "Are you sure you want to approved this swap request?",
-      );
+      expect(screen.getByText("Confirm approval?")).toBeInTheDocument();
+      expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("does NOT call fetch when confirm is cancelled", async () => {
-      vi.mocked(global.confirm).mockReturnValue(false);
       await renderPage();
       await waitFor(() => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
       fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -371,7 +382,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm("my-req-id", undefined, "5678", "looks good");
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalled();
         const url = String(mockFetch.mock.calls[0][0]);
@@ -387,7 +398,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Swap approved")).toBeInTheDocument();
       });
@@ -399,7 +410,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(
           screen.getByText(/both parties will be notified/i),
@@ -413,7 +424,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText(/view api response/i)).toBeInTheDocument();
       });
@@ -431,7 +442,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       expect(screen.getByText("Working…")).toBeInTheDocument();
       // clean up
       await act(async () => {
@@ -455,9 +466,8 @@ describe("SwapApprovePage", () => {
       });
       await fillForm();
       fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-      expect(global.confirm).toHaveBeenCalledWith(
-        "Are you sure you want to rejected this swap request?",
-      );
+      expect(screen.getByText("Confirm rejection?")).toBeInTheDocument();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("calls fetch with REJECTED action", async () => {
@@ -466,7 +476,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
       });
       await fillForm("req-002", undefined, "9999", "declined");
-      fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+      act2("Reject");
       await waitFor(() => {
         const url = String(mockFetch.mock.calls[0][0]);
         expect(url).toContain("action=REJECTED");
@@ -480,20 +490,20 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+      act2("Reject");
       await waitFor(() => {
         expect(screen.getByText("Swap rejected")).toBeInTheDocument();
       });
     });
 
     it("does NOT call fetch when confirm is cancelled for Reject", async () => {
-      vi.mocked(global.confirm).mockReturnValue(false);
       await renderPage();
       await waitFor(() => {
         expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
       });
       await fillForm();
       fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -510,7 +520,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Internal Server Error")).toBeInTheDocument();
       });
@@ -527,7 +537,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Swap request not found")).toBeInTheDocument();
       });
@@ -542,7 +552,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Unauthorized action")).toBeInTheDocument();
       });
@@ -555,7 +565,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText(/<html>502 Bad Gateway<\/html>/i)).toBeInTheDocument();
       });
@@ -568,7 +578,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("HTTP 503")).toBeInTheDocument();
       });
@@ -581,7 +591,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Network unreachable")).toBeInTheDocument();
       });
@@ -596,12 +606,12 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("First error")).toBeInTheDocument();
       });
       // Second attempt clears error
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.queryByText("First error")).not.toBeInTheDocument();
       });
@@ -614,7 +624,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Failed")).toBeInTheDocument();
       });
@@ -636,7 +646,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Swap approved")).toBeInTheDocument();
       });
@@ -649,7 +659,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm("req-xyz", undefined, "secret-pin");
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         const url = String(mockFetch.mock.calls[0][0]);
         expect(url).toContain("pin=secret-pin");
@@ -664,7 +674,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm("req-001");
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         const url = String(mockFetch.mock.calls[0][0]);
         expect(url).toContain("staff_name=Jay+N");
@@ -678,7 +688,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         const url = String(mockFetch.mock.calls[0][0]);
         expect(url).toContain("/api/shift_change/counterparty/respond");
@@ -692,7 +702,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         const options = mockFetch.mock.calls[0][1] as RequestInit;
         expect(options?.method).toBe("POST");
@@ -721,7 +731,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         expect(screen.getByText("Swap approved")).toBeInTheDocument();
         expect(
@@ -737,7 +747,7 @@ describe("SwapApprovePage", () => {
         expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
       });
       await fillForm();
-      fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+      act2("Reject");
       await waitFor(() => {
         expect(screen.getByText("Swap rejected")).toBeInTheDocument();
         expect(
@@ -760,7 +770,7 @@ describe("SwapApprovePage", () => {
       });
       // Fill with actual values
       await fillForm("req-abc", undefined, "pin-xyz", "test note");
-      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+      act2("Approve");
       await waitFor(() => {
         const url = String(mockFetch.mock.calls[0][0]);
         // Should contain all non-empty params

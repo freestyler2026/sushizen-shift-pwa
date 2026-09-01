@@ -86,7 +86,10 @@ export default function SwapApprovePage() {
   );
 
   const call = async (action: "APPROVED" | "REJECTED") => {
-    setConfirmAction(null);
+    // The panel stays open until the request finishes. Closing it first left
+    // the person looking at two disabled buttons with nothing to say the
+    // request was in flight -- and made the panel's own "Working…" label
+    // unreachable, so the only progress indicator this page has never showed.
     setLoading(true);
     setError("");
     setResult(null);
@@ -101,6 +104,7 @@ export default function SwapApprovePage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+      setConfirmAction(null);
     }
   };
 
