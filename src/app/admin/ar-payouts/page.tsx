@@ -69,7 +69,7 @@ const STATUS_BADGE: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   reconciled: "🟢 Reconciled",
   pending: "🟡 Bank Pending",
-  overdue: "🔴 Overdue",
+  overdue: "🔴 Not checked",
 };
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
@@ -81,17 +81,32 @@ function ConfirmModal({
   onClose: () => void;
   onSave: (bankAmount: number, note: string) => Promise<void>;
 }) {
+  // Starts empty. It used to arrive pre-filled with the expected amount, so
+  // pressing Save recorded "the bank paid exactly what was expected" whether or
+  // not anyone had opened a bank statement — which is why all 66 confirmations
+  // on file match to the cent. A reconciliation that cannot disagree is not
+  // reconciling anything.
   const [bankAmount, setBankAmount] = useState(
-    payout.bank_amount != null ? String(payout.bank_amount) : String(payout.expected_amount)
+    payout.bank_amount != null ? String(payout.bank_amount) : ""
   );
   const [note, setNote] = useState(payout.confirmation_note || "");
   const [saving, setSaving] = useState(false);
 
+  const parsed = parseFloat(bankAmount);
+  const hasAmount = bankAmount.trim() !== "" && !isNaN(parsed);
+  const diff = hasAmount ? parsed - Number(payout.expected_amount) : 0;
+  const differs = hasAmount && Math.abs(diff) >= 0.01;
+
   const handleSave = async () => {
-    const amt = parseFloat(bankAmount);
-    if (isNaN(amt) || amt <= 0) { alert("Enter a valid bank amount."); return; }
+    if (!hasAmount || parsed <= 0) { alert("Enter the amount the bank actually received."); return; }
+    // A gap between expected and received is the finding this page exists for.
+    // Recording it without a word leaves the next reader guessing.
+    if (differs && !note.trim()) {
+      alert("The bank amount differs from expected. Add a note saying why before saving.");
+      return;
+    }
     setSaving(true);
-    try { await onSave(amt, note); } finally { setSaving(false); }
+    try { await onSave(parsed, note); } finally { setSaving(false); }
   };
 
   return (
@@ -118,15 +133,29 @@ function ConfirmModal({
         </div>
         <div className="space-y-2">
           <label className="text-xs text-white/50 uppercase tracking-wide">
-            Bank Amount Received (₱)
+            Bank Amount Received ({payout.currency || "PHP"})
           </label>
           <input
             type="number"
             step="0.01"
             value={bankAmount}
+            placeholder="Type what the bank statement shows"
             onChange={(e) => setBankAmount(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-violet-500/50 focus:outline-none"
           />
+          {differs ? (
+            <p className="text-xs text-amber-300">
+              {diff > 0 ? "Over" : "Short"} by {fmtAmount(Math.abs(diff), payout.currency)} against expected —
+              say why in the note below.
+            </p>
+          ) : hasAmount ? (
+            <p className="text-xs text-emerald-400/80">Matches the expected amount.</p>
+          ) : (
+            <p className="text-xs text-white/35">
+              Read it off the bank statement. Leaving it to match expected is how a
+              short payment gets confirmed as received.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <label className="text-xs text-white/50 uppercase tracking-wide">Note (optional)</label>
@@ -564,10 +593,22 @@ export default function ArPayoutsPage() {
               <div className="text-2xl font-bold text-amber-400">{kpi.pending_count}</div>
               <div className="text-sm text-white/50">{fmtAmount(kpi.pending_amount, cityTab === "dubai" ? "AED" : "PHP")}</div>
             </div>
+            {/* "Overdue" said money was late. It is not what the number counts:
+                a row lands here when nobody has ticked it off against the bank
+                within seven days of the payout date. Manila's ₱15.5M covers
+                every import back to February and the only person who has ever
+                confirmed anything did 53 rows across five days in August — so
+                the figure is the size of the checking backlog, not money the
+                platforms owe. Read as "overdue" it says the aggregators are
+                ₱15.5M behind, which nothing here establishes. */}
             <div className={`${KPI_CARD} border-red-500/15`}>
-              <div className="text-xs text-white/40 uppercase tracking-wide mb-1">Overdue</div>
+              <div className="text-xs text-white/40 uppercase tracking-wide mb-1">Not checked yet</div>
               <div className="text-2xl font-bold text-red-400">{kpi.overdue_count}</div>
               <div className="text-sm text-white/50">{fmtAmount(kpi.overdue_amount, cityTab === "dubai" ? "AED" : "PHP")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-white/35">
+                Payout was 7+ days ago and nobody has confirmed it against the bank.
+                This is what is unchecked — not money the platform owes.
+              </div>
             </div>
           </div>
         )}
