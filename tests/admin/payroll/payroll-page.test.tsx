@@ -3,6 +3,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { chooseOption, chooseValue, expectSelectShowing, optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── next/link ─────────────────────────────────────────────────────────────────
@@ -110,6 +111,11 @@ function setupDefaultFetch(cycles = [CYCLE_OPEN], rows: ReturnType<typeof makeRo
     if (u.includes("/salary-configs")) {
       return Promise.resolve(mockJson({ configs: [] }));
     }
+    // The config modal picks a staff member from the roster rather than taking
+    // a typed name, so it stays on "Loading..." without this.
+    if (u.includes("/staff_master/names")) {
+      return Promise.resolve(mockJson({ names: ["Test Staff", "Jay Nishimura"] }));
+    }
     return Promise.resolve(mockJson({}, 404));
   });
 }
@@ -138,8 +144,8 @@ describe("PayrollPage", () => {
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
   describe("Auth guard", () => {
-    it("redirects to /week when role is STAFF", async () => {
-      vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any });
+    it("redirects to /week for someone without the payroll permission", async () => {
+      vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, role: "STAFF" as any, permissions: [] });
       setupDefaultFetch();
       render(<PayrollPage />);
       await waitFor(() => {
@@ -251,7 +257,7 @@ describe("PayrollPage", () => {
       vi.mocked(getAuth).mockReturnValue({ ...BASE_AUTH, city: "manila" });
       await renderAndLoad();
       const manilaBtn = screen.getByRole("button", { name: /^Manila$/i });
-      expect(manilaBtn.className).toContain("bg-teal-600");
+      expect(manilaBtn.className).toContain("bg-violet-600");
     });
 
     it("defaults to dubai city for dubai user", async () => {
@@ -260,7 +266,7 @@ describe("PayrollPage", () => {
       render(<PayrollPage />);
       await waitFor(() => {
         const dubaiBtn = screen.getByRole("button", { name: /^Dubai$/i });
-        expect(dubaiBtn.className).toContain("bg-teal-600");
+        expect(dubaiBtn.className).toContain("bg-violet-600");
       });
     });
   });
@@ -457,9 +463,9 @@ describe("PayrollPage", () => {
         await renderAndLoad([CYCLE_OPEN], [makeRow()]);
         await waitFor(() => screen.getByText("Alice Reyes"), { timeout: 5000 });
 
-        // Chevron buttons in rows
+        // The row's expand button, found by the colours it actually uses.
         const chevrons = screen.getAllByRole("button").filter(
-          (b) => b.className.includes("text-gray-300") || b.className.includes("hover:text-teal-500")
+          (b) => b.className.includes("hover:text-violet-400")
         );
         expect(chevrons.length).toBeGreaterThan(0);
         fireEvent.click(chevrons[0]);
@@ -477,15 +483,15 @@ describe("PayrollPage", () => {
         await waitFor(() => screen.getByText("Alice Reyes"), { timeout: 5000 });
 
         const chevrons = screen.getAllByRole("button").filter(
-          (b) => b.className.includes("text-gray-300") || b.className.includes("hover:text-teal-500")
+          (b) => b.className.includes("hover:text-violet-400")
         );
         fireEvent.click(chevrons[0]);
         // Wait for the panel-unique "Subtotal" section heading to appear
         await waitFor(() => screen.getByText("Subtotal"));
 
-        // Find the X close button inside the panel
+        // The panel's X, by the colours it actually uses.
         const closeButtons = screen.getAllByRole("button").filter(
-          (b) => b.className.includes("text-gray-400")
+          (b) => b.className.includes("text-slate-400") && b.className.includes("hover:text-white")
         );
         fireEvent.click(closeButtons[closeButtons.length - 1]);
         await waitFor(() => {
@@ -522,7 +528,7 @@ describe("PayrollPage", () => {
     it("shows multiple cycles in dropdown", async () => {
       await renderAndLoad([CYCLE_OPEN, CYCLE_CLOSED]);
       expect(screen.getByText(/May 2026 — Open/i)).toBeInTheDocument();
-      expect(screen.getByText(/Apr 2026 — Closed/i)).toBeInTheDocument();
+      expect(optionLabels("May 2026 — Open")).toContain("Apr 2026 — Closed");
     });
 
     it("shows 'No cycles' when cycle list is empty", async () => {
@@ -744,6 +750,11 @@ describe("PayrollPage", () => {
         if (u.includes("/cycles")) return Promise.resolve(mockJson({ cycles: [CYCLE_OPEN] }));
         if (u.includes("/table")) return Promise.resolve(mockJson({ rows: [], total_net_pay: 0 }));
         if (u.includes("/salary-configs")) return Promise.resolve(mockJson({ configs: [] }));
+        // The modal picks a staff member from the roster; without this it
+        // never leaves "Loading...".
+        if (u.includes("/staff_master/names")) {
+          return Promise.resolve(mockJson({ names: ["Test Staff", "Jay Nishimura"] }));
+        }
         return Promise.resolve(mockJson({}, 404));
       });
       render(<PayrollPage />);
@@ -763,8 +774,7 @@ describe("PayrollPage", () => {
 
     it("shows validation error for negative salary", async () => {
       await openAddModal();
-      const nameInput = screen.getByPlaceholderText(/Full name/i);
-      fireEvent.change(nameInput, { target: { value: "Test Staff" } });
+      chooseOption("Select staff member", "Test Staff");
       const basicSalaryInput = screen.getAllByDisplayValue("0")[0];
       fireEvent.change(basicSalaryInput, { target: { value: "-100" } });
       fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
@@ -775,11 +785,10 @@ describe("PayrollPage", () => {
 
     it("calls PUT salary-configs API on save", async () => {
       await openAddModal();
-      const nameInput = screen.getByPlaceholderText(/Full name/i);
-      fireEvent.change(nameInput, { target: { value: "New Employee" } });
+      chooseOption("Select staff member", "Test Staff");
 
       mockFetch.mockResolvedValueOnce(
-        mockJson({ config: makeConfig({ staff_name: "New Employee" }) })
+        mockJson({ config: makeConfig({ staff_name: "Test Staff" }) })
       );
       fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
       await waitFor(() => {
@@ -811,8 +820,7 @@ describe("PayrollPage", () => {
 
     it("shows 'Paid Via' bank input when bank is selected", async () => {
       await openAddModal();
-      const paidViaSelect = screen.getByDisplayValue("Cash");
-      fireEvent.change(paidViaSelect, { target: { value: "bank" } });
+      chooseValue("Cash", "bank");
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/Emirates NBD/i)).toBeInTheDocument();
       });
@@ -820,8 +828,7 @@ describe("PayrollPage", () => {
 
     it("shows API error when save fails", async () => {
       await openAddModal();
-      const nameInput = screen.getByPlaceholderText(/Full name/i);
-      fireEvent.change(nameInput, { target: { value: "Test" } });
+      chooseOption("Select staff member", "Test Staff");
       mockFetch.mockResolvedValueOnce(mockJson({ detail: "Duplicate staff name" }, 409));
       fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
       await waitFor(() => {

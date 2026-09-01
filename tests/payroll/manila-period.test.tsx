@@ -83,10 +83,15 @@ const ITEMS_JUAN = [
   { id: 3, item_type: "deduction", item_code: "ABSENT_DEDUCTION",label: "Absent Deduction", quantity: 1,    unit_rate: 1153.85, amount: -1153.85, is_taxable: false, source: "engine", note: null },
 ];
 
+// The page auto-selects the first staff member on load, so its items are
+// fetched immediately -- every test needs that route, not just the ones that
+// click into the panel.
 function buildPeriodFetch(runs = [RUN_JUAN, RUN_MARIA]) {
   // NOTE: more-specific routes MUST come before less-specific ones,
   // because buildFetchMock uses url.includes() and checks in order.
   return buildFetchMock([
+    { match: "/api/admin/manila-payroll/runs/101/items", body: ITEMS_JUAN },
+    { match: "/api/admin/manila-payroll/runs/102/items", body: [] },
     { match: "/api/admin/manila-payroll/periods/1/runs", body: runs },
     { match: "/api/admin/manila-payroll/periods", body: [PERIOD] },
   ]);
@@ -104,7 +109,7 @@ describe("ManilaPayrollPeriodPage — run list", () => {
     render(<Page />);
 
     await waitFor(() => {
-      expect(screen.getByText("Juan dela Cruz")).toBeTruthy();
+      expect(screen.getAllByText("Juan dela Cruz").length).toBeGreaterThan(0);
       expect(screen.getByText("Maria Santos")).toBeTruthy();
     });
   });
@@ -146,8 +151,10 @@ describe("ManilaPayrollPeriodPage — run list", () => {
     render(<Page />);
 
     await waitFor(() => {
-      expect(screen.getByText(/total gross/i)).toBeTruthy();
-      expect(screen.getByText(/total deductions/i)).toBeTruthy();
+      // The labels appear in the period KPIs and again in the open panel,
+      // which the page now shows for the first staff member on load.
+      expect(screen.getAllByText(/total gross/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/total deductions/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -224,10 +231,10 @@ describe("ManilaPayrollPeriodPage — side panel", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Juan dela Cruz"));
+      fireEvent.click(screen.getAllByText("Juan dela Cruz")[0]);
     });
 
     await waitFor(() => {
@@ -252,10 +259,10 @@ describe("ManilaPayrollPeriodPage — side panel", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Juan dela Cruz"));
+      fireEvent.click(screen.getAllByText("Juan dela Cruz")[0]);
     });
 
     await waitFor(() => {
@@ -276,8 +283,8 @@ describe("ManilaPayrollPeriodPage — side panel", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
-    await act(async () => { fireEvent.click(screen.getByText("Juan dela Cruz")); });
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
+    await act(async () => { fireEvent.click(screen.getAllByText("Juan dela Cruz")[0]); });
 
     await waitFor(() => {
       // Late Deduction should appear in side panel
@@ -299,10 +306,10 @@ describe("ManilaPayrollPeriodPage — side panel", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
 
     // Select Juan
-    await act(async () => { fireEvent.click(screen.getByText("Juan dela Cruz")); });
+    await act(async () => { fireEvent.click(screen.getAllByText("Juan dela Cruz")[0]); });
     await waitFor(() => screen.getByText(/Monthly Basic/i));
 
     // Select Maria — Juan's items should clear
@@ -325,7 +332,7 @@ describe("ManilaPayrollPeriodPage — sorting", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
 
     // Sort <th> has text "Staff" — find by columnheader role + text
     const staffHeader = screen.getByRole("columnheader", { name: /staff/i });
@@ -333,7 +340,7 @@ describe("ManilaPayrollPeriodPage — sorting", () => {
     await act(async () => { fireEvent.click(staffHeader); });
 
     // After two clicks (asc → desc toggle), rows are still visible (no crash)
-    expect(screen.getByText("Juan dela Cruz")).toBeTruthy();
+    expect(screen.getAllByText("Juan dela Cruz").length).toBeGreaterThan(0);
     expect(screen.getByText("Maria Santos")).toBeTruthy();
   });
 
@@ -345,14 +352,14 @@ describe("ManilaPayrollPeriodPage — sorting", () => {
     );
     render(<Page />);
 
-    await waitFor(() => screen.getByText("Juan dela Cruz"));
+    await waitFor(() => screen.getAllByText("Juan dela Cruz")[0]);
 
     // Net Pay sort <th>
     const netHeader = screen.getByRole("columnheader", { name: /net pay/i });
     await act(async () => { fireEvent.click(netHeader); });
 
     // No crash — both rows still visible
-    expect(screen.getByText("Juan dela Cruz")).toBeTruthy();
+    expect(screen.getAllByText("Juan dela Cruz").length).toBeGreaterThan(0);
     expect(screen.getByText("Maria Santos")).toBeTruthy();
   });
 });

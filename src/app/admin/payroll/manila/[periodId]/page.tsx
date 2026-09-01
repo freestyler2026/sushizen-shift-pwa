@@ -1665,7 +1665,10 @@ export default function ManilaPayrollPeriodPage() {
     setItemsLoading(true);
     apiFetch(`${API}/runs/${selectedRun.id}/items`, { signal: ctrl.signal })
       .then(r => r.json())
-      .then(d => setItems(d as PayrollItem[]))
+      // A blind cast here took the whole page down: an error body, or any shape
+      // that is not a list, reached items.filter and threw during render, so a
+      // payroll period showed a blank screen rather than a run with no detail.
+      .then(d => setItems(Array.isArray(d) ? d as PayrollItem[] : []))
       .catch(e => { if ((e as { name?: string }).name !== "AbortError") setError(String(e)); })
       .finally(() => setItemsLoading(false));
     return () => ctrl.abort();
