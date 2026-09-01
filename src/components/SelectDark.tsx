@@ -144,6 +144,9 @@ export default function SelectDark({
         aria-haspopup="listbox"
         aria-controls={listId}
         aria-label={ariaLabel ?? placeholder}
+        // The value the page holds, which a native <select> exposed and a
+        // button does not. Tests asserted on it; nothing in the UI reads it.
+        data-value={value}
         onClick={() => setOpen((prev) => !prev)}
         className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer ${
           variant === "light"
@@ -205,6 +208,10 @@ export default function SelectDark({
                   type="button"
                   role="option"
                   aria-selected={opt.value === value}
+                  // The value a native <option> carried. Nothing in the UI uses
+                  // it; it is what lets a test pick an option by the value the
+                  // page will actually receive, rather than by its wording.
+                  data-value={opt.value}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(opt)}
                   className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-violet-500/15 hover:text-violet-200 ${

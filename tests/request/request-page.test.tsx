@@ -7,6 +7,7 @@ import {
   waitFor,
   act,
 } from "@testing-library/react";
+import { chooseValue, expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 
@@ -197,14 +198,14 @@ describe("/request page — form fields", () => {
 
   it("renders City and Branch selects", async () => {
     await renderPage();
-    expect(screen.getByDisplayValue("Manila")).toBeInTheDocument();
+    expect(expectSelectShowing("Manila")).toBeTruthy();
     // default manila branch is PAR
-    expect(screen.getByDisplayValue("Paranaque")).toBeInTheDocument();
+    expect(expectSelectShowing("Paranaque")).toBeTruthy();
   });
 
   it("renders Request type select with default Time Change", async () => {
     await renderPage();
-    expect(screen.getByDisplayValue("Time Change")).toBeInTheDocument();
+    expect(expectSelectShowing("Time Change")).toBeTruthy();
   });
 
   it("renders Reason textarea", async () => {
@@ -233,16 +234,14 @@ describe("/request page — form fields", () => {
     const select = screen.getByDisplayValue("Time Change");
     fireEvent.change(select, { target: { value: "paid_leave" } });
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Annual Leave")).toBeInTheDocument()
+      expect(expectSelectShowing("Annual Leave")).toBeTruthy()
     );
-    expect(screen.getByDisplayValue("1")).toBeInTheDocument();
+    expect(expectSelectShowing("1")).toBeTruthy();
   });
 
   it("shows OT hours field when type is overtime_request", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "overtime_request" },
-    });
+    chooseValue("Time Change", "overtime_request");
     await waitFor(() =>
       expect(screen.getByPlaceholderText("e.g. 2.5")).toBeInTheDocument()
     );
@@ -250,9 +249,7 @@ describe("/request page — form fields", () => {
 
   it("shows swap fields when type is swap", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "swap" },
-    });
+    chooseValue("Time Change", "swap");
     await waitFor(() =>
       expect(screen.getByText("My new time")).toBeInTheDocument()
     );
@@ -264,9 +261,7 @@ describe("/request page — form fields", () => {
     // medical doc present for time_change
     expect(screen.getByText("I have a medical document")).toBeInTheDocument();
     // switch to overtime
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "overtime_request" },
-    });
+    chooseValue("Time Change", "overtime_request");
     await waitFor(() =>
       expect(screen.queryByText("I have a medical document")).not.toBeInTheDocument()
     );
@@ -274,17 +269,15 @@ describe("/request page — form fields", () => {
 
   it("city change updates branch options", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("Manila"), {
-      target: { value: "dubai" },
-    });
+    chooseValue("Manila", "dubai");
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Business Bay")).toBeInTheDocument()
+      expect(expectSelectShowing("Business Bay")).toBeTruthy()
     );
   });
 
   it("shows staff name field pre-filled with auth name", async () => {
     await renderPage();
-    expect(screen.getByDisplayValue("Test Staff")).toBeInTheDocument();
+    expect(expectSelectShowing("Test Staff")).toBeTruthy();
   });
 });
 
@@ -316,9 +309,7 @@ describe("/request page — form validation", () => {
   it("shows error when swap missing counterparty", async () => {
     await renderPage();
     // switch to swap
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "swap" },
-    });
+    chooseValue("Time Change", "swap");
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "need to swap shift please" },
     });
@@ -409,9 +400,7 @@ describe("/request page — overtime submit", () => {
 
   it("submits overtime via /api/request/notify and shows success", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "overtime_request" },
-    });
+    chooseValue("Time Change", "overtime_request");
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "Worked extra hours covering for absent staff" },
     });
@@ -425,9 +414,7 @@ describe("/request page — overtime submit", () => {
 
   it("resets reason after overtime submit (bug regression)", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("Time Change"), {
-      target: { value: "overtime_request" },
-    });
+    chooseValue("Time Change", "overtime_request");
     const reasonField = screen.getByPlaceholderText(/At least 5 characters/i);
     fireEvent.change(reasonField, {
       target: { value: "Worked extra hours covering for absent staff" },

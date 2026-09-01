@@ -1,6 +1,7 @@
 // tests/admin/daily-inventory/daily-inventory-page.test.tsx
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { routerMock } from "../../setup";
 
@@ -172,13 +173,13 @@ describe("AdminDailyInventoryTab — page structure", () => {
   it("renders Branch selector with PARANAQUE, CUBAO, TAFT options", async () => {
     await renderTab();
     await waitFor(() => screen.getByText("📦 Daily Inventory Report"));
-    expect(screen.getByDisplayValue("PARANAQUE")).toBeInTheDocument();
+    expect(expectSelectShowing("PARANAQUE")).toBeTruthy();
   });
 
   it("renders Shift selector defaulting to AM", async () => {
     await renderTab();
     await waitFor(() => screen.getByText("📦 Daily Inventory Report"));
-    expect(screen.getByDisplayValue("AM")).toBeInTheDocument();
+    expect(expectSelectShowing("AM")).toBeTruthy();
   });
 
   it("renders Date input", async () => {
@@ -484,7 +485,7 @@ describe("AdminDailyInventoryTab — form interactions", () => {
     await waitFor(() => screen.getByText("📦 Daily Inventory Report"));
     const shiftSelect = screen.getByDisplayValue("AM");
     fireEvent.change(shiftSelect, { target: { value: "PM" } });
-    expect(screen.getByDisplayValue("PM")).toBeInTheDocument();
+    expect(expectSelectShowing("PM")).toBeTruthy();
   });
 
   it("entering qty in note field updates note state", async () => {
@@ -752,7 +753,7 @@ describe("AdminDailyInventoryTab — effectiveStaffName (via UI)", () => {
     await waitFor(() => screen.getByText("Alice"));
     const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
     fireEvent.change(staffSel, { target: { value: "Bob" } });
-    expect(screen.getByDisplayValue("Bob")).toBeInTheDocument();
+    expect(expectSelectShowing("Bob")).toBeTruthy();
   });
 
   it("selecting Other + entering custom name uses the custom name for save", async () => {

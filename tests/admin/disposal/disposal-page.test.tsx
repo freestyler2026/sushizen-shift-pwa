@@ -1,6 +1,7 @@
 // tests/admin/disposal/disposal-page.test.tsx
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../../setup";
 
@@ -157,7 +158,7 @@ describe("/admin/disposal — page structure", () => {
   it("renders shift selector with Closing option", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
-    expect(screen.getByDisplayValue("Closing")).toBeInTheDocument();
+    expect(expectSelectShowing("Closing")).toBeTruthy();
   });
 
   it("renders '+ Add manually' button", async () => {
@@ -177,7 +178,7 @@ describe("/admin/disposal — page structure", () => {
   it("reporter field pre-filled with auth staff name", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
-    expect(screen.getByDisplayValue("Admin User")).toBeInTheDocument();
+    expect(expectSelectShowing("Admin User")).toBeTruthy();
   });
 });
 

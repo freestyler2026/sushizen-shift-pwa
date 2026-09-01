@@ -1,6 +1,7 @@
 // tests/admin/backup/backup-page.test.tsx
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue, expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../../setup";
 
@@ -221,19 +222,19 @@ describe("/admin/backup — page structure", () => {
   it("renders city selector with Dubai and Manila options", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    expect(screen.getByDisplayValue("Dubai")).toBeInTheDocument();
+    expect(expectSelectShowing("Dubai")).toBeTruthy();
   });
 
   it("renders shift selector with Closing as default", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    expect(screen.getByDisplayValue("Closing")).toBeInTheDocument();
+    expect(expectSelectShowing("Closing")).toBeTruthy();
   });
 
   it("reporter field pre-filled with auth staff name", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    expect(screen.getByDisplayValue("Admin User")).toBeInTheDocument();
+    expect(expectSelectShowing("Admin User")).toBeTruthy();
   });
 
   it("Dubai template shows 'Condiments & Supplies' section", async () => {
@@ -265,7 +266,7 @@ describe("/admin/backup — city switching", () => {
   it("switching to Manila shows 'Hot Section'", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() =>
       expect(screen.getByText("Hot Section")).toBeInTheDocument()
     );
@@ -274,7 +275,7 @@ describe("/admin/backup — city switching", () => {
   it("switching to Manila shows 'Base Roll' section", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() =>
       expect(screen.getByText("Base Roll")).toBeInTheDocument()
     );
@@ -283,7 +284,7 @@ describe("/admin/backup — city switching", () => {
   it("switching to Manila shows percentage buttons for pct items (e.g. 0%, 25%, 50%, 75%, 100%)", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() =>
       // Percentage buttons appear for pct-type items (e.g. Quezo Cheese Cut)
       expect(screen.getAllByText("0%").length).toBeGreaterThan(0)
@@ -294,9 +295,9 @@ describe("/admin/backup — city switching", () => {
   it("switching back to Dubai removes Manila-only sections", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
-    fireEvent.change(screen.getByDisplayValue("Manila"), { target: { value: "dubai" } });
+    chooseValue("Manila", "dubai");
     await waitFor(() =>
       expect(screen.queryByText("Hot Section")).not.toBeInTheDocument()
     );
@@ -308,7 +309,7 @@ describe("/admin/backup — city switching", () => {
     // Dubai default branch is "BB" (Business Bay)
     const branchSelect = screen.getByLabelText ? screen.queryByLabelText("Branch") : null;
     // Switch to Manila — branch options change
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
     // Manila branches are different from Dubai branches — just confirm no crash
     expect(screen.getByText("Backup Report")).toBeInTheDocument();
@@ -503,7 +504,7 @@ describe("/admin/backup — shortage alert panel", () => {
   it("shows shortage panel when Manila qty item is below standard", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
 
     // Soy Sauce standard: min=150 — entering 5 is "low"
@@ -518,7 +519,7 @@ describe("/admin/backup — shortage alert panel", () => {
   it("shortage panel shows the item label for the low item", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
 
     // Soy Sauce is first in Manila supplies; standard 150 — entering 5 triggers shortage
@@ -542,7 +543,7 @@ describe("/admin/backup — shortage alert panel", () => {
   it("shortage panel disappears after clearing", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
     const inputs = screen.getAllByPlaceholderText("—");
     fireEvent.change(inputs[0], { target: { value: "5" } });
@@ -564,7 +565,7 @@ describe("/admin/backup — percentage selector (Manila pct items)", () => {
   it("pct items show 0%, 25%, 50%, 75%, 100% buttons", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Quezo Cheese Cut"));
 
     expect(screen.getAllByText("0%").length).toBeGreaterThan(0);
@@ -577,7 +578,7 @@ describe("/admin/backup — percentage selector (Manila pct items)", () => {
   it("clicking a pct button selects it (adds to filled count)", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Quezo Cheese Cut"));
 
     // Click the first "50%" button (m_quezo_cheese, standard min=50 → should be green)
@@ -593,7 +594,7 @@ describe("/admin/backup — percentage selector (Manila pct items)", () => {
   it("clicking selected pct button again deselects it", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Quezo Cheese Cut"));
 
     const fiftyBtns = screen.getAllByTitle(/50%.*standard: 50%/i);
@@ -607,7 +608,7 @@ describe("/admin/backup — percentage selector (Manila pct items)", () => {
   it("0% button triggers shortage panel for a 75%-standard item", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Tempura Flakes White"));
 
     // Tempura Flakes White (m_tf_white) has standard min=75%
@@ -823,7 +824,7 @@ describe("/admin/backup — shortageColor unit tests (via UI)", () => {
   it("qty item exactly at standard minimum shows no shortage", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
 
     // Soy Sauce standard min=150: entering exactly 150 → "ok"
@@ -835,7 +836,7 @@ describe("/admin/backup — shortageColor unit tests (via UI)", () => {
   it("qty item in warn zone (70-99% of min) shows shortage but not critical", async () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
-    fireEvent.change(screen.getByDisplayValue("Dubai"), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Hot Section"));
 
     // Soy Sauce min=150, warn range is 105-149 (150*0.7=105)

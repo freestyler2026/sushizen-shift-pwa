@@ -6,6 +6,7 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
+import { chooseValue, expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 
@@ -167,13 +168,13 @@ describe("/private-report — page structure", () => {
 
   it("renders Report Type select", async () => {
     await renderPage();
-    expect(screen.getByDisplayValue("app-private-report")).toBeInTheDocument();
+    expect(expectSelectShowing("app-private-report")).toBeTruthy();
   });
 
   it("renders City select defaulting to auth city (manila)", async () => {
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Manila")).toBeInTheDocument()
+      expect(expectSelectShowing("Manila")).toBeTruthy()
     );
   });
 
@@ -181,7 +182,7 @@ describe("/private-report — page structure", () => {
     mockRefreshed = staffAuth({ city: "dubai" });
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Dubai")).toBeInTheDocument()
+      expect(expectSelectShowing("Dubai")).toBeTruthy()
     );
   });
 
@@ -211,9 +212,7 @@ describe("/private-report — report type switching", () => {
 
   it("switching to hq-private-report shows 'What happened' field", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() =>
       expect(screen.getByText("What happened")).toBeInTheDocument()
     );
@@ -221,9 +220,7 @@ describe("/private-report — report type switching", () => {
 
   it("switching to hq-private-report shows 'Why this is a problem' field", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() =>
       expect(screen.getByText("Why this is a problem")).toBeInTheDocument()
     );
@@ -231,9 +228,7 @@ describe("/private-report — report type switching", () => {
 
   it("switching to hq-private-report shows HQ description text", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() =>
       expect(screen.getByText(/issues you notice in day-to-day operations/i)).toBeInTheDocument()
     );
@@ -241,19 +236,15 @@ describe("/private-report — report type switching", () => {
 
   it("switching to hq-private-report shows Category select", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Suggestion")).toBeInTheDocument()
+      expect(expectSelectShowing("Suggestion")).toBeTruthy()
     );
   });
 
   it("switching to hq-private-report hides app-specific fields", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() =>
       expect(screen.queryByText("Screen / Feature")).not.toBeInTheDocument()
     );
@@ -261,13 +252,9 @@ describe("/private-report — report type switching", () => {
 
   it("switching back to app type restores app fields", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByText("What happened"));
-    fireEvent.change(screen.getByDisplayValue("hq-private-report"), {
-      target: { value: "app-private-report" },
-    });
+    chooseValue("hq-private-report", "app-private-report");
     await waitFor(() =>
       expect(screen.getByText("Screen / Feature")).toBeInTheDocument()
     );
@@ -289,9 +276,7 @@ describe("/private-report — city and branch logic", () => {
   it("shows Dubai branches when city is switched to dubai", async () => {
     await renderPage();
     await waitFor(() => screen.getByText(/Paranaque/i));
-    fireEvent.change(screen.getByDisplayValue("Manila"), {
-      target: { value: "dubai" },
-    });
+    chooseValue("Manila", "dubai");
     await waitFor(() =>
       expect(screen.getByText(/Business Bay/i)).toBeInTheDocument()
     );
@@ -305,9 +290,7 @@ describe("/private-report — city and branch logic", () => {
       target: { value: "PAR" },
     });
     // Now switch city
-    fireEvent.change(screen.getByDisplayValue("Manila"), {
-      target: { value: "dubai" },
-    });
+    chooseValue("Manila", "dubai");
     await waitFor(() =>
       expect(
         (screen.getByText("- Select branch -").closest("select") as HTMLSelectElement).value
@@ -371,9 +354,7 @@ describe("/private-report — form validation (hq type)", () => {
 
   async function switchToHQ() {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByText("What happened"));
   }
 
@@ -424,9 +405,7 @@ describe("/private-report — submit success", () => {
 
   async function fillAndSubmitHQReport() {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByText("What happened"));
 
     const dateInput = document.querySelector(
@@ -562,9 +541,7 @@ describe("/private-report — resetForm bug regression", () => {
     await renderPage();
 
     // Switch to HQ and fill fields
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByText("What happened"));
 
     const dateInput = document.querySelector(
@@ -599,9 +576,7 @@ describe("/private-report — resetForm bug regression", () => {
   it("clears whyProblem after Submit Another Report (bug regression)", async () => {
     await renderPage();
 
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByText("What happened"));
 
     const dateInput = document.querySelector(
@@ -629,16 +604,12 @@ describe("/private-report — resetForm bug regression", () => {
   it("resets category to Suggestion after Submit Another Report", async () => {
     await renderPage();
 
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByDisplayValue("Suggestion"));
 
     // Change category
-    fireEvent.change(screen.getByDisplayValue("Suggestion"), {
-      target: { value: "Management" },
-    });
-    expect(screen.getByDisplayValue("Management")).toBeInTheDocument();
+    chooseValue("Suggestion", "Management");
+    expect(expectSelectShowing("Management")).toBeTruthy();
 
     const dateInput = document.querySelector(
       'input[type="datetime-local"]'
@@ -658,22 +629,18 @@ describe("/private-report — resetForm bug regression", () => {
     await waitFor(() => screen.getByText("What happened"));
 
     // Before fix: would still show "Management"
-    expect(screen.getByDisplayValue("Suggestion")).toBeInTheDocument();
+    expect(expectSelectShowing("Suggestion")).toBeTruthy();
   });
 
   it("resets anonymousRequest to Yes after Submit Another Report", async () => {
     await renderPage();
 
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByDisplayValue("Yes"));
 
     // Change to No
-    fireEvent.change(screen.getByDisplayValue("Yes"), {
-      target: { value: "no" },
-    });
-    expect(screen.getByDisplayValue("No")).toBeInTheDocument();
+    chooseValue("Yes", "no");
+    expect(expectSelectShowing("No")).toBeTruthy();
 
     const dateInput = document.querySelector(
       'input[type="datetime-local"]'
@@ -693,7 +660,7 @@ describe("/private-report — resetForm bug regression", () => {
     await waitFor(() => screen.getByText("What happened"));
 
     // Before fix: would show "No" — after fix shows "Yes" (reset to true)
-    expect(screen.getByDisplayValue("Yes")).toBeInTheDocument();
+    expect(expectSelectShowing("Yes")).toBeTruthy();
   });
 });
 
@@ -704,9 +671,7 @@ describe("/private-report — HQ type category options", () => {
 
   it("has App, Operation, Management, Staff issue, Suggestion, Other options", async () => {
     await renderPage();
-    fireEvent.change(screen.getByDisplayValue("app-private-report"), {
-      target: { value: "hq-private-report" },
-    });
+    chooseValue("app-private-report", "hq-private-report");
     await waitFor(() => screen.getByDisplayValue("Suggestion"));
     const select = screen.getByDisplayValue("Suggestion") as HTMLSelectElement;
     const values = Array.from(select.options).map((o) => o.value);

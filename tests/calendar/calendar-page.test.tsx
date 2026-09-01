@@ -6,6 +6,7 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
+import { chooseOption, expectSelectShowing, optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 
@@ -183,14 +184,14 @@ describe("/calendar — page structure", () => {
   it("renders city selector", async () => {
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Dubai")).toBeInTheDocument()
+      expect(expectSelectShowing("Dubai")).toBeTruthy()
     );
   });
 
   it("renders Store selector with All stores", async () => {
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("All stores")).toBeInTheDocument()
+      expect(expectSelectShowing("All stores")).toBeTruthy()
     );
   });
 
@@ -331,7 +332,7 @@ describe("/calendar — city toggle", () => {
     mockAuth = staffAuth({ city: "dubai" });
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Dubai")).toBeInTheDocument()
+      expect(expectSelectShowing("Dubai")).toBeTruthy()
     );
   });
 
@@ -339,7 +340,7 @@ describe("/calendar — city toggle", () => {
     mockAuth = staffAuth({ city: "manila" });
     await renderPage();
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Manila")).toBeInTheDocument()
+      expect(expectSelectShowing("Manila")).toBeTruthy()
     );
   });
 
@@ -348,9 +349,7 @@ describe("/calendar — city toggle", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Calendar"));
     const callsBefore = mockApiGet.mock.calls.length;
-    fireEvent.change(screen.getByDisplayValue("Dubai"), {
-      target: { value: "manila" },
-    });
+    chooseOption("Dubai", "Manila");
     await waitFor(() =>
       expect(mockApiGet.mock.calls.length).toBeGreaterThan(callsBefore)
     );
@@ -577,12 +576,11 @@ describe("/calendar — branch options", () => {
   it("includes base options: All stores, Business Bay, JLT, CK", async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("Calendar")).toBeInTheDocument());
-    const select = screen.getByDisplayValue("All stores") as HTMLSelectElement;
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toContain("ALL");
-    expect(values).toContain("Business Bay");
-    expect(values).toContain("JLT");
-    expect(values).toContain("CK");
+    const labels = optionLabels("All stores");
+    expect(labels).toContain("All stores");
+    expect(labels).toContain("Business Bay");
+    expect(labels).toContain("JLT");
+    expect(labels).toContain("CK");
   });
 
   it("appends newly discovered branch from API data", async () => {
@@ -591,11 +589,8 @@ describe("/calendar — branch options", () => {
       rows: [makeShiftRow({ branch_code: "SPECIAL_BRANCH" })],
     });
     await renderPage();
-    await waitFor(() => {
-      const select = screen.getByDisplayValue("All stores") as HTMLSelectElement;
-      const values = Array.from(select.options).map((o) => o.value);
-      expect(values).toContain("SPECIAL_BRANCH");
-    });
+    await waitFor(() => expectSelectShowing("All stores"));
+    expect(optionLabels("All stores")).toContain("SPECIAL_BRANCH");
   });
 });
 
