@@ -1108,84 +1108,27 @@ export default function AdminStaffPage() {
         ) : null}
       </div>
 
+      {/* Creating from here could not work: the roster endpoint requires
+          position, hire date and company for Manila — they are printed on the
+          Certificate of Employment — and this form has no fields for them, so
+          every Manila attempt failed with a 400. Rather than repeat the fields
+          in a second place, send people to the one form that collects them. */}
       <div className={GLASS_CARD + " p-5"}>
         <div className="mb-1 flex items-center gap-2">
           <UserPlus className="h-4 w-4 text-emerald-400" />
           <h2 className={T_SECTION}>Add New Staff</h2>
         </div>
-        <p className={T_BODY + " mb-4"}>Create only. Existing staff updates are managed from the role/status list below.</p>
-
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <div>
-            <label className={T_LABEL + " mb-1.5 block"}>
-              City <span className="text-red-400">*</span>
-            </label>
-            <SelectDark
-              className={SELECT_CLASS}
-              value={newStaffCity}
-              onChange={v => setNewStaffCity(v as City)}
-              options={[
-                { value: "dubai", label: "Dubai" },
-                { value: "manila", label: "Manila" },
-              ]}
-            />
-          </div>
-          <div className="sm:col-span-1">
-            <label className={T_LABEL + " mb-1.5 block"}>New Staff Full Name</label>
-            <input
-              className={INPUT_CLASS}
-              value={newStaffName}
-              onChange={(e) => setNewStaffName(e.target.value)}
-              placeholder="e.g. Test User"
-            />
-          </div>
-          <div>
-            <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
-            <SelectDark
-              className={SELECT_CLASS}
-              value={newStaffHomeBranch}
-              onChange={setNewStaffHomeBranch}
-              options={[
-                { value: "", label: "— select branch —" },
-                ...newStaffBranches.map((b) => {
-                  const label = labelOf(newStaffCity as City, b);
-                  return { value: b, label: b === label ? b : `${b} – ${label}` };
-                }),
-              ]}
-            />
-          </div>
-          <div>
-            <label className={T_LABEL + " mb-1.5 block"}>Role</label>
-            <SelectDark
-              className={SELECT_CLASS}
-              value={newStaffRole}
-              onChange={v => setNewStaffRole(v as "STAFF" | "MANAGER")}
-              options={[
-                { value: "STAFF", label: "STAFF" },
-                { value: "MANAGER", label: "MANAGER" },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className={T_LABEL + " mb-1.5 block"}>Status</label>
-          <SelectDark
-            className={SELECT_CLASS + " max-w-[180px]"}
-            value={newStaffStatus}
-            onChange={v => setNewStaffStatus(v as StaffStatus)}
-            options={STATUS_OPTIONS.map((x) => ({ value: x, label: STATUS_LABEL[x] }))}
-          />
-        </div>
-
+        <p className={T_BODY + " mb-4"}>
+          New staff are registered on their own page, which also collects the
+          position, hire date and company that a Certificate of Employment needs.
+        </p>
         <button
           type="button"
-          disabled={loading || !norm(approverName)}
-          onClick={createNewStaff}
+          onClick={() => router.push("/admin/staff/create")}
           className={PRIMARY_BUTTON + " flex items-center gap-2"}
         >
           <UserPlus className="h-4 w-4" />
-          Add New Staff
+          Go to Create Staff
         </button>
       </div>
 
