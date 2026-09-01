@@ -5,6 +5,8 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { optionValues } from "#tests/select-dark";
+import { routerMock } from "../../setup";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── framer-motion (proxy so motion.div / motion.tr / etc. all work) ────────────
@@ -333,9 +335,9 @@ describe("AdminStaffPage — page structure", () => {
     render(<AdminStaffPage />);
     await screen.findByText("Staff Master");
     expect(screen.getByText("Create Staff Record")).toBeInTheDocument();
-    expect(screen.getByText("Pending Staff Setup")).toBeInTheDocument();
-    expect(screen.getByText("Audit Logs")).toBeInTheDocument();
-    expect(screen.getByText("Onboarding Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Onboarding & Setup")).toBeInTheDocument();
+    expect(screen.getByText("Analytics")).toBeInTheDocument();
+    expect(screen.getByText(/Employment Details/)).toBeInTheDocument();
   });
 
   it("does NOT show Role Management link when canAccessRoleManagement is false", async () => {
@@ -361,13 +363,16 @@ describe("AdminStaffPage — page structure", () => {
     expect(screen.getByText(/PIN.*optional/i)).toBeInTheDocument();
   });
 
-  it("renders Add New Staff section", async () => {
+  it("sends you to the form that collects everything a new record needs", async () => {
     render(<AdminStaffPage />);
     await screen.findByText("Staff Master");
     // "Add New Staff" appears in both section heading and button — use getAllByText
     const addNewEls = screen.getAllByText("Add New Staff");
     expect(addNewEls.length).toBeGreaterThan(0);
-    expect(screen.getByText(/New Staff Full Name/i)).toBeInTheDocument();
+    // The inline form is gone -- it had no position, hire date or company, so
+    // every Manila attempt failed. The page points at the page that has them.
+    expect(screen.getByText("Add New Staff")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Go to Create Staff/i })).toBeInTheDocument();
     // "Home Branch" label appears twice: once in the Add New Staff form and once in the roster filter
     expect(screen.getAllByText(/Home Branch/i).length).toBeGreaterThan(0);
   });
@@ -463,53 +468,30 @@ describe("AdminStaffPage — load and roster", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-describe("AdminStaffPage — Add New Staff validation", () => {
+describe("AdminStaffPage — adding staff", () => {
   beforeEach(() => {
     mockCanAccessAdmin = true;
     mockApiGet.mockResolvedValue({ ok: true, rows: [] });
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it("Add New Staff button is disabled when approverName is empty", async () => {
+  // The inline form these tests drove is gone. It collected a name, a PIN and a
+  // home branch, but not the position, hire date or company that a Manila
+  // Certificate of Employment needs -- so every Manila attempt failed with a
+  // 400. Rather than repeat those fields in a second place, the page sends you
+  // to the form that already has them, and the validation lives there.
+  it("offers no inline form, only the way to the one that works", async () => {
     render(<AdminStaffPage />);
     await screen.findByText("Staff Master");
-    const approverInput = screen.getAllByDisplayValue("Admin User")[0];
-    fireEvent.change(approverInput, { target: { value: "" } });
-    const addBtn = screen.getAllByRole("button", { name: /Add New Staff/i })[0];
-    expect(addBtn).toBeDisabled();
+    expect(screen.queryByPlaceholderText("e.g. Test User")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Go to Create Staff/i })).toBeInTheDocument();
   });
 
-  it("shows error if PIN is empty when creating staff", async () => {
-    mockApiPost.mockResolvedValue({ ok: true });
+  it("the button goes to the create page", async () => {
     render(<AdminStaffPage />);
     await screen.findByText("Staff Master");
-    const pinInputs = screen.getAllByPlaceholderText(/Leave blank|session auth/i);
-    fireEvent.change(pinInputs[0], { target: { value: "" } });
-    const nameInput = screen.getByPlaceholderText("e.g. Test User");
-    fireEvent.change(nameInput, { target: { value: "New Staff" } });
-    const addBtn = screen.getAllByRole("button", { name: /Add New Staff/i })[0];
-    await clickAndFlush(addBtn);
-    await screen.findByText(/PIN is required/i, {}, { timeout: 3000 });
-  });
-
-  it("shows error if new staff name is empty", async () => {
-    mockApiPost.mockResolvedValue({ ok: true });
-    render(<AdminStaffPage />);
-    await screen.findByText("Staff Master");
-    const addBtn = screen.getAllByRole("button", { name: /Add New Staff/i })[0];
-    await clickAndFlush(addBtn);
-    await screen.findByText(/New staff name is required/i, {}, { timeout: 3000 });
-  });
-
-  it("shows error if home branch is not selected", async () => {
-    mockApiPost.mockResolvedValue({ ok: true });
-    render(<AdminStaffPage />);
-    await screen.findByText("Staff Master");
-    const nameInput = screen.getByPlaceholderText("e.g. Test User");
-    fireEvent.change(nameInput, { target: { value: "New Staff" } });
-    const addBtn = screen.getAllByRole("button", { name: /Add New Staff/i })[0];
-    await clickAndFlush(addBtn);
-    await screen.findByText(/Home branch is required/i, {}, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Go to Create Staff/i }));
+    expect(routerMock.push).toHaveBeenCalledWith("/admin/staff/create");
   });
 });
 
@@ -528,7 +510,7 @@ describe("AdminStaffPage — status change", () => {
     const btn = await screen.findByRole("button", { name: /Login & Load/i });
     await clickAndFlush(btn);
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
-    await clickAndFlush(screen.getByRole("button", { name: /Deactivate/i }));
+    await clickAndFlush(screen.getByRole("button", { name: /Separated/ }));
     await waitFor(() => {
       const postCall = mockApiPost.mock.calls.find(([path]: [string]) =>
         String(path).includes("/change_status"),
@@ -545,7 +527,7 @@ describe("AdminStaffPage — status change", () => {
     await clickAndFlush(btn);
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
     const callsBefore = mockApiPost.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: /Deactivate/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Separated/ }));
     await waitFor(() => expect(mockApiPost.mock.calls.length).toBe(callsBefore));
   });
 
@@ -555,7 +537,7 @@ describe("AdminStaffPage — status change", () => {
     const btn = await screen.findByRole("button", { name: /Login & Load/i });
     await clickAndFlush(btn);
     await screen.findByText("Santos Maria", {}, { timeout: 5000 });
-    expect(screen.getByRole("button", { name: /^Activate$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Reactivate$/ })).toBeInTheDocument();
   });
 });
 
@@ -904,11 +886,9 @@ describe("StaffAuditClient", () => {
   it("renders event type dropdown with all known event types", () => {
     vi.stubGlobal("fetch", makeStaffFetch({ auditRows: [] }));
     render(<StaffAuditClient />);
-    const eventSelect = screen.getAllByRole("combobox").find((el) =>
-      (el as HTMLSelectElement).options[1]?.value === "staff_created",
-    );
-    expect(eventSelect).toBeDefined();
-    expect((eventSelect as HTMLSelectElement).options.length).toBe(5);
+    const values = optionValues("ALL");
+    expect(values).toContain("staff_created");
+    expect(values.length).toBe(5);
   });
 });
 
@@ -919,12 +899,12 @@ describe("StaffRolesPage", () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it("shows 'Role Management is available only to HQ users.' when not authorized", async () => {
+  it("says who Role Management is for when the viewer is not one of them", async () => {
     const { canAccessRoleManagement } = await import("@/lib/auth");
     vi.mocked(canAccessRoleManagement).mockReturnValue(false);
     vi.stubGlobal("fetch", makeStaffFetch());
     render(<StaffRolesPage />);
-    await screen.findByText(/Role Management is available only to HQ users/i, {}, { timeout: 5000 });
+    await screen.findByText(/Role Management is available only to HQ and Admin users/i, {}, { timeout: 5000 });
   });
 
   it("renders Role Management page with tab buttons when HQ authorized", async () => {

@@ -97,7 +97,7 @@ describe("CostCheckPage — auth guard", () => {
     mockAuthReturn = HQ_AUTH;
     mockCanAccess = true;
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
+    await screen.findByText("Invoice Link Check (Products)");
   });
 });
 
@@ -112,14 +112,14 @@ describe("CostCheckPage — city selector", () => {
 
   it("renders Manila and Dubai city buttons", async () => {
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
+    await screen.findByText("Invoice Link Check (Products)");
     expect(screen.getByRole("button", { name: "manila" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "dubai" })).toBeInTheDocument();
   });
 
   it("initial city is from query param (dubai)", async () => {
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
+    await screen.findByText("Invoice Link Check (Products)");
     // dubai button should be visually active (has active styling)
     // We verify by checking that dubai button exists
     const dubaiBtn = screen.getByRole("button", { name: "dubai" });
@@ -138,9 +138,9 @@ describe("CostCheckPage — analyze button", () => {
   it("renders the analyze button", async () => {
     mockCostJson = vi.fn(async () => ({ items: [] }));
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
+    await screen.findByText("Invoice Link Check (Products)");
     // The analyze button is always present when allowed
-    expect(screen.getByRole("button", { name: /分析/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i })).toBeInTheDocument();
   });
 
   it("clicking analyze button calls master-items API", async () => {
@@ -149,8 +149,8 @@ describe("CostCheckPage — analyze button", () => {
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
     await waitFor(() => {
       expect(mockCostJson).toHaveBeenCalled();
     });
@@ -164,8 +164,8 @@ describe("CostCheckPage — analyze button", () => {
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
     // Progress bar should appear
     await waitFor(() => {
       const progressEl = document.querySelector("progress, [role=progressbar], .bg-violet-500");
@@ -181,8 +181,8 @@ describe("CostCheckPage — analyze button", () => {
       throw new Error("Analyze API failure");
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
     await screen.findByText(/Analyze API failure/);
   });
 
@@ -199,8 +199,8 @@ describe("CostCheckPage — analyze button", () => {
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
     await screen.findByText("Salmon Nigiri");
     expect(screen.getByText("Sushi")).toBeInTheDocument();
   });
@@ -214,9 +214,9 @@ describe("CostCheckPage — filter tabs", () => {
     sessionStorageMock.clear();
   });
 
-  it("shows '全て' and '⚠ 要確認のみ' filter buttons after analysis", async () => {
+  it("shows the All and Needs Review filter buttons after analysis", async () => {
     // Filter buttons only render when stats.length > 0, so we must run an analysis first.
-    // Actual button labels: "全て (N)" and "⚠ 要確認のみ (N)"
+    // Actual button labels: "All (N)" and "⚠ Needs Review only (N)"
     const productItem = {
       id: "f-1", city: "dubai", category: "Sushi", name: "Filter Test Maki",
       item_type: "product", status: "active", component_count: 0,
@@ -229,13 +229,13 @@ describe("CostCheckPage — filter tabs", () => {
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
-    // Wait for the item to finish loading — "詳細を見る" appears only when loaded: true
-    await screen.findByText("詳細を見る");
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
+    // Wait for the item to finish loading — "Details" appears only when loaded: true
+    await screen.findByText("Details");
     // Filter buttons now visible with actual text format
-    expect(screen.getByRole("button", { name: /全て/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /要確認のみ/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^All \(/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Needs Review only/i })).toBeInTheDocument();
   });
 });
 
@@ -266,11 +266,11 @@ describe("CostCheckPage — ingredient panel and navigation", () => {
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
-    // Wait for the item to be fully loaded — "詳細を見る" only appears when loaded: true.
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
+    // Wait for the item to be fully loaded — "Details" only appears when loaded: true.
     // Clicking before loaded: true would hit the `if (!loaded) return;` guard and do nothing.
-    await screen.findByText("詳細を見る");
+    await screen.findByText("Details");
     // Click the product row to expand
     fireEvent.click(screen.getByText("Dragon Roll"));
     // "Avocado" is rendered inside a span as "⚠ Avocado" (isIssue prefix), use regex to match
@@ -280,14 +280,14 @@ describe("CostCheckPage — ingredient panel and navigation", () => {
   it("'← Cost Calculation' back button calls router.push", async () => {
     mockCostJson = vi.fn(async () => ({ items: [] }));
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
+    await screen.findByText("Invoice Link Check (Products)");
     fireEvent.click(screen.getByText(/← Cost Calculation/i));
     expect(mockPush).toHaveBeenCalledWith("/admin/cost-calculation");
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-describe("CostCheckPage — '商品マスタで編集' sessionStorage write", () => {
+describe("CostCheckPage — 'Edit in Products' sessionStorage write", () => {
   beforeEach(() => {
     mockAuthReturn = HQ_AUTH;
     mockCanAccess = true;
@@ -313,12 +313,12 @@ describe("CostCheckPage — '商品マスタで編集' sessionStorage write", ()
       return { items: [] };
     });
     render(<CostCheckPage />);
-    await screen.findByText("仕入連動チェック（商品マスタ）");
-    fireEvent.click(screen.getByRole("button", { name: /分析/i }));
+    await screen.findByText("Invoice Link Check (Products)");
+    fireEvent.click(screen.getByRole("button", { name: /Start Analysis|Re-analyze|Analyzing/i }));
     await screen.findByText("Poke Bowl");
     fireEvent.click(screen.getByText("Poke Bowl"));
-    await screen.findByText("商品マスタで編集 →");
-    fireEvent.click(screen.getByText("商品マスタで編集 →"));
+    await screen.findByText("Edit in Products →");
+    fireEvent.click(screen.getByText("Edit in Products →"));
     // Verify sessionStorage was set
     const stored = sessionStorageMock.getItem("costcheck_goto");
     expect(stored).not.toBeNull();
