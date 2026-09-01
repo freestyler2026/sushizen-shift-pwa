@@ -131,7 +131,51 @@ detect_attendance_anomalies → actual_attendance（Bayzatの取込先）
 - **BO Dashboard の Attendance & HR が `nothing to do` → `not measurable — see Weekly Review`**
   （見えていない場所について「やることなし」と言うのは、この画面が出しうる最悪の表示）
 
-判定は7日（`MGMT_SCORE_STALE_SOURCE_DAYS`）。週次バッチや連休を誤検知しない幅。
+判定は**14日**（`MGMT_SCORE_STALE_SOURCE_DAYS`）。下記の検証で7日から変更。
+
+### 検証で見つけて直した3件（2026-09-02）
+
+**① 閾値を推測で決めていた（7日 → 14日）**
+
+AR Payouts では「各ストリーム自身の履歴から閾値を決める」（教訓45）を守ったのに、ここでは
+「週次バッチなら7日で足りるだろう」と**推測で置いていた**。実測したところ:
+
+| | p90 gap | 最大gap | 7日で誤検知 | 14日で誤検知 |
+|---|---:|---:|---:|---:|
+| manila | 1日 | 9日 | **1回** | **0回** |
+| dubai | 1日 | 12日 | **2回** | **0回** |
+
+`actual_attendance` はほぼ日次だが、過去に9日・12日の空きが実在する。
+**7日だと「遅れているだけ」を「止まった」と3回報告していた。**
+14日なら履歴上の誤検知ゼロで、現在の55日（過去最大の6倍）は当然検知できる。
+
+**② 毎リクエストで52,000行のシーケンシャルスキャン**
+
+`LOWER(city) = LOWER(%s)` が `idx_actual_attendance_city_date` を無効化していた。
+格納値は全て小文字（`city <> LOWER(city)` = 0行）で呼び出し側も小文字化しているので、
+素の等価比較に変更 → **31.3ms → 0.9ms（Index Only Scan）**。
+
+**③ 失敗したソース確認がトランザクション全体を巻き添えにしていた（教訓7）**
+
+`try/except` で例外は捕まえていたが、**psycopg2 は失敗文でトランザクション全体をabortする**ので:
+- 後続のソースが全て「could not check」になる（実際はそのテーブルは正常）
+- **この関数の後に走るクエリも全て失敗する**
+
+現在の呼び出し位置がブロックの最後だったので実害は出ていなかったが、それは偶然。
+**ソースごとに SAVEPOINT** を張り、失敗時は ROLLBACK TO SAVEPOINT するよう修正。
+
+検証（本番）:
+```
+bogus_first -> could not check no_such_table_xyz: UndefinedTable
+attendance  -> actual_attendance has no rows since 2026-07-08 (55 days)  ← 巻き添えになっていない
+後続クエリ  -> 278 tasks（カーソルは生きている）
+EXPLAIN     -> INDEX SCAN
+復旧動作     -> 閾値を大きくすると blocked が消える（MAXベースなので自動復旧する）
+API応答      -> 327ms
+```
+
+⚠️ **③は自分が「防御的に書いた」コードの中で起きていた。** 例外を捕まえることと、
+その例外の副作用を封じ込めることは別物。
 
 ### 本番での確認
 
