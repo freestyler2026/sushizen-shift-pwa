@@ -33,7 +33,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 // ── lucide-react ──────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   CheckCircle2: () => <span data-testid="check-icon" />,
 }));
 

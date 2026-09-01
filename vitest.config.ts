@@ -19,6 +19,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // So every test file reaches the shared mocks by the same specifier,
+      // whatever depth it sits at.
+      "#tests": path.resolve(__dirname, "./tests"),
     },
   },
 });

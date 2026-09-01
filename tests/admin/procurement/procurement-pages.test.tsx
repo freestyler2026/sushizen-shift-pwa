@@ -34,7 +34,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 const _icon = () => null;
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertCircle: _icon,
   AlertTriangle: _icon,
   ArrowDown: _icon,

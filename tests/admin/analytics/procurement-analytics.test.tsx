@@ -44,7 +44,8 @@ vi.mock("recharts", () => ({
 }));
 
 // lucide-react: explicit names only — Proxy mock deadlocks with static imports
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   BarChart2: () => null,
   RefreshCw: () => null,
   ChevronDown: () => null,

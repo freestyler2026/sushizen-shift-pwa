@@ -13,7 +13,8 @@ vi.mock("next/link", () => ({
 }));
 
 // ── lucide-react ───────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   ChevronDown: ({ className }: any) => <svg data-testid="chevron-down" className={className} />,
 }));
 

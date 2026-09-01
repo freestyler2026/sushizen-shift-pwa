@@ -19,7 +19,8 @@ vi.mock("framer-motion", () => ({
   },
 }));
 
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   CalendarDays: () => <span data-testid="icon-calendar" />,
   RefreshCcw: () => <span data-testid="icon-refresh" />,
 }));

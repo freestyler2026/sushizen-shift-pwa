@@ -14,15 +14,15 @@ vi.mock("framer-motion", () => ({
   },
 }));
 
-vi.mock("lucide-react", () => {
+vi.mock("lucide-react", async () => {
   const Icon = ({ className }: { className?: string }) => (
     <span data-testid="icon" className={className} />
   );
-  return {
+  return (await import("#tests/lucide-mock")).lucideMock({
     AlertTriangle: Icon, CheckCircle2: Icon, ChevronDown: Icon, ChevronUp: Icon,
     Clock: Icon, Image: Icon, Loader2: Icon, MessageSquare: Icon, Plus: Icon,
     Send: Icon, X: Icon,
-  };
+  });
 });
 
 // Auth mock — plain fns so vi.restoreAllMocks() doesn't reset them

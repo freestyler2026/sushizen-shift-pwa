@@ -24,7 +24,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 // ── lucide-react ──────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   RefreshCw: () => <svg data-testid="icon-refresh" />,
   ShieldAlert: () => <svg data-testid="icon-shield" />,
 }));

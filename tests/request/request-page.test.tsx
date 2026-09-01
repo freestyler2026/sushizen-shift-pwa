@@ -20,14 +20,14 @@ vi.mock("@/components/DatePicker", () => ({
 }));
 
 // Lucide icons → plain spans
-vi.mock("lucide-react", () => {
+vi.mock("lucide-react", async () => {
   const Icon = ({ "data-testid": tid }: { "data-testid"?: string }) =>
     <span data-testid={tid ?? "icon"} />;
-  return {
+  return (await import("#tests/lucide-mock")).lucideMock({
     AlertCircle: Icon, Bell: Icon, BellRing: Icon, CalendarDays: Icon,
     CheckCircle2: Icon, ClipboardList: Icon, Clock: Icon, FileText: Icon,
     Loader2: Icon, RefreshCw: Icon, Send: Icon, XCircle: Icon,
-  };
+  });
 });
 
 // Auth mock

@@ -15,7 +15,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── lucide-react ───────────────────────────────────────────────────────────────
 const _icon = () => null;
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertCircle: _icon, AlertTriangle: _icon, ArrowDown: _icon, ArrowLeft: _icon,
   ArrowUp: _icon, ArrowUpDown: _icon, BarChart3: _icon, Building2: _icon,
   Camera: _icon, CheckCircle: _icon, CheckCircle2: _icon, ChevronDown: _icon,

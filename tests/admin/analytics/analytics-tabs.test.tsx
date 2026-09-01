@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── lucide-react: enumerate all icons used by analytics tabs ──────────────────
 // NOTE: vi.mock("lucide-react", () => new Proxy(...)) deadlocks with static
 // imports in this vitest/jsdom setup. Always use an explicit object here.
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   ChevronDown: () => null,
   ChevronRight: () => null,
   Clock: () => null,

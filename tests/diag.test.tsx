@@ -8,7 +8,13 @@ vi.mock("framer-motion", () => {
   return { motion: proxy, AnimatePresence: ({ children }: any) => children };
 });
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: any) => <a href={href} {...rest}>{children}</a> }));
-vi.mock("lucide-react", () => new Proxy({}, { get: (_, k) => () => <svg data-testid={String(k)} /> }));
+// `has` as well as `get`: vitest checks `key in module` and raises its own
+// "No X export is defined on the mock" before any get trap runs.
+vi.mock("lucide-react", () => new Proxy({}, {
+  has: (_t, k) => typeof k === "string" && !["then", "default", "__esModule"].includes(k),
+  get: (_t, k) => (typeof k === "string" && !["then", "default", "__esModule"].includes(k)
+    ? () => <svg data-testid={String(k)} /> : undefined),
+}));
 vi.mock("@/components/admin/AdminOnboardingLinks", () => ({ default: () => <div /> }));
 
 const mockApiGet = vi.fn();

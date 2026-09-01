@@ -5,7 +5,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams(), usePathname: () => "/admin/renewals" }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...p }: any) => <a href={href} {...p}>{children}</a> }));
-vi.mock("lucide-react", () => ({ AlertTriangle: () => <svg />, CheckCircle2: () => <svg />, ChevronDown: () => <svg />, CircleAlert: () => <svg />, Info: () => <svg />, Loader2: () => <svg data-testid="icon-loader" />, Pencil: () => <svg />, Plus: () => <svg />, Search: () => <svg />, Users: () => <svg />, X: () => <svg data-testid="icon-x" /> }));
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({ AlertTriangle: () => <svg />, CheckCircle2: () => <svg />, ChevronDown: () => <svg />, CircleAlert: () => <svg />, Info: () => <svg />, Loader2: () => <svg data-testid="icon-loader" />, Pencil: () => <svg />, Plus: () => <svg />, Search: () => <svg />, Users: () => <svg />, X: () => <svg data-testid="icon-x" /> }));
 vi.mock("@/lib/api", () => ({ API_BASE: "" }));
 vi.mock("@/lib/renewals", async (imp) => ({ ...(await imp<any>()), setRenewalsBadgeCount: vi.fn() }));
 let mockCanAccess = true;

@@ -33,7 +33,8 @@ vi.mock("next/link", () => ({
 }));
 
 // ── lucide-react (all icons across the five pages) ────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertTriangle:  () => <svg data-testid="icon-alert-triangle" />,
   BarChart2:      () => <svg data-testid="icon-bar-chart" />,
   Check:          () => <svg data-testid="icon-check" />,

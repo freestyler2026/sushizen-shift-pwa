@@ -14,7 +14,8 @@ vi.mock("recharts", () => ({
   Cell: () => null,
 }));
 // NOTE: Proxy mock deadlocks with static imports — use explicit named exports
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   ChevronDown: () => null, ChevronRight: () => null, Clock: () => null,
   AlarmClock: () => null, AlertTriangle: () => null, Users: () => null,
   Building2: () => null, Search: () => null, TrendingUp: () => null,

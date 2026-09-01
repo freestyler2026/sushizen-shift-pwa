@@ -12,15 +12,15 @@ import { routerMock } from "../setup";
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 // Lucide icons → plain spans to avoid SVG rendering complexity
-vi.mock("lucide-react", () => {
+vi.mock("lucide-react", async () => {
   const Icon = (props: { className?: string }) => (
     <span data-testid="icon" className={props.className} />
   );
-  return {
+  return (await import("#tests/lucide-mock")).lucideMock({
     Banknote: Icon, ChevronRight: Icon, Clock: Icon, CreditCard: Icon,
     FileText: Icon, Loader2: Icon, Receipt: Icon, TrendingDown: Icon,
     TrendingUp: Icon, Wallet: Icon, X: Icon,
-  };
+  });
 });
 
 // Auth mock

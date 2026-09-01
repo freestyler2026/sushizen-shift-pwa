@@ -28,7 +28,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 // ── lucide-react ──────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertCircle: () => <svg data-testid="icon-alert-circle" />,
   ArrowLeft: () => <svg data-testid="icon-arrow-left" />,
   BarChart2: () => <svg data-testid="icon-bar" />,

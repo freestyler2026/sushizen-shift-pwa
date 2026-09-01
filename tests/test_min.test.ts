@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
 // Use a factory that returns an object, not a Proxy
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   ChevronDown: () => null, ChevronRight: () => null, Clock: () => null,
   AlertTriangle: () => null, Users: () => null, Building2: () => null,
   Search: () => null, TrendingUp: () => null, RefreshCw: () => null,

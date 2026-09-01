@@ -28,7 +28,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 // ── lucide-react ──────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   CalendarCheck: () => <svg data-testid="icon-cal" />,
   Copy: () => <svg data-testid="icon-copy" />,
   Download: () => <svg data-testid="icon-download" />,

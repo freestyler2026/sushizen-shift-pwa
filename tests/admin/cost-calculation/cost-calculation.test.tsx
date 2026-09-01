@@ -21,7 +21,8 @@ vi.mock("next/link", () => ({
 }));
 
 // ── lucide-react: explicit names (Proxy mock deadlocks with static imports) ───
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertTriangle: () => null,
   Calculator: () => null,
   ChevronDown: () => null,

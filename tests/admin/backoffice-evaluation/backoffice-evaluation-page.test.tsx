@@ -16,7 +16,8 @@ vi.mock("framer-motion", () => ({
 }));
 
 // ── lucide-react ─────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   BarChart3: () => null,
   ClipboardCheck: () => null,
   InboxIcon: () => null,

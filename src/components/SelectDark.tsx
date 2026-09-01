@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type OptionItem = { value: string; label: string };
@@ -17,6 +17,10 @@ type Props = {
   // When false (default), the X clear button is hidden — use for required fields
   // like city/branch selectors where an empty value is invalid.
   clearable?: boolean;
+  /** Accessible name. Falls back to the placeholder, which is usually the
+   *  field's label ("All Stores", "City"), so the control is never nameless. */
+  "aria-label"?: string;
+  id?: string;
 };
 
 /**
@@ -32,9 +36,13 @@ export default function SelectDark({
   className = "",
   variant = "dark",
   clearable = false,
+  "aria-label": ariaLabel,
+  id,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Stable per instance so the trigger can point at its own list.
+  const listId = useId();
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -122,9 +130,20 @@ export default function SelectDark({
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       {/* Trigger */}
+      {/* This replaced a native <select>, and a native <select> announces itself
+          as a combobox, reports whether it is expanded, and carries the value
+          it holds. Rendered as a bare <button> it announced none of that: a
+          screen-reader user heard an unnamed button, and every test that
+          reached these controls by role stopped finding them. */}
       <button
         ref={triggerRef}
+        id={id}
         type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={listId}
+        aria-label={ariaLabel ?? placeholder}
         onClick={() => setOpen((prev) => !prev)}
         className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer ${
           variant === "light"
@@ -174,7 +193,9 @@ export default function SelectDark({
           </div>
 
           {/* Options list */}
-          <div ref={listRef} className="max-h-56 overflow-y-auto">
+          <div ref={listRef} id={listId} role="listbox"
+               aria-label={ariaLabel ?? placeholder}
+               className="max-h-56 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-4 py-3 text-sm text-zinc-500">No results</div>
             ) : (
@@ -182,6 +203,8 @@ export default function SelectDark({
                 <button
                   key={opt.value}
                   type="button"
+                  role="option"
+                  aria-selected={opt.value === value}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(opt)}
                   className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-violet-500/15 hover:text-violet-200 ${

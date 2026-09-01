@@ -33,7 +33,8 @@ vi.mock("next/link", () => ({
 }));
 
 // ── lucide-react ──────────────────────────────────────────────────────────────
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   AlertTriangle:   () => <svg data-testid="icon-alert-triangle" />,
   ArrowDownToLine: () => <svg data-testid="icon-arrow-down" />,
   Bot:             () => <svg data-testid="icon-bot" />,

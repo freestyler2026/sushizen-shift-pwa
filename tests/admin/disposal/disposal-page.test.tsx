@@ -12,9 +12,9 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("lucide-react", () => {
+vi.mock("lucide-react", async () => {
   const Icon = () => null;
-  return { Loader2: Icon };
+  return (await import("#tests/lucide-mock")).lucideMock({ Loader2: Icon });
 });
 
 // Auth mock — plain fns

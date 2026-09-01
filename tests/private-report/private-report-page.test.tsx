@@ -19,7 +19,8 @@ vi.mock("framer-motion", () => ({
   },
 }));
 
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async () =>
+  (await import("#tests/lucide-mock")).lucideMock({
   ShieldAlert: () => <span data-testid="shield-alert" />,
 }));
 
