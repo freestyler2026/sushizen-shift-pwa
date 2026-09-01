@@ -78,7 +78,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     var body = document.body || document.documentElement;
     var el = document.createElement('div');
     el.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0b14;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;font-family:sans-serif;padding:24px;text-align:center';
-    el.innerHTML = '<p style="color:#f87171;font-size:18px;font-weight:600">Something went wrong</p><p style="color:#9ca3af;font-size:14px;max-width:320px">The page failed to load and could not recover automatically. Please reload the page manually.</p><button onclick="sessionStorage.removeItem(\'zen:reload-attempt\');location.reload()" style="padding:10px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Reload Page</button>';
+    // Built with DOM calls rather than an innerHTML string. The previous
+    // version put an onclick attribute inside that string, and its inner
+    // quotes were written as \\' -- which this template literal turns into a
+    // plain ' before the browser ever sees it, closing the JS string early.
+    // The whole script then failed to parse, so neither listener below was
+    // ever registered and chunk errors after a deploy had no handler at all.
+    var h = document.createElement('p');
+    h.style.cssText = 'color:#f87171;font-size:18px;font-weight:600';
+    h.textContent = 'Something went wrong';
+    var p = document.createElement('p');
+    p.style.cssText = 'color:#9ca3af;font-size:14px;max-width:320px';
+    p.textContent = 'The page failed to load and could not recover automatically. Please reload the page manually.';
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:10px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px';
+    btn.textContent = 'Reload Page';
+    btn.addEventListener('click', function(){
+      try { sessionStorage.removeItem(GUARD_KEY); } catch(e) {}
+      location.reload();
+    });
+    el.appendChild(h); el.appendChild(p); el.appendChild(btn);
     body.appendChild(el);
   }
   function doReload(){
