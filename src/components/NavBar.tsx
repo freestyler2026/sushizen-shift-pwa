@@ -79,6 +79,7 @@ import {
   Timer,
   Gauge,
   Radar,
+  CalendarX2,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -241,6 +242,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
   { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" },
+  { href: "/admin/unworked-shifts",  label: "Unworked Shifts",   icon: CalendarX2, adminOnly: true, match: "prefix" },
   { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" },
   { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" },
@@ -429,6 +431,7 @@ export default function NavBar() {
     if (href === "/admin/daily-check") return canAccessDailyCheckAdmin(auth);
     if (href === "/admin/expense-requests") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role) || channelAccessForRoute("/admin/expense-requests", auth);
     if (href === "/admin/overtime") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"].includes(role) || channelAccessForRoute("/admin/overtime", auth);
+    if (href === "/admin/unworked-shifts") return ["ADMIN", "HQ", "HR_MANAGER", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/unworked-shifts", auth);
     if (href === "/admin/transport-expense") return canAccessTransportExpenseAdmin(auth);
     if (href === "/admin/petty-cash") return canAccessPettyCashAdmin(auth);
     if (href === "/admin/cash-management") return canAccessCashManagementAdmin(auth);
