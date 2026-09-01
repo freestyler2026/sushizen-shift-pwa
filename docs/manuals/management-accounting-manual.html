@@ -207,7 +207,31 @@ td.muted{color:var(--muted);font-size:12px}
     </div>
     <div class="tip danger"><span class="tip-icon">⚠</span>
       <div>マニラは<strong>毎日の入力が前提</strong>です。入力が止まるとその月の売上が過少になり、
-        利益が実態より低く出ます。未入力の日があると画面に警告が出ます。</div>
+        利益が実態より低く出ます。2026年7月は1ヶ月まるごと未入力のまま2ヶ月気づかれませんでした。
+        売上金額はアグリゲーターの明細から別経路で表示されるため、<strong>画面は正常に見えたまま
+        注文数だけがゼロ</strong>になるためです。</div>
+    </div>
+    <div class="tip info"><span class="tip-icon">ℹ</span>
+      <div><strong>未入力の検知（3種類）</strong> — Sales Data Input 画面の上部に該当日がボタンで並び、
+        押すとその日付に飛びます。毎朝 Discord にも同じ内容が届きます。
+        <div class="table-wrap" style="margin-top:8px"><table>
+          <thead><tr><th>表示</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip red">nothing entered</span></td><td>その日の行が1件も無い</td></tr>
+            <tr><td><span class="chip amber">N of 3 branches</span></td><td>店舗が足りない</td></tr>
+            <tr><td><span class="chip amber">◯◯ blank</span></td><td>行はあるが、その店舗が毎日使っているチャネルが空欄</td></tr>
+          </tbody>
+        </table></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">
+          <strong>3つ目が特に重要です。</strong>総数は4チャネルの合計として保存されるため、
+          チャネルを1つ空欄にすると内訳が欠けるだけでなく<strong>その日の総数そのものが減ります</strong>。
+          実際 2026-08-31 は3店舗とも Foodpanda が空欄で、Taft は約34件、Cubao は約15件少なく記録されていました。</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">
+          空欄の警告は<strong>その店舗がそのチャネルをほぼ毎日使っている場合だけ</strong>出ます。
+          Beep のように普段使っていないチャネルでは鳴りません。判定は実績から自動計算されるので、
+          チャネルの利用をやめれば警告も自然に止まります。
+          直近数日は入力が1〜2日遅れるため検査対象外です。</p>
+      </div>
     </div>
   </div>
 

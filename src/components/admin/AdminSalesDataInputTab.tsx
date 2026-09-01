@@ -100,6 +100,24 @@ function fmtPHP(n: number) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+type GapsResp = {
+  ok?: boolean;
+  expected_branches?: number;
+  grace_days?: number;
+  missing?: string[];
+  missing_count?: number;
+  partial?: { day: string; branches: number }[];
+  partial_count?: number;
+  channel_blank?: {
+    day: string;
+    branch: string;
+    channel: string;
+    total_orders: number | null;
+    typical_orders: number | null;
+  }[];
+  channel_blank_count?: number;
+};
+
 const EMPTY_ROW_FIELDS = {
   dine_in_orders: "",
   dine_in_amount: "",
@@ -245,6 +263,7 @@ export default function AdminSalesDataInputTab() {
   const [loadingDate, setLoadingDate] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [saveAllStatus, setSaveAllStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [gaps, setGaps] = useState<GapsResp | null>(null);
 
   useEffect(() => {
     const a = getAuth();
@@ -282,6 +301,27 @@ export default function AdminSalesDataInputTab() {
   useEffect(() => {
     void loadDate(selectedDate);
   }, [selectedDate, loadDate]);
+
+  // The whole of July 2026 was entered nowhere and went unnoticed for two
+  // months, because the dashboard kept showing sales -- those come from the
+  // channel exports -- while the order count read zero. This lists what is
+  // still outstanding on the page where it gets fixed, rather than only in a
+  // Discord message that has to be read on the right morning.
+  const loadGaps = useCallback(async () => {
+    const nm = approverName.trim();
+    const p = pin.trim();
+    if (!nm || !p) return;
+    try {
+      const qs = new URLSearchParams({ approver_name: nm, pin: p });
+      setGaps(await apiGet<GapsResp>(`/api/admin/analytics/manila/daily-sales/gaps?${qs.toString()}`));
+    } catch {
+      setGaps(null); // never block entry on the check that watches entry
+    }
+  }, [approverName, pin]);
+
+  useEffect(() => {
+    void loadGaps();
+  }, [loadGaps]);
 
   const updateRow = (branchIdx: number, field: keyof EditableRow, value: string) => {
     if (field === "saving" || field === "saved" || field === "error" || field === "branch") return;
@@ -325,6 +365,7 @@ export default function AdminSalesDataInputTab() {
     try {
       await apiPostJson("/api/admin/analytics/manila/daily-sales/upsert", buildPayload(row, selectedDate, nm, p));
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, saving: false, saved: true, error: null } : r)));
+      void loadGaps(); // the list above should drop the day you just fixed
       return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Save failed";
@@ -359,6 +400,7 @@ export default function AdminSalesDataInputTab() {
       }
     }
     setSaveAllStatus(fail ? "error" : "done");
+    void loadGaps();
     setTimeout(() => setSaveAllStatus("idle"), 3000);
   };
 
@@ -404,6 +446,58 @@ export default function AdminSalesDataInputTab() {
             </div>
           </div>
         </div>
+
+        {/* Days still outstanding. Each one jumps to that date. */}
+        {gaps &&
+          ((gaps.missing_count || 0) > 0 ||
+            (gaps.partial_count || 0) > 0 ||
+            (gaps.channel_blank_count || 0) > 0) && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
+                Days still needing figures
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(gaps.missing || []).map((d) => (
+                  <button
+                    key={`m-${d}`}
+                    type="button"
+                    onClick={() => setSelectedDate(d)}
+                    className="rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 transition-colors hover:bg-red-500/20"
+                  >
+                    {d} — nothing entered
+                  </button>
+                ))}
+                {(gaps.partial || []).map((p) => (
+                  <button
+                    key={`p-${p.day}`}
+                    type="button"
+                    onClick={() => setSelectedDate(p.day)}
+                    className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2.5 py-1 text-xs text-orange-200 transition-colors hover:bg-orange-500/20"
+                  >
+                    {p.day} — {p.branches} of {gaps.expected_branches} branches
+                  </button>
+                ))}
+                {(gaps.channel_blank || []).map((b) => (
+                  <button
+                    key={`c-${b.day}-${b.branch}-${b.channel}`}
+                    type="button"
+                    onClick={() => setSelectedDate(b.day)}
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200 transition-colors hover:bg-amber-500/20"
+                  >
+                    {b.day} {b.branch} — {b.channel} blank
+                    {b.typical_orders ? ` (usually ~${b.typical_orders})` : ""}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/45">
+                The total is the sum of the four channel figures, so a channel left blank is missing
+                from the day&apos;s total as well. A blank is only listed for a branch that uses that
+                channel almost every day, so this is not a store that was simply off the platform.
+                The last {gaps.grace_days} days are not checked yet — the figures normally arrive a
+                day or two late.
+              </p>
+            </div>
+          )}
 
         {/* Field guide */}
         <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-xs leading-relaxed text-white/60">
