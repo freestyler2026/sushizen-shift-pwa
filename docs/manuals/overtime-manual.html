@@ -480,11 +480,49 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
       <span class="en">Overtime already in payroll cannot be rejected. Payroll takes it back out first with Remove from Payroll.</span></p>
   </div>
 
+  <div class="card green-border">
+    <div class="card-title">How busy <span class="ja" style="font-weight:400">— その夜が実際に忙しかったか</span><span class="en" style="font-weight:400">— was the night actually busy</span></div>
+    <p><span class="ja">申請は「残業したから」出てきます。だからほとんど却下できません。問題は<strong>忙しかった夜と、そうでない夜を見分ける手段が無かった</strong>ことです。以前は夜間のモニタリングで各店の込み具合を把握していましたが、今は誰も見ていません。</span>
+      <span class="en">Overtime is requested because someone already stayed, so it is almost never refused. The gap was telling a busy night from an ordinary one. Night monitoring used to give that feel; nobody watches it now.</span></p>
+    <p><span class="ja">各行に色が付きます。<strong>同じ曜日・同じ店舗・過去9週</strong>と比べた結果です。</span>
+      <span class="en">Each row carries a colour, measured against the same weekday at the same branch over the previous 9 weeks.</span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">色</span><span class="en">Colour</span></th>
+          <th><span class="ja">条件</span><span class="en">When</span></th>
+          <th><span class="ja">意味</span><span class="en">Means</span></th></tr>
+      <tr><td><span class="pill green">GREEN</span></td>
+          <td><span class="ja">注文が通常比 +15% 以上</span><span class="en">Orders +15% or more vs usual</span></td>
+          <td><span class="ja">忙しかった。申請と整合している</span><span class="en">Busy — consistent with the request</span></td></tr>
+      <tr><td><span class="pill amber">AMBER</span></td>
+          <td><span class="ja">注文が通常比 ±15% 以内</span><span class="en">Orders within ±15% of usual</span></td>
+          <td><span class="ja">平常の夜。<strong>人員も通常どおり揃っていた場合は「回避できたか確認」と表示</strong></span><span class="en">An ordinary night — says &ldquo;check if avoidable&rdquo; when the branch was also fully staffed</span></td></tr>
+      <tr><td><span class="pill red">RED</span></td>
+          <td><span class="ja">注文が通常比 −15% 以下</span><span class="en">Orders −15% or lower vs usual</span></td>
+          <td><span class="ja">通常より静かだった。要確認</span><span class="en">Quieter than usual — worth verifying</span></td></tr>
+      <tr><td><span class="pill">GREY</span></td>
+          <td><span class="ja">比較できる履歴が4日未満</span><span class="en">Fewer than 4 comparable days</span></td>
+          <td><span class="ja"><strong>色を出しません。</strong>根拠の無い色は付けない</span><span class="en">No colour is shown — a colour with nothing behind it is worse than none</span></td></tr>
+    </table></div>
+    <p style="margin-top:8px"><span class="ja"><strong>バッジを押すと数字が出ます。</strong>その日の注文数と通常値、残業の時間帯に勤務予定だった人数と通常値、（時間別データが信頼できる日のみ）その時間帯の注文数。押せない色は無視されるので、必ず根拠まで辿れるようにしてあります。</span>
+      <span class="en">Tap a badge for the numbers behind it. A colour nobody can interrogate gets ignored.</span></p>
+    <p><span class="ja"><strong>同じ夜に複数人が延長した場合は、その旨が行に出ます。</strong>8/30 の Arjan は3名でした。これは個人の問題ではなく<strong>シフトの組み方の問題</strong>なので、そう読めるようにしています。</span>
+      <span class="en">Where more than one person extended at the same branch that night, the row says so — three people staying is a rota question, not three individual ones.</span></p>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠</span>
+    <div>
+      <span class="ja"><strong>色は承認を止めません。</strong>却下ボタンが増えるわけでも、承認がブロックされるわけでもありません。判断の材料を出すだけです。<br>
+      また<strong>時間別のPOSデータは判定に使っていません。</strong>残業の時間帯とぴったり合うので理想的に見えますが、書き出しが欠けている日が多く（Arjan・BB・JLT で29日中13日）、欠けた日は「閑散だった」ように見えます。実際 2026-08-22 の Business Bay はこれで「通常19件のところ3件」と出ましたが、別系統の集計では<strong>114件でその期間の最繁忙日</strong>でした。人を疑う根拠にはできないので、日次の集計（120日中119日カバー）を使っています。</span>
+      <span class="en">The colour never blocks an approval. And the hourly POS file is not used to decide it: its export is often partial, which makes a busy night look dead — 2026-08-22 at Business Bay read 3 orders against 19 normal, while a separate feed put that day at 114, the busiest of the period.</span>
+    </div>
+  </div>
+
   <div class="tip info">
     <span class="tip-icon">👥</span>
     <div>
-      <span class="ja">Approve できるのは ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER です。Add to Payroll は HQ / ADMIN のみ。<strong>承認する人と、給与に入れる人は分けてあります。</strong></span>
-      <span class="en">Approving is for ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER. Adding to payroll is HQ / ADMIN only. <strong>The person who approves and the person who pays are deliberately different.</strong></span>
+      <span class="ja">Approve できるのは ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER、および <strong>Role Management で <code>channel.admin.overtime.manage</code> を付与されたロール</strong>です。2026-09-01 に <strong>DUBAI_MANAGEMENT を追加</strong>しました（それまでマニラのマネジメントはドバイのOTを承認できるのに、ドバイのマネジメントはできない状態でした）。Add to Payroll は HQ / ADMIN のみ。<strong>承認する人と、給与に入れる人は分けてあります。</strong></span>
+      <span class="en">Approving is for ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER, plus any role granted <code>channel.admin.overtime.manage</code> in Role Management. DUBAI_MANAGEMENT was added on 2026-09-01 — until then Manila management could confirm Dubai overtime while Dubai management could not. Adding to payroll is HQ / ADMIN only.</span>
     </div>
   </div>
 </div>
