@@ -73,6 +73,8 @@ interface GroupData {
 }
 interface GroupSummary {
   year_month: string; fx_rates: { AED_JPY: number; PHP_JPY: number };
+  /** Rates still on the built-in default because none was ever saved. */
+  fx_defaulted?: string[];
   dubai: CityData; manila: CityData; group: GroupData;
 }
 interface StoreRow {
@@ -1213,6 +1215,11 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
         <h2 className={`${T_SECTION} mb-1`}>為替レート設定</h2>
         <p className="text-xs text-zinc-500 mb-4">
           Monthly FX rates for JPY consolidation. Applies to <span className="text-zinc-300">{yearMonth}</span> only.
+          {summary?.fx_defaulted && summary.fx_defaulted.length > 0 && (
+            <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-amber-300">
+              {summary.fx_defaulted.join(" / ")} は未設定（初期値のまま）
+            </span>
+          )}
         </p>
         <div className="flex flex-wrap gap-6 items-end">
           <div>
