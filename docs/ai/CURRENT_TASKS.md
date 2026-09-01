@@ -52,6 +52,52 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## 🔴 CI: Frontend Tests が全ワークフローを止めている（2026-09-01）
+
+`.github/workflows/test.yml` に `timeout-minutes` が無く、vitest がハングすると
+**GitHubの上限6時間まで並列枠を占有**する。10本溜まってリポジトリ全体が停止した。
+
+```
+Frontend Tests  in_progress 190〜270分 × 10本  ← 枠を全消費
+Smiles 月次取込       queued 35分（原因はSmilesと無関係）
+Grab/Careem/Keeta/Talabat 日次取込  すべて queued
+```
+
+**修正済み**: `timeout-minutes: 15` を追加。以降は自動で落ちる。
+
+**滞留中の実行は要キャンセル**（私の権限では実行不可）:
+```bash
+gh run list --workflow=test.yml --limit 60 --json databaseId,status \
+  -q '.[]|select(.status=="in_progress" or .status=="queued")|.databaseId' \
+  | xargs -n1 gh run cancel
+```
+放置しても6時間で自然に落ちるが、その間ずっと入金取込が止まる。
+
+### ⏳ 別件（未着手・大きい）: vitest 752件失敗
+`<body><div /></body>` の空レンダリング＝グローバルなテストセットアップの破損。
+数日前から一度も正常終了していない（全て "cancelled"）。**入金とは無関係だが、
+CIが何も守っていない状態。**
+
+---
+
+## ✅ Grab ログイン不能の原因（2026-09-01・修正済み）
+
+`scripts/grab/setup-session.js` がマーケティングページで "Go to Portal" をクリックしていたが、
+**このボタンは新規タブを開く**。スクリプトは元のタブを見続けるので5分間待って終了。
+セッション無しだと地域判定で **GrabMerchant Malaysia** が出るため、
+利用者には「マレーシアの宣伝ページでログインできない」と見える。
+
+**修正**: `https://merchant.grab.com/portal` に直接遷移（クリック・別タブ不要）。
+待機ループも `context.pages()` を見るようにした。実測で `weblogin.grab.com` 到達を確認。
+
+```bash
+node scripts/grab/setup-session.js paranaque   # taft / qc
+```
+- タブは **Username**（Phone / SSO ではない）
+- paranaque のみユーザー名 `sushizen.paranaque_manager`（メールではない）
+
+---
+
 ## ✅ AR Payouts 第3次 — 重複削除・Talabat統合・自動取込（2026-09-01）
 
 ### ① 重複4行を削除（オーナー指示）
