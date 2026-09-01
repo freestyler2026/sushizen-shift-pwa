@@ -101,6 +101,47 @@ Smiles   5支店すべて 8/31 まで（ARJ・JLT は nil月）
 
 ---
 
+## ✅ CI: Frontend Tests 復旧完了（2026-09-01）
+
+```
+752件失敗・数時間  →  16件失敗・21秒
+16件は cost-calculation.test.tsx のみ（オーナー指示により対象外）
+70/71 ファイルがグリーン
+```
+
+### systemicだったのは2つだけ
+1. **lucide-react のモックが許可リスト** → `tests/lucide-mock.ts`（⚠️ `has` トラップ必須）
+2. **SelectDark に combobox セマンティクスが無い** → 実害あるa11y欠陥。ARIA付与＋`tests/select-dark.ts`
+
+### 残り345件は「ページが変わったのにテストが古い」
+繰り返し出た型:
+| 型 | 例 |
+|---|---|
+| 権限判定がロール名→Role Management | payroll系5ページ。`permissions:["*"]` で素通りする |
+| 順番依存モック | ページが通信を1つ増やすと壊れる。**URL判定に変える** |
+| 日本語→英語化 | cost-check / ai-history / discord-inbox |
+| 過去の月に固定したフィクスチャ | my-shift / manila-page。**現在日付から算出する** |
+| 削除された機能 | Bayzat同期、インライン新規スタッフ登録、attendance配下4ページ |
+| SelectDark | `<option>` は開くまで存在しない |
+
+### 製品側で見つけて直した欠陥
+```
+swap-approve   送信中の「Working…」が到達不能（パネルを先に閉じていた）
+manila payroll 明細が配列でないと白画面（型キャストのみ、Array.isArrayで防御）
+baseroll-prep  店舗バックアップ表に Warehouse / Back Office が出ていた
+SelectDark     role/aria-expanded/aria-label すべて無し（スクリーンリーダーに無名ボタン）
+```
+
+### ⚠️ 到達不能と判明したもの（テストは実挙動に置換）
+- `/admin` の「Enter your PIN so role can be verified」— セッションがロールを持つので verify は呼ばれず、非管理者はページ自体を開けない
+- renewals のエラートースト — 非同期の権限判定後に出て4秒で消える
+
+### 残課題
+- **SelectDark の大半が `aria-label` 無し**（既定名が全て "— Select —"）。同一ページに2つあると区別できない。約200箇所
+- cost-calculation.test.tsx（16件・対象外）
+
+---
+
 ## 🟡 CI: Frontend Tests 調査結果（2026-09-01）
 
 ```
