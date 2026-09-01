@@ -281,10 +281,15 @@ async function postPayout(payload) {
 
         const { orderCount, totalSales, totalCommission, totalUndiscounted } = parseExcel(dl.b64, br.label, ml);
 
+        // A month with no orders is still an answer, and it has to be written
+        // down. Skipping it leaves a hole that looks exactly like a failed
+        // import: Al Rijas and JLT sold nothing through Smiles in August, and
+        // the coverage check reported both as a month behind their branches,
+        // which would have gone on being reported for as long as they had no
+        // Smiles sales. "We looked and there was nothing" and "we do not know"
+        // must not produce the same record.
         if (orderCount === 0) {
-          console.log(`  [${br.label}] ${ml}: 0 orders — skipping`);
-          totalSkipped++;
-          continue;
+          console.log(`  [${br.label}] ${ml}: 0 orders — recording a nil month`);
         }
 
         const netPayout = totalSales - totalCommission;

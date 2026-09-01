@@ -24,7 +24,7 @@ interface ArPayout {
   bank_confirmed_by: string | null;
   confirmation_note: string | null;
   imported_at: string;
-  ar_status: "reconciled" | "pending" | "overdue" | "archived";
+  ar_status: "reconciled" | "pending" | "overdue" | "archived" | "no_payout";
   // Dubai / Careem extended fields
   brand?: string | null;
   currency?: string | null;
@@ -103,12 +103,14 @@ const STATUS_BADGE: Record<string, string> = {
   pending: BADGE_WARNING,
   overdue: BADGE_ERROR,
   archived: "border-white/10 bg-white/5 text-white/40",
+  no_payout: "border-white/10 bg-white/5 text-white/40",
 };
 const STATUS_LABEL: Record<string, string> = {
   reconciled: "🟢 Reconciled",
   pending: "🟡 Bank Pending",
   overdue: "🔴 Not checked",
   archived: "⚪ Not checking",
+  no_payout: "— No sales",
 };
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
@@ -871,7 +873,7 @@ export default function ArPayoutsPage() {
           ))}
           <div className="w-px bg-white/10" />
           {/* Status */}
-          {["all", "reconciled", "pending", "overdue", ...(kpi?.archived_count ? ["archived"] : [])].map((s) => (
+          {["all", "reconciled", "pending", "overdue", ...(kpi?.archived_count ? ["archived"] : []), "no_payout"].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
