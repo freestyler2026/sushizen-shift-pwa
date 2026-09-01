@@ -24,7 +24,7 @@ interface ArPayout {
   bank_confirmed_by: string | null;
   confirmation_note: string | null;
   imported_at: string;
-  ar_status: "reconciled" | "pending" | "overdue";
+  ar_status: "reconciled" | "pending" | "overdue" | "archived";
   // Dubai / Careem extended fields
   brand?: string | null;
   currency?: string | null;
@@ -40,6 +40,33 @@ interface KpiSummary {
   pending_amount: number;
   overdue_count: number;
   overdue_amount: number;
+  archived_count: number;
+  archived_amount: number;
+}
+
+/** A stream that has gone quieter than its own history says it should.
+ *  Nothing here is a wrong number -- it is the absence of rows, which is the
+ *  one defect a table cannot show you by being correct. */
+interface Gaps {
+  as_of: string;
+  platform_stale: {
+    city: string; platform: string; last_date: string; days_since: number;
+    typical_days: number; stores: number; likely_missing: number | null;
+  }[];
+  store_behind: {
+    city: string; platform: string; store_code: string; last_date: string;
+    platform_last: string; behind_days: number; typical_days: number;
+    missing_cycles: number | null;
+  }[];
+  roster_changed: {
+    city: string; platform: string; new_codes: string[]; old_codes: string[];
+    last_date: string; days_since: number;
+  }[];
+  total: number;
+}
+
+interface Cutoffs {
+  [city: string]: { cutoff_date: string; set_by: string; note: string; set_at: string };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,11 +92,13 @@ const STATUS_BADGE: Record<string, string> = {
   reconciled: BADGE_SUCCESS,
   pending: BADGE_WARNING,
   overdue: BADGE_ERROR,
+  archived: "border-white/10 bg-white/5 text-white/40",
 };
 const STATUS_LABEL: Record<string, string> = {
   reconciled: "🟢 Reconciled",
   pending: "🟡 Bank Pending",
   overdue: "🔴 Not checked",
+  archived: "⚪ Not checking",
 };
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
@@ -233,11 +262,49 @@ export default function ArPayoutsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  const [gaps, setGaps] = useState<Gaps | null>(null);
+  const [cutoffs, setCutoffs] = useState<Cutoffs>({});
+  const [cutoffDraft, setCutoffDraft] = useState("");
+  const [cutoffSaving, setCutoffSaving] = useState(false);
+  const [editingCutoff, setEditingCutoff] = useState(false);
   const [deletingZeros, setDeletingZeros] = useState(false);
   const [deleteZeroResult, setDeleteZeroResult] = useState<string | null>(null);
 
   const auth = getAuth();
   const confirmerName = auth?.staffName || "Unknown";
+
+  const loadGaps = useCallback(async () => {
+    try {
+      const [g, c] = await Promise.all([
+        fetch("/api/admin/ar-payouts/gaps", { cache: "no-store" }),
+        fetch("/api/admin/ar-payouts/cutoff", { cache: "no-store" }),
+      ]);
+      if (g.ok) setGaps(await g.json());
+      if (c.ok) setCutoffs((await c.json()).cutoffs || {});
+    } catch {
+      // A missing coverage check must not blank the page it sits on.
+    }
+  }, []);
+
+  useEffect(() => { void loadGaps(); }, [loadGaps]);
+
+  const saveCutoff = async (date: string | null) => {
+    setCutoffSaving(true);
+    try {
+      const res = await fetch("/api/admin/ar-payouts/cutoff", {
+        method: "POST",
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ city: cityTab, cutoff_date: date }),
+      });
+      if (res.ok) {
+        setCutoffs((await res.json()).cutoffs || {});
+        setEditingCutoff(false);
+        fetchPayouts();
+      }
+    } finally {
+      setCutoffSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/admin/ar-payouts/drive-url")
@@ -580,6 +647,78 @@ export default function ArPayoutsPage() {
         {uploadError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">✗ {uploadError}</div>}
         </>)}
 
+        {/* Records that never arrived.
+            Every row this page holds is correct; the defect is that there are
+            fewer of them than there should be, and a correct table cannot show
+            you that. Grab had paid every single day for 517 consecutive
+            payouts and then went six days silent with nothing anywhere saying
+            so. Each stream is judged against its own history, so Grab counts
+            as late after a day and Smiles after a month. */}
+        {gaps && (() => {
+          const stale = gaps.platform_stale.filter((g) => g.city === cityTab);
+          const behind = gaps.store_behind.filter((g) => g.city === cityTab);
+          const roster = gaps.roster_changed.filter((g) => g.city === cityTab);
+          if (!stale.length && !behind.length && !roster.length) {
+            return (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-2.5 text-sm text-emerald-300/80">
+                <span>✓</span>
+                <span>
+                  Every platform is paying on its usual rhythm as of {fmtDate(gaps.as_of)}.
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3.5">
+              <div className="mb-2 text-sm font-semibold text-amber-200">
+                Payout records have stopped arriving
+              </div>
+              <ul className="space-y-2 text-sm text-amber-100/85">
+                {stale.map((g) => (
+                  <li key={`s-${g.platform}`}>
+                    <span className="font-semibold">
+                      {PLATFORM_LABEL[g.platform] || g.platform} has paid nothing since {fmtDate(g.last_date)}
+                    </span>{" "}
+                    — {g.days_since} days, and it normally pays every{" "}
+                    {g.typical_days === 1 ? "day" : `${g.typical_days} days`}. About{" "}
+                    {g.likely_missing} payout{g.likely_missing === 1 ? "" : "s"} missing across{" "}
+                    {g.stores} store{g.stores === 1 ? "" : "s"}.
+                  </li>
+                ))}
+                {behind.map((g) => (
+                  <li key={`b-${g.platform}-${g.store_code}`}>
+                    <span className="font-semibold">
+                      {PLATFORM_LABEL[g.platform] || g.platform} {g.store_code}
+                    </span>{" "}
+                    last paid {fmtDate(g.last_date)} while the rest of{" "}
+                    {PLATFORM_LABEL[g.platform] || g.platform} was paid up to{" "}
+                    {fmtDate(g.platform_last)} — {g.behind_days} days behind, about{" "}
+                    {g.missing_cycles} payout{g.missing_cycles === 1 ? "" : "s"}.
+                  </li>
+                ))}
+                {roster.map((g) => (
+                  <li key={`r-${g.platform}`}>
+                    <span className="font-semibold">
+                      {PLATFORM_LABEL[g.platform] || g.platform} store codes were replaced
+                    </span>{" "}
+                    — recent payouts arrive as {g.new_codes.slice(0, 5).join(", ")}
+                    {g.new_codes.length > 5 ? "…" : ""}, which have no history, while{" "}
+                    {g.old_codes.join(", ")} stopped. Nothing at all since{" "}
+                    {fmtDate(g.last_date)} ({g.days_since} days). Which outlets are covered
+                    cannot be judged until the codes match.
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 text-[11px] leading-relaxed text-amber-200/50">
+                This is almost always an expired portal session: nobody can export, so
+                nothing lands in Drive. Sign back into the portal and export the missing
+                period — the import runs by itself once the file is in Finance/Payouts,
+                so there is no button to remember afterwards.
+              </p>
+            </div>
+          );
+        })()}
+
         {/* KPI Cards */}
         {kpi && (
           <div className="grid grid-cols-3 gap-4">
@@ -609,6 +748,57 @@ export default function ArPayoutsPage() {
                 Payout was 7+ days ago and nobody has confirmed it against the bank.
                 This is what is unchecked — not money the platform owes.
               </div>
+              {/* The backlog ran to seven months, and a number nobody can ever
+                  bring down is read as decoration rather than as work. Setting a
+                  date stops counting what came before it. Nothing is deleted and
+                  nothing is marked confirmed — those rows keep saying plainly
+                  that they were never checked, and the count of them is printed
+                  right here, because an exclusion you can see is a decision and
+                  one you cannot see is a lie. */}
+              {editingCutoff ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={cutoffDraft}
+                    onChange={(e) => setCutoffDraft(e.target.value)}
+                    className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white"
+                  />
+                  <button
+                    disabled={cutoffSaving || !cutoffDraft}
+                    onClick={() => void saveCutoff(cutoffDraft)}
+                    className="rounded-lg bg-violet-500/25 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/35 disabled:opacity-40"
+                  >
+                    {cutoffSaving ? "Saving…" : "Stop counting before this"}
+                  </button>
+                  {cutoffs[cityTab] && (
+                    <button
+                      disabled={cutoffSaving}
+                      onClick={() => void saveCutoff(null)}
+                      className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/50 hover:bg-white/5"
+                    >
+                      Count them all again
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingCutoff(false)}
+                    className="px-1.5 py-1 text-[11px] text-white/35 hover:text-white/60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setCutoffDraft(cutoffs[cityTab]?.cutoff_date || "");
+                    setEditingCutoff(true);
+                  }}
+                  className="mt-2 text-left text-[11px] leading-relaxed text-white/30 underline decoration-dotted underline-offset-2 hover:text-white/60"
+                >
+                  {cutoffs[cityTab]
+                    ? `Not counting the ${kpi.archived_count} payout${kpi.archived_count === 1 ? "" : "s"} before ${fmtDate(cutoffs[cityTab].cutoff_date)} — still listed, still unchecked. Change`
+                    : "Counting every unchecked payout ever imported. Set a cutoff date"}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -631,7 +821,7 @@ export default function ArPayoutsPage() {
           ))}
           <div className="w-px bg-white/10" />
           {/* Status */}
-          {["all", "reconciled", "pending", "overdue"].map((s) => (
+          {["all", "reconciled", "pending", "overdue", ...(kpi?.archived_count ? ["archived"] : [])].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
