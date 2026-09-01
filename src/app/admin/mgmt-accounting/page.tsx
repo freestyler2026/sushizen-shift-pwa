@@ -85,7 +85,9 @@ interface StoreRanking {
   year_month: string; stores: StoreRow[]; hubs?: StoreRow[]; reconciliation?: ReconRow[];
 }
 interface KpiAlert {
-  city: string; severity: "warning" | "critical"; type: string; title: string; message: string;
+  // "info" carries a figure that is not yet a problem — a ratio the month is
+  // too young to judge. Styled apart from warning so it does not read as one.
+  city: string; severity: "info" | "warning" | "critical"; type: string; title: string; message: string;
 }
 interface AlertData { year_month: string; alerts: KpiAlert[]; alert_count: number; }
 interface GroupTarget {
@@ -581,11 +583,18 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             <div key={i} className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
               a.severity === "critical"
                 ? "border-rose-500/30 bg-rose-500/10"
+                : a.severity === "info"
+                ? "border-sky-500/25 bg-sky-500/5"
                 : "border-amber-500/30 bg-amber-500/10"
             }`}>
-              <span className="text-base mt-0.5">{a.severity === "critical" ? "🔴" : "🟠"}</span>
+              <span className="text-base mt-0.5">
+                {a.severity === "critical" ? "🔴" : a.severity === "info" ? "🔵" : "🟠"}
+              </span>
               <div className="flex-1">
-                <div className={`font-semibold text-sm ${a.severity === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                <div className={`font-semibold text-sm ${
+                  a.severity === "critical" ? "text-rose-300"
+                  : a.severity === "info" ? "text-sky-300"
+                  : "text-amber-300"}`}>
                   {a.title}
                 </div>
                 <div className="text-xs text-zinc-400 mt-0.5">{a.message}</div>
@@ -1260,11 +1269,18 @@ function MonthlyReportTab({ yearMonth }: { yearMonth: string }) {
                   <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
                     a.severity === "critical"
                       ? "border-rose-500/30 bg-rose-500/10"
+                      : a.severity === "info"
+                      ? "border-sky-500/25 bg-sky-500/5"
                       : "border-amber-500/30 bg-amber-500/10"
                   }`}>
-                    <span className="text-sm">{a.severity === "critical" ? "🔴" : "🟠"}</span>
+                    <span className="text-sm">
+                      {a.severity === "critical" ? "🔴" : a.severity === "info" ? "🔵" : "🟠"}
+                    </span>
                     <div>
-                      <div className={`font-semibold text-sm ${a.severity === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                      <div className={`font-semibold text-sm ${
+                        a.severity === "critical" ? "text-rose-300"
+                        : a.severity === "info" ? "text-sky-300"
+                        : "text-amber-300"}`}>
                         {a.title}
                       </div>
                       <div className="text-xs text-zinc-400 mt-0.5">{a.message}</div>
