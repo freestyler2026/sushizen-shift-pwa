@@ -52,6 +52,47 @@ Last updated: 2026-09-01（コンソールエラー調査 ＋ OT「How busy」�
 
 ---
 
+## ✅ Manual Shift: 削除した行が復活する（2026-09-01・修正済み）
+
+現場報告「ゴミ箱で消しても何度も出てくる」「逆にウッカリ消したら翌週で戻って助かった」。
+**どちらも同じ原因の裏表だった。**
+
+### 原因
+
+グリッドの名簿は**2つの合算**:
+```
+① staff_master.branch_code = そのシートの支店
+② そのシートの公開週に出てくる名前（loadExistingShifts の extraNames）
+```
+Francis Ibana の登録は **CUB**。CK/TAFT の名簿①には入らないが、
+**誤って書かれた公開シフトが②に引っかかり、CK・TAFTのシートに出続けていた。**
+→ BOスタッフが「両方に名前がある」状態で、間違ったシートに入力した。
+
+ゴミ箱ボタンは `setRemovedStaff` を**Reactのstateに積むだけ**で、
+`setRemovedStaff([])` が**週・支店を切り替えるたびに実行**される。
+つまり削除は次のクリックまでしか持たない。**誤削除が翌週に戻ったのはこの副作用。**
+
+### 修正
+
+`shift_grid_hidden_staff (city, branch_code, staff_name, hidden_by, hidden_at)` を新設し、
+**支店ごとに永続化**。**名簿の①②両方に適用**（②を忘れると復活する）。
+
+**永続化した以上、誤削除の自動復活は無くなる**ので、戻す導線を画面に出した:
+```
+3 removed from the CK sheet   [Show]
+  They stay off this sheet until you put them back. Their other sheets are unaffected.
+  → Francis Ibana ↩ put back      （hidden_by をツールチップに表示）
+```
+確認ダイアログも「今週だけでなく今後このシートから外れる／他支店には影響しない／戻し方はグリッド上部」に変更。
+
+⚠️ **`staff_master` は一切変更しない。** これは「どのシートに出るか」であって「在籍しているか」ではない。
+検証: 非表示→復元→他支店に影響なし→staff_master 無傷、すべて確認済み（テスト行は削除済み）。
+
+⚠️ **根本的には、CK・TAFTに残っている Francis の公開シフト行が消えない限り②から入り続ける。**
+今回の除外でシートには出なくなるが、`shift_published_rows` 側の整理は別途必要。
+
+---
+
 ## ✅ 管理会計ページ 詳細監査（2026-09-01・本番反映済み）
 
 判断に直結するページなので全項目を実データで突き合わせた。**算術は正しい**が、
