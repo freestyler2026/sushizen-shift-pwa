@@ -2150,6 +2150,44 @@ ul.body-list strong { color: var(--text); }
       </p>
     </div>
 
+    <div class="tip" style="margin-bottom:10px;">
+      <span class="tip-icon">🔢</span>
+      <span class="ja"><b>画面上の数字はすべて同じ数え方に揃えた（2026-09-02）。</b>
+        以前は<b>サイドバーのバッジがログイン者の都市</b>（ドバイなら79）、<b>ページチップが「Closed以外」</b>（25 / − / 30 / 18）、
+        <b>リストが「Open」</b>（10件）と、同じ4ページについて3種類の数字が並んでいた。どれも単体では正しいので、
+        見ただけでは食い違いに気づけない。現在は<b>バッジ・チップ・ページ見出しの red/yellow・リスト</b>が全部、
+        今のStatusフィルターで数えた同じ数になる（チップの合計＝リストの件数）。
+        該当が0件のページは空欄ではなく <code>nothing to do</code> と出る。
+        <b>Ownersページだけは「Closed以外」で数える</b>ので、その旨を画面右端に明記した。</span>
+      <span class="en"><b>Every number on the page is now counted the same way (2026-09-02).</b>
+        The sidebar badge used to count the signed-in user's city (79 for a Dubai account), the page chips counted everything not closed (25 / - / 30 / 18), and the list showed Open (10) — three different figures for the same four pages, each correct on its own terms, with nothing saying so.
+        Badge, chips, the red/yellow on each page header, and the list now all count under the current Status filter, so the chips add up to the number of rows.
+        A page with nothing in the current filter says <code>nothing to do</code> rather than going blank.
+        <b>The Owners page is the one exception</b> and still counts everything not closed; that is now stated on screen.</span>
+    </div>
+
+    <div class="tip warn" style="margin-bottom:10px;">
+      <span class="tip-icon">👁️</span>
+      <span class="ja"><b>どのページにも属さない種別があると、画面が名前を出して警告するようになった。</b>
+        タスクの type が <code>BO_PAGES</code> のどのページにも登録されていないと、ページフィルタに落とされて
+        <b>リストにもチップにも一切現れない</b>。コスト警告7種類のうち5種類がこの状態で、
+        並び順で上位に固定しても意味がなかった（2026-09-02に5種類を Operations &amp; Safety に追加）。
+        今後は「N tasks belong to no page」と種別名が表示され、その場で All に切り替えられる。</span>
+      <span class="en"><b>A type on no page is now named on screen instead of vanishing.</b>
+        If a task's type is registered on none of the <code>BO_PAGES</code>, the page filter drops it and it appears in no list and no count. Five of the seven cost alert types were in that state, so pinning cost to the top of the order did nothing for them (the five were added to Operations &amp; Safety on 2026-09-02). The page now says "N tasks belong to no page", names the types, and offers to show them.</span>
+    </div>
+
+    <div class="tip" style="margin-bottom:10px;">
+      <span class="tip-icon">🏬</span>
+      <span class="ja"><b>Patterns の店舗名を統一（2026-09-02）。</b>
+        <code>repeat_low_rating</code> だけが評価データ側の表記 <code>Taft</code> を使っていたため、
+        Patterns 一覧で <b>同じ店舗が Taft 4件 / TAFT 4件に分かれていた</b>。店舗で絞り込むと半分しか出ない。
+        既存行も含めて <code>TAFT</code> に統一済み（マニラ: CUB 6 / PAR 4 / TAFT 8）。
+        あわせて <code>first_seen &gt; last_seen</code>（TAFT の在庫不足パターンが 8/26→8/25 と表示されていた）も修正。</span>
+      <span class="en"><b>Pattern store names unified (2026-09-02).</b>
+        Only <code>repeat_low_rating</code> used the ratings data's spelling, <code>Taft</code>, so the Patterns list split one store into 4 rows of "Taft" and 4 of "TAFT" — filtering by store showed half of them. Existing rows were recased to <code>TAFT</code> (Manila now CUB 6 / PAR 4 / TAFT 8). A date range that read 2026-08-26 → 2026-08-25 was corrected at the same time.</span>
+    </div>
+
     <div class="card" style="margin-bottom:10px;">
       <div class="card-title"><span class="ja">並び順（2026-09-02 変更）</span><span class="en">Ordering (changed 2026-09-02)</span></div>
       <div class="chip-row" style="margin-top:6px;">

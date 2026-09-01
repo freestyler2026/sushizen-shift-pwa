@@ -79,9 +79,7 @@ heroku config:set MGMT_NEVER_EXPIRE_PREFIXES=kpi_ -a sushizen-shift-app  # 期�
 **D. 網羅性** — `Attendance & HR` はオーナー無し・タスク生成実績ゼロなのに、マネージャースコアの**20%**を占める。
 マネージャースコア CK=0 は coverage 40%（7要素中3要素）で、0点か未計測か画面から判別できない。
 
-**E. 表示** — サイドバーのバッジ79はドバイの件数（ページはマニラ固定）。
-ページチップは not-closed、リストは open で数が合わない。`mine` が0件だと黙って全件表示。
-Patterns の `Taft`/`TAFT` 分裂、id=4 の `last_seen < first_seen`。
+**E. 表示 — 2026-09-02 実装済み（下の節を参照）**
 
 **評価の矛盾** — People の既定並びは credits（83%が `quality_high`＝写真枚数）。
 Alex Delgado は credits **5位/37** かつ Patterns で **red / NTE候補**（11.5% vs 支店中央値7.1%）。
@@ -90,6 +88,56 @@ Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブ�
 
 **言語** — `check_mgmt_kpi_alerts` の title/message は日本語。管理会計マニュアルが日本語なので
 オーナー向けとして意図的な可能性があり、勝手に英語化していない。BO Dashboard は英語画面なので要判断。
+
+---
+
+## ✅ BO Dashboard E: 画面の数字を全部同じ数え方に揃えた（2026-09-02・実装済み）
+
+**同じ4ページについて3種類の数字が並んでいた。どれも単体では正しいので、見ただけでは食い違いに気づけない。**
+
+| 直したもの | 修正前 | 修正後 |
+|---|---|---|
+| サイドバーのバッジ | **79**（ログイン者の都市＝ドバイ） | **74**（＝11+22+41、マニラのClosed以外） |
+| ページチップ | 25 / − / 30 / 18（Closed以外・合計73） | **3 / − / 3 / 5**（現在のStatus・合計11） |
+| ページ見出しの red/yellow | 19 red 6 yellow（Closed以外） | **2 red 1 yellow**（チップと一致） |
+| 該当0件のページ | 空欄 | `nothing to do` |
+| `mine` が0件のとき | 黙って全件表示・表示は "my pages" | `all pages — none assigned to you` |
+| どのページにも属さない種別 | **リストにもチップにも出ない** | 種別名を出して "Show them" |
+
+**検算（本番）**: チップ合計 3+0+3+5 = **11** = リスト表示 11 = OPEN 11。バッジ 74 = 11+22+41。orphan 0件。
+
+**バッジは `src/lib/management-channel.ts` の `MANAGEMENT_CHANNEL_CITY` をページと共有**。
+ドバイに展開するときはここ1箇所を変えれば両方動く（教訓32の再発防止）。
+
+### Patterns の2件（バックエンド）
+
+- **`Taft`(4件) / `TAFT`(4件) の分裂** → `_upsert_pattern` で `branch` を大文字化。
+  5つのルールそれぞれで直すと1つ書き忘れるので**upsert の1箇所に集約**。`pattern_key` は不変なので既存行はそのまま一致する。
+  原因は `repeat_low_rating` だけが評価データ側の表記を使っていたこと（`management_tasks.branch` は元から TAFT/CUB/PAR のみ）。
+- **`first_seen > last_seen`** → upsert が `last_seen` だけ更新し `first_seen` を放置していた。
+  ウィンドウから外れて再発したパターンで逆転する。`LEAST(既存, 新)` に変更。
+- 既存行も修復済み: 4件を `TAFT` に、1件（id=4）の日付範囲を訂正。マニラは **CUB 6 / PAR 4 / TAFT 8**、逆転0件。
+
+### ついでに見つけて直した latent bug
+
+`kpi_outlier_order` は**発注明細ごと**に出るのに、pusher の既定 source_id が `月_種別_都市` だった。
+1ヶ月に5件見つかっても**最初の1件だけがタスクになり、残り4件は重複として無言でスキップ**される。
+alert 側が `source_key` を持てるようにして明細単位に。既存の1件も新キーに移行済み（再pushで `pushed=0` を確認）。
+
+### A の動作確認（2026-09-02）
+
+本番で worker のパスをそのまま実行して確認済み:
+
+```
+expire (days=7 実値): manila expired=0 kept_standing=0 / dubai expired=0 kept_standing=0
+run_management_channel: manila created=0 errors=0 / dubai created=0 errors=0
+run_mgmt_kpi_alerts:    2026-09 pushed=0（売上の週未満ガードが効いている）
+                        2026-08 pushed=0 skipped=3（dedupが効いている）
+このパスで期限切れにしたタスク: 0
+```
+
+並び順も実データで確認: OPEN は `kpi_outlier_order`（yellow）が red より上、以下 red→yellow の各群で古い順。
+SENT の先頭は 318時間（13日）待ちの TAFT `product_score_c`（修正前は最下部）。
 
 ---
 
