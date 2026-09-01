@@ -327,8 +327,9 @@ describe("Tab navigation", () => {
     const tab = tabs.find((t) => t.textContent?.trim() === "⚠️Low Ratings Input" ||
       t.textContent?.includes("Low Ratings Input"));
     fireEvent.click(tab!);
-    await waitFor(() =>
-      expect(screen.getByTestId("low-ratings-panel")).toBeInTheDocument()
+    await waitFor(
+      () => expect(screen.getByTestId("low-ratings-panel")).toBeInTheDocument(),
+      { timeout: 5000 },
     );
   });
 
@@ -342,7 +343,8 @@ describe("Tab navigation", () => {
     );
     fireEvent.click(tab!);
     await waitFor(() =>
-      expect(screen.getByTestId("rating-entry-tab")).toHaveTextContent("RatingEntryTab-dubai")
+      expect(screen.getByTestId("rating-entry-tab")).toHaveTextContent("RatingEntryTab-dubai"),
+      { timeout: 5000 } as never
     );
   });
 

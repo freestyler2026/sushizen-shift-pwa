@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue, optionLabels, selectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── next/navigation ────────────────────────────────────────────────────────────
@@ -124,12 +125,10 @@ async function waitForPage() {
   await screen.findByText("Draft Generator / Edit / Apply", {}, { timeout: 5000 });
 }
 
-// ── Helper: find the City select (first select with Dubai/Manila options) ─────
-function getCitySelect(): HTMLSelectElement {
-  const all = screen.getAllByRole("combobox");
-  return all.find((s) =>
-    Array.from(s.querySelectorAll("option")).some((o) => (o as HTMLOptionElement).value === "dubai")
-  ) as HTMLSelectElement;
+// ── Helper: the City select, which is a SelectDark and holds its value on the
+//    trigger rather than in <option> elements ──────────────────────────────────
+function getCitySelect(): HTMLElement {
+  return selectShowing("Dubai");
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -243,15 +242,13 @@ describe("AdminDraftPage — Draft Management controls", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it("City selector has Dubai and Manila options", async () => {
-    const citySelect = getCitySelect();
-    const options = Array.from(citySelect.querySelectorAll("option")).map((o) => o.textContent);
+    const options = optionLabels("Dubai");
     expect(options).toContain("Dubai");
     expect(options).toContain("Manila");
   });
 
   it("City defaults to Dubai (from ADMIN_AUTH city=dubai)", () => {
-    const citySelect = getCitySelect();
-    expect(citySelect.value).toBe("dubai");
+    expect((getCitySelect() as HTMLElement).dataset.value).toBe("dubai");
   });
 
   it("Approver input is present with pre-filled staff name", () => {
@@ -265,13 +262,12 @@ describe("AdminDraftPage — Draft Management controls", () => {
     expect(screen.getByPlaceholderText("PIN")).toBeInTheDocument();
   });
 
-  it("Target Month input is read-only", () => {
-    // Multiple type="month" inputs exist (Target Month + Pending Proposals Month filter)
-    // The Target Month one is the readOnly one
+  it("Target Month can be chosen; Scope is the field that is fixed", () => {
+    // Target Month used to be read-only. It is a real month picker now, and the
+    // read-only field beside it is Scope, which follows the city.
     const monthInputs = screen.getAllByDisplayValue(/^\d{4}-\d{2}$/) as HTMLInputElement[];
-    const readOnlyInput = monthInputs.find((i) => i.hasAttribute("readonly"));
-    expect(readOnlyInput).toBeTruthy();
-    expect(readOnlyInput).toHaveAttribute("readonly");
+    expect(monthInputs.every((i) => !i.hasAttribute("readonly"))).toBe(true);
+    expect(screen.getByDisplayValue("All Dubai stores")).toHaveAttribute("readonly");
   });
 
   it("Scope input shows 'All Dubai stores' for Dubai city", () => {
@@ -366,7 +362,7 @@ describe("AdminDraftPage — city switching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
     await screen.findByText("Generate Draft", {}, { timeout: 3000 });
 
-    fireEvent.change(getCitySelect(), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
 
     await waitFor(() => {
       expect(screen.getByText(/Open Manila draft spreadsheet/i)).toBeInTheDocument();
@@ -379,7 +375,7 @@ describe("AdminDraftPage — city switching", () => {
     fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
     await screen.findByText("Generate Draft", {}, { timeout: 3000 });
 
-    fireEvent.change(getCitySelect(), { target: { value: "manila" } });
+    chooseValue("Dubai", "manila");
 
     await waitFor(() => {
       expect(screen.getByDisplayValue("All Manila stores")).toBeInTheDocument();
@@ -810,8 +806,7 @@ describe("AdminDraftPage — helper utility functions (via rendering)", () => {
     await waitForPage();
     fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
     await screen.findByText("Forecast Settings", {}, { timeout: 3000 });
-    // Switch to Manila using getCitySelect() to avoid combobox ambiguity
-    fireEvent.change(getCitySelect(), { target: { value: "manila" } });
+    // The session is already Manila, so the picker opens there.
     fireEvent.click(screen.getAllByText("Forecast Settings")[0].closest("button")!);
     await screen.findByText(/Sat–Sun/i, {}, { timeout: 3000 });
   });
@@ -964,13 +959,13 @@ describe("AdminDraftPage — Pending Sheet Proposals section", () => {
     expect(screen.getByRole("button", { name: /Refresh Pending/i })).toBeInTheDocument();
   });
 
-  it("shows Month and Branch Filter controls", async () => {
+  it("shows Month and Branch controls", async () => {
     await renderWithHQ();
     await waitForPage();
     fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
     await screen.findByText(/Pending Sheet Proposals/i, {}, { timeout: 3000 });
     expect(screen.getByText("Month")).toBeInTheDocument();
-    expect(screen.getByText("Branch Filter")).toBeInTheDocument();
+    expect(screen.getAllByText("Branch").length).toBeGreaterThan(0);
   });
 
   it("shows 'All branches' as default branch filter option", async () => {
@@ -978,10 +973,7 @@ describe("AdminDraftPage — Pending Sheet Proposals section", () => {
     await waitForPage();
     fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
     await screen.findByText(/Pending Sheet Proposals/i, {}, { timeout: 3000 });
-    const selects = screen.getAllByRole("combobox");
-    const branchSelect = selects.find((s) =>
-      Array.from(s.querySelectorAll("option")).some((o) => o.textContent === "All branches")
-    );
-    expect(branchSelect).toBeTruthy();
+    // The filter opens on "All branches"; SelectDark keeps its list closed.
+    expect(selectShowing("All branches")).toBeTruthy();
   });
 });

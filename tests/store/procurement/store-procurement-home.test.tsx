@@ -1,6 +1,7 @@
 // tests/store/procurement/store-procurement-home.test.tsx
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { chooseValue, expectSelectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../../setup";
 import StoreProcurementHomePage from "@/app/store/procurement/page";
@@ -316,10 +317,10 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("renders My Requests section with city label", async () => {
+    it("renders the Requests section with its city label", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/my requests/i)).toBeInTheDocument();
+        expect(screen.getByText(/^Requests/)).toBeInTheDocument();
       });
     });
 
@@ -552,7 +553,7 @@ describe("StoreProcurementHomePage", () => {
       await renderPage();
       await waitFor(() => {
         // "My Requests (Manila · 5)" — count appears inside the section heading
-        expect(screen.getByText(/my requests/i)).toBeInTheDocument();
+        expect(screen.getByText(/^Requests/)).toBeInTheDocument();
         expect(screen.getByText(/Manila.*5|5.*Manila/i)).toBeInTheDocument();
       });
     });
@@ -566,10 +567,10 @@ describe("StoreProcurementHomePage", () => {
       routedJson(EMPTY_ROWS);
     });
 
-    it("shows 'No requests yet.' when rows is empty", async () => {
+    it("shows 'No active requests.' when rows is empty", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/no requests yet/i)).toBeInTheDocument();
+        expect(screen.getByText(/No active requests/i)).toBeInTheDocument();
       });
     });
   });
@@ -1098,20 +1099,17 @@ describe("StoreProcurementHomePage", () => {
     it("renders city select defaulting to manila", async () => {
       await renderPage();
       await waitFor(() => {
-        // Two city selects exist (left panel + session panel) — both default to manila
-        const selects = screen.getAllByDisplayValue("Manila") as HTMLSelectElement[];
-        expect(selects.length).toBeGreaterThan(0);
-        expect(selects[0].value).toBe("manila");
+        // SelectDark holds the value on the trigger; it shows the label.
+        expect((expectSelectShowing("Manila") as HTMLElement).dataset.value).toBe("manila");
       });
     });
 
     it("changes city to Dubai and updates visible city text", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getAllByDisplayValue("Manila").length).toBeGreaterThan(0);
+        expect(expectSelectShowing("Manila")).toBeTruthy();
       });
-      // Change the first city select (left panel)
-      fireEvent.change(screen.getAllByDisplayValue("Manila")[0], { target: { value: "dubai" } });
+      chooseValue("Manila", "dubai");
       await waitFor(() => {
         expect(screen.getAllByText("Dubai").length).toBeGreaterThan(0);
       });
@@ -1120,11 +1118,10 @@ describe("StoreProcurementHomePage", () => {
     it("triggers loadMyRequests when city changes", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getAllByDisplayValue("Manila").length).toBeGreaterThan(0);
+        expect(expectSelectShowing("Manila")).toBeTruthy();
       });
       const callsBefore = mockProcurementJson.mock.calls.length;
-      // Change the first city select (left panel)
-      fireEvent.change(screen.getAllByDisplayValue("Manila")[0], { target: { value: "dubai" } });
+      chooseValue("Manila", "dubai");
       await waitFor(() => {
         expect(mockProcurementJson.mock.calls.length).toBeGreaterThan(callsBefore);
       });
