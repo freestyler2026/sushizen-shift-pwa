@@ -26,11 +26,18 @@ import { fireEvent, screen, within } from "@testing-library/react";
  *  "undefined is not an element" tells you nothing about which select moved. */
 export function selectShowing(text: string): HTMLElement {
   const all = screen.queryAllByRole("combobox");
-  const hit = all.find((el) => (el.textContent || "").includes(text));
+  // Text first, then the value it holds. getByDisplayValue was given whichever
+  // of the two the author had to hand -- "App Bug Report" in one test and
+  // "app-private-report" in the next -- and both name the same control.
+  const hit = all.find((el) => (el.textContent || "").includes(text))
+    ?? all.find((el) => (el as HTMLElement).dataset.value === text);
   if (!hit) {
-    const shown = all.map((el) => `"${(el.textContent || "").trim()}"`).join(", ");
+    const shown = all.map((el) => {
+      const v = (el as HTMLElement).dataset.value;
+      return `"${(el.textContent || "").trim()}"${v ? ` (=${v})` : ""}`;
+    }).join(", ");
     throw new Error(
-      `No combobox showing "${text}". ${all.length} on screen: ${shown || "(none)"}`,
+      `No combobox showing or holding "${text}". ${all.length} on screen: ${shown || "(none)"}`,
     );
   }
   return hit;
@@ -78,6 +85,17 @@ export function chooseValue(showing: string, value: string): void {
     throw new Error(`No option with value "${value}". Offered: ${had || "(none)"}`);
   }
   fireEvent.click(opt);
+}
+
+/** The values a select offers -- what the page receives, not what it shows.
+ *  Replaces reading `select.options` off a native element. */
+export function optionValues(showing: string): string[] {
+  fireEvent.click(selectShowing(showing));
+  const values = Array.from(
+    screen.getByRole("listbox").querySelectorAll("[data-value]"),
+  ).map((o) => (o as HTMLElement).dataset.value ?? "");
+  fireEvent.click(selectShowing(showing)); // leave it closed
+  return values;
 }
 
 /** The labels a select offers, for tests that assert on the option list

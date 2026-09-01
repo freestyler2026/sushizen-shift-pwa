@@ -803,7 +803,12 @@ function PctSelectorOI({
 
 // ─── Inline backup form ───────────────────────────────────────────────────────
 
-const MANILA_BRANCHES = BRANCHES.manila.filter((b) => b.code !== "CK");
+// The three stores, and only those. This filtered out CK by name, and then
+// Warehouse and Back Office were added to the shared branch list -- so a form
+// for a store's closing, morning and midday backup counts began offering two
+// locations that keep no shifts and prepare no rolls.
+const STORE_ONLY = new Set(["CK", "WH", "BO"]);
+const MANILA_BRANCHES = BRANCHES.manila.filter((b) => !STORE_ONLY.has(b.code));
 const SHIFT_OPTS = [
   { value: "closing", label: "Closing" },
   { value: "morning", label: "Morning" },

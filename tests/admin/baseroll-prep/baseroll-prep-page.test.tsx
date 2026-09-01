@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { optionLabels, optionValues } from "#tests/select-dark";
 import { within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -194,7 +195,7 @@ describe("BaserollPrepPage", () => {
     await renderPage(fetchMock);
     // Wait for the initial fetch to complete (store card or empty state appear)
     await waitFor(() => {
-      const hasStore = screen.queryByText("Taft") !== null;
+      const hasStore = screen.queryByText(/🏪\s*Taft/) !== null;
       const hasEmpty = screen.queryByText(/No Manila sales data found/i) !== null;
       const hasError = screen.queryByText(/HTTP|error/i) !== null;
       expect(hasStore || hasEmpty || hasError).toBe(true);
@@ -382,7 +383,7 @@ describe("BaserollPrepPage", () => {
 
     it("shows store card with store name when data is returned", async () => {
       await renderAndLoad();
-      expect(screen.getByText("Taft")).toBeInTheDocument();
+      expect(screen.getByText(/🏪\s*Taft/)).toBeInTheDocument();
     });
 
     it("shows multiple store cards when API returns multiple stores", async () => {
@@ -398,8 +399,8 @@ describe("BaserollPrepPage", () => {
       ]);
       await renderPage(fetchMock);
       await waitFor(() => {
-        expect(screen.getByText("Taft")).toBeInTheDocument();
-        expect(screen.getByText("Paranaque")).toBeInTheDocument();
+        expect(screen.getByText(/🏪\s*Taft/)).toBeInTheDocument();
+        expect(screen.getByText(/🏪\s*Paranaque/)).toBeInTheDocument();
       });
     });
 
@@ -420,12 +421,12 @@ describe("BaserollPrepPage", () => {
   describe("StoreCard", () => {
     async function renderWithStore(fetchMock = makeFetch()) {
       await renderPage(fetchMock);
-      await screen.findByText("Taft", {}, { timeout: 5000 });
+      await screen.findByText(/🏪\s*Taft/, {}, { timeout: 5000 });
     }
 
     it("shows store name in card header", async () => {
       await renderWithStore();
-      expect(screen.getByText("Taft")).toBeInTheDocument();
+      expect(screen.getByText(/🏪\s*Taft/)).toBeInTheDocument();
     });
 
     it("shows lunch percentage in header", async () => {
@@ -702,13 +703,9 @@ describe("BaserollPrepPage", () => {
 
       it("shows Base Roll select with all options", async () => {
         await openAddForm();
-        const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-        const baseRollSelect = selects.find((s) =>
-          Array.from(s.querySelectorAll("option")).some(
-            (o) => (o as HTMLOptionElement).text === "California Base Roll"
-          )
-        );
-        expect(baseRollSelect).toBeTruthy();
+        // The Base Roll select opens showing the first roll; its list has to
+        // offer all of them.
+        expect(optionLabels("California Base Roll")).toContain("California Base Roll");
       });
 
       it("shows Coefficient input", async () => {
@@ -828,16 +825,9 @@ describe("BaserollPrepPage", () => {
 
     it("shows Branch selector with Manila branches (PAR, CUB, TAFT)", async () => {
       await renderPrepTab();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const branchSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "PAR"
-        )
-      );
-      expect(branchSelect).toBeTruthy();
-      const opts = Array.from(branchSelect!.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).value
-      );
+      // SelectDark has no <option> elements until its list is open, so ask the
+      // helper for the values rather than reading them off the trigger.
+      const opts = optionValues("Paranaque");
       expect(opts).toContain("PAR");
       expect(opts).toContain("CUB");
       expect(opts).toContain("TAFT");
@@ -845,31 +835,14 @@ describe("BaserollPrepPage", () => {
 
     it("does NOT include Central Kitchen (CK) or Back Office (BO) in branches", async () => {
       await renderPrepTab();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const branchSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "PAR"
-        )
-      );
-      const opts = Array.from(branchSelect!.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).value
-      );
+      const opts = optionValues("Paranaque");
       expect(opts).not.toContain("CK");
       expect(opts).not.toContain("BO");
     });
 
     it("shows Shift selector with Closing, Morning, Midday options", async () => {
       await renderPrepTab();
-      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const shiftSelect = selects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).text === "Closing"
-        )
-      );
-      expect(shiftSelect).toBeTruthy();
-      const opts = Array.from(shiftSelect!.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).text
-      );
+      const opts = optionLabels("Closing");
       expect(opts).toContain("Closing");
       expect(opts).toContain("Morning");
       expect(opts).toContain("Midday");

@@ -6,7 +6,7 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
-import { chooseValue, expectSelectShowing } from "#tests/select-dark";
+import { chooseValue, expectSelectShowing, optionLabels } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 
@@ -268,34 +268,29 @@ describe("/private-report — city and branch logic", () => {
 
   it("shows Manila branches when city is manila", async () => {
     await renderPage();
-    await waitFor(() =>
-      expect(screen.getByText(/Paranaque/i)).toBeInTheDocument()
-    );
+    await waitFor(() => expectSelectShowing("Select branch…"));
+    expect(optionLabels("Select branch…").join(" ")).toMatch(/Paranaque/i);
   });
 
   it("shows Dubai branches when city is switched to dubai", async () => {
     await renderPage();
-    await waitFor(() => screen.getByText(/Paranaque/i));
+    await waitFor(() => expectSelectShowing("Select branch…"));
+    expect(optionLabels("Select branch…").join(" ")).toMatch(/Paranaque/i);
     chooseValue("Manila", "dubai");
     await waitFor(() =>
-      expect(screen.getByText(/Business Bay/i)).toBeInTheDocument()
+      expect(optionLabels("Select branch…").join(" ")).toMatch(/Business Bay/i)
     );
   });
 
   it("city change resets branch to empty", async () => {
     await renderPage();
-    await waitFor(() => screen.getByText(/Paranaque/i));
-    // Select a branch first
-    fireEvent.change(screen.getByText("- Select branch -").closest("select")!, {
-      target: { value: "PAR" },
-    });
-    // Now switch city
+    await waitFor(() => expectSelectShowing("Select branch…"));
+    // Pick a branch, then change city: the branch must not survive the change,
+    // or a Manila branch would be filed against a Dubai report.
+    chooseValue("Select branch…", "PAR");
+    await waitFor(() => expectSelectShowing("Paranaque"));
     chooseValue("Manila", "dubai");
-    await waitFor(() =>
-      expect(
-        (screen.getByText("- Select branch -").closest("select") as HTMLSelectElement).value
-      ).toBe("")
-    );
+    await waitFor(() => expectSelectShowing("Select branch…"));
   });
 });
 
@@ -605,7 +600,7 @@ describe("/private-report — resetForm bug regression", () => {
     await renderPage();
 
     chooseValue("app-private-report", "hq-private-report");
-    await waitFor(() => screen.getByDisplayValue("Suggestion"));
+    await waitFor(() => expectSelectShowing("Suggestion"));
 
     // Change category
     chooseValue("Suggestion", "Management");
@@ -636,7 +631,7 @@ describe("/private-report — resetForm bug regression", () => {
     await renderPage();
 
     chooseValue("app-private-report", "hq-private-report");
-    await waitFor(() => screen.getByDisplayValue("Yes"));
+    await waitFor(() => expectSelectShowing("Yes"));
 
     // Change to No
     chooseValue("Yes", "no");
@@ -672,14 +667,10 @@ describe("/private-report — HQ type category options", () => {
   it("has App, Operation, Management, Staff issue, Suggestion, Other options", async () => {
     await renderPage();
     chooseValue("app-private-report", "hq-private-report");
-    await waitFor(() => screen.getByDisplayValue("Suggestion"));
-    const select = screen.getByDisplayValue("Suggestion") as HTMLSelectElement;
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toContain("App");
-    expect(values).toContain("Operation");
-    expect(values).toContain("Management");
-    expect(values).toContain("Staff issue");
-    expect(values).toContain("Suggestion");
-    expect(values).toContain("Other");
+    await waitFor(() => expectSelectShowing("Suggestion"));
+    const labels = optionLabels("Suggestion");
+    for (const opt of ["App", "Operation", "Management", "Staff issue", "Suggestion", "Other"]) {
+      expect(labels).toContain(opt);
+    }
   });
 });
