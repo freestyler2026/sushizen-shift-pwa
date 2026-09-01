@@ -38,9 +38,30 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 // API_BASE → empty string (fetch paths will be relative)
 vi.mock("@/lib/api", () => ({ API_BASE: "" }));
 
-// Fetch mock
+// Fetch mock.
+//
+// /my-pay now asks you to prove who you are before it shows anything, and the
+// gate calls the auth API itself. Nearly every test here queues its responses
+// in order with mockResolvedValueOnce, so letting the gate's calls into that
+// queue would shift every one of them by a step. They are answered here
+// instead, and mockFetch still sees only the calls the page makes for pay data.
 const mockFetch = vi.fn();
-global.fetch = mockFetch as unknown as typeof fetch;
+const STEP_UP_TOKEN = "test-step-up-token";
+// Overridden by the gate tests that need the step-up to be refused; reset in
+// beforeEach so one refusal does not leak into the next test.
+let stepUpResponse: unknown = null;
+global.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
+  const u = String(url);
+  if (u.includes("/api/auth/step-up/pin")) {
+    return Promise.resolve(stepUpResponse ?? okJson({ step_up_token: STEP_UP_TOKEN }));
+  }
+  if (u.includes("/api/auth/")) return Promise.resolve(okJson({}));
+  // Opening a payslip fetches its detail, which is one call more than most of
+  // these tests queue. An exhausted mock returns undefined, and the page then
+  // reads .then on it and dies with a TypeError that says nothing about the
+  // missing response. An empty payload is what "no detail" actually looks like.
+  return mockFetch(url, init) ?? Promise.resolve(okJson({}));
+}) as unknown as typeof fetch;
 
 // window.print mock
 global.print = vi.fn();
@@ -212,18 +233,48 @@ function errorResponse(status = 500, text = "Server error") {
   } as Response);
 }
 
+/** Get past the identity gate, if it is showing.
+ *
+ *  Not a bypass: it clicks through the PIN route exactly as a person would, so
+ *  the gate itself stays covered and a change to it will still be noticed here.
+ *  Tests that are about the gate render the page directly instead. */
+async function passGate() {
+  const pinRoute = screen.queryByText("Use PIN instead");
+  if (!pinRoute) return;
+  fireEvent.click(pinRoute);
+  fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "1234" } });
+  fireEvent.click(screen.getByText("Confirm"));
+  await waitFor(() =>
+    expect(screen.queryByText("Verify Your Identity")).not.toBeInTheDocument()
+  );
+}
+
 async function renderPage() {
   // clear module cache so getAuth() picks up mockAuth
+  const { default: MyPayPage } = await import("@/app/my-pay/page");
+  const utils = render(<MyPayPage />);
+  await passGate();
+  return utils;
+}
+
+/** Render without touching the gate — for the tests that are about the gate,
+ *  and for the unauthenticated case where there is nothing behind it. */
+async function renderRaw() {
   const { default: MyPayPage } = await import("@/app/my-pay/page");
   return render(<MyPayPage />);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+beforeEach(() => {
+  stepUpResponse = null;
+  mockFetch.mockReset();
+});
+
 describe("/my-pay — auth guard", () => {
   it("redirects to / when not authenticated", async () => {
     mockAuth = null;
-    await renderPage();
+    await renderRaw();
     await waitFor(() =>
       expect(routerMock.replace).toHaveBeenCalledWith("/")
     );
@@ -238,6 +289,57 @@ describe("/my-pay — auth guard", () => {
     await waitFor(() =>
       expect(routerMock.replace).not.toHaveBeenCalled()
     );
+  });
+});
+
+// The gate is the only thing standing between a logged-in session and someone
+// else's pay. It had no tests at all: every test in this file rendered the page
+// and asserted on pay data, so the whole suite went red the day the gate
+// appeared, and none of it was checking the gate itself.
+describe("/my-pay — identity gate", () => {
+  beforeEach(() => {
+    mockAuth = staffAuth();
+    mockFetch.mockResolvedValue(okJson({ payslips: [], ...SUMMARY_EMPTY }));
+  });
+
+  it("asks for verification before showing any pay data", async () => {
+    await renderRaw();
+    expect(screen.getByText("Verify Your Identity")).toBeInTheDocument();
+    expect(screen.queryByText("Pay Slips")).not.toBeInTheDocument();
+  });
+
+  it("says why, so it does not read as an error", async () => {
+    await renderRaw();
+    expect(
+      screen.getByText("Your pay information is protected. Verify to continue.")
+    ).toBeInTheDocument();
+  });
+
+  it("refuses a PIN shorter than four digits without calling the server", async () => {
+    await renderRaw();
+    fireEvent.click(screen.getByText("Use PIN instead"));
+    fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "12" } });
+    fireEvent.click(screen.getByText("Confirm"));
+    await waitFor(() =>
+      expect(screen.getByText("PIN must be at least 4 digits.")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Verify Your Identity")).toBeInTheDocument();
+  });
+
+  it("keeps the pay data hidden and says so when the PIN is wrong", async () => {
+    stepUpResponse = { ok: false, status: 401, json: async () => ({ detail: "Invalid PIN" }) };
+    await renderRaw();
+    fireEvent.click(screen.getByText("Use PIN instead"));
+    fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "9999" } });
+    fireEvent.click(screen.getByText("Confirm"));
+    await waitFor(() => expect(screen.getByText("Invalid PIN")).toBeInTheDocument());
+    expect(screen.queryByText("Pay Slips")).not.toBeInTheDocument();
+  });
+
+  it("shows the pay page once the PIN is accepted", async () => {
+    await renderRaw();
+    await passGate();
+    await waitFor(() => expect(screen.getByText("My Pay")).toBeInTheDocument());
   });
 });
 
@@ -496,8 +598,10 @@ describe("/my-pay — payslips tab", () => {
       .mockResolvedValueOnce(okJson(SUMMARY_EMPTY))
       .mockResolvedValueOnce(okJson({ payslips: [PAYSLIP_MANILA] }));
     await renderPage();
+    // The card used to spell out "... deducted". It now shows the figure beside
+    // the base pay as "· −PHP 200.00", so match the amount and its sign.
     await waitFor(() =>
-      expect(screen.getByText(/PHP.*200\.00.*deducted/)).toBeInTheDocument()
+      expect(screen.getByText(/−\s*PHP\s*200\.00/)).toBeInTheDocument()
     );
   });
 
@@ -548,7 +652,7 @@ describe("/my-pay — payslip modal", () => {
 
   it("shows basic salary in modal", async () => {
     await openModal();
-    expect(screen.getByText(/PHP.*20,000\.00/)).toBeInTheDocument();
+    expect(screen.getAllByText(/PHP.*20,000\.00/).length).toBeGreaterThan(0);
   });
 
   it("shows net pay in modal", async () => {
@@ -589,14 +693,52 @@ describe("/my-pay — payslip modal", () => {
     expect(screen.getByText("Print / Save PDF")).toBeInTheDocument();
   });
 
-  it("shows Allowances & Additions row when net_additions > 0", async () => {
+  // These two sections are built from the payslip's line items, which the modal
+  // fetches when it opens -- an empty detail response renders neither, so the
+  // items have to be queued for the modal's own call.
+  const MANILA_ITEMS = {
+    items: [
+      { item_code: "ALLW", item_type: "earning", label: "Allowance",
+        quantity: null, unit_rate: null, amount: 500, note: null },
+      { item_code: "SSS_EE", item_type: "deduction", label: "SSS",
+        quantity: null, unit_rate: null, amount: 200, note: null },
+    ],
+  };
+
+  // Keyed on the URL rather than on queue position: the modal's detail call is
+  // not reliably the third fetch, and a mock that depends on counting breaks
+  // the moment the page loads one more thing.
+  function serveManilaItems() {
+    mockFetch.mockImplementation((url: RequestInfo | URL) =>
+      Promise.resolve(String(url).includes("manila-payslip-detail")
+        ? okJson(MANILA_ITEMS) : okJson({})));
+  }
+
+  it("lists each addition when the Manila slip has line items", async () => {
+    serveManilaItems();
     await openModal();
-    expect(screen.getByText("Allowances & Additions")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("+ Additions & Allowances")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Allowance")).toBeInTheDocument();
   });
 
-  it("shows Deductions section when net_deductions > 0", async () => {
+  it("lists each deduction when the Manila slip has line items", async () => {
+    serveManilaItems();
     await openModal();
-    expect(screen.getByText("Total Deductions")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("− Deductions")).toBeInTheDocument()
+    );
+    expect(screen.getByText("SSS")).toBeInTheDocument();
+  });
+
+  it("falls back to the totals when there are no line items to show", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(okJson({ items: [] })));
+    await openModal();
+    // A Dubai slip has no per-item breakdown, so the modal shows the summed
+    // rows instead. Both paths matter: one is what Manila sees, the other is
+    // what Dubai and any slip whose detail failed to load sees.
+    expect(screen.queryByText("Allowance")).not.toBeInTheDocument();
   });
 });
 

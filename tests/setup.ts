@@ -39,6 +39,11 @@ export function setAdminAuth(city: "dubai" | "manila" = "manila") {
 
 beforeEach(() => {
   localStorageMock.clear();
+  // sessionStorage leaks between tests exactly as localStorage would. /my-pay
+  // keeps its step-up token there so verification survives tab navigation, so
+  // one test passing the identity gate left every later test in the file
+  // already verified -- and the gate's own tests then found no gate.
+  window.sessionStorage?.clear();
   setAdminAuth("manila");
   vi.restoreAllMocks();
   routerMock.push.mockReset();
@@ -48,4 +53,5 @@ beforeEach(() => {
 
 afterEach(() => {
   localStorageMock.clear();
+  window.sessionStorage?.clear();
 });
