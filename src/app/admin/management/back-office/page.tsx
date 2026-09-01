@@ -1362,12 +1362,28 @@ export default function BODashboardPage() {
     : statusFilter && statusFilter !== "all" ? typeFilteredTasks.filter(t => t.status === statusFilter)
     : typeFilteredTasks;
 
-  // Sorted: red first, then by created_at desc
+  // Order: cost first, then severity, then the one that has waited longest.
+  //
+  // It used to be severity then NEWEST first, which buries the oldest item at
+  // the bottom of the list — the same shape that left a Clearance case waiting
+  // 74 days out of sight. Every one of the 22 sent tasks is already past its
+  // SLA, so "what has been waiting longest" is the only ordering that answers
+  // the question the page is open to answer.
+  //
+  // kpi_* is pinned above severity because it is not one store's chore: it is
+  // the company's food and prime cost. Two of them were raised, never sent, and
+  // swept out with 80 product-score notices without anyone reading them.
+  const isCost = (t: ManagementTask) => t.type.startsWith("kpi_");
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    const sevOrd = { red: 0, yellow: 1, green: 2 };
+    const ca = Number(isCost(b)) - Number(isCost(a));
+    if (ca !== 0) return ca;
+    const sevOrd: Record<string, number> = { red: 0, yellow: 1, green: 2 };
     const so = (sevOrd[a.severity] ?? 9) - (sevOrd[b.severity] ?? 9);
     if (so !== 0) return so;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    // Closed work reads newest-first — it is a record, not a queue.
+    return a.status === "closed" && b.status === "closed" ? tb - ta : ta - tb;
   });
 
   async function loadJobRuns() {
@@ -1635,6 +1651,11 @@ export default function BODashboardPage() {
               show everything
             </button>
           )}
+          {/* The order is a rule, so it is written down. An ordering nobody can
+              see is one nobody trusts, and it gets worked around. */}
+          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-white/50">
+            Cost first, then red, then longest waiting
+          </span>
           <span className="ml-auto text-white/35">
             The Owners page counts every task that is not Closed.
           </span>
