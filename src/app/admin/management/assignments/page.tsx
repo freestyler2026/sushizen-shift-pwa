@@ -379,7 +379,7 @@ export default function ManagementAssignmentsPage() {
             </div>
             {p.open_total > 0 && (
               <Link
-                href={`/admin/management/back-office?page=${encodeURIComponent(p.key)}&status=all&city=manila`}
+                href={`/admin/management/back-office?page=${encodeURIComponent(p.key)}&status=not_closed&city=manila`}
                 className="rounded px-1.5 py-0.5 text-xs underline underline-offset-2 hover:bg-white/5"
                 title="Tasks on this page that are not closed"
               >
@@ -459,7 +459,7 @@ export default function ManagementAssignmentsPage() {
                       // disagreed. This opens the dashboard on exactly these
                       // rows, every status, all pages.
                       <Link
-                        href={`/admin/management/back-office?type=${encodeURIComponent(r.exception_type)}&status=all&city=manila`}
+                        href={`/admin/management/back-office?type=${encodeURIComponent(r.exception_type)}&status=not_closed&city=manila`}
                         className="rounded px-1.5 py-0.5 text-violet-300 underline underline-offset-2 hover:bg-violet-500/10 hover:text-violet-200"
                       >
                         {r.open_count}

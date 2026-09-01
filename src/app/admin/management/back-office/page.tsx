@@ -1357,8 +1357,9 @@ export default function BODashboardPage() {
     ? pageFilteredTasks.filter(t => t.type === typeFilter)
     : pageFilteredTasks;
 
-  const filteredTasks = statusFilter && statusFilter !== "all"
-    ? typeFilteredTasks.filter(t => t.status === statusFilter)
+  const filteredTasks =
+    statusFilter === "not_closed" ? typeFilteredTasks.filter(t => t.status !== "closed")
+    : statusFilter && statusFilter !== "all" ? typeFilteredTasks.filter(t => t.status === statusFilter)
     : typeFilteredTasks;
 
   // Sorted: red first, then by created_at desc
@@ -1607,7 +1608,9 @@ export default function BODashboardPage() {
           <span className="font-semibold text-white">{sortedTasks.length}</span>
           <span className="text-white/45">of {tasks.length} loaded —</span>
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
-            {statusFilter === "all" ? "every status" : `${statusFilter} only`}
+            {statusFilter === "all" ? "every status"
+              : statusFilter === "not_closed" ? "not closed — the Owners figure"
+              : `${statusFilter} only`}
           </span>
           {pageFilter !== "all" && (
             <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
@@ -1657,11 +1660,15 @@ export default function BODashboardPage() {
               value={statusFilter}
               onChange={v => setStatusFilter(v)}
               options={[
-                { value: "open",      label: "Open" },
-                { value: "sent",      label: "Sent" },
-                { value: "responded", label: "Responded" },
-                { value: "closed",    label: "Closed" },
-                { value: "all",       label: "All" },
+                { value: "open",       label: "Open" },
+                { value: "sent",       label: "Sent" },
+                { value: "responded",  label: "Responded" },
+                { value: "closed",     label: "Closed" },
+                // The category the Owners counts use. Without it, clicking a
+                // count of 26 landed on 33 rows because the seven closed ones
+                // came too — the same mismatch, one screen later.
+                { value: "not_closed", label: "Not closed (open+sent+responded)" },
+                { value: "all",        label: "All" },
               ]}
               className="w-36 text-sm"
             />
