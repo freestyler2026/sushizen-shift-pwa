@@ -1229,7 +1229,12 @@ export default function BODashboardPage() {
   const [detecting, setDetecting] = useState(false);
 
   // Filters
+  // Arriving from a count on the Owners page means you want to see that whole
+  // count, so a ?type= link opens on every status rather than the usual Open.
+  // The page defaulting to Open + my pages is why the Owners figure and this
+  // table disagreed with nothing on screen to explain it.
   const [statusFilter, setStatusFilter] = useState<string>("open");
+  const [typeFilter, setTypeFilter] = useState<string>("");
   const [pages, setPages] = useState<BoPage[]>([]);
   // Defaults to the pages this person owns. The design gives each back-office
   // member specific pages and says they "see only their exceptions"; a list of
@@ -1248,6 +1253,22 @@ export default function BODashboardPage() {
   // How many tasks exist, against how many arrived. A list that is short
   // without saying so is why the counts and the table disagreed.
   const [taskTotal, setTaskTotal] = useState<number | null>(null);
+
+  // Read straight from the URL rather than useSearchParams(): this page is
+  // prerendered, and that hook forces a Suspense boundary around the whole
+  // 1,700-line component. The effect only ever runs in the browser.
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const t = searchParams.get("type");
+    const pg = searchParams.get("page");
+    if (!t && !pg) return;
+    if (t) { setTypeFilter(t); setPageFilter("all"); }
+    if (pg) setPageFilter(pg);
+    setStatusFilter(searchParams.get("status") || "all");
+    const c = searchParams.get("city");
+    if (c) setCityFilter(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!auth) { router.replace("/login?next=%2Fadmin%2Fmanagement%2Fback-office"); return; }
@@ -1332,9 +1353,13 @@ export default function BODashboardPage() {
     ? tasks
     : tasks.filter((t) => allowedTypes.has(t.type));
 
-  const filteredTasks = statusFilter && statusFilter !== "all"
-    ? pageFilteredTasks.filter(t => t.status === statusFilter)
+  const typeFilteredTasks = typeFilter
+    ? pageFilteredTasks.filter(t => t.type === typeFilter)
     : pageFilteredTasks;
+
+  const filteredTasks = statusFilter && statusFilter !== "all"
+    ? typeFilteredTasks.filter(t => t.status === statusFilter)
+    : typeFilteredTasks;
 
   // Sorted: red first, then by created_at desc
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -1549,19 +1574,67 @@ export default function BODashboardPage() {
           </div>
         )}
 
-        {/* KPI Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {/* KPI Row — pressing one filters the table to it. A number you can
+            read but not reach is how the Owners count and this table came to
+            disagree with no way to see which rows made it up. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           {[
-            { label: "Open", value: openCount, color: "text-violet-400" },
-            { label: "Sent (Awaiting)", value: sentCount, color: "text-amber-400" },
-            { label: "Responded", value: respondedCount, color: "text-emerald-400" },
-            { label: "Closed", value: closedCount, color: "text-zinc-400" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className={KPI_CARD}>
+            { key: "open",      label: "Open", value: openCount, color: "text-violet-400" },
+            { key: "sent",      label: "Sent (Awaiting)", value: sentCount, color: "text-amber-400" },
+            { key: "responded", label: "Responded", value: respondedCount, color: "text-emerald-400" },
+            { key: "closed",    label: "Closed", value: closedCount, color: "text-zinc-400" },
+          ].map(({ key, label, value, color }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === key ? "all" : key)}
+              className={`${KPI_CARD} text-left transition-colors hover:bg-white/[0.07] ${
+                statusFilter === key ? "ring-1 ring-violet-400/60" : ""
+              }`}
+            >
               <div className={KPI_LABEL}>{label}</div>
               <div className={KPI_VALUE + " " + color}>{value}</div>
-            </div>
+            </button>
           ))}
+        </div>
+
+        {/* What the table below is actually showing, said plainly. The page
+            opens filtered to Open and to your own pages, which is useful and
+            was invisible: a count of 26 elsewhere against 12 here looks like a
+            fault rather than a filter. */}
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-white/45">Showing</span>
+          <span className="font-semibold text-white">{sortedTasks.length}</span>
+          <span className="text-white/45">of {tasks.length} loaded —</span>
+          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
+            {statusFilter === "all" ? "every status" : `${statusFilter} only`}
+          </span>
+          {pageFilter !== "all" && (
+            <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
+              {pageFilter === "mine" ? "my pages" : pageFilter}
+            </span>
+          )}
+          {typeFilter && (
+            <button
+              type="button"
+              onClick={() => setTypeFilter("")}
+              className="rounded-full border border-sky-400/40 bg-sky-500/10 px-2 py-0.5 text-sky-200 hover:bg-sky-500/20"
+            >
+              {typeFilter} ✕
+            </button>
+          )}
+          {(statusFilter !== "all" || pageFilter !== "all" || typeFilter) && (
+            <button
+              type="button"
+              onClick={() => { setStatusFilter("all"); setPageFilter("all"); setTypeFilter(""); }}
+              className="text-violet-300 underline underline-offset-2 hover:text-violet-200"
+            >
+              show everything
+            </button>
+          )}
+          <span className="ml-auto text-white/35">
+            The Owners page counts every task that is not Closed.
+          </span>
         </div>
 
         {/* Filters */}

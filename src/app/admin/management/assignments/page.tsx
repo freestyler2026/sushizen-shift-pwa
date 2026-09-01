@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AlertTriangle, RefreshCw, Save } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAdminNav } from "@/lib/auth";
 import {
@@ -365,6 +366,11 @@ export default function ManagementAssignmentsPage() {
           not know is complete. */}
       <div className="mb-6 flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wider text-white/70">Pages</h2>
+        <p className={T_CAPTION}>
+          Counts are every task that is not Closed — open, sent and responded together.
+          Press one to open the dashboard on exactly those rows. The dashboard itself starts
+          filtered to Open and to your own pages, so it will show fewer until you clear that.
+        </p>
         {boPages.map((p) => (
           <div key={p.key} className={`${GLASS_CARD} flex flex-wrap items-center gap-3 px-4 py-3`}>
             <div className="min-w-[200px]">
@@ -372,11 +378,16 @@ export default function ManagementAssignmentsPage() {
               <div className={T_CAPTION}>{p.slot} · {p.types.length} types</div>
             </div>
             {p.open_total > 0 && (
-              <div className="text-xs">
+              <Link
+                href={`/admin/management/back-office?page=${encodeURIComponent(p.key)}&status=all&city=manila`}
+                className="rounded px-1.5 py-0.5 text-xs underline underline-offset-2 hover:bg-white/5"
+                title="Tasks on this page that are not closed"
+              >
                 {p.red > 0 && <span className="text-red-300">{p.red} red</span>}
                 {p.red > 0 && p.yellow > 0 && <span className="text-zinc-600"> · </span>}
                 {p.yellow > 0 && <span className="text-amber-300">{p.yellow} yellow</span>}
-              </div>
+                <span className="ml-1 text-white/35">not closed</span>
+              </Link>
             )}
             {p.owner_conflict.length > 0 && (
               <div className="text-xs text-amber-300">Split: {p.owner_conflict.join(" / ")}</div>
@@ -403,7 +414,10 @@ export default function ManagementAssignmentsPage() {
               <tr className={TABLE_HEADER}>
                 <th className="px-4 py-2.5 text-left">Exception</th>
                 <th className="px-4 py-2.5 text-left">Severity</th>
-                <th className="px-4 py-2.5 text-right">Open</th>
+                <th className="px-4 py-2.5 text-right">
+                  Not closed
+                  <span className="ml-1 font-normal normal-case text-white/35">(open + sent + responded)</span>
+                </th>
                 <th className="px-4 py-2.5 text-left">Owner</th>
               </tr>
             </thead>
@@ -439,7 +453,20 @@ export default function ManagementAssignmentsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">
-                    {r.open_count > 0 ? r.open_count : <span className="text-white/25">—</span>}
+                    {r.open_count > 0 ? (
+                      // A number you can read but not reach is the whole reason
+                      // this figure and the dashboard table looked like they
+                      // disagreed. This opens the dashboard on exactly these
+                      // rows, every status, all pages.
+                      <Link
+                        href={`/admin/management/back-office?type=${encodeURIComponent(r.exception_type)}&status=all&city=manila`}
+                        className="rounded px-1.5 py-0.5 text-violet-300 underline underline-offset-2 hover:bg-violet-500/10 hover:text-violet-200"
+                      >
+                        {r.open_count}
+                      </Link>
+                    ) : (
+                      <span className="text-white/25">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <SelectDark
