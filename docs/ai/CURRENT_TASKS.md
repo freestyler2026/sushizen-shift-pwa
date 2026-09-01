@@ -69,9 +69,7 @@ heroku config:set MGMT_NEVER_EXPIRE_PREFIXES=kpi_ -a sushizen-shift-app  # 期�
 
 ### 未着手（ユーザー確認待ち）
 
-**B. 止まっているキューを流す** — `RESPONDED` 41件を閉じる唯一の経路が `HandlingPanel`（8項目・折りたたみ）内の
-チェックボックスで、277件中8回しか使われず**0件しか閉じていない**。1タップのCloseが要る（教訓3）。
-`SENT` 22件は全件 `missed_by_manager = TRUE`（最古13日）だが、KPIカードは「SENT (AWAITING)」としか言わない。
+**B. 止まっているキューを流す — 2026-09-02 実装済み（下の節を参照）**
 
 **C. エスカレーションを生かす** — `escalate_stale_management_tasks` は `pm_backup_missing` のみ対象で、
 マニラに該当種別が無いため `escalated_at` は**全件0**。
@@ -88,6 +86,70 @@ Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブ�
 
 **言語** — `check_mgmt_kpi_alerts` の title/message は日本語。管理会計マニュアルが日本語なので
 オーナー向けとして意図的な可能性があり、勝手に英語化していない。BO Dashboard は英語画面なので要判断。
+
+---
+
+## ✅ BO Dashboard B: 返信済み41件に出口を作った（2026-09-02・実装済み）
+
+**閉じる唯一の経路が8項目フォームの一番下のチェックボックスだった。** 277件中8回しか使われず、
+そのうち**1件も閉じていない**。結果 Closed 204件のうち**返信を経たものは0件**（教訓3そのもの）。
+
+### 1タップ Close
+
+行を開くと店舗の返信のすぐ下に3つのボタン: **Handled** / **No action needed** / **Couldn't resolve**。
+**担当者名と日時は聞かない**（ログイン中の本人と現在時刻）。返信を読む→押す＝**2タップ**。
+
+**3択にした理由**: 返信41件には「Sorry, I could not visit the Taft store yesterday」がある。
+完了でもなく誤検知でもないので、2択だと**嘘を記録させることになる**。
+
+従来の詳細フォームは **Full handling record** に改称して**すぐ下に残す**（写真・不具合分類・トレーニング用）。消していない。
+
+### Reopen（教訓22）
+
+閉じた行には必ず Reopen が出る。**閉じる前の状態に戻す** — 返信済みだったものは返信済みに戻り、
+`responded_at` と元の `response_note` を保持する。
+
+⚠️ `update_management_task` は status が sent/responded になると `sent_at`/`responded_at` を**必ずNOW()で打ち直す**。
+そのまま reopen すると**店舗が返信した時刻が消える**（SLA・missed_by_manager・Area Managerスコアが全部これを読む）。
+既存値を明示的に渡して setdefault を無効化している。
+
+**副産物**: `cleanup-2026-08-29` で一括クローズされた82件も1件ずつ Reopen できる。
+行に「Closed by cleanup-2026-08-29 · Reopen」と出る。
+
+### 申告と記録の不一致（41件中6件）
+
+`claim_verified = false`（提出したと言っているレポートが存在しない）の行は、ボタンの上に警告を出す。
+**押すこと自体は止めない** — 止めると画面を通過するために別の選択肢を選ぶだけなので、
+代わりに監査ログに「記録が存在しないまま Handled として閉じた」と明記する。
+
+### KPIカード
+
+- `SENT (AWAITING) 22` → **`22` + `all past SLA`**（全件なら all、一部なら件数、0件なら非表示）
+- `RESPONDED 41` → **`waiting to be closed`** を併記（返信が来た＝仕事が終わった、ではない）
+
+### API
+
+```
+POST /api/admin/management/tasks/{id}/close    {outcome: done|not_needed|unresolved, note?}
+POST /api/admin/management/tasks/{id}/reopen
+```
+
+### 本番での検証（全て実施・後始末済み）
+
+| 検証 | 結果 |
+|---|---|
+| close → 200、`closed_by`/`closed_at`/`context.close` 記録 | ✅ |
+| reopen → **responded に戻る**（open ではない） | ✅ |
+| `responded_at` 保持 | ✅ |
+| 非空の `response_note` を**完全復元** | ✅ 928で確認 |
+| 不一致claim（900）の監査文言 | ✅ 「(Closed as handled although the report it claims does not exist.)」 |
+| 不正な outcome | ✅ 400 + 有効値リスト |
+| 閉じていない行の reopen | ✅ 409 |
+| 存在しないID | ✅ 404 |
+
+⚠️ **テストで触った3件（900/927/928）は完全復旧済み** — status/note/closed_by/closed_at を元に戻し、
+テストが作った `task_messages` 8件と `context.close`/`reopened` も削除。残留0件を確認（教訓54）。
+最初の往復は修正デプロイ前に走らせたため927のメモを汚染しており、それも戻した。
 
 ---
 

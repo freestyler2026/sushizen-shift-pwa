@@ -2134,6 +2134,7 @@ ul.body-list strong { color: var(--text); }
         <div style="text-align:center;background:var(--orange-dim);border:1px solid var(--orange-border);border-radius:8px;padding:10px 4px;">
           <div style="font-size:22px;font-weight:800;color:var(--orange);">1</div>
           <div style="font-size:10px;color:var(--orange);font-weight:700;letter-spacing:.05em;">SENT</div>
+          <div style="font-size:9px;color:var(--red);font-weight:700;">all past SLA</div>
         </div>
         <div style="text-align:center;background:var(--green-dim);border:1px solid var(--green-border);border-radius:8px;padding:10px 4px;">
           <div style="font-size:22px;font-weight:800;color:var(--green);">2</div>
@@ -2145,8 +2146,15 @@ ul.body-list strong { color: var(--text); }
         </div>
       </div>
       <p style="margin-top:8px;font-size:12px;color:var(--muted);">
-        <span class="ja">件数は現在のStatusフィルターに連動。「All」にするとSent/Responded/Closedも含む全体件数が表示される。</span>
-        <span class="en">Counts reflect the current Status filter. Set to "All" to see totals across all statuses.</span>
+        <span class="ja">件数は現在のStatusフィルターに連動。「All」にするとSent/Responded/Closedも含む全体件数が表示される。<br>
+          <b>SENT には「何件がSLA超過か」が併記される（2026-09-02）。</b>「Awaiting」だけだと
+          <b>まだ待ち時間内であるかのように読める</b>が、マニラの22件は<b>全件が超過</b>していて
+          （最古は13日）、画面のどこにもそれが出ていなかった。全件なら <code>all past SLA</code>、
+          一部なら件数、0件なら何も出さない。<br>
+          <b>RESPONDED には <code>waiting to be closed</code> と出る</b> — 返信が来た時点では仕事は終わっていない。</span>
+        <span class="en">Counts reflect the current Status filter. Set to "All" to see totals across all statuses.<br>
+          <b>SENT now says how many are past SLA (2026-09-02).</b> "Awaiting" on its own reads as though the clock were still running; for all 22 of Manila's it had stopped, the oldest by thirteen days, and nothing on the screen said so. It reads <code>all past SLA</code>, or the count when it is some of them, and stays silent when none are.<br>
+          <b>RESPONDED reads <code>waiting to be closed</code></b> — a reply arriving is not the work finishing.</span>
       </p>
     </div>
 
@@ -2186,6 +2194,46 @@ ul.body-list strong { color: var(--text); }
         あわせて <code>first_seen &gt; last_seen</code>（TAFT の在庫不足パターンが 8/26→8/25 と表示されていた）も修正。</span>
       <span class="en"><b>Pattern store names unified (2026-09-02).</b>
         Only <code>repeat_low_rating</code> used the ratings data's spelling, <code>Taft</code>, so the Patterns list split one store into 4 rows of "Taft" and 4 of "TAFT" — filtering by store showed half of them. Existing rows were recased to <code>TAFT</code> (Manila now CUB 6 / PAR 4 / TAFT 8). A date range that read 2026-08-26 → 2026-08-25 was corrected at the same time.</span>
+    </div>
+
+    <div class="tip success" style="margin-bottom:10px;">
+      <span class="tip-icon">✅</span>
+      <span class="ja"><b>返信が来たタスクは1タップで閉じられるようになった（2026-09-02）。</b>
+        行を開くと店舗の返信のすぐ下に <b>Close</b> と3つのボタンが出る:
+        <b>Handled</b>（返信で解決）／<b>No action needed</b>（そもそも出すべきではなかった）／<b>Couldn't resolve</b>（これ以上できることがない）。
+        <b>担当者名と日時は聞かない</b> — ログイン中の本人と今の時刻で記録される。聞く項目は飛ばされる項目だから。<br>
+        それまで閉じる手段は<b>8項目フォームの一番下のチェックボックスだけ</b>で、277件中8回しか使われず、
+        そのうち<b>1件も閉じていなかった</b>。結果、返信済み41件が滞留し、Closed 204件のうち
+        <b>返信を経たものは0件</b>だった。<br>
+        従来の詳細フォームは <b>Full handling record</b> という名前で<b>すぐ下に残っている</b>。
+        写真・不具合分類・トレーニングまで記録したいときはそちらを使う。消してはいない。</span>
+      <span class="en"><b>An answered task now closes in one tap (2026-09-02).</b>
+        Expanding a row shows <b>Close</b> with three buttons directly under the store's reply: <b>Handled</b>, <b>No action needed</b>, <b>Couldn't resolve</b>.
+        <b>It does not ask who or when</b> — those are the signed-in person and now, because a field you ask for is a field that gets skipped.<br>
+        Before this the only way to close was a checkbox at the bottom of the eight-field form: used 8 times in 277 tasks and never once to close anything. 41 answered tasks were stuck, and of 204 closed, none had ever been answered first.<br>
+        The detailed form is still directly below, renamed <b>Full handling record</b>, for when photo / issue category / training need recording. It was moved off the common path, not removed.</span>
+    </div>
+
+    <div class="tip" style="margin-bottom:10px;">
+      <span class="tip-icon">↩️</span>
+      <span class="ja"><b>閉じたタスクには必ず Reopen が出る。</b>押し間違えても元の状態に戻せる — 返信済みだったものは
+        <b>返信済みに戻り</b>、店舗が answered した時刻も元のメモも保持される（先頭に戻したりしない）。
+        取り消せない1タップは、怖くて誰も押さなくなる。<br>
+        これは <code>cleanup-2026-08-29</code> で一括クローズされた82件にも効く。行を開けば
+        「Closed by cleanup-2026-08-29 · Reopen」と出るので、<b>誤って掃かれた案件を1件ずつ戻せる</b>。</span>
+      <span class="en"><b>Every closed task carries Reopen.</b> It restores the status the task was closed from — an answered task goes back to answered, keeping the moment the store replied and the note it had, rather than returning to the top of the queue. A one-tap action you cannot take back goes unused.<br>
+        This also applies to the 82 tasks bulk-closed as <code>cleanup-2026-08-29</code>: their rows read "Closed by cleanup-2026-08-29 · Reopen", so anything swept away by mistake can be brought back one row at a time.</span>
+    </div>
+
+    <div class="tip warn" style="margin-bottom:10px;">
+      <span class="tip-icon">⚠️</span>
+      <span class="ja"><b>店舗の申告と記録が食い違っている場合は、ボタンの上に警告が出る。</b>
+        「提出したと言っているレポートが存在しない」ケース（返信済み41件のうち<b>6件</b>）では、
+        <code>Handled</code> を押すこと自体は<b>できる</b>が、監査ログに
+        「記録が存在しないまま Handled として閉じた」と<b>明記される</b>。
+        押させない設計にすると、画面を通過するために別の選択肢を選ぶようになるだけなので、止めずに残す。</span>
+      <span class="en"><b>Where the record contradicts what the store said, the row says so above the buttons.</b>
+        For the 6 of 41 answered tasks whose claimed report does not exist, pressing <code>Handled</code> is still allowed, but the audit line records that it was closed as handled although the report does not exist. Blocking it would only teach people to pick a different outcome to get past the screen.</span>
     </div>
 
     <div class="card" style="margin-bottom:10px;">
