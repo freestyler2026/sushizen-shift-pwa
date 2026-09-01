@@ -554,6 +554,12 @@ export default function ManualShiftPage() {
   // the only thing a reload can lose is what has not reached the server yet.
   useUnsavedGuard("manual-shift", outboxSize > 0);
   const [removedStaff, setRemovedStaff] = useState<string[]>([]);
+  // Taken off this branch's grid and kept that way. removedStaff above is the
+  // in-page copy, wiped on every week change; this is the stored one.
+  const [hiddenStaff, setHiddenStaff] = useState<{ staff_name: string; hidden_by: string }[]>([]);
+  const hiddenStaffRef = useRef<string[]>([]);
+  hiddenStaffRef.current = hiddenStaff.map((h) => h.staff_name);
+  const [showHidden, setShowHidden] = useState(false);
   const removedStaffRef = useRef<string[]>([]);
   removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
@@ -779,7 +785,7 @@ export default function ManualShiftPage() {
       if (cancelledRef?.current) return false;
       // Rows taken out of the grid this session stay out. The roster still lists
       // them, so without this the removal is undone by the next load.
-      const removedNow = new Set(removedStaffRef.current);
+      const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
       const names = (data.names || [])
         .filter((n) => !removedNow.has(n))
         .sort((a, b) => a.localeCompare(b));
@@ -798,6 +804,21 @@ export default function ManualShiftPage() {
       return false;
     } finally {
       if (!cancelledRef?.current) setLoading(false);
+    }
+  }, [city, branchCode]);
+
+  const loadHiddenStaff = useCallback(async () => {
+    if (!branchCode) return;
+    try {
+      const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
+        `/api/admin/manual-shift/hidden-staff?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}`
+      );
+      const list = d.hidden || [];
+      setHiddenStaff(list);
+      hiddenStaffRef.current = list.map((h) => h.staff_name);
+    } catch {
+      // A failed lookup must not empty the grid — better to show a name that
+      // was hidden than to hide one that was not.
     }
   }, [city, branchCode]);
 
@@ -883,7 +904,9 @@ export default function ManualShiftPage() {
           return !currentStaff.some(s => stripRoleSuffix(s) === stripped);
         });
       if (extraNames.length > 0) {
-        const removedNow = new Set(removedStaffRef.current);
+        // Both sources need the filter: the roster, and the names pulled in
+        // from the published week. Francis came back through the second one.
+        const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
         const merged = Array.from(new Set([...currentStaff, ...extraNames]))
           .filter((n) => !removedNow.has(n))
           .sort((a, b) => a.localeCompare(b));
@@ -911,6 +934,9 @@ export default function ManualShiftPage() {
     revRef.current = 0;
     setPublishedCount(0);
     void (async () => {
+      // Before the roster, so the first render already excludes them.
+      await loadHiddenStaff();
+      if (cancelledRef.current) return;
       const staffOk = await loadStaff(cancelledRef);
       if (cancelledRef.current) return;
       if (!staffOk) return; // staff load failed — keep the error visible
@@ -1154,20 +1180,50 @@ export default function ManualShiftPage() {
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
     const totalShifts = datesWithShifts.length;
     if (!window.confirm(
-      `Clear all ${totalShifts} shift(s) for "${stripRoleSuffix(staffName)}" and remove the row?\n\n` +
-      `They leave the published schedule when you publish this week.`
+      `Remove "${stripRoleSuffix(staffName)}" from the ${branchCode} sheet?\n\n` +
+      `${totalShifts} shift(s) this week will be cleared, and they leave the published ` +
+      `schedule when you publish.\n\n` +
+      `They stay off this sheet from now on — not just this week. Their other ` +
+      `branches are unaffected, and you can put them back from the list above the grid.`
     )) return;
     if (datesWithShifts.length > 0) {
       commitCells(datesWithShifts.map((d) => ({ staffName, dateStr: d, value: null })));
     }
     setStaffList((prev) => prev.filter((n) => n !== staffName));
     setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
+    // Store it, or the row is back as soon as the week changes.
+    void (async () => {
+      try {
+        const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
+          "/api/admin/manual-shift/hidden-staff",
+          { method: "POST", body: JSON.stringify({
+              city, branch_code: branchCode, staff_name: staffName, hidden: true }) });
+        if (d.hidden) { setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name); }
+      } catch { /* the row is already gone from the page; the next load restores it */ }
+    })();
     setGridData((prev) => {
       const next = { ...prev };
       delete next[staffName];
       return next;
     });
     if (editTarget?.staffName === staffName) closeEdit();
+  }
+
+  async function restoreStaffToGrid(staffName: string) {
+    try {
+      const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
+        "/api/admin/manual-shift/hidden-staff",
+        { method: "POST", body: JSON.stringify({
+            city, branch_code: branchCode, staff_name: staffName, hidden: false }) });
+      if (d.hidden) { setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    setRemovedStaff((prev) => prev.filter((n) => n !== staffName));
+    setStaffList((prev) => (prev.includes(staffName)
+      ? prev : [...prev, staffName].sort((a, b) => a.localeCompare(b))));
+    setGridData((prev) => ({ ...prev, [staffName]: prev[staffName] ?? {} }));
   }
 
   function addStaffRow() {
@@ -1895,6 +1951,45 @@ export default function ManualShiftPage() {
                 </>
               )}
             </div>
+
+            {/* Who is off this sheet, and how to put them back. The old removal
+                undid itself on the next week change, which made an accidental
+                delete recoverable by luck. Now the removal holds, so the way
+                back has to be visible instead. */}
+            {hiddenStaff.length > 0 && (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-amber-900">
+                  <span className="font-semibold">
+                    {hiddenStaff.length} removed from the {branchCode} sheet
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowHidden((v) => !v)}
+                    className="rounded border border-amber-300 bg-white px-2 py-0.5 text-amber-800 hover:bg-amber-100"
+                  >
+                    {showHidden ? "Hide" : "Show"}
+                  </button>
+                  <span className="text-amber-700/70">
+                    They stay off this sheet until you put them back. Their other sheets are unaffected.
+                  </span>
+                </div>
+                {showHidden && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {hiddenStaff.map((h) => (
+                      <button
+                        key={h.staff_name}
+                        type="button"
+                        onClick={() => void restoreStaffToGrid(h.staff_name)}
+                        title={h.hidden_by ? `Removed by ${h.hidden_by}` : undefined}
+                        className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs text-amber-900 hover:bg-amber-100"
+                      >
+                        {stripRoleSuffix(h.staff_name)} ↩ put back
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className={`${W_CARD} overflow-hidden p-0`} style={paintMode ? { cursor: "cell" } : {}}>
               {/* The header was already `sticky top-0`, but sticky resolves against the
