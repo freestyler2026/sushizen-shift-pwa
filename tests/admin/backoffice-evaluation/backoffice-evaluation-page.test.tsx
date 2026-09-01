@@ -5,6 +5,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { chooseValue, optionValues, selectShowing } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── framer-motion ─────────────────────────────────────────────────────────────
@@ -389,42 +390,19 @@ describe("AdminBackofficeEvaluationPage", () => {
   describe("evaluation context controls", () => {
     it("defaults to manila city", async () => {
       await renderAndLoad();
-      const allSelects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const citySelect = allSelects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "manila"
-        ) &&
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "dubai"
-        )
-      );
-      expect(citySelect).toBeTruthy();
-      expect(citySelect!.value).toBe("manila");
+      // SelectDark holds its value on the trigger and keeps its list closed.
+      expect((selectShowing("manila") as HTMLElement).dataset.value).toBe("manila");
     });
 
     it("can change city to dubai", async () => {
       await renderAndLoad();
-      const allSelects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const citySelect = allSelects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "dubai"
-        )
-      )!;
-      fireEvent.change(citySelect, { target: { value: "dubai" } });
-      expect(citySelect.value).toBe("dubai");
+      chooseValue("manila", "dubai");
+      expect((selectShowing("dubai") as HTMLElement).dataset.value).toBe("dubai");
     });
 
     it("shows city options: manila and dubai", async () => {
       await renderAndLoad();
-      const allSelects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const citySelect = allSelects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "dubai"
-        )
-      )!;
-      const options = Array.from(citySelect.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).value
-      );
+      const options = optionValues("manila");
       expect(options).toContain("manila");
       expect(options).toContain("dubai");
     });
@@ -460,16 +438,7 @@ describe("AdminBackofficeEvaluationPage", () => {
 
     it("action status select has OPEN, IN_PROGRESS, DONE, HOLD options", async () => {
       await renderAndLoad();
-      const allSelects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-      const statusSelect = allSelects.find((s) =>
-        Array.from(s.querySelectorAll("option")).some(
-          (o) => (o as HTMLOptionElement).value === "IN_PROGRESS"
-        )
-      );
-      expect(statusSelect).toBeTruthy();
-      const values = Array.from(statusSelect!.querySelectorAll("option")).map(
-        (o) => (o as HTMLOptionElement).value
-      );
+      const values = optionValues("OPEN");
       expect(values).toContain("OPEN");
       expect(values).toContain("IN_PROGRESS");
       expect(values).toContain("DONE");
@@ -616,14 +585,17 @@ describe("AdminBackofficeEvaluationPage", () => {
       });
     });
 
-    it("shows 'API base URL is not configured' error when env var is missing", async () => {
+    it("loads without an API base URL, because it calls relative paths", async () => {
+      // The page goes through the Next proxy on /api/... now, so the browser
+      // never needs an API base and this error moved to the route handler.
+      // Calling Heroku directly would drop the session cookie anyway.
       delete process.env.NEXT_PUBLIC_API_BASE_URL;
       await renderPage(makeFetch());
 
       await waitFor(() => {
         expect(
-          screen.getByText(/API base URL is not configured/i)
-        ).toBeInTheDocument();
+          screen.queryByText(/API base URL is not configured/i)
+        ).not.toBeInTheDocument();
       }, { timeout: 5000 });
     });
 
@@ -1018,11 +990,10 @@ describe("AdminBackofficeEvaluationPage", () => {
       await renderWithData(withActionsFetch);
 
       await waitFor(() => {
-        // "DONE" and "OPEN" also appear as <option> text in the status select, so use getAllByText
-        const doneEls = screen.getAllByText("DONE");
-        expect(doneEls.length).toBeGreaterThanOrEqual(2); // option element + badge
-        const openEls = screen.getAllByText("OPEN");
-        expect(openEls.length).toBeGreaterThanOrEqual(2); // option element + badge
+        // The status filter keeps its list closed, so these names appear once
+        // each -- on the badge, which is what the test is about.
+        expect(screen.getAllByText("DONE").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("OPEN").length).toBeGreaterThanOrEqual(1);
       });
     });
 

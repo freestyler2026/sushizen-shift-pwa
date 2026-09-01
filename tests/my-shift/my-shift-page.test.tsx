@@ -50,9 +50,20 @@ const mockApiGet = vi.mocked(apiGet);
 // Fixtures
 // ══════════════════════════════════════════════════════════════════════════════
 
+/** A date in the month the page opens on.
+ *
+ *  The fixtures were pinned to May 2026 while the page opens on the current
+ *  month, so the calendar grid and the fixture were describing different
+ *  months and only lined up during May 2026. */
+function dayThisMonth(day: number) {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+const THIS_MONTH = monthKey(0);
+
 function makeShiftRow(overrides: Record<string, unknown> = {}) {
   return {
-    work_date: "2026-05-12",
+    work_date: dayThisMonth(12),
     branch_code: "MNL_MAIN",
     area: "",
     staff_name: "Jay",
@@ -72,12 +83,12 @@ function makeMonthView(overrides: Record<string, unknown> = {}) {
     ok: true,
     city: "manila",
     staff_name: "Jay",
-    month: "2026-05",
-    available_months: ["2026-05"],
+    month: THIS_MONTH,
+    available_months: [THIS_MONTH],
     eligible_staff_names: ["Jay"],
     shift_days: 1,
     monthly_rows: [row],
-    days: [{ work_date: "2026-05-12", count: 1, rows: [row] }],
+    days: [{ work_date: dayThisMonth(12), count: 1, rows: [row] }],
     ...overrides,
   };
 }
@@ -92,6 +103,24 @@ function makeEmptyMonthView() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+
+/** Month labels relative to today.
+ *
+ *  These tests hardcoded May, April and June 2026 without freezing the clock,
+ *  so they only passed during May 2026. The page opens on the current month;
+ *  derive the labels from it. */
+function monthLabel(offset: number) {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+function monthKey(offset: number) {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 describe("MyShiftPage", () => {
   beforeEach(() => {
@@ -218,9 +247,9 @@ describe("MyShiftPage", () => {
     it("shows shift row in Monthly Shifts table", async () => {
       mockApiGet.mockResolvedValue(makeMonthView());
       render(<MyShiftPage />);
-      // "2026-05-12" appears in both the Selected Day header and the monthly table
+      // dayThisMonth(12) appears in both the Selected Day header and the monthly table
       await waitFor(() =>
-        expect(screen.getAllByText("2026-05-12").length).toBeGreaterThanOrEqual(2)
+        expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(2)
       , { timeout: 5000 });
     });
 
@@ -251,26 +280,26 @@ describe("MyShiftPage", () => {
 
     it("filters absence rows from monthly shifts list", async () => {
       const absenceRow = makeShiftRow({
-        work_date: "2026-05-13",
+        work_date: dayThisMonth(13),
         role: "DAY_OFF",
         start_hour: 0,
         end_hour: 0,
       });
-      const shiftRow = makeShiftRow({ work_date: "2026-05-12" });
+      const shiftRow = makeShiftRow({ work_date: dayThisMonth(12) });
       mockApiGet.mockResolvedValue(
         makeMonthView({
           monthly_rows: [shiftRow, absenceRow],
           days: [
-            { work_date: "2026-05-12", count: 1, rows: [shiftRow] },
-            { work_date: "2026-05-13", count: 1, rows: [absenceRow] },
+            { work_date: dayThisMonth(12), count: 1, rows: [shiftRow] },
+            { work_date: dayThisMonth(13), count: 1, rows: [absenceRow] },
           ],
           shift_days: 1,
         })
       );
       render(<MyShiftPage />);
-      // "2026-05-12" appears in both the Selected Day header and the monthly table
+      // dayThisMonth(12) appears in both the Selected Day header and the monthly table
       await waitFor(() =>
-        expect(screen.getAllByText("2026-05-12").length).toBeGreaterThanOrEqual(2)
+        expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(2)
       , { timeout: 5000 });
       // Absence row should NOT appear in the monthly table
       expect(screen.queryByText("DAY_OFF")).not.toBeInTheDocument();
@@ -317,7 +346,7 @@ describe("MyShiftPage", () => {
 
     it("shows absence badge when day has absence row", async () => {
       const absenceRow = makeShiftRow({
-        work_date: "2026-05-12",
+        work_date: dayThisMonth(12),
         role: "DAY_OFF",
         start_hour: 0,
         end_hour: 0,
@@ -326,7 +355,7 @@ describe("MyShiftPage", () => {
         makeMonthView({
           monthly_rows: [],
           shift_days: 0,
-          days: [{ work_date: "2026-05-12", count: 1, rows: [absenceRow] }],
+          days: [{ work_date: dayThisMonth(12), count: 1, rows: [absenceRow] }],
         })
       );
       render(<MyShiftPage />);
@@ -350,7 +379,7 @@ describe("MyShiftPage", () => {
 
       await waitFor(() => {
         // After going back one month, should see April 2026
-        expect(screen.getAllByText(/April 2026/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(monthLabel(-1)).length).toBeGreaterThanOrEqual(1);
       }, { timeout: 3000 });
     });
 
@@ -362,7 +391,7 @@ describe("MyShiftPage", () => {
       fireEvent.click(screen.getByLabelText(/Next month/i));
 
       await waitFor(() => {
-        expect(screen.getAllByText(/June 2026/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(monthLabel(1)).length).toBeGreaterThanOrEqual(1);
       }, { timeout: 3000 });
     });
 
@@ -374,13 +403,13 @@ describe("MyShiftPage", () => {
       // Go to next month first
       fireEvent.click(screen.getByLabelText(/Next month/i));
       await waitFor(() =>
-        expect(screen.getAllByText(/June 2026/i).length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText(monthLabel(1)).length).toBeGreaterThanOrEqual(1)
       );
 
       // Then click "This month"
       fireEvent.click(screen.getByRole("button", { name: /This month/i }));
       await waitFor(() =>
-        expect(screen.getAllByText(/May 2026/i).length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText(monthLabel(0)).length).toBeGreaterThanOrEqual(1)
       );
     });
 
@@ -395,7 +424,7 @@ describe("MyShiftPage", () => {
       await waitFor(() => {
         expect(mockApiGet.mock.calls.length).toBeGreaterThan(callsBefore);
         const lastCall = mockApiGet.mock.calls[mockApiGet.mock.calls.length - 1][0] as string;
-        expect(lastCall).toContain("2026-06");
+        expect(lastCall).toContain(monthKey(1));
       }, { timeout: 3000 });
     });
   });
@@ -416,7 +445,7 @@ describe("MyShiftPage", () => {
       mockApiGet.mockResolvedValue(makeMonthView());
       render(<MyShiftPage />);
       await waitFor(() =>
-        expect(screen.getAllByText("2026-05-12").length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(1)
       , { timeout: 5000 });
 
       // Calendar cells have min-h-[68px] class — use it to scope to the calendar grid only
@@ -430,7 +459,7 @@ describe("MyShiftPage", () => {
         fireEvent.click(day15);
         await waitFor(() => {
           // Selected Day header should now show 2026-05-15
-          expect(screen.getAllByText("2026-05-15").length).toBeGreaterThanOrEqual(1);
+          expect(screen.getAllByText(dayThisMonth(15)).length).toBeGreaterThanOrEqual(1);
         }, { timeout: 3000 });
       } else {
         // Fallback: just verify the calendar renders with 42 cells
@@ -467,7 +496,7 @@ describe("MyShiftPage", () => {
   describe("BUG FIX: overnight shift end-time label", () => {
     it("shows '(+1)' suffix on end time for overnight shift (22:00 → 06:00 next day)", async () => {
       const overnightRow = makeShiftRow({
-        work_date: "2026-05-12",
+        work_date: dayThisMonth(12),
         start_hour: 22,
         end_hour: 6,
         role: "Closer",
@@ -475,7 +504,7 @@ describe("MyShiftPage", () => {
       mockApiGet.mockResolvedValue(
         makeMonthView({
           monthly_rows: [overnightRow],
-          days: [{ work_date: "2026-05-12", count: 1, rows: [overnightRow] }],
+          days: [{ work_date: dayThisMonth(12), count: 1, rows: [overnightRow] }],
           shift_days: 1,
         })
       );
@@ -496,7 +525,7 @@ describe("MyShiftPage", () => {
 
     it("correctly calculates 8 hours for overnight shift 22→06", async () => {
       const overnightRow = makeShiftRow({
-        work_date: "2026-05-12",
+        work_date: dayThisMonth(12),
         start_hour: 22,
         end_hour: 6,
         role: "Closer",
@@ -504,7 +533,7 @@ describe("MyShiftPage", () => {
       mockApiGet.mockResolvedValue(
         makeMonthView({
           monthly_rows: [overnightRow],
-          days: [{ work_date: "2026-05-12", count: 1, rows: [overnightRow] }],
+          days: [{ work_date: dayThisMonth(12), count: 1, rows: [overnightRow] }],
           shift_days: 1,
         })
       );
@@ -521,7 +550,7 @@ describe("MyShiftPage", () => {
 
     it("shows '(+1)' suffix in monthly shifts table for overnight shifts", async () => {
       const overnightRow = makeShiftRow({
-        work_date: "2026-05-12",
+        work_date: dayThisMonth(12),
         start_hour: 22,
         end_hour: 6,
         role: "Closer",
@@ -529,7 +558,7 @@ describe("MyShiftPage", () => {
       mockApiGet.mockResolvedValue(
         makeMonthView({
           monthly_rows: [overnightRow],
-          days: [{ work_date: "2026-05-12", count: 1, rows: [overnightRow] }],
+          days: [{ work_date: dayThisMonth(12), count: 1, rows: [overnightRow] }],
           shift_days: 1,
         })
       );
@@ -561,30 +590,33 @@ describe("MyShiftPage", () => {
       render(<MyShiftPage />);
       await waitFor(() => {
         // Selected Day section should show today's date
-        expect(screen.getAllByText("2026-05-12").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(1);
       }, { timeout: 5000 });
     });
 
     it("shows 'Today' button when selected date is not today", async () => {
-      const row = makeShiftRow({ work_date: "2026-05-01" });
+      const row = makeShiftRow({ work_date: dayThisMonth(1) });
       mockApiGet.mockResolvedValue(
         makeMonthView({
           monthly_rows: [row],
-          days: [{ work_date: "2026-05-01", count: 1, rows: [row] }],
+          days: [{ work_date: dayThisMonth(1), count: 1, rows: [row] }],
         })
       );
       render(<MyShiftPage />);
       // After load, manually click a different date cell
       await waitFor(() => screen.getByText("Day Details"), { timeout: 5000 });
 
-      // Find day 1 cell and click it
+      // Click a day that is not today -- on the 1st of the month, clicking "1"
+      // selects today and the button correctly stays hidden.
+      const other = String(new Date().getDate() === 1 ? 2 : 1);
       const cells = document.querySelectorAll(".cursor-pointer.rounded-2xl");
-      const day1 = Array.from(cells).find(c => {
+      const cell = Array.from(cells).find(c => {
         const span = c.querySelector("span");
-        return span?.textContent?.trim() === "1" && !c.classList.contains("opacity-30");
+        return span?.textContent?.trim() === other && !c.classList.contains("opacity-30");
       });
-      if (day1) {
-        fireEvent.click(day1);
+      expect(cell).toBeTruthy();
+      if (cell) {
+        fireEvent.click(cell);
         await waitFor(() => {
           expect(screen.getByRole("button", { name: /^Today$/i })).toBeInTheDocument();
         }, { timeout: 3000 });

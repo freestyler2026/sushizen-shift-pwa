@@ -1,6 +1,7 @@
 // tests/incidents/incidents-page.test.tsx
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { chooseValue } from "#tests/select-dark";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 
@@ -119,6 +120,12 @@ async function renderPage() {
   render(<IncidentsPage />);
 }
 
+beforeEach(() => {
+  // mockFetch is module-level, so a value set in one test is still on it in the
+  // next -- which is why the loading test never saw a spinner.
+  mockFetch.mockReset();
+});
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("/incidents — auth guard", () => {
@@ -218,7 +225,13 @@ describe("/incidents — list loading and errors", () => {
   });
 
   it("shows loading spinner while fetching", async () => {
-    mockFetch.mockReturnValue(new Promise(() => {}));
+    // The auth refresh runs first and also goes through fetch, so hanging every
+    // call means fetchList never starts and the spinner never appears. Hang the
+    // list call only.
+    mockFetch.mockImplementation((url: RequestInfo | URL) =>
+      String(url).endsWith("/api/incidents")
+        ? new Promise(() => {})
+        : Promise.resolve(fetchOk({})));
     await renderPage();
     await waitFor(() =>
       expect(screen.getByText(/Loading reports/i)).toBeInTheDocument()
@@ -407,13 +420,7 @@ describe("/incidents — form validation", () => {
     fireEvent.click(screen.getByText("New Report"));
     // Select category
     fireEvent.click(screen.getByText("Product Issue"));
-    // Select branch via the select element
-    const branchSelect = screen.getAllByRole("combobox").find(
-      (el) => el.getAttribute("value") === "" || el.closest("div")?.textContent?.includes("Branch")
-    );
-    // Use the second select (branch)
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "JLT" } });
+    chooseValue("— Select —", "JLT");
     fireEvent.click(screen.getByText("Submit Report"));
     expect(screen.getByText(/Please enter a description/i)).toBeInTheDocument();
   });
@@ -425,18 +432,20 @@ describe("/incidents — form submission", () => {
   });
 
   it("submits and shows success message", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST))                          // initial load
-      .mockResolvedValueOnce(fetchOk({ report_id: "new-001" }))            // POST incident
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST));                         // reload
+    mockFetch.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/incidents") && (init?.method ?? "GET").toUpperCase() === "POST") {
+        return Promise.resolve(fetchOk({ report_id: "new-001" }));
+      }
+      return Promise.resolve(fetchOk(EMPTY_LIST));
+    });
 
     await renderPage();
     await waitFor(() => screen.getByText("New Report"));
     fireEvent.click(screen.getByText("New Report"));
 
     fireEvent.click(screen.getByText("Product Issue"));
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "JLT" } });
+    chooseValue("— Select —", "JLT");
     const textarea = screen.getByPlaceholderText(/Describe the incident/i);
     fireEvent.change(textarea, { target: { value: "Ice machine broken." } });
 
@@ -448,17 +457,19 @@ describe("/incidents — form submission", () => {
   });
 
   it("hides form after successful submission", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST))
-      .mockResolvedValueOnce(fetchOk({ report_id: "new-002" }))
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST));
+    mockFetch.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/incidents") && (init?.method ?? "GET").toUpperCase() === "POST") {
+        return Promise.resolve(fetchOk({ report_id: "new-002" }));
+      }
+      return Promise.resolve(fetchOk(EMPTY_LIST));
+    });
 
     await renderPage();
     await waitFor(() => screen.getByText("New Report"));
     fireEvent.click(screen.getByText("New Report"));
     fireEvent.click(screen.getByText("Product Issue"));
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "JLT" } });
+    chooseValue("— Select —", "JLT");
     fireEvent.change(screen.getByPlaceholderText(/Describe the incident/i), {
       target: { value: "Description here." },
     });
@@ -478,8 +489,7 @@ describe("/incidents — form submission", () => {
     await waitFor(() => screen.getByText("New Report"));
     fireEvent.click(screen.getByText("New Report"));
     fireEvent.click(screen.getByText("Product Issue"));
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "JLT" } });
+    chooseValue("— Select —", "JLT");
     fireEvent.change(screen.getByPlaceholderText(/Describe the incident/i), {
       target: { value: "Description." },
     });
@@ -491,18 +501,23 @@ describe("/incidents — form submission", () => {
   });
 
   it("shows partial-success message when image upload fails (attachment bug regression)", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST))
-      .mockResolvedValueOnce(fetchOk({ report_id: "new-003" }))    // main POST OK
-      .mockResolvedValueOnce(fetchErr(500, "Upload error"))          // attachment POST fails
-      .mockResolvedValueOnce(fetchOk(EMPTY_LIST));                   // reload
+    // The attachment goes to its own endpoint, so key on that rather than on
+    // the order the calls happen to come in.
+    mockFetch.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (u.includes("/attachment")) return Promise.resolve(fetchErr(500, "Upload error"));
+      if (u.includes("/api/incidents") && method === "POST") {
+        return Promise.resolve(fetchOk({ report_id: "new-003" }));
+      }
+      return Promise.resolve(fetchOk(EMPTY_LIST));
+    });
 
     await renderPage();
     await waitFor(() => screen.getByText("New Report"));
     fireEvent.click(screen.getByText("New Report"));
     fireEvent.click(screen.getByText("Product Issue"));
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1], { target: { value: "JLT" } });
+    chooseValue("— Select —", "JLT");
     fireEvent.change(screen.getByPlaceholderText(/Describe the incident/i), {
       target: { value: "Test description." },
     });
@@ -566,9 +581,10 @@ describe("/incidents — expand / collapse", () => {
   });
 
   it("expanding dispatches badge refresh for incidents", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(listResponse([makeIncident()])))
-      .mockResolvedValueOnce(fetchOk({ ok: true })); // mark-read
+    mockFetch.mockImplementation((url: RequestInfo | URL) =>
+      Promise.resolve(String(url).includes("/notifications/read")
+        ? fetchOk({ ok: true })
+        : fetchOk(listResponse([makeIncident()]))));
 
     await renderPage();
     await waitFor(() => screen.getByText("Product Issue"));
