@@ -1245,6 +1245,10 @@ export default function BODashboardPage() {
   // Expanded rows
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
+  // How many tasks exist, against how many arrived. A list that is short
+  // without saying so is why the counts and the table disagreed.
+  const [taskTotal, setTaskTotal] = useState<number | null>(null);
+
   useEffect(() => {
     if (!auth) { router.replace("/login?next=%2Fadmin%2Fmanagement%2Fback-office"); return; }
     if (!canAccessAdminNav(auth)) { router.replace("/"); return; }
@@ -1269,11 +1273,17 @@ export default function BODashboardPage() {
     try {
       const headers = getAuthHeaders(getAuth());
       // Always fetch all statuses so KPI cards show accurate totals across all statuses
-      const params = new URLSearchParams({ city: cityFilter, limit: "200" });
+      // 200 was short. Manila alone holds 275 tasks, so 75 never reached this
+      // page — 63 product_score_c, 10 disposal_missing, and both KPI tasks,
+      // which had never once been visible. The KPI cards above are counted
+      // from this same array, so a capped fetch quietly understated them too.
+      const params = new URLSearchParams({ city: cityFilter, limit: "2000" });
       const res = await fetch(`/api/admin/management/tasks?${params}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTasks(data.tasks || []);
+      // If it is ever short again, say so rather than looking complete.
+      setTaskTotal(typeof data.total === "number" ? data.total : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load tasks");
     } finally {
@@ -1530,6 +1540,14 @@ export default function BODashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* Says so when the list is short, instead of looking complete. */}
+        {taskTotal != null && taskTotal > tasks.length && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-xs text-amber-200">
+            Showing {tasks.length} of {taskTotal} tasks — the counts above and the
+            Owners page cover all {taskTotal}. Narrow by city or status to see the rest.
+          </div>
+        )}
 
         {/* KPI Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
