@@ -151,7 +151,7 @@ type NavItem = {
   badge2Violet?: boolean;
   /** Which group this sits in under Admin. A field on the list that already
       exists, not a second list to keep in step with this one. */
-  cat?: AdminCat;
+  cat?: AdminCat | StaffCat;
 };
 
 /**
@@ -176,57 +176,78 @@ const ADMIN_CATS = [
 ] as const;
 type AdminCat = (typeof ADMIN_CATS)[number][0];
 
+/**
+ * The staff side, grouped the way a shift actually runs.
+ *
+ * Fewer groups than Admin on purpose: a cook sees 20-24 of these 47 entries,
+ * not all of them, and cutting twenty items into nine piles leaves two in each
+ * — which is a pile you have to open to find out it was not the one.
+ *
+ * Time-in and My Shift stay above the groups, ungrouped. They are opened twice
+ * a day every day, and the one thing a menu must not do is put a click in front
+ * of the thing everybody came for.
+ */
+const STAFF_CATS = [
+  ["sched", "My Schedule & Pay"],
+  ["daily", "Daily Checks"],
+  ["goods", "Ordering & Receiving"],
+  ["spend", "Expenses & Cash"],
+  ["tell",  "Ask & Report"],
+  ["learn", "Guides"],
+] as const;
+type StaffCat = (typeof STAFF_CATS)[number][0];
+
 const PRIMARY: NavItem[] = [
-  { href: "/staff-guide",           label: "Staff Guide",           icon: BookOpen,      match: "prefix" },
-  { href: "/handbook",              label: "Employee Handbook",     icon: BookCheck,     match: "prefix" },
+  { href: "/staff-guide",           label: "Staff Guide",           icon: BookOpen,      match: "prefix" , cat: "learn" },
+  { href: "/handbook",              label: "Employee Handbook",     icon: BookCheck,     match: "prefix" , cat: "learn" },
   { href: "/attendance",            label: "Time-in / Time-out",    icon: Fingerprint,   match: "exact" },
   { href: "/my-shift",              label: "My Shift",              icon: CalendarClock, match: "exact" },
-  { href: "/week",                  label: "Week",                  icon: CalendarDays,  match: "exact" },
-  { href: "/calendar",              label: "Calendar",              icon: Calendar,      match: "exact" },
-  { href: "/store/expense-request",  label: "Expense Reimbursement", icon: Receipt,       match: "prefix" },
-  { href: "/store/overtime-request", label: "Overtime Request",     icon: Clock,         match: "prefix" },
-  { href: "/store/my-nte",           label: "My Notices",           icon: FileText,      match: "prefix" },
-  { href: "/store/policy-docs",      label: "Company Policies",     icon: BookOpen,      match: "prefix" },
-  { href: "/request",                label: "Request",               icon: ClipboardList, match: "exact" },
-  { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" },
-  { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" },
-  { href: "/store/report",           label: "Report Something",    icon: Siren,         match: "prefix" },
-  { href: "/incidents",             label: "Incident Report",       icon: AlertTriangle, match: "prefix" },
-  { href: "/my-pay",                label: "My Pay",                icon: Receipt,       match: "prefix" },
-  { href: "/my-assets",             label: "My Assets",             icon: Laptop,        match: "prefix" },
+  { href: "/week",                  label: "Week",                  icon: CalendarDays,  match: "exact" , cat: "sched" },
+  { href: "/calendar",              label: "Calendar",              icon: Calendar,      match: "exact" , cat: "sched" },
+  { href: "/store/expense-request",  label: "Expense Reimbursement", icon: Receipt,       match: "prefix" , cat: "spend" },
+  { href: "/store/overtime-request", label: "Overtime Request",     icon: Clock,         match: "prefix" , cat: "sched" },
+  { href: "/store/my-nte",           label: "My Notices",           icon: FileText,      match: "prefix" , cat: "sched" },
+  { href: "/store/policy-docs",      label: "Company Policies",     icon: BookOpen,      match: "prefix" , cat: "learn" },
+  { href: "/request",                label: "Request",               icon: ClipboardList, match: "exact" , cat: "tell" },
+  { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" , cat: "tell" },
+  { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" , cat: "tell" },
+  { href: "/store/report",           label: "Report Something",    icon: Siren,         match: "prefix" , cat: "tell" },
+  { href: "/incidents",             label: "Incident Report",       icon: AlertTriangle, match: "prefix" , cat: "tell" },
+  { href: "/my-pay",                label: "My Pay",                icon: Receipt,       match: "prefix" , cat: "sched" },
+  { href: "/my-assets",             label: "My Assets",             icon: Laptop,        match: "prefix" , cat: "sched" },
 ];
 
 const SECONDARY_BASE: NavItem[] = [
-  { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" },
-  { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
-  { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" },
-  { href: "/admin/yield-control", label: "Yield Control", icon: Activity, match: "prefix" },
-  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
-  { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
-  { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
-  { href: "/store/emergency-request", label: "Emergency Request", icon: Siren,  match: "prefix" },
-  { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" },
-  { href: "/store/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, match: "prefix" },
-  { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
-  { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" },
-  { href: "/store/ck-production-plan", label: "CK Production Plan", icon: Factory, match: "prefix" },
-  { href: "/store/ck-delivery", label: "CK Delivery", icon: Truck, match: "prefix" },
-  { href: "/store/ck-ingredient-receiving", label: "CK Ingredient Receiving", icon: PackageSearch, match: "prefix" },
-  { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
-  { href: "/store/supplier-receiving", label: "Supplier Receiving", icon: PackageSearch, match: "prefix" },
-  { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
-  { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
-  { href: "/store/management/inbox", label: "Management Inbox", icon: MessageSquare, match: "prefix" },
-  { href: "/store/management/rush-check", label: "Rush Hour Check", icon: Timer, match: "prefix" },
-  { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
-  { href: "/store/receipt-log", label: "Receipt Log", icon: Receipt, match: "prefix" },
-  { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" },
-  { href: "/store/petty-cash", label: "Petty Cash", icon: Coins, match: "prefix" },
-  { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" },
-  { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" },
-  { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
-  { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
-  { href: "/my-contact",             label: "My Details",          icon: Phone,         match: "exact" },
+  { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" , cat: "learn" },
+  { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" , cat: "daily" },
+  { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" , cat: "daily" },
+  { href: "/admin/yield-control", label: "Yield Control", icon: Activity, match: "prefix" , cat: "daily" },
+  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" , cat: "daily" },
+  { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" , cat: "daily" },
+  { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" , cat: "goods" },
+  { href: "/store/emergency-request", label: "Emergency Request", icon: Siren,  match: "prefix" , cat: "goods" },
+  { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" , cat: "goods" },
+  { href: "/store/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, match: "prefix" , cat: "goods" },
+  { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" , cat: "goods" },
+  { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" , cat: "goods" },
+  { href: "/store/ck-production-plan", label: "CK Production Plan", icon: Factory, match: "prefix" , cat: "goods" },
+  { href: "/store/ck-delivery", label: "CK Delivery", icon: Truck, match: "prefix" , cat: "goods" },
+  { href: "/store/ck-ingredient-receiving", label: "CK Ingredient Receiving", icon: PackageSearch, match: "prefix" , cat: "goods" },
+  { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" , cat: "goods" },
+  { href: "/store/supplier-receiving", label: "Supplier Receiving", icon: PackageSearch, match: "prefix" , cat: "goods" },
+  { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" , cat: "daily" },
+  { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" , cat: "daily" },
+  { href: "/store/management/inbox", label: "Management Inbox", icon: MessageSquare, match: "prefix" , cat: "daily" },
+  { href: "/store/management/rush-check", label: "Rush Hour Check", icon: Timer, match: "prefix" , cat: "daily" },
+  { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" , cat: "daily" },
+  { href: "/store/receipt-log", label: "Receipt Log", icon: Receipt, match: "prefix" , cat: "spend" },
+  { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" , cat: "spend" },
+  { href: "/store/petty-cash", label: "Petty Cash", icon: Coins, match: "prefix" , cat: "spend" },
+  { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" , cat: "daily" },
+  { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" , cat: "daily" },
+  { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" , cat: "sched" },
+  { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" , cat: "sched" },
+  { href: "/my-contact",             label: "My Details",          icon: Phone,         match: "exact" , cat: "sched" },
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
@@ -1316,7 +1337,7 @@ export default function NavBar() {
     try {
       stored = JSON.parse(localStorage.getItem("zen:nav-cats") || "[]");
     } catch { /* a corrupt preference is not worth a broken menu */ }
-    const here = ADMIN_ITEMS.find(
+    const here = [...ADMIN_ITEMS, ...PRIMARY, ...SECONDARY_BASE].find(
       (i) => i.cat && (pathname === i.href || pathname.startsWith(i.href + "/")),
     );
     setOpenCats(new Set([...stored, ...(here?.cat ? [here.cat] : [])]));
@@ -1482,9 +1503,54 @@ export default function NavBar() {
                 <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
                   Staff
                 </p>
-                {staffItems.map((item) => (
+                {/* Time-in and My Shift sit here, above the groups, because
+                    they are opened twice a day every day. */}
+                {staffItems.filter((i) => !i.cat).map((item) => (
                   <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
                 ))}
+                {STAFF_CATS.map(([key, label]) => {
+                  const group = staffItems.filter((i) => i.cat === key);
+                  if (group.length === 0) return null;
+                  const open = openCats.has(key);
+                  const gb = groupBadge(group);
+                  return (
+                    <div key={key} className="mt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(key)}
+                        aria-expanded={open}
+                        className="flex w-full items-center gap-1.5 rounded-lg px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 transition-colors hover:bg-white/5 hover:text-neutral-300"
+                      >
+                        <ChevronRight
+                          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+                        />
+                        <span
+                          className={`flex-1 ${
+                            gb.urgent && !open
+                              ? "text-amber-300"
+                              : gb.total > 0 && !open
+                              ? "text-neutral-300"
+                              : ""
+                          }`}
+                        >
+                          {label}
+                        </span>
+                        {!open && gb.total > 0 ? (
+                          <span
+                            className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${gb.tone}`}
+                          >
+                            {gb.total > 99 ? "99+" : String(gb.total)}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-600 tabular-nums">{group.length}</span>
+                        )}
+                      </button>
+                      {open && group.map((item) => (
+                        <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {adminItems.length > 0 && (
