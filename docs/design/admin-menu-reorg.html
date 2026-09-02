@@ -1,0 +1,433 @@
+<title>管理メニュー再編案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --bg:#F4F3F8; --surface:#FFFFFF; --surface2:#EDEBF3;
+  --text:#17161C; --muted:#5D5A6B; --faint:#8A8699;
+  --border:#DFDCE9; --accent:#5B3DF5; --accent-soft:#EFEBFF;
+  --warn:#B45309; --warn-soft:#FDF3E3; --bad:#B42318; --bad-soft:#FDF0EF;
+  --c-money:#1F6F5C; --c-proc:#8A5A00; --c-inv:#166C8C;
+  --c-ops:#6B3FA0; --c-shift:#1B5FA8; --c-pay:#9A3D6B;
+  --c-people:#2B6A2E; --c-hrlife:#A33F2A; --c-sys:#4A4E5C;
+  --shadow:0 1px 2px rgba(23,22,28,.06), 0 8px 24px -12px rgba(23,22,28,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111017; --surface:#1A1822; --surface2:#232030;
+    --text:#EAE8F2; --muted:#A29DB4; --faint:#7A7590;
+    --border:#302C3E; --accent:#A78BFA; --accent-soft:#2A2340;
+    --warn:#F0B357; --warn-soft:#33280F; --bad:#F98A80; --bad-soft:#361B18;
+    --c-money:#5FCFAE; --c-proc:#E0A73C; --c-inv:#5FC0E4;
+    --c-ops:#B79BF0; --c-shift:#72AEF2; --c-pay:#EE8FBC;
+    --c-people:#79CE7D; --c-hrlife:#F09277; --c-sys:#A8ADBD;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111017; --surface:#1A1822; --surface2:#232030;
+  --text:#EAE8F2; --muted:#A29DB4; --faint:#7A7590;
+  --border:#302C3E; --accent:#A78BFA; --accent-soft:#2A2340;
+  --warn:#F0B357; --warn-soft:#33280F; --bad:#F98A80; --bad-soft:#361B18;
+  --c-money:#5FCFAE; --c-proc:#E0A73C; --c-inv:#5FC0E4;
+  --c-ops:#B79BF0; --c-shift:#72AEF2; --c-pay:#EE8FBC;
+  --c-people:#79CE7D; --c-hrlife:#F09277; --c-sys:#A8ADBD;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Noto Sans JP","Zen Kaku Gothic New",system-ui,sans-serif;
+  font-size:15px; line-height:1.85; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1140px; margin:0 auto; padding:56px 24px 96px}
+.prose{max-width:68ch}
+
+h1,h2,h3{font-family:"Zen Kaku Gothic New",system-ui,sans-serif; text-wrap:balance; margin:0}
+h1{font-size:clamp(30px,4.4vw,46px); font-weight:900; letter-spacing:-.02em; line-height:1.2}
+h2{font-size:clamp(20px,2.4vw,26px); font-weight:700; letter-spacing:-.01em; margin:64px 0 6px}
+h3{font-size:16px; font-weight:700; margin:32px 0 6px}
+p{margin:12px 0}
+.lede{font-size:17px; color:var(--muted); margin-top:14px}
+.eyebrow{
+  font-family:"Zen Kaku Gothic New",sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin-bottom:10px;
+}
+.rule{height:1px; background:var(--border); border:0; margin:0}
+small,.small{font-size:13px; color:var(--muted)}
+code,.mono{font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.86em}
+b,strong{font-weight:700}
+
+/* ---- stats ---- */
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:28px 0 8px}
+.stat{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; box-shadow:var(--shadow)}
+.stat .n{font-family:"Zen Kaku Gothic New",sans-serif; font-size:32px; font-weight:900; line-height:1.1; font-variant-numeric:tabular-nums}
+.stat .k{font-size:12px; color:var(--muted); margin-top:4px}
+.stat.bad .n{color:var(--bad)}
+
+/* ---- findings ---- */
+.find{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin:14px 0; box-shadow:var(--shadow)}
+.find h3{margin:0 0 4px; display:flex; gap:10px; align-items:baseline}
+.find .num{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--accent); font-weight:500}
+.find p{margin:6px 0 0; color:var(--muted); font-size:14px}
+.find .ev{margin-top:10px; padding:10px 12px; background:var(--surface2); border-radius:8px; font-size:13px; overflow-x:auto}
+.find .ev .mono{white-space:nowrap}
+
+/* ---- before / after ---- */
+.split{display:grid; grid-template-columns:1fr; gap:28px; margin-top:24px}
+@media(min-width:900px){ .split{grid-template-columns:300px 1fr; gap:36px; align-items:start} }
+.col-h{font-family:"Zen Kaku Gothic New",sans-serif; font-weight:700; font-size:14px; margin-bottom:2px}
+.col-s{font-size:12.5px; color:var(--faint); margin-bottom:12px}
+
+.before{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:var(--shadow); max-height:640px; overflow-y:auto}
+.brow{display:flex; align-items:center; gap:8px; padding:3px 6px; font-size:12.5px; line-height:1.5}
+.brow .i{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--faint); width:20px; text-align:right; flex:none}
+.dot{width:8px; height:8px; border-radius:50%; flex:none}
+
+.groups{display:grid; grid-template-columns:1fr; gap:12px}
+@media(min-width:640px){ .groups{grid-template-columns:1fr 1fr} }
+@media(min-width:1100px){ .groups{grid-template-columns:1fr 1fr 1fr} }
+.grp{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow)}
+.grp header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.grp h3{margin:0; font-size:14px}
+.grp .cnt{margin-left:auto; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--faint)}
+.grp ul{list-style:none; margin:0; padding:0}
+.grp li{font-size:13px; line-height:1.75; color:var(--muted); display:flex; gap:7px; align-items:baseline}
+.grp li .tag{font-size:10px; padding:0 5px; border-radius:4px; background:var(--accent-soft); color:var(--accent); font-weight:700; white-space:nowrap}
+.grp li.new{color:var(--text)}
+
+/* ---- tables ---- */
+.tablewrap{overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow); margin:16px 0}
+table{border-collapse:collapse; width:100%; min-width:520px; font-size:13.5px}
+th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:top}
+th{font-family:"Zen Kaku Gothic New",sans-serif; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:700}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+
+/* ---- callouts ---- */
+.note{border-radius:12px; padding:16px 18px; margin:18px 0; font-size:14px; border:1px solid}
+.note.warn{background:var(--warn-soft); border-color:color-mix(in srgb, var(--warn) 34%, transparent); color:var(--text)}
+.note.key{background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 34%, transparent)}
+.note h3{margin:0 0 4px; font-size:14px}
+.note p{margin:4px 0 0}
+
+ol.decide{counter-reset:d; list-style:none; padding:0; margin:18px 0}
+ol.decide li{counter-increment:d; position:relative; padding-left:40px; margin:14px 0}
+ol.decide li::before{
+  content:counter(d); position:absolute; left:0; top:1px;
+  width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
+  background:var(--accent); color:#fff; font-family:"JetBrains Mono",monospace;
+  font-size:12px; font-weight:500;
+}
+:root[data-theme="dark"] ol.decide li::before,
+:root:not([data-theme="light"]) ol.decide li::before{color:#171325}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) ol.decide li::before{color:#fff} }
+
+.legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:14px 0 0; font-size:12.5px; color:var(--muted)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+</style>
+
+<div class="wrap">
+
+  <div class="eyebrow">Sushi ZEN Workforce OS · 設計提案</div>
+  <h1>管理メニュー再編案</h1>
+  <p class="lede prose">
+    管理側メニューは <b>Admin見出しの下に73項目が1列</b>で並び、
+    さらに<b>5つの管理ページが「Staff」見出しの下</b>に置かれています。
+    関連ページは作られた順にばらばらです。
+    本書は<b>実際に描画されているメニュー</b>を測り、<b>9カテゴリへの再編</b>と、
+    それだけでは足りない3つの補強を提案します。<b>実装はまだ行っていません。</b>
+  </p>
+
+  <div class="stats">
+    <div class="stat"><div class="n">73</div><div class="k">Admin見出しの項目</div></div>
+    <div class="stat"><div class="n">120</div><div class="k">サイドバー総項目</div></div>
+    <div class="stat bad"><div class="n">5</div><div class="k">Staff見出しにある管理ページ</div></div>
+    <div class="stat bad"><div class="n">4</div><div class="k">メニューに無い管理ページ</div></div>
+    <div class="stat bad"><div class="n">4</div><div class="k">台帳未登録（権限で制御不可）</div></div>
+  </div>
+  <p class="small prose" style="margin-top:14px">
+    出典: 本番 <code>/admin</code> で<b>実際に描画されたサイドバーのDOM</b>（HQアカウント＝全項目表示）と、
+    <code>app/access_control.py</code> の <code>ACCESS_CHANNELS</code>（2026-09-02 時点）。
+    <b>初版はソースを正規表現で読み、コメントアウト行を1項目と数え、
+    Staff見出しにある管理ページ5件を見落としていました。本版はDOMを正としています。</b>
+  </p>
+
+  <h2>いま起きていること</h2>
+  <p class="prose small">推測ではなく、メニュー定義そのものから確認した5点です。</p>
+
+  <div class="find">
+    <h3><span class="num">01</span> 並び順は設計ではなく「作った順」</h3>
+    <p>バックエンドの <code>sort_order</code> は 270 以降が単調増加で、ページを追加するたびに次の番号が振られています。
+      設計された順序なら起きない <b>重複した番号が6組</b>あり、これは並びが accretion（堆積）であることの直接の証拠です。</p>
+    <div class="ev"><span class="mono">240 HR Today / 240 Payroll　　246 COE / 246 NTE　　282 Spot Purchase / 282 Unworked Shifts　　292 Handbook / 292 HR Policy Docs　　296 AR Payouts / 296 Backup Par Levels　　298 Area Review / 298 People</span></div>
+  </div>
+
+  <div class="find">
+    <h3><span class="num">02</span> 同じ仕事のページが引き離されている</h3>
+    <p>Management Channel の5ページは 60〜66 に並びますが、その間に<b>財務の2ページが割り込んで</b>います。
+      お金まわりは 9〜12、37〜43、64〜65、68、71 の<b>5か所</b>に散っています。</p>
+    <div class="ev"><span class="mono">60 BO Dashboard → 61 Par Levels → 62 Patterns → 63 People → <b>64 Vendors</b> → <b>65 Filing Ledger</b> → 66 Area Manager Review</span></div>
+  </div>
+
+  <div class="find">
+    <h3><span class="num">03</span> 管理ページ5つが「Staff」見出しの下にある</h3>
+    <p>ルートは <code>/admin/*</code> なのに、サイドバーでは<b>スタッフ用メニューに混ざって</b>います。
+      店舗スタッフ向けの項目と管理業務が同じ見出しの下に並んでいる状態です。
+      <b>初版ではこれを見落としていました</b>（ソースを名前で読み、ルートで確認しなかったため）。</p>
+    <div class="ev"><span class="mono">Disposal Report <span style="color:var(--faint)">/admin/disposal</span>　Backup Report <span style="color:var(--faint)">/admin/backup</span>　Yield Control <span style="color:var(--faint)">/admin/yield-control</span>　Daily Inventory <span style="color:var(--faint)">/admin/daily-inventory</span>　Travel Path <span style="color:var(--faint)">/admin/travel-path</span></span></div>
+  </div>
+
+  <div class="find">
+    <h3><span class="num">03b</span> Staff と Admin に同じ名前が並ぶ</h3>
+    <p>行き先が違うのに名前が同一で、<b>どちらが自分の用事か画面から判断できません</b>。
+      カテゴリ分けだけでは解決せず、名前を変える必要があります。</p>
+    <div class="ev"><span class="mono">Daily Check ／ Employee Handbook ／ Petty Cash ／ Spot Purchase ／ Transport Expense</span></div>
+  </div>
+
+  <div class="find">
+    <h3><span class="num">04</span> 「Par Levels」が3つある</h3>
+    <p>役割の違う3ページが、ほぼ同じ名前で別々の場所にあります。並べ替えても混乱は残ります。</p>
+    <div class="ev"><span class="mono">CK Par Levels <span style="color:var(--faint)">/admin/ck/par-levels</span>　Store Par Levels <span style="color:var(--faint)">/admin/store-par-levels</span>　Backup Par Levels <span style="color:var(--faint)">/admin/management/par-levels</span></span></div>
+  </div>
+
+  <div class="find">
+    <h3><span class="num">05</span> メニューと権限台帳が既にずれている</h3>
+    <p>権限台帳にあるのに<b>サイドバーのどこにも無いページが4つ</b>、
+      逆にサイドバーにあるのに<b>チャンネル未登録が4つ</b>あります。
+      後者は Role Management で制御できないことを意味します（教訓26）。</p>
+    <div class="ev">
+      <div><b>メニューに無い（URL直打ちのみ）:</b>
+        <span class="mono">Attendance</span>（コメントアウト・「Bayzat contract ended」）／
+        <span class="mono">Bayzat Import</span>／<span class="mono">Menu Builder</span>／<span class="mono">NTE Management</span></div>
+      <div style="margin-top:6px"><b>台帳未登録:</b>
+        <span class="mono">Role Management ／ Aggregator Price Monitor ／ Yield Control ／ FOCO Investor Portal</span></div>
+      <div style="margin-top:6px; color:var(--muted)">前2つは D で判明した <b>2026-07 に停止した Bayzat 取込</b>に紐づくページで、retire 候補です。</div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <h3>前提として — 利用実績は根拠にできませんでした</h3>
+    <p>どのページが実際に使われているかを <code>api_authz_observations</code> で見ましたが、
+      <code>ADMIN_AUTHZ_MODE</code> が <code>off</code> のため各1〜2件しか記録がありません。
+      <b>本提案のカテゴリは業務内容から組んでおり、利用頻度は反映していません。</b>
+      頻度で並べたい場合は、先に <code>ADMIN_AUTHZ_MODE=log</code> で2週間ほど計測することをお勧めします。</p>
+  </div>
+
+  <h2>提案 — 9カテゴリ</h2>
+  <p class="prose small">
+    左が現在の並び（色は提案カテゴリ）。<b>同じ色が飛び飛びになっているほど、いま探しにくい</b>ということです。
+    右が再編後。項目は1つも減らしていません。
+  </p>
+
+  <div class="split">
+    <div>
+      <div class="col-h">現在 — 74項目・1列</div>
+      <div class="col-s">上から順。色 = 提案カテゴリ</div>
+      <div class="before" id="beforeList"></div>
+    </div>
+    <div>
+      <div class="col-h">提案 — 9カテゴリ</div>
+      <div class="col-s"><span class="mono">＋</span> は現在メニューに無いページの追加候補</div>
+      <div class="groups" id="groupList"></div>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <h2>カテゴリだけでは足りない3点</h2>
+
+  <h3>1. 検索欄（最優先）</h3>
+  <p class="prose">
+    121項目に対して絞り込み手段がありません。カテゴリを付けても、
+    <b>目的のページ名を知っている人にとっては9グループを開く手間が増えるだけ</b>です。
+    サイドバー上部に1つ入力欄を置き、名前で絞る。これが単体で一番効きます。
+  </p>
+
+  <h3>2. 折りたたみと記憶</h3>
+  <p class="prose">
+    9カテゴリを全部開いたままでは今と変わりません。既定は折りたたみ、
+    <b>現在いるページのカテゴリだけ開く</b>。開閉状態は端末に記憶して、毎回開き直さないようにします。
+  </p>
+
+  <h3>3. 同名ページの改名</h3>
+  <p class="prose">問題03・04はカテゴリでは直りません。名前で区別を付ける案です。</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>現在</th><th>提案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>Petty Cash <span class="small">(admin)</span></td><td>Petty Cash — 承認</td><td>店舗側は申請、管理側は承認</td></tr>
+        <tr><td>Transport Expense <span class="small">(admin)</span></td><td>Transport — 承認</td><td>同上</td></tr>
+        <tr><td>Spot Purchase <span class="small">(admin)</span></td><td>Spot Purchase — 承認</td><td>同上</td></tr>
+        <tr><td>Daily Check <span class="small">(admin)</span></td><td>Daily Check — 集計</td><td>店舗は入力、管理は閲覧</td></tr>
+        <tr><td>Employee Handbook <span class="small">(admin)</span></td><td>Handbook — 編集</td><td>店舗は閲覧、管理は編集</td></tr>
+        <tr><td>Backup Par Levels</td><td>Backup Par <span class="small">（店舗運営）</span></td><td rowspan="3">3つの Par Levels が何の基準値かを名前に入れる</td></tr>
+        <tr><td>Store Par Levels</td><td>Store 発注基準</td></tr>
+        <tr><td>CK Par Levels</td><td>CK 生産基準</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>構造の提案 — カテゴリを1か所で定義する</h2>
+  <div class="note key">
+    <h3>いま menu と権限台帳は別々に手で管理されていて、既に4項目ずれています</h3>
+    <p>
+      カテゴリを <code>NavBar.tsx</code> に手で書くと、<b>3つ目の手書きリストが増える</b>だけです。
+      <code>access_control.py</code> の各チャンネルに <code>category</code> を持たせ、
+      既存の <code>scripts/sync-access-channels.py</code> で
+      <code>src/lib/access-channels.ts</code> に生成する形にすれば、
+      並びと権限が構造的にずれなくなります（教訓26と同じやり方）。
+    </p>
+    <p style="margin-top:8px">
+      副産物として、問題05の「メニューに無い7ページ / 未登録3ページ」は
+      <b>生成時に検出できる</b>ようになります。
+    </p>
+  </div>
+
+  <h2>決めていただきたいこと</h2>
+  <ol class="decide">
+    <li><b>9カテゴリの区切りと名前</b>でよいか。特に人事を「名簿・権限」と「採用〜退職」に割るかどうか（合計18項目のため分割案にしています）。</li>
+    <li><b>Staff見出しにある管理ページ5つ</b>を Admin 側へ移すか。移すと店舗スタッフのメニューからは消えます — 現場が今そこから開いているなら、移動の前に確認が要ります。</li>
+    <li><b>メニューに無い4ページ</b>をどうするか。<code>Attendance</code> と <code>Bayzat Import</code> は取込元が2026-07で停止しているので retire 候補、<code>Menu Builder</code> と <code>NTE Management</code> は追加候補です。</li>
+    <li><b>台帳未登録の4件</b>（Role Management ほか）をチャンネル登録するか。しないと Role Management から制御できません。</li>
+    <li><b>改名</b>を行うか。現場が今の名前で覚えている場合、混乱と天秤になります。</li>
+    <li><b>利用頻度を先に測るか</b>。<code>ADMIN_AUTHZ_MODE=log</code> を2週間回せば、並び順を実績で決められます（デプロイ不要・無害）。</li>
+    <li><b>実装順</b>。検索欄だけ先に入れる案も有効です（カテゴリ分けより小さく、効果は大きい）。</li>
+  </ol>
+
+  <hr class="rule" style="margin:56px 0 20px">
+  <p class="small">
+    調査日 2026-09-02 ／ 対象 <code>NavBar.tsx</code>・<code>access_control.py</code>（本番デプロイ済みの状態）。
+    本書は提案であり、コードは変更していません。
+  </p>
+</div>
+
+<script>
+const CATS = [
+  ["money",  "経営・数字",        "var(--c-money)"],
+  ["proc",   "調達・仕入",        "var(--c-proc)"],
+  ["inv",    "在庫・仕込み",      "var(--c-inv)"],
+  ["ops",    "店舗運営",          "var(--c-ops)"],
+  ["shift",  "勤怠・シフト",      "var(--c-shift)"],
+  ["pay",    "給与・経費",        "var(--c-pay)"],
+  ["people", "人事 — 名簿・権限", "var(--c-people)"],
+  ["hrlife", "人事 — 採用〜退職", "var(--c-hrlife)"],
+  ["sys",    "システム・通知",    "var(--c-sys)"],
+];
+const COLOR = Object.fromEntries(CATS.map(c => [c[0], c[2]]));
+const NAME  = Object.fromEntries(CATS.map(c => [c[0], c[1]]));
+
+// Current menu order, with the category this proposal would put each item in.
+const ITEMS = [
+  ["Admin Dashboard","top"],["Inventory","inv"],["Procurement","proc"],
+  ["Emergency Requests","proc"],["Spot Purchase","proc"],["Supplier Confirmations","proc"],
+  ["Analytics","money"],["Cancellation Report","money"],["Management P&L","money"],
+  ["AR Payouts","money"],["Management Accounting","money"],["Cost Calculation","money"],
+  ["Private Reports","money"],["AI Analytics Pro","money"],["Business Events Log","money"],
+  ["OS Attendance","shift"],["Absences","shift"],["Renewals","people"],
+  ["Staff","people"],["Role Management","people"],["Security","sys"],
+  ["Employee Handbook","people"],["Staff Ranks (L0-L10)","people"],["Emergency Contacts","people"],
+  ["Draft","shift"],["Manual Shift","shift"],["Shift Audit Log","shift"],
+  ["Backoffice Eval","ops"],["Store Evaluations","ops"],["Cold Chain","inv"],
+  ["CK Label Compliance","inv"],["CK Par Levels","inv"],["Store Par Levels","inv"],
+  ["Store Supplier Orders","proc"],["Daily Check","ops"],["Expense Requests","pay"],
+  ["Overtime Requests","shift"],["Unworked Shifts","shift"],["Transport Expense","pay"],
+  ["Petty Cash","pay"],["Cash Management","pay"],["Meal Allowance","pay"],
+  ["Probation","hrlife"],["HR Today","hrlife"],["Notice to Explain","hrlife"],
+  ["HR Recruitment","hrlife"],["HR Onboarding","hrlife"],["HR Performance","hrlife"],
+  ["HR Offboarding","hrlife"],["HR Clearance","hrlife"],
+  ["COE — Certificate of Employment","hrlife"],["HR Policy Documents","people"],
+  ["Company Assets","people"],["Incident Reports","ops"],["Waiting for Someone","ops"],
+  ["Price Check","proc"],["Base Roll Prep","inv"],["Daily Report","money"],
+  ["BO Dashboard","ops"],["Backup Par Levels","ops"],["Pattern Detection","ops"],
+  ["People","ops"],["Vendors","proc"],["Filing Ledger","proc"],
+  ["Area Manager Review","ops"],["Discord Inbox","sys"],["Payroll","pay"],
+  ["Market Analysis","money"],["Store Opening","ops"],["Payment Schedule","proc"],
+  ["Discord Alerts","sys"],["Aggregator Price Monitor","money"],["FOCO Investor Portal","money"],
+];
+
+// /admin pages that currently sit under the "Staff" heading.
+const UNDER_STAFF = [
+  ["Disposal Report","inv"],["Backup Report","inv"],["Yield Control","inv"],
+  ["Daily Inventory","inv"],["Travel Path","ops"],
+];
+
+
+// Permissioned pages that are not on the menu today.
+const ORPHANS = { inv: ["Menu Builder"], hrlife: ["NTE Management"] };
+// Reachable only by URL and tied to the Bayzat feed that stopped in 2026-07.
+const RETIRE = ["Attendance", "Bayzat Import"];
+
+const before = document.getElementById("beforeList");
+const render = (label, cat, i, staffFlag) => {
+  const row = document.createElement("div");
+  row.className = "brow";
+  const n = document.createElement("span");
+  n.className = "i"; n.textContent = i + 1;
+  const d = document.createElement("span");
+  d.className = "dot";
+  d.style.background = cat === "top" ? "var(--faint)" : COLOR[cat];
+  const t = document.createElement("span");
+  t.textContent = label;
+  row.append(n, d, t);
+  if (staffFlag) {
+    const f = document.createElement("span");
+    f.className = "tag"; f.style.marginLeft = "auto"; f.textContent = "Staff見出し";
+    row.append(f);
+  }
+  before.append(row);
+};
+ITEMS.forEach(([l, c], i) => render(l, c, i + 1, false));
+const sep = document.createElement("div");
+sep.className = "col-s";
+sep.style.cssText = "margin:10px 6px 4px; padding-top:10px; border-top:1px dashed var(--border)";
+sep.textContent = "↓ ここから下は「Staff」見出しの中にある管理ページ";
+before.append(sep);
+UNDER_STAFF.forEach(([l, c], i) => render(l, c, "S" + (i + 1), true));
+
+const groups = document.getElementById("groupList");
+CATS.forEach(([key, title, color]) => {
+  const mine = ITEMS.concat(UNDER_STAFF).filter(([, c]) => c === key).map(([l]) => l);
+  const extra = ORPHANS[key] || [];
+  const box = document.createElement("div");
+  box.className = "grp";
+
+  const head = document.createElement("header");
+  const dot = document.createElement("span");
+  dot.className = "dot"; dot.style.background = color;
+  const h = document.createElement("h3"); h.textContent = title;
+  const c = document.createElement("span");
+  c.className = "cnt"; c.textContent = mine.length + (extra.length ? " +" + extra.length : "");
+  head.append(dot, h, c);
+
+  const ul = document.createElement("ul");
+  mine.forEach(l => {
+    const li = document.createElement("li");
+    li.textContent = l;
+    ul.append(li);
+  });
+  extra.forEach(l => {
+    const li = document.createElement("li");
+    li.className = "new";
+    const tag = document.createElement("span");
+    tag.className = "tag"; tag.textContent = "＋";
+    li.append(tag, document.createTextNode(l));
+    ul.append(li);
+  });
+
+  box.append(head, ul);
+  groups.append(box);
+});
+
+const legend = document.getElementById("legend");
+CATS.forEach(([, title, color]) => {
+  const s = document.createElement("span");
+  const d = document.createElement("span");
+  d.className = "dot"; d.style.background = color;
+  s.append(d, document.createTextNode(title));
+  legend.append(s);
+});
+</script>

@@ -7,6 +7,7 @@ import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
+  INPUT_CLASS,
   PRIMARY_BUTTON,
   SMALL_BUTTON,
   TEXTAREA_CLASS,
@@ -84,6 +85,11 @@ export default function RushCheckPage() {
   const [answers, setAnswers] = useState<Partial<Record<CheckKey, boolean>>>({});
   const [pathNote, setPathNote] = useState("");
   const [note, setNote] = useState("");
+  // Two numbers the yes/no answers cannot carry (requested 2026-09-02).
+  // Both optional: a check is worth having without them, and a required
+  // field is a skipped field.
+  const [ticketCount, setTicketCount] = useState("");
+  const [oldestOrder, setOldestOrder] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -158,6 +164,8 @@ export default function RushCheckPage() {
           ...answers,
           travel_path_note: pathNote.trim(),
           note: note.trim(),
+          ticket_count: ticketCount.trim() === "" ? null : Number(ticketCount),
+          oldest_order: oldestOrder.trim(),
         }),
       });
       if (!res.ok) {
@@ -173,6 +181,8 @@ export default function RushCheckPage() {
       setAnswers({});
       setPathNote("");
       setNote("");
+      setTicketCount("");
+      setOldestOrder("");
       await load();
     } catch (e) {
       setBanner({ kind: "err", text: `Could not submit: ${e}` });
@@ -311,6 +321,32 @@ export default function RushCheckPage() {
             </div>
           );
         })}
+
+        {/* Read off the screen, not counted by hand. Placed above the free
+            note so they are answered while the numbers are still on the till. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className={T_LABEL + " mb-1.5"}>Tickets this slot</div>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              className={INPUT_CLASS}
+              placeholder="e.g. 12"
+              value={ticketCount}
+              onChange={(e) => setTicketCount(e.target.value)}
+            />
+          </div>
+          <div>
+            <div className={T_LABEL + " mb-1.5"}>Oldest order received</div>
+            <input
+              type="time"
+              className={INPUT_CLASS}
+              value={oldestOrder}
+              onChange={(e) => setOldestOrder(e.target.value)}
+            />
+          </div>
+        </div>
 
         <div>
           <div className={T_LABEL + " mb-1.5"}>Anything else? (optional)</div>

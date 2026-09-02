@@ -65,6 +65,22 @@ interface TaskContextShape {
   [k: string]: unknown;
 }
 
+interface RushCheckRow {
+  branch: string;
+  slot: string;
+  submitted_by: string;
+  queue_ok: boolean | null;
+  prep_ok: boolean | null;
+  staffing_ok: boolean | null;
+  cleanliness_ok: boolean | null;
+  travel_path_ok: boolean | null;
+  travel_path_note: string | null;
+  note: string | null;
+  ticket_count: number | null;
+  oldest_order: string | null;
+  created_at: string;
+}
+
 interface ManagementTask {
   id: number;
   city: string;
@@ -78,6 +94,8 @@ interface ManagementTask {
   response_action: string | null;
   response_note: string | null;
   context: TaskContextShape | null;
+  /** Who the task is addressed to, from the duty roster. */
+  manager_name: string | null;
   created_at: string;
   sent_at: string | null;
   responded_at: string | null;
@@ -690,8 +708,21 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${sevDot}`} />
           <div>
-            <div className="font-semibold text-white text-sm">{fmtLabel(task.type)}</div>
-            <div className="text-xs text-zinc-400 mt-0.5">{fmtTime(task.sent_at || task.created_at)}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-white text-sm">{fmtLabel(task.type)}</span>
+              {/* Which store this is about. Without it an alert arriving on a
+                  day you are not at any branch is unreadable — you cannot tell
+                  whether it is yours, and neither can whoever picks it up next. */}
+              {task.branch && (
+                <span className="rounded-md border border-white/15 bg-white/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-zinc-200">
+                  {task.branch}
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-zinc-400 mt-0.5">
+              {fmtTime(task.sent_at || task.created_at)}
+              {task.manager_name ? <> · Owner: <span className="text-zinc-300">{task.manager_name}</span></> : null}
+            </div>
           </div>
         </div>
         {isResponded ? (
@@ -845,6 +876,15 @@ export default function ManagerInboxPage() {
   // this page used to open on a branch dropdown, so finding your own work meant
   // knowing to pick the right store, and 322 tasks reached nobody.
   const [branch, setBranch] = useState("");
+  // Filter by the person a task is addressed to, so an area manager can read
+  // one manager's whole load and the feedback they gave the kitchen.
+  const [assignee, setAssignee] = useState("");
+  const [assignees, setAssignees] = useState<string[]>([]);
+  // What the store actually filed today. The inbox showed only the chases for
+  // missing checks, so a manager who had submitted one had no way to see back
+  // what they entered.
+  const [rushChecks, setRushChecks] = useState<RushCheckRow[]>([]);
+  const [rushSlots, setRushSlots] = useState<Record<string, string>>({});
   const [viewer, setViewer] = useState("");
 
   // Moving city must move the branch with it, or the page asks the API for a
@@ -875,6 +915,23 @@ export default function ManagerInboxPage() {
     } catch { /* silently ignore */ }
   }, []);
 
+  const loadRushChecks = useCallback(async () => {
+    try {
+      const headers = getAuthHeaders(getAuth());
+      const p = new URLSearchParams({ city });
+      if (branch) p.set("branch", branch);
+      const res = await fetch(`/api/store/management/rush-checks?${p}`, { headers });
+      if (!res.ok) return;
+      const d = await res.json();
+      setRushChecks((d.checks || []) as RushCheckRow[]);
+      const m: Record<string, string> = {};
+      for (const sl of d.slots || []) m[sl.key] = sl.label;
+      setRushSlots(m);
+    } catch {
+      /* a read-only panel must not take the inbox down with it */
+    }
+  }, [city, branch]);
+
   const loadTasks = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     else setRefreshing(true);
@@ -883,19 +940,21 @@ export default function ManagerInboxPage() {
       const headers = getAuthHeaders(getAuth());
       const params = new URLSearchParams({ limit: "100" });
       if (city)   params.set("city", city);
-      if (branch) params.set("branch", branch);
+      if (assignee) params.set("assignee", assignee);
+      else if (branch) params.set("branch", branch);
       const res = await fetch(`/api/store/management/tasks?${params}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setTasks(data.tasks || []);
       setViewer(String(data.viewer || ""));
+      if (Array.isArray(data.assignees)) setAssignees(data.assignees);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [city, branch]);
+  }, [city, branch, assignee]);
 
   useEffect(() => {
     loadTemplates();
@@ -903,7 +962,9 @@ export default function ManagerInboxPage() {
 
   useEffect(() => {
     loadTasks();
-  }, [loadTasks, branch]);
+  }, [loadTasks, branch, assignee]);
+
+  useEffect(() => { void loadRushChecks(); }, [loadRushChecks]);
 
   async function handleRespond(
     task: ManagementTask,
@@ -991,9 +1052,24 @@ export default function ManagerInboxPage() {
             ]}
             className="w-56 text-sm"
           />
-          {!branch ? (
+          <span className={T_LABEL}>Owner</span>
+          <SelectDark
+            value={assignee}
+            onChange={v => setAssignee(v)}
+            aria-label="Filter by the person a task is addressed to"
+            options={[
+              { value: "", label: "Anyone" },
+              ...assignees.map(n => ({ value: n, label: n })),
+            ]}
+            className="w-52 text-sm"
+          />
+          {assignee ? (
             <span className={T_CAPTION}>
-              Only what is addressed to you. Pick a branch to see a whole store.
+              Everything addressed to {assignee}, across every branch.
+            </span>
+          ) : !branch ? (
+            <span className={T_CAPTION}>
+              Only what is addressed to you. Pick a branch, or a person, to look wider.
             </span>
           ) : null}
           {!canSwitchCity && (
@@ -1014,6 +1090,64 @@ export default function ManagerInboxPage() {
             <div className={KPI_VALUE + " text-emerald-400"}>{completedTasks.length}</div>
           </div>
         </div>
+
+        {/* What the store filed today. The inbox only ever showed the chases
+            for checks that were MISSING, so a manager who had done the check
+            could not see back what they entered. */}
+        {rushChecks.length > 0 && (
+          <div className={GLASS_CARD + " mb-5 p-4"}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className={T_LABEL}>Rush Hour Checks filed today</span>
+              <span className={T_CAPTION}>{rushChecks.length}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className={T_CAPTION + " pb-1.5 pr-3 font-medium"}>Slot</th>
+                    <th className={T_CAPTION + " pb-1.5 pr-3 font-medium"}>Branch</th>
+                    <th className={T_CAPTION + " pb-1.5 pr-3 font-medium text-right"}>Tickets</th>
+                    <th className={T_CAPTION + " pb-1.5 pr-3 font-medium"}>Oldest order</th>
+                    <th className={T_CAPTION + " pb-1.5 pr-3 font-medium"}>Issues</th>
+                    <th className={T_CAPTION + " pb-1.5 font-medium"}>By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rushChecks.map((rc, i) => {
+                    const bad = [
+                      rc.queue_ok === false && "Queue",
+                      rc.prep_ok === false && "Prep",
+                      rc.staffing_ok === false && "Staffing",
+                      rc.cleanliness_ok === false && "Cleanliness",
+                      rc.travel_path_ok === false && "Travel path",
+                    ].filter(Boolean) as string[];
+                    return (
+                      <tr key={`${rc.branch}-${rc.slot}-${i}`} className="border-t border-white/5">
+                        <td className="py-1.5 pr-3 text-zinc-200">{rushSlots[rc.slot] || rc.slot}</td>
+                        <td className="py-1.5 pr-3 text-zinc-400">{rc.branch}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums text-zinc-200">
+                          {rc.ticket_count ?? "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 tabular-nums text-zinc-300">
+                          {rc.oldest_order || "—"}
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          {bad.length === 0
+                            ? <span className="text-emerald-400">All OK</span>
+                            : <span className="text-amber-300">{bad.join(", ")}</span>}
+                          {rc.note ? <span className="text-zinc-500"> · {rc.note}</span> : null}
+                          {rc.travel_path_note
+                            ? <span className="text-zinc-500"> · {rc.travel_path_note}</span> : null}
+                        </td>
+                        <td className="py-1.5 text-zinc-400">{rc.submitted_by}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Loading / Error */}
         {loading ? (
