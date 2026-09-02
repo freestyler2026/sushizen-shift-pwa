@@ -1337,9 +1337,16 @@ export default function NavBar() {
     try {
       stored = JSON.parse(localStorage.getItem("zen:nav-cats") || "[]");
     } catch { /* a corrupt preference is not worth a broken menu */ }
-    const here = [...ADMIN_ITEMS, ...PRIMARY, ...SECONDARY_BASE].find(
-      (i) => i.cat && (pathname === i.href || pathname.startsWith(i.href + "/")),
-    );
+    // Longest match, not first match. /admin/finance is a prefix of
+    // /admin/finance/vendors and they are in different groups, so first-match
+    // opened Money & Reports while the page you were looking at sat unopened
+    // in Procurement.
+    let here: NavItem | undefined;
+    for (const i of [...ADMIN_ITEMS, ...PRIMARY, ...SECONDARY_BASE]) {
+      if (!i.cat) continue;
+      if (pathname !== i.href && !pathname.startsWith(i.href + "/")) continue;
+      if (!here || i.href.length > here.href.length) here = i;
+    }
     setOpenCats(new Set([...stored, ...(here?.cat ? [here.cat] : [])]));
   }, [pathname]);
 
