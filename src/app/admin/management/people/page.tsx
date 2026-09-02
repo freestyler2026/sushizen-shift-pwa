@@ -39,6 +39,14 @@ interface Person {
   reports_filed: number;
 }
 
+interface PeopleExclusion {
+  city: string;
+  staff_name: string;
+  reason: string;
+  excluded_by: string;
+  excluded_at: string;
+}
+
 interface PeopleResult {
   city: string;
   days: number;
@@ -46,6 +54,8 @@ interface PeopleResult {
   to: string;
   min_scored: number;
   people: Person[];
+  /** Who is hidden from this list. Named, so the page is not just short. */
+  excluded?: PeopleExclusion[];
 }
 
 type SortKey = "credits" | "delta" | "volume";
@@ -91,6 +101,55 @@ export default function PeoplePage() {
   }, [load]);
 
   const people = data?.people ?? [];
+  const excluded = data?.excluded ?? [];
+  // HQ only, matching the backend. Hiding the control for everyone else is a
+  // convenience, not the guard -- the endpoint refuses regardless.
+  //
+  // Read after mount, never during the first render: this page is prerendered
+  // and served from the edge cache, where there is no localStorage, so deciding
+  // anything from getAuth() on render disagrees with the server's HTML and
+  // trips React #418.
+  const [isHQ, setIsHQ] = useState(false);
+  useEffect(() => {
+    setIsHQ(String(getAuth()?.role || "").toUpperCase() === "HQ");
+  }, []);
+  const [busyName, setBusyName] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  async function hidePerson(name: string) {
+    if (!window.confirm(
+      `Hide "${name}" from this page?\n\n` +
+      "Their QC scores are kept — this only removes the row, and any HQ member " +
+      "can put it back from the list at the bottom of this page.")) return;
+    setBusyName(name); setActionError("");
+    try {
+      const res = await fetch("/api/admin/management/people/exclusions", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, staff_name: name, reason: "" }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text.slice(0, 200) || `Failed (${res.status})`);
+      await load();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally { setBusyName(""); }
+  }
+
+  async function restorePerson(name: string) {
+    setBusyName(name); setActionError("");
+    try {
+      const res = await fetch(
+        `/api/admin/management/people/exclusions?city=${encodeURIComponent(city)}` +
+        `&staff_name=${encodeURIComponent(name)}`,
+        { method: "DELETE", headers: getAuthHeaders(getAuth()) });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text.slice(0, 200) || `Failed (${res.status})`);
+      await load();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally { setBusyName(""); }
+  }
   const branches = useMemo(
     () => Array.from(new Set(people.map((p) => p.branch).filter(Boolean))).sort(),
     [people],
@@ -247,6 +306,7 @@ export default function PeoplePage() {
                   <th className={TABLE_HEADER + " text-right"}>vs branch</th>
                   <th className={TABLE_HEADER + " text-right"}>Self-fixes</th>
                   <th className={TABLE_HEADER + " text-right pr-2"}>Replies</th>
+                  {isHQ && <th className={TABLE_HEADER + " text-right pr-2"} />}
                 </tr>
               </thead>
               <tbody>
@@ -302,11 +362,64 @@ export default function PeoplePage() {
                       <td className="py-2.5 text-right text-sm text-zinc-400 tabular-nums pr-2">
                         {p.sla_responses || "—"}
                       </td>
+                      {isHQ && (
+                        <td className="py-2.5 pr-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void hidePerson(p.name)}
+                            disabled={busyName === p.name}
+                            title={`Hide ${p.name} from this page (reversible)`}
+                            className="rounded-md border border-white/10 px-2 py-0.5 text-[11px] font-semibold text-zinc-500 transition-colors hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                          >
+                            {busyName === p.name ? "…" : "Hide"}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            {actionError}
+          </div>
+        )}
+
+        {/* The undo, on the page, always visible -- not only to whoever pressed
+            Hide. A hidden name that cannot be found again is a deletion with
+            extra steps. */}
+        {excluded.length > 0 && (
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <div className={T_CAPTION}>
+              Hidden from this page ({excluded.length}) — their QC scores are kept. They
+              are left out of the branch median too, so an HQ or test account no longer
+              moves the comparison everyone else is measured against.
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {excluded.map((e) => (
+                <span
+                  key={e.staff_name}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300"
+                  title={`Hidden by ${e.excluded_by} on ${e.excluded_at.slice(0, 10)}${e.reason ? ` — ${e.reason}` : ""}`}
+                >
+                  {e.staff_name}
+                  {isHQ && (
+                    <button
+                      type="button"
+                      onClick={() => void restorePerson(e.staff_name)}
+                      disabled={busyName === e.staff_name}
+                      className="font-semibold text-violet-300 underline underline-offset-2 hover:text-violet-200 disabled:opacity-50"
+                    >
+                      {busyName === e.staff_name ? "…" : "Restore"}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
