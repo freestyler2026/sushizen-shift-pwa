@@ -363,6 +363,172 @@ function FarConfirmBanner({ city }: { city: string }) {
   );
 }
 
+type BreakRow = {
+  staff_name: string; branches: string[]; times?: number; days?: number;
+  avg_over?: number; max_over?: number; total_over?: number;
+  allowance_min?: number; any_split?: boolean; max_breaks?: number;
+  avg_span_h?: number; dates?: string[];
+};
+type BreakData = {
+  tolerance_min: number; default_break_min: number;
+  coverage: { sessions: number; with_break: number; rate: number | null; split_days: number };
+  over_allowance: BreakRow[]; unclosed_breaks: BreakRow[];
+  many_breaks: BreakRow[]; no_break_recorded: BreakRow[];
+};
+
+/**
+ * Breaks.
+ *
+ * The standard is not a setting anyone maintains: on a split day the roster
+ * already says when the second segment starts, and that is when the person is
+ * due back. Everywhere else it is 60 minutes. So the line can never be stale,
+ * and it is printed next to every name.
+ *
+ * Coverage is shown whether or not anything is flagged. Manila records no
+ * break at all on nearly two thirds of worked days, so an exceptions-only
+ * panel would say "nothing wrong" while looking at a third of the shifts.
+ */
+function BreakBanner({ city }: { city: string }) {
+  const [data, setData] = useState<BreakData | null>(null);
+  const [open, setOpen] = useState<string>("");
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/attendance/break-exceptions?city=${encodeURIComponent(city === "all" ? "manila" : city)}&days=30`,
+          { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!dead) setData(j);
+      } catch {
+        /* a watch, not a feature — never break the dashboard */
+      }
+    })();
+    return () => { dead = true; };
+  }, [city]);
+
+  if (!data) return null;
+  const c = data.coverage;
+  if (!c || !c.sessions) return null;
+
+  const rate = c.rate ?? 0;
+  const poor = rate < 80;
+  const sections: { key: string; label: string; rows: BreakRow[]; tone: string }[] = [
+    { key: "over",     label: "Back late from break",        rows: data.over_allowance,    tone: "amber" },
+    { key: "many",     label: "Three or more breaks in a shift", rows: data.many_breaks,   tone: "amber" },
+    { key: "none",     label: "Long shift, no break recorded",   rows: data.no_break_recorded, tone: "slate" },
+    { key: "unclosed", label: "Break never closed — fix the record", rows: data.unclosed_breaks, tone: "slate" },
+  ];
+  const flagged = data.over_allowance.length + data.many_breaks.length;
+
+  const toneCls = (t: string) =>
+    t === "amber"
+      ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
+      : "border-white/10 bg-white/[0.03] text-white/70";
+
+  return (
+    <div className={`mb-4 rounded-xl border px-4 py-2.5 text-sm ${
+      flagged > 0 ? "border-amber-500/40 bg-amber-500/[0.07]" : "border-white/10 bg-white/[0.03]"
+    }`}>
+      {/* Coverage first. The findings mean nothing without it. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span className={poor ? "text-amber-300" : "text-emerald-300/80"}>{poor ? "▲" : "✓"}</span>
+        <span className="text-white/70">
+          Breaks recorded on <b className="text-white/90">{c.with_break}</b> of {c.sessions} shifts
+          over 30 days — <b className={poor ? "text-amber-200" : "text-emerald-200"}>{rate}%</b>
+        </span>
+        {poor && (
+          <span className="text-white/45">
+            · the checks below can only see those {rate}%
+          </span>
+        )}
+        {c.split_days > 0 && (
+          <span className="text-white/40">· {c.split_days} split-shift days, break taken from the roster gap</span>
+        )}
+        <span className="ml-auto rounded-full border border-white/10 px-2 py-0.5 text-white/45">
+          Due back at the second shift&apos;s start, otherwise {data.default_break_min} min · {data.tolerance_min} min grace
+        </span>
+      </div>
+
+      {sections.filter(s => s.rows.length > 0).map(s => (
+        <div key={s.key} className="mt-2">
+          <button
+            type="button"
+            onClick={() => setOpen(o => (o === s.key ? "" : s.key))}
+            className={`rounded-full border px-2.5 py-1 text-xs ${toneCls(s.tone)} hover:brightness-125`}
+          >
+            {s.label}: <b>{s.rows.length}</b> {open === s.key ? "▾" : "▸"}
+          </button>
+          {open === s.key && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="text-white/40">
+                  <tr>
+                    <th className="pr-3 pb-1 font-medium">Who</th>
+                    <th className="pr-3 pb-1 font-medium">Branch</th>
+                    <th className="pr-3 pb-1 font-medium text-right">
+                      {s.key === "none" ? "Days" : "Times"}
+                    </th>
+                    {s.key === "over" && <>
+                      <th className="pr-3 pb-1 font-medium text-right">Avg over</th>
+                      <th className="pr-3 pb-1 font-medium text-right">Worst</th>
+                      <th className="pr-3 pb-1 font-medium text-right">Due</th>
+                    </>}
+                    {s.key === "many" && <th className="pr-3 pb-1 font-medium text-right">Most in a shift</th>}
+                    {s.key === "none" && <th className="pr-3 pb-1 font-medium text-right">Avg shift</th>}
+                    {s.key === "unclosed" && <th className="pr-3 pb-1 font-medium text-right">Recorded as</th>}
+                    <th className="pb-1 font-medium">Dates</th>
+                  </tr>
+                </thead>
+                <tbody className="text-white/75">
+                  {s.rows.map(r => (
+                    <tr key={r.staff_name} className="border-t border-white/10">
+                      <td className="pr-3 py-1 whitespace-nowrap">{r.staff_name}</td>
+                      <td className="pr-3 py-1 text-white/50">{(r.branches || []).join(" / ")}</td>
+                      <td className="pr-3 py-1 text-right tabular-nums">{r.days ?? r.times}</td>
+                      {s.key === "over" && <>
+                        <td className="pr-3 py-1 text-right tabular-nums">+{r.avg_over}m</td>
+                        <td className="pr-3 py-1 text-right tabular-nums">+{r.max_over}m</td>
+                        <td className="pr-3 py-1 text-right tabular-nums text-white/45">
+                          {r.allowance_min}m{r.any_split ? " ·split" : ""}
+                        </td>
+                      </>}
+                      {s.key === "many" && <td className="pr-3 py-1 text-right tabular-nums">{r.max_breaks}</td>}
+                      {s.key === "none" && <td className="pr-3 py-1 text-right tabular-nums">{r.avg_span_h}h</td>}
+                      {s.key === "unclosed" && (
+                        <td className="pr-3 py-1 text-right tabular-nums text-white/45">
+                          {(r.max_over ?? 0) + (r.allowance_min ?? 0)}m
+                        </td>
+                      )}
+                      <td className="py-1 text-white/45">{(r.dates || []).slice(0, 4).join(", ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {s.key === "unclosed" && (
+                <div className="mt-2 text-xs text-white/45">
+                  Longer than three times what was due. That is a Break Out nobody pressed,
+                  not a break anyone took — the shift ended and the timer was still running.
+                  Fix the day in DTR Records rather than raising it with the person.
+                </div>
+              )}
+              {s.key === "none" && (
+                <div className="mt-2 text-xs text-white/45">
+                  No break was recorded on these shifts. It does not follow that none was taken —
+                  it means nothing above can see these people. Back office is already excluded.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function fmtLabel(type: string) {
   return fmtExceptionType(type);
 }
@@ -1894,6 +2060,7 @@ export default function BODashboardPage() {
         <AutoCheckBanner runs={jobRuns} city={cityFilter} />
         <SentStampBanner city={cityFilter} />
         <FarConfirmBanner city={cityFilter} />
+        <BreakBanner city={cityFilter} />
         <AnswerRates city={cityFilter} />
 
 
