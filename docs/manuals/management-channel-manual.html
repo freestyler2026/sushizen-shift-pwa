@@ -966,8 +966,56 @@ ul.body-list strong { color: var(--text); }
       <span class="en">BO B / C follow the same flow. When your exception type appears after Run Detection → Send Instruction → check the response.</span>
     </div>
 
+    <!-- QR FAR-SCAN BANNER -->
+    <h2><span class="ja">③ 店内QRが遠くから読まれたとき</span><span class="en">③ When the branch QR is scanned from outside</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title"><span class="ja">画面の上に出る帯（2026-09-05 のQR運用開始以降）</span><span class="en">The banner at the top of the page (from the QR rollout on 2026-09-05)</span></div>
+      <div class="step-desc ja">
+        店内に貼ったQRは、写真に撮れば持ち出せます。防げません。防げるのは
+        <strong>「持ち出したコードが、どこで読まれたか」が残らないこと</strong>だけで、それは残ります。
+        BO Dashboard の上部に、<strong>店舗から明らかに離れた場所でQRが読まれた人</strong>が黄色の帯で出ます。
+      </div>
+      <div class="step-desc en">
+        The poster inside the store can be photographed and carried out. That cannot be prevented.
+        What can be prevented is a copied code being used <strong>without leaving a trace of where</strong> —
+        and the where is recorded. An amber banner at the top of the BO Dashboard names anyone whose
+        scans keep landing well outside their branch.
+      </div>
+      <ol class="steps" style="margin-top:10px;">
+        <li class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title"><span class="ja">出る条件</span><span class="en">When it appears</span></div>
+            <div class="step-desc ja">同じ人が<strong>3日以上</strong>、その店舗の普段の打刻位置よりはっきり外側で読んだとき。1回だけの遠い記録はGPSのズレなので出しません（出すとノイズに埋もれて本物が読まれなくなります）。</div>
+            <div class="step-desc en">The same person, on <strong>three or more days</strong>, scanning from further out than that branch's clock-ins normally land. A single far reading is a GPS glitch and is not shown — noise would bury the real thing.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title"><span class="ja">基準は店舗ごとに違います</span><span class="en">The line differs per branch</span></div>
+            <div class="step-desc ja">TAFTは138m、CKは190m というように、その店舗の実際の打刻距離から決まります（狭い路面店と広い施設内では「普通」が違うため）。行ごとに基準値も表示されます。</div>
+            <div class="step-desc en">Taft 138m, CK 190m — derived from each branch's own clock-in distances, because a street-front shop and a compound do not share a "normal". Each row prints the line it crossed.</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title"><span class="ja">名前が出たら、まず不正を疑わない</span><span class="en">A name here is not yet a finding</span></div>
+            <div class="step-desc ja">先に確認するのは2つ。①店舗のピンが正しいか（Attendance → Branch GPS）②ポスターが所定の場所にあるか。<strong>ピンが1本ずれている／ポスターが入口の外側に貼られている</strong>だけでも同じ表示になります。両方問題なければ本人に確認します。</div>
+            <div class="step-desc en">Check two things first: the branch pin (Attendance → Branch GPS), and where the poster actually is. A pin set a street away, or a poster stuck outside the door, produces this same banner. If both are right, then speak to the person.</div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <div class="tip info">
+      <span class="tip-icon">ℹ️</span>
+      <span class="ja">誰も出ていないときは「30日で N 件確認、全て店舗内から」と灰色で出ます。<strong>何も表示されない＝正常</strong>ではなく、<strong>まだ1件も確認が無い</strong>という意味です。QR運用開始前はこの状態です。位置情報を許可していない端末の読み取り件数も併記されます（その分は判定できません）。</span>
+      <span class="en">With nothing flagged it still says how many confirmations it checked and that all were from inside. A blank banner does not mean "clean" — it means nothing has been confirmed yet, which is the state before the posters go up. It also counts scans that arrived with no location, since those cannot be checked at all.</span>
+    </div>
+
     <!-- RUN DETECTION -->
-    <h2><span class="ja">③ Run Detection の使い方</span><span class="en">③ How to use Run Detection</span></h2>
+    <h2><span class="ja">④ Run Detection の使い方</span><span class="en">④ How to use Run Detection</span></h2>
     <div class="card" style="margin-bottom:10px;">
       <ol class="steps">
         <li class="step">
@@ -1008,7 +1056,7 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <!-- SEND INSTRUCTION -->
-    <h2><span class="ja">④ Send Instruction の手順</span><span class="en">④ How to send an instruction</span></h2>
+    <h2><span class="ja">⑤ Send Instruction の手順</span><span class="en">⑤ How to send an instruction</span></h2>
     <div class="card" style="margin-bottom:10px;">
       <ol class="steps">
         <li class="step">
@@ -1056,7 +1104,7 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <!-- AFTER MANAGER RESPONDS -->
-    <h2><span class="ja">⑤ マネージャー返答後のアクション</span><span class="en">⑤ After the manager responds</span></h2>
+    <h2><span class="ja">⑥ マネージャー返答後のアクション</span><span class="en">⑥ After the manager responds</span></h2>
     <div style="overflow-x:auto;">
       <table class="status-table">
         <tr>
@@ -1087,7 +1135,7 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <!-- BO THREAD SECTION -->
-    <h2><span class="ja">⑥ メッセージスレッドでフォローアップ</span><span class="en">⑥ Follow up via the Messages thread</span></h2>
+    <h2><span class="ja">⑦ メッセージスレッドでフォローアップ</span><span class="en">⑦ Follow up via the Messages thread</span></h2>
     <div class="card accent-border" style="margin-bottom:10px;">
       <div class="card-title"><span class="ja">BOスタッフがメッセージを送る主なシーン</span><span class="en">When BO staff typically sends messages</span></div>
       <p class="ja" style="font-size:12px;margin-bottom:10px;">スレッドはBOスタッフが<strong>主導して使う</strong>コミュニケーションチャネルです。「まだ回答がないがどうなっているか」「返答ボタンは押されたが本当に対応されたか」「その後の状況を確認したい」——こうした場面でスレッドを使います。マネージャーへのDM・Discord・LINEを使わず、タスクに紐づいたシステム内でやり取りが完結します。</p>
@@ -1158,7 +1206,7 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <!-- BO FAQ -->
-    <h2><span class="ja">⑦ よくある質問・困ったとき</span><span class="en">⑦ FAQ & Troubleshooting</span></h2>
+    <h2><span class="ja">⑧ よくある質問・困ったとき</span><span class="en">⑧ FAQ & Troubleshooting</span></h2>
 
     <div class="faq-item">
       <div class="faq-q">❓ <span class="ja">Run Detection を押したら「0件」と出た</span><span class="en">Run Detection returned "0 new exceptions"</span></div>
