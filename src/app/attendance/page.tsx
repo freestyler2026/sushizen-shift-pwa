@@ -315,6 +315,12 @@ export default function AttendancePage() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [proofOpen, setProofOpen] = useState(false);
+  const [proofTime, setProofTime] = useState("");
+  const [proofReason, setProofReason] = useState("");
+  const [proofBusy, setProofBusy] = useState(false);
+  const [proofDone, setProofDone] = useState(false);
+  const [proofError, setProofError] = useState("");
   const [otPromptMinutes, setOtPromptMinutes] = useState(0);
   const pendingOtPromptRef = useRef<number | null>(null);
   const [wfhToday, setWfhToday] = useState(false);
@@ -746,6 +752,51 @@ export default function AttendancePage() {
     }
   };
 
+  /**
+   * When the fence refuses a clock-in.
+   *
+   * The refusal used to have a way round it — declaring a work-from-home day,
+   * which switched the distance check off for that person for that day. That is
+   * closed to store staff now, so the refusal has to lead somewhere or it is a
+   * red box and nothing else. Someone at their own counter with a poor fix
+   * still has to be able to say what time they started.
+   *
+   * The photo is the store clock, in shot. It goes to the same review queue
+   * managers already use, and it can be filed for a day with no session at all.
+   */
+  const sendClockProof = async (file: File) => {
+    setProofBusy(true); setProofError("");
+    try {
+      const a = getAuth();
+      if (!a) { setProofError("Please log in again."); return; }
+      if (!proofTime) { setProofError("Enter the time on the store clock first."); return; }
+      const dataUrl = await prepareDataUrl(file);
+      const res = await fetch("/api/attendance/corrections", {
+        method: "POST",
+        headers: getAuthHeaders(a),
+        body: JSON.stringify({
+          work_date: today,
+          requested_check_in: proofTime,
+          reason: proofReason || "Could not clock in — GPS reported me outside the branch",
+          photo: dataUrl,
+        }),
+      });
+      const raw = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(raw); } catch { /* 413 arrives as text/plain */ }
+      if (res.status === 413) {
+        setProofError("That photo is too large even after shrinking. Take one more, further back.");
+        return;
+      }
+      if (!res.ok) { setProofError(String(body.detail || "Could not send. Try once more.")); return; }
+      setProofDone(true);
+    } catch {
+      setProofError("Could not send. Check your signal and try again.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
   // ─── Break elapsed timer ──────────────────────────────────────────────────
   useEffect(() => {
     if (activeBreak) {
@@ -944,6 +995,60 @@ export default function AttendancePage() {
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
+          {/* The fence turned them away. Somewhere to go, or it is just a red box. */}
+          {/too far/i.test(error) && !isCheckedIn && (
+            proofDone ? (
+              <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/25 px-3 py-2.5 text-sm text-emerald-200">
+                Sent. Your manager will see the photo and record your time in.
+                You can close this screen.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-600/40 bg-amber-900/20 p-3">
+                {!proofOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => { setProofOpen(true); setProofError(""); }}
+                    className="text-sm font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100"
+                  >
+                    I am at the branch — send my time with a photo
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-xs text-amber-100/85">
+                      Take one photo of the store clock showing the time now, then type that time.
+                      Your manager records it from there.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={proofTime}
+                        onChange={e => setProofTime(e.target.value)}
+                        className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white"
+                        aria-label="Time on the store clock"
+                      />
+                      <input
+                        type="text"
+                        value={proofReason}
+                        onChange={e => setProofReason(e.target.value)}
+                        placeholder="What happened (optional)"
+                        className="flex-1 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white placeholder:text-white/30"
+                      />
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25">
+                      <Camera size={14} />
+                      {proofBusy ? "Sending…" : "Take photo and send"}
+                      <input
+                        type="file" accept="image/*" capture="environment" className="hidden"
+                        disabled={proofBusy}
+                        onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void sendClockProof(f); }}
+                      />
+                    </label>
+                    {proofError && <div className="text-xs text-red-300">{proofError}</div>}
+                  </div>
+                )}
+              </div>
+            )
+          )}
         </div>
       )}
       {success && (
