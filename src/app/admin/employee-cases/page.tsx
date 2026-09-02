@@ -2363,6 +2363,109 @@ export default function EmployeeCasesPage() {
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* Tab 1: Staff Board                                                  */}
       {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* The violation picker lives outside every tab block on purpose.
+          It used to sit inside `tab === "issue"`, so the same button on the
+          Request tab set the state and nothing appeared — the modal it opens
+          was not rendered on that tab. It reads as a dead button, and the
+          person who met it assumed the catalogue was still being reviewed. */}
+      {issueViolationPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[80vh] flex flex-col`}>
+            <div className="flex items-center justify-between">
+              <h3 className={`${T_SECTION} flex items-center gap-2`}>
+                <BookOpen className="h-5 w-5 text-violet-400" />
+                Select Violation
+              </h3>
+              <button type="button" onClick={() => { setIssueViolationPickerOpen(false); setIssueViolationSearch(""); }} className="text-zinc-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input
+              autoFocus
+              value={issueViolationSearch}
+              onChange={(e) => setIssueViolationSearch(e.target.value)}
+              placeholder="Search by code or title…"
+              className={INPUT_CLASS}
+            />
+            <div className="overflow-y-auto flex-1 pr-1">
+              {catalogLoading && <p className="text-sm text-zinc-400 py-4 text-center">Loading catalog…</p>}
+              {!catalogLoading && (() => {
+                const q = issueViolationSearch.toLowerCase();
+                const filtered = catalog.filter((c) =>
+                  !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q)
+                );
+                if (filtered.length === 0) {
+                  return <p className="text-sm text-zinc-500 py-4 text-center">No violations match your search.</p>;
+                }
+                if (q) {
+                  // Flat list when searching
+                  return (
+                    <div className="space-y-0.5">
+                      {filtered.map((c) => (
+                        <button key={c.code} type="button"
+                          onClick={() => void applyIssueViolationTemplate(c.code)}
+                          className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-violet-400 shrink-0 w-20">{c.code}</span>
+                            <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                }
+                // Grouped by category
+                return (
+                  <div className="space-y-1">
+                    {VIOLATION_CATEGORIES.map((cat) => {
+                      const items = filtered.filter((c) => c.category_code === cat.code);
+                      if (items.length === 0) return null;
+                      const isExpanded = pickerExpandedCats.has(cat.code);
+                      return (
+                        <div key={cat.code}>
+                          <button
+                            type="button"
+                            onClick={() => setPickerExpandedCats((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(cat.code)) next.delete(cat.code);
+                              else next.add(cat.code);
+                              return next;
+                            })}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-zinc-800/60 transition-colors"
+                          >
+                            <span className="text-base">{cat.icon}</span>
+                            <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wide flex-1">{cat.label}</span>
+                            <span className="text-xs text-zinc-600">{items.length}</span>
+                            <span className="text-zinc-600 text-xs">{isExpanded ? "▾" : "▸"}</span>
+                          </button>
+                          {isExpanded && (
+                            <div className="ml-4 space-y-0.5 mb-1">
+                              {items.map((c) => (
+                                <button key={c.code} type="button"
+                                  onClick={() => void applyIssueViolationTemplate(c.code)}
+                                  className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-xs text-violet-400 shrink-0 w-[4.5rem]">{c.code}</span>
+                                    <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+            <p className="text-xs text-zinc-500">Selecting a violation will render the template and fill the Reason field.</p>
+          </div>
+        </div>
+      )}
+
       {tab === "board" && (
         <div className="space-y-3">
           {loading && (
@@ -3015,103 +3118,6 @@ export default function EmployeeCasesPage() {
           </div>
 
           {/* ── Violation Catalog Picker Modal ── */}
-          {issueViolationPickerOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-              <div className={`${GLASS_CARD} w-full max-w-2xl space-y-4 p-6 max-h-[80vh] flex flex-col`}>
-                <div className="flex items-center justify-between">
-                  <h3 className={`${T_SECTION} flex items-center gap-2`}>
-                    <BookOpen className="h-5 w-5 text-violet-400" />
-                    Select Violation
-                  </h3>
-                  <button type="button" onClick={() => { setIssueViolationPickerOpen(false); setIssueViolationSearch(""); }} className="text-zinc-400 hover:text-white">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <input
-                  autoFocus
-                  value={issueViolationSearch}
-                  onChange={(e) => setIssueViolationSearch(e.target.value)}
-                  placeholder="Search by code or title…"
-                  className={INPUT_CLASS}
-                />
-                <div className="overflow-y-auto flex-1 pr-1">
-                  {catalogLoading && <p className="text-sm text-zinc-400 py-4 text-center">Loading catalog…</p>}
-                  {!catalogLoading && (() => {
-                    const q = issueViolationSearch.toLowerCase();
-                    const filtered = catalog.filter((c) =>
-                      !q || c.code.toLowerCase().includes(q) || c.title_en.toLowerCase().includes(q)
-                    );
-                    if (filtered.length === 0) {
-                      return <p className="text-sm text-zinc-500 py-4 text-center">No violations match your search.</p>;
-                    }
-                    if (q) {
-                      // Flat list when searching
-                      return (
-                        <div className="space-y-0.5">
-                          {filtered.map((c) => (
-                            <button key={c.code} type="button"
-                              onClick={() => void applyIssueViolationTemplate(c.code)}
-                              className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs text-violet-400 shrink-0 w-20">{c.code}</span>
-                                <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    }
-                    // Grouped by category
-                    return (
-                      <div className="space-y-1">
-                        {VIOLATION_CATEGORIES.map((cat) => {
-                          const items = filtered.filter((c) => c.category_code === cat.code);
-                          if (items.length === 0) return null;
-                          const isExpanded = pickerExpandedCats.has(cat.code);
-                          return (
-                            <div key={cat.code}>
-                              <button
-                                type="button"
-                                onClick={() => setPickerExpandedCats((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(cat.code)) next.delete(cat.code);
-                                  else next.add(cat.code);
-                                  return next;
-                                })}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-zinc-800/60 transition-colors"
-                              >
-                                <span className="text-base">{cat.icon}</span>
-                                <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wide flex-1">{cat.label}</span>
-                                <span className="text-xs text-zinc-600">{items.length}</span>
-                                <span className="text-zinc-600 text-xs">{isExpanded ? "▾" : "▸"}</span>
-                              </button>
-                              {isExpanded && (
-                                <div className="ml-4 space-y-0.5 mb-1">
-                                  {items.map((c) => (
-                                    <button key={c.code} type="button"
-                                      onClick={() => void applyIssueViolationTemplate(c.code)}
-                                      className="w-full text-left rounded-lg px-3 py-2 hover:bg-zinc-700/60 transition-colors group"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-mono text-xs text-violet-400 shrink-0 w-[4.5rem]">{c.code}</span>
-                                        <span className="text-sm text-zinc-200 group-hover:text-white truncate">{c.title_en}</span>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-                <p className="text-xs text-zinc-500">Selecting a violation will render the template and fill the Reason field.</p>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
