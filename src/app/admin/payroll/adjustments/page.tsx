@@ -92,10 +92,12 @@ function AdjModal({
   onSave: (a: Adjustment) => void;
   onClose: () => void;
 }) {
-  // The amount is masked to null for non-HQ, so it arrives as "" — validating or
-  // sending it would either block the save or write NaN over a real figure.
+  // A null amount means it was masked, whoever is looking: a payroll editor
+  // still gets null for the ring-fenced staff. Deciding this from the viewer's
+  // own permission instead of the value in hand would let their blank field
+  // write NaN over a figure they were never shown.
   const canSeeSalary = hasPayrollViewSalary(getAuth());
-  const amountMasked = !canSeeSalary && adj != null && adj.amount == null;
+  const amountMasked = adj != null && adj.amount == null;
   const [form, setForm] = useState({
     staff_name: adj?.staff_name ?? "",
     adj_type: adj?.adj_type ?? defaultType,

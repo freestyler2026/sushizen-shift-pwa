@@ -172,7 +172,10 @@ function ProfileModal({
   // stored value — so their inputs must show the number and refuse the edit.
   // A caller with neither sees null and must not have it validated as blank.
   const canSeeSalary = hasPayrollViewSalary(getAuth());
-  const canEditSalary = canEditPayrollSalary(getAuth());
+  // Per person, not per user: the server sends salary_hidden on the staff it
+  // kept masked, and pins any write to those rows back to what is on disk.
+  const canEditSalary = canEditPayrollSalary(getAuth())
+    && !(existing as { salary_hidden?: boolean } | null)?.salary_hidden;
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [rosterNames, setRosterNames] = useState<string[]>([]);
@@ -369,7 +372,7 @@ function ProfileModal({
             {!canEditSalary && (
               <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                 {canSeeSalary
-                  ? "Rates and allowances are read-only for you — saving keeps the stored amounts. Some staff stay hidden entirely; a blank field there means hidden, not zero."
+                  ? "This person's pay is not shown to you, so the rate fields are read-only — saving keeps the stored amounts. A blank here means hidden, not zero."
                   : "Salary amounts are visible to HQ only. The rate and allowance fields below stay hidden, and saving keeps the stored amounts — every other field is yours to edit."}
               </div>
             )}

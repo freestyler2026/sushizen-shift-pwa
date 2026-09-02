@@ -857,15 +857,15 @@ export function hasPayrollViewSalary(a?: Auth | null): boolean {
 }
 
 /**
- * Can CHANGE salary figures — HQ role only, which is narrower than reading them.
+ * Can CHANGE salary figures.
  *
- * Someone granted the view permission still has every write pinned back to the
- * stored value server-side, so an editable input would take a value the server
- * discards and report success. Keep the fields read-only for them.
+ * Same gate as reading them — but only for the people whose figures actually
+ * arrived. The server pins a write back to disk for anyone it kept masked, so a
+ * row carrying `salary_hidden` must stay read-only however this answers:
+ * otherwise the screen takes a number the server discards and calls it saved.
  */
 export function canEditPayrollSalary(a?: Auth | null): boolean {
-  const auth = a ?? getAuth();
-  return (auth?.role ?? "").toUpperCase() === "HQ";
+  return hasPayrollViewSalary(a);
 }
 
 /** Store Evaluations admin — matches `admin.store_evaluations` channel in `app/access_control.py`. */
