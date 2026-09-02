@@ -223,6 +223,146 @@ function SentStampBanner({ city }: { city: string }) {
   );
 }
 
+type FarRow = {
+  staff_name: string; branch_code: string; far_days: number;
+  min_m: number; max_m: number; avg_m: number;
+  branch_p90: number | null; threshold_m: number; dates: string[];
+};
+
+/**
+ * "Someone will just photograph the QR and scan it from home."
+ *
+ * They can. The poster is on a wall; nothing stops a camera. What a copied
+ * code cannot do is be used from inside the store — it still gets scanned
+ * somewhere, and the somewhere is recorded. That is what this shows.
+ *
+ * One reading from far away is a bad GPS fix and is not worth anyone's
+ * morning. The same person, several days running, is not a GPS fix.
+ *
+ * It also reports the size of what it looked at. Before the posters go up
+ * there are no confirmations at all, and a silent banner would read as
+ * "nobody is doing this" when the truth is "nothing has been measured yet".
+ */
+function FarConfirmBanner({ city }: { city: string }) {
+  const [data, setData] = useState<{
+    rows: FarRow[]; checked: number; photo_confirmations: number; qr_without_gps: number;
+  } | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/attendance/far-confirmations?city=${encodeURIComponent(city === "all" ? "manila" : city)}&days=30`,
+          { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!dead) setData({
+          rows: j.rows || [], checked: j.checked || 0,
+          photo_confirmations: j.photo_confirmations || 0,
+          qr_without_gps: j.qr_without_gps || 0,
+        });
+      } catch {
+        /* a watch, not a feature — never break the dashboard */
+      }
+    })();
+    return () => { dead = true; };
+  }, [city]);
+
+  if (!data) return null;
+
+  // Nothing has been measured yet. Say so rather than showing a clean result.
+  if (data.checked === 0 && data.photo_confirmations === 0) return null;
+
+  if (data.rows.length === 0) {
+    return (
+      <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-white/55 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-emerald-300/80">✓</span>
+        <span>
+          <b className="text-white/75">{data.checked}</b> QR confirmation(s) checked over 30 days —
+          all scanned from inside their branch.
+        </span>
+        {data.photo_confirmations > 0 && (
+          <span className="text-white/40">· {data.photo_confirmations} confirmed by photo instead</span>
+        )}
+        {data.qr_without_gps > 0 && (
+          <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-amber-200">
+            {data.qr_without_gps} scan(s) arrived with no location — those cannot be checked
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  const worst = data.rows[0];
+  return (
+    <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-400" />
+        <div className="flex-1">
+          <b>
+            {data.rows.length} {data.rows.length === 1 ? "person is" : "people are"} scanning
+            the branch QR from outside the branch.
+          </b>{" "}
+          The poster is on a wall inside. A code being used from {worst.avg_m}m away means
+          the code left the building — most likely photographed.
+          <div className="mt-1 text-xs text-amber-200/75">
+            Flagged when a scan lands further out than that branch&apos;s own clock-ins
+            normally do, on three or more days. One stray reading is a GPS glitch
+            and is not shown here.
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            className="mt-1.5 text-xs text-amber-200 underline underline-offset-2 hover:text-amber-100"
+          >
+            {open ? "Hide" : `Show ${data.rows.length}`}
+          </button>
+          {open && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="text-amber-200/60">
+                  <tr>
+                    <th className="pr-3 pb-1 font-medium">Who</th>
+                    <th className="pr-3 pb-1 font-medium">Branch</th>
+                    <th className="pr-3 pb-1 font-medium text-right">Days</th>
+                    <th className="pr-3 pb-1 font-medium text-right">Distance</th>
+                    <th className="pr-3 pb-1 font-medium text-right">Normal here</th>
+                    <th className="pb-1 font-medium">Dates</th>
+                  </tr>
+                </thead>
+                <tbody className="text-amber-100/90">
+                  {data.rows.map(r => (
+                    <tr key={`${r.staff_name}-${r.branch_code}`} className="border-t border-amber-400/15">
+                      <td className="pr-3 py-1">{r.staff_name}</td>
+                      <td className="pr-3 py-1">{r.branch_code}</td>
+                      <td className="pr-3 py-1 text-right tabular-nums">{r.far_days}</td>
+                      <td className="pr-3 py-1 text-right tabular-nums">
+                        {r.min_m === r.max_m ? `${r.avg_m}m` : `${r.min_m}–${r.max_m}m`}
+                      </td>
+                      <td className="pr-3 py-1 text-right tabular-nums text-amber-200/60">
+                        under {r.threshold_m}m
+                      </td>
+                      <td className="py-1 text-amber-200/60">{r.dates.slice(0, 5).join(", ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-amber-200/60">
+                Before treating this as dishonesty: check the branch pin is right
+                (Attendance → Branch GPS) and that the poster is where it should be.
+                A poster near a door, or a pin set a street away, produces this too.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function fmtLabel(type: string) {
   return fmtExceptionType(type);
 }
@@ -1753,6 +1893,7 @@ export default function BODashboardPage() {
         <MgmtChannelTabBar active="bo" />
         <AutoCheckBanner runs={jobRuns} city={cityFilter} />
         <SentStampBanner city={cityFilter} />
+        <FarConfirmBanner city={cityFilter} />
         <AnswerRates city={cityFilter} />
 
 
