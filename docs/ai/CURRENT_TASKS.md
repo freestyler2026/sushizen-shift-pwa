@@ -49,8 +49,28 @@ NavBar 側は `resolvedAuth` も `openCats` も初期値が空で、mismatch を
   結局元の1列に戻る。加えて勤務中にバッジが増えると押そうとした項目がずれる
 - 開くと集約バッジはページ数に戻る（各行に出ているので二重に見せない）
 
-### 検証
-サイドバー全120リンクが健在（管理78＋スタッフ47のうち重複を除く）。スクロールなしで1画面に収まる。
+### 検証（ダブルチェック 2026-09-03）
+
+| 項目 | 結果 |
+|---|---|
+| スタッフ47ルート | 全て HTTP 200・重複0・欠落0 |
+| 管理78ルート | 全て HTTP 200（前回確認） |
+| サイドバー総リンク | 120（全展開時）— 1件も失われていない |
+| カテゴリ未設定 | Time-in / My Shift / Admin Dashboard の3件のみ（意図どおり） |
+| ADMIN/STAFF のキー衝突 | なし（9キー vs 6キー） |
+| 自動展開 | `/store/cash-report` → Daily Checks、`/admin/finance/vendors` → Procurement |
+| モバイル | 「全ページ」グリッドは平坦表示のまま・影響なし |
+
+**発見して修正したバグ:** 自動展開が `find()`（最初の一致）だったため、`/admin/finance`（Money）が
+`/admin/finance/vendors`（Procurement）より先に一致し、**Vendorsを開くと Money が開いて当のページは畳まれたまま**
+だった。最長一致に変更（教訓71）。総当たりで検出した2組のみ。
+
+**React #418** は各ページ自身が初回描画で `getAuth()` を呼ぶ既知の問題（教訓42）。
+`/store/daily-check` は191行目。NavBar は `openCats`・`resolvedAuth` とも初期値が空/nullで新たな mismatch を作らない。
+
+**スタッフ側バッジの集約は未観測。** 現在スタッフ側のバッジ（Inbox / My Notices / Incident / Management Inbox）が
+全て0のため。ただし畳んだ状態でページ数が出る＝`groupBadge()` が呼ばれて0を返しているので配線は確認済みで、
+0以外の描画は管理側と同一のJSX。
 
 ---
 
