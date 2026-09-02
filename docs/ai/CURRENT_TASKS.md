@@ -1,6 +1,49 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-02（店内QR確認フロント完成 ＋ 休憩管理 ＋ 打刻テーブルのblob混入修正）
+Last updated: 2026-09-03（管理メニュー9分類 ＋ Role Management 制限 ＋ 利用計測開始）
+
+---
+
+## ✅ 管理メニューの9分類（2026-09-03）
+
+Admin の73項目を9グループに。**分類はメニュー項目のフィールド1つ**として持つ（別リストを作らない）。
+既定は折りたたみ、今いるページのグループだけ自動で開き、開閉は端末に記憶。
+
+| グループ | 件数 |
+|---|---|
+| Money & Reports 13 / Store Operations 11 / Procurement 9 / Hiring to Exit 9 | |
+| People & Access 8 / Attendance & Shifts 7 / Inventory & Prep 6 / Payroll & Expenses 6 / System & Alerts 3 | |
+
+- **人事は分割を維持。** 統合すると17項目で最大になり、「名簿・権限」と「採用〜退職」は別の仕事。
+  ただし「人事 —」の二重読みを避けるため名前を分けた（UIは英語のみの規約に従う）
+- **Staff見出しの5ページは移動しない**（オーナー基準：Admin Dashboardより上＝店舗スタッフのページ）
+- **NTE Management は追加しない。** `/admin/employee-cases` の「Formal Case (DOLE)」タブとして既に到達可能で、
+  以前「名前が似ていて区別できない」として1本化した経緯がある。追加すると重複が戻る
+- 改名は行わない
+
+### 検証
+78ルート全て HTTP 200・**1ページも消えていない**（Staff 5 ＋ Dashboard 1 ＋ カテゴリ 72）。
+React #418 は変更前から出ているページ固有のもの（各ページが初回描画で `getAuth()` を使うため／教訓42）。
+NavBar 側は `resolvedAuth` も `openCats` も初期値が空で、mismatch を新たに生まない。
+
+---
+
+## ✅ Role Management を HQ / ADMIN / HR_MANAGER に限定（2026-09-03）
+
+**独立チャンネル `admin.role_management` を新設**（従来は `/admin/staff` 配下＝名簿を見る権限で権限配布画面が開けた）。
+
+- 失う: **6名**（Camilla Gadingan / Francis Ibana / Jasmine Sadoval / Lyssa Rae / Rafael Jonas Lagahit / Sherileene Santiago）
+- 残る: 20名（ADMIN 13・HQ 7）。うち **Test Account / Test Admin Account が ADMIN で残っている**
+- `DEFAULT_ROLE_GRANTS` からも除去済み（DBだけ消すとログインで復活する／教訓33）
+- 実データで権限解決を確認済み（7ケース全て期待どおり）
+
+---
+
+## ✅ 管理ページの利用計測を開始（2026-09-03）
+
+`ADMIN_AUTHZ_MODE=log` を有効化。ただし**これは「拒否されるはずだった要求」しか記録しない**ので、
+並び順の根拠には別途 `admin_channel_usage`（チャンネル×ロール×日）を追加した。
+2週間後に実績で並べ替え可能。
 
 ---
 
