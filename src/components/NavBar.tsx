@@ -1509,7 +1509,6 @@ export default function NavBar() {
                         type="button"
                         onClick={() => toggleCat(key)}
                         aria-expanded={open}
-                        data-badge-total={gb.total}
                         className="flex w-full items-center gap-1.5 rounded-lg px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 transition-colors hover:bg-white/5 hover:text-neutral-300"
                       >
                         <ChevronRight
