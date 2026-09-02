@@ -1,7 +1,7 @@
 // src/components/NavBar.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -80,6 +80,7 @@ import {
   Gauge,
   Radar,
   CalendarX2,
+  ChevronRight,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -148,7 +149,32 @@ type NavItem = {
   badgePink?: boolean;
   badge2Count?: number;
   badge2Violet?: boolean;
+  /** Which group this sits in under Admin. A field on the list that already
+      exists, not a second list to keep in step with this one. */
+  cat?: AdminCat;
 };
+
+/**
+ * The Admin menu is 73 entries in one column, ordered by the date each page was
+ * built. These are the nine jobs those pages belong to.
+ *
+ * People and Hiring are separate because together they are 17 — the largest
+ * group by half again, and the two halves are different work: who exists and
+ * what they may open, against the arc from applicant to leaver. They are named
+ * apart rather than "HR — A" and "HR — B", so neither has to be read twice.
+ */
+const ADMIN_CATS = [
+  ["money",  "Money & Reports"],
+  ["proc",   "Procurement"],
+  ["inv",    "Inventory & Prep"],
+  ["ops",    "Store Operations"],
+  ["shift",  "Attendance & Shifts"],
+  ["pay",    "Payroll & Expenses"],
+  ["people", "People & Access"],
+  ["hrlife", "Hiring to Exit"],
+  ["sys",    "System & Alerts"],
+] as const;
+type AdminCat = (typeof ADMIN_CATS)[number][0];
 
 const PRIMARY: NavItem[] = [
   { href: "/staff-guide",           label: "Staff Guide",           icon: BookOpen,      match: "prefix" },
@@ -206,83 +232,83 @@ const SECONDARY_BASE: NavItem[] = [
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
-  { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
-  { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
-  { href: "/admin/emergency-requests", label: "Emergency Requests", icon: Siren, adminOnly: true, match: "prefix" },
-  { href: "/admin/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, adminOnly: true, match: "prefix" },
-  { href: "/admin/supplier-confirmations", label: "Supplier Confirmations", icon: PhoneCall, adminOnly: true, match: "prefix" },
-  { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
-  { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
-  { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
-  { href: "/admin/ar-payouts", label: "AR Payouts", icon: Banknote, adminOnly: true, match: "prefix" },
-  { href: "/admin/mgmt-accounting", label: "Management Accounting", icon: ChartLine, adminOnly: true, match: "prefix" },
-  { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
-  { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
-  { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
-  { href: "/admin/business-events", label: "Business Events Log", icon: Globe, adminOnly: true, match: "prefix" },
+  { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/emergency-requests", label: "Emergency Requests", icon: Siren, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/supplier-confirmations", label: "Supplier Confirmations", icon: PhoneCall, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" , cat: "money" },
+  { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" , cat: "money" },
+  { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/ar-payouts", label: "AR Payouts", icon: Banknote, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/mgmt-accounting", label: "Management Accounting", icon: ChartLine, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" , cat: "money" },
+  { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" , cat: "money" },
+  { href: "/admin/business-events", label: "Business Events Log", icon: Globe, adminOnly: true, match: "prefix" , cat: "money" },
   // { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" }, // Bayzat contract ended
-  { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" },
-  { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
-  { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
-  { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix", excludePrefix: "/admin/staff/roles" },
-  { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
-  { href: "/admin/security", label: "Security", icon: ShieldAlert, adminOnly: true, match: "prefix" },
-  { href: "/admin/handbook", label: "Employee Handbook", icon: BookCheck, adminOnly: true, match: "prefix" },
-  { href: "/admin/staff-ranks", label: "Staff Ranks (L0-L10)", icon: TrendingUp, adminOnly: true, match: "prefix" },
-  { href: "/admin/staff/contacts", label: "Emergency Contacts", icon: Phone, adminOnly: true, match: "exact" },
-  { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
-  { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
-  { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" },
-  { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
-  { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
-  { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
-  { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" },
-  { href: "/admin/ck/par-levels", label: "CK Par Levels", icon: Factory, adminOnly: true, match: "prefix" },
-  { href: "/admin/store-par-levels", label: "Store Par Levels", icon: ShoppingCart, adminOnly: true, match: "prefix" },
-  { href: "/admin/store-supplier-orders", label: "Store Supplier Orders", icon: ShoppingBag, adminOnly: true, match: "prefix" },
-  { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
-  { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" },
-  { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" },
-  { href: "/admin/unworked-shifts",  label: "Unworked Shifts",   icon: CalendarX2, adminOnly: true, match: "prefix" },
-  { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" },
-  { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" },
-  { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" },
-  { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
-  { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/today", label: "HR Today", icon: Sunrise, adminOnly: true, match: "prefix" },
+  { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" , cat: "shift" },
+  { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix", excludePrefix: "/admin/staff/roles" , cat: "people" },
+  { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/security", label: "Security", icon: ShieldAlert, adminOnly: true, match: "prefix" , cat: "sys" },
+  { href: "/admin/handbook", label: "Employee Handbook", icon: BookCheck, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/staff-ranks", label: "Staff Ranks (L0-L10)", icon: TrendingUp, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/staff/contacts", label: "Emergency Contacts", icon: Phone, adminOnly: true, match: "exact" , cat: "people" },
+  { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" , cat: "ops" },
+  { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/ck/par-levels", label: "CK Par Levels", icon: Factory, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/store-par-levels", label: "Store Par Levels", icon: ShoppingCart, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/store-supplier-orders", label: "Store Supplier Orders", icon: ShoppingBag, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/unworked-shifts",  label: "Unworked Shifts",   icon: CalendarX2, adminOnly: true, match: "prefix" , cat: "shift" },
+  { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/today", label: "HR Today", icon: Sunrise, adminOnly: true, match: "prefix" , cat: "hrlife" },
   // One entry, not two. "Notice to Explain" and "NTE Management" sat side by
   // side with names that gave no way to tell them apart: the first is the
   // everyday notice, the second the formal DOLE case pipeline. The formal one
   // is reached from a tab inside the first, so there is one way in.
-  { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/separation", label: "HR Offboarding", icon: UserMinus, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/clearance", label: "HR Clearance", icon: ScrollText, adminOnly: true, match: "prefix" },
-  { href: "/admin/coe", label: "COE — Certificate of Employment", icon: ScrollText, adminOnly: true, match: "prefix" },
-  { href: "/admin/hr/policy-docs", label: "HR Policy Documents", icon: FileText, adminOnly: true, match: "prefix" },
-  { href: "/admin/assets", label: "Company Assets", icon: Laptop, adminOnly: true, match: "prefix" },
-  { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
-  { href: "/admin/incidents/unowned", label: "Waiting for Someone", icon: Hand, adminOnly: true, match: "exact" },
-  { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
-  { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
-  { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
-  { href: "/admin/management/back-office", label: "BO Dashboard", icon: ShieldAlert, adminOnly: true, match: "prefix" },
-  { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Gauge, adminOnly: true, match: "prefix" },
-  { href: "/admin/management/patterns", label: "Pattern Detection", icon: Radar, adminOnly: true, match: "prefix" },
-  { href: "/admin/management/people", label: "People", icon: Users, adminOnly: true, match: "prefix" },
-  { href: "/admin/finance/vendors", label: "Vendors", icon: Building2, adminOnly: true, match: "prefix" },
-  { href: "/admin/finance/documents", label: "Filing Ledger", icon: Receipt, adminOnly: true, match: "prefix" },
-  { href: "/admin/management/area-review", label: "Area Manager Review", icon: TrendingUp, adminOnly: true, match: "prefix" },
-  { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
-  { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
-  { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },
-  { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" },
-  { href: "/admin/payments", label: "Payment Schedule", icon: Coins, adminOnly: true, match: "prefix" },
-  { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" },
-  { href: "/admin/aggregator-price-monitor", label: "Aggregator Price Monitor", icon: Activity, adminOnly: true, match: "prefix" },
-  { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
+  { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/separation", label: "HR Offboarding", icon: UserMinus, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/clearance", label: "HR Clearance", icon: ScrollText, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/coe", label: "COE — Certificate of Employment", icon: ScrollText, adminOnly: true, match: "prefix" , cat: "hrlife" },
+  { href: "/admin/hr/policy-docs", label: "HR Policy Documents", icon: FileText, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/assets", label: "Company Assets", icon: Laptop, adminOnly: true, match: "prefix" , cat: "people" },
+  { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/incidents/unowned", label: "Waiting for Someone", icon: Hand, adminOnly: true, match: "exact" , cat: "ops" },
+  { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" , cat: "inv" },
+  { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/management/back-office", label: "BO Dashboard", icon: ShieldAlert, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Gauge, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/management/patterns", label: "Pattern Detection", icon: Radar, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/management/people", label: "People", icon: Users, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/finance/vendors", label: "Vendors", icon: Building2, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/finance/documents", label: "Filing Ledger", icon: Receipt, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/management/area-review", label: "Area Manager Review", icon: TrendingUp, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" , cat: "sys" },
+  { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/admin/store-opening", label: "Store Opening", icon: Building2, adminOnly: true, match: "prefix" , cat: "ops" },
+  { href: "/admin/payments", label: "Payment Schedule", icon: Coins, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" , cat: "sys" },
+  { href: "/admin/aggregator-price-monitor", label: "Aggregator Price Monitor", icon: Activity, adminOnly: true, match: "prefix" , cat: "money" },
+  { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true , cat: "money" },
 ];
 
 // Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
@@ -1234,6 +1260,38 @@ export default function NavBar() {
       );
   }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue]);
 
+  /**
+   * Which groups are open.
+   *
+   * Collapsed by default — nine headings all expanded is the same column it
+   * replaces. The group holding the current page is always open, so nobody
+   * arrives at a page and cannot see where it lives. The rest is remembered
+   * per device: reopening the same two groups every morning is a chore the
+   * menu can carry instead.
+   */
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let stored: string[] = [];
+    try {
+      stored = JSON.parse(localStorage.getItem("zen:nav-cats") || "[]");
+    } catch { /* a corrupt preference is not worth a broken menu */ }
+    const here = ADMIN_ITEMS.find(
+      (i) => i.cat && (pathname === i.href || pathname.startsWith(i.href + "/")),
+    );
+    setOpenCats(new Set([...stored, ...(here?.cat ? [here.cat] : [])]));
+  }, [pathname]);
+
+  const toggleCat = useCallback((key: string) => {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try {
+        localStorage.setItem("zen:nav-cats", JSON.stringify([...next]));
+      } catch { /* private mode: the menu still works, it just forgets */ }
+      return next;
+    });
+  }, []);
+
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS
       .filter((item) => canSeeAdminItem(item.href, resolvedAuth))
@@ -1393,9 +1451,36 @@ export default function NavBar() {
                 <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
                   Admin
                 </p>
-                {adminItems.map((item) => (
+                {/* Dashboard and anything not yet in a group stay at the top,
+                    where they are today. A page must never disappear because
+                    nobody has filed it. */}
+                {adminItems.filter((i) => !i.cat).map((item) => (
                   <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
                 ))}
+                {ADMIN_CATS.map(([key, label]) => {
+                  const group = adminItems.filter((i) => i.cat === key);
+                  if (group.length === 0) return null;
+                  const open = openCats.has(key);
+                  return (
+                    <div key={key} className="mt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(key)}
+                        aria-expanded={open}
+                        className="flex w-full items-center gap-1.5 rounded-lg px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 transition-colors hover:bg-white/5 hover:text-neutral-300"
+                      >
+                        <ChevronRight
+                          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+                        />
+                        <span className="flex-1">{label}</span>
+                        <span className="text-neutral-600 tabular-nums">{group.length}</span>
+                      </button>
+                      {open && group.map((item) => (
+                        <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
