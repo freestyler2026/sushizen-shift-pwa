@@ -4,6 +4,42 @@ Last updated: 2026-09-02（店内QR確認フロント完成 ＋ 休憩管理 ＋
 
 ---
 
+## 🔴 GPS圏外の抜け道：WFHは本人が1タップで宣言でき、その日ジオフェンスが外れる（2026-09-02 発見・スイッチのみ実装）
+
+**「ジオフェンス遮断は未実装」という以前の報告は誤り。** `record_os_checkin` の直前に
+`if gps_ok is False and not gps_exempt: raise 403` が既にある。**それでも284件が通っていた。**
+
+原因は `_is_staff_gps_exempt` が **WFH宣言でも True を返す**こと。
+`/api/attendance/wfh_declare` は本人が自分でタップするだけで登録でき、承認は無く、どの画面にも出ない。
+
+- 直近60日の圏外打刻 **284件中231件がこの経路**
+- BO以外の宣言者は90日で **58名**
+- ⚠️ **大半は悪用していない。** Muna Rana Magar（29回宣言）は実際には5〜45mで打刻、Jovenn Rio（11回）も19〜22m
+- 実際に圏外通過に使ったのは6名。最も明確なのは **Mahima Pansilu Dadallage（dubai CK・30回宣言・25回圏外・平均607m・最大2,542m）**
+- ⚠️ **Mark Arvin Ocampo は50回宣言しているが圏外打刻は0件。** 宣言数だけで指摘してはいけない
+
+**実装したのはスイッチのみ・既定は無制限**（58名を無審査で止めないため）:
+```bash
+heroku config:set WFH_SELF_DECLARE_BRANCHES=BO -a sushizen-shift-app
+```
+既存の `os_wfh_days` 675件は消えず、過去の勤怠計算は変わらない。
+
+---
+
+## 📅 2026-09-05 23:00（ドバイ時間）に実行 — リマインダー設定済み
+
+手順書: `docs/ai/RUNBOOK-2026-09-05-qr-rollout.md`
+スケジュールタスク: `qr-rollout-2026-09-05`（アプリを開いている必要あり／閉じていれば次回起動時に実行）
+
+```bash
+heroku config:set IN_STORE_CONFIRM_FROM=2026-09-05 -a sushizen-shift-app   # ①QR確認
+heroku config:set WFH_SELF_DECLARE_BRANCHES=BO -a sushizen-shift-app       # ②要判断
+```
+
+**①の前提はポスターが実際に貼られていること。** 1店舗でも未掲示なら実行しない。
+
+---
+
 ## ✅ 打刻画面：店内QR確認フロント ＋ 休憩管理（2026-09-02）
 
 ### 完成したもの
