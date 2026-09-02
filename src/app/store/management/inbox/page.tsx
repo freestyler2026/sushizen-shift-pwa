@@ -721,6 +721,18 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
             </div>
             <div className="text-xs text-zinc-400 mt-0.5">
               {fmtTime(task.sent_at || task.created_at)}
+              {/* The day the exception is ABOUT, when that is not the day it
+                  was forwarded. The owner is the rostered owner for the day it
+                  arose, so a task raised Tuesday and sent Wednesday reaches
+                  Tuesday's owner — who is not at that branch today and has no
+                  way to tell why it is in their inbox. */}
+              {(() => {
+                const about = typeof task.context?.date === "string" ? task.context.date : "";
+                const sentDay = (task.sent_at || task.created_at || "").slice(0, 10);
+                return about && about !== sentDay
+                  ? <> · <span className="text-amber-300">For {about}</span></>
+                  : null;
+              })()}
               {task.manager_name ? <> · Owner: <span className="text-zinc-300">{task.manager_name}</span></> : null}
             </div>
           </div>
