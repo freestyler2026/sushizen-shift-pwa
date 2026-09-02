@@ -87,6 +87,63 @@ Angelica Regondola は **8位** かつ red（9.9% vs 5.6%）。**2つのサブ�
 
 ---
 
+## ✅ People: HQのみが不要な人物を非表示にできるようにした（2026-09-02・実装済み）
+
+**ユーザー指摘**: 「HQメンバーやテストアカウントなど消した方がいい人が入っています。HQだけが操作してDeleteできるようにしたい。」
+
+People は `product_score_results.author_name`（QC写真の投稿者）の集計なので、
+HQアカウントやテストログインが厨房スタッフと並んでいた:
+
+| 名前 | 支店 | scored | 経路 |
+|---|---|---:|---|
+| Test Manager | TAFT / PAR | 0 | **creditsレジャー** |
+| マハロ(Ayako Nishimura) | TAFT / CUB | 4 / 1 | QCスコア |
+| Yukihiro Nishimura | BB（ドバイ） | 0 | creditsレジャー |
+
+### 「削除」ではなく「非表示」にした理由
+
+`product_score_results` は**QCの記録そのもの**で、支店中央値・Weekly Review・creditsレジャーも読んでいる。
+一覧を整えるために行を消すと、**その全部の数字が黙って動き、本人の履歴も消える**。
+除外は取り消せるが、消したスコアは戻らない（教訓43）。
+
+### 実装で気をつけた2点
+
+**① 支店中央値からも除外する。** 行だけ隠して中央値には残すと、
+HQアカウントの写真が厨房スタッフの比較基準を動かし続ける。隠すより悪い。
+
+**② People に載る経路は2つある。** `Test Manager` は scored=0 / credits=1 で、
+**QCスコアではなく creditsレジャー経由**。スコア側だけ弾いていたら半分しか消えなかった。
+
+### 権限
+
+**HQ はハードコード**（Channels画面が全チャンネルでHQを locked 表示しているため整合させる）＋
+`channel.admin.management_people.manage`（新規登録）。ロール名だけの判定にするとカスタムロールが
+永久に false になる（教訓25/26）。
+
+### 取り消し
+
+ページ下部に **「Hidden from this page (N)」** を常時表示し、各名前に Restore。
+**押した本人だけでなく全HQに見える**。見つけられない非表示は、手順の多い削除でしかない（教訓22）。
+
+### 本番での検証
+
+```
+除外の追加        : Test Manager 1件で TAFT/PAR の2行が消える（37→35）
+UI               : Hideボタン35個（全行）、Hidden strip に Restore
+Impersonation で権限確認（教訓27・合成トークンではなく実セッション）:
+  Richard S. Gante（MANILA_MANAGEMENT）として
+    Hide    → 403 "Only HQ can hide or restore people on this page."
+    Restore → 403 同上
+    閲覧     → 200（見えるが変更できない）
+  Impersonation 終了確認済み（impersonating: false）
+  ゲートテストの対象 Naome Santizas は一覧に残存＝副作用なし
+```
+
+**現在の除外は `Test Manager` の1件のみ。** HQメンバー（マハロ / Yukihiro Nishimura）は
+**誰を消すかがユーザー判断**なので、画面から操作していただく形にしてあります。
+
+---
+
 ## ✅ BO Dashboard D: Attendance が8週間「測れていない」ことを画面に出した（2026-09-02・実装済み）
 
 ### ⚠️ 先に訂正 — 私の当初の指摘は2点間違っていた
