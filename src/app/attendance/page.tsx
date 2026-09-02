@@ -714,8 +714,9 @@ export default function AttendancePage() {
   const sendInStorePhoto = async (file: File) => {
     setPhotoBusy(true); setPhotoError("");
     try {
-      const dataUrl = await prepareDataUrl(file);
       const a = getAuth();
+      if (!a) { setPhotoError("Please log in again, then take the photo."); return; }
+      const dataUrl = await prepareDataUrl(file);
       const pos = gpsPos?.coords;
       const res = await fetch("/api/store/attendance/confirm-in-store", {
         method: "POST",
@@ -728,6 +729,10 @@ export default function AttendancePage() {
       const raw = await res.text();
       let body: Record<string, unknown> = {};
       try { body = JSON.parse(raw); } catch { /* 413 arrives as text/plain */ }
+      if (res.status === 413) {
+        setPhotoError("That photo is too large even after shrinking. Take one more, further back.");
+        return;
+      }
       if (!res.ok) {
         setPhotoError(String(body.detail || "Could not send. Try once more."));
         return;

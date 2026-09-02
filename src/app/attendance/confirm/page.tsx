@@ -60,6 +60,12 @@ function ConfirmInner() {
       const raw = await res.text();
       let body: Record<string, unknown> = {};
       try { body = JSON.parse(raw); } catch { /* not JSON — keep the text */ }
+      if (res.status === 401) {
+        // The session lapsed between opening the camera and landing here.
+        // "Authentication is required" is the server talking to itself.
+        setState("noauth");
+        return;
+      }
       if (!res.ok) {
         setState("error");
         setMessage(String(body.detail || raw || "Could not confirm. Please try again."));
