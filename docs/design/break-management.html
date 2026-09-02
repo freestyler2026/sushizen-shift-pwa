@@ -1,0 +1,482 @@
+<title>休憩管理の実装案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f2f4f5;
+    --panel:#ffffff;
+    --panel-2:#e9edee;
+    --ink:#161c20;
+    --ink-2:#3f4b52;
+    --ink-3:#6b7880;
+    --rule:#d3dadd;
+    --teal:#14585f;
+    --teal-soft:#e0eced;
+    --amber:#96601c;
+    --amber-soft:#f5ead9;
+    --rose:#8e3030;
+    --rose-soft:#f7e3e3;
+    --moss:#3d6b3a;
+    --moss-soft:#e4eee2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#12171a;
+      --panel:#191f23;
+      --panel-2:#212a2f;
+      --ink:#e8edef;
+      --ink-2:#b3bfc5;
+      --ink-3:#7f8d95;
+      --rule:#2c363b;
+      --teal:#6fc4cc;
+      --teal-soft:#143134;
+      --amber:#e0a95e;
+      --amber-soft:#332616;
+      --rose:#e08b8b;
+      --rose-soft:#341d1d;
+      --moss:#9ac795;
+      --moss-soft:#1d2c1c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#12171a;
+    --panel:#191f23;
+    --panel-2:#212a2f;
+    --ink:#e8edef;
+    --ink-2:#b3bfc5;
+    --ink-3:#7f8d95;
+    --rule:#2c363b;
+    --teal:#6fc4cc;
+    --teal-soft:#143134;
+    --amber:#e0a95e;
+    --amber-soft:#332616;
+    --rose:#e08b8b;
+    --rose-soft:#341d1d;
+    --moss:#9ac795;
+    --moss-soft:#1d2c1c;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;
+    line-height:1.85;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:56px 22px 96px;}
+
+  header.masthead{margin-bottom:44px;}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--teal);margin-bottom:14px;
+  }
+  h1{
+    font-family:"Zen Old Mincho",serif;font-weight:700;
+    font-size:clamp(28px,5vw,40px);line-height:1.35;margin:0 0 16px;
+    text-wrap:balance;letter-spacing:.01em;
+  }
+  .standfirst{font-size:16.5px;color:var(--ink-2);max-width:62ch;margin:0;}
+
+  h2{
+    font-family:"Zen Old Mincho",serif;font-weight:700;
+    font-size:23px;line-height:1.45;margin:56px 0 6px;
+    padding-bottom:10px;border-bottom:1px solid var(--rule);text-wrap:balance;
+  }
+  h3{font-size:16.5px;font-weight:700;margin:32px 0 8px;color:var(--ink);}
+  p{margin:0 0 14px;max-width:66ch;}
+  strong{font-weight:700;}
+  a{color:var(--teal);}
+
+  .lede{
+    font-size:15px;color:var(--ink-2);margin:0 0 22px;max-width:64ch;
+  }
+
+  /* Verdict blocks */
+  .verdict{
+    border-left:3px solid var(--rule);
+    background:var(--panel);
+    padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0;
+  }
+  .verdict.no{border-left-color:var(--rose);background:var(--rose-soft);}
+  .verdict.yes{border-left-color:var(--moss);background:var(--moss-soft);}
+  .verdict.care{border-left-color:var(--amber);background:var(--amber-soft);}
+  .verdict-label{
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;display:block;margin-bottom:6px;
+  }
+  .verdict.no .verdict-label{color:var(--rose);}
+  .verdict.yes .verdict-label{color:var(--moss);}
+  .verdict.care .verdict-label{color:var(--amber);}
+  .verdict p:last-child{margin-bottom:0;}
+
+  /* Figures */
+  .figures{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:12px;margin:26px 0;
+  }
+  .fig{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;}
+  .fig-n{
+    font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:27px;
+    line-height:1.15;color:var(--teal);font-variant-numeric:tabular-nums;
+  }
+  .fig.warn .fig-n{color:var(--amber);}
+  .fig.bad .fig-n{color:var(--rose);}
+  .fig-l{font-size:12.5px;color:var(--ink-3);line-height:1.55;margin-top:6px;}
+
+  /* Tables */
+  .scroll{overflow-x:auto;margin:20px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px;}
+  th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--rule);}
+  thead th{
+    background:var(--panel-2);font-size:11.5px;letter-spacing:.05em;
+    color:var(--ink-3);font-weight:700;white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;}
+  caption{caption-side:bottom;padding:10px 14px;font-size:12px;color:var(--ink-3);text-align:left;}
+
+  /* Phases — a real sequence, so it is numbered */
+  .phase{
+    display:grid;grid-template-columns:auto 1fr;gap:18px;
+    padding:20px 0;border-bottom:1px solid var(--rule);
+  }
+  .phase:last-child{border-bottom:none;}
+  .phase-n{
+    font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12px;
+    color:var(--teal);background:var(--teal-soft);border-radius:999px;
+    width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;margin-top:2px;
+  }
+  .phase-t{font-weight:700;margin-bottom:2px;}
+  .phase-when{
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
+    margin-bottom:8px;
+  }
+  .phase p{margin-bottom:8px;font-size:14.5px;}
+  .phase p:last-child{margin-bottom:0;}
+
+  /* Placement cards */
+  .place{
+    background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+    padding:18px 20px;margin:14px 0;
+  }
+  .place-where{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--teal);
+    margin-bottom:4px;
+  }
+  .place-t{font-weight:700;margin-bottom:8px;}
+  .place p{font-size:14.5px;margin-bottom:8px;}
+  .place p:last-child{margin-bottom:0;}
+
+  ul{margin:0 0 14px;padding-left:1.25em;max-width:66ch;}
+  li{margin-bottom:7px;}
+
+  code{
+    font-family:"IBM Plex Mono",monospace;font-size:.88em;
+    background:var(--panel-2);padding:1px 5px;border-radius:4px;
+  }
+  .footnote{
+    font-size:13px;color:var(--ink-3);border-top:1px solid var(--rule);
+    margin-top:56px;padding-top:18px;
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">Sushi ZEN Workforce OS ／ 実装案</div>
+  <h1>休憩を、記録されるものにする</h1>
+  <p class="standfirst">
+    休憩の不正を検知する仕組みは、休憩が記録されていて初めて働きます。
+    マニラでは勤務日の68%で休憩の記録が1件もありません。
+    先に直すのはそこで、検知はその後です。
+  </p>
+</header>
+
+<h2>いま分かっていること</h2>
+<p class="lede">
+  直近60日の本番データを実測しました。マニラとドバイで問題の形が逆でした。
+</p>
+
+<div class="figures">
+  <div class="fig bad">
+    <div class="fig-n">68.0%</div>
+    <div class="fig-l">マニラ：休憩記録が1件も無い勤務日<br>（2,531日中1,721日）</div>
+  </div>
+  <div class="fig">
+    <div class="fig-n">5.2%</div>
+    <div class="fig-l">ドバイ：同じ指標<br>（2,300日中120日）</div>
+  </div>
+  <div class="fig">
+    <div class="fig-n">96%</div>
+    <div class="fig-l">休憩の位置情報が<br>既に記録されている割合</div>
+  </div>
+  <div class="fig warn">
+    <div class="fig-n">0</div>
+    <div class="fig-l">マニラの店舗スタッフで<br>遠隔から休憩打刻した人</div>
+  </div>
+</div>
+
+<p>
+  <strong>GPSは既に取れています。</strong>休憩の開始・終了それぞれで緯度経度を保存しており、
+  3,101件中2,984件に座標があります。ご要望の「GPSで休憩の不正を検知する」は、
+  新しい仕組みを足す話ではなく、<strong>取ってあるデータを使っていないだけ</strong>です。
+</p>
+<p>
+  ただし、マニラで店舗から500m超で休憩を開始した人を数えると<strong>5名、全員がバックオフィス</strong>
+  （Caila Macararanga・Aliana Manuel・Peter Villafuerte・Rose Ann Onido）で、
+  在宅勤務を許可している方々です。<strong>店舗スタッフは1件もありません。</strong>
+  不正が無いからではなく、<strong>そもそも記録が無いから判定対象にならない</strong>ためです。
+</p>
+
+<h3>直近30日：6時間超の勤務で休憩記録ゼロ</h3>
+<div class="scroll">
+  <table>
+    <thead><tr><th>拠点</th><th class="num">該当勤務日</th><th>備考</th></tr></thead>
+    <tbody>
+      <tr><td>マニラ PAR</td><td class="num">338</td><td>—</td></tr>
+      <tr><td>マニラ TAFT</td><td class="num">280</td><td>—</td></tr>
+      <tr><td>マニラ BO</td><td class="num">153</td><td>在宅・休憩の概念が異なる</td></tr>
+      <tr><td>マニラ CK</td><td class="num">116</td><td>—</td></tr>
+      <tr><td>ドバイ 各店</td><td class="num">7〜11</td><td>6拠点合計で約58</td></tr>
+      <tr><td>マニラ CUB</td><td class="num">2</td><td>—</td></tr>
+    </tbody>
+    <caption>マニラでは10名が「27日中27日」「26日中26日」など、期間中ほぼ全日で記録ゼロ。</caption>
+  </table>
+</div>
+
+<h2>ご要望の3件を、実データに当てて確認しました</h2>
+
+<h3>① 規定より長い休憩</h3>
+<div class="verdict care">
+  <span class="verdict-label">条件つきで可能 ── 単体で判定してはいけない</span>
+  <p>
+    「75分超」で警告を出す設計を最初に検討し、実データに当てて<strong>取りやめました</strong>。
+    該当はドバイ203件・マニラ15件で、常習者上位12名は全員ドバイです。
+    しかしその12名の勤務を見ると、<strong>拘束10.1〜10.6時間・実働8.0〜8.9時間</strong>。
+    全社平均の拘束9.3時間より長く店にいて、休憩を長く取り、実働は確保しています。
+    <strong>スプリット勤務であり、正しく運用している人たちです。</strong>
+  </p>
+  <p>
+    この設計のまま出していれば、きちんと運用している12名を呼び出すことになっていました。
+  </p>
+</div>
+<p>
+  <strong>正しい判定基準は「休憩の長さ」ではなく「実働が予定より短くなったか」です。</strong>
+  休憩が長いこと自体は問題ではありません。長く休んだ分を働いていないことが問題です。
+  したがって条件は <code>休憩 &gt; 規定</code> <strong>かつ</strong> <code>実働 &lt; 予定</code> の同時成立とします。
+</p>
+<p>
+  あわせて「戻りの打刻忘れ」を除外します。休憩終了が退勤とほぼ同時刻（10分以内）の記録は、
+  休憩したのではなく<strong>Break Outを押し忘れて退勤時にまとめて押した</strong>ものです。
+  90分超222件のうち22件がこれに当たります。
+</p>
+
+<h3>② 1シフト中に何度も休憩</h3>
+<div class="verdict care">
+  <span class="verdict-label">実装は容易 ── ただし今は測れていないと明示すること</span>
+  <p>
+    直近60日で2回以上休憩したのは<strong>ドバイ46件・マニラ14件</strong>。ほぼ発生していません。
+    ただしこれは「起きていない」証拠にはなりません。マニラは68%が未記録なので、
+    <strong>2回目を押していない人は1回目も押していない</strong>だけです。
+  </p>
+  <p>
+    この検知を今作ると、画面は「問題なし」と表示します。実際には
+    <strong>マニラの32%しか見ていません</strong>。件数と一緒に、必ず母数を出します。
+  </p>
+</div>
+
+<h3>③ 記録せずに職場を離れる</h3>
+<div class="verdict no">
+  <span class="verdict-label">GPSでは検知できません</span>
+  <p>
+    端末が位置を送るのは、本人が<strong>画面を操作した瞬間だけ</strong>です。
+    何も押さずに店を出た人からは、送られてくるデータがありません。
+    常時追跡は iOS でアプリが停止されるため信頼できず、勤務外の移動まで記録することになります。
+    <strong>これは実装しないことをお勧めします。</strong>
+  </p>
+</div>
+<p>
+  ただし、同じ事実に<strong>別の角度から届きます</strong>。実際に有効なのは次の2つです。
+</p>
+<ul>
+  <li>
+    <strong>「長時間勤務なのに休憩記録がゼロ」を数える。</strong>
+    6時間超の勤務で休憩記録が無い日は、マニラで30日に887件（PAR 338・TAFT 280・BO 153・CK 116）。
+    これが「記録せずに離れている」の測定可能な形です。個人の不正としてではなく、
+    <strong>記録の欠落として</strong>扱います。
+  </li>
+  <li>
+    <strong>離れた場所からのBreak In。</strong>
+    店を出てから思い出して押した場合、開始地点が店から離れます。これはGPSで検知でき、
+    仕組みは既にあります。QRの遠距離検知と同じ判定方法（拠点ごとの打刻距離分布から基準を作る）を使います。
+  </li>
+</ul>
+
+<h2>先に直すべきもの ── 記録しない方が得になっている</h2>
+<p class="lede">
+  マニラの68%は、スタッフの怠慢ではなく計算式の帰結です。
+</p>
+<p>
+  給与計算 <code>_undertime_after_break()</code> は
+  <code>未消化 = max(0, 規定60分 − 実休憩)</code> で控除を戻します。この式の帰結は3つです。
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>スタッフの行動</th><th>給与への影響</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr><td>休憩を記録しない</td><td>調整なし（60分取ったものとして計算）</td><td>損も得もしない</td></tr>
+      <tr><td>短い休憩を記録する</td><td>未消化分が労働時間に戻る</td><td>得をする</td></tr>
+      <tr><td><strong>長い休憩を記録する</strong></td><td><strong>影響なし（max(0,…)が吸収）</strong></td><td><strong>損をしない</strong></td></tr>
+    </tbody>
+    <caption>有給時間は拘束時間から一律60分を引いて算出。60分を超えた休憩は誰にも請求されない。</caption>
+  </table>
+</div>
+<div class="verdict no">
+  <span class="verdict-label">現状</span>
+  <p>
+    <strong>休憩を延長しても、スタッフの手取りは1円も減りません。</strong>
+    超過分は「働いていない有給時間」として会社が負担しています。
+    打刻忘れを除いた60日間の超過は、ドバイ174.5時間・マニラ27.6時間です。
+    そして記録しないことにも一切の不利益がありません。
+  </p>
+  <p>
+    <strong>Break Outを時間どおりに押す理由が、現在システム上に存在しません。</strong>
+    検知機能はこの上に乗ります。式を直さないまま検知だけ足すと、
+    「システムが指摘してくるが、押さなければ何も起きない」状態になります。
+  </p>
+</div>
+<p>
+  ⚠️ 超過分を控除する変更は<strong>手取りが変わる</strong>ため、ここでは実装せず判断をお願いします。
+  実施する場合も<strong>過去期間の再計算は行いません</strong>（現在の給与額で過去が上書きされるため／教訓37）。
+  適用は決定した月以降のみです。
+</p>
+
+<h2>どこに組み込むか</h2>
+
+<div class="place">
+  <div class="place-where">/attendance ── 打刻画面（スタッフ）</div>
+  <div class="place-t">主対策。ここが直らなければ他は動きません</div>
+  <p>
+    現在、出勤後の画面はBreak Inを<strong>促していません</strong>。押さなくても何も起きず、何も言われません。
+  </p>
+  <p>
+    休憩中は<strong>経過時間を大きく表示</strong>し（「休憩 42分 / 60分」）、
+    ボタンは <strong>Back from break</strong> の1つだけにします。規定を超えたら数字を橙にします。
+    出勤中は次の操作としてBreak Inを主ボタンに置きます。
+    <strong>押し忘れの大半は、画面が聞いていないことが原因です。</strong>
+  </p>
+  <p>
+    QR確認と同じ画面なので、9/5のポスター運用開始で全員がこの画面を毎日開くようになります。
+    <strong>導入のタイミングとしてはここが最も自然です。</strong>
+  </p>
+</div>
+
+<div class="place">
+  <div class="place-where">/admin/management/back-office ── BO Dashboard</div>
+  <div class="place-t">検知の表示先。QR遠距離検知と同じ帯の形式</div>
+  <p>
+    上部に休憩の帯を1本追加します。3種類を1つの帯にまとめ、内訳を展開できるようにします。
+  </p>
+  <ul>
+    <li><strong>実働不足を伴う長時間休憩</strong>（規定超 かつ 実働が予定未満）</li>
+    <li><strong>1シフト中3回以上</strong>（2回は正常なので閾値は3）</li>
+    <li><strong>6時間超の勤務で休憩記録ゼロ</strong>（拠点別の件数と率）</li>
+  </ul>
+  <p>
+    <strong>0件のときも「30日でN件を確認、うち記録があるのはM件（率）」と必ず表示します。</strong>
+    無表示を「問題なし」と読ませないためです。QRの帯と同じ考え方です。
+  </p>
+</div>
+
+<div class="place">
+  <div class="place-where">/admin/payroll/dtr ── DTR Records（マニラ給与）</div>
+  <div class="place-t">1人1日の修正先</div>
+  <p>
+    休憩分数の列を追加します。休憩時間は既にUndertimeの計算に入っているのに、
+    <strong>DTRの画面には出ていません</strong>。マネージャーが記録を直す場所はここなので、
+    鉛筆アイコンの編集で休憩も直せるようにします。
+  </p>
+</div>
+
+<div class="place">
+  <div class="place-where">/admin/management/area-review ── マネージャースコア</div>
+  <div class="place-t">拠点単位の改善を測る</div>
+  <p>
+    Attendance枠20点は現在データ源が停止していて測れていません（2026-07-08以降）。
+    <strong>休憩記録率は生きているデータなので、その代替として使えます。</strong>
+    個人の不正ではなく<strong>拠点の運用品質</strong>として扱うため、店長が動かせる指標になります。
+  </p>
+</div>
+
+<h2>進め方</h2>
+<p class="lede">
+  検知を先に入れると、マニラからはほぼ何も出ず、ドバイからは正しく運用している人が出ます。順序が重要です。
+</p>
+
+<div class="phase">
+  <div class="phase-n">0</div>
+  <div>
+    <div class="phase-t">測って見せるだけ（すぐ）</div>
+    <div class="phase-when">検知・警告なし</div>
+    <p>
+      BO Dashboardに拠点別の<strong>休憩記録率</strong>だけ出します。PAR・TAFTが低いことが可視化されます。
+      誰も呼び出しません。<strong>この数字が動くかどうかで、次に進めるか判断できます。</strong>
+    </p>
+  </div>
+</div>
+<div class="phase">
+  <div class="phase-n">1</div>
+  <div>
+    <div class="phase-t">押し忘れを起こしにくくする</div>
+    <div class="phase-when">QRポスター運用開始（9/5）以降</div>
+    <p>
+      打刻画面に休憩タイマーと単一ボタン。規定超で色が変わる。
+      <strong>目標はマニラの記録率80%以上。</strong>ここに到達するまで検知は入れません。
+    </p>
+  </div>
+</div>
+<div class="phase">
+  <div class="phase-n">2</div>
+  <div>
+    <div class="phase-t">検知を有効化</div>
+    <div class="phase-when">記録率が目標に到達してから</div>
+    <p>
+      3種類の検知をBO Dashboardに表示。閾値は拠点ごとに実データから決め、<strong>画面に表示します</strong>。
+      離れた場所からのBreak In検知もここで入れます。
+    </p>
+  </div>
+</div>
+<div class="phase">
+  <div class="phase-n">3</div>
+  <div>
+    <div class="phase-t">給与計算の扱いを決める</div>
+    <div class="phase-when">オーナー判断</div>
+    <p>
+      超過休憩を控除に反映するかどうか。<strong>手取りが変わるため実装前に決定が必要です。</strong>
+      適用は決定した月以降のみとし、過去期間は再計算しません。
+    </p>
+  </div>
+</div>
+
+<h2>ご判断いただきたい点</h2>
+<ul>
+  <li><strong>規定休憩時間</strong>：マニラ60分は計算式にあります。<strong>ドバイの規定が不明です。</strong>スプリット勤務者は120分前後が常態なので、拠点別または勤務区分別に設定が必要かもしれません。</li>
+  <li><strong>バックオフィス（在宅）の扱い</strong>：QRと同様に休憩検知も免除でよいか。現在マニラBOは153日が記録ゼロですが、在宅勤務では休憩の概念が異なります。</li>
+  <li><strong>超過休憩の給与反映</strong>：Phase 3の可否。実施しない場合、検知は「指摘するが不利益は無い」運用になります。</li>
+  <li><strong>指摘の単位</strong>：個人を名指しするか、拠点の記録率として店長に返すか。マニラの現状（10名がほぼ全日ゼロ）では、個人指摘は10名同時になります。</li>
+</ul>
+
+<div class="footnote">
+  実測範囲：<code>os_attendance_breaks</code> 3,101件（2026-07-09〜09-02）、
+  <code>os_attendance_sessions</code> 直近60日 4,831件。
+  距離は各拠点の <code>os_branch_gps</code> ピンからのHaversine距離。
+  「打刻忘れ」は休憩終了と退勤の差が10分未満のものと定義。
+</div>
+
+</div>
