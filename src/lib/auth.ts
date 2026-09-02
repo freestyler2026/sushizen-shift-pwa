@@ -838,15 +838,32 @@ export function canAccessPayrollAdmin(a?: Auth | null): boolean {
 }
 
 /**
- * Can view actual salary amounts (Gross/Net/Rate) — HQ role only.
+ * Can view salary amounts (Gross/Net/Rate) at all.
  *
- * Must stay role-based, NOT permission-based: ADMIN carries the "*" wildcard,
- * which grants every named permission and so would unlock salary for a role
- * that must not see it. This mirrors the backend's salary_masking_guard, which
- * also gates on role == "HQ" alone. Presentation only — the server is the
- * boundary and already returns null amounts to everyone else.
+ * HQ, or the named "View Salary Amounts" permission. Deliberately does NOT
+ * honour the "*" wildcard: ADMIN carries it, and treating it as salary access
+ * would unlock pay for a role that must not read it.
+ *
+ * True does not mean every figure is visible — the server keeps a named list of
+ * staff masked even for a permission holder, so amounts still arrive as null
+ * for those people. Render a null as hidden, never as zero.
+ *
+ * Presentation only. The server is the boundary and returns nulls regardless.
  */
 export function hasPayrollViewSalary(a?: Auth | null): boolean {
+  const auth = a ?? getAuth();
+  if ((auth?.role ?? "").toUpperCase() === "HQ") return true;
+  return (auth?.permissions ?? []).includes("payroll.view_salary");
+}
+
+/**
+ * Can CHANGE salary figures — HQ role only, which is narrower than reading them.
+ *
+ * Someone granted the view permission still has every write pinned back to the
+ * stored value server-side, so an editable input would take a value the server
+ * discards and report success. Keep the fields read-only for them.
+ */
+export function canEditPayrollSalary(a?: Auth | null): boolean {
   const auth = a ?? getAuth();
   return (auth?.role ?? "").toUpperCase() === "HQ";
 }

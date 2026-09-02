@@ -7,7 +7,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { hasPayrollViewSalary, canEditPayrollSalary, getAuth } from "@/lib/auth";
 import { SALARY_HIDDEN } from "@/lib/salary";
 import { GLASS_CARD, PRIMARY_BUTTON, INPUT_CLASS, SELECT_CLASS, TABLE_HEADER, TABLE_ROW, TABLE_CELL } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
@@ -167,10 +167,12 @@ function ProfileModal({
   const [form, setForm] = useState<FormState>(existing ? profileToForm(existing) : emptyForm());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  // Compensation is masked to null for every role except HQ, so a non-HQ user
-  // sees these inputs blank. The server pins them back to the stored values on
-  // save — they must not be validated or editable here.
-  const canSeeSalary = getAuth()?.role === "HQ";
+  // Two different questions. Someone with the View Salary permission reads the
+  // figures but cannot change them — the server pins every write back to the
+  // stored value — so their inputs must show the number and refuse the edit.
+  // A caller with neither sees null and must not have it validated as blank.
+  const canSeeSalary = hasPayrollViewSalary(getAuth());
+  const canEditSalary = canEditPayrollSalary(getAuth());
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [rosterNames, setRosterNames] = useState<string[]>([]);
@@ -195,7 +197,7 @@ function ProfileModal({
 
   async function save() {
     if (!form.staff_name.trim()) { setErr("Staff name is required"); return; }
-    if (canSeeSalary && !form.monthly_rate && !form.daily_rate) { setErr("Either monthly rate or daily rate is required"); return; }
+    if (canEditSalary && !form.monthly_rate && !form.daily_rate) { setErr("Either monthly rate or daily rate is required"); return; }
     setSaving(true); setErr("");
     try {
       const body = {
@@ -364,18 +366,19 @@ function ProfileModal({
             </div>
 
             {/* Rates */}
-            {!canSeeSalary && (
+            {!canEditSalary && (
               <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                Salary amounts are visible to HQ only. The rate and allowance fields below stay
-                hidden, and saving keeps the stored amounts — every other field is yours to edit.
+                {canSeeSalary
+                  ? "Rates and allowances are read-only for you — saving keeps the stored amounts. Some staff stay hidden entirely; a blank field there means hidden, not zero."
+                  : "Salary amounts are visible to HQ only. The rate and allowance fields below stay hidden, and saving keeps the stored amounts — every other field is yours to edit."}
               </div>
             )}
             <div>
-              <label className={L}>Monthly Rate (PHP){canSeeSalary ? " *" : ""}</label>
+              <label className={L}>Monthly Rate (PHP){canEditSalary ? " *" : ""}</label>
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.monthly_rate : ""}
                 onChange={e => set("monthly_rate", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "e.g. 18000.00" : SALARY_HIDDEN} />
             </div>
             <div>
@@ -383,7 +386,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.daily_rate : ""}
                 onChange={e => set("daily_rate", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "Auto-computed if blank" : SALARY_HIDDEN} />
               {canSeeSalary && <p className="mt-1 text-xs text-slate-500">If blank, engine uses monthly÷26</p>}
             </div>
@@ -392,7 +395,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.cola : ""}
                 onChange={e => set("cola", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">Cost of Living Allowance — included in Pag-IBIG base</p>
             </div>
@@ -401,7 +404,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.pagibig_voluntary : ""}
                 onChange={e => set("pagibig_voluntary", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">Extra HDMF contribution above mandatory ₱200 — ER does not match; not deducted from BIR WHT base</p>
             </div>
@@ -534,7 +537,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.rice_allowance : ""}
                 onChange={e => set("rice_allowance", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱2,000/month</p>
             </div>
@@ -543,7 +546,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.clothing_allowance : ""}
                 onChange={e => set("clothing_allowance", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱500/month (₱6,000/year)</p>
             </div>
@@ -552,7 +555,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.laundry_allowance : ""}
                 onChange={e => set("laundry_allowance", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱300/month</p>
             </div>
@@ -561,7 +564,7 @@ function ProfileModal({
               <input className={I} type={canSeeSalary ? "number" : "text"} min="0" step="0.01"
                 value={canSeeSalary ? form.medical_allowance : ""}
                 onChange={e => set("medical_allowance", e.target.value)}
-                readOnly={!canSeeSalary}
+                readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">BIR cap: ₱250/month (to dependents)</p>
             </div>

@@ -7,7 +7,7 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth, hasRouteAccess } from "@/lib/auth";
+import { hasPayrollViewSalary, getAuth, hasRouteAccess } from "@/lib/auth";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   GLASS_CARD, INPUT_CLASS, PRIMARY_BUTTON,
@@ -94,7 +94,7 @@ function AdjModal({
 }) {
   // The amount is masked to null for non-HQ, so it arrives as "" — validating or
   // sending it would either block the save or write NaN over a real figure.
-  const canSeeSalary = getAuth()?.role === "HQ";
+  const canSeeSalary = hasPayrollViewSalary(getAuth());
   const amountMasked = !canSeeSalary && adj != null && adj.amount == null;
   const [form, setForm] = useState({
     staff_name: adj?.staff_name ?? "",
