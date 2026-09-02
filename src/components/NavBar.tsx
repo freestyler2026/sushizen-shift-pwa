@@ -328,6 +328,47 @@ function isActive(pathname: string, item: NavItem) {
 }
 
 
+/**
+ * What a collapsed group is holding.
+ *
+ * The badge is the reason anyone opens this menu, so folding it out of sight
+ * takes away the one thing the menu was for. A closed group carries the total
+ * of what is inside it, in the strongest colour any of its items is wearing —
+ * so the group reads as "31 waiting, one of them urgent" without being opened,
+ * and opening it says which.
+ *
+ * Rolling the number up rather than auto-opening the group: five of the nine
+ * groups are lit on an ordinary morning, so opening every group that has a
+ * badge is the flat list again — and a badge arriving mid-session would push
+ * the entry someone was about to click somewhere else.
+ */
+function groupBadge(items: NavItem[]) {
+  let total = 0;
+  let critical = false, warning = false, yellow = false, pink = false, violet = false;
+  for (const i of items) {
+    const n = Number(i.badgeCount || 0) + Number(i.badge2Count || 0);
+    if (n > 0) total += n;
+    const lit = n > 0;
+    if (lit && i.badgeCritical) critical = true;
+    if (lit && i.badgeWarning) warning = true;
+    if (lit && i.badgeYellow) yellow = true;
+    if (lit && i.badgePink) pink = true;
+    if (lit && i.badge2Violet) violet = true;
+  }
+  const tone = critical
+    ? "bg-rose-500/20 text-rose-200"
+    : warning
+    ? "bg-orange-500 text-white"
+    : yellow
+    ? "bg-amber-500 text-white"
+    : pink
+    ? "bg-pink-500 text-white"
+    : violet
+    ? "bg-violet-500 text-white"
+    : "bg-white/8 text-neutral-300";
+  return { total, tone, urgent: critical || warning };
+}
+
 function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
   const badge = Number(item.badgeCount || 0);
   const showDot = badge <= 0 && (item.badgeYellow || item.badgePink || item.badgeWarning);
@@ -1461,6 +1502,7 @@ export default function NavBar() {
                   const group = adminItems.filter((i) => i.cat === key);
                   if (group.length === 0) return null;
                   const open = openCats.has(key);
+                  const gb = groupBadge(group);
                   return (
                     <div key={key} className="mt-0.5">
                       <button
@@ -1472,8 +1514,33 @@ export default function NavBar() {
                         <ChevronRight
                           className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                         />
-                        <span className="flex-1">{label}</span>
-                        <span className="text-neutral-600 tabular-nums">{group.length}</span>
+                        {/* The heading itself carries the state, so a closed
+                            group is not silent about needing attention. Only
+                            red and orange lift it — colouring every heading
+                            would make the colour mean nothing. */}
+                        <span
+                          className={`flex-1 ${
+                            gb.urgent && !open
+                              ? "text-amber-300"
+                              : gb.total > 0 && !open
+                              ? "text-neutral-300"
+                              : ""
+                          }`}
+                        >
+                          {label}
+                        </span>
+                        {/* Closed: what is waiting inside, in its own colour.
+                            Open: just how many pages, since every badge below
+                            is now visible on its own row. */}
+                        {!open && gb.total > 0 ? (
+                          <span
+                            className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${gb.tone}`}
+                          >
+                            {gb.total > 99 ? "99+" : String(gb.total)}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-600 tabular-nums">{group.length}</span>
+                        )}
                       </button>
                       {open && group.map((item) => (
                         <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
