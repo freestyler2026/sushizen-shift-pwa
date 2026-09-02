@@ -72,6 +72,7 @@ interface TodayData {
   scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string; is_split?: boolean } | null;
   lateness_min: number | null;
   shift_elapsed_min: number | null;
+  geofence_m?: number | null;
   break_allowance?: { allowance_min: number; is_split: boolean; from_roster: boolean };
   in_store?: {
     required: boolean;
@@ -1250,7 +1251,7 @@ export default function AttendancePage() {
               <p className="text-xs text-violet-300/80 leading-relaxed">
                 {gpsPos
                   ? "Your GPS fix expired (5 min). Tap below to get a fresh position before clocking in/out."
-                  : "You must be within 50m of your branch. Tap the button below first — Clock In will become available once your location is confirmed."}
+                  : `You must be within ${data?.geofence_m ?? 75}m of your branch. Tap the button below first — Clock In will become available once your location is confirmed.`}
               </p>
               <button
                 onClick={() => { void acquireGps(); }}
