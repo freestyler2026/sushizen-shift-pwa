@@ -253,28 +253,78 @@
 <h2>ご要望の3件を、実データに当てて確認しました</h2>
 
 <h3>① 規定より長い休憩</h3>
-<div class="verdict care">
-  <span class="verdict-label">条件つきで可能 ── 単体で判定してはいけない</span>
+<div class="verdict yes">
+  <span class="verdict-label">実装可能 ── 基準は公開シフトから導けます</span>
   <p>
-    「75分超」で警告を出す設計を最初に検討し、実データに当てて<strong>取りやめました</strong>。
-    該当はドバイ203件・マニラ15件で、常習者上位12名は全員ドバイです。
-    しかしその12名の勤務を見ると、<strong>拘束10.1〜10.6時間・実働8.0〜8.9時間</strong>。
-    全社平均の拘束9.3時間より長く店にいて、休憩を長く取り、実働は確保しています。
-    <strong>スプリット勤務であり、正しく運用している人たちです。</strong>
+    <strong>固定の分数を設定する必要はありません。</strong>基準はマネージャーが既に公開しているシフト表の中にあります。
   </p>
+  <ul style="margin-top:10px;">
+    <li><strong>スプリット勤務の日</strong>：許容休憩 ＝ 1本目の終了から<strong>2本目の開始まで</strong></li>
+    <li><strong>通常勤務の日</strong>：60分（マニラ・ドバイ共通）</li>
+  </ul>
   <p>
-    この設計のまま出していれば、きちんと運用している12名を呼び出すことになっていました。
+    シフトは1人1日につき区間ごとに行が入っており、スプリットは2行で保存されています。
+    ドバイの<strong>9.3%</strong>（357日）、マニラの<strong>1.0%</strong>（41日）がスプリット勤務で、
+    許容休憩は357日中<strong>283日が120分</strong>でした。
   </p>
 </div>
 <p>
-  <strong>正しい判定基準は「休憩の長さ」ではなく「実働が予定より短くなったか」です。</strong>
-  休憩が長いこと自体は問題ではありません。長く休んだ分を働いていないことが問題です。
-  したがって条件は <code>休憩 &gt; 規定</code> <strong>かつ</strong> <code>実働 &lt; 予定</code> の同時成立とします。
+  最初は「75分超で警告」という設計を検討し、実データに当てて<strong>取りやめました</strong>。
+  該当はドバイ203件で、上位12名の勤務を見ると<strong>拘束10.1〜10.6時間・実働8.0〜8.9時間</strong>。
+  全社平均9.3時間より長く店にいて実働は確保しており、<strong>スプリット勤務で正しく運用している人たち</strong>でした。
+  例：Ian Tamano のシフトは <code>9-13</code> ＋ <code>15-19</code>、許容120分に対し実測平均102分。<strong>規定内です。</strong>
 </p>
+
+<h3 style="margin-top:26px;">この規則で実際に何件出るか（60日・実測）</h3>
+<div class="figures">
+  <div class="fig"><div class="fig-n">2,844</div><div class="fig-l">シフトと突合できた休憩</div></div>
+  <div class="fig warn"><div class="fig-n">50</div><div class="fig-l">超過（猶予10分）<br>ドバイ35・マニラ15</div></div>
+  <div class="fig"><div class="fig-n">1.8%</div><div class="fig-l">超過率<br>（1日あたり0.8件）</div></div>
+  <div class="fig"><div class="fig-n">6</div><div class="fig-l">3回以上の常習者<br>（全員が通常勤務日）</div></div>
+</div>
+<p>
+  <strong>ナイーブな閾値なら203件出ていたところが50件になり、しかも中身が入れ替わります。</strong>
+  Ian Tamano は21件→3件、Mahima は24件→3件、Sherileene は22件→3件。
+  残った3件はいずれも<strong>スプリットではない通常勤務日</strong>のもので、
+  スプリット日は全て規定内でした。規則が意図どおり働いています。
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>氏名</th><th>拠点</th><th class="num">回数</th><th class="num">平均超過</th><th class="num">最大</th><th class="num">許容</th></tr></thead>
+    <tbody>
+      <tr><td>Jennyleen Valera Pepelar</td><td>マニラ TAFT</td><td class="num">3</td><td class="num">+87分</td><td class="num">+237分</td><td class="num">60</td></tr>
+      <tr><td>Sherileene Santiago</td><td>ドバイ CK</td><td class="num">3</td><td class="num">+58分</td><td class="num">+63分</td><td class="num">60</td></tr>
+      <tr><td>Christian Baria</td><td>ドバイ AB</td><td class="num">3</td><td class="num">+52分</td><td class="num">+56分</td><td class="num">60</td></tr>
+      <tr><td>Mahima Pansilu Dadallage</td><td>ドバイ CK</td><td class="num">3</td><td class="num">+52分</td><td class="num">+90分</td><td class="num">60</td></tr>
+      <tr><td>Ian Tamano</td><td>ドバイ CK</td><td class="num">3</td><td class="num">+49分</td><td class="num">+64分</td><td class="num">60</td></tr>
+      <tr><td>Francis Ibana</td><td>マニラ PAR</td><td class="num">3</td><td class="num">+31分</td><td class="num">+56分</td><td class="num">60</td></tr>
+    </tbody>
+    <caption>超過合計はドバイ2,277分（38時間）・マニラ1,443分（24時間）／60日。参考値であり、この規則を有効化する前に本人確認が必要です。</caption>
+  </table>
+</div>
+
+<div class="verdict care">
+  <span class="verdict-label">実装上の必須条件 ── これを入れないと無実の人が出ます</span>
+  <p>
+    シフト行には<strong>区間の隙間が0または負になる日が64日</strong>あります
+    （<code>12-13</code>＋<code>13-21</code> のような連続、および重複行）。
+    そのまま計算すると許容が0分になり、<strong>どんな休憩も違反</strong>になります。
+  </p>
+  <p>
+    補正前の集計では Hayat Ullah Khan（18回）・Sota Horii（12回）・Padam Bahadur K C（4回）が
+    常習者として出ていましたが、<strong>補正すると3名とも完全に消えました。</strong>
+    隙間が0以下の日は通常勤務として60分を適用します。
+  </p>
+</div>
 <p>
   あわせて「戻りの打刻忘れ」を除外します。休憩終了が退勤とほぼ同時刻（10分以内）の記録は、
   休憩したのではなく<strong>Break Outを押し忘れて退勤時にまとめて押した</strong>ものです。
   90分超222件のうち22件がこれに当たります。
+</p>
+<p>
+  公開シフトを読むときは<strong>バージョンをまたぐので最新行だけを取る</strong>必要があります
+  （<code>DISTINCT ON … ORDER BY updated_at DESC</code>／教訓14）。
+  これを怠ると同じ日のシフトが二重に出て、隙間の計算が壊れます。
 </p>
 
 <h3>② 1シフト中に何度も休憩</h3>
@@ -465,12 +515,32 @@
 </div>
 
 <h2>ご判断いただきたい点</h2>
+<p class="lede">
+  ドバイの規定はご回答いただいたので解決しました（スプリットは2本目の開始まで／通常は60分）。残り3点です。
+</p>
 <ul>
-  <li><strong>規定休憩時間</strong>：マニラ60分は計算式にあります。<strong>ドバイの規定が不明です。</strong>スプリット勤務者は120分前後が常態なので、拠点別または勤務区分別に設定が必要かもしれません。</li>
-  <li><strong>バックオフィス（在宅）の扱い</strong>：QRと同様に休憩検知も免除でよいか。現在マニラBOは153日が記録ゼロですが、在宅勤務では休憩の概念が異なります。</li>
-  <li><strong>超過休憩の給与反映</strong>：Phase 3の可否。実施しない場合、検知は「指摘するが不利益は無い」運用になります。</li>
-  <li><strong>指摘の単位</strong>：個人を名指しするか、拠点の記録率として店長に返すか。マニラの現状（10名がほぼ全日ゼロ）では、個人指摘は10名同時になります。</li>
+  <li>
+    <strong>バックオフィス（在宅）の扱い</strong>：QRと同様に休憩検知も免除でよいか。
+    現在マニラBOは30日で153日が記録ゼロですが、在宅勤務では休憩の概念が異なります。
+  </li>
+  <li>
+    <strong>超過休憩の給与反映</strong>（Phase 3）：実施しない場合、検知は
+    「指摘するが不利益は無い」運用になります。実施する場合も<strong>過去期間は再計算しません</strong>。
+  </li>
+  <li>
+    <strong>指摘の単位</strong>：個人を名指しするか、拠点の記録率として店長に返すか。
+    超過は6名と少数なので個人単位で扱えますが、<strong>マニラの未記録は10名がほぼ全日</strong>なので、
+    こちらは拠点の運用問題として店長に返す方が現実的です。
+  </li>
 </ul>
+<div class="verdict care">
+  <span class="verdict-label">あわせてご報告</span>
+  <p>
+    シフト表側に、<strong>同じ日の区間が重複または連続している行が64日分</strong>あります。
+    休憩の基準がその隙間から決まる以上、<strong>シフト表の精度がそのまま判定の精度になります。</strong>
+    検知を有効化する前に、この64日が入力ミスなのか実際の勤務形態なのかを確認させてください。
+  </p>
+</div>
 
 <div class="footnote">
   実測範囲：<code>os_attendance_breaks</code> 3,101件（2026-07-09〜09-02）、
