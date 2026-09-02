@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   Fingerprint,
   CheckCircle2,
+  QrCode,
+  Camera,
   Clock,
   LogIn,
   LogOut,
@@ -19,6 +21,7 @@ import {
   Square,
   MessageSquare,
 } from "lucide-react";
+import { prepareDataUrl } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, canAccessAttendancePage } from "@/lib/auth";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 
@@ -69,6 +72,13 @@ interface TodayData {
   scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string; is_split?: boolean } | null;
   lateness_min: number | null;
   shift_elapsed_min: number | null;
+  break_allowance?: { allowance_min: number; is_split: boolean; from_roster: boolean };
+  in_store?: {
+    required: boolean;
+    confirmed_at: string | null;
+    method: string;
+    has_photo: boolean;
+  };
 }
 
 // ─── WebAuthn helpers (native API) ───────────────────────────────────────────
@@ -301,6 +311,9 @@ export default function AttendancePage() {
   const [lateBannerDismissed, setLateBannerDismissed] = useState(false);
   const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
   const [showOtPrompt, setShowOtPrompt] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [otPromptMinutes, setOtPromptMinutes] = useState(0);
   const pendingOtPromptRef = useRef<number | null>(null);
   const [wfhToday, setWfhToday] = useState(false);
@@ -657,8 +670,12 @@ export default function AttendancePage() {
   // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
   const tz = cityTz(auth?.city);
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
-  // Split-shift staff get 2 hours; all others get 1 hour regardless of city
-  const breakLimitSec = data?.scheduled_shift?.is_split ? 120 * 60 : 60 * 60;
+  // The break the roster actually published: on a split day, the gap to the
+  // second segment. This used to assume two hours for every split day, which
+  // is right for 227 of them and wrong for the three where the roster leaves
+  // 60 or 150 — those staff were shown a countdown that was not theirs.
+  const breakLimitSec = (data?.break_allowance?.allowance_min
+    ?? (data?.scheduled_shift?.is_split ? 120 : 60)) * 60;
   const breakWarnSec = breakLimitSec - 10 * 60; // warn 10 min before limit
   const isCheckedIn = !!session?.check_in_at;
   const isCheckedOut = !!session?.check_out_at;
@@ -685,6 +702,43 @@ export default function AttendancePage() {
     ? Math.max(0, minutesBetween(session!.check_in_at!, isCheckedOut ? session!.check_out_at! : new Date().toISOString()))
     : 0;
   const wauSupported = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+  /**
+   * The photo route, for when the code will not scan.
+   *
+   * Not a daily task — it is the second step only when the first one fails.
+   * Compressed in the browser first: a phone photo is larger than the platform
+   * will accept, and without this every upload fails regardless of signal.
+   */
+  const sendInStorePhoto = async (file: File) => {
+    setPhotoBusy(true); setPhotoError("");
+    try {
+      const dataUrl = await prepareDataUrl(file);
+      const a = getAuth();
+      const pos = gpsPos?.coords;
+      const res = await fetch("/api/store/attendance/confirm-in-store", {
+        method: "POST",
+        headers: getAuthHeaders(a),
+        body: JSON.stringify({
+          city: a?.city, method: "photo", photo: dataUrl,
+          lat: pos?.latitude ?? null, lng: pos?.longitude ?? null,
+        }),
+      });
+      const raw = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(raw); } catch { /* 413 arrives as text/plain */ }
+      if (!res.ok) {
+        setPhotoError(String(body.detail || "Could not send. Try once more."));
+        return;
+      }
+      setPhotoOpen(false);
+      await fetchToday({ silent: true });
+    } catch {
+      setPhotoError("Could not send the photo. Check your signal and try again.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   // ─── Break elapsed timer ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1405,6 +1459,64 @@ export default function AttendancePage() {
           )}
           {isCheckedIn && !isCheckedOut && (
             <div className="space-y-2">
+              {/* In-store confirmation. Clocking in from the car park is the
+                  whole reason this exists, so it sits above everything else
+                  until it is done — and it says what to do, not what is wrong. */}
+              {data?.in_store?.required && !data.in_store.confirmed_at && (
+                <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-4">
+                  <div className="flex items-start gap-2">
+                    <QrCode size={20} className="mt-0.5 flex-shrink-0 text-amber-300" />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-amber-100">
+                        One more step — scan the poster
+                      </div>
+                      <div className="mt-1 text-xs text-amber-200/80">
+                        Open your phone camera and point it at the code on the wall.
+                        You do not need to open anything else.
+                      </div>
+                      {!photoOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => { setPhotoOpen(true); setPhotoError(""); }}
+                          className="mt-3 text-xs text-amber-200 underline underline-offset-2 hover:text-amber-100"
+                        >
+                          The code will not scan — take a photo instead
+                        </button>
+                      ) : (
+                        <div className="mt-3">
+                          <div className="text-xs text-amber-200/80">
+                            Take one photo of your station, with the shop behind you.
+                            A manager will see it.
+                          </div>
+                          <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25">
+                            <Camera size={14} />
+                            {photoBusy ? "Sending…" : "Take photo"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              disabled={photoBusy}
+                              onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void sendInStorePhoto(f); }}
+                            />
+                          </label>
+                          {photoError && (
+                            <div className="mt-2 text-xs text-red-300">{photoError}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {data?.in_store?.required && data.in_store.confirmed_at && (
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.07] px-3 py-2 text-xs text-emerald-200/90 flex items-center gap-2">
+                  <CheckCircle2 size={14} className="flex-shrink-0" />
+                  In-store confirmed at {fmtTime(data.in_store.confirmed_at, tz)}
+                  {data.in_store.method === "photo" && " (photo)"}
+                </div>
+              )}
+
               {/* Break status banner */}
               {isOnBreak && (
                 <div className="rounded-xl bg-amber-950/50 border border-amber-500/40 px-4 py-3 space-y-2">
