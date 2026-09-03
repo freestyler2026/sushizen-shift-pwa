@@ -512,6 +512,10 @@ export default function AttendancePage() {
         const pos = cacheStillValid ? cachedPos : await acquireGps();
         const lat = pos?.coords.latitude ?? null;
         const lng = pos?.coords.longitude ?? null;
+        // How wrong the phone thinks this reading might be. Without it the
+        // server compares a fix with a 2 km margin against a 150 m fence as
+        // though it were exact, and refuses someone standing in the kitchen.
+        const accuracy = pos?.coords.accuracy ?? null;
 
         // GPS is required for clock-in and clock-out (unless WFH mode or GPS-exempt)
         if ((action === "checkin" || action === "checkout") && !pos && !wfhTodayRef.current && !gpsExemptRef.current) {
@@ -535,7 +539,7 @@ export default function AttendancePage() {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
-          body: JSON.stringify({ state_token, credential, action, lat, lng, ...extra }),
+          body: JSON.stringify({ state_token, credential, action, lat, lng, accuracy, ...extra }),
         });
         if (!verRes.ok) {
           const e = await verRes.json().catch(() => ({ detail: "Error" }));

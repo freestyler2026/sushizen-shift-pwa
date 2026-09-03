@@ -1,0 +1,233 @@
+<title>バックオフィスのOS利用実績</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f0f1f4; --panel:#fff; --panel-2:#e5e7ec; --ink:#16171c; --ink-2:#414553;
+    --ink-3:#6e7382; --rule:#d3d6de; --indigo:#33407e; --indigo-soft:#e6e9f5;
+    --rust:#8d3a25; --rust-soft:#f8e7e2; --amber:#8a6410; --moss:#2f6144;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#101218; --panel:#181b23; --panel-2:#212530; --ink:#e9eaf0; --ink-2:#b4b8c6;
+      --ink-3:#7f8494; --rule:#2b303c; --indigo:#93a2e0; --indigo-soft:#1b2038;
+      --rust:#e08d74; --rust-soft:#331c16; --amber:#dbae57; --moss:#7fc09b;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#101218; --panel:#181b23; --panel-2:#212530; --ink:#e9eaf0; --ink-2:#b4b8c6;
+    --ink-3:#7f8494; --rule:#2b303c; --indigo:#93a2e0; --indigo-soft:#1b2038;
+    --rust:#e08d74; --rust-soft:#331c16; --amber:#dbae57; --moss:#7fc09b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:940px;margin:0 auto;padding:52px 22px 96px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--indigo);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,39px);
+    line-height:1.32;margin:0 0 14px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:60ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:54px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:64ch;}
+  p{margin:0 0 13px;max-width:66ch;}
+  ul{margin:0 0 13px;padding-left:1.25em;max-width:66ch;} li{margin-bottom:7px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+
+  .scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px;}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top;}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.03em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+    white-space:nowrap;}
+  caption{caption-side:bottom;padding:9px 12px;font-size:12px;color:var(--ink-3);text-align:left;}
+  .bar{display:inline-block;height:7px;border-radius:2px;background:var(--indigo);vertical-align:middle;}
+  .bar.q{background:var(--rule);}
+  tr.low td{background:var(--rust-soft);}
+
+  .note{border-left:3px solid var(--rust);background:var(--rust-soft);padding:14px 18px;
+    margin:20px 0;border-radius:0 8px 8px 0;}
+  .note.calm{border-left-color:var(--indigo);background:var(--indigo-soft);}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--rust);}
+  .note.calm .note-label{color:var(--indigo);}
+  .note p:last-child{margin-bottom:0;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:52px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ 在宅バックオフィス</div>
+<h1>バックオフィスのOS利用実績</h1>
+<p class="standfirst">
+  マニラBO所属12名の直近30日。ログインしていた時間と、実際にOSに記録された操作の両方を出しています。
+</p>
+
+<div class="note">
+  <span class="note-label">先に、この数字で言えないこと</span>
+  <p>
+    <strong>ログイン時間は労働時間ではありません。</strong>タブを開いたままにすれば時間は伸びます。
+    そして<strong>OSが記録するのは「書き込み」だけ</strong>で、画面を読む・Discordでやり取りする・
+    電話する・仕入先のポータルを操作する・Excelを触る、これらは1件も残りません。
+  </p>
+  <p>
+    ですので<strong>この表は「OSをどれだけ使ったか」であって、「どれだけ働いたか」ではありません。</strong>
+    操作が少ない人が働いていないとは言えず、多い人が生産的とも言えません。
+    <strong>会話を始める材料としてお使いください。</strong>
+  </p>
+</div>
+
+<h2>30日の実績</h2>
+<p class="lede">操作数の多い順。ログイン時間は同期間の合計です。</p>
+<div class="scroll">
+  <table>
+    <thead><tr>
+      <th>氏名</th><th class="num">操作数</th><th></th><th class="num">操作日</th>
+      <th class="num">ログイン計</th><th class="num">1日平均</th><th>主な業務</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>Aliana Manuel</td><td class="num">5,322</td><td><span class="bar" style="width:110px"></span></td>
+        <td class="num">30</td><td class="num">177h</td><td class="num">6.8h</td>
+        <td>調達 2,868／在庫・POS 948／シフト 779</td></tr>
+      <tr><td>Camilla Gadingan</td><td class="num">3,785</td><td><span class="bar q" style="width:78px"></span></td>
+        <td class="num">24</td><td class="num">155h</td><td class="num">7.1h</td>
+        <td>閲覧 3,600／シフト 121／HR 47 <b>※下記</b></td></tr>
+      <tr><td>Ruby Rosa Rongcales</td><td class="num">2,833</td><td><span class="bar" style="width:59px"></span></td>
+        <td class="num">26</td><td class="num">252h</td><td class="num">11.0h</td>
+        <td>調達 2,295／日次チェック 370／シフト 167</td></tr>
+      <tr><td>Caila Macararanga</td><td class="num">2,514</td><td><span class="bar" style="width:52px"></span></td>
+        <td class="num">25</td><td class="num">101h</td><td class="num">8.4h</td>
+        <td>調達 2,462</td></tr>
+      <tr><td>Cyrine Fernandez</td><td class="num">1,226</td><td><span class="bar" style="width:25px"></span></td>
+        <td class="num">27</td><td class="num">158h</td><td class="num">7.9h</td>
+        <td>シフト 441／調達 388／給与 287</td></tr>
+      <tr><td>Erica May Sadiasa</td><td class="num">1,070</td><td><span class="bar" style="width:22px"></span></td>
+        <td class="num">28</td><td class="num">142h</td><td class="num">5.4h</td>
+        <td>調達 719／シフト 169／日次チェック 163</td></tr>
+      <tr><td>Mariano Espenida Jr.</td><td class="num">643</td><td><span class="bar" style="width:13px"></span></td>
+        <td class="num">22</td><td class="num">162h</td><td class="num">8.1h</td>
+        <td>閲覧 386／調達 169／在庫 58</td></tr>
+      <tr class="low"><td>Nathaneil Santos</td><td class="num">171</td><td><span class="bar" style="width:4px"></span></td>
+        <td class="num">1</td><td class="num">—</td><td class="num">—</td>
+        <td>調達 171（8/8の1日のみ・ログイン記録なし）</td></tr>
+      <tr class="low"><td>John Philip M. Carlos</td><td class="num">70</td><td><span class="bar" style="width:2px"></span></td>
+        <td class="num">2</td><td class="num">5h</td><td class="num">2.6h</td>
+        <td>閲覧 69</td></tr>
+      <tr class="low"><td>Peter Villafuerte</td><td class="num">60</td><td><span class="bar" style="width:2px"></span></td>
+        <td class="num">18</td><td class="num">158h</td><td class="num">6.3h</td>
+        <td>HR 25／経費 19</td></tr>
+      <tr class="low"><td>Marithel Queri</td><td class="num">50</td><td><span class="bar" style="width:1px"></span></td>
+        <td class="num">10</td><td class="num">124h</td><td class="num">5.2h</td>
+        <td>閲覧 20／シフト 17／HR 11</td></tr>
+      <tr class="low"><td>Rose Ann Onido</td><td class="num">27</td><td><span class="bar" style="width:1px"></span></td>
+        <td class="num">12</td><td class="num">17h</td><td class="num">0.8h</td>
+        <td>経費 23</td></tr>
+    </tbody>
+    <caption>
+      操作数 = OSに書き込みとして残った件数（発注・承認・シフト編集・給与調整など）。
+      閲覧を除いた実作業だけを数えたい場合は Camilla の3,600件を除外してください。
+    </caption>
+  </table>
+</div>
+
+<h2>読む前に、3つの但し書き</h2>
+
+<div class="note calm">
+  <span class="note-label">① Camilla の3,600件は人のクリックではない可能性が高い</span>
+  <p>
+    内訳は <code>private_report.read</code> が2,562件、<code>procurement.approval.act</code> と
+    <code>procurement.exception.read</code> が各490件。
+    <strong>1日あたり116回の「レポート閲覧」</strong>は、人が押した回数というより
+    画面が自動で読みに行っている回数と考えるのが自然です。
+    この3,600件を除くと実作業は<strong>185件</strong>になります。
+  </p>
+</div>
+
+<div class="note calm">
+  <span class="note-label">② 承認だけの役割は、操作数が少なくて当然</span>
+  <p>
+    Cyrine Fernandez は調達で<strong>承認が中心</strong>（別途集計で744件中716件が承認）です。
+    承認1回は発注1件と同じ「1操作」ですが、重みは違います。
+    <strong>操作数は仕事量ではなく接触回数</strong>だとお考えください。
+  </p>
+</div>
+
+<div class="note calm">
+  <span class="note-label">③ HRと経費はOSの外で進む仕事が多い</span>
+  <p>
+    Peter Villafuerte（HR_MANAGER）と Rose Ann Onido は操作数が少ないですが、
+    面談・書類・折衝はOSに1件も残りません。
+    <strong>この2名を操作数だけで評価するのは無理があります。</strong>
+  </p>
+</div>
+
+<h2>数字が示していること</h2>
+
+<p><strong>調達に4名が集中しています。</strong>
+Aliana 2,868／Caila 2,462／Ruby 2,295／Erica 719 で、BO全体の操作の大半がここです。
+一方 HR・経費・在庫は1〜2名が薄く担当しています。<strong>分担を見直すならこの偏りが起点</strong>です。</p>
+
+<p><strong>Ruby Rosa Rongcales の1日平均11.0時間</strong>は他より突出しています。
+252時間/23日。タブの開きっぱなしを含む数字なので実労働とは限りませんが、
+<strong>業務量が多い可能性は他の指標（調達2,295件）とも整合します。</strong></p>
+
+<p><strong>Rose Ann Onido は1日平均0.8時間</strong>で、23日ログインして計17時間です。
+毎日短時間だけ開いている形で、他の誰とも違うパターンです。</p>
+
+<h2>確認をおすすめする3名</h2>
+<p class="lede">「働いていない」という結論ではなく、<strong>OSの記録だけでは説明がつかない</strong>という意味です。</p>
+
+<div class="scroll">
+  <table>
+    <thead><tr><th>氏名</th><th>状況</th><th>確認したいこと</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Nathaneil Santos</b></td>
+        <td>30日でログイン記録なし。操作は8/8の171件のみ</td>
+        <td>現在どの業務を担当しているか。OSを使わない仕事に移っているのか、
+            アカウントを使っていないのか</td>
+      </tr>
+      <tr>
+        <td><b>Marithel Queri</b></td>
+        <td>124時間ログイン（24日）に対し操作50件・操作日10日</td>
+        <td>ログインしている時間に何をしているか。
+            OSの外の業務であればそれが分かるようにしたい</td>
+      </tr>
+      <tr>
+        <td><b>John Philip M. Carlos</b></td>
+        <td>Inventory and Procurement Officer だが30日でログイン2日・5時間</td>
+        <td>役職と実態が合っていない。担当が変わったのか、
+            OSを使わずに在庫・調達をしているのか</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>分担を決めるなら、次はこれが要ります</h2>
+<p>
+  今わかるのは「誰がOSで何をしたか」までです。<strong>「何にどれだけ時間がかかったか」は測れていません。</strong>
+  分担を数字で決めるには、少なくとも次のどちらかが必要です。
+</p>
+<ul>
+  <li><strong>ページ単位の利用計測</strong> — 9/2から取り始めていますが、
+      バッジの自動更新を含むため人単位の判定にはまだ使えません。除外すれば使えるようになります</li>
+  <li><strong>作業キューの担当制</strong> — 現在このセッションで整備した
+      調達アラート・Prep Time確認・入社書類などは、担当者と処理件数が記録に残ります。
+      分担して運用すれば、次回からは推測ではなく実績で見られます</li>
+</ul>
+
+<div class="foot">
+  期間 2026-08-04 〜 2026-09-03（30日）。対象 <code>staff_master.branch_code='BO'</code> の在籍者12名
+  （Test Account を除く）。ログイン時間は <code>staff_sessions</code> の
+  <code>created_at</code>〜<code>last_seen_at</code> の合計。
+  操作数はOS内の全テーブルから操作者列（<code>*_by</code>／<code>actor_name</code> 等）を総なめして集計。
+</div>
+
+</div>
