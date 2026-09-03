@@ -83,7 +83,7 @@
 <div class="note">
   <span class="note-label">先に結論</span>
   <p>
-    <strong>今日渡せるのは4件・約830件の作業です。</strong>
+    <strong>今日渡せるのは5件・約880件の作業です。</strong>
     放置の原因は「担当がいなかった」ことではなく、<strong>操作できる画面が無い・閾値が無い・
     工程自体が存在しない</strong>ことでした。人を割り当てるだけでは動きません。
     ④はその画面を作ったので、今日から渡せます。
@@ -229,22 +229,71 @@
   </span>
 </div>
 
-<div class="job block">
+<div class="job">
   <div class="job-head">
-    <span class="job-n">要修正</span>
-    <span class="job-t">調達の例外検知</span>
-    <span class="job-vol">925件</span>
+    <span class="job-n">05</span>
+    <span class="job-t">調達の例外アラート — 作り直しました</span>
+    <span class="job-vol">49件 ／ 1日0.6件</span>
   </div>
   <p>
-    <code>SPLIT_ORDER_SUSPECT</code>（発注の分割疑い）が925件。
-    <strong>925件すべてが score 80.0・severity HIGH で、値が1件も違いません。</strong>
-    毎日6〜18件を同じ点数で起票し続けています。これは検知ではなく素通しです。
+    <code>/admin/procurement/exceptions</code>。925件を閉じ、ルールを書き直して、
+    直近60日を遡って検知させた結果が49件です。
   </p>
+
+  <div class="note" style="margin:14px 0 10px;">
+    <span class="note-label">閾値の問題ではありませんでした</span>
+    <p>
+      コードを読むと、<strong>分割発注を全く見ていませんでした。</strong>
+      仕入先×カテゴリごとに<strong>市全体の14日分</strong>を合計し、固定値20万超で発火する作り。
+      主要仕入先から2週間で₱20万仕入れるのは通常業務なので、
+      <strong>見た全リクエストで発火します。</strong>閾値をどう動かしても直りません。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ルール</th><th class="num">180日</th><th class="num">1日</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td><b>DUPLICATE_REQUEST</b>（新規）</td><td class="num">88</td><td class="num">0.49</td><td>同一人物・同一店舗・同一金額が30分以内に2本</td></tr>
+        <tr><td>THRESHOLD_EDGE_PATTERN</td><td class="num">13</td><td class="num">0.07</td><td>承認ラインの5%以内に収まる金額</td></tr>
+        <tr><td>SPLIT_ORDER_SUSPECT（書き直し）</td><td class="num">10</td><td class="num">0.06</td><td>同日・同店舗・同仕入先で、各々ラインの下・合計が上</td></tr>
+      </tbody>
+      <tfoot><tr><td>合計</td><td class="num">111</td><td class="num">0.62</td><td>旧ルールは同期間 <b>925件・全部同じ点数</b></td></tr></tfoot>
+    </table>
+  </div>
+
   <span class="why">
-    このまま渡すと、925件を1件ずつ見て「全部同じ」と気づくまでが仕事になります。
-    ルールに閾値を入れて件数が意味を持つようにしてから渡します。
+    <strong>閾値 ₱20,000 は発明していません。</strong>
+    生きている承認マトリクスの level1 上限（MANAGER→HR_MANAGER の壁）を読んでいるので、
+    Approval Matrix 画面で変えれば検知も動きます。
+    <br><br>
+    <strong>実際に探したら、分割発注は1件もありませんでした。</strong>
+    同日の複数発注15件のうち10件は店舗別の通常発注（TAFT/PAR/CUBに1本ずつ）、
+    残る5件は<strong>0.2〜2.4分間隔の二重送信</strong>。実在した問題は分割ではなく重複だったので、
+    そちらを検知するルールを足しました。
   </span>
 </div>
+
+<h2>ドバイでは承認の壁が存在しません</h2>
+<p>
+  承認マトリクスは<strong>ペソ建て</strong>（テーブル名が <code>_php</code>）なのに両都市に適用されています。
+  ドバイの<strong>過去最大の発注は AED 2,910</strong> で、一番低い閾値20,000の7分の1です。
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>都市</th><th class="num">発注数</th><th class="num">中央値</th><th class="num">最大</th><th class="num">2万到達</th><th>承認段階</th></tr></thead>
+    <tbody>
+      <tr><td>ドバイ</td><td class="num">2,383</td><td class="num">AED 243</td><td class="num">AED 2,910</td><td class="num">0</td><td>全件 level 0〜1</td></tr>
+      <tr><td>マニラ</td><td class="num">1,175</td><td class="num">₱7,193</td><td class="num">₱123,427</td><td class="num">209</td><td>level 2が128・3が6・4が2</td></tr>
+    </tbody>
+    <caption>180日実測。ドバイの発注は全て店長承認だけで通っており、上位承認者に上がったことが一度もありません。</caption>
+  </table>
+</div>
+<p>
+  つまり<strong>ドバイに回避すべき壁が無い</strong>ので、分割も閾値際も検知しようがありません。
+  そのようなルールは黙って0件を返すのではなく、ドバイでは実行しないようにしました。
+  <strong>ドバイ用の金額を決めるかどうかは経営判断です</strong>ので、こちらでは決めていません。
+</p>
 
 <div class="job block">
   <div class="job-head">
@@ -292,27 +341,30 @@
       <tr><td>② 入社書類の検証</td><td class="num">146</td><td>今日から可</td></tr>
       <tr><td>③ 仕入先名の名寄せ</td><td class="num">4組+</td><td>今日から可</td></tr>
       <tr><td>④ Prep Time の確認</td><td class="num">628 ＋15〜20/日</td><td><b>画面完成・今日から可</b></td></tr>
-      <tr><td>⑤ 調達の例外検知</td><td class="num">925</td><td>閾値を入れてから</td></tr>
+      <tr><td>⑤ 調達の例外アラート</td><td class="num">49 ＋0.6/日</td><td><b>作り直し済・今日から可</b></td></tr>
       <tr><td>⑥ 評価スケジュール</td><td class="num">155</td><td>画面が要る</td></tr>
     </tbody>
-    <tfoot><tr><td>今日渡せる合計</td><td class="num">約830件</td><td></td></tr></tfoot>
+    <tfoot><tr><td>今日渡せる合計</td><td class="num">約880件</td><td></td></tr></tfoot>
   </table>
 </div>
 <p>
-  ①〜④を今日渡せます。合計で約830件、着手できる状態です。
+  ①〜⑤を今日渡せます。合計で約880件、いずれも画面から操作できる状態です。
 </p>
 <div class="note">
-  <span class="note-label">ただし量の見込みは下方修正してください</span>
+  <span class="note-label">量の見込みは下方修正してください</span>
   <p>
-    <strong>「単純作業をたくさん」という条件は、この4件では継続的には満たせません。</strong>
-    830件は数日で片付き、そのあと残る定常業務は Prep Time の1日15〜20件だけです。
-    ②の入社書類も新入社員が入ったときだけ、①のクレームも片付けば終わりです。
+    <strong>「単純作業をたくさん」という条件は、これでも継続的には満たせません。</strong>
+    880件は数日〜2週間で片付き、そのあと残る定常業務は
+    <strong>Prep Time 1日15〜20件 ＋ 調達アラート 1日0.6件</strong>だけです。
   </p>
   <p>
-    継続的な量が要るなら⑤か⑥に手を入れる必要があります。
-    <strong>⑤（925件）は閾値を入れれば実務になり</strong>、以後も毎日6〜18件発生し続けるので、
-    量としては一番見込みがあります。ただし今の状態は全件が同じ点数なので、
-    まず「何を検知したいのか」を決める必要があります。
+    ⑤を「1日6〜18件」と見込んでいましたが、それは<strong>壊れたルールの発火数</strong>でした。
+    正しく検知させると0.6件/日です。<strong>検知を増やす方向で量を作ることはできません</strong> —
+    それは教訓39（閾値の無い通知が本物を埋める）を意図的に再演することになります。
+  </p>
+  <p>
+    量が要るなら、<strong>検知系ではなく入力・照合系の定常業務</strong>を探す必要があります。
+    ⑥（評価スケジュール155件）は画面を作れば渡せますが、これも一巡すれば終わりです。
   </p>
 </div>
 
