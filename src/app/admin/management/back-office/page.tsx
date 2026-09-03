@@ -363,6 +363,206 @@ function FarConfirmBanner({ city }: { city: string }) {
   );
 }
 
+/**
+ * Today, in one line.
+ *
+ * The four counters above it are the standing pile. This is the day: what came
+ * in, what came back, what got finished, and what ran out of time. Handled and
+ * too-late are counted apart because closing a thing and doing it are not the
+ * same, and a single "closed" number hid that for 277 tasks.
+ */
+function TodayLine({ city }: { city: string }) {
+  const [d, setD] = useState<{ raised: number; sent: number; replied: number; handled: number; too_late: number } | null>(null);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/management/tasks/today?city=${encodeURIComponent(city === "all" ? "manila" : city)}`,
+          { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!dead) setD(j);
+      } catch { /* a summary line must never break the page */ }
+    })();
+    return () => { dead = true; };
+  }, [city]);
+  if (!d) return null;
+  const bit = (n: number, label: string, tone = "text-white/70") => (
+    <span className={tone}>
+      <b className="tabular-nums text-white">{n}</b> {label}
+    </span>
+  );
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs">
+      <span className="font-semibold uppercase tracking-wider text-white/40">Today</span>
+      {bit(d.raised, "raised")}
+      <span className="text-white/20">·</span>
+      {bit(d.sent, "sent")}
+      <span className="text-white/20">·</span>
+      {bit(d.replied, "replied")}
+      <span className="text-white/20">·</span>
+      {bit(d.handled, "handled", "text-emerald-300/80")}
+      <span className="text-white/20">·</span>
+      {bit(d.too_late, "too late", "text-zinc-400")}
+      {d.handled === 0 && d.replied > 0 && (
+        <span className="ml-auto text-amber-300/80">
+          {d.replied} replies came back today and none has been closed
+        </span>
+      )}
+    </div>
+  );
+}
+
+type TooLateRow = {
+  id: number; type: string; branch: string; severity: string; status: string;
+  age_hours: number; expires_after_hours: number; bo_assignee: string | null;
+};
+
+/**
+ * The pile that can no longer be worked.
+ *
+ * Most of the backlog is not waiting for a decision — it is waiting for a
+ * moment that has gone. A rush check from Tuesday cannot be done on Friday,
+ * and while there is no honest way to close it, it stays in the queue and
+ * hides the things that can still be done.
+ *
+ * Shown before anything happens, and closed by id rather than by filter: a
+ * bulk close evaluated on the server picks up rows nobody saw, and closing
+ * work is not the same as doing it. Cost alerts are never in here — they stay
+ * true until the cost changes.
+ */
+function TooLateBar({ city, onDone }: { city: string; onDone: () => void }) {
+  const [data, setData] = useState<{ count: number; tasks: TooLateRow[]; unreadable_dates?: number } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/management/tasks/too-late?city=${encodeURIComponent(city === "all" ? "manila" : city)}`,
+        { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+      );
+      if (!res.ok) return;
+      setData(await res.json());
+    } catch { /* a tidy-up offer must never break the page */ }
+  }, [city]);
+  useEffect(() => { void load(); }, [load]);
+
+  const closeAll = async () => {
+    if (!data?.tasks?.length) return;
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/admin/management/tasks/close-too-late", {
+        method: "POST",
+        headers: getAuthHeaders(getAuth()),
+        body: JSON.stringify({ ids: data.tasks.map(t => t.id) }),
+      });
+      const raw = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(raw); } catch { /* not JSON */ }
+      if (!res.ok) { setErr(String(body.detail || "Could not close these.")); return; }
+      setDone(Number(body.closed || 0));
+      setOpen(false);
+      await load();
+      onDone();
+    } catch {
+      setErr("Could not close these. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done > 0) {
+    return (
+      <div className="mb-4 rounded-xl border border-zinc-600/40 bg-zinc-800/40 px-4 py-2.5 text-sm text-zinc-300">
+        {done} closed as <b>too late</b> — recorded as not actioned, under your name.
+        They are in Done if you need to look.
+      </div>
+    );
+  }
+  if (!data || data.count === 0) {
+    return data && (data.unreadable_dates ?? 0) > 0 ? (
+      <div className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+        {data.unreadable_dates} task(s) have a date this check cannot read, so they were not
+        examined. Tell the OS team — this list is not complete.
+      </div>
+    ) : null;
+  }
+
+  const byType = data.tasks.reduce<Record<string, number>>((a, t) => {
+    a[t.type] = (a[t.type] || 0) + 1; return a;
+  }, {});
+
+  return (
+    <div className="mb-4 rounded-xl border border-zinc-500/40 bg-zinc-800/40 px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Clock className="h-4 w-4 flex-shrink-0 text-zinc-400" />
+        <span className="text-zinc-200">
+          <b>{data.count}</b> can no longer be acted on — the shift or the day they ask about has ended.
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="text-xs text-zinc-300 underline underline-offset-2 hover:text-white"
+        >
+          {open ? "Hide" : "Show what they are"}
+        </button>
+      </div>
+      <div className="mt-1 text-xs text-zinc-500">
+        {Object.entries(byType).map(([k, v]) => `${fmtLabel(k)} ${v}`).join(" · ")}
+        {" · "}cost alerts are never included
+      </div>
+      {open && (
+        <div className="mt-2">
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
+            <table className="w-full text-xs text-left">
+              <thead className="sticky top-0 bg-zinc-900 text-zinc-500">
+                <tr>
+                  <th className="px-2 py-1 font-medium">Exception</th>
+                  <th className="px-2 py-1 font-medium">Branch</th>
+                  <th className="px-2 py-1 font-medium text-right">Age</th>
+                  <th className="px-2 py-1 font-medium text-right">Could be done within</th>
+                  <th className="px-2 py-1 font-medium">Owner</th>
+                </tr>
+              </thead>
+              <tbody className="text-zinc-300">
+                {data.tasks.map(t => (
+                  <tr key={t.id} className="border-t border-white/5">
+                    <td className="px-2 py-1">{fmtLabel(t.type)}</td>
+                    <td className="px-2 py-1 text-zinc-500">{t.branch}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{t.age_hours}h</td>
+                    <td className="px-2 py-1 text-right tabular-nums text-zinc-500">{t.expires_after_hours}h</td>
+                    <td className="px-2 py-1 text-zinc-500">{t.bo_assignee || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void closeAll()}
+              disabled={busy}
+              className="rounded-lg border border-zinc-500/50 bg-zinc-700/60 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700 disabled:opacity-60"
+            >
+              {busy ? "Closing…" : `Close these ${data.count} as not actioned`}
+            </button>
+            <span className="text-xs text-zinc-500">
+              Recorded as <b>too late</b> under your name — not as handled, so the
+              done count stays true.
+            </span>
+          </div>
+          {err && <div className="mt-1 text-xs text-red-300">{err}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type BreakRow = {
   staff_name: string; branches: string[]; times?: number; days?: number;
   avg_over?: number; max_over?: number; total_over?: number;
@@ -1169,6 +1369,10 @@ const CLOSE_OUTCOMES: { key: string; label: string; hint: string }[] = [
   { key: "done",       label: "Handled",         hint: "The store's answer settles it" },
   { key: "not_needed", label: "No action needed", hint: "It should not have been raised" },
   { key: "unresolved", label: "Couldn't resolve", hint: "Nothing further we can do" },
+  // A rush check three days old cannot be done now. Calling that "handled"
+  // counts it as work that got done; calling it "couldn't resolve" says
+  // somebody tried. Neither is true, so those rows stayed open instead.
+  { key: "too_late",   label: "Too late",        hint: "The moment passed — not actioned" },
 ];
 
 /**
@@ -1332,7 +1536,14 @@ function HandlingPanel({
             {saved.handled_by} · {fmtTime(saved.handled_at)}
           </span>
         ) : (
-          <span className="text-[11px] text-amber-300">Not recorded</span>
+          // Grey, and it says what it is for.
+          //
+          // Amber "Not recorded" sat directly under the Close buttons, so a
+          // row that had just been closed still carried a warning colour and
+          // read as unfinished. Closing is the record for almost every task;
+          // this form is the extra one, kept for the cases that need photo,
+          // issue and training detail.
+          <span className="text-[11px] text-zinc-500">Optional — only for cases needing detail</span>
         )}
         <button
           type="button"
@@ -2113,6 +2324,8 @@ export default function BODashboardPage() {
         <SentStampBanner city={cityFilter} />
         <FarConfirmBanner city={cityFilter} />
         <BreakBanner city={cityFilter} />
+        <TodayLine city={cityFilter} />
+        <TooLateBar city={cityFilter} onDone={() => loadTasks(true)} />
         <AnswerRates city={cityFilter} />
 
 
