@@ -85,9 +85,10 @@ export default function RushCheckPage() {
   const [answers, setAnswers] = useState<Partial<Record<CheckKey, boolean>>>({});
   const [pathNote, setPathNote] = useState("");
   const [note, setNote] = useState("");
-  // Two numbers the yes/no answers cannot carry (requested 2026-09-02).
-  // Both optional: a check is worth having without them, and a required
-  // field is a skipped field.
+  // Two numbers the yes/no answers cannot carry. Added optional 2026-09-02,
+  // made required 2026-09-03 at the owner's request: both are read straight
+  // off the till during the same walk, and without them "Queue moving — OK"
+  // is an opinion with nothing behind it.
   const [ticketCount, setTicketCount] = useState("");
   const [oldestOrder, setOldestOrder] = useState("");
   const [saving, setSaving] = useState(false);
@@ -144,7 +145,13 @@ export default function RushCheckPage() {
   const alreadyDone = doneSlots.has(slot);
   const pathBad = answers.travel_path_ok === false;
   const allAnswered = CHECKS.every((c) => answers[c.key] !== undefined);
-  const canSubmit = allAnswered && (!pathBad || pathNote.trim().length > 0) && !saving;
+  // Both numbers are read off the till in the same walk. Optional, they were
+  // the two fields that got skipped, which leaves the OK/Not OK answers with
+  // nothing to check them against.
+  const ticketsOk = ticketCount.trim() !== "" && Number(ticketCount) >= 0;
+  const oldestOk = oldestOrder.trim() !== "";
+  const canSubmit =
+    allAnswered && ticketsOk && oldestOk && (!pathBad || pathNote.trim().length > 0) && !saving;
 
   async function submit() {
     if (!canSubmit) return;
@@ -323,10 +330,12 @@ export default function RushCheckPage() {
         })}
 
         {/* Read off the screen, not counted by hand. Placed above the free
-            note so they are answered while the numbers are still on the till. */}
+            note so they are answered while the numbers are still on the till.
+            Required: they are the only numbers on this form, and without them
+            the OK/Not OK answers cannot be checked against anything. */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className={T_LABEL + " mb-1.5"}>Tickets this slot</div>
+            <div className={T_LABEL + " mb-1.5"}>Tickets this slot <span className="text-amber-400">*</span></div>
             <input
               type="number"
               inputMode="numeric"
@@ -338,7 +347,7 @@ export default function RushCheckPage() {
             />
           </div>
           <div>
-            <div className={T_LABEL + " mb-1.5"}>Oldest order received</div>
+            <div className={T_LABEL + " mb-1.5"}>Oldest order received <span className="text-amber-400">*</span></div>
             <input
               type="time"
               className={INPUT_CLASS}
@@ -376,9 +385,15 @@ export default function RushCheckPage() {
         </button>
         {!canSubmit && !saving && (
           <div className="text-xs text-amber-400/80 text-center">
+            {/* Name the one thing that is missing. "Something is missing" makes
+                the person hunt for it on a screen they have already filled in. */}
             {!allAnswered
               ? "Answer every item to submit"
-              : "Describe the travel path issue to submit"}
+              : !ticketsOk
+                ? "Enter the ticket count to submit"
+                : !oldestOk
+                  ? "Enter the time of the oldest order to submit"
+                  : "Describe the travel path issue to submit"}
           </div>
         )}
       </div>
