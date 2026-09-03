@@ -50,11 +50,23 @@ Last updated: 2026-09-03（Prep Time 確認キュー新設 ＋ 放置キュー�
 
 ---
 
+## ✅ 権限の残骸を整理（2026-09-04）
+
+| 対象 | 前 | 後 |
+|---|---|---|
+| Jason Mark Fabillar（7月退職） | ADMIN・割り当て3件・**未凍結** | STAFF・割り当て0・**凍結**・権限0 |
+| Test Account | ADMIN・ACTIVE・**PIN 1111**・未凍結 | ADMIN保持・ON_LEAVE・**凍結** |
+| Test Admin Account | ADMIN・ACTIVE・未凍結 | ADMIN保持・ON_LEAVE・**凍結** |
+
+- テスト用2件は**ロールを残して凍結**した。教訓34の検証手順（Test Account で
+  ACTIVE→ON_LEAVE→SEPARATED→ACTIVE を往復）が生きるため。使うときは Staff で ACTIVE に戻す
+- どの宛先リスト（Discord・当番表・代理）にも入っていないことを確認済み。凍結で止まるものは無い
+- **PIN 1111 は `CURRENT_TASKS.md` に平文で残っている。次に使う前に変更すること**
+- 作業中に踏んだ罠3件は教訓34に追記（DB関数直呼びでは凍結されない／auto_frozen の自動解除条件／
+  割り当て削除はソフト削除）
+
 ## ⚠️ 未対応（判断待ち）
 
-- **Jason Mark Fabillar が SEPARATED のまま ADMIN 割り当てを2行保持**（教訓34の再発）。
-  ロール解決側で止まるので実害は出ていないはずだが、割り当て自体が残っている
-- **Test Account / Test Admin Account が ADMIN で有効**
 - **Cubao の店舗評価が9月に入って0件**（最終 8/31。PAR/TAFT は 9/3・9/2 まで継続）
 
 ---

@@ -381,6 +381,18 @@ npx tsc --noEmit
     - **2026-08-28 に3値化して解消**: `staff_master.status` を `ACTIVE` / `ON_LEAVE` / `SEPARATED` の在籍状態にした。3つとも Staff ページから設定する。`ON_LEAVE` と `SEPARATED` は**どちらもアカウント凍結・セッション切断・給与設定停止**を行い、違いは**ロールを残すか奪うか**だけ。`is_active` は payroll・名簿・スタッフ選択が読むので `ACTIVE` のときだけ TRUE に同期する。
     - 旧 `INACTIVE` は **400 で拒否**する（`ON_LEAVE` に寄せる推測もしない）。推測すると半分は外れ、外れた側は「復職者が締め出される」か「退職者が権限を持ち続ける」のどちらかになるため。既存行の `INACTIVE` 表示だけは `ON_LEAVE` として読む。
     - 検証は Test Account で往復すること: ACTIVE(ADMIN/167) → ON_LEAVE(**ADMIN/167 維持**) → SEPARATED(**STAFF/13**) → ACTIVE(ADMIN/167 復帰)。
+    - ⚠️ **2026-09-04: `set_staff_master_status()` を直接呼んでも凍結されない。** この関数は
+      `staff_master` の行を書き換えるだけで、**凍結・セッション切断・給与設定停止・監査ログは
+      エンドポイント側（`main.py` の status 変更API）に書かれている**。スクリプトからDB関数だけ
+      呼ぶと、status は ON_LEAVE なのに **PINでログインできる**状態が残る（実際に作った）。
+      教訓20と同型 — UIが正とする処理をDB関数の直呼びで代替しない。**やるなら
+      `freeze_staff_account` + `invalidate_staff_sessions` + `insert_staff_audit_log` まで揃える。**
+    - ⚠️ **`auto_frozen=True` の凍結は `is_active` が TRUE に戻ると自動解除される**
+      （`api_auth_verify` 内。名簿が正なので意図どおり）。凍結を効かせたいなら
+      `is_active=False`（＝status が ACTIVE 以外）と揃っていること。手動凍結は自動解除されない。
+    - ⚠️ **`remove_staff_role_assignment()` はソフト削除**（`is_active=FALSE`）。行は残るので、
+      確認クエリで `is_active` を見ないと「消えていない」と誤読する。効いたかどうかは
+      行ではなく **`resolve_staff_access_profile()` の権限数**で見る。
 
 35. **同じ計算の前半と後半で、同じ欠損値に逆の仮定を置かない** → マニラ給与の1日計算は「労働時間＝在社−休憩60分（所定・無条件）」と「Undertime＝早退−(60−休憩実績)」の2段。休憩実績が未記録のとき後者の `or 0` が「1分も取っていない」と解釈し、**前半で引いた60分を後半で返していた**。2026-08後半は659勤務日中432日（66%）が未記録なので、これは例外ではなく通常ケース。11日・544分（約₱898）の控除が消え、店舗のマニュアルシートが1人ずつ拾っていた。（2026-08-28 修正）
     - 修正は `_undertime_after_break()` に集約。**未記録＝所定どおり取った**（労働時間側と同じ仮定）。**記録があれば従来どおり未取得分を返す**（41分しか取らなかった人の残19分は正当な労働）。
