@@ -65,8 +65,8 @@ function explain(row: ExceptionRow, city: string): { title: string; detail: stri
         ? `Also raised as ${others}.`
         : "Another order for the identical amount was raised minutes away.",
       look: live
-        ? "At least one of them has gone past draft, so this can be delivered and paid twice. Void the one that should not stand."
-        : "Both are still drafts or rejected, so nothing is at risk yet — close it once the spare is removed.",
+        ? "At least one of them is still moving, so this can be delivered and paid twice. Cancel the one that should not stand."
+        : "The other one was already stopped (draft, returned, rejected or cancelled), so nothing is at risk — close this.",
     };
   }
   if (rule === "SPLIT_ORDER_SUSPECT") {
