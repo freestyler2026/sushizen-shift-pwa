@@ -57,24 +57,48 @@ const CITIES = [
   { value: "manila", label: "Manila" },
 ];
 
-/** Why a record can never reach a statistic, said in words rather than a key. */
-const EXCLUDED_WHY: Record<string, { title: string; detail: string }> = {
-  unread_photo: {
-    title: "The photo was not read",
-    detail:
-      "The reader returned its own example instead of the receipt. Nothing on these rows came from the picture.",
-  },
-  wrong_platform: {
-    title: "Platform does not operate in that city",
-    detail:
-      "GrabFood has never run in the UAE, and Careem does not run in Manila. A receipt the reader could not place is a receipt it did not read.",
-  },
-  too_short: {
-    title: "Too fast to be cooking",
-    detail:
-      "Order and ready stamped within a couple of minutes — that is someone pressing both buttons, not a kitchen.",
-  },
+const RUNS_IN: Record<string, string[]> = {
+  dubai: ["careem", "keeta", "noon", "talabat", "deliveroo", "smiles"],
+  manila: ["grabfood", "foodpanda", "beep"],
 };
+
+/**
+ * Why this record can never reach a statistic — about the row in front of you,
+ * not about the category. "GrabFood does not run in the UAE" is true and
+ * useless on a row whose platform came back blank, and a screen that explains
+ * the wrong thing teaches people to stop reading its explanations.
+ */
+function excludedWhy(r: Rec): { title: string; detail: string } {
+  if (r.excluded_reason === "unread_photo") {
+    return {
+      title: "The photo was not read",
+      detail:
+        "The reader returned its own worked example instead of the receipt, so nothing on this row came from the picture.",
+    };
+  }
+  if (r.excluded_reason === "too_short") {
+    return {
+      title: "Too fast to be cooking",
+      detail: `Ordered and ready ${r.prep_minutes ?? "—"} minutes apart — that is both buttons being pressed, not a kitchen.`,
+    };
+  }
+  if (r.excluded_reason === "wrong_platform") {
+    const raw = (r.aggregator || "").trim();
+    const cityName = r.city === "dubai" ? "Dubai" : "Manila";
+    const list = (RUNS_IN[r.city] || []).join(", ");
+    if (!raw || raw.toLowerCase() === "unknown" || raw.toLowerCase() === "other") {
+      return {
+        title: "The reader could not name the platform",
+        detail: `It returned "${raw || "(blank)"}". A receipt it could not place is a receipt it did not read. ${cityName} runs: ${list}.`,
+      };
+    }
+    return {
+      title: `${raw} does not operate in ${cityName}`,
+      detail: `${cityName} runs: ${list}. A platform that is not one of those was misread off the receipt.`,
+    };
+  }
+  return { title: r.excluded_reason || "Skipped", detail: "" };
+}
 
 export default function PrepTimeReviewPage() {
   const router = useRouter();
@@ -99,6 +123,7 @@ export default function PrepTimeReviewPage() {
   const [tab, setTab] = useState<"review" | "skipped">("review");
   const [city, setCity] = useState("");
   const [rows, setRows] = useState<Rec[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Excluded>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -122,6 +147,7 @@ export default function PrepTimeReviewPage() {
       if (!rRes.ok) throw new Error((await rRes.text()) || `HTTP ${rRes.status}`);
       const body = await rRes.json();
       setRows(body.records || []);
+      setTotal(typeof body.total === "number" ? body.total : null);
       if (sRes.ok) setExcluded((await sRes.json()).excluded ?? null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load the queue.");
@@ -180,9 +206,13 @@ export default function PrepTimeReviewPage() {
     }
   };
 
-  const remaining = useMemo(
-    () => rows.filter((r) => !justDone[r.id]).length, [rows, justDone]);
   const doneNow = Object.keys(justDone).length;
+  // The whole queue minus what this sitting has cleared — not the page size.
+  const remaining = useMemo(() => {
+    if (total === null) return rows.filter((r) => !justDone[r.id]).length;
+    return Math.max(0, total - doneNow);
+  }, [total, rows, justDone, doneNow]);
+  const onPage = rows.length;
 
   if (!mounted) {
     return (
@@ -221,8 +251,11 @@ export default function PrepTimeReviewPage() {
         {/* What the queue is, before you scroll it. */}
         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className={GLASS_CARD + " p-4"}>
-            <div className={KPI_LABEL}>To review</div>
+            <div className={KPI_LABEL}>{tab === "review" ? "To review" : "Skipped, pending"}</div>
             <div className={KPI_VALUE}>{loading ? "—" : remaining}</div>
+            {!loading && total !== null && onPage < remaining && (
+              <div className={T_CAPTION}>showing {onPage} of them</div>
+            )}
           </div>
           <div className={GLASS_CARD + " p-4"}>
             <div className={KPI_LABEL}>Done just now</div>
@@ -338,11 +371,9 @@ export default function PrepTimeReviewPage() {
                 {tab === "skipped" && r.excluded_reason && (
                   <div className="mt-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
                     <p className="text-xs font-semibold text-amber-200/90">
-                      {EXCLUDED_WHY[r.excluded_reason]?.title || r.excluded_reason}
+                      {excludedWhy(r).title}
                     </p>
-                    <p className="mt-0.5 text-xs text-white/50">
-                      {EXCLUDED_WHY[r.excluded_reason]?.detail}
-                    </p>
+                    <p className="mt-0.5 text-xs text-white/50">{excludedWhy(r).detail}</p>
                   </div>
                 )}
 
@@ -368,13 +399,14 @@ export default function PrepTimeReviewPage() {
                           className={PRIMARY_BUTTON + " inline-flex items-center gap-1.5 disabled:opacity-40"}>
                           <Check className="h-4 w-4" /> Reading is right
                         </button>
-                        <label className="flex items-center gap-1.5">
+                        <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                           <span className={T_LABEL}>or correct to</span>
                           <input type="number" min={0} inputMode="numeric"
                             aria-label={`Corrected minutes for record ${r.id}`}
                             value={edit[r.id] ?? ""}
                             onChange={(e) => setEdit((p) => ({ ...p, [r.id]: e.target.value }))}
-                            className={INPUT_CLASS + " w-20 tabular-nums"} placeholder={String(r.prep_minutes ?? "")} />
+                            className={INPUT_CLASS + " w-16 shrink-0 tabular-nums"}
+                            placeholder={String(r.prep_minutes ?? "")} />
                           <span className={T_LABEL}>min</span>
                         </label>
                         <button type="button" disabled={!mayConfirm || busy === r.id}
@@ -392,9 +424,10 @@ export default function PrepTimeReviewPage() {
           })}
         </div>
 
-        {!loading && rows.length >= 200 && (
+        {!loading && total !== null && onPage < total && (
           <p className={T_CAPTION + " mt-4"}>
-            Showing the newest 200. Press Refresh after clearing these to load the next batch.
+            These are the newest {onPage} of {total}. Press Refresh after clearing them
+            to load the next batch.
           </p>
         )}
       </div>
