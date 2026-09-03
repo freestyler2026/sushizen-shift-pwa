@@ -1,0 +1,408 @@
+<title>Ayako Nishimura の8月</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f0f3; --panel:#fffdff; --panel-2:#e7e3ea; --ink:#191519; --ink-2:#453f48;
+    --ink-3:#6f6874; --rule:#d6d0da; --plum:#5b3560; --plum-soft:#efe6f1;
+    --rust:#8a3626; --rust-soft:#f8e6e1; --moss:#3a6146; --gold:#8a6512;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+      --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+      --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --gold:#dcae57;
+    }
+  }
+  [data-theme="dark"]{
+    --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+    --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+    --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --gold:#dcae57;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    font-size:16px; line-height:1.85; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 22px 90px}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink-3); margin:0 0 12px;
+  }
+  h1{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:clamp(30px,5.4vw,46px);
+    line-height:1.28; margin:0 0 8px; text-wrap:balance; letter-spacing:.01em;
+  }
+  .standfirst{font-size:17px; color:var(--ink-2); margin:0 0 34px; max-width:64ch}
+  h2{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:22px; line-height:1.4;
+    margin:52px 0 14px; padding-top:22px; border-top:1px solid var(--rule); text-wrap:balance;
+  }
+  h3{font-size:15px; font-weight:700; margin:28px 0 8px; color:var(--ink)}
+  p{margin:0 0 15px; max-width:66ch}
+  .lede{font-size:17px; color:var(--ink-2)}
+  strong{font-weight:700}
+  .note{
+    background:var(--rust-soft); border-left:3px solid var(--rust);
+    padding:16px 18px; margin:20px 0; border-radius:0 6px 6px 0;
+  }
+  .note.calm{background:var(--plum-soft); border-left-color:var(--plum)}
+  .note.good{background:var(--panel-2); border-left-color:var(--moss)}
+  .note p{margin:0 0 10px}
+  .note p:last-child{margin:0}
+  .note-label{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--rust); display:block; margin-bottom:7px; font-weight:600;
+  }
+  .note.calm .note-label{color:var(--plum)}
+  .note.good .note-label{color:var(--moss)}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:12px; margin:26px 0 8px}
+  .kpi{background:var(--panel); border:1px solid var(--rule); border-radius:9px; padding:16px 17px}
+  .kpi-l{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em;
+    text-transform:uppercase; color:var(--ink-3); margin-bottom:6px;
+  }
+  .kpi-v{
+    font-family:"Zen Old Mincho",serif; font-size:31px; font-weight:700; line-height:1.1;
+    font-variant-numeric:tabular-nums; color:var(--plum);
+  }
+  .kpi-n{font-size:12.5px; color:var(--ink-3); margin-top:5px; line-height:1.55}
+  .scroll{overflow-x:auto; margin:20px 0; border:1px solid var(--rule); border-radius:9px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--rule)}
+  th{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-3); font-weight:600; background:var(--panel-2);
+  }
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right; font-variant-numeric:tabular-nums; font-family:"IBM Plex Mono",monospace}
+  .zero{color:var(--ink-3)}
+  .me td{background:var(--plum-soft); font-weight:700}
+  .bar{height:7px; border-radius:4px; background:var(--plum); display:block; min-width:2px}
+  .bar.dim{background:var(--rule)}
+  .foot{
+    margin-top:60px; padding-top:20px; border-top:1px solid var(--rule);
+    font-size:12.5px; color:var(--ink-3);
+  }
+  .cal{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:7px; margin:18px 0}
+  .day{
+    background:var(--panel); border:1px solid var(--rule); border-radius:7px;
+    padding:8px 9px; font-size:11.5px; line-height:1.5;
+  }
+  .day.none{background:transparent; border-style:dashed; color:var(--ink-3)}
+  .day.heavy{border-color:var(--plum); background:var(--plum-soft)}
+  .day b{font-family:"IBM Plex Mono",monospace; font-size:11px; display:block; color:var(--ink-3); font-weight:600}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Sushi ZEN Workforce OS ／ 利用実績</p>
+  <h1>Ayako Nishimura の8月</h1>
+  <p class="standfirst">
+    2026年8月1日〜31日にOSへ残った記録を集計しました。
+    <a href="#peers">同じ測り方で他の担当者も並べて</a>います。
+    数字の意味と限界を先に書いています。
+  </p>
+
+  <div class="note">
+    <span class="note-label">先に読んでください</span>
+    <p>
+      <strong>OSが記録するのは書き込みだけです。</strong>
+      画面を読む・Discordでやり取りする・電話する・外部ポータルを操作する・Excelを触る、
+      これらは1件も残りません。操作が少ないことは、働いていないことを意味しません。
+    </p>
+    <p>このレポートは評価ではなく、<strong>本人と話すための材料</strong>です。</p>
+  </div>
+
+  <h2>件数をそのまま読むと、順位が5つ変わります</h2>
+
+  <p class="lede">
+    8月にOSへ残った行数は <strong>4,825件</strong> で、全担当者の中で群を抜いた1位です。
+    しかしそのうち <strong>4,645件がシフト変更の行</strong> で、
+    これは <strong>わずか50秒・5日間</strong> に生成されています。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>秒</th><th class="num">同じ1秒に生成された行</th><th>正体</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>8/23 06:34:48</td><td class="num">500</td><td>一括公開</td></tr>
+        <tr><td>8/22 09:44:11</td><td class="num">500</td><td>一括公開</td></tr>
+        <tr><td>8/23 06:36:17</td><td class="num">397</td><td>一括公開</td></tr>
+        <tr><td>8/22 09:44:31</td><td class="num">397</td><td>一括公開</td></tr>
+        <tr><td>8/22 20:21:53</td><td class="num">357</td><td>一括公開</td></tr>
+        <tr><td>8/22 09:43:55</td><td class="num">357</td><td>一括公開</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    さらに内訳を見ると、<strong>3,849件は <code>SHEET_SYNC</code>（シート同期）で、12秒間に生成</strong>されています。
+    これは人がセルを1つずつ触ったものではありません。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>シフト変更の種類</th><th class="num">行数</th><th class="num">発生した秒数</th><th>読み方</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>SHEET_SYNC（シート同期）</td><td class="num">3,849</td><td class="num">12</td><td>自動同期。人の作業ではない</td></tr>
+        <tr><td>セル単位の変更</td><td class="num">479</td><td class="num">29</td><td><strong>実際の手作業</strong></td></tr>
+        <tr><td>週まるごと公開</td><td class="num">230</td><td class="num">3</td><td>1回の公開</td></tr>
+        <tr><td>セル削除</td><td class="num">38</td><td class="num">4</td><td>手作業</td></tr>
+        <tr><td>セル追加</td><td class="num">22</td><td class="num">4</td><td>手作業</td></tr>
+        <tr><td>行追加（公開）</td><td class="num">21</td><td class="num">2</td><td>1回の公開</td></tr>
+        <tr><td>公開行の削除</td><td class="num">6</td><td class="num">3</td><td>手作業</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    したがって<strong>人が行った操作として数えられるのは約230件</strong>です。
+    以降はこの数字で見ています。
+  </p>
+
+  <h2>8月の要約</h2>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-l">実操作</div>
+      <div class="kpi-v">230</div>
+      <div class="kpi-n">行数では4,825</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">作業した日</div>
+      <div class="kpi-v">23<span style="font-size:17px;color:var(--ink-3)">/31</span></div>
+      <div class="kpi-n">何かしら記録がある日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">ログイン日</div>
+      <div class="kpi-v">22</div>
+      <div class="kpi-n">121セッション</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">最終ログイン</div>
+      <div class="kpi-v" style="font-size:24px">9/03</div>
+      <div class="kpi-n">9月は3日間で16回</div>
+    </div>
+  </div>
+
+  <p>
+    <strong>ほぼ毎日ログインし、23日に何かしらの記録があります。</strong>
+    「使っていない」タイプではありません。
+  </p>
+
+  <h2>何をしているか</h2>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>業務</th><th class="num">操作</th><th>中身</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>シフト（手作業分）</td><td class="num">50</td><td>セル編集・公開・削除。<strong>5日間に集中</strong>（8/22・23・27・28・29）</td></tr>
+        <tr><td>シフト下書き</td><td class="num">100</td><td>うち75件は8/27の1日</td></tr>
+        <tr><td>エクスポート</td><td class="num">15</td><td>8/01に10件、8/19に5件</td></tr>
+        <tr><td>シフト公開ログ</td><td class="num">14</td><td>週の公開</td></tr>
+        <tr><td>NTE（始末書）審査</td><td class="num">9</td><td>起票も7件。8/26・28に集中</td></tr>
+        <tr><td>店舗評価</td><td class="num">9</td><td>TAFT担当</td></tr>
+        <tr><td>給与調整</td><td class="num">9</td><td>8/26に7件、8/28に2件</td></tr>
+        <tr><td>小口現金</td><td class="num">11</td><td>承認5・却下6</td></tr>
+        <tr><td>スポット購買 承認</td><td class="num">6</td><td>—</td></tr>
+        <tr><td>その他（在籍・権限・クリアランス等）</td><td class="num">7</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note calm">
+    <span class="note-label">目立つ点</span>
+    <p>
+      <strong>却下が承認より多い唯一の担当者です。</strong>
+      小口現金は承認5件に対し<strong>却下6件</strong>。
+      承認業務は「通すだけ」になりやすいので、これは中身を見ている証拠として読めます。
+    </p>
+  </div>
+
+  <h2>作業は月末に固まっています</h2>
+
+  <p>
+    日別に見ると、<strong>8/26〜8/31の6日間</strong>に承認・給与・NTEが集中しています。
+    月前半は店舗評価とシフト下書きが中心で、1日1〜2件です。
+  </p>
+
+  <div class="cal">
+    <div class="day"><b>8/01</b>評価1・出力10・下書10</div>
+    <div class="day"><b>8/02</b>下書6</div>
+    <div class="day"><b>8/03</b>公開1</div>
+    <div class="day"><b>8/04</b>評価2・購買1</div>
+    <div class="day"><b>8/05</b>評価1・下書1</div>
+    <div class="day none"><b>8/06</b>—</div>
+    <div class="day"><b>8/07</b>評価1</div>
+    <div class="day"><b>8/08</b>評価1</div>
+    <div class="day"><b>8/09</b>下書1</div>
+    <div class="day"><b>8/10</b>公開1</div>
+    <div class="day"><b>8/11</b>評価1</div>
+    <div class="day none"><b>8/12</b>—</div>
+    <div class="day none"><b>8/13</b>—</div>
+    <div class="day none"><b>8/14</b>—</div>
+    <div class="day"><b>8/15</b>NTE1</div>
+    <div class="day none"><b>8/16</b>—</div>
+    <div class="day"><b>8/17</b>公開2</div>
+    <div class="day"><b>8/18</b>NTE2</div>
+    <div class="day"><b>8/19</b>出力5・下書5</div>
+    <div class="day"><b>8/20</b>下書1</div>
+    <div class="day"><b>8/21</b>下書1</div>
+    <div class="day heavy"><b>8/22</b>シフト一括</div>
+    <div class="day heavy"><b>8/23</b>シフト一括</div>
+    <div class="day none"><b>8/24</b>—</div>
+    <div class="day"><b>8/25</b>評価1</div>
+    <div class="day heavy"><b>8/26</b>給与7・NTE6・現金1・購買1</div>
+    <div class="day heavy"><b>8/27</b>下書75・NTE1・現金4・購買2</div>
+    <div class="day heavy"><b>8/28</b>給与2・NTE6・現金3</div>
+    <div class="day"><b>8/29</b>購買1</div>
+    <div class="day"><b>8/30</b>評価1・現金1</div>
+    <div class="day"><b>8/31</b>現金2・購買1・公開10</div>
+  </div>
+
+  <h2 id="peers">他の担当者と並べる</h2>
+
+  <p>
+    同じ測り方（一括生成は「秒」で数える）で8月を並べたものです。
+    <strong>行数では1位、実操作では6位</strong>になります。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>担当者</th><th class="num">実操作</th><th class="num">通常業務</th>
+        <th class="num">シフト（秒）</th><th class="num">シフト行数</th><th class="num">作業日</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>Yuri Yamada</td><td class="num">1,502</td><td class="num">1,499</td><td class="num">3</td><td class="num">3</td><td class="num">21</td></tr>
+        <tr><td>Yukihiro Nishimura</td><td class="num">596</td><td class="num">578</td><td class="num">18</td><td class="num">1,680</td><td class="num">17</td></tr>
+        <tr><td>Cyrine Fernandez</td><td class="num">586</td><td class="num">569</td><td class="num">17</td><td class="num">221</td><td class="num">22</td></tr>
+        <tr><td>Aliana Manuel</td><td class="num">500</td><td class="num">481</td><td class="num">19</td><td class="num">581</td><td class="num">24</td></tr>
+        <tr><td>Erica May Sadiasa</td><td class="num">372</td><td class="num">366</td><td class="num">6</td><td class="num">23</td><td class="num">14</td></tr>
+        <tr class="me"><td>Ayako Nishimura</td><td class="num">230</td><td class="num">180</td><td class="num">50</td><td class="num">4,645</td><td class="num">23</td></tr>
+        <tr><td>Ruby Rosa Rongcales</td><td class="num">164</td><td class="num">153</td><td class="num">11</td><td class="num">69</td><td class="num">18</td></tr>
+        <tr><td>Camilla Gadingan</td><td class="num">73</td><td class="num">66</td><td class="num">7</td><td class="num">80</td><td class="num">14</td></tr>
+        <tr><td>Yusuke Uejima</td><td class="num">28</td><td class="num">28</td><td class="num zero">0</td><td class="num zero">0</td><td class="num">23</td></tr>
+        <tr><td>Richard S. Gante</td><td class="num">22</td><td class="num">22</td><td class="num zero">0</td><td class="num zero">0</td><td class="num">20</td></tr>
+        <tr><td>Francis Ibana</td><td class="num">22</td><td class="num">22</td><td class="num zero">0</td><td class="num zero">0</td><td class="num">20</td></tr>
+        <tr><td>Peter Villafuerte</td><td class="num">16</td><td class="num">16</td><td class="num zero">0</td><td class="num zero">0</td><td class="num">15</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>作業日数23日は、この表で最多クラスです</strong>（最多はAliana Manuelの24日）。
+    1日あたりの量は多くありませんが、途切れていません。
+  </p>
+
+  <h2>店舗評価では、最も厳しく採点しています</h2>
+
+  <p>
+    別途調査したマニラの店舗評価（8月）で、6人の評価者のうち<strong>平均点が最も低い</strong>のが本人です。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>評価者</th><th class="num">件数</th><th class="num">平均点</th><th class="num">最低</th></tr></thead>
+      <tbody>
+        <tr><td>Peter Villafuerte</td><td class="num">11</td><td class="num">77.0</td><td class="num">72.7</td></tr>
+        <tr><td>Richard S. Gante</td><td class="num">22</td><td class="num">76.8</td><td class="num">72.7</td></tr>
+        <tr><td>Francis Ibana</td><td class="num">25</td><td class="num">76.4</td><td class="num">67.3</td></tr>
+        <tr><td>Yusuke Uejima</td><td class="num">16</td><td class="num">73.8</td><td class="num">63.6</td></tr>
+        <tr class="me"><td>Ayako Nishimura</td><td class="num">6</td><td class="num">71.2</td><td class="num">63.6</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note good">
+    <span class="note-label">評価者として</span>
+    <p>
+      8月7日、TAFTの評価で <strong>coaching と problem_awareness に「1」</strong> を付け、
+      理由欄に <strong>“I have not visited the store.”</strong> と書いています。
+      <strong>訪問していない日に、正直にそう記録した唯一の人物です。</strong>
+    </p>
+    <p>
+      ただし同じ日に <strong>backup=4 / quality=3 を記入</strong>しています。
+      訪問していないのに他項目を埋めているのは矛盾で、ここは本人に確認する価値があります。
+      ——もっとも、これは<strong>フォームが未訪問を扱えない</strong>ことの表れでもあります。
+      「訪問なし」を選べれば、正直な人が矛盾した記録を残さずに済みます。
+    </p>
+  </div>
+
+  <h2>9月に入ってから</h2>
+
+  <p>
+    9月1日〜3日で、ログインは<strong>3日間・16セッション</strong>、
+    OSに残った操作は<strong>シフト変更1件</strong>のみです。
+  </p>
+
+  <div class="note calm">
+    <span class="note-label">データからは区別できません</span>
+    <p>
+      これは2通りに読めます。
+      ①OSが記録しない仕事（画面を読む・Discord・会議・外部ポータル）に移っている、
+      ②単に静かな3日間だった。
+      <strong>3日間だけでは判断できません。</strong>Yuriのレポートと同じ限界です。
+    </p>
+  </div>
+
+  <h2>読み取れること</h2>
+
+  <p>
+    <strong>1 ・ 担当領域が広く、一貫して触っています。</strong>
+    シフト・店舗評価・NTE・小口現金・スポット購買・給与調整と、6領域にまたがっています。
+    23日間途切れていないので、放置している持ち場は見当たりません。
+  </p>
+
+  <p>
+    <strong>2 ・ 1件あたりの重さがある業務です。</strong>
+    NTE審査9件・小口現金11件・給与調整9件は、件数こそ少ないものの
+    <strong>1件ずつ内容を読んで判断する</strong>種類の仕事です。
+    件数の多寡だけでYuri（1,499件）と比べるのは適切ではありません。
+  </p>
+
+  <p>
+    <strong>3 ・ シフトの手作業は5日に固まっています。</strong>
+    セル編集539件が8/22・23・27・28・29の5日に集中しており、
+    週次の公開作業として自然な形です。
+  </p>
+
+  <p>
+    <strong>4 ・ 承認を素通ししていません。</strong>
+    小口現金で却下6件（承認5件より多い）。
+    承認権限を持つ担当者としては、これが最も重要な数字です。
+  </p>
+
+  <h2>この数字で言えないこと</h2>
+
+  <p>
+    <strong>働いた時間は測れません。</strong>
+    ログインセッション121回は「ブラウザを開いた回数」であって、労働時間ではありません。
+    Yuriのレポートで示したとおり、セッションは日をまたいで開きっぱなしになります。
+  </p>
+
+  <p>
+    <strong>質は測れません。</strong>
+    NTE審査9件が適切だったか、店舗評価6件が現場を反映していたかは、この集計では分かりません。
+    店舗評価については<strong>別途の調査で「評価者全体として客観データと連動していない」</strong>と出ています。
+    これは本人個人の問題ではなく、フォーム設計の問題です。
+  </p>
+
+  <p class="foot">
+    集計対象: 2026-08-01 〜 2026-08-31（9月分は 09-03 まで）。
+    出典は本番DBの各テーブルの実行者列（<code>created_by</code> / <code>approved_by</code> / <code>evaluator_name</code> 等）と
+    <code>staff_sessions</code>。
+    一括生成された行は「同一秒」単位で1操作として数え直しています。
+    本人についての行（<code>staff_name</code> が本人の行）は操作に含めていません。
+  </p>
+
+</div>

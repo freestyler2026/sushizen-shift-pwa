@@ -1,0 +1,379 @@
+<title>画面のヘルプ 設計案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f0f3; --panel:#fffdff; --panel-2:#e7e3ea; --ink:#191519; --ink-2:#453f48;
+    --ink-3:#6f6874; --rule:#d6d0da; --plum:#5b3560; --plum-soft:#efe6f1;
+    --rust:#8a3626; --rust-soft:#f8e6e1; --moss:#3a6146; --moss-soft:#e3ece6; --gold:#8a6512;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+      --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+      --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+    }
+  }
+  [data-theme="dark"]{
+    --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+    --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+    --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    font-size:16px; line-height:1.85; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 22px 90px}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink-3); margin:0 0 12px;
+  }
+  h1{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:clamp(30px,5.4vw,46px);
+    line-height:1.28; margin:0 0 8px; text-wrap:balance; letter-spacing:.01em;
+  }
+  .standfirst{font-size:17px; color:var(--ink-2); margin:0 0 34px; max-width:64ch}
+  h2{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:22px; line-height:1.4;
+    margin:52px 0 14px; padding-top:22px; border-top:1px solid var(--rule); text-wrap:balance;
+  }
+  h3{font-size:15.5px; font-weight:700; margin:30px 0 8px}
+  p{margin:0 0 15px; max-width:66ch}
+  .lede{font-size:17px; color:var(--ink-2)}
+  ul,ol{margin:0 0 15px; padding-left:1.3em; max-width:66ch}
+  li{margin-bottom:7px}
+  code{
+    font-family:"IBM Plex Mono",monospace; font-size:.87em;
+    background:var(--panel-2); padding:1px 5px; border-radius:4px;
+  }
+  .note{
+    background:var(--rust-soft); border-left:3px solid var(--rust);
+    padding:16px 18px; margin:20px 0; border-radius:0 6px 6px 0;
+  }
+  .note.calm{background:var(--plum-soft); border-left-color:var(--plum)}
+  .note.good{background:var(--moss-soft); border-left-color:var(--moss)}
+  .note p{margin:0 0 10px} .note p:last-child{margin:0}
+  .note-label{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--rust); display:block; margin-bottom:7px; font-weight:600;
+  }
+  .note.calm .note-label{color:var(--plum)}
+  .note.good .note-label{color:var(--moss)}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:26px 0}
+  .kpi{background:var(--panel); border:1px solid var(--rule); border-radius:9px; padding:16px 17px}
+  .kpi-l{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em;
+    text-transform:uppercase; color:var(--ink-3); margin-bottom:6px;
+  }
+  .kpi-v{
+    font-family:"Zen Old Mincho",serif; font-size:31px; font-weight:700; line-height:1.1;
+    font-variant-numeric:tabular-nums; color:var(--plum);
+  }
+  .kpi-v.bad{color:var(--rust)}
+  .kpi-n{font-size:12.5px; color:var(--ink-3); margin-top:5px; line-height:1.55}
+  .scroll{overflow-x:auto; margin:20px 0; border:1px solid var(--rule); border-radius:9px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+  th{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-3); font-weight:600; background:var(--panel-2);
+  }
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right; font-variant-numeric:tabular-nums; font-family:"IBM Plex Mono",monospace}
+  .pick td{background:var(--moss-soft)}
+  .tag{
+    font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.09em;
+    text-transform:uppercase; padding:2px 7px; border-radius:20px; font-weight:600;
+    background:var(--panel-2); color:var(--ink-3); white-space:nowrap;
+  }
+  .tag.yes{background:var(--moss-soft); color:var(--moss)}
+  .tag.no{background:var(--rust-soft); color:var(--rust)}
+  .phase{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:20px 22px; margin:16px 0;
+  }
+  .phase h3{margin-top:0}
+  .phase-n{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.13em;
+    color:var(--plum); font-weight:600; text-transform:uppercase;
+  }
+  .mock{
+    background:var(--panel-2); border:1px solid var(--rule); border-radius:10px;
+    padding:16px 18px; margin:18px 0; font-size:14.5px; max-width:400px;
+  }
+  .mock-bar{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3);
+    border-bottom:1px solid var(--rule); padding-bottom:8px; margin-bottom:11px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .mock b{display:block; margin:11px 0 3px; font-size:13.5px}
+  .mock .step{font-size:13.5px; color:var(--ink-2); margin:0 0 5px; padding-left:1.2em; text-indent:-1.2em}
+  .foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Sushi ZEN Workforce OS ／ 設計案</p>
+  <h1>画面のヘルプ</h1>
+  <p class="standfirst">
+    スタッフが「ここで何を押すのか」を、その場で引けるようにする設計です。
+    AI Analytics Pro をスタッフに開放する案は採りません。理由を先に書きます。
+  </p>
+
+  <h2>いま何が起きているか</h2>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-l">スタッフ側の画面</div>
+      <div class="kpi-v">39</div>
+      <div class="kpi-n">/store・打刻・シフト</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">アプリ内のヘルプ</div>
+      <div class="kpi-v bad">0</div>
+      <div class="kpi-n">ヘルプ画面もボタンも無い</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">マニュアル</div>
+      <div class="kpi-v">16</div>
+      <div class="kpi-n">アプリからのリンク 0件</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">スタッフ向け英語</div>
+      <div class="kpi-v bad">1</div>
+      <div class="kpi-n">緊急通報のみ</div>
+    </div>
+  </div>
+
+  <p class="lede">
+    マニュアルは16本ありますが、<strong>アプリのどこからもリンクされていません</strong>。
+    非公開のArtifactとして存在するだけで、URLは <code>CLAUDE.md</code> の中にあります。
+    <strong>スタッフは1本も開けません。</strong>
+  </p>
+
+  <p>
+    さらに、その16本のうち<strong>スタッフ向けに英語で書かれているのは緊急通報の1本だけ</strong>です。
+    他はマネージャー・バックオフィス向けの日本語で、
+    HR・在庫・調達・給与・管理会計・税務といった<strong>管理業務</strong>を扱っています。
+    店舗の39画面に対応する手順書は、事実上ありません。
+  </p>
+
+  <div class="note">
+    <span class="note-label">これが設計を変えます</span>
+    <p>
+      「マニュアルを索引に入れてAIに答えさせる」案は、<strong>索引に入れる中身が無い</strong>ため成立しません。
+      スタッフが必要とする答えは、どのマニュアルにも書かれていないからです。
+    </p>
+  </div>
+
+  <h2>実測してわかったこと</h2>
+
+  <p>
+    AI Analytics Pro に実際の操作質問（「Backup Reportでリストに無い食材を報告するには？提出はどこ？」）を投げました。
+    <strong>回答は正確でした。</strong>手順・ボタン名・エラー文言まで正しく、
+    引用された7つの文言はすべてソースに実在しました。
+  </p>
+
+  <div class="note good">
+    <span class="note-label">重要</span>
+    <p>
+      <strong>正確に答えられたのは、マニュアルではなくページのソースを読んだからです。</strong>
+      ソースは実装そのものなので、古くなりようがありません。
+      ——マニュアルは実装から遅れますが、<strong>ソースは常に現在の画面です。</strong>
+    </p>
+  </div>
+
+  <p>ただし、そのままスタッフに使わせるには2つ問題があります。</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>問題</th><th>実測</th><th>なぜ致命的か</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>遅すぎる</strong></td>
+          <td>ツール呼び出し35回・数分</td>
+          <td>「どこを押すか」は10秒で要る。数分待つ人はいない</td>
+        </tr>
+        <tr>
+          <td><strong>DBが全部読める</strong></td>
+          <td>128名に開くと <code>run_sql</code> も開く</td>
+          <td>給与は塞いだが、勤怠・NTE・他人の評価は素通し</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    35回のうち<strong>31回は「どのページの話か」を探すのに使われました</strong>。
+    利用者は自分がどの画面にいるか知っているので、<strong>この31回は不要です。</strong>
+    ここが設計の起点になります。
+  </p>
+
+  <h2>案の比較</h2>
+
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>案</th><th>速さ</th><th>データ露出</th><th>手間</th><th>判定</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>A.</strong> AI Analytics Pro をスタッフに開放</td>
+          <td>数分</td>
+          <td><span class="tag no">全テーブル</span></td>
+          <td>小</td>
+          <td>採らない</td>
+        </tr>
+        <tr>
+          <td><strong>B.</strong> マニュアルを索引に入れて検索</td>
+          <td>速い</td>
+          <td><span class="tag yes">なし</span></td>
+          <td>大</td>
+          <td>中身が無い</td>
+        </tr>
+        <tr class="pick">
+          <td><strong>C.</strong> 画面ごとのヘルプを<strong>事前生成</strong>して同梱</td>
+          <td>即時</td>
+          <td><span class="tag yes">なし</span></td>
+          <td>中</td>
+          <td><strong>これで始める</strong></td>
+        </tr>
+        <tr>
+          <td><strong>D.</strong> ソースだけ読む質問応答（DB無し）</td>
+          <td>十数秒</td>
+          <td><span class="tag yes">なし</span></td>
+          <td>中</td>
+          <td>Cの次に足す</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>設計 — C を先に、D を後から</h2>
+
+  <div class="phase">
+    <p class="phase-n">第1段階</p>
+    <h3>画面ごとのヘルプ（事前生成・人が承認）</h3>
+    <p>
+      各画面のソースから「この画面で何をするか」「どのボタンが何をするか」「エラーの意味」を
+      <strong>英語で生成し、人が目を通してから同梱</strong>します。実行時にAIは動きません。
+    </p>
+    <ul>
+      <li>スタッフは <strong>画面右上の「?」</strong> を押す。今いる画面の手順が開く</li>
+      <li>探す操作が無いので、<strong>先ほどの31回の検索がまるごと消える</strong></li>
+      <li>アプリに同梱するので<strong>オフラインでも開く</strong>（店舗の通信は不安定）</li>
+      <li><strong>人が承認してから出す。</strong>生成物をそのまま現場に出さない</li>
+    </ul>
+  </div>
+
+  <div class="mock">
+    <div class="mock-bar"><span>Backup Report</span><span>? Help</span></div>
+    <div style="font-size:13px;color:var(--ink-3)">What this screen is for</div>
+    <p style="margin:4px 0 0;font-size:13.5px">
+      Record how much backup stock is left at the end of your shift.
+    </p>
+    <b>Item not on the list?</b>
+    <p class="step">1. Scroll to <strong>Extra Items</strong>.</p>
+    <p class="step">2. Type the name in <strong>Search &amp; add item</strong>, or tap <strong>+ Add blank line</strong>.</p>
+    <p class="step">3. Fill in <strong>both</strong> the name and the quantity, or the row is dropped.</p>
+    <b>To send it</b>
+    <p class="step">Tap <strong>Submit Report</strong> at the bottom. You will see “Report #… submitted.”</p>
+  </div>
+
+  <p>
+    上は先ほどAIが出した回答を、この形に落としたものです。
+    <strong>内容はすでに検証済み</strong>で、文言はソースと一致しています。
+  </p>
+
+  <div class="phase">
+    <p class="phase-n">第2段階</p>
+    <h3>画面ソースだけを読む質問応答（DBに触らない）</h3>
+    <p>
+      第1段階で拾えない質問（「これを間違えて出したらどうなりますか」等）に答えるための入口です。
+      <strong>AI Analytics Pro とは別のエンドポイント</strong>にします。
+    </p>
+    <ul>
+      <li>使えるツールは <code>read_code</code> と <code>search_code</code> の2つだけ。
+          <strong><code>run_sql</code> は渡さない</strong></li>
+      <li>権限で塞ぐのではなく<strong>構造で塞ぐ</strong>。
+          DBに繋がっていないものは、権限設定を間違えても漏れない</li>
+      <li>今いる画面のパスを渡すので、探索が要らず<strong>十数秒で返る</strong></li>
+      <li>回答は英語。<strong>個人名・金額・他人の記録は原理的に出てこない</strong></li>
+    </ul>
+  </div>
+
+  <h2>この設計が守っている過去の教訓</h2>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>教訓</th><th>どう効いているか</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>64</strong> 存在しないものを「やってください」と言わない</td>
+          <td>生成した手順は人が承認してから出す。ソースと一致しない説明を現場に出さない</td>
+        </tr>
+        <tr>
+          <td><strong>5・71</strong> 画面が次に何をすべきか示す</td>
+          <td>マニュアル置き場ではなく<strong>今いる画面のヘルプ</strong>。探させない</td>
+        </tr>
+        <tr>
+          <td><strong>9</strong> ルールが画面に無いと信用されない</td>
+          <td>閾値・必須項目・エラー条件をヘルプに明記する</td>
+        </tr>
+        <tr>
+          <td><strong>26・57</strong> 権限は Role Management を正とする</td>
+          <td>権限を増やさない。DBに繋がない構造にして、権限判断そのものを不要にする</td>
+        </tr>
+        <tr>
+          <td><strong>56</strong> 最後は必ずボタンを押す</td>
+          <td>受け入れは<strong>店舗スタッフ本人</strong>が実機で行う。開発側の確認は不十分（正解を知っている）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>やらないこと</h2>
+
+  <p>
+    <strong>AI Analytics Pro をスタッフに開放しません。</strong>
+    給与は塞ぎましたが、<code>run_sql</code> は勤怠・NTE・店舗評価・打刻位置を読めます。
+    「操作を知りたい」ために、他人の懲戒記録が読める入口を128名に配ることになります。
+  </p>
+
+  <p>
+    <strong>既存の16本のマニュアルを英訳しません。</strong>
+    中身がマネージャー業務なので、翻訳してもスタッフの39画面には対応しません。
+    必要なのは翻訳ではなく、<strong>その画面についての新しい説明</strong>です。
+  </p>
+
+  <p>
+    <strong>全39画面を一度に作りません。</strong>
+    まず<strong>実際に問い合わせが来ている画面</strong>から始めます。
+    どの画面から始めるかは、直近の問い合わせを見て決めるのが確実です。
+  </p>
+
+  <h2>着手前に決めていただきたいこと</h2>
+
+  <ol>
+    <li><strong>どの画面から始めるか。</strong>
+      問い合わせが多い画面を3〜5つ挙げていただければ、そこから作ります。
+      心当たりが無ければ、Backup Report・Cash Report・打刻の3つを提案します
+      （いずれも毎日全店で使い、間違えると後工程に影響します）。</li>
+    <li><strong>承認を誰がするか。</strong>
+      生成した英語手順に目を通す人が要ります。現場を知っている人でないと意味がありません。</li>
+    <li><strong>第2段階まで行くか。</strong>
+      第1段階だけで足りる可能性は十分あります。
+      <strong>足りないと分かってから作る</strong>ほうが、使われないものを作らずに済みます。</li>
+  </ol>
+
+  <p class="foot">
+    測定日 2026-09-04。画面数は <code>src/app/store</code>・打刻・シフトの <code>page.tsx</code> を数えたもの。
+    マニュアルは <code>docs/manuals/*.html</code>。アプリ内リンクは <code>src</code> 配下の
+    Artifact URL 参照を検索して0件を確認。
+    AI Analytics Pro の実測は本番で1問を実行し、ツール呼び出し回数と引用文言の実在をソースで照合。
+  </p>
+
+</div>
