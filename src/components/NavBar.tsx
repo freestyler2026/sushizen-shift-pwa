@@ -495,6 +495,10 @@ export default function NavBar() {
     if (href === "/admin/finance") return canAccessFinancePage(auth);
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
+    // Same rule as the server: anyone admitted to the admin side may ask how
+    // the admin side works. It reaches no data, so a finer gate would only
+    // create a permission nobody remembers to grant.
+    if (href === "/admin/help") return canAccessAdminNav(auth);
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/business-events") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
