@@ -55,6 +55,7 @@ export default function AdminHelpPage() {
     setMsgs((m) => [...m, { role: "user", content: text }]);
     setBusy(true);
     setStep("Looking it up…");
+    const startedAt = Date.now();
 
     try {
       // Relative URL so the session cookie reaches the proxy (lesson 13).
@@ -97,14 +98,26 @@ export default function AdminHelpPage() {
         (await res.text()).split("\n").forEach(onLine);
       }
 
+      const secs = Math.round((Date.now() - startedAt) / 1000);
       const f = (final ?? {}) as Record<string, unknown>;
       if (!res.ok || f.success === false) {
         setErr(String(f.detail || `Request failed (${res.status}).`));
+      } else if (final === null) {
+        // The stream ended without a final event. That is a cut-off, not a bad
+        // question, and "try rephrasing" sent people to retype something that
+        // was never the problem.
+        setErr(
+          `The answer was cut off after ${secs}s before it finished. Rephrasing will not ` +
+            `help — ask about one screen at a time, or ask the narrower part of the question.`,
+        );
       } else {
         const answer = String(f.answer || f.text || "").trim();
         setMsgs((m) => [
           ...m,
-          { role: "assistant", content: answer || "No answer came back. Try rephrasing." },
+          {
+            role: "assistant",
+            content: answer || `The server finished in ${secs}s but returned no text.`,
+          },
         ]);
       }
     } catch (e) {
@@ -189,7 +202,7 @@ export default function AdminHelpPage() {
           <div className={`${GLASS_CARD} flex items-center gap-2 px-4 py-3 text-sm text-zinc-400`}>
             <Loader2 className="animate-spin text-violet-400" size={15} />
             {step || "Working…"}
-            <span className="text-xs text-zinc-500">— this usually takes under a minute</span>
+            <span className="text-xs text-zinc-500">— reading the code takes a minute or two</span>
           </div>
         )}
 

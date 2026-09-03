@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sessionToken } from "@/lib/proxy-auth";
 
-/** AI Pro can exceed default serverless limits; stream from Heroku without buffering the full body. */
-export const maxDuration = 120;
+/** AI Pro can exceed default serverless limits; stream from Heroku without buffering the full body.
+ *  120s was cutting long answers off mid-stream: the function died, no final
+ *  event ever arrived, and the page told people to rephrase a question that was
+ *  never the problem. A help-mode answer that reads the code can take 20-35
+ *  tool rounds. */
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function getApiBase(): string {
