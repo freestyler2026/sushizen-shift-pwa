@@ -2284,13 +2284,17 @@ export default function BODashboardPage() {
             <SelectDark
               value={statusFilter}
               onChange={v => setStatusFilter(v)}
+              // One vocabulary across the screen. The cards and badges say
+              // what to do; this said what state a row was in, so matching
+              // "Replies to close" to "Responded" was left to the reader.
               options={[
                 // First, and the default: everything sitting on a person.
                 { value: "todo",       label: "Needs me" },
-                { value: "open",       label: "Open" },
-                { value: "sent",       label: "Sent" },
-                { value: "responded",  label: "Responded" },
-                { value: "closed",     label: "Closed" },
+                { value: "responded",  label: "Replies to close" },
+                { value: "chase",      label: "To chase (no reply)" },
+                { value: "open",       label: "To send" },
+                { value: "sent",       label: "Waiting for reply" },
+                { value: "closed",     label: "Done" },
                 // The category the Owners counts use. Without it, clicking a
                 // count of 26 landed on 33 rows because the seven closed ones
                 // came too — the same mismatch, one screen later.
