@@ -84,7 +84,11 @@ const DUBAI_TEMPLATE_SECTIONS: TemplateSection[] = [
     items: [
       { key: "cucumber",         label: "Cucumber",                  unit: "kg",        section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "shredded_leeks",   label: "Shredded Leeks",            unit: "container", section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
-      { key: "chives",           label: "Chives",                    unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
+      // Grams, not containers. Paranaque entered this three times in two days
+      // as "GARLIC CHIVES / CHINESE CHIVES — 50 g" under Extra Items rather
+      // than use a field asking for containers, and the kitchen does not
+      // measure chives that way. The unit follows the scale people use.
+      { key: "chives",           label: "Chives",                    unit: "g", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "chilli",           label: "Chilli (Red & Green)",      unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "cream_cheese",     label: "Cream Cheese (Piping Bag)", unit: "bag",       section: "prep", item_type: "ingredient", item_category: "Seasonings" },
       { key: "crabstick_packs",  label: "Crab Stick Packs",          unit: "pkt",       section: "prep", item_type: "ingredient", item_category: "Processed Meat / Eggs" },
