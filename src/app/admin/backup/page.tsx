@@ -232,10 +232,22 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "m_br2", label: "Base Roll 2 (Cucumber Crabstick Mayo Roll)", display: "Cucumber Crabstick Mayo Roll (Base Roll 2)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br3", label: "Base Roll 3 (Spicy Tuna & Quezo Base Roll)", display: "Spicy Tuna & Quezo Base Roll (Base Roll 3)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br4", label: "Base Roll 4 (Cucumber Crabstick & Mango Base Roll)", display: "Cucumber Crabstick & Mango Base Roll (Base Roll 4)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      // Base Roll 5 and 8 are both called "Crunchy Salmon Base Roll" and are
+      // different products (BR5: crabstick, pickled papaya, seasoned upo.
+      // BR8: crabstick mayo, avocado, salmon skin mix -- confirmed by Manila BO
+      // 2026-09-03). Two identical names in one dropdown is how the wrong one
+      // gets picked, so each display carries the ingredient that separates them.
+      // BR5 was missing from this list entirely, which is why Taft had been
+      // entering it under Extra Items.
+      { key: "m_br5", label: "Base Roll 5 (Crunchy Salmon Base Roll)", display: "Crunchy Salmon Base Roll — Papaya & Upo (Base Roll 5)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br6", label: "Base Roll 6 (Shrimp Tempura Base Roll)", display: "Shrimp Tempura Base Roll (Base Roll 6)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
       { key: "m_br7", label: "Base Roll 7 (Crunchy Fish Base Roll)", display: "Crunchy Fish Base Roll (Base Roll 7)",           unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)", display: "Crunchy Salmon Base Roll (Base Roll 8)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
-      { key: "m_br9", label: "Base Roll 9",                                    unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)", display: "Crunchy Salmon Base Roll — Avocado & Salmon Skin (Base Roll 8)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      // Rolls 9, 10 and 11 make up the Salmon Lover Base. Listing them
+      // separately is what stops them arriving as Extra Items.
+      { key: "m_br9", label: "Base Roll 9", display: "Mango & Lettuce Base Roll (Base Roll 9)",                  unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br10", label: "Base Roll 10 (Mango & Cheese Base Roll)", display: "Mango & Cheese Base Roll (Base Roll 10)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br11", label: "Base Roll 11 (Salmon & Tempura Base Roll)", display: "Salmon & Tempura Base Roll (Base Roll 11)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
     ],
   },
 ];
