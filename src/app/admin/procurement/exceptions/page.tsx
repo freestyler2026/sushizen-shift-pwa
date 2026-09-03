@@ -29,7 +29,79 @@ type ExceptionRow = {
   score: number;
   status: string;
   requested_by: string;
+  total_amount?: number | string | null;
+  store_code?: string | null;
+  request_date?: string | null;
+  detected_payload_json?: Record<string, unknown> | null;
 };
+
+const CCY: Record<string, string> = { manila: "₱", dubai: "AED " };
+
+function money(v: unknown, city: string) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return `${CCY[city] || ""}${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * What this alert is, in words, from its own payload.
+ *
+ * Without this the row said "DUPLICATE_REQUEST · Score 85.0" and nothing else,
+ * which is a research task rather than a decision: the reviewer has to go and
+ * look the order up somewhere else before they can judge anything.
+ */
+function explain(row: ExceptionRow, city: string): { title: string; detail: string; look: string } {
+  const p = (row.detected_payload_json || {}) as Record<string, any>;
+  const amt = money(row.total_amount, city);
+  const rule = String(row.rule_code || "").toUpperCase();
+
+  if (rule === "DUPLICATE_REQUEST") {
+    const m: any[] = Array.isArray(p.matches) ? p.matches : [];
+    const live = Number(p.live_matches || 0);
+    const others = m.map((x) => `${x.request_no} (${x.status}, ${x.gap_minutes} min apart)`).join(", ");
+    return {
+      title: `Same amount ordered twice — ${amt}`,
+      detail: others
+        ? `Also raised as ${others}.`
+        : "Another order for the identical amount was raised minutes away.",
+      look: live
+        ? "At least one of them has gone past draft, so this can be delivered and paid twice. Void the one that should not stand."
+        : "Both are still drafts or rejected, so nothing is at risk yet — close it once the spare is removed.",
+    };
+  }
+  if (rule === "SPLIT_ORDER_SUSPECT") {
+    const cl: any[] = Array.isArray(p.clusters) ? p.clusters : [];
+    const c0 = cl[0] || {};
+    const sib: any[] = Array.isArray(c0.siblings) ? c0.siblings : [];
+    const step = Number(p.approval_step || 0);
+    return {
+      title: `Same-day orders to one supplier add up past the approval line`,
+      detail:
+        `${money(p.this_amount, city)} here, plus ${sib.map((s) => money(s.amount, city)).join(" + ") || "—"}` +
+        `${c0.vendor ? ` to ${c0.vendor}` : ""} = ${money(c0.combined_amount, city)}. ` +
+        `Each one on its own stays under ${money(step, city)}; together they do not.`,
+      look:
+        `Above ${money(step, city)} the order needs the next approver up. Check whether these were meant to be one order. ` +
+        `Separate stores or genuinely separate deliveries are normal — close it.`,
+    };
+  }
+  if (rule === "THRESHOLD_EDGE_PATTERN") {
+    const th = Number(p.threshold || 0);
+    return {
+      title: `${amt} — just under the ${money(th, city)} approval line`,
+      detail: `Within 5% of the point where a higher approver is required.`,
+      look: "Usually a coincidence. Worth a look only if the same person keeps landing here.",
+    };
+  }
+  if (rule === "URGENT_OVERUSE") {
+    return {
+      title: `Urgent used on ${Math.round(Number(p.urgent_ratio || 0) * 100)}% of recent orders`,
+      detail: `${p.urgent_count} of ${p.recent_count} requests.`,
+      look: "Urgent escalates approval. Constant urgency means the flag has stopped meaning anything.",
+    };
+  }
+  return { title: rule, detail: "", look: "" };
+}
 
 function severityBadge(severity: string) {
   const s = String(severity || "").toUpperCase();
@@ -216,14 +288,19 @@ export default function ProcurementExceptionsPage() {
           {open.map((row) => (
             <div key={row.id} className="rounded-2xl border border-red-500/30 bg-red-950/10 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     {severityBadge(row.severity)}
-                    {statusBadge(row.status)}
-                    <span className="font-mono text-sm font-semibold text-white">{row.rule_code}</span>
+                    <span className="text-sm font-semibold text-white">
+                      {explain(row, city).title}
+                    </span>
                   </div>
+                  <p className="text-sm text-zinc-300">{explain(row, city).detail}</p>
+                  <p className="text-xs text-amber-200/80">{explain(row, city).look}</p>
                   <p className={T_CAPTION}>
-                    {row.request_no || "-"} · {row.requested_by || "-"} · Score {Number(row.score || 0).toFixed(1)}
+                    {row.request_no || "-"} · {row.requested_by || "-"}
+                    {row.store_code ? ` · ${row.store_code}` : ""}
+                    {row.request_date ? ` · ${String(row.request_date).slice(0, 10)}` : ""}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -259,8 +336,8 @@ export default function ProcurementExceptionsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {severityBadge(row.severity)}
                 {statusBadge(row.status)}
-                <span className="font-mono text-sm text-zinc-300">{row.rule_code}</span>
-                <span className={T_CAPTION}>{row.request_no || "-"} · Score {Number(row.score || 0).toFixed(1)}</span>
+                <span className="text-sm text-zinc-300">{explain(row, city).title}</span>
+                <span className={T_CAPTION}>{row.request_no || "-"} · {row.requested_by || "-"}</span>
               </div>
             </div>
           ))}
