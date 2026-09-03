@@ -554,10 +554,25 @@ function SevBadge({ sev }: { sev: Severity }) {
   return <span className="text-base">🟢</span>;
 }
 
-function StatusBadge({ status }: { status: TaskStatus }) {
-  if (status === "open")      return <span className={BADGE_INFO}>Open</span>;
-  if (status === "sent")      return <span className={BADGE_WARNING}>Sent</span>;
-  if (status === "responded") return <span className={BADGE_SUCCESS}>Responded</span>;
+/**
+ * What to do with this row, not what state it is in.
+ *
+ * "Responded" is the name of a state. It does not say that a manager has
+ * answered and the row is now waiting on you to read it and close it — and 81
+ * of them sat that way for a median of three days while the words on screen
+ * described a condition rather than asking for anything.
+ *
+ * The state is kept next to the instruction for anyone who wants it.
+ */
+function StatusBadge({ status, missed }: { status: TaskStatus; missed?: boolean }) {
+  if (status === "open")
+    return <span className={BADGE_INFO}>Send it</span>;
+  if (status === "sent")
+    return missed
+      ? <span className={BADGE_ERROR}>No reply — chase</span>
+      : <span className={BADGE_WARNING}>Waiting for reply</span>;
+  if (status === "responded")
+    return <span className={BADGE_SUCCESS}>Reply in — read &amp; close</span>;
   if (status === "closed")    return <span className={BADGE_SUCCESS}>Closed</span>;
   if (status === "escalated") return <span className={BADGE_ERROR}>Escalated</span>;
   return <span className={BADGE_INFO}>{status}</span>;
@@ -1575,7 +1590,15 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <StatusBadge status={task.status} />
+          <StatusBadge status={task.status} missed={!!task.missed_by_manager} />
+          {task.status === "responded" && !expanded && (
+            <button
+              onClick={onToggle}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+            >
+              Read reply &amp; close
+            </button>
+          )}
           {task.status === "open" && (
             <button
               onClick={() => onSend(task)}
@@ -1628,6 +1651,11 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
               {task.response_note && (
                 <div className="text-xs text-zinc-400 mt-1">{task.response_note}</div>
               )}
+              {/* The exit sits at the end of the reply, because finishing with
+                  it is what closing means. It used to be further down, past a
+                  photo block and an eight-field form, and 81 answered tasks sat
+                  a median of three days without anyone reaching it. */}
+              {onHandled && <CloseBar task={task} onChanged={onHandled} justClosed={justClosed} />}
             </div>
           )}
           {task.status === "sent" && !task.response && (
@@ -1637,9 +1665,11 @@ function TaskRow({ task, template, onSend, expanded, onToggle, onClaim, currentU
             </div>
           )}
           {task.type === "product_score_c" && <TaskPhoto taskId={task.id} />}
-          {/* Above the handling form, not inside it: this is the common exit
-              and that one is the detailed record for the cases that need it. */}
-          {onHandled && <CloseBar task={task} onChanged={onHandled} justClosed={justClosed} />}
+          {/* Still offered when there is no reply to sit under — a task closed
+              without one is rare but must not be impossible. */}
+          {onHandled && !task.response && (
+            <CloseBar task={task} onChanged={onHandled} justClosed={justClosed} />
+          )}
           {onHandled && <HandlingPanel task={task} onSaved={onHandled} />}
           <TaskThread taskId={task.id} />
         </div>
@@ -1668,7 +1698,13 @@ export default function BODashboardPage() {
   // count, so a ?type= link opens on every status rather than the usual Open.
   // The page defaulting to Open + my pages is why the Owners figure and this
   // table disagreed with nothing on screen to explain it.
-  const [statusFilter, setStatusFilter] = useState<string>("open");
+  // Opens on the work, not on "Open".
+  //
+  // The default was status=open, which on Manila showed one row while 81
+  // replies waited to be closed and 23 sent instructions waited for an answer.
+  // Someone opened this page, saw a single item and concluded there was
+  // nothing to do — and the loop has completed end to end exactly zero times.
+  const [statusFilter, setStatusFilter] = useState<string>("todo");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [pages, setPages] = useState<BoPage[]>([]);
   // Defaults to the pages this person owns. The design gives each back-office
@@ -1819,8 +1855,18 @@ export default function BODashboardPage() {
   // exists, but you would have to know to go and find it under Closed, which
   // is a promise the screen makes and then breaks.
   const keptVisible = (t: ManagementTask) => justClosed.has(t.id);
+  // What is waiting on a person right now: a reply to read and close, an
+  // instruction nobody answered, or one not sent yet. A sent instruction still
+  // inside its SLA is not on anybody's hands, so it is not in this list.
+  const needsMe = (t: ManagementTask) =>
+    t.status === "responded" ||
+    t.status === "open" ||
+    (t.status === "sent" && !!t.missed_by_manager);
+
   const byStatus = (list: ManagementTask[]) =>
-    statusFilter === "not_closed"
+    statusFilter === "todo"
+      ? list.filter(t => needsMe(t) || keptVisible(t))
+    : statusFilter === "not_closed"
       ? list.filter(t => t.status !== "closed" || keptVisible(t))
     : statusFilter && statusFilter !== "all"
       ? list.filter(t => t.status === statusFilter || keptVisible(t))
@@ -2106,22 +2152,24 @@ export default function BODashboardPage() {
             disagree with no way to see which rows made it up. */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           {[
-            { key: "open",      label: "Open", value: openCount, color: "text-violet-400",
+            // Each card names the job, not the state. Closed 215 used to be the
+            // biggest number on the screen and the only one nobody can act on.
+            { key: "responded", label: "Replies to close", value: respondedCount, color: "text-emerald-400",
+              note: respondedCount > 0 ? "a manager answered — read it and close" : "" },
+            { key: "open",      label: "To send", value: openCount, color: "text-violet-400",
               note: "" },
             // "Awaiting" reads as "the clock is still running". For all 22 of
             // Manila's it had already stopped -- every one was past its SLA,
             // the oldest by thirteen days -- and no number on this screen said
             // so. The card now says how many are overdue, or nothing when none
             // are, so the word only appears when it means something.
-            { key: "sent",      label: "Sent (Awaiting)", value: sentCount, color: "text-amber-400",
+            { key: "sent",      label: sentMissedCount > 0 ? "To chase" : "Waiting for reply", value: sentCount, color: "text-amber-400",
               note: sentMissedCount > 0
                 ? (sentMissedCount === sentCount
                     ? "all past SLA"
                     : `${sentMissedCount} past SLA`)
                 : "" },
-            { key: "responded", label: "Responded", value: respondedCount, color: "text-emerald-400",
-              note: respondedCount > 0 ? "waiting to be closed" : "" },
-            { key: "closed",    label: "Closed", value: closedCount, color: "text-zinc-400",
+            { key: "closed",    label: "Done", value: closedCount, color: "text-zinc-400",
               note: "" },
           ].map(({ key, label, value, color, note }) => (
             <button
@@ -2216,6 +2264,8 @@ export default function BODashboardPage() {
               value={statusFilter}
               onChange={v => setStatusFilter(v)}
               options={[
+                // First, and the default: everything sitting on a person.
+                { value: "todo",       label: "Needs me" },
                 { value: "open",       label: "Open" },
                 { value: "sent",       label: "Sent" },
                 { value: "responded",  label: "Responded" },
