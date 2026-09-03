@@ -1,4 +1,4 @@
-<title>Yuri の持ち場</title>
+<title>山田さんの担当業務</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
@@ -47,8 +47,8 @@
   .task-n{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;
     font-variant-numeric:tabular-nums;color:var(--pine);white-space:nowrap;}
   .task.daily .task-n{color:var(--gold);}
-  .where{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
-    display:block;margin:6px 0 12px;}
+  .where{display:block;margin:7px 0 12px;font-size:13px;color:var(--ink-2);
+    background:var(--pine-soft);border-radius:6px;padding:6px 11px;}
   .steps{list-style:none;padding:0;margin:0;counter-reset:s;}
   .steps li{counter-increment:s;position:relative;padding-left:28px;margin-bottom:7px;font-size:14.5px;}
   .steps li::before{content:counter(s);position:absolute;left:0;top:.15em;
@@ -78,41 +78,46 @@
 
 <div class="wrap">
 
-<div class="eyebrow">Sushi ZEN Workforce OS ／ 担当割り当て</div>
-<h1>Yuri の持ち場</h1>
+<div class="eyebrow">Sushi ZEN Workforce OS</div>
+<h1>山田さんの担当業務</h1>
 <p class="standfirst">
-  毎日やること2つと、最初に片付ける滞留4つ。すべて画面から操作でき、判断は「合っているか／違うか」だけです。
-  対象はマニラのみ。
+  毎日やることが2つ、最初に片付けていただく滞留が5つあります。
+  すべて画面から操作でき、判断は「合っているか／違うか」だけです。対象はマニラのみです。
 </p>
 
 <div class="note">
-  <span class="note-label">先に、量について</span>
+  <span class="note-label">滞留がある理由</span>
   <p>
-    <strong>滞留は約860件で、集中すれば2〜3日で片付きます。そのあと毎日残るのは15分ほどです。</strong>
-    これは彼女の速度の問題ではなく、この4つがそもそもそういう量だからです。
-    1日を埋める仕事量が必要なら、この一覧では足りません。
+    5つとも<strong>これまで誰も担当していなかった</strong>ものです。
+    Prep Time は確認ボタンのある画面が存在しませんでしたし、
+    調達アラートは全件が同じ内容で出ていて読めない状態でした。
+    どちらも今回作り直したので、滞留はその分が溜まっているだけです。
+    <strong>急ぎではないので、順番に進めてください。</strong>
   </p>
 </div>
 
 <h2>毎日やること</h2>
-<p class="h2sub">朝1回、15分。滞留が片付いたあとはこれだけになります。</p>
+<p class="h2sub">朝1回、15分ほどです。下の滞留が片付いたあとは、これだけになります。</p>
 
 <div class="task daily">
   <div class="task-top">
     <span class="task-t">Prep Time の読み取り確認</span>
     <span class="task-n">1日 15〜20件</span>
   </div>
-  <span class="where">/admin/prep-time</span>
+  <span class="where">サイドバー → <b>Store Operations</b> → <b>Prep Time Review</b></span>
   <ol class="steps">
-    <li>City を <b>Manila</b> にする</li>
-    <li>1行ずつ、写真から読み取った<b>所要分数が合っているか</b>を見る</li>
-    <li>合っていれば <b>Reading is right</b>。違えば分数を打ち直してから押す</li>
-    <li>写真から判断できなければ <b>Cannot tell</b></li>
+    <li>City を <b>Manila</b> にします</li>
+    <li>1行ずつ、写真から読み取った<b>所要分数が合っているか</b>を見ます</li>
+    <li>合っていれば <b>Reading is right</b> を押します</li>
+    <li>違っていれば、横の欄に正しい分数を入れてから <b>Reading is right</b> を押します</li>
+    <li>写真から判断できなければ <b>Cannot tell</b> を押します</li>
   </ol>
   <span class="done">
-    押した行はその場に残り、隣に <b>Undo</b> があります。消えるのは Refresh を押したときだけ。<br>
-    <b>Skipped タブは作業ではありません</b> — 読めなかった写真や、その都市に無いプラットフォームで、
-    見ても集計に入らない行です。件数と理由だけ確認すれば十分。
+    押した行はその場に残り、隣に <b>Undo</b> が出ます。間違えたら押し直せます。
+    行が消えるのは <b>Refresh</b> を押したときだけです。<br><br>
+    <b>Skipped タブは作業ではありません。</b>写真が読めなかったものや、
+    その都市に無いはずのデリバリー会社が記録されたもので、確認しても集計には入りません。
+    件数だけ見ていただければ十分です。
   </span>
 </div>
 
@@ -121,35 +126,43 @@
     <span class="task-t">調達の例外アラート</span>
     <span class="task-n">1日 1件未満</span>
   </div>
-  <span class="where">/admin/procurement/exceptions</span>
+  <span class="where">サイドバー → <b>Procurement</b> → 上部タブ <b>Admin</b> → <b>Alerts</b></span>
   <ol class="steps">
-    <li>上の <b>PIN</b> 欄に自分のPINを入れる（点で埋まって見えても空です。1日1回入れれば足ります）</li>
-    <li>City を <b>Manila</b> に、<b>Refresh</b></li>
-    <li>各行に「何が起きたか」「何を見るか」が書いてあるので、それに従う</li>
-    <li>対応したら <b>Close</b>、判断を保留するなら <b>Mark Reviewed</b></li>
+    <li>上の <b>PIN</b> 欄にご自分のPINを入れます</li>
+    <li>City を <b>Manila</b> にして <b>Refresh</b> を押します</li>
+    <li>各行に「何が起きたか」「何を見ればよいか」が書いてあるので、それに沿って確認します</li>
+    <li>対応が済んだ、または問題なしと判断したら <b>Close</b> を押します</li>
+    <li>あとで確認したいものは <b>Mark Reviewed</b> にしておきます</li>
   </ol>
   <span class="done">
-    <b>正常なものを閉じるのが仕事の半分です。</b>「店舗が違う」「相手はもう取り消されている」なら閉じてよい、
-    と各行に書いてあります。溜めないことが目的で、全部を問題として扱う必要はありません。
+    <b>PIN欄は点で埋まって見えますが空です。</b>入力しないと Close を押したときに
+    「PIN is required」と出ます。1日1回入れれば、その間は入れ直し不要です。<br><br>
+    <b>問題なしとして閉じるのも仕事のうちです。</b>「店舗が違うので普通の発注」
+    「重複した相手はもう取り消されている」なら閉じてよい、と各行に書いてあります。
+    全部を問題として扱う必要はありません。
   </span>
 </div>
 
-<h2>最初に片付けること</h2>
-<p class="h2sub">上から順に。金額の大きいものと、期限のあるものを先に置いています。</p>
+<h2>最初に片付けていただくもの</h2>
+<p class="h2sub">上から順にお願いします。金額の大きいものと、期限のあるものを先に置いています。</p>
 
 <div class="task">
   <div class="task-top">
-    <span class="task-t">① 仕入先クレームの回収</span>
+    <span class="task-t">① 仕入先へのクレーム回収</span>
     <span class="task-n">53件 ／ ₱455,769</span>
   </div>
-  <span class="where">/admin/procurement/claims</span>
+  <span class="where">サイドバー → <b>Procurement</b> → 上部タブ <b>Financials</b> → <b>Claims</b></span>
   <p>
-    納品不足が自動でクレームになっていますが、<strong>一度も回収処理されていません</strong>（最古 5/20）。
-    <b>件数ではなく仕入先単位で進めます</b> — 53件は15社に集中しているので、15回の連絡で終わります。
+    納品が足りなかった分が自動でクレームとして記録されていますが、
+    <strong>まだ一度も回収の処理がされていません</strong>（最も古いもので5月20日）。
+  </p>
+  <p>
+    <b>1件ずつではなく、仕入先ごとにまとめて進めてください。</b>
+    53件は15社に集中しているので、15回の連絡で終わります。
   </p>
   <div class="scroll">
     <table>
-      <thead><tr><th>仕入先</th><th class="num">件数</th><th class="num">金額</th><th>最古</th></tr></thead>
+      <thead><tr><th>仕入先</th><th class="num">件数</th><th class="num">金額</th><th>最も古い</th></tr></thead>
       <tbody>
         <tr><td>Cash &amp; Carry Supermarket</td><td class="num">16</td><td class="num">₱187,620</td><td>7/05</td></tr>
         <tr><td>JB Frozen Meat</td><td class="num">6</td><td class="num">₱56,475</td><td>7/06</td></tr>
@@ -162,82 +175,82 @@
     </table>
   </div>
   <ol class="steps">
-    <li>1社ぶんをまとめて開き、不足の内訳を確認する</li>
-    <li>その仕入先に連絡し、<b>クレジットノートか代替納品</b>を取る</li>
-    <li>画面に結果を入れて閉じる</li>
+    <li>1社ぶんをまとめて開き、不足の内訳を確認します</li>
+    <li>その仕入先に連絡し、<b>クレジットノート（返金）か代替納品</b>を依頼します</li>
+    <li>結果を画面に入れて閉じます</li>
   </ol>
   <span class="done">
-    <b>₱2,000以上の不足だけ</b>を渡しています。₱100未満が577件（全体の69%）ありますが、
-    混ぜると₱187,620が₱3の端数に埋もれるので対象外です。
+    お渡ししているのは<b>₱2,000以上の不足だけ</b>です。₱100未満のものが577件ありますが、
+    混ぜると大口が埋もれるので対象外にしています。画面には出ますが、放置して構いません。
   </span>
 </div>
 
 <div class="task">
   <div class="task-top">
-    <span class="task-t">② 入社書類の検証</span>
+    <span class="task-t">② 入社書類の確認</span>
     <span class="task-n">130項目 ／ 9名</span>
   </div>
-  <span class="where">/admin/hr/onboarding</span>
+  <span class="where">サイドバー → <b>Hiring to Exit</b> → <b>HR Onboarding</b></span>
   <p>
     SSS・TIN・PhilHealth・Pag-IBIG・NBI・健康診断・食品取扱者証など16項目が、
-    <strong>9名分すべて未検証</strong>です。この画面では過去に一度も検証操作が行われていません。
-    法定登録が絡むので、放置の実害が一番直接的です。
+    <strong>9名分すべて未確認</strong>です。法定の登録が絡むので、この5つの中では一番急ぎます。
   </p>
   <ol class="steps">
-    <li>1名ずつ開く</li>
-    <li>16項目を「書類が有るか無いか」で確認して印を付ける</li>
-    <li>不足があればその人に依頼する</li>
+    <li>1名ずつ開きます</li>
+    <li>16項目を「書類が有るか無いか」で確認して、印を付けます</li>
+    <li>足りないものがあれば、本人に提出を依頼します</li>
   </ol>
   <span class="done">
-    対象: Patrick Danel Santiago・Anthony Andales・Gessa Gregorio・Mayorico Furio・Mona Medrano・
-    Nicko Villacorte・Daisy Rose P. Javier・Francis Angelo Dizon（8/4）、Sanjeev Tamang（9/1）。
+    対象9名: Patrick Danel Santiago・Anthony Andales・Gessa Gregorio・Mayorico Furio・
+    Mona Medrano・Nicko Villacorte・Daisy Rose P. Javier・Francis Angelo Dizon（8月4日登録）、
+    Sanjeev Tamang（9月1日登録）。
   </span>
 </div>
 
 <div class="task">
   <div class="task-top">
-    <span class="task-t">③ Prep Time の滞留</span>
+    <span class="task-t">③ Prep Time の滞留分</span>
     <span class="task-n">504件</span>
   </div>
-  <span class="where">/admin/prep-time</span>
+  <span class="where">サイドバー → <b>Store Operations</b> → <b>Prep Time Review</b></span>
   <p>
-    毎日の作業と同じ内容の滞留分です。<strong>7/25以降、誰も確認していません</strong> —
-    確認ボタンのある画面が存在しなかったためで、彼女の前任者の怠慢ではありません。
-    1画面200件ずつ出るので、片付けて Refresh を3回。
+    毎日の作業と中身は同じで、7月25日以降たまっている分です。
+    1画面に200件ずつ出るので、片付けて <b>Refresh</b> を3回で終わります。
   </p>
-  <span class="done">1件15秒ほど。2〜3時間で終わります。</span>
+  <span class="done">1件15秒ほどです。2〜3時間で片付きます。</span>
 </div>
 
 <div class="task">
   <div class="task-top">
-    <span class="task-t">④ 調達アラートの滞留</span>
+    <span class="task-t">④ 調達アラートの滞留分</span>
     <span class="task-n">38件</span>
   </div>
-  <span class="where">/admin/procurement/exceptions</span>
+  <span class="where">サイドバー → <b>Procurement</b> → 上部タブ <b>Admin</b> → <b>Alerts</b></span>
   <div class="scroll">
     <table>
       <thead><tr><th>種類</th><th class="num">件数</th><th>内容</th></tr></thead>
       <tbody>
-        <tr><td>同じ発注が2回</td><td class="num">22</td><td>同じ人・同じ店・同じ金額が30分以内に2本</td></tr>
-        <tr><td>承認ラインの直下</td><td class="num">7</td><td>₱20,000 の5%以内</td></tr>
-        <tr><td>承認者の権限超過</td><td class="num">6</td><td>金額が承認者の決裁範囲を超えている</td></tr>
-        <tr><td>同日の分割発注</td><td class="num">3</td><td>各々ラインの下、合計が上</td></tr>
+        <tr><td>同じ発注が2回</td><td class="num">22</td><td>同じ人・同じ店・同じ金額が30分以内に2本出ている</td></tr>
+        <tr><td>承認ラインの直下</td><td class="num">7</td><td>₱20,000 の5%以内に収まっている</td></tr>
+        <tr><td>承認者の権限超過</td><td class="num">6</td><td>金額が、承認した人の決裁範囲を超えている</td></tr>
+        <tr><td>同日の分割発注</td><td class="num">3</td><td>1本ずつはラインの下だが、合計すると超えている</td></tr>
       </tbody>
       <tfoot><tr><td>合計</td><td class="num">38</td><td></td></tr></tfoot>
     </table>
   </div>
   <span class="done">
-    <b>2件は彼女自身が発注者です。</b>自分の案件は別の人に見てもらってください。
+    このうち <code>MAN-PR-202606-0032</code> と <code>MAN-PR-202606-0057</code> の2件は
+    <b>山田さんご自身が発注者</b>です。この2件は飛ばしてください。別の担当が確認します。
   </span>
 </div>
 
 <div class="task">
   <div class="task-top">
-    <span class="task-t">⑤ 仕入先名の名寄せ</span>
-    <span class="task-n">4組以上</span>
+    <span class="task-t">⑤ 仕入先名の統合</span>
+    <span class="task-n">4組</span>
   </div>
-  <span class="where">/admin/procurement/vendors</span>
-  <p>同じ仕入先が複数の表記で登録され、クレームの集計が分散しています。</p>
+  <span class="where">サイドバー → <b>Procurement</b> → 上部タブ <b>Admin</b> → <b>Vendors</b></span>
+  <p>同じ仕入先が別々の名前で登録されていて、集計が分かれてしまっています。</p>
   <ul>
     <li><code>Cash &amp; Carry Supermarket</code> ／ <code>Cash &amp; Carry</code></li>
     <li><code>Richcath's Vegetables Stall</code> ／ <code>Ritchcath's Vegetables Stall</code></li>
@@ -245,26 +258,28 @@
     <li><code>Three-S Food Services</code> ／ <code>Three - S</code></li>
   </ul>
   <span class="done">
-    ①の表で Cash &amp; Carry が2行に割れているのがこれです。統合後は、
-    発注時に<b>登録済みの名前から選ぶ</b>運用にしないとまた増えます。
+    ①の表で Cash &amp; Carry が2行に分かれているのがこれです。
+    統合したあとは、発注のときに<b>登録済みの名前から選ぶ</b>ようにしないとまた増えます。
+    そこは発注担当の方に伝えていただけますか。
   </span>
 </div>
 
-<h2>やらないこと</h2>
+<h2>やらなくてよいこと</h2>
+<p class="h2sub">画面には出ますが、対応不要です。</p>
 <div class="scroll">
   <table>
     <thead><tr><th>対象</th><th>理由</th></tr></thead>
     <tbody>
-      <tr><td>ドバイの調達アラート</td><td>運用前。アラートを出していません</td></tr>
-      <tr><td>Prep Time の Skipped タブ</td><td>見ても集計に入らない行。件数の確認だけ</td></tr>
+      <tr><td>ドバイの調達アラート</td><td>ドバイはまだ運用前です。アラートも出していません</td></tr>
+      <tr><td>Prep Time の Skipped タブ</td><td>確認しても集計に入りません。件数だけ見れば十分です</td></tr>
       <tr><td>₱2,000未満のクレーム（577件）</td><td>混ぜると大口が埋もれます</td></tr>
-      <tr><td>自分が発注者のアラート（2件）</td><td>別の人に</td></tr>
-      <tr><td>社内発注（CK・倉庫）の承認アラート</td><td>社外に金が出ないので対象外。除外済み</td></tr>
+      <tr><td>ご自身が発注者のアラート（2件）</td><td>別の担当が確認します</td></tr>
+      <tr><td>セントラルキッチン・倉庫からの発注</td><td>社内の在庫移動なので、承認のルールは当てはまりません</td></tr>
     </tbody>
   </table>
 </div>
 
-<h2>所要時間の目安</h2>
+<h2>目安の時間</h2>
 <div class="scroll">
   <table>
     <thead><tr><th>作業</th><th class="num">件数</th><th class="num">目安</th></tr></thead>
@@ -273,32 +288,27 @@
       <tr><td>② 入社書類</td><td class="num">130</td><td class="num">4時間</td></tr>
       <tr><td>③ Prep Time 滞留</td><td class="num">504</td><td class="num">2.5時間</td></tr>
       <tr><td>④ 調達アラート滞留</td><td class="num">38</td><td class="num">2時間</td></tr>
-      <tr><td>⑤ 仕入先名の名寄せ</td><td class="num">4組</td><td class="num">1時間</td></tr>
+      <tr><td>⑤ 仕入先名の統合</td><td class="num">4組</td><td class="num">1時間</td></tr>
     </tbody>
     <tfoot><tr><td>滞留の片付け</td><td class="num">約725件</td><td class="num">2〜3日</td></tr></tfoot>
   </table>
 </div>
 <p>
-  そのあとの定常業務は <b>Prep Time 15〜20件 ＋ 調達アラート1件未満 = 1日15分</b>です。
+  そのあとは <b>毎日15分</b>（Prep Time 15〜20件＋調達アラート1件未満）になります。
 </p>
 
-<div class="note">
-  <span class="note-label">権限について</span>
-  <p>
-    5つとも彼女のHQ権限で操作できます。将来ほかの人に渡す場合は Role Management で
-    <code>channel.admin.prep_time.confirm</code> と <code>channel.admin.procurement.manage</code> を付けてください。
-  </p>
-  <p>
-    ⚠️ <strong>調達アラートは現在60名が閉じられます</strong>（うち31名は店舗スタッフ）。
-    担当を決めても他の人が閉じられる状態です。3ヶ月間レビュー実績は0件なので今すぐの実害はありませんが、
-    絞るかどうかは判断が要ります。
-  </p>
-</div>
+<h2>迷ったとき</h2>
+<ul>
+  <li><b>判断がつかないものは閉じずに残してください。</b>
+    調達アラートは <b>Mark Reviewed</b> にしておけば「見たが保留」の印になります</li>
+  <li><b>画面に書いてあることと実際が違う</b>と感じたら、そのまま進めずに連絡してください。
+    画面側の不具合の可能性があります</li>
+  <li><b>件数が合わない・ボタンが反応しない</b>ときも同様です。押せない理由が画面に出ていないのは
+    こちら側の問題です</li>
+</ul>
 
 <div class="foot">
-  実測 2026-09-03。件数はすべて本番データ。
-  各アラートはルールの出力ではなく生データからSQLで独立に再導出して照合済み
-  （重複 22/22、承認段階 34/34 一致）。画面の件数とDBの件数が一致することも確認しています。
+  2026年9月3日時点の件数です。数字はすべて本番データから確認しています。
 </div>
 
 </div>
