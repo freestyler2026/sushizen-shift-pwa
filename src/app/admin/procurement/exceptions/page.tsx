@@ -155,13 +155,19 @@ export default function ProcurementExceptionsPage() {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  // Alerts acted on in this sitting. They stay in the list until Refresh.
+  const [acted, setActed] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setError("");
     setLoading(true);
     try {
+      // Ask the server for the open ones. Fetching 200 of everything and
+      // filtering here meant the closed backlog ate the window: 925 closed
+      // alerts pushed five open ones past the limit, so the page said 33 when
+      // 38 were waiting -- and the five it dropped were the oldest.
       const data = await procurementJson<{ rows: ExceptionRow[] }>(
-        `/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&limit=200`,
+        `/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&status=OPEN&limit=500`,
         { method: "GET" },
         requestedBy,
         pin,
@@ -190,7 +196,10 @@ export default function ProcurementExceptionsPage() {
         pin,
       );
       setSuccessMsg(`Exception marked as ${status}.`);
-      await load();
+      // Keep it on screen with its new state. The list now asks the server for
+      // open alerts only, so reloading would make the row disappear the moment
+      // it is acted on -- and with it any way to see what was just done.
+      setActed((p) => ({ ...p, [eventId]: status }));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -224,8 +233,10 @@ export default function ProcurementExceptionsPage() {
     );
   }
 
-  const open = rows.filter((r) => String(r.status || "").toUpperCase() === "OPEN");
-  const other = rows.filter((r) => String(r.status || "").toUpperCase() !== "OPEN");
+  const open = rows.filter((r) => !acted[r.id]);
+  const other = rows
+    .filter((r) => acted[r.id])
+    .map((r) => ({ ...r, status: acted[r.id] }));
 
   return (
     <div className="space-y-5">
@@ -279,7 +290,7 @@ export default function ProcurementExceptionsPage() {
           <div className="flex items-end">
             <button
               type="button"
-              onClick={() => void load()}
+              onClick={() => { setActed({}); void load(); }}
               disabled={loading}
               className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}
             >
@@ -349,10 +360,11 @@ export default function ProcurementExceptionsPage() {
         </div>
       )}
 
-      {/* Reviewed / Closed */}
+      {/* Anything acted on in this sitting, so the row does not vanish the
+          moment it is closed. Everything older lives in Audit. */}
       {other.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Reviewed / Closed</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Done in this sitting — stays until you press Refresh</p>
           {other.map((row) => (
             <div key={row.id} className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <div className="flex flex-wrap items-center gap-2">
