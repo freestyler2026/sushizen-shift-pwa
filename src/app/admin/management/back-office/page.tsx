@@ -1861,11 +1861,17 @@ export default function BODashboardPage() {
   const needsMe = (t: ManagementTask) =>
     t.status === "responded" ||
     t.status === "open" ||
+    t.status === "escalated" ||
     (t.status === "sent" && !!t.missed_by_manager);
 
   const byStatus = (list: ManagementTask[]) =>
     statusFilter === "todo"
       ? list.filter(t => needsMe(t) || keptVisible(t))
+    // The card says "to chase". Pressing it must land on the ones that can be
+    // chased, not on all 23 sent — 15 of which are still inside their SLA and
+    // are waiting on the manager, not on anybody here.
+    : statusFilter === "chase"
+      ? list.filter(t => (t.status === "sent" && !!t.missed_by_manager) || keptVisible(t))
     : statusFilter === "not_closed"
       ? list.filter(t => t.status !== "closed" || keptVisible(t))
     : statusFilter && statusFilter !== "all"
@@ -2163,11 +2169,18 @@ export default function BODashboardPage() {
             // the oldest by thirteen days -- and no number on this screen said
             // so. The card now says how many are overdue, or nothing when none
             // are, so the word only appears when it means something.
-            { key: "sent",      label: sentMissedCount > 0 ? "To chase" : "Waiting for reply", value: sentCount, color: "text-amber-400",
+            // The number is the one you can act on. It used to be all 23 sent
+            // under the word "chase", while only 8 were past their SLA and the
+            // list below showed those 8 — the card and the list disagreeing on
+            // the same screen about the same thing.
+            { key: sentMissedCount > 0 ? "chase" : "sent",
+              label: sentMissedCount > 0 ? "To chase" : "Waiting for reply",
+              value: sentMissedCount > 0 ? sentMissedCount : sentCount,
+              color: "text-amber-400",
               note: sentMissedCount > 0
                 ? (sentMissedCount === sentCount
-                    ? "all past SLA"
-                    : `${sentMissedCount} past SLA`)
+                    ? "every sent instruction is past its SLA"
+                    : `${sentCount - sentMissedCount} more still inside their SLA`)
                 : "" },
             { key: "closed",    label: "Done", value: closedCount, color: "text-zinc-400",
               note: "" },
@@ -2202,8 +2215,16 @@ export default function BODashboardPage() {
           <span className="font-semibold text-white">{sortedTasks.length}</span>
           <span className="text-white/45">of {tasks.length} loaded —</span>
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/70">
+            {/* The words people chose, not the key the code stores. "todo only"
+                was reaching the screen. */}
             {statusFilter === "all" ? "every status"
               : statusFilter === "not_closed" ? "not closed — the Owners figure"
+              : statusFilter === "todo" ? "waiting on you"
+              : statusFilter === "chase" ? "no reply past SLA"
+              : statusFilter === "open" ? "not sent yet"
+              : statusFilter === "sent" ? "sent, awaiting reply"
+              : statusFilter === "responded" ? "replied, not closed"
+              : statusFilter === "closed" ? "closed"
               : `${statusFilter} only`}
           </span>
           {pageFilter !== "all" && (
