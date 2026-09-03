@@ -1,0 +1,243 @@
+<title>調達と在庫の利用実績</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f1f3f4; --panel:#fff; --panel-2:#e8ecee; --ink:#15191c; --ink-2:#3e4950;
+    --ink-3:#6a767d; --rule:#d2d9dc; --teal:#12565d; --amber:#8f5a18; --amber-soft:#f6ebda;
+    --rose:#8a2f2f; --rose-soft:#f8e4e4; --moss:#3a6738; --bar:#12565d; --bar-2:#8fb3b6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#111619; --panel:#181e21; --panel-2:#202a2e; --ink:#e7edef; --ink-2:#b1bec4;
+      --ink-3:#7d8b93; --rule:#2b353a; --teal:#6cc2ca; --amber:#dfa75c; --amber-soft:#332616;
+      --rose:#df8a8a; --rose-soft:#341d1d; --moss:#98c693; --bar:#6cc2ca; --bar-2:#33565a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#111619; --panel:#181e21; --panel-2:#202a2e; --ink:#e7edef; --ink-2:#b1bec4;
+    --ink-3:#7d8b93; --rule:#2b353a; --teal:#6cc2ca; --amber:#dfa75c; --amber-soft:#332616;
+    --rose:#df8a8a; --rose-soft:#341d1d; --moss:#98c693; --bar:#6cc2ca; --bar-2:#33565a;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 22px 90px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--teal);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,38px);
+    line-height:1.35;margin:0 0 14px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:62ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:52px 0 6px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  h3{font-size:16px;font-weight:700;margin:30px 0 8px;}
+  p{margin:0 0 13px;max-width:66ch;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:64ch;}
+  .scroll{overflow-x:auto;margin:18px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:540px;}
+  th,td{padding:8px 13px;text-align:left;border-bottom:1px solid var(--rule);}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.04em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;}
+  caption{caption-side:bottom;padding:9px 13px;font-size:12px;color:var(--ink-3);text-align:left;}
+  .bar{display:inline-block;height:8px;border-radius:2px;background:var(--bar);vertical-align:middle;}
+  .bar.dim{background:var(--bar-2);}
+  .note{border-left:3px solid var(--rule);background:var(--panel);padding:14px 18px;margin:18px 0;
+    border-radius:0 8px 8px 0;}
+  .note.warn{border-left-color:var(--amber);background:var(--amber-soft);}
+  .note.bad{border-left-color:var(--rose);background:var(--rose-soft);}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;}
+  .note.warn .note-label{color:var(--amber);} .note.bad .note-label{color:var(--rose);}
+  .note p:last-child{margin-bottom:0;}
+  ul{margin:0 0 13px;padding-left:1.25em;max-width:66ch;} li{margin-bottom:6px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.88em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:52px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ 利用実績</div>
+<h1>調達と在庫を、誰が使っているか</h1>
+<p class="standfirst">
+  直近60日の操作記録から、Procurement と Inventory の2チャンネル（サブページ含む）を人別に集計しました。
+  記録が無い部分は「無い」と書いています。
+</p>
+
+<h2>先に — 何が数えられて、何が数えられないか</h2>
+<p class="lede">この集計は「操作の記録」であって「ページを開いた回数」ではありません。</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>使ったもの</th><th>数えているもの</th><th>数えられないもの</th></tr></thead>
+    <tbody>
+      <tr><td><code>proc_audit_logs</code></td><td>発注・受入・承認などの<strong>実操作</strong></td><td>閲覧だけの利用</td></tr>
+      <tr><td><code>security_audit_log</code></td><td>承認と価格確認</td><td>操作者が記録されていない分（後述）</td></tr>
+      <tr><td>在庫各テーブルの操作者列</td><td>棚卸し・配送・生産計画・Par設定・Cold Chain</td><td>CK Label / Base Roll は閲覧専用で書き込みが無い</td></tr>
+    </tbody>
+    <caption>昨日から取り始めたAPI計測はバッジのポーリングを含むため、この集計には使っていません。</caption>
+  </table>
+</div>
+
+<h2>Procurement — 人別（60日）</h2>
+<p class="lede">対象ページ: Procurement / Emergency Requests / Spot Purchase / Supplier Confirmations / Store Supplier Orders / Price Check / Vendors / Filing Ledger / Payment Schedule</p>
+
+<div class="scroll">
+  <table>
+    <thead><tr><th>氏名</th><th class="num">操作数</th><th></th><th>主に何をしているか</th><th>最終</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Aliana Manuel</strong></td><td class="num">2,859</td><td><span class="bar" style="width:120px"></span></td><td>受入確認 776・受入登録 763・PO作成 387</td><td>9/03</td></tr>
+      <tr><td><strong>Ruby Rosa Rongcales</strong></td><td class="num">2,729</td><td><span class="bar" style="width:115px"></span></td><td>依頼提出 587・PO送信 581・PO作成 575</td><td>9/02</td></tr>
+      <tr><td><strong>Caila Macararanga</strong></td><td class="num">2,362</td><td><span class="bar" style="width:99px"></span></td><td>依頼作成 438・依頼提出 395・PO作成 375</td><td>9/02</td></tr>
+      <tr><td>Yusuke Uejima</td><td class="num">1,240</td><td><span class="bar" style="width:52px"></span></td><td>カタログ更新 368・案件明細 241・承認 121</td><td>9/01</td></tr>
+      <tr><td>Cyrine Fernandez</td><td class="num">744</td><td><span class="bar" style="width:31px"></span></td><td><strong>承認 716</strong>（ほぼ承認専任）</td><td>9/02</td></tr>
+      <tr><td>Erica May Sadiasa</td><td class="num">548</td><td><span class="bar" style="width:23px"></span></td><td>依頼作成 312・依頼提出 78</td><td>9/01</td></tr>
+      <tr><td>Yuri Yamada</td><td class="num">514</td><td><span class="bar" style="width:22px"></span></td><td>案件明細 127・PO作成 90・承認 90</td><td>8/20</td></tr>
+      <tr><td>Nathaneil Santos</td><td class="num">435</td><td><span class="bar dim" style="width:18px"></span></td><td>依頼作成 110・提出 109・PO作成 108</td><td>8/08</td></tr>
+      <tr><td>Victoria Lim</td><td class="num">324</td><td><span class="bar dim" style="width:14px"></span></td><td>受入登録 109・確認 108・請求書写真 107</td><td>8/20</td></tr>
+      <tr><td>Reymar Contillo</td><td class="num">256</td><td><span class="bar dim" style="width:11px"></span></td><td>依頼作成 178</td><td>9/02</td></tr>
+      <tr><td>Daisy Rose P. Javier</td><td class="num">145</td><td><span class="bar dim" style="width:6px"></span></td><td>受入登録 51・請求書写真 50</td><td>9/02</td></tr>
+      <tr><td>Yukihiro Nishimura</td><td class="num">152</td><td><span class="bar dim" style="width:6px"></span></td><td>メニュー原材料 95・商品更新 20</td><td>8/21</td></tr>
+    </tbody>
+    <caption>上位12名。以下 Mariano Espenida Jr. 116 / Samantha Varca 82 / Richard S. Gante 50 / Lynde B. Ore 46 ほか、社内20名超が少数ずつ。</caption>
+  </table>
+</div>
+
+<h3>役割がきれいに分かれています</h3>
+<ul>
+  <li><strong>発注を回す3人</strong> — Aliana・Ruby・Caila で <strong>7,950件（全体の約6割）</strong>。依頼・PO・受入の実務</li>
+  <li><strong>承認する人</strong> — Cyrine Fernandez は744件中<strong>716件が承認</strong>。事実上この1機能の専任</li>
+  <li><strong>カタログを整える人</strong> — Yusuke Uejima のカタログ更新368件は他の誰にも無い操作</li>
+  <li><strong>止まっている人</strong> — Nathaneil Santos（8/08）・Victoria Lim（8/20）・Yuri Yamada（8/20）は3週間以上動きなし</li>
+</ul>
+
+<div class="note">
+  <span class="note-label">仕入先アカウント</span>
+  <p>
+    社内スタッフとは別に、<strong>仕入先自身の操作が11アカウント・約650件</strong>あります
+    （<code>Dxborder@chefmiddleeast.co</code> 178、<code>order@sunberryfresh.com</code> 132、
+    <code>geethu@oceanfisheries.ae</code> 130 ほか）。ポータル経由の受注確認で、上の集計には含めていません。
+  </p>
+</div>
+
+<div class="note warn">
+  <span class="note-label">記録が人に紐づいていない塊</span>
+  <p>
+    <code>security_audit_log</code> の <strong>procurement.approval.act 55,502件</strong> と
+    <strong>procurement.exception.read 55,501件</strong> が<strong>操作者名なし</strong>で記録されています。
+    同じ期間に名前つきで記録されているのは Camilla Gadingan 521・Victoria Lim 484・
+    Xydney aerol Y. Buenaseda 398・Louiela Chica 386 など、合計しても数千件です。
+  </p>
+  <p>
+    件数の桁からして自動処理か、認証情報を伴わない経路と思われますが、
+    <strong>「承認」という操作の9割以上が誰の行為か分からない状態</strong>です。
+    調べる価値があります。
+  </p>
+</div>
+
+<h2>Inventory — 人別（60日）</h2>
+<p class="lede">対象ページ: Inventory / Cold Chain / CK Label Compliance / CK Par Levels / Store Par Levels / Base Roll Prep</p>
+
+<div class="note bad">
+  <span class="note-label">先に読んでください</span>
+  <p>
+    在庫台帳（<code>inv_stock_ledger</code>）は60日で63,027行ありますが、
+    <strong>そのうち人の操作は約400行（0.6%）だけ</strong>です。
+    残りは <code>verify_test</code> 38,150行と <code>worker_auto</code> 24,625行で、
+    <strong>台帳の件数を「利用実績」として読むと完全に誤ります。</strong>
+  </p>
+</div>
+
+<div class="scroll">
+  <table>
+    <thead><tr><th>氏名</th><th class="num">操作数</th><th>内訳</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Yusuke Uejima</strong></td><td class="num">797</td><td>WH棚卸し 670・CK配送 67・CK生産計画 48・CK棚卸し 12</td></tr>
+      <tr><td>Patrick Danel Santiago</td><td class="num">99</td><td>在庫台帳 99</td></tr>
+      <tr><td>Gerald Solomon</td><td class="num">66</td><td>CK棚卸し 66</td></tr>
+      <tr><td>Mariano Espenida Jr.</td><td class="num">58</td><td>WH棚卸し 58</td></tr>
+      <tr><td>James Ray Pata</td><td class="num">40</td><td>在庫台帳 40</td></tr>
+      <tr><td>Nicko Villacorte</td><td class="num">39</td><td>在庫台帳 39</td></tr>
+      <tr><td>Ricardo Lamis III</td><td class="num">38</td><td>CK棚卸し 37・CK配送 1</td></tr>
+      <tr><td>Victoria Lim</td><td class="num">37</td><td>CK棚卸し 37</td></tr>
+      <tr><td>Cathrina Calimlim</td><td class="num">32</td><td>在庫台帳 32</td></tr>
+      <tr><td>Xydney aerol Y. Buenaseda</td><td class="num">32</td><td>CK棚卸し 31・CK配送 1</td></tr>
+      <tr><td>Louiela Chica</td><td class="num">18</td><td>CK棚卸し 18</td></tr>
+      <tr><td>Reymar Contillo</td><td class="num">10</td><td>在庫台帳 10</td></tr>
+      <tr><td>Daisy Rose P. Javier</td><td class="num">9</td><td>CK棚卸し 9</td></tr>
+    </tbody>
+    <caption>Par設定 189件のうち 183件は操作者が記録されていません（<code>updated_by</code> が空）。</caption>
+  </table>
+</div>
+
+<p>
+  <strong>棚卸し・配送・生産計画は Yusuke Uejima がほぼ1人で担っています。</strong>
+  797件は2位の8倍で、WH棚卸し670件は他の誰も触っていません。
+  CK棚卸しだけが Gerald Solomon・Ricardo Lamis III・Victoria Lim ほか数名に分散しています。
+</p>
+
+<h3>Cold Chain だけは広く使われています</h3>
+<p>
+  上の表とは別に、Cold Chain（納品箱の受け取り・保管・出庫）は<strong>店舗側15名が実際に記録</strong>しています。
+  ここに出てくる名前は上の表とほとんど重なりません。
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>受け取り・保管（60日）</th><th class="num">件数</th><th>最終</th><th>出庫（60日）</th><th class="num">件数</th><th>最終</th></tr></thead>
+    <tbody>
+      <tr><td>Rachelle Ann Caubat</td><td class="num">37</td><td>8/28</td><td>Louiela Chica</td><td class="num">26</td><td>8/14</td></tr>
+      <tr><td>James Ray Pata</td><td class="num">33</td><td>9/02</td><td>Xydney aerol Y. Buenaseda</td><td class="num">24</td><td>9/02</td></tr>
+      <tr><td>Jerryboy Niemes</td><td class="num">32</td><td>8/31</td><td>Victoria Lim</td><td class="num">9</td><td>8/31</td></tr>
+      <tr><td>Reymar Contillo</td><td class="num">24</td><td>9/02</td><td>Richard S. Gante</td><td class="num">7</td><td>8/12</td></tr>
+      <tr><td>Karen Jane Borja</td><td class="num">12</td><td>8/28</td><td>Gerald Solomon</td><td class="num">1</td><td>8/10</td></tr>
+      <tr><td>Cherish Mapolon Galarosa</td><td class="num">5</td><td>8/19</td><td>Daisy Rose P. Javier</td><td class="num">1</td><td>9/02</td></tr>
+      <tr><td>ほか9名（各1〜4件）</td><td class="num">19</td><td></td><td></td><td class="num"></td><td></td></tr>
+      <tr><td><strong>氏名なし</strong></td><td class="num">25</td><td>9/02</td><td></td><td class="num"></td><td></td></tr>
+    </tbody>
+    <caption>
+      受け取り者と保管者は187件すべてで同一人物です。フォームが1つの名前を両方の列に書いているためで、
+      「受け取った人」と「冷蔵庫に入れた人」は分けて記録されていません。
+      また <code>cold_chain_deliveries</code>（納品テーブル）は60日で0件 — この画面は使われていません。
+    </caption>
+  </table>
+</div>
+<p>
+  氏名なしの25件は<strong>直近まで発生し続けています</strong>（最終 9/02）。
+  記録は残っていますが、誰が受け取ったかは分かりません。
+</p>
+
+<div class="note warn">
+  <span class="note-label">確認をお願いしたい記録</span>
+  <p>
+    <code>verify_test</code> という操作者が <strong>2026-08-03 の1日で38,150行</strong>を
+    在庫台帳に書き込んでいます。業務日は 7/27〜8/2、都市はマニラ、種別は全て
+    <code>CONSUMPTION_FROM_ORDER</code>、備考は「Mix Poke Bowl」など。
+    <strong>金額影響は絶対値合計で ₱277,592</strong> です。
+  </p>
+  <p>
+    一度きりの取り込みか検証の痕跡と思われますが、名前が <code>verify_test</code> であるため、
+    <strong>意図した取り込みなのか確認が必要</strong>です。在庫評価額に効いています。
+  </p>
+</div>
+
+<h2>集計対象外の2ページ</h2>
+<p>
+  <strong>CK Label Compliance</strong> と <strong>Base Roll Prep</strong> は、
+  他のテーブルを読んで集計するだけの<strong>閲覧専用ページ</strong>です。書き込みが無いため、
+  「誰が使ったか」はこの方法では出せません（開いた回数を数えるなら別途仕込みが要ります）。
+</p>
+
+<div class="foot">
+  期間: 2026-07-05 〜 2026-09-03（60日）。
+  出典: <code>proc_audit_logs</code>（22,348行）、<code>security_audit_log</code>、
+  <code>inv_stock_ledger</code> / <code>wh_stock_counts</code> / <code>ck_inventory_sessions</code> /
+  <code>ck_deliveries</code> / <code>ck_production_plans</code> / <code>backup_par_levels</code> /
+  <code>cold_chain_boxes</code> / <code>cold_chain_dispatches</code>。
+  社内スタッフの判定は <code>staff_master</code> との突合。
+</div>
+
+</div>

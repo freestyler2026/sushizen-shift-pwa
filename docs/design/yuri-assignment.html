@@ -1,0 +1,279 @@
+<title>放置されている持ち場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f2f1ee; --panel:#fffefc; --panel-2:#e9e6e0; --ink:#1a1815; --ink-2:#454039;
+    --ink-3:#736c62; --rule:#d8d3ca; --ochre:#8a5a10; --ochre-soft:#f7eddc;
+    --rust:#8d3520; --rust-soft:#f9e6e1; --slate:#2f4756; --moss:#3f6b3c; --bar:#8a5a10;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#15130f; --panel:#1d1b16; --panel-2:#272319; --ink:#efebe3; --ink-2:#c0b8aa;
+      --ink-3:#8a8175; --rule:#332e25; --ochre:#e0a955; --ochre-soft:#312512;
+      --rust:#e08a72; --rust-soft:#331d17; --slate:#8fb0c4; --moss:#96c191; --bar:#e0a955;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#15130f; --panel:#1d1b16; --panel-2:#272319; --ink:#efebe3; --ink-2:#c0b8aa;
+    --ink-3:#8a8175; --rule:#332e25; --ochre:#e0a955; --ochre-soft:#312512;
+    --rust:#e08a72; --rust-soft:#331d17; --slate:#8fb0c4; --moss:#96c191; --bar:#e0a955;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.82;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px;margin:0 auto;padding:54px 22px 96px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--ochre);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,39px);
+    line-height:1.34;margin:0 0 15px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:60ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:56px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 22px;max-width:64ch;}
+  p{margin:0 0 13px;max-width:66ch;}
+  ul{margin:0 0 13px;padding-left:1.25em;max-width:66ch;} li{margin-bottom:7px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.87em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+
+  .job{background:var(--panel);border:1px solid var(--rule);border-radius:11px;
+    padding:20px 22px;margin:16px 0;}
+  .job-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:4px;}
+  .job-n{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--ochre);}
+  .job-t{font-family:"Zen Old Mincho",serif;font-size:19px;font-weight:700;}
+  .job-vol{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap;}
+  .job p{margin:8px 0 0;font-size:14.5px;}
+  .job p:first-of-type{margin-top:10px;}
+  .why{display:block;font-size:13px;color:var(--ink-3);margin-top:10px;
+    padding-top:10px;border-top:1px dashed var(--rule);}
+  .job.block{background:var(--rust-soft);border-color:var(--rust);}
+  .job.block .job-n{color:var(--rust);}
+
+  .scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:480px;}
+  th,td{padding:8px 13px;text-align:left;border-bottom:1px solid var(--rule);}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.04em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;}
+  tfoot td{font-weight:700;background:var(--panel-2);border-top:2px solid var(--rule);}
+  caption{caption-side:bottom;padding:9px 13px;font-size:12px;color:var(--ink-3);text-align:left;}
+
+  .note{border-left:3px solid var(--ochre);background:var(--ochre-soft);padding:14px 18px;
+    margin:20px 0;border-radius:0 8px 8px 0;}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--ochre);}
+  .note p:last-child{margin-bottom:0;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:54px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ 担当割り当て案</div>
+<h1>放置されている持ち場</h1>
+<p class="standfirst">
+  OS内の121個の待ち行列を実測し、「誰も一度も手をつけていないもの」を抜き出しました。
+  Yuri Yamada に今日から渡せるものと、渡す前に私が直す必要があるものに分けています。
+</p>
+
+<div class="note">
+  <span class="note-label">先に結論</span>
+  <p>
+    <strong>今すぐ渡せるのは3件（合計約200件の作業）。残りは担当を決めても着手できません。</strong>
+    放置の原因は「担当がいなかった」ことではなく、<strong>画面が無い・閾値が無い・工程自体が存在しない</strong>ことでした。
+    人を割り当てるだけでは動きません。
+  </p>
+</div>
+
+<h2>今日から渡せる — 画面があり、判断が要らないもの</h2>
+<p class="lede">いずれも <strong>誰も一度も処理したことがない</strong> 待ち行列です。</p>
+
+<div class="job">
+  <div class="job-head">
+    <span class="job-n">01</span>
+    <span class="job-t">仕入先クレームの回収</span>
+    <span class="job-vol">53件 ／ ₱455,769</span>
+  </div>
+  <p>
+    納品の不足が自動でクレームとして起票されていますが、<strong>838件すべてが OPEN のまま、
+    一度も解決処理されていません</strong>（最古 5/20）。うち ₱2,000 以上の不足が53件・₱455,769。
+  </p>
+  <p>
+    <strong>件数ではなく仕入先単位で渡します。</strong>53件は15社に集中しており、
+    最大の Cash &amp; Carry Supermarket だけで16件・₱187,620。1社ずつ連絡して
+    クレジットノートか代替納品を取り、画面に結果を入れる — これで15回の会話に収まります。
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>仕入先</th><th class="num">件数</th><th class="num">金額</th><th>最古</th></tr></thead>
+      <tbody>
+        <tr><td>Cash &amp; Carry Supermarket</td><td class="num">16</td><td class="num">₱187,620</td><td>7/05</td></tr>
+        <tr><td>JB Frozen Meat</td><td class="num">6</td><td class="num">₱56,475</td><td>7/06</td></tr>
+        <tr><td>Restaurant Depot</td><td class="num">6</td><td class="num">₱29,296</td><td>7/06</td></tr>
+        <tr><td>McAsia Foodtrade</td><td class="num">2</td><td class="num">₱23,778</td><td>8/25</td></tr>
+        <tr><td>LMDE Seafeeds</td><td class="num">2</td><td class="num">₱20,700</td><td>7/19</td></tr>
+        <tr><td>ほか10社</td><td class="num">21</td><td class="num">₱137,900</td><td></td></tr>
+      </tbody>
+      <tfoot><tr><td>合計</td><td class="num">53</td><td class="num">₱455,769</td><td></td></tr></tfoot>
+      <caption>画面: <code>/admin/procurement/claims</code>（解決処理あり・動作確認済み）</caption>
+    </table>
+  </div>
+  <span class="why">
+    ₱100未満のクレームが577件（全体の69%）あります。これは渡しません —
+    混ぜると₱187,620が₱3の端数に埋もれて、キューごと読まれなくなります。
+  </span>
+</div>
+
+<div class="job">
+  <div class="job-head">
+    <span class="job-n">02</span>
+    <span class="job-t">入社書類の検証</span>
+    <span class="job-vol">146項目 ／ 10名分</span>
+  </div>
+  <p>
+    SSS・TIN・PhilHealth・Pag-IBIG・NBI・健康診断・食品取扱者証など、法定書類を含む16項目が
+    <strong>10名分すべて未検証</strong>です。8/4 登録分が114項目、9/1 登録分が32項目。
+    <strong>この画面では過去に一度も検証操作が行われていません。</strong>
+  </p>
+  <p>
+    対象は Patrick Danel Santiago・Anthony Andales・Gessa Gregorio・Mayorico Furio・
+    Mona Medrano・Nicko Villacorte・Daisy Rose P. Javier・Francis Angelo Dizon（8/4）と、
+    Sanjeev Tamang・Kenneth Abugadie（9/1）。
+  </p>
+  <span class="why">
+    画面: <code>/admin/hr/onboarding</code>。1名ずつ開いて16項目を確認して印を付ける作業で、
+    判断は「書類が有るか無いか」だけ。法定登録が絡むので放置の実害が最も直接的です。
+  </span>
+</div>
+
+<div class="job">
+  <div class="job-head">
+    <span class="job-n">03</span>
+    <span class="job-t">仕入先名の名寄せ</span>
+    <span class="job-vol">4組以上</span>
+  </div>
+  <p>
+    同じ仕入先が複数の表記で登録されており、クレームの集計が分散しています。
+    実測で見つかったもの:
+  </p>
+  <ul>
+    <li><code>Cash &amp; Carry Supermarket</code> ／ <code>Cash &amp; Carry</code></li>
+    <li><code>Richcath's Vegetables Stall</code> ／ <code>Ritchcath's Vegetables Stall</code></li>
+    <li><code>McAsia Foodtrade Corporation</code> ／ <code>McAsia</code></li>
+    <li><code>Three-S Food Services</code> ／ <code>Three - S</code></li>
+  </ul>
+  <span class="why">
+    上の①の表で Cash &amp; Carry が2行に割れているのがこれです。
+    名前が割れている限り「この仕入先といくら揉めているか」は正しく出ません。
+    Vendors 画面で統合し、以後は登録済みの名前から選ぶ運用にします。
+  </span>
+</div>
+
+<h2>渡してはいけない — 先に私が直す必要があるもの</h2>
+<p class="lede">
+  件数は多いのですが、今の状態で担当を付けると「毎日大量に開いて何も終わらない画面」になります。
+</p>
+
+<div class="job block">
+  <div class="job-head">
+    <span class="job-n">要修正</span>
+    <span class="job-t">Prep Time の確認</span>
+    <span class="job-vol">3,457件 ／ 1日約100件</span>
+  </div>
+  <p>
+    <strong>確認する画面が存在しません。</strong>7/25 に西村が241件確認したのが最後で、
+    以降1件も人の確認が入っていません。テーブルには確認欄があり、APIもありますが、
+    どのページからも呼ばれていません。
+  </p>
+  <span class="why">
+    <strong>ここが最大の候補です。</strong>1日約100件・判断は「読み取りが合っているか」だけで、
+    彼女に渡したい性質の作業そのもの。画面を作れば 3,457件の滞留 + 毎日100件の定常業務になります。
+    私の作業見積もり: 半日。
+  </span>
+</div>
+
+<div class="job block">
+  <div class="job-head">
+    <span class="job-n">要修正</span>
+    <span class="job-t">調達の例外検知</span>
+    <span class="job-vol">925件</span>
+  </div>
+  <p>
+    <code>SPLIT_ORDER_SUSPECT</code>（発注の分割疑い）が925件。
+    <strong>925件すべてが score 80.0・severity HIGH で、値が1件も違いません。</strong>
+    毎日6〜18件を同じ点数で起票し続けています。これは検知ではなく素通しです。
+  </p>
+  <span class="why">
+    このまま渡すと、925件を1件ずつ見て「全部同じ」と気づくまでが仕事になります。
+    ルールに閾値を入れて件数が意味を持つようにしてから渡します。
+  </span>
+</div>
+
+<div class="job block">
+  <div class="job-head">
+    <span class="job-n">工程なし</span>
+    <span class="job-t">Travel Path の検証</span>
+    <span class="job-vol">697件</span>
+  </div>
+  <p>
+    697件が「未検証」に見えますが、<strong>検証という工程がそもそも存在しません。</strong>
+    検証者欄は提出者が自分で入れる欄で、後から誰かが確認する仕組みはありません。
+    空欄なのは提出フォームがその欄を集めていないためです。
+  </p>
+  <span class="why">
+    渡す前に「そもそも誰かが確認すべき書類なのか」を決める必要があります。
+    確認が要らないなら欄を消すのが正解です。
+  </span>
+</div>
+
+<div class="job block">
+  <div class="job-head">
+    <span class="job-n">画面なし</span>
+    <span class="job-t">評価スケジュール</span>
+    <span class="job-vol">155件 ／ 期日超過18件</span>
+  </div>
+  <p>
+    最古が <strong>2025年5月25日</strong>。完了しているのは全期間で11件だけです。
+    この予定表を開く画面はどこにも存在しません。
+  </p>
+</div>
+
+<h2>復元できないので渡さないもの</h2>
+<p>
+  Cold Chain の受け取り者が空欄の122件（6/6〜9/2、現在も発生中）と、
+  Par設定183件の操作者欄（8/26の一括投入分）は、<strong>今から誰が入力したかを知る方法がありません。</strong>
+  遡って埋める作業は推測を記録に変えるだけなので割り当てません。
+  <strong>止めるべきは今後の発生</strong>で、これはフォーム側の修正です（私の作業）。
+</p>
+
+<h2>まとめ</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>渡すもの</th><th class="num">件数</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr><td>① 仕入先クレーム（₱2,000以上）</td><td class="num">53</td><td>今日から可</td></tr>
+      <tr><td>② 入社書類の検証</td><td class="num">146</td><td>今日から可</td></tr>
+      <tr><td>③ 仕入先名の名寄せ</td><td class="num">4組+</td><td>今日から可</td></tr>
+      <tr><td>④ Prep Time の確認</td><td class="num">3,457 +100/日</td><td>画面を作れば可（半日）</td></tr>
+      <tr><td>⑤ 調達の例外検知</td><td class="num">925</td><td>閾値を入れてから</td></tr>
+      <tr><td>⑥ 評価スケジュール</td><td class="num">155</td><td>画面が要る</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  ①〜③を今日渡し、④の画面を先に作るのが、量としても内容としても一番早く効きます。
+  ④が入れば毎日100件の定常業務になり、「たくさんの単純作業」という条件を継続的に満たします。
+</p>
+
+<div class="foot">
+  実測日 2026-09-03。方法: <code>information_schema</code> から status 列を持つ121テーブルを列挙し、
+  未処理件数・最古日・過去180日の処理者を突き合わせ。画面の有無はフロント・バックエンド双方の
+  コードで確認（呼ばれていないAPIは「画面なし」に分類）。
+  金額は <code>proc_claims.amount_impact</code> の絶対値。
+</div>
+
+</div>
