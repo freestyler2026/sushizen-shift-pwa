@@ -83,7 +83,7 @@
 <div class="note">
   <span class="note-label">先に結論</span>
   <p>
-    <strong>今日渡せるのは5件・約880件の作業です。</strong>
+    <strong>今日渡せるのは5件・約870件の作業です。</strong>
     放置の原因は「担当がいなかった」ことではなく、<strong>操作できる画面が無い・閾値が無い・
     工程自体が存在しない</strong>ことでした。人を割り当てるだけでは動きません。
     ④はその画面を作ったので、今日から渡せます。
@@ -233,11 +233,12 @@
   <div class="job-head">
     <span class="job-n">05</span>
     <span class="job-t">調達の例外アラート — 作り直しました</span>
-    <span class="job-vol">49件 ／ 1日0.6件</span>
+    <span class="job-vol">38件（マニラのみ）</span>
   </div>
   <p>
-    <code>/admin/procurement/exceptions</code>。925件を閉じ、ルールを書き直して、
-    直近60日を遡って検知させた結果が49件です。
+    <code>/admin/procurement/exceptions</code>。925件を閉じ、ルールを書き直し、
+    1件ずつ生データと突き合わせて検証した結果が38件です。
+    <strong>ドバイは運用前なのでアラートを出していません。</strong>
   </p>
 
   <div class="note" style="margin:14px 0 10px;">
@@ -252,14 +253,26 @@
 
   <div class="scroll">
     <table>
-      <thead><tr><th>ルール</th><th class="num">180日</th><th class="num">1日</th><th>内容</th></tr></thead>
+      <thead><tr><th>ルール</th><th class="num">現在</th><th>内容</th></tr></thead>
       <tbody>
-        <tr><td><b>DUPLICATE_REQUEST</b>（新規）</td><td class="num">88</td><td class="num">0.49</td><td>同一人物・同一店舗・同一金額が30分以内に2本</td></tr>
-        <tr><td>THRESHOLD_EDGE_PATTERN</td><td class="num">13</td><td class="num">0.07</td><td>承認ラインの5%以内に収まる金額</td></tr>
-        <tr><td>SPLIT_ORDER_SUSPECT（書き直し）</td><td class="num">10</td><td class="num">0.06</td><td>同日・同店舗・同仕入先で、各々ラインの下・合計が上</td></tr>
+        <tr><td><b>DUPLICATE_REQUEST</b>（新規）</td><td class="num">22</td><td>同一人物・同一店舗・同一金額が30分以内に2本</td></tr>
+        <tr><td>THRESHOLD_EDGE_PATTERN</td><td class="num">7</td><td>承認ラインの5%以内に収まる金額</td></tr>
+        <tr><td><b>APPROVAL_LEVEL_BELOW_AMOUNT</b>（新規）</td><td class="num">6</td><td>金額が承認者の権限を超えている</td></tr>
+        <tr><td>SPLIT_ORDER_SUSPECT（書き直し）</td><td class="num">3</td><td>同日・同店舗・同仕入先で、各々ラインの下・合計が上</td></tr>
       </tbody>
-      <tfoot><tr><td>合計</td><td class="num">111</td><td class="num">0.62</td><td>旧ルールは同期間 <b>925件・全部同じ点数</b></td></tr></tfoot>
+      <tfoot><tr><td>合計</td><td class="num">38</td><td>旧ルールは3ヶ月で <b>925件・全部同じ点数</b></td></tr></tfoot>
     </table>
+  </div>
+
+  <div class="note" style="margin:14px 0 10px;">
+    <span class="note-label">検証で見つけた本命</span>
+    <p>
+      <strong>承認段階は発注時に決まり、後から明細を編集しても再ルーティングされません。</strong>
+      つまり分割しなくても承認マトリクスは抜けられます — ラインの下で出して、後で増やすだけ。
+      閾値際のアラート11件のうち<strong>4件が検知後に金額を編集</strong>されており、
+      1件は ₱19,855（99.3%）から ₱22,625（ライン超え）に動いていました。
+      これを検知する <code>APPROVAL_LEVEL_BELOW_AMOUNT</code> を新設しました。
+    </p>
   </div>
 
   <span class="why">
@@ -274,26 +287,47 @@
   </span>
 </div>
 
-<h2>ドバイでは承認の壁が存在しません</h2>
-<p>
-  承認マトリクスは<strong>ペソ建て</strong>（テーブル名が <code>_php</code>）なのに両都市に適用されています。
-  ドバイの<strong>過去最大の発注は AED 2,910</strong> で、一番低い閾値20,000の7分の1です。
-</p>
+<h2>1件ずつ生データと突き合わせて検証しました</h2>
+<p class="lede">ルールの出力を信じず、SQLで独立に再導出して一致するかを見ています。</p>
 <div class="scroll">
   <table>
-    <thead><tr><th>都市</th><th class="num">発注数</th><th class="num">中央値</th><th class="num">最大</th><th class="num">2万到達</th><th>承認段階</th></tr></thead>
+    <thead><tr><th>検証項目</th><th class="num">結果</th></tr></thead>
     <tbody>
-      <tr><td>ドバイ</td><td class="num">2,383</td><td class="num">AED 243</td><td class="num">AED 2,910</td><td class="num">0</td><td>全件 level 0〜1</td></tr>
-      <tr><td>マニラ</td><td class="num">1,175</td><td class="num">₱7,193</td><td class="num">₱123,427</td><td class="num">209</td><td>level 2が128・3が6・4が2</td></tr>
+      <tr><td>DUPLICATE_REQUEST を生データから再導出</td><td class="num">22 / 22 一致</td></tr>
+      <tr><td>APPROVAL_LEVEL を承認マトリクスから再計算</td><td class="num">34 / 34 一致</td></tr>
+      <tr><td>SPLIT_ORDER_SUSPECT を再導出</td><td class="num">一致（修正後）</td></tr>
+      <tr><td>同一発注に対する重複アラート</td><td class="num">0件</td></tr>
+      <tr><td>取消済み・存在しない発注に紐づくアラート</td><td class="num">0件</td></tr>
     </tbody>
-    <caption>180日実測。ドバイの発注は全て店長承認だけで通っており、上位承認者に上がったことが一度もありません。</caption>
   </table>
 </div>
-<p>
-  つまり<strong>ドバイに回避すべき壁が無い</strong>ので、分割も閾値際も検知しようがありません。
-  そのようなルールは黙って0件を返すのではなく、ドバイでは実行しないようにしました。
-  <strong>ドバイ用の金額を決めるかどうかは経営判断です</strong>ので、こちらでは決めていません。
-</p>
+
+<h3>検証中に見つけて直した4点</h3>
+<ul>
+  <li><strong>同じ塊が2件のアラートを別々の深刻度で出していた</strong> —
+    3本の発注が1つの塊なのに、2本目がMEDIUM・3本目がHIGH。各々が自分より前の発注しか見ていないため。
+    アラートのキーを「人・店舗・仕入先・日付」にして1件に統合</li>
+  <li><strong>画面が古いアラートを隠していた</strong> — 200件を取ってから絞る作りで、
+    閉じた925件が枠を食い、<strong>38件あるのに33件しか表示されていなかった</strong>（落ちたのは最古の5件）</li>
+  <li><strong>陳腐化したアラートが嘘の金額を表示していた</strong> —
+    「₱17,536 は ₱20,000 のすぐ下」と出ていたが実際は87.7%。検知時は ₱19,336 で正しく、
+    その後編集されていた。検知時の値と現在値の両方を出すようにした</li>
+  <li><strong>テストアカウント `PROD E2E` の発注</strong>（2026-03-27の8件）がアラートに入っていた → 除外</li>
+</ul>
+
+<div class="note">
+  <span class="note-label">社内移動は承認ルールの対象外にしました</span>
+  <p>
+    最初の63件のうち<strong>21件が、店舗が自社のセントラルキッチンや倉庫から在庫を引く発注</strong>でした。
+    社外にお金が出ないので支払承認のラインは当てはまりません。旧ルールと同じ誤りなので除外しています。
+    <strong>重複だけは社内発注でも検知します</strong> — 二重発注は二重納品になるためです。
+  </p>
+  <p>
+    ⚠️ <strong>前回「₱92,087 が店長承認のまま」と報告したのは過大評価でした。</strong>
+    これは自社キッチンから PAR 店への在庫移動で、外部への支払いではありません。
+    外部仕入先で承認段階が足りていないのは <strong>3件・₱69,083</strong> です。
+  </p>
+</div>
 
 <div class="job block">
   <div class="job-head">
@@ -341,21 +375,21 @@
       <tr><td>② 入社書類の検証</td><td class="num">146</td><td>今日から可</td></tr>
       <tr><td>③ 仕入先名の名寄せ</td><td class="num">4組+</td><td>今日から可</td></tr>
       <tr><td>④ Prep Time の確認</td><td class="num">628 ＋15〜20/日</td><td><b>画面完成・今日から可</b></td></tr>
-      <tr><td>⑤ 調達の例外アラート</td><td class="num">49 ＋0.6/日</td><td><b>作り直し済・今日から可</b></td></tr>
+      <tr><td>⑤ 調達の例外アラート</td><td class="num">38</td><td><b>作り直し済・検証済・今日から可</b></td></tr>
       <tr><td>⑥ 評価スケジュール</td><td class="num">155</td><td>画面が要る</td></tr>
     </tbody>
-    <tfoot><tr><td>今日渡せる合計</td><td class="num">約880件</td><td></td></tr></tfoot>
+    <tfoot><tr><td>今日渡せる合計</td><td class="num">約870件</td><td></td></tr></tfoot>
   </table>
 </div>
 <p>
-  ①〜⑤を今日渡せます。合計で約880件、いずれも画面から操作できる状態です。
+  ①〜⑤を今日渡せます。合計で約870件、いずれも画面から操作できる状態です。
 </p>
 <div class="note">
   <span class="note-label">量の見込みは下方修正してください</span>
   <p>
     <strong>「単純作業をたくさん」という条件は、これでも継続的には満たせません。</strong>
     880件は数日〜2週間で片付き、そのあと残る定常業務は
-    <strong>Prep Time 1日15〜20件 ＋ 調達アラート 1日0.6件</strong>だけです。
+    <strong>Prep Time 1日15〜20件 ＋ 調達アラート 1日1件未満</strong>だけです。
   </p>
   <p>
     ⑤を「1日6〜18件」と見込んでいましたが、それは<strong>壊れたルールの発火数</strong>でした。
