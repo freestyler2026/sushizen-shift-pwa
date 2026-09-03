@@ -83,13 +83,14 @@
 <div class="note">
   <span class="note-label">先に結論</span>
   <p>
-    <strong>今すぐ渡せるのは3件（合計約200件の作業）。残りは担当を決めても着手できません。</strong>
-    放置の原因は「担当がいなかった」ことではなく、<strong>画面が無い・閾値が無い・工程自体が存在しない</strong>ことでした。
-    人を割り当てるだけでは動きません。
+    <strong>今日渡せるのは4件・約830件の作業です。</strong>
+    放置の原因は「担当がいなかった」ことではなく、<strong>操作できる画面が無い・閾値が無い・
+    工程自体が存在しない</strong>ことでした。人を割り当てるだけでは動きません。
+    ④はその画面を作ったので、今日から渡せます。
   </p>
 </div>
 
-<h2>今日から渡せる — 画面があり、判断が要らないもの</h2>
+<h2>今日から渡せる — 操作でき、判断が要らないもの</h2>
 <p class="lede">いずれも <strong>誰も一度も処理したことがない</strong> 待ち行列です。</p>
 
 <div class="job">
@@ -178,21 +179,53 @@
   件数は多いのですが、今の状態で担当を付けると「毎日大量に開いて何も終わらない画面」になります。
 </p>
 
-<div class="job block">
+<div class="job">
   <div class="job-head">
-    <span class="job-n">要修正</span>
-    <span class="job-t">Prep Time の確認</span>
-    <span class="job-vol">3,457件 ／ 1日約100件</span>
+    <span class="job-n">04</span>
+    <span class="job-t">Prep Time の確認 — 画面を作りました</span>
+    <span class="job-vol">628件 ／ 1日15〜20件</span>
   </div>
   <p>
-    <strong>確認する画面が存在しません。</strong>7/25 に西村が241件確認したのが最後で、
-    以降1件も人の確認が入っていません。テーブルには確認欄があり、APIもありますが、
-    どのページからも呼ばれていません。
+    <code>/admin/prep-time</code> を新設し、本番で動作を確認済みです。
+    配達レシートの読み取りが合っているかを見て、違えば分数を直す。1件3タップ以内で、
+    押した行はその場に残り <b>Undo</b> がすぐ横にあります。
   </p>
+
+  <div class="note" style="margin:14px 0 10px;">
+    <span class="note-label">先の見積もりは誤りでした</span>
+    <p>
+      「3,457件・1日100件」と書きましたが、実測すると
+      <strong>確認する意味があるのは628件・1日15〜20件</strong>です。
+      残り2,837件（82%）は除外ルールで統計に一切入らない行で、
+      見ても結果が変わりません。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>pending 3,465件の内訳</th><th class="num">件数</th><th>扱い</th></tr></thead>
+      <tbody>
+        <tr><td><b>確認する価値がある</b></td><td class="num">628</td><td>彼女の作業</td></tr>
+        <tr><td>写真が読めなかった</td><td class="num">1,327</td><td>作業として出さない</td></tr>
+        <tr><td>その都市に無いプラットフォーム</td><td class="num">1,485</td><td>作業として出さない</td></tr>
+        <tr><td>3分未満</td><td class="num">25</td><td>作業として出さない</td></tr>
+      </tbody>
+      <caption>
+        除外分は件数・理由・閾値を画面に表示し、Skipped タブで1件ずつ確認できます
+        （ルールを疑えるようにするため。見えない除外は信用されません）。
+      </caption>
+    </table>
+  </div>
+
   <span class="why">
-    <strong>ここが最大の候補です。</strong>1日約100件・判断は「読み取りが合っているか」だけで、
-    彼女に渡したい性質の作業そのもの。画面を作れば 3,457件の滞留 + 毎日100件の定常業務になります。
-    私の作業見積もり: 半日。
+    <strong>なぜ7月から誰も確認していなかったか</strong> — 確認APIが
+    <strong>1件ごとにPINを要求</strong>し、HQ/ADMINにベタ書きされていました。
+    1日十数件の作業には通らない作り。セッションで通るようにし、
+    <code>channel.admin.prep_time.confirm</code> を新設したので、
+    Analytics（財務データを含む）を渡さずに担当を配れます。
+    <br><br>
+    ⚠️ 先に「確認画面が存在しない」と書きましたが正確ではありません。Analytics 内に
+    Prep Time のタブは<strong>存在し</strong>、<strong>Confirm ボタンだけが無かった</strong>（Delete はあった）。
   </span>
 </div>
 
@@ -258,16 +291,30 @@
       <tr><td>① 仕入先クレーム（₱2,000以上）</td><td class="num">53</td><td>今日から可</td></tr>
       <tr><td>② 入社書類の検証</td><td class="num">146</td><td>今日から可</td></tr>
       <tr><td>③ 仕入先名の名寄せ</td><td class="num">4組+</td><td>今日から可</td></tr>
-      <tr><td>④ Prep Time の確認</td><td class="num">3,457 +100/日</td><td>画面を作れば可（半日）</td></tr>
+      <tr><td>④ Prep Time の確認</td><td class="num">628 ＋15〜20/日</td><td><b>画面完成・今日から可</b></td></tr>
       <tr><td>⑤ 調達の例外検知</td><td class="num">925</td><td>閾値を入れてから</td></tr>
       <tr><td>⑥ 評価スケジュール</td><td class="num">155</td><td>画面が要る</td></tr>
     </tbody>
+    <tfoot><tr><td>今日渡せる合計</td><td class="num">約830件</td><td></td></tr></tfoot>
   </table>
 </div>
 <p>
-  ①〜③を今日渡し、④の画面を先に作るのが、量としても内容としても一番早く効きます。
-  ④が入れば毎日100件の定常業務になり、「たくさんの単純作業」という条件を継続的に満たします。
+  ①〜④を今日渡せます。合計で約830件、着手できる状態です。
 </p>
+<div class="note">
+  <span class="note-label">ただし量の見込みは下方修正してください</span>
+  <p>
+    <strong>「単純作業をたくさん」という条件は、この4件では継続的には満たせません。</strong>
+    830件は数日で片付き、そのあと残る定常業務は Prep Time の1日15〜20件だけです。
+    ②の入社書類も新入社員が入ったときだけ、①のクレームも片付けば終わりです。
+  </p>
+  <p>
+    継続的な量が要るなら⑤か⑥に手を入れる必要があります。
+    <strong>⑤（925件）は閾値を入れれば実務になり</strong>、以後も毎日6〜18件発生し続けるので、
+    量としては一番見込みがあります。ただし今の状態は全件が同じ点数なので、
+    まず「何を検知したいのか」を決める必要があります。
+  </p>
+</div>
 
 <div class="foot">
   実測日 2026-09-03。方法: <code>information_schema</code> から status 列を持つ121テーブルを列挙し、
