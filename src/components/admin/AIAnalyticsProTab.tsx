@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, T_CAPTION } from "@/lib/ui-tokens";
+import MarkdownLite from "@/components/MarkdownLite";
 
 interface ToolCallSummary {
   tool: string;
@@ -152,39 +153,10 @@ function ts() {
 }
 
 function AnswerText({ text }: { text: string }) {
-  const lines = text.split("\n");
-  return (
-    <div className="space-y-1 text-sm leading-relaxed text-white/90">
-      {lines.map((line, i) => {
-        const t = line.trim();
-        if (t.startsWith("**") && t.endsWith("**"))
-          return (
-            <p key={i} className="mt-3 font-semibold text-white">
-              {t.replace(/\*\*/g, "")}
-            </p>
-          );
-        if (/^\*\*(.+):\*\*/.test(line))
-          return (
-            <p key={i} className="mt-3 font-semibold text-indigo-300">
-              {line.replace(/\*\*/g, "")}
-            </p>
-          );
-        if (line.startsWith("- ") || line.startsWith("• "))
-          return (
-            <p key={i} className="pl-3 text-white/80">
-              • {line.slice(2).trimStart()}
-            </p>
-          );
-        if (/^\d+\. /.test(line)) return <p key={i} className="pl-3 text-white/70">{line}</p>;
-        if (line.trim() === "") return <div key={i} className="h-1" />;
-        return (
-          <p key={i} className="whitespace-pre-wrap">
-            {line}
-          </p>
-        );
-      })}
-    </div>
-  );
+  // Was a line-at-a-time formatter that had no notion of a table, so every
+  // GFM table arrived as a wall of pipes. Shared with /admin/help so the two
+  // answer surfaces cannot drift apart.
+  return <MarkdownLite text={text} className="text-white/85" />;
 }
 
 export default function AIAnalyticsProTab() {

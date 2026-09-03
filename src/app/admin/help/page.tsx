@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HelpCircle, Send, Loader2, BookOpen } from "lucide-react";
+import MarkdownLite from "@/components/MarkdownLite";
 import { getAuth, getAuthHeaders, canAccessAdminNav, type Auth } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -174,9 +175,13 @@ export default function AdminHelpPage() {
                 : `${GLASS_CARD} px-4 py-3.5`
             }
           >
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">
-              {m.content}
-            </div>
+            {m.role === "assistant" ? (
+              <MarkdownLite text={m.content} />
+            ) : (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-violet-100">
+                {m.content}
+              </div>
+            )}
           </div>
         ))}
 
