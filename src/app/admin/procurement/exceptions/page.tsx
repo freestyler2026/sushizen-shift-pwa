@@ -103,6 +103,18 @@ function explain(row: ExceptionRow, city: string): { title: string; detail: stri
         : "Usually a coincidence. Worth a look only if the same person keeps landing here.",
     };
   }
+  if (rule === "APPROVAL_LEVEL_BELOW_AMOUNT") {
+    const roles: string[] = Array.isArray(p.required_roles) ? p.required_roles : [];
+    return {
+      title: `${money(p.total_amount, city)} approved one level too low`,
+      detail:
+        `Signed off at level ${p.level_now}; this amount needs level ${p.level_required}` +
+        `${roles.length ? ` (${roles.join(", ")})` : ""}. Status is ${p.status || "—"}.`,
+      look:
+        "The approver is set when the order is raised and does not change if the items are edited afterwards. " +
+        "Check whether the amount grew after it was signed, and get the approval it needs now.",
+    };
+  }
   if (rule === "URGENT_OVERUSE") {
     return {
       title: `Urgent used on ${Math.round(Number(p.urgent_ratio || 0) * 100)}% of recent orders`,
