@@ -1,0 +1,266 @@
+<title>店舗評価は何を測っているか</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f3f1ee; --panel:#fffefc; --panel-2:#e9e5e0; --ink:#191612; --ink-2:#463f37;
+    --ink-3:#726a60; --rule:#d8d2c9; --ink-blue:#2b3f63; --blue-soft:#e6eaf2;
+    --rust:#8f3320; --rust-soft:#f9e5e0; --amber:#8a6410; --amber-soft:#f7eeda;
+    --bar:#2b3f63; --bar-bad:#8f3320;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#121114; --panel:#1a181c; --panel-2:#242127; --ink:#ede9e4; --ink-2:#bbb3ab;
+      --ink-3:#8a8279; --rule:#312c33; --ink-blue:#8fa8d4; --blue-soft:#1a2032;
+      --rust:#e5866c; --rust-soft:#331b15; --amber:#dcae57; --amber-soft:#2f2612;
+      --bar:#8fa8d4; --bar-bad:#e5866c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#121114; --panel:#1a181c; --panel-2:#242127; --ink:#ede9e4; --ink-2:#bbb3ab;
+    --ink-3:#8a8279; --rule:#312c33; --ink-blue:#8fa8d4; --blue-soft:#1a2032;
+    --rust:#e5866c; --rust-soft:#331b15; --amber:#dcae57; --amber-soft:#2f2612;
+    --bar:#8fa8d4; --bar-bad:#e5866c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 20px 96px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--ink-blue);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,40px);
+    line-height:1.3;margin:0 0 15px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:58ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:54px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  h3{font-size:16px;font-weight:700;margin:28px 0 6px;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:64ch;}
+  p{margin:0 0 12px;max-width:66ch;}
+  ul{margin:0 0 12px;padding-left:1.2em;max-width:66ch;} li{margin-bottom:6px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+
+  .scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px;}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top;}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.03em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+    white-space:nowrap;}
+  caption{caption-side:bottom;padding:9px 12px;font-size:12px;color:var(--ink-3);text-align:left;}
+  tr.bad td{background:var(--rust-soft);}
+  .ng{color:var(--rust);font-weight:700;}
+  .bar{display:inline-block;height:9px;border-radius:2px;background:var(--bar);vertical-align:middle;}
+  .bar.bad{background:var(--bar-bad);}
+
+  .note{border-left:3px solid var(--rust);background:var(--rust-soft);padding:14px 18px;
+    margin:20px 0;border-radius:0 8px 8px 0;}
+  .note.calm{border-left-color:var(--ink-blue);background:var(--blue-soft);}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--rust);}
+  .note.calm .note-label{color:var(--ink-blue);}
+  .note p:last-child{margin-bottom:0;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:52px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ マニラ 2026-08-01 〜 09-03</div>
+<h1>店舗評価は何を測っているか</h1>
+<p class="standfirst">
+  手入力の評価点を、同じ店舗・同じ日の客観データ（Prep Time・Backup の Par 割れ・
+  Product Score）と1件ずつ突き合わせました。94件が対象です。
+</p>
+
+<div class="note">
+  <span class="note-label">結論</span>
+  <p>
+    <strong>3項目とも、実測値と対応していません。</strong>
+    Prep Time の相関は <b>0.142</b>（実質ゼロ）、Backup に至っては<strong>逆相関</strong>で、
+    高得点の日ほど Par 割れが多く発生していました。
+  </p>
+  <p>
+    <strong>甘いというより、点が現場の状態を反映していません。</strong>
+    94件中88件（94%）で全項目が3点以上、5段階の「4」に54〜84%が集中しています。
+  </p>
+</div>
+
+<h2>1 · 点数が「4」に固まっています</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>評価項目</th><th class="num">平均</th><th class="num">最小</th><th class="num">最大</th><th>「4」の割合</th></tr></thead>
+    <tbody>
+      <tr><td>food_safety（衛生）</td><td class="num">3.88</td><td class="num">3</td><td class="num">5</td><td><span class="bar" style="width:82px"></span> 82%</td></tr>
+      <tr><td>sop_compliance（手順遵守）</td><td class="num">3.84</td><td class="num">3</td><td class="num ng">4</td><td><span class="bar" style="width:84px"></span> 84%</td></tr>
+      <tr><td>organization（整理）</td><td class="num">3.84</td><td class="num">1</td><td class="num">5</td><td><span class="bar" style="width:68px"></span> 68%</td></tr>
+      <tr><td>team_support（連携）</td><td class="num">3.83</td><td class="num">2</td><td class="num">5</td><td><span class="bar" style="width:82px"></span> 82%</td></tr>
+      <tr><td>station_balance（配置）</td><td class="num">3.80</td><td class="num">2</td><td class="num">5</td><td><span class="bar" style="width:80px"></span> 80%</td></tr>
+      <tr><td>quality（品質）</td><td class="num">3.80</td><td class="num">3</td><td class="num">5</td><td><span class="bar" style="width:78px"></span> 78%</td></tr>
+      <tr><td>prep_time（調理時間）</td><td class="num">3.78</td><td class="num">2</td><td class="num">5</td><td><span class="bar" style="width:72px"></span> 72%</td></tr>
+      <tr><td>backup（仕込み在庫）</td><td class="num">3.73</td><td class="num">1</td><td class="num">5</td><td><span class="bar" style="width:68px"></span> 68%</td></tr>
+      <tr><td>problem_awareness（問題把握）</td><td class="num">3.73</td><td class="num">1</td><td class="num">5</td><td><span class="bar" style="width:73px"></span> 73%</td></tr>
+      <tr><td>cleanliness（清潔）</td><td class="num">3.65</td><td class="num">2</td><td class="num">5</td><td><span class="bar" style="width:54px"></span> 54%</td></tr>
+      <tr><td>coaching（指導）</td><td class="num">3.56</td><td class="num">1</td><td class="num">5</td><td><span class="bar" style="width:56px"></span> 56%</td></tr>
+    </tbody>
+    <caption>
+      <b>sop_compliance は3と4しか存在しません。</b>1・2・5が一度も付いたことがなく、
+      実質2値です。また94件中14件は全項目が同じ点数でした。
+    </caption>
+  </table>
+</div>
+
+<h2>2 · Prep Time の点は実測と無関係です</h2>
+<p class="lede">同じ店舗・同じ日の実測 Prep Score と突き合わせた結果。</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>手入力の点</th><th class="num">日数</th><th class="num">実測平均</th><th class="num">実測の幅</th></tr></thead>
+    <tbody>
+      <tr><td>2点</td><td class="num">1</td><td class="num">79.5</td><td class="num">—</td></tr>
+      <tr><td>3点</td><td class="num">19</td><td class="num">78.9</td><td class="num">72.6 – 81.2</td></tr>
+      <tr><td>4点</td><td class="num">55</td><td class="num">79.3</td><td class="num">71.6 – 84.0</td></tr>
+      <tr><td>5点</td><td class="num">3</td><td class="num">81.3</td><td class="num">80.5 – 82.1</td></tr>
+    </tbody>
+    <caption>相関係数 <b>0.142</b>（n=78）。この標本数では統計的に有意ではありません。</caption>
+  </table>
+</div>
+<p>
+  <strong>2点の日も5点の日も、実測は79〜81でほぼ同じです。</strong>
+  評価者が何点を付けても、その日の実際の調理時間は変わっていません。
+  5点が付いた4日間の実測は 80.3・81.3・82.1・80.5 で、全期間平均（約79）をわずかに上回る程度です。
+</p>
+
+<h2>3 · Backup は逆相関です</h2>
+<p class="lede">
+  高得点の日ほど Par 割れが多い、という関係になっています。
+  閉店報告が出た日だけで集計しています（未提出の日は Par 割れが検知されないため）。
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>手入力の点</th><th class="num">日数</th><th class="num">Par割れ 平均件数</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>2点</td><td class="num">3</td><td class="num">0.00</td><td></td></tr>
+      <tr><td>3点</td><td class="num">12</td><td class="num">0.25</td><td><span class="bar bad" style="width:9px"></span></td></tr>
+      <tr class="bad"><td><b>4点</b></td><td class="num">38</td><td class="num ng">1.45</td><td><span class="bar bad" style="width:52px"></span></td></tr>
+      <tr><td>5点</td><td class="num">5</td><td class="num">0.40</td><td><span class="bar bad" style="width:14px"></span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>具体例</h3>
+<div class="scroll">
+  <table>
+    <thead><tr><th>日付</th><th>店舗</th><th>評価者</th><th class="num">backup点</th><th class="num">Par割れ</th><th class="num">総合</th></tr></thead>
+    <tbody>
+      <tr class="bad"><td>9/03</td><td>PAR</td><td>Francis Ibana</td><td class="num">4</td><td class="num ng">33</td><td class="num">78.2</td></tr>
+      <tr><td>8/27</td><td>PAR</td><td>Richard S. Gante</td><td class="num">4</td><td class="num">8</td><td class="num">81.8</td></tr>
+      <tr><td>8/31</td><td>CUB</td><td>Richard S. Gante</td><td class="num">4</td><td class="num">6</td><td class="num">76.4</td></tr>
+      <tr><td>8/26</td><td>TAFT</td><td>Peter Villafuerte</td><td class="num">4</td><td class="num">5</td><td class="num">78.2</td></tr>
+      <tr><td>8/27</td><td>CUB</td><td>Yusuke Uejima</td><td class="num">5</td><td class="num">2</td><td class="num">72.7</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  <strong>9月3日の Paranaque は Par 割れ33件の日に backup 4点、総合78.2点</strong>です。
+  この日は評価上「良好」と記録されています。
+</p>
+
+<h2>4 · Product Score も一致しません</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>quality の点</th><th class="num">日数</th><th class="num">実測スコア</th><th class="num">C評価以下の件数</th></tr></thead>
+    <tbody>
+      <tr><td>3点</td><td class="num">14</td><td class="num">75.1</td><td class="num">8.5</td></tr>
+      <tr><td>4点</td><td class="num">63</td><td class="num">75.4</td><td class="num">7.0</td></tr>
+      <tr class="bad"><td>5点</td><td class="num">1</td><td class="num ng">73.6</td><td class="num">4.0</td></tr>
+    </tbody>
+    <caption>5点が付いた唯一の日が、実測スコアは最も低い（73.6）。</caption>
+  </table>
+</div>
+
+<h2>5 · 評価者によって基準が違います</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>評価者</th><th class="num">件数</th><th class="num">総合平均</th><th class="num">backup</th><th class="num">prep</th><th class="num">2点以下を付けた回数</th></tr></thead>
+    <tbody>
+      <tr><td>Peter Villafuerte</td><td class="num">14</td><td class="num">77.0</td><td class="num">3.93</td><td class="num">3.86</td><td class="num ng">0</td></tr>
+      <tr><td>Richard S. Gante</td><td class="num">24</td><td class="num">76.6</td><td class="num">3.67</td><td class="num">3.79</td><td class="num ng">0</td></tr>
+      <tr><td>Francis Ibana</td><td class="num">26</td><td class="num">75.8</td><td class="num">3.88</td><td class="num">3.96</td><td class="num">1</td></tr>
+      <tr><td>Yusuke Uejima</td><td class="num">19</td><td class="num">73.4</td><td class="num">3.37</td><td class="num">3.37</td><td class="num"><b>5</b></td></tr>
+      <tr><td>Ayako Nishimura</td><td class="num">9</td><td class="num">71.9</td><td class="num">3.89</td><td class="num">3.78</td><td class="num ng">0</td></tr>
+      <tr><td>Yuri Yamada</td><td class="num">2</td><td class="num">77.3</td><td class="num">4.00</td><td class="num">4.50</td><td class="num ng">0</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  <strong>94件のうち、2点以下が付いたのは6件だけ</strong>で、そのうち<strong>5件が上島氏</strong>です。
+  Richard S. Gante 氏は24件、Peter Villafuerte 氏は14件、Ayako Nishimura 氏は9件を評価して、
+  <strong>一度も2点以下を付けていません。</strong>
+</p>
+
+<h2>6 · 自動項目の半分が空です</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>自動取得の項目</th><th class="num">入力済</th><th class="num">全体</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr><td>キャンセル件数</td><td class="num">94</td><td class="num">94</td><td>稼働</td></tr>
+      <tr><td>低評価件数</td><td class="num">94</td><td class="num">94</td><td>稼働</td></tr>
+      <tr class="bad"><td>出勤率</td><td class="num ng">0</td><td class="num">94</td><td class="ng">全件空</td></tr>
+      <tr class="bad"><td>オフライン率</td><td class="num ng">2</td><td class="num">94</td><td class="ng">ほぼ空</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  出勤率が全件空なのは、この項目が読んでいた取込先が <b>2026-07-08</b> で止まっているためです
+  （別途報告済み）。<strong>自動で入るはずの4項目のうち2項目が機能していません。</strong>
+</p>
+
+<h2>提出そのものの状況</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>店舗</th><th class="num">件数</th><th class="num">日数/34</th><th class="num">平均総合点</th><th>最終</th></tr></thead>
+    <tbody>
+      <tr><td>PAR</td><td class="num">33</td><td class="num">33</td><td class="num">78.0</td><td>9/03</td></tr>
+      <tr><td>TAFT</td><td class="num">32</td><td class="num">32</td><td class="num">73.9</td><td>9/02</td></tr>
+      <tr class="bad"><td>CUB</td><td class="num">27</td><td class="num">27</td><td class="num">74.5</td><td class="ng">8/31</td></tr>
+      <tr class="bad"><td>CK</td><td class="num">2</td><td class="num">2</td><td class="num">66.4</td><td class="ng">8/05</td></tr>
+    </tbody>
+    <caption>CUB は9月に入ってから提出がありません。CK は34日中2日のみ。</caption>
+  </table>
+</div>
+
+<h2>これは「甘い」のとは少し違います</h2>
+<div class="note calm">
+  <span class="note-label">読み方の注意</span>
+  <p>
+    評価者が現場で見ているのは、Par 割れの件数ではなく<strong>「手順どおり仕込んでいたか」</strong>
+    かもしれません。その場合、点そのものは正直で、<strong>項目名が誤解を招いている</strong>ことになります。
+  </p>
+  <p>
+    ただしどちらであっても、<strong>今の点数からは店舗の状態が読み取れません。</strong>
+    Par割れ33件の日と0件の日に同じ4点が付く指標は、良し悪しを区別していません。
+  </p>
+</div>
+
+<h2>対応案</h2>
+<ul>
+  <li><strong>実測がある3項目は、手入力をやめて自動計算にする。</strong>
+    Prep Time・Backup・Product Score は毎日の実データがあります。人が推定する必要はありません</li>
+  <li><strong>手入力は実測できない項目に限る。</strong>
+    連携・指導・問題把握・整理はデータに残らないので、ここは人が見るしかありません</li>
+  <li><strong>「4」以外を選ぶ基準を書く。</strong>
+    sop_compliance が3と4しかないのは、何が3で何が5かが決まっていないからです</li>
+  <li><strong>出勤率の取込先を直す。</strong>100点中の配点があるのに8週間測れていません</li>
+</ul>
+
+<div class="foot">
+  対象 2026-08-01 〜 2026-09-03 のマニラ店舗評価94件。
+  出典: <code>store_daily_evaluations</code> ／ 実測は <code>prep_time_records</code>（status≠rejected）・
+  <code>product_score_results</code>・<code>management_tasks</code>（backup_below_50/70）。
+  店舗コードは CUB↔CUBAO を対応付け。Backup の比較は閉店報告が提出された日に限定。
+</div>
+
+</div>

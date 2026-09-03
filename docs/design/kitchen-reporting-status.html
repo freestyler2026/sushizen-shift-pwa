@@ -1,0 +1,257 @@
+<title>キッチン報告の提出状況</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#f1f2ef; --panel:#fff; --panel-2:#e6e8e2; --ink:#15170f; --ink-2:#41453a;
+    --ink-3:#6d7264; --rule:#d2d6c9; --olive:#4a5d23; --olive-soft:#e9eddd;
+    --rust:#8c3a1f; --rust-soft:#f8e8e1; --amber:#8a6410; --amber-soft:#f7eeda;
+    --bar:#4a5d23; --bar-dim:#c3cbb0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#111309; --panel:#191c12; --panel-2:#23271a; --ink:#eaeee0; --ink-2:#b6bda8;
+      --ink-3:#838a75; --rule:#2d3222; --olive:#a8c46a; --olive-soft:#1c2412;
+      --rust:#e08d70; --rust-soft:#331d16; --amber:#dcae57; --amber-soft:#2e2612;
+      --bar:#a8c46a; --bar-dim:#3c4529;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#111309; --panel:#191c12; --panel-2:#23271a; --ink:#eaeee0; --ink-2:#b6bda8;
+    --ink-3:#838a75; --rule:#2d3222; --olive:#a8c46a; --olive-soft:#1c2412;
+    --rust:#e08d70; --rust-soft:#331d16; --amber:#dcae57; --amber-soft:#2e2612;
+    --bar:#a8c46a; --bar-dim:#3c4529;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px;margin:0 auto;padding:52px 20px 96px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--olive);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,39px);
+    line-height:1.32;margin:0 0 14px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:60ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:52px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  h3{font-size:16px;font-weight:700;margin:26px 0 6px;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:64ch;}
+  p{margin:0 0 12px;max-width:66ch;}
+  ul{margin:0 0 12px;padding-left:1.2em;max-width:66ch;} li{margin-bottom:6px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+
+  .scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:600px;}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top;}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.03em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+    white-space:nowrap;}
+  caption{caption-side:bottom;padding:9px 12px;font-size:12px;color:var(--ink-3);text-align:left;}
+  tr.bad td{background:var(--rust-soft);}
+  tr.warn td{background:var(--amber-soft);}
+  .ok{color:var(--olive);font-weight:700;}
+  .ng{color:var(--rust);font-weight:700;}
+  .cov{display:inline-block;height:8px;border-radius:2px;background:var(--bar);vertical-align:middle;}
+  .cov-bg{display:inline-block;width:70px;height:8px;border-radius:2px;background:var(--bar-dim);
+    vertical-align:middle;position:relative;overflow:hidden;}
+  .cov-bg span{position:absolute;left:0;top:0;height:100%;background:var(--bar);border-radius:2px;}
+
+  .note{border-left:3px solid var(--rust);background:var(--rust-soft);padding:14px 18px;
+    margin:20px 0;border-radius:0 8px 8px 0;}
+  .note.calm{border-left-color:var(--olive);background:var(--olive-soft);}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--rust);}
+  .note.calm .note-label{color:var(--olive);}
+  .note p:last-child{margin-bottom:0;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:52px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ 2026-08-01 〜 09-03（34日間）</div>
+<h1>キッチン報告の提出状況</h1>
+<p class="standfirst">
+  現場が毎日提出する11種類の報告について、何件出ていて、どの拠点が抜けているかをまとめました。
+</p>
+
+<div class="note calm">
+  <span class="note-label">先に結論</span>
+  <p>
+    <strong>店舗の日次報告は概ね回っています。</strong>マニラ3店舗のBackup・Daily Inventory・
+    Travel Path は34日中33〜34日提出されており、Prep Time は両都市で毎日届いています。
+  </p>
+  <p>
+    <strong>止まっているのは中央キッチンと倉庫、それと廃棄報告です。</strong>
+    CK棚卸しは週39件から3件へ減り続け、WH棚卸しは8月下旬で完全に停止、
+    Paranaque の廃棄報告は34日中26日出ていません。
+  </p>
+</div>
+
+<h2>11種類の一覧</h2>
+<div class="scroll">
+  <table>
+    <thead><tr>
+      <th>報告</th><th class="num">8月</th><th class="num">9/1-3</th>
+      <th>提出範囲</th><th>状態</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><b>Prep Time</b>（調理時間の写真）</td><td class="num">6,612</td><td class="num">746</td>
+        <td>両都市8拠点</td><td class="ok">毎日</td></tr>
+      <tr><td><b>Daily Op Check</b>（開店・閉店確認）</td><td class="num">782</td><td class="num">71</td>
+        <td>ドバイ5・マニラ3</td><td class="ok">毎日</td></tr>
+      <tr><td><b>Travel Path</b>（動線・衛生）</td><td class="num">239</td><td class="num">22</td>
+        <td>マニラ3店舗</td><td class="ok">ほぼ毎日</td></tr>
+      <tr><td><b>Backup Report</b>（仕込み在庫）</td><td class="num">194</td><td class="num">24</td>
+        <td>マニラ3店舗</td><td class="ok">毎日</td></tr>
+      <tr><td><b>Daily Inventory</b>（日次在庫）</td><td class="num">119</td><td class="num">11</td>
+        <td>マニラ3店舗</td><td class="ok">ほぼ毎日</td></tr>
+      <tr class="warn"><td><b>CK 棚卸し</b></td><td class="num">99</td><td class="num">2</td>
+        <td>マニラCK</td><td>週39→3件に減少</td></tr>
+      <tr class="bad"><td><b>WH 棚卸し</b></td><td class="num">728</td><td class="num ng">0</td>
+        <td>マニラ倉庫</td><td class="ng">8/24週で停止</td></tr>
+      <tr class="bad"><td><b>Disposal Report</b>（廃棄）</td><td class="num">48</td><td class="num">4</td>
+        <td>マニラ3店舗</td><td class="ng">PARは26日欠落</td></tr>
+      <tr><td><b>Rush Hour Check</b>（ピーク時巡回）</td><td class="num">16</td><td class="num">41</td>
+        <td>導入中</td><td class="ok">立ち上がり中</td></tr>
+      <tr class="warn"><td><b>Salmon Yield</b>（歩留まり）</td><td class="num">16</td><td class="num">4</td>
+        <td>マニラ</td><td>0.5件/日</td></tr>
+      <tr class="warn"><td><b>CK 生産計画</b></td><td class="num">13</td><td class="num">2</td>
+        <td>マニラCK</td><td>提出者1名のみ</td></tr>
+    </tbody>
+    <caption>34日間の合計。9/1-3は3日分なので、8月と単純比較はできません。</caption>
+  </table>
+</div>
+
+<h2>回っているもの</h2>
+
+<h3>Backup Report — 仕込み在庫の記録</h3>
+<div class="scroll">
+  <table>
+    <thead><tr><th>拠点</th><th class="num">件数</th><th class="num">提出日</th><th>カバー率</th><th>最終</th></tr></thead>
+    <tbody>
+      <tr><td>マニラ PAR</td><td class="num">74</td><td class="num">34/34</td>
+        <td><span class="cov-bg"><span style="width:100%"></span></span></td><td>9/03</td></tr>
+      <tr><td>マニラ TAFT</td><td class="num">72</td><td class="num">34/34</td>
+        <td><span class="cov-bg"><span style="width:100%"></span></span></td><td>9/03</td></tr>
+      <tr><td>マニラ CUB</td><td class="num">61</td><td class="num">34/34</td>
+        <td><span class="cov-bg"><span style="width:100%"></span></span></td><td>9/03</td></tr>
+      <tr class="bad"><td>マニラ CK</td><td class="num">3</td><td class="num">2/34</td>
+        <td><span class="cov-bg"><span style="width:6%"></span></span></td><td>8/26</td></tr>
+      <tr class="warn"><td>ドバイ BB</td><td class="num">8</td><td class="num">4/34</td>
+        <td><span class="cov-bg"><span style="width:12%"></span></span></td><td>8/28</td></tr>
+    </tbody>
+    <caption>ドバイは BB のみで、他4店舗は提出ゼロ。運用前という理解であれば想定どおりです。</caption>
+  </table>
+</div>
+<p>主な提出者は Regine L. Pedernal 19・Gessa Gregorio 17・Joanna Mae Saraos 17・Mayorico Furio 13。</p>
+
+<h3>Prep Time — 一番多い報告</h3>
+<p>
+  8月だけで6,612件、1日平均213件。両都市8拠点すべてから29〜30日届いています。
+  <strong>件数では他の全報告の合計を上回ります。</strong>
+</p>
+<div class="scroll">
+  <table>
+    <thead><tr><th>拠点</th><th class="num">件数</th><th class="num">提出日</th></tr></thead>
+    <tbody>
+      <tr><td>マニラ TAFT</td><td class="num">1,271</td><td class="num">29/34</td></tr>
+      <tr><td>ドバイ BB</td><td class="num">1,210</td><td class="num">30/34</td></tr>
+      <tr><td>ドバイ JLT</td><td class="num">1,189</td><td class="num">30/34</td></tr>
+      <tr><td>ドバイ AM</td><td class="num">1,047</td><td class="num">29/34</td></tr>
+      <tr><td>ドバイ ARJ</td><td class="num">789</td><td class="num">30/34</td></tr>
+      <tr><td>マニラ PAR</td><td class="num">760</td><td class="num">29/34</td></tr>
+      <tr><td>ドバイ AB</td><td class="num">715</td><td class="num">29/34</td></tr>
+      <tr><td>マニラ CUB</td><td class="num">377</td><td class="num">29/34</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>Travel Path・Daily Inventory・Daily Op Check</h3>
+<ul>
+  <li><b>Travel Path</b> — CUB 33日／PAR 34日／TAFT 34日。提出者は Joven Bernejo Jr. 27・James Ray Pata 26・Rachelle Ann Caubat 21</li>
+  <li><b>Daily Inventory</b> — CUB 30日／PAR 34日／TAFT 34日。Naome Santizas 27・Reymar Contillo 19</li>
+  <li><b>Daily Op Check</b> — ドバイ5拠点すべて34/34日。マニラは CUB 32・PAR 33・TAFT 34日</li>
+</ul>
+
+<h2>止まっているもの</h2>
+
+<div class="note">
+  <span class="note-label">1 · WH 棚卸しが完全に停止しています</span>
+  <p>
+    週別の件数: <b>8/17週 670件 → 8/24週 58件 → 以降 0件</b>。9月は1件もありません。
+  </p>
+  <p>
+    728件のうち<strong>670件が上島氏1名</strong>、残り58件が Mariano Espenida Jr. です。
+    <strong>1人の作業が1回あっただけで、継続的な運用にはなっていません。</strong>
+    倉庫在庫が2週間以上更新されていないことになります。
+  </p>
+</div>
+
+<div class="note">
+  <span class="note-label">2 · CK 棚卸しが週を追って減っています</span>
+  <p>
+    <b>39 → 30 → 21 → 8 → 3 件/週。</b>止まったのではなく、細っています。
+    提出者は Gerald Solomon 38・Xydney aerol Y. Buenaseda 15・Ricardo Lamis III 14・Victoria Lim 12。
+  </p>
+  <p>
+    合わせて <strong>CKのBackup Report も8/26で最後</strong>（34日中2日）です。
+    <strong>中央キッチンからの報告が全体的に細っています。</strong>
+  </p>
+</div>
+
+<div class="note">
+  <span class="note-label">3 · Paranaque の廃棄報告が26日出ていません</span>
+  <p>
+    34日中 <b>8日しか提出がなく、最終は8/27</b>。9月は3日とも未提出です。
+  </p>
+  <p>欠落日: 8/2, 5, 6, 8〜15, 17〜23, 25, 28〜31, 9/1〜3</p>
+  <p>
+    他店舗は CUB 23日・TAFT 16日で、こちらも満点ではありません。
+    <strong>廃棄は「無かった日」も報告が必要な種類の記録</strong>なので、
+    未提出が「廃棄ゼロ」なのか「報告忘れ」なのか、いまの記録では区別できません。
+  </p>
+</div>
+
+<h2>提出者が1人に偏っているもの</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>報告</th><th>最多提出者</th><th class="num">占有</th><th>意味</th></tr></thead>
+    <tbody>
+      <tr><td>WH 棚卸し</td><td>Yusuke Uejima</td><td class="num">670/728</td><td>92%。この方が動かないと止まる</td></tr>
+      <tr><td>CK 生産計画</td><td>（1名のみ）</td><td class="num">13/13</td><td>100%</td></tr>
+      <tr><td>CK 棚卸し</td><td>Gerald Solomon</td><td class="num">38/99</td><td>38%。4名で分担</td></tr>
+    </tbody>
+  </table>
+</div>
+<p>
+  店舗の日次報告（Backup・Travel Path・Daily Inventory）は
+  <strong>いずれも複数名で分担されており、1人依存にはなっていません。</strong>
+</p>
+
+<h2>ドバイについて</h2>
+<p>
+  ドバイから届いているのは <b>Prep Time</b> と <b>Daily Op Check</b> の2種類だけです。
+  Backup Report は BB が4日出しただけ、Daily Inventory・Travel Path・Disposal は
+  <strong>全拠点で提出ゼロ</strong>。
+</p>
+<p>
+  <strong>ドバイが運用前という理解であれば想定どおりです。</strong>
+  逆に運用しているつもりであれば、5拠点とも1件も届いていないことになります。
+</p>
+
+<div class="foot">
+  対象期間 2026-08-01 〜 2026-09-03（34日間）。
+  出典テーブル: <code>backup_reports</code> / <code>daily_inv_reports</code> /
+  <code>disposal_reports</code> / <code>travel_path_reports</code> / <code>rush_checks</code> /
+  <code>salmon_yield_records</code> / <code>prep_time_records</code> /
+  <code>ck_inventory_sessions</code> / <code>ck_production_plans</code> /
+  <code>wh_stock_counts</code> / <code>daily_op_checks</code>。
+  カバー率は提出のあった日数 ÷ 34日。
+</div>
+
+</div>

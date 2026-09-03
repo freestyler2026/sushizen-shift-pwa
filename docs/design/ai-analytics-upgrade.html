@@ -1,0 +1,287 @@
+<title>AI Analytics Pro を分析者にする</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#eef0f4; --panel:#fff; --panel-2:#e3e6ec; --ink:#14161c; --ink-2:#3f4451;
+    --ink-3:#6b7180; --rule:#d1d5de; --violet:#4a3a8c; --violet-soft:#e9e6f5;
+    --rust:#8c3520; --rust-soft:#f8e7e2; --moss:#2c6146; --moss-soft:#e2efe8; --gold:#8a6512;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0f1116; --panel:#171a21; --panel-2:#20242d; --ink:#e9eaf0; --ink-2:#b3b8c6;
+      --ink-3:#7e8494; --rule:#2a2f3a; --violet:#a89ae0; --violet-soft:#1e1a33;
+      --rust:#e08a70; --rust-soft:#331b16; --moss:#7cc09c; --moss-soft:#15291f; --gold:#dcae57;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f1116; --panel:#171a21; --panel-2:#20242d; --ink:#e9eaf0; --ink-2:#b3b8c6;
+    --ink-3:#7e8494; --rule:#2a2f3a; --violet:#a89ae0; --violet-soft:#1e1a33;
+    --rust:#e08a70; --rust-soft:#331b16; --moss:#7cc09c; --moss-soft:#15291f; --gold:#dcae57;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 20px 96px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--violet);margin-bottom:12px;}
+  h1{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:clamp(27px,5vw,40px);
+    line-height:1.3;margin:0 0 15px;text-wrap:balance;}
+  .standfirst{font-size:16px;color:var(--ink-2);max-width:58ch;margin:0;}
+  h2{font-family:"Zen Old Mincho",serif;font-weight:700;font-size:22px;line-height:1.45;
+    margin:52px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--rule);text-wrap:balance;}
+  h3{font-size:16.5px;font-weight:700;margin:28px 0 6px;}
+  .lede{font-size:14.5px;color:var(--ink-2);margin:0 0 20px;max-width:64ch;}
+  p{margin:0 0 12px;max-width:66ch;}
+  ul{margin:0 0 12px;padding-left:1.2em;max-width:66ch;} li{margin-bottom:6px;}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;background:var(--panel-2);
+    padding:1px 5px;border-radius:4px;}
+  pre{background:var(--panel);border:1px solid var(--rule);border-radius:9px;padding:13px 15px;
+    overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.6;margin:14px 0;}
+
+  .phase{background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--violet);
+    border-radius:0 11px 11px 0;padding:20px 22px;margin:18px 0;}
+  .phase-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:4px;}
+  .phase-n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600;color:var(--violet);
+    letter-spacing:.08em;}
+  .phase-t{font-family:"Zen Old Mincho",serif;font-size:20px;font-weight:700;}
+  .effort{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
+    white-space:nowrap;}
+
+  .scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:540px;}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top;}
+  thead th{background:var(--panel-2);font-size:11.5px;letter-spacing:.03em;color:var(--ink-3);
+    font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;}
+  caption{caption-side:bottom;padding:9px 12px;font-size:12px;color:var(--ink-3);text-align:left;}
+
+  .note{border-left:3px solid var(--rust);background:var(--rust-soft);padding:14px 18px;
+    margin:20px 0;border-radius:0 8px 8px 0;}
+  .note.ok{border-left-color:var(--moss);background:var(--moss-soft);}
+  .note-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--rust);}
+  .note.ok .note-label{color:var(--moss);}
+  .note p:last-child{margin-bottom:0;}
+  .foot{font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule);margin-top:52px;padding-top:16px;}
+</style>
+
+<div class="wrap">
+
+<div class="eyebrow">Sushi ZEN Workforce OS ／ 実装提案</div>
+<h1>AI Analytics Pro を分析者にする</h1>
+<p class="standfirst">
+  現状は16個の固定ツールだけ。ループの作りは既に正しいので、
+  <strong>足りないのはツールと文脈</strong>です。4段階に分けた案です。
+</p>
+
+<div class="note ok">
+  <span class="note-label">すでにできていること</span>
+  <p>
+    ツールを呼んで結果を見て次を決める<strong>反復ループは実装済み</strong>（最大8ラウンド）で、
+    これは私の作業手順と同じ形です。土台を作り直す必要はありません。
+  </p>
+</div>
+
+<h2>いま何が違うのか</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>私がやっていること</th><th>現状のPro</th><th>段階</th></tr></thead>
+    <tbody>
+      <tr><td>任意のSQLを書く</td><td>16個の決まった集計のみ</td><td>第1段階</td></tr>
+      <tr><td>データの鮮度を疑う</td><td>できない（後述の実害あり）</td><td>第1段階</td></tr>
+      <tr><td>コードを読んで数字の意味を確かめる</td><td>できない</td><td><b>第2段階</b></td></tr>
+      <tr><td>過去の落とし穴を知っている</td><td>知らない</td><td>第2段階</td></tr>
+      <tr><td>10〜20回クエリを重ねる</td><td>8ラウンドで打ち切り</td><td>第3段階</td></tr>
+      <tr><td>自分の結論を否定しにいく</td><td>しない</td><td>第4段階</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  <span class="note-label">第1段階だけ入れると、いまより危険になります</span>
+  <p>
+    <code>get_attendance</code> が読む <code>actual_attendance</code> は
+    <strong>2026-07-09 で止まっており、直近30日は0件</strong>です。
+    実際の打刻は <code>os_attendance_sessions</code> に2,834件入っています。
+  </p>
+  <p>
+    いま「勤怠に問題は？」と聞くと、<strong>8週間前で止まったデータを根拠に「問題なし」と答えます。</strong>
+    SQLを開いても、鮮度を返さなければ<strong>同じ嘘をより広い範囲でつくようになります。</strong>
+  </p>
+</div>
+
+<div class="phase">
+  <div class="phase-top">
+    <span class="phase-n">PHASE 1</span>
+    <span class="phase-t">見えるようにする</span>
+    <span class="effort">1〜2日</span>
+  </div>
+  <p>ツール3本。ここが土台です。</p>
+
+  <h3>① <code>run_sql</code> — 読み取り専用の任意SQL</h3>
+  <p>16ツールの制限を外します。安全側の条件は必須です。</p>
+  <ul>
+    <li><b>読み取り専用ロールで接続</b>（`GRANT SELECT` のみ）。アプリのロールを使い回さない</li>
+    <li><code>SET LOCAL statement_timeout = 20s</code> ＋ 常に <code>ROLLBACK</code></li>
+    <li>返却は最大1,000行。超えたら「N行中1,000行」と明示</li>
+    <li><b>画像列を強制除外</b> — <code>photo_data</code> / <code>invoice_photo_b64</code> /
+      <code>image_data</code> 等。1列で864MBあり、<b>過去に本番を3回落としています</b></li>
+  </ul>
+
+  <h3>② <code>describe_schema</code> — 表・列・行数・<b>最終更新日</b></h3>
+  <p>
+    最終更新日が要点です。これがあれば <code>actual_attendance</code> を見た瞬間に
+    「7/9で止まっている」と分かります。
+  </p>
+
+  <h3>③ すべての結果に鮮度を添える</h3>
+<pre>{ "rows": [...],
+  "source": "actual_attendance",
+  "last_updated": "2026-07-09",
+  "stale": true,
+  "warning": "この表は56日間更新されていません" }</pre>
+  <p>
+    <strong>既存の16ツールにも同じものを付けます。</strong>
+    今日いちばん危険なのは新しいツールではなく、古いツールが黙って古い答えを返すことです。
+  </p>
+</div>
+
+<div class="phase">
+  <div class="phase-top">
+    <span class="phase-n">PHASE 2</span>
+    <span class="phase-t">数字の意味を読めるようにする</span>
+    <span class="effort">2〜3日</span>
+  </div>
+  <p><strong>ここが一番差が出ます。</strong>今回のセッションの発見は、大半がデータではなくコードから出ています。</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>発見</th><th>出所</th><th>データだけだとどう読むか</th></tr></thead>
+      <tbody>
+        <tr><td>調達アラート925件が全部同点</td><td><code>db.py</code> のSQL</td><td>「不正が横行」と読む</td></tr>
+        <tr><td>Prep Time 1,757件がプロンプトの例文</td><td>OCRプロンプト</td><td>正常な記録として集計する</td></tr>
+        <tr><td>単位 container は実は%</td><td><code>page.tsx</code></td><td>50個の容器と読む</td></tr>
+        <tr><td>Par判定は closing のみ</td><td>検知クエリ</td><td>全シフト見ていると思う</td></tr>
+        <tr><td>GPS精度を送っていない</td><td>front＋back突合</td><td>「385m離れている」と読む</td></tr>
+      </tbody>
+      <caption>いずれもデータだけ見ると<b>逆の結論</b>になります。</caption>
+    </table>
+  </div>
+
+  <h3>④ <code>search_code</code> — リポジトリ全文検索</h3>
+  <p>
+    Herokuのdynoにはバックエンドしか無いので、<strong>両リポジトリを索引テーブルに入れます</strong>
+    （ファイル名・行番号・本文）。デプロイ時か日次で更新。
+    「この列はどこで書かれるか」「この判定はどう計算されるか」が引けるようになります。
+  </p>
+
+  <h3>⑤ 落とし穴ノートを引けるようにする</h3>
+  <p>
+    <code>CLAUDE.md</code> には<strong>80項目の教訓</strong>が既にあります。
+    これを表に入れ、触れた表名・列名で引けるようにします。
+  </p>
+<pre>gps_ok        → false は「圏外」とは限らない。精度を確認すること
+container     → 容器数ではなく容器に対する%（0-100）
+prep_time     → excluded_reason 付きは集計に入らない
+backup par    → closing レポートのみ判定対象
+payroll       → 過去期間の再計算は現レートで上書きされる</pre>
+  <p>この2本が入ると、<strong>「データを読む」から「データの意味が分かる」に変わります。</strong></p>
+</div>
+
+<div class="phase">
+  <div class="phase-top">
+    <span class="phase-n">PHASE 3</span>
+    <span class="phase-t">深く掘れるようにする</span>
+    <span class="effort">半日</span>
+  </div>
+  <ul>
+    <li><b>ラウンド数 8 → 30。</b>今回の店舗評価の検証は
+      <strong>クエリ12回</strong>かかっています。8回では途中で終わります</li>
+    <li><b>モデルを Sonnet から Opus へ</b>（<code>AI_ANALYTICS_PRO_MODEL</code> で変更可・デプロイ不要）。
+      仮説を立てて否定しにいく作業で差が出ます</li>
+    <li><b>タイムアウトを 300秒 → 900秒</b></li>
+  </ul>
+  <p>設定変更が中心で、工数はほぼかかりません。</p>
+</div>
+
+<div class="phase">
+  <div class="phase-top">
+    <span class="phase-n">PHASE 4</span>
+    <span class="phase-t">間違いを自分で見つけさせる</span>
+    <span class="effort">1日</span>
+  </div>
+  <p>
+    <strong>結論を出す前に、それを否定する材料を探させる</strong>手順をシステムプロンプトに入れます。
+  </p>
+  <ul>
+    <li><b>対照群を必ず取る。</b>「彼は385m離れている」→
+      <strong>同じ拠点の他スタッフは12〜32m</strong>と比べて初めて意味が出ます</li>
+    <li><b>件数の異常を疑う。</b>全件同じ値・同一秒に1,227件・毎日ぴったり385m —
+      これらは<strong>データではなく仕組みの兆候</strong>です</li>
+    <li><b>答えられないときは答えない。</b>
+      「9月の3日間で13操作」から勤務実態は判定できません。
+      <strong>「区別できない」と言えることが精度です</strong></li>
+  </ul>
+
+  <div class="note">
+    <span class="note-label">実際に起きた例</span>
+    <p>
+      私は昨日、あるスタッフを「圏外打刻の最も明確な例」と<strong>名指しで誤って報告</strong>しました。
+      データだけを見た結果です。CCTVの証言とコードを突き合わせて初めて、
+      不正ではなく端末の測位不良だと分かりました。
+      <strong>この工程が無いと、同じ間違いを自動で量産します。</strong>
+    </p>
+  </div>
+</div>
+
+<h2>順番と効果</h2>
+<div class="scroll">
+  <table>
+    <thead><tr><th>段階</th><th>内容</th><th class="num">工数</th><th>入れないと</th></tr></thead>
+    <tbody>
+      <tr><td><b>1</b></td><td>SQL・スキーマ・鮮度</td><td class="num">1〜2日</td><td>そもそも見えない</td></tr>
+      <tr><td><b>2</b></td><td>コード検索・教訓ノート</td><td class="num">2〜3日</td><td><b>自信を持って誤読する</b></td></tr>
+      <tr><td><b>3</b></td><td>ラウンド数・モデル</td><td class="num">半日</td><td>途中で打ち切られる</td></tr>
+      <tr><td><b>4</b></td><td>反証の手順</td><td class="num">1日</td><td>誤った断定が残る</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="2">合計</td><td class="num">5〜7日</td><td></td></tr></tfoot>
+  </table>
+</div>
+
+<div class="note">
+  <span class="note-label">1と2はセットで入れてください</span>
+  <p>
+    1だけだと、<strong>全テーブルに手が届くのに意味が分からない状態</strong>になります。
+    いまは16ツールという制限が、結果的に誤読の範囲も狭めています。
+    その蓋を外して意味を渡さないのは、<strong>いまより悪くなる唯一の組み合わせ</strong>です。
+  </p>
+</div>
+
+<h2>それでも残る差</h2>
+<p>
+  ここまでやっても、<strong>DBにもコードにも無い情報</strong>は渡せません。今回の例で言えば:
+</p>
+<ul>
+  <li>「ドバイはまだ運用前」— どこにも書かれていません</li>
+  <li>「CCTVで本人がキッチンにいた」— OSの外の事実です</li>
+  <li>「Base Roll 5 と 8 は別商品」— 厨房の知識です</li>
+  <li>「山田さんはBOマネージャー」— <code>staff_master.position</code> は空欄でした</li>
+</ul>
+<p>
+  <strong>これらは人が伝えるしかありません。</strong>
+  ただし、伝えられた前提を<strong>教訓ノートに書き足していけば、次からは知っている状態</strong>になります。
+  <code>CLAUDE.md</code> の80項目が、まさにその蓄積です。
+</p>
+
+<div class="foot">
+  現状: <code>app/ai_analytics_pro.py</code> 1,826行。ツール16本、最大8ラウンド、
+  <code>claude-sonnet-4-6</code>、タイムアウト300秒。反復ループは実装済み。
+  作成 2026-09-03。
+</div>
+
+</div>
