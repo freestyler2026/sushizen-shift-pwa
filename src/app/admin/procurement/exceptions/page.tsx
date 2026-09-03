@@ -87,10 +87,20 @@ function explain(row: ExceptionRow, city: string): { title: string; detail: stri
   }
   if (rule === "THRESHOLD_EDGE_PATTERN") {
     const th = Number(p.threshold || 0);
+    // The amount when it was flagged, not the amount now. Orders get edited
+    // after they are raised, and repeating today's figure under "just under
+    // the line" makes the screen state something arithmetically false.
+    const then = Number(p.total_amount);
+    const now = Number(row.total_amount);
+    const moved = Number.isFinite(then) && Number.isFinite(now) && Math.abs(then - now) > 0.5;
     return {
-      title: `${amt} — just under the ${money(th, city)} approval line`,
-      detail: `Within 5% of the point where a higher approver is required.`,
-      look: "Usually a coincidence. Worth a look only if the same person keeps landing here.",
+      title: `${money(Number.isFinite(then) ? then : now, city)} — just under the ${money(th, city)} approval line`,
+      detail: moved
+        ? `That was the total when it was flagged. It is ${money(now, city)} now — the order was edited afterwards.`
+        : `Within 5% of the point where a higher approver is required.`,
+      look: moved
+        ? "The alert no longer describes the order. Worth one look at who changed it, then close."
+        : "Usually a coincidence. Worth a look only if the same person keeps landing here.",
     };
   }
   if (rule === "URGENT_OVERUSE") {
