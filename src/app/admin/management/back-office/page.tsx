@@ -372,13 +372,11 @@ function SentStampBanner({ city }: { city: string }) {
       <div className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100 flex items-start gap-2">
         <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-400" />
         <div>
-          <b>The {reminder!.times} reminder cannot reach {reminder!.missing.join(", ")}.</b>{" "}
-          No Discord ID is registered for them, so nothing arrives and unsent alerts keep
-          sitting here.{" "}
+          <b>The {reminder!.times} reminder reaches nobody.</b>{" "}
           {reminder!.will_reach.length > 0
-            ? `It does reach ${reminder!.will_reach.join(", ")}.`
-            : "Right now it reaches nobody at all."}{" "}
-          Register them under Management Channel settings.
+            ? `It reaches ${reminder!.will_reach.join(", ")}.`
+            : "No back-office person has a Discord ID registered, so nothing arrives and unsent alerts keep sitting here."}{" "}
+          Add them under <b>BO</b> in “Who alerts are sent to”, just below.
         </div>
       </div>
     )}
