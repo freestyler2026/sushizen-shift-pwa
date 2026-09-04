@@ -21,6 +21,7 @@ import {
   GLASS_CARD,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
+  SMALL_BUTTON,
   INPUT_CLASS,
   SELECT_CLASS,
   TEXTAREA_CLASS,
@@ -33,6 +34,7 @@ import {
   DIVIDER,
 } from "@/lib/ui-tokens";
 import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
+import { prepareDataUrl } from "@/lib/image-compress";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -719,7 +721,224 @@ function LaptopDeviceSection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u
   );
 }
 
+
+type SalaryRow = {
+  id?: string;
+  period_label: string;
+  basic_pay: number | null;
+  deductions: number | null;
+  note: string;
+  has_payslip?: boolean;
+  payslip_name?: string;
+};
+
+/**
+ * The cut-offs the 13th month is calculated from.
+ *
+ * Only the result used to reach this screen — the working lived in a
+ * spreadsheet. In the case that prompted this, a 5,747.15 deduction had been
+ * placed on the wrong cut-off and a 60.35 one was missing altogether, and
+ * nothing on the case could show it. The payslip is attached per cut-off
+ * because it is both the proof the salary was released and the source of the
+ * deduction figure.
+ */
+function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: number | null }) {
+  const [rows, setRows] = useState<SalaryRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${caseId}/salary-rows`, {
+        headers: getAuthHeaders(getAuth()), cache: "no-store",
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      setRows((j.rows ?? []) as SalaryRow[]);
+    } catch { /* a panel, never the page */ }
+    finally { setLoaded(true); }
+  }, [caseId]);
+  useEffect(() => { load(); }, [load]);
+
+  const actual = (r: SalaryRow) => (r.basic_pay ?? 0) - (r.deductions ?? 0);
+  const masked = rows.length > 0 && rows.every(r => isSalaryHidden(r.basic_pay));
+  const total = masked ? null : rows.reduce((s, r) => s + actual(r), 0);
+  const computed13 = total === null ? null : total / 12;
+  // Two figures that must agree. Showing them apart is what let them diverge.
+  const diff = computed13 === null || entered13th === null ? null : entered13th - computed13;
+
+  const set = (i: number, k: keyof SalaryRow, v: string) =>
+    setRows(p => p.map((r, j) => j === i
+      ? { ...r, [k]: k === "period_label" || k === "note" ? v : (parseFloat(v) || 0) }
+      : r));
+
+  async function save() {
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${caseId}/salary-rows`, {
+        method: "PUT",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(String(j.detail || `Could not save (${res.status}).`)); return; }
+      setRows((j.rows ?? []) as SalaryRow[]);
+      setMsg("Saved.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setBusy(false); }
+  }
+
+  async function attach(rowId: string | undefined, file: File) {
+    if (!rowId) { setErr("Save the row first, then attach its payslip."); return; }
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const dataUrl = await prepareDataUrl(file);
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/salary-rows/${rowId}/payslip`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ data_url: dataUrl, name: file.name, mime: file.type }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(String(j.detail || `Upload failed (${res.status}).`)); return; }
+      setMsg("Payslip attached.");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not attach the payslip.");
+    } finally { setBusy(false); }
+  }
+
+  async function view(rowId?: string) {
+    if (!rowId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/salary-rows/${rowId}/payslip`, {
+        headers: getAuthHeaders(getAuth()),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.data_url) { setErr(String(j.detail || "No payslip attached.")); return; }
+      const w = window.open();
+      if (w) w.document.write(
+        j.mime === "application/pdf"
+          ? `<iframe src="${j.data_url}" style="width:100%;height:100%;border:0"></iframe>`
+          : `<img src="${j.data_url}" style="max-width:100%">`);
+    } catch { setErr("Could not open the payslip."); }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-sm font-semibold text-white">Salary history — basis for the 13th month</p>
+      <p className="mt-1 mb-3 text-xs text-zinc-400">
+        One row per cut-off. Actual basic is calculated (basic − deductions), and the 13th
+        month is the total ÷ 12. Attach each payslip: it proves the salary was released and
+        is where the deduction figure comes from.
+      </p>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="text-[11px] uppercase tracking-wider text-zinc-500">
+              <th className="px-2 py-1 text-left">Cut-off</th>
+              <th className="px-2 py-1 text-right">Basic pay</th>
+              <th className="px-2 py-1 text-right">Late / absent / UT</th>
+              <th className="px-2 py-1 text-right">Actual basic</th>
+              <th className="px-2 py-1 text-left">Payslip</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id ?? `n${i}`} className="border-t border-white/5">
+                <td className="px-2 py-1">
+                  <input value={r.period_label} placeholder="Apr 26 – May 10"
+                    onChange={e => set(i, "period_label", e.target.value)}
+                    className="w-full rounded bg-white/5 px-2 py-1 text-white placeholder:text-zinc-600" />
+                </td>
+                <td className="px-2 py-1">
+                  <input type="number" step="0.01" value={r.basic_pay ?? ""}
+                    onChange={e => set(i, "basic_pay", e.target.value)}
+                    className="w-28 rounded bg-white/5 px-2 py-1 text-right text-white" />
+                </td>
+                <td className="px-2 py-1">
+                  <input type="number" step="0.01" value={r.deductions ?? ""}
+                    onChange={e => set(i, "deductions", e.target.value)}
+                    className="w-28 rounded bg-white/5 px-2 py-1 text-right text-white" />
+                </td>
+                <td className="px-2 py-1 text-right tabular-nums text-zinc-200">
+                  {isSalaryHidden(r.basic_pay) ? SALARY_HIDDEN : actual(r).toFixed(2)}
+                </td>
+                <td className="px-2 py-1">
+                  {r.has_payslip ? (
+                    <button onClick={() => view(r.id)}
+                            className="text-xs text-violet-300 underline hover:text-violet-200">
+                      view{r.payslip_name ? ` · ${r.payslip_name.slice(0, 18)}` : ""}
+                    </button>
+                  ) : (
+                    <label className="cursor-pointer text-xs text-zinc-400 hover:text-white">
+                      attach
+                      <input type="file" className="hidden" accept="image/*,application/pdf"
+                             onChange={e => { const f = e.target.files?.[0]; if (f) attach(r.id, f); }} />
+                    </label>
+                  )}
+                </td>
+                <td className="px-2 py-1">
+                  <button onClick={() => setRows(p => p.filter((_, j) => j !== i))}
+                          className="text-xs text-zinc-600 hover:text-red-300">×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button className={SMALL_BUTTON} disabled={busy}
+                onClick={() => setRows(p => [...p, { period_label: "", basic_pay: 0, deductions: 0, note: "" }])}>
+          + Add cut-off
+        </button>
+        <button className={SMALL_BUTTON} disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save cut-offs"}
+        </button>
+        {msg && <span className="text-xs text-emerald-300">{msg}</span>}
+        {err && <span className="text-xs text-red-300">{err}</span>}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-zinc-400">Total actual basic</span>
+            <span className="tabular-nums text-zinc-200">
+              {total === null ? SALARY_HIDDEN : total.toFixed(2)}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-zinc-400">÷ 12 = 13th month</span>
+            <span className="tabular-nums font-semibold text-white">
+              {computed13 === null ? SALARY_HIDDEN : computed13.toFixed(2)}
+            </span>
+          </div>
+          {diff !== null && (
+            <div className={`mt-2 rounded px-2 py-1.5 text-xs ${
+              Math.abs(diff) < 0.01
+                ? "bg-emerald-500/10 text-emerald-300"
+                : "bg-amber-500/10 text-amber-200"}`}>
+              {Math.abs(diff) < 0.01
+                ? "✓ Matches the Prorated 13th Month entered above."
+                : `⚠ The Prorated 13th Month above is ${entered13th?.toFixed(2)}, which is ${
+                    diff > 0 ? "higher" : "lower"} than these cut-offs by ${Math.abs(diff).toFixed(2)}. One of the two is wrong.`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Final Pay section ────────────────────────────────────────────────────────
+
 
 function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updated: ClearanceCase) => void }) {
   const [open, setOpen] = useState(c.current_stage === 0);
@@ -893,6 +1112,9 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
               </p>
             </div>
           </div>
+
+          {/* The working behind the 13th month, next to the figure it produces. */}
+          <SalaryHistory caseId={c.id} entered13th={fp.fp_prorated_13th} />
 
           <div>
             <label className={T_LABEL}>Notes</label>
