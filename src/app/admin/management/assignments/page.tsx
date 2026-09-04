@@ -126,6 +126,93 @@ function OwnerDiscord({
   );
 }
 
+/** A one-day cover, keyed to the date so it undoes itself.
+ *
+ *  Editing the weekday roster for a swap leaves it edited, and every following
+ *  week delivers to the wrong person until somebody notices. */
+function TodaySwap({ city, branches }: { city: string; branches: string[] }) {
+  const [date, setDate] = useState(() =>
+    new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }));
+  const [swaps, setSwaps] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/management/owner-swaps?city=${encodeURIComponent(city)}&on_date=${date}`,
+        { headers: getAuthHeaders(getAuth()) as Record<string, string>, cache: "no-store" });
+      if (!res.ok) return;
+      const d = await res.json() as { swaps?: Record<string, string> };
+      setSwaps(d.swaps ?? {});
+    } catch { /* the roster above still works without this */ }
+  }, [city, date]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const save = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const res = await fetch(
+        `/api/admin/management/owner-swaps?city=${encodeURIComponent(city)}`,
+        { method: "PUT",
+          headers: { ...(getAuthHeaders(getAuth()) as Record<string, string>),
+                     "Content-Type": "application/json" },
+          body: JSON.stringify({ on_date: date, swaps }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`);
+      setMsg(d.tasks_readdressed > 0
+        ? `Saved. ${d.tasks_readdressed} task(s) already raised today were re-addressed.`
+        : "Saved.");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-white/70">
+        Cover for one day
+      </h2>
+      <p className={`${T_CAPTION} mb-3`}>
+        When people swap branches for a day, name who is covering. It applies to
+        this date only and disappears afterwards — the weekly roster is left alone.
+        Tasks already raised today that nobody has answered move with it.
+      </p>
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-white/60">
+          Date
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="ml-2 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white" />
+        </label>
+        <button type="button" onClick={() => void save()} disabled={busy}
+          className={`${PRIMARY_BUTTON} px-4 py-1.5 text-xs disabled:opacity-50`}>
+          {busy ? "Saving…" : "Save cover"}
+        </button>
+        {msg && <span className="text-xs text-white/70">{msg}</span>}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {branches.map((b) => (
+          <label key={b} className="text-xs text-white/60">
+            {b}
+            <input
+              value={swaps[b] ?? ""}
+              onChange={(e) => setSwaps((p) => ({ ...p, [b]: e.target.value }))}
+              placeholder="normal owner"
+              className="ml-2 w-40 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus:border-violet-500/50"
+            />
+          </label>
+        ))}
+      </div>
+      <p className={`${T_CAPTION} mt-2`}>
+        Leave a box empty to keep that branch on its usual owner. Clearing a name
+        you saved earlier removes the cover for that branch.
+      </p>
+    </div>
+  );
+}
+
+
 function OwnerRoster({ city }: { city: string }) {
   const [data, setData] = useState<{
     branches: Record<string, string[]>;
@@ -251,6 +338,7 @@ function OwnerRoster({ city }: { city: string }) {
         never applied automatically — the published shift is not always right, and a
         silent switch delivers to someone whose branch it is not.
       </p>
+      <TodaySwap city={city} branches={branches} />
     </div>
   );
 }
