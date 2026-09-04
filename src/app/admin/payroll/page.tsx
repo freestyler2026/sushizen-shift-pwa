@@ -82,6 +82,8 @@ type SalaryConfig = {
   accommodation: number | null;
   transportation: number | null;
   other_allowances: number | null;
+  /** Agreed rate for part-timers. 0 = monthly staff, rate derived from basic. */
+  hourly_rate: number | null;
   currency: string;
   paid_via: string;
   bank_name: string;
@@ -111,6 +113,7 @@ function ConfigModal({
     accommodation: String(config?.accommodation ?? "0"),
     transportation: String(config?.transportation ?? "0"),
     other_allowances: String(config?.other_allowances ?? "0"),
+    hourly_rate: String(config?.hourly_rate ?? "0"),
     currency: config?.currency ?? (city === "manila" ? "PHP" : "AED"),
     paid_via: config?.paid_via ?? "cash",
     bank_name: config?.bank_name ?? "",
@@ -152,6 +155,7 @@ function ConfigModal({
           basic_salary: parseFloat(form.basic_salary) || 0,
           accommodation: parseFloat(form.accommodation) || 0,
           transportation: parseFloat(form.transportation) || 0,
+          hourly_rate: parseFloat(form.hourly_rate) || 0,
           other_allowances: parseFloat(form.other_allowances) || 0,
           currency: form.currency,
           paid_via: form.paid_via,
@@ -228,6 +232,21 @@ function ConfigModal({
           <div>
             <label className={labelCls}>Other Allowances</label>
             <input className={inputCls} type="number" min="0" value={form.other_allowances} onChange={e => set("other_allowances", e.target.value)} />
+          </div>
+
+          {/* For part-timers. Their basic holds what they earned that month, so
+              dividing it by 26 x 8 gave a different rate every month and never
+              the agreed one. Leave at 0 for monthly staff — the division still
+              applies and nothing changes for them. */}
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Hourly Rate (part-timers only)</label>
+            <input className={inputCls} type="number" min="0" step="0.01"
+                   value={form.hourly_rate} onChange={e => set("hourly_rate", e.target.value)} />
+            <p className="mt-1 text-[11px] text-white/40">
+              {parseFloat(form.hourly_rate) > 0
+                ? `Night premium, lateness and undertime use ${form.currency} ${form.hourly_rate}/h.`
+                : `0 = monthly staff. Rate is derived as basic ÷ 26 days ÷ 8h.`}
+            </p>
           </div>
 
           <div>
