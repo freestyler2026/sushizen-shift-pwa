@@ -187,6 +187,10 @@ function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
  */
 function SentStampBanner({ city }: { city: string }) {
   const [gap, setGap] = useState<{ count: number; rows: { id: number; type: string; branch: string }[] } | null>(null);
+  // The 17:30 reminder only reaches people with a Discord id registered. If the
+  // person who presses Send is not on that list the nudge does nothing for
+  // them, and the only place that was visible was the worker log.
+  const [reminder, setReminder] = useState<{ times: string; will_reach: string[]; missing: string[] } | null>(null);
 
   useEffect(() => {
     let dead = false;
@@ -198,7 +202,10 @@ function SentStampBanner({ city }: { city: string }) {
         );
         if (!res.ok) return;
         const j = await res.json();
-        if (!dead) setGap({ count: j.count || 0, rows: j.rows || [] });
+        if (!dead) {
+          setGap({ count: j.count || 0, rows: j.rows || [] });
+          if (j.reminder) setReminder(j.reminder);
+        }
       } catch {
         /* the banner is a safety net, not a feature — never break the page */
       }
@@ -206,8 +213,25 @@ function SentStampBanner({ city }: { city: string }) {
     return () => { dead = true; };
   }, [city]);
 
-  if (!gap || gap.count === 0) return null;
+  const nudgeBroken = reminder && reminder.missing.length > 0;
+  if ((!gap || gap.count === 0) && !nudgeBroken) return null;
   return (
+    <>
+    {nudgeBroken && (
+      <div className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100 flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-400" />
+        <div>
+          <b>The {reminder!.times} reminder cannot reach {reminder!.missing.join(", ")}.</b>{" "}
+          No Discord ID is registered for them, so nothing arrives and unsent alerts keep
+          sitting here.{" "}
+          {reminder!.will_reach.length > 0
+            ? `It does reach ${reminder!.will_reach.join(", ")}.`
+            : "Right now it reaches nobody at all."}{" "}
+          Register them under Management Channel settings.
+        </div>
+      </div>
+    )}
+    {gap && gap.count > 0 && (
     <div className="mb-4 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-2.5 text-sm text-red-100 flex items-start gap-2">
       <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-400" />
       <div>
@@ -220,6 +244,8 @@ function SentStampBanner({ city }: { city: string }) {
         </div>
       </div>
     </div>
+    )}
+    </>
   );
 }
 

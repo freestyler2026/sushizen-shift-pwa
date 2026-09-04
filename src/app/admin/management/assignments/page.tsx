@@ -52,6 +52,102 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  *  Monday and Francis the rest of the week — and a single owner per branch
  *  cannot say that.
  */
+/**
+ * Register the Discord id the channel sends to. The 17:30 reminder and every
+ * task notification go nowhere for a person who has no id here, and that was
+ * visible only as a warning nobody could act on.
+ */
+function DiscordIds({
+  rows, missing, onSaved,
+}: {
+  rows: { staff_name: string; discord_user_id: string; display_name: string }[];
+  missing: string[];
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [uid, setUid] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const save = async (staffName: string, discordId: string) => {
+    if (!staffName.trim()) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/management/channel-discord", {
+        method: "PUT",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ staff_name: staffName.trim(), discord_user_id: discordId.trim() }),
+      });
+      // The response is read before anything is called a success: a save that
+      // silently failed here means a notification that silently never arrives.
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(String(j.detail || `Could not save (${res.status}).`));
+        return;
+      }
+      setName("");
+      setUid("");
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-4">
+      <p className="mb-1 text-sm font-semibold text-white">Discord IDs</p>
+      <p className="mb-3 text-xs text-zinc-400">
+        Notifications and the daily reminder are sent by Discord DM. A person with no ID
+        here receives nothing. To find an ID: Discord → Settings → Advanced → Developer
+        Mode on, then right-click the person → Copy User ID (a number, not a @name).
+      </p>
+
+      {rows.length > 0 && (
+        <div className="mb-3 space-y-1">
+          {rows.map((r) => (
+            <div key={r.staff_name} className="flex items-center gap-2 text-sm text-zinc-300">
+              <span className="min-w-[180px]">{r.staff_name}</span>
+              <code className="rounded bg-white/10 px-2 py-0.5 font-mono text-xs text-violet-200">
+                {r.discord_user_id}
+              </code>
+              <button
+                className={SMALL_BUTTON}
+                disabled={busy}
+                onClick={() => save(r.staff_name, "")}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={missing[0] ? `Name — e.g. ${missing[0]}` : "Staff name"}
+          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-500"
+        />
+        <input
+          value={uid}
+          onChange={(e) => setUid(e.target.value)}
+          placeholder="Discord user ID (numbers only)"
+          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-500"
+        />
+        <button className={SMALL_BUTTON} disabled={busy || !name.trim() || !uid.trim()}
+                onClick={() => save(name, uid)}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+      {err && <p className="mt-2 text-sm text-red-300">{err}</p>}
+    </div>
+  );
+}
+
 function OwnerRoster({ city }: { city: string }) {
   const [data, setData] = useState<{
     branches: Record<string, string[]>;
@@ -122,10 +218,15 @@ function OwnerRoster({ city }: { city: string }) {
           <p className="text-sm text-amber-200">
             <strong>{data.missing_discord_id.join(", ")}</strong> {data.missing_discord_id.length === 1 ? "has" : "have"} no
             Discord ID, so no notification is posted for them. They would have to open
-            the page themselves.
+            the page themselves. Add them below.
           </p>
         </div>
       )}
+
+      {/* Until now this table could only be written by the seed, so anyone it
+          did not list could never be reached — including two of the three
+          people who actually press Send. */}
+      <DiscordIds rows={data.discord} missing={data.missing_discord_id} onSaved={load} />
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-[13px]">
