@@ -186,13 +186,18 @@ export default function ProcurementExceptionsPage() {
   // requests still waiting to be paid, and afterwards there was no way to ask
   // why any of them had been closed.
   const [note, setNote] = useState<Record<string, string>>({});
+  // Refusals belong next to the row that was refused. The page-level banner is
+  // off-screen once the list is a few rows long, so a close that bounced would
+  // look like a button that does nothing.
+  const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
 
   const review = async (eventId: string, status: "REVIEWED" | "CLOSED") => {
     const why = (note[eventId] || "").trim();
     if (why.length < 10) {
-      setError("Say why in a few words first — e.g. \"same order, second one voided\" or \"approved by manager on 8/14\".");
+      setRowMsg((p) => ({ ...p, [eventId]: "Say why in a few words first — e.g. \"same order, second one voided\"." }));
       return;
     }
+    setRowMsg((p) => ({ ...p, [eventId]: "" }));
     setBusyId(eventId + status);
     setError("");
     setSuccessMsg("");
@@ -214,7 +219,7 @@ export default function ProcurementExceptionsPage() {
       setActed((p) => ({ ...p, [eventId]: status }));
       setNote((p) => ({ ...p, [eventId]: "" }));
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setRowMsg((p) => ({ ...p, [eventId]: e?.message || String(e) }));
     } finally {
       setBusyId("");
     }
@@ -356,6 +361,9 @@ export default function ProcurementExceptionsPage() {
                     placeholder="Why is this alright? (required)"
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500"
                   />
+                  {rowMsg[row.id] ? (
+                    <p className="text-[11px] leading-snug text-amber-300">{rowMsg[row.id]}</p>
+                  ) : null}
                   <div className="flex gap-2">
                   <button
                     type="button"
