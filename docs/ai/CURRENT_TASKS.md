@@ -1,6 +1,57 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-03（Prep Time 確認キュー新設 ＋ 放置キューの棚卸し）
+Last updated: 2026-09-04（Prep Time を Grab の注文台帳に置き換える調査 — 明日ここから再開）
+
+---
+
+## 🔜 次にやること — Prep Time を写真から Grab の注文台帳へ（2026-09-04 調査完了・実装未着手）
+
+**詳細は `docs/design/prep-time-from-grab.md`。明日はそれを開くところから。**
+
+### 分かったこと（実測・Taft店 9/1〜9/3）
+
+現行の写真＋OCR方式は、Grabの注文207件のうち **116件（56%）しか見ておらず**、
+そのうち**注文時刻の36%が誤り**（最大581分ずれ＝別のレシートを読んでいる）。
+確認する人はOCRと同じ写真を見るので、**人力では見つからない**。件数削減では直らない。
+
+Grabの Orders → History が叩く API で、注文単位のデータが取れる:
+
+```
+GET https://api.grab.com/delvplatformapi/merchant/v1/reports/daily-pagination
+    ?startTime=YYYY-MM-DDT00:00:00+04:00&endTime=...&pageIndex=0&pageSize=50
+```
+
+`displayID`(=GF-286) / `createdAt`(UTC・マニラ+8) / `deliveryStatus` /
+**`preparationTaskID`**(207件全件) / **`isPreparationTaskDelayed`** /
+**`preparationTaskDelayedByMin`**(3〜19分)。
+
+**調理完了の絶対時刻は無い**（注文行をクリックしても詳細APIは呼ばれない）。
+取れるのは遅延の有無と分数まで。それでも現行より確実。
+
+### 明日の手順
+
+1. **まずセッションを取り直す**（Grabは数日で失効）。ログインは本人が行う:
+   ```bash
+   node scripts/grab/setup-session.js taft
+   ```
+   `paranaque` / `taft` / `qc` の3店舗ぶん必要（1ログイン＝1店舗）
+2. `node scripts/grab/get-orders.js taft 2026-09-01 2026-09-03` で取得（作成・動作確認済み）
+3. 3店舗ぶんの件数をOS側と店舗別に比較
+4. `grab_orders` テーブルを作り、worker で日次取り込み
+5. **写真ベースと並走**させてから切り替え
+
+### 切り替え方針
+
+- `prep_time_records` 9,808件は**削除しない**（旧方式として残す／教訓43と同じ）
+- 写真投稿は残してよいが**スコアの根拠から外す**
+- **毎朝の確認キューは廃止**（確認しても精度が上がらないため）
+
+### 併せて判明
+
+- ドバイの `grabfood` 2,270件は**UAEにGrabFoodが無い**ため全件誤読。ドバイのPrep Timeは根拠が薄い
+- `ocr_confidence` は未処理668件すべて `medium` — 優先順位に使えない
+- 2026-07に私が確認した241件は**訂正ゼロ**＝判子を押しただけだった
+- `scripts/grab/taft-api-responses.json` がセッション作成時に更新済み（業務データ。コミット可否は要判断）
 
 ---
 
