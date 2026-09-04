@@ -20,6 +20,7 @@ import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
   SELECT_CLASS,
   INPUT_CLASS,
   TAB_CONTAINER,
@@ -291,6 +292,11 @@ function DispatchForm({ city }: { city: string }) {
   const [outstanding, setOutstanding] = useState<Outstanding | null>(null);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
   const [returnDone, setReturnDone] = useState(false);
+  // One photo, taken on dispatch day. The request was to confirm the boxes are
+  // back, cleaned, and the ice packs washed and in the freezer — three things
+  // one picture of the cleaned boxes shows, and three tickboxes would not.
+  const [returnPhoto, setReturnPhoto] = useState<File | null>(null);
+  const [returnPhotoPreview, setReturnPhotoPreview] = useState("");
   // Photo upload
   const photoRef                          = useRef<HTMLInputElement>(null);
   const [photoFile,    setPhotoFile]      = useState<File | null>(null);
@@ -388,6 +394,21 @@ function DispatchForm({ city }: { city: string }) {
         ...softBags.map(b => toBoxPayload(b, 100 + b.box_number)),
       ];
       const isNewFlow = city === "manila" && allBoxes.length > 0;
+
+      // Uploaded before the dispatch so the URL can be stored with the return
+      // note. A failure here never stops the dispatch.
+      let returnPhotoUrl = "";
+      if (returnPhoto) {
+        try {
+          const fd = new FormData();
+          fd.append("city", city);
+          fd.append("file", await prepareUpload(returnPhoto));
+          const r = await fetch("/api/store/cold-chain/return-photo", {
+            method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
+          });
+          if (r.ok) returnPhotoUrl = (await r.json())?.photo_url || "";
+        } catch { /* the note is recoverable; a stopped delivery is not */ }
+      }
       const payload: Record<string, unknown> = {
         city,
         dispatched_by: dispatchedBy,
@@ -398,6 +419,7 @@ function DispatchForm({ city }: { city: string }) {
         gyoza_dispatched: gcDispatched,
         gyoza_returned:   gcReturned,
         equipment_returned: buildReturnedJson(),
+        return_photo_url: returnPhotoUrl,
       };
 
       const res = await fetch("/api/store/cold-chain/dispatch", {
@@ -428,7 +450,9 @@ function DispatchForm({ city }: { city: string }) {
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
       setNotes(""); setEquipmentQty({}); setPhotoFile(null); setPhotoPreview("");
       setBoxes([]); setSoftBags([]); setGcDispatched([]); setGcReturned([]);
-      setReturnQty({}); setReturnDone(false); await loadOutstanding();
+      setReturnQty({}); setReturnDone(false);
+      setReturnPhoto(null); setReturnPhotoPreview("");
+      await loadOutstanding();
       setDestBranches([...branches]); // reset to all-selected for next dispatch
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -506,6 +530,21 @@ function DispatchForm({ city }: { city: string }) {
                 <button type="button" onClick={markAllReturned} className={PRIMARY_BUTTON}>
                   All returned
                 </button>
+                <label className={`${SECONDARY_BUTTON} cursor-pointer text-xs`}>
+                  {returnPhoto ? "Photo attached" : "Photo of cleaned boxes + ice packs"}
+                  <input type="file" accept="image/*" className="hidden"
+                         onChange={(e) => {
+                           const f = e.target.files?.[0];
+                           if (!f) return;
+                           setReturnPhoto(f);
+                           setReturnPhotoPreview(URL.createObjectURL(f));
+                         }} />
+                </label>
+                {returnPhotoPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={returnPhotoPreview} alt="returned boxes"
+                       className="h-10 w-10 rounded object-cover" />
+                )}
                 {returnDone && (
                   <span className="text-xs text-emerald-300">
                     Recorded with this dispatch when you submit.
