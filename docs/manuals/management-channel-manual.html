@@ -1287,6 +1287,59 @@ ul.body-list strong { color: var(--text); }
       </div>
     </div>
 
+    <!-- DUBAI PRICE VARIANCE -->
+    <h2><span class="ja">⓪ ドバイ：請求書とPOの価格差アラート（2026-09-04 開始）</span><span class="en">⓪ Dubai: invoice-vs-PO price alerts (from 2026-09-04)</span></h2>
+    <div class="card" style="margin-bottom:10px;">
+      <p class="ja">
+        <strong>担当: Yuri Yamada さん。</strong>ドバイの請求書が、発注書（PO）と <strong>15%以上ちがう単価</strong>で
+        届いたとき、Management Inbox に届きます。<strong>30%以上は赤</strong>で表示されます。
+      </p>
+      <p class="ja">
+        これまでは画面を開かないと気づけず、Ruby さんが請求書を手で読んで報告していました。
+        <strong>OSは同じ差を先に記録していましたが、誰にも伝えていませんでした。</strong>
+      </p>
+      <p class="ja" style="margin-top:8px;">
+        <strong>見方</strong> — 左メニューの <strong>Management Inbox</strong> を開きます。
+        初期表示が「<strong>Assigned to me</strong>（自分宛）」なので、支店を選ぶ必要はありません。
+        メニューにバッジが出ていれば未対応があります（<strong>1日を過ぎると赤</strong>）。
+      </p>
+      <p class="ja" style="margin-top:8px;">
+        1件はこう表示されます。
+      </p>
+      <div class="mono" style="margin:6px 0;">
+        Invoice Price Differs From PO<br>
+        UPO was ordered at 60.00 and invoiced at 75.00 (+25%).<br>
+        Please confirm the change with the supplier before the invoice is paid.
+      </div>
+      <p class="ja" style="margin-top:8px;">
+        <strong>対応</strong> — 仕入先に確認したうえで、下から1つ選びます。
+      </p>
+      <ul class="ja">
+        <li><strong>Supplier Confirmed — New Price Accepted</strong> … 値上げ／値下げが正しく、その価格で支払う</li>
+        <li><strong>Supplier Will Reissue the Invoice</strong> … 仕入先の誤りで、請求書を出し直してもらう</li>
+        <li><strong>Our PO Had the Old Price</strong> … こちらのPOが古い価格だった。<strong>次回のPOを直す</strong></li>
+        <li><strong>Still Checking With Supplier</strong> … 確認中。タスクは残り、翌日も表示される</li>
+        <li><strong>Other…</strong> … 上記以外。<strong>理由の記入が必要</strong></li>
+      </ul>
+      <div class="warn ja" style="margin-top:8px;">
+        <strong>支払い前に対応してください。</strong>この通知は「請求書を払ってよいか」の判断材料です。
+        支払ってしまうと、価格の交渉余地がなくなります。
+      </div>
+      <div class="tip ja" style="margin-top:8px;">
+        同じ品目が複数件並ぶことがあります。請求書チェックが複数あると、行ごとに1件ずつ出るためです。
+        <strong>それぞれ別の請求書</strong>なので、まとめずに1件ずつ回答してください。
+      </div>
+      <div class="tip ja" style="margin-top:8px;">
+        <strong>請求書側の単価が 0.00 の行は通知しません</strong>（月に約29件）。
+        これは価格ではなく取り込みの欠落で、価格の話に混ぜると本物が埋もれるためです。
+        取り込み漏れが気になる場合は Invoice Inbox で確認してください。
+      </div>
+      <p class="ja" style="margin-top:8px;">
+        <strong>前提</strong> — このアラートは <strong>Invoice Inbox で請求書が承認された後</strong>に出ます。
+        承認が止まると、価格差も検出されません（2026年6〜8月は承認が止まり、3か月ぶん検出できていませんでした）。
+      </p>
+    </div>
+
     <!-- HQ DAILY CHECK -->
     <h2><span class="ja">① 日次・週次の確認項目</span><span class="en">① Daily & weekly checks</span></h2>
     <div class="card" style="margin-bottom:10px;">
