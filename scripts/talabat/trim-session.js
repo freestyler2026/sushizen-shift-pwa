@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const IN_JSON       = path.join(__dirname, 'talabat-session.json');
 const DISCOVERY_JSON = path.join(__dirname, 'talabat-api-discovery.json');
@@ -55,7 +56,7 @@ const trimmed = { cookies, origins, bearerToken };
 
 // ── 3. Encode and report ──────────────────────────────────────────────────────────
 const json = JSON.stringify(trimmed);
-const b64  = Buffer.from(json).toString('base64');
+const b64  = zlib.gzipSync(Buffer.from(json), { level: 9 }).toString('base64');  // workflow が gunzip する
 
 fs.writeFileSync(OUT_JSON, json);
 fs.writeFileSync(OUT_B64, b64);

@@ -12,6 +12,7 @@
 const { chromium } = require('playwright');
 const fs   = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const OUT_JSON = path.join(__dirname, 'talabat-session.json');
 const OUT_B64  = path.join(__dirname, 'talabat-session.b64.txt');
@@ -113,7 +114,10 @@ async function main() {
     process.exit(1);
   }
   const data = JSON.parse(fs.readFileSync(OUT_JSON, 'utf8'));
-  const b64  = Buffer.from(JSON.stringify(data)).toString('base64');
+  // ワークフローは `base64 -d > …json.gz` のあと gunzip する。非圧縮で書くと
+  // そこで壊れる。加えて非圧縮の 109KB は GitHub のシークレット上限 48KB を
+  // 超えるため、そもそも登録できない（2026-09-05 Careem で実際に起きた）。
+  const b64  = zlib.gzipSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64');
   fs.writeFileSync(OUT_B64, b64);
   fs.writeFileSync(OUT_API, JSON.stringify(captured, null, 2));
 
