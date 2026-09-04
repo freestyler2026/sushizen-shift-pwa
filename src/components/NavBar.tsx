@@ -78,8 +78,6 @@ import {
   ChartLine,
   Timer,
   HelpCircle,
-  Gauge,
-  Radar,
   CalendarX2,
   ChevronRight,
 } from "lucide-react";
@@ -318,13 +316,13 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" , cat: "inv" },
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" , cat: "money" },
+  // The Management Channel's other pages — Par Levels, Patterns, People,
+  // Weekly Review, Required Reports, Owners — are tabs across the top of this
+  // one. Listing four of the seven here too gave the same page two doors with
+  // different names, and no hint that the other three existed at all.
   { href: "/admin/management/back-office", label: "BO Dashboard", icon: ShieldAlert, adminOnly: true, match: "prefix" , cat: "ops" },
-  { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Gauge, adminOnly: true, match: "prefix" , cat: "ops" },
-  { href: "/admin/management/patterns", label: "Pattern Detection", icon: Radar, adminOnly: true, match: "prefix" , cat: "ops" },
-  { href: "/admin/management/people", label: "People", icon: Users, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/finance/vendors", label: "Vendors", icon: Building2, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/finance/documents", label: "Filing Ledger", icon: Receipt, adminOnly: true, match: "prefix" , cat: "proc" },
-  { href: "/admin/management/area-review", label: "Area Manager Review", icon: TrendingUp, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" , cat: "sys" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" , cat: "money" },

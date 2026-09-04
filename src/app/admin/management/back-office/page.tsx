@@ -201,7 +201,9 @@ type MgmtRecipient = {
  * who the daily reminder goes to.
  */
 function StoreRecipients() {
-  const STORES = useMemo(() => ["TAFT", "PAR", "CUB", "CK", "BO"], []);
+  // Stores only. The back-office people are named on the Owners tab, next
+  // to the exception types they own — one place, and it can say which.
+  const STORES = useMemo(() => ["TAFT", "PAR", "CUB", "CK"], []);
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Record<string, MgmtRecipient[]> | null>(null);
   const [store, setStore] = useState("TAFT");
@@ -315,17 +317,18 @@ function StoreRecipients() {
       {open && (
         <div className="border-t border-white/10 px-4 py-3">
           <p className="mb-3 text-xs text-zinc-400">
-            Pressing Send DMs everyone listed for that store. <strong>BO</strong> is not a
-            store — it is the back-office people who press Send, and it is who the daily
-            reminder goes to. To find an ID: Discord → Settings → Advanced → Developer Mode,
-            then right-click the person → Copy User ID (17–19 digits, not a @name).
+            Pressing Send DMs everyone listed for that store — this is who hears about that
+            branch&apos;s exceptions. (The daily reminder goes to the back-office owners
+            instead; set them on the <strong>Owners</strong> tab.) To find an ID: Discord →
+            Settings → Advanced → Developer Mode, then right-click the person → Copy User ID
+            (17–19 digits, not a @name).
           </p>
 
           <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {STORES.map((c) => (
               <div key={c} className="rounded-lg border border-white/10 bg-black/20 p-3">
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                  {c === "BO" ? "BO (back office)" : c}
+                  {c}
                 </p>
                 {(data?.[c] || []).length === 0 ? (
                   <p className="text-xs text-amber-300">Nobody — alerts for {c} reach no one.</p>
@@ -368,7 +371,7 @@ function StoreRecipients() {
             <SelectDark
               value={store}
               onChange={(v) => setStore(v)}
-              options={STORES.map((c) => ({ value: c, label: c === "BO" ? "BO (back office)" : c }))}
+              options={STORES.map((c) => ({ value: c, label: c }))}
               aria-label="Store to add this person to"
               className="w-44 text-sm"
             />

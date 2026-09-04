@@ -52,6 +52,80 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  *  Monday and Francis the rest of the week — and a single owner per branch
  *  cannot say that.
  */
+/**
+ * How to reach each owner. The daily reminder tells a person what is still
+ * unsent *of their own types*, so an owner with no Discord id is a queue
+ * nobody is being told about — and that was only visible in a worker log.
+ */
+function OwnerDiscord({
+  city, owners, edit, setEdit, msg, setMsg, onSaved,
+}: {
+  city: string;
+  owners: { staff_name: string; discord_user_id: string; types: string[] }[];
+  edit: Record<string, string>;
+  setEdit: (v: Record<string, string>) => void;
+  msg: string;
+  setMsg: (v: string) => void;
+  onSaved: () => void;
+}) {
+  const [busy, setBusy] = useState("");
+  if (!owners.length) return null;
+  const missing = owners.filter((o) => !o.discord_user_id);
+
+  const save = async (name: string) => {
+    setBusy(name); setMsg("");
+    try {
+      const res = await fetch("/api/admin/management/bo-pages/discord", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, staff_name: name, discord_user_id: (edit[name] ?? "").trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      setMsg(res.ok ? `Saved for ${name}.` : String(j.detail || `Could not save (${res.status}).`));
+      if (res.ok) { const n = { ...edit }; delete n[name]; setEdit(n); onSaved(); }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setBusy(""); }
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+      <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-white/70">
+        Daily reminder
+      </h2>
+      <p className={`${T_CAPTION} mb-3`}>
+        At 17:30 each owner is sent a Discord DM listing what is still unsent{" "}
+        <strong>of their own exception types</strong>. Nothing is sent when nothing is
+        waiting. An owner with no ID here is not reminded at all.
+      </p>
+      {missing.length > 0 && (
+        <p className="mb-3 text-sm text-amber-300">
+          Not reminded: <strong>{missing.map((o) => o.staff_name).join(", ")}</strong>
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        {owners.map((o) => (
+          <div key={o.staff_name} className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="min-w-[180px] text-zinc-200">{o.staff_name}</span>
+            <span className="min-w-[90px] text-xs text-zinc-500">{o.types.length} type(s)</span>
+            <input
+              value={edit[o.staff_name] ?? o.discord_user_id}
+              onChange={(e) => setEdit({ ...edit, [o.staff_name]: e.target.value })}
+              placeholder="Discord user ID (numbers only)"
+              className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder:text-zinc-500"
+            />
+            <button className={SMALL_BUTTON} disabled={busy === o.staff_name}
+                    onClick={() => save(o.staff_name)}>
+              {busy === o.staff_name ? "Saving…" : "Save"}
+            </button>
+          </div>
+        ))}
+      </div>
+      {msg && <p className="mt-2 text-sm text-zinc-300">{msg}</p>}
+    </div>
+  );
+}
+
 function OwnerRoster({ city }: { city: string }) {
   const [data, setData] = useState<{
     branches: Record<string, string[]>;
@@ -187,6 +261,11 @@ export default function ManagementAssignmentsPage() {
   const [city, setCity] = useState<"manila" | "dubai">("manila");
   const [rows, setRows] = useState<MatrixRow[]>([]);
   const [boPages, setBoPages] = useState<BoPage[]>([]);
+  // The 17:30 reminder goes to these people about the types they own, so how to
+  // reach them belongs on the same row that says what they own.
+  const [owners, setOwners] = useState<{ staff_name: string; discord_user_id: string; types: string[] }[]>([]);
+  const [dmEdit, setDmEdit] = useState<Record<string, string>>({});
+  const [dmMsg, setDmMsg] = useState("");
   const [staff, setStaff] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -222,7 +301,11 @@ export default function ManagementAssignmentsPage() {
       const bp = await fetch(`/api/admin/management/bo-pages?city=${city}`, {
         cache: "no-store", headers: getAuthHeaders(auth),
       });
-      if (bp.ok) setBoPages(((await bp.json())?.pages ?? []) as BoPage[]);
+      if (bp.ok) {
+        const j = await bp.json();
+        setBoPages((j?.pages ?? []) as BoPage[]);
+        setOwners((j?.owners ?? []) as { staff_name: string; discord_user_id: string; types: string[] }[]);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -360,6 +443,9 @@ export default function ManagementAssignmentsPage() {
       )}
 
       <OwnerRoster city={"manila"} />
+
+      <OwnerDiscord city={city} owners={owners} edit={dmEdit} setEdit={setDmEdit}
+                    msg={dmMsg} setMsg={setDmMsg} onSaved={load} />
 
       {/* Ownership is per page in the design — one person, one page, one manual.
           The per-type table below stays for exceptions to that, but the page is
