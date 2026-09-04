@@ -1,0 +1,285 @@
+<title>アラートが止まる理由</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f0f3; --panel:#fffdff; --panel-2:#e7e3ea; --ink:#191519; --ink-2:#453f48;
+    --ink-3:#6f6874; --rule:#d6d0da; --plum:#5b3560; --plum-soft:#efe6f1;
+    --rust:#8a3626; --rust-soft:#f8e6e1; --moss:#3a6146; --moss-soft:#e3ece6; --gold:#8a6512;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+      --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+      --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+    }
+  }
+  [data-theme="dark"]{
+    --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+    --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+    --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    font-size:16px; line-height:1.85; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 22px 90px}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink-3); margin:0 0 12px;
+  }
+  h1{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:clamp(30px,5.4vw,46px);
+    line-height:1.28; margin:0 0 8px; text-wrap:balance; letter-spacing:.01em;
+  }
+  .standfirst{font-size:17px; color:var(--ink-2); margin:0 0 34px; max-width:64ch}
+  h2{
+    font-family:"Zen Old Mincho",serif; font-weight:700; font-size:22px; line-height:1.4;
+    margin:52px 0 14px; padding-top:22px; border-top:1px solid var(--rule); text-wrap:balance;
+  }
+  h3{font-size:15.5px; font-weight:700; margin:28px 0 8px}
+  p{margin:0 0 15px; max-width:66ch}
+  .lede{font-size:17px; color:var(--ink-2)}
+  ul,ol{margin:0 0 15px; padding-left:1.3em; max-width:66ch}
+  li{margin-bottom:7px}
+  code{font-family:"IBM Plex Mono",monospace; font-size:.87em; background:var(--panel-2); padding:1px 5px; border-radius:4px}
+  .note{background:var(--rust-soft); border-left:3px solid var(--rust); padding:16px 18px; margin:20px 0; border-radius:0 6px 6px 0}
+  .note.calm{background:var(--plum-soft); border-left-color:var(--plum)}
+  .note.good{background:var(--moss-soft); border-left-color:var(--moss)}
+  .note p{margin:0 0 10px} .note p:last-child{margin:0}
+  .note-label{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--rust); display:block; margin-bottom:7px; font-weight:600;
+  }
+  .note.calm .note-label{color:var(--plum)}
+  .note.good .note-label{color:var(--moss)}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:26px 0}
+  .kpi{background:var(--panel); border:1px solid var(--rule); border-radius:9px; padding:16px 17px}
+  .kpi-l{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px}
+  .kpi-v{font-family:"Zen Old Mincho",serif; font-size:31px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--plum)}
+  .kpi-v.bad{color:var(--rust)}
+  .kpi-n{font-size:12.5px; color:var(--ink-3); margin-top:5px; line-height:1.55}
+  .scroll{overflow-x:auto; margin:20px 0; border:1px solid var(--rule); border-radius:9px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+  th{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; background:var(--panel-2)}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right; font-variant-numeric:tabular-nums; font-family:"IBM Plex Mono",monospace}
+  .pick td{background:var(--moss-soft)}
+  .bad td{background:var(--rust-soft)}
+  .day{margin:22px 0; border:1px solid var(--rule); border-radius:10px; background:var(--panel); padding:18px 20px}
+  .tl{display:grid; grid-template-columns:64px 1fr; gap:0 14px; font-size:14px}
+  .tl-t{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-3); padding:7px 0; text-align:right}
+  .tl-b{padding:7px 0 7px 16px; border-left:2px solid var(--rule); position:relative}
+  .tl-b::before{content:""; position:absolute; left:-5px; top:14px; width:8px; height:8px; border-radius:50%; background:var(--rule)}
+  .tl-b.on::before{background:var(--plum)}
+  .tl-b.hot::before{background:var(--rust)}
+  .foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Sushi ZEN Workforce OS ／ 現状確認と実装案</p>
+  <h1>アラートが止まる理由</h1>
+  <p class="standfirst">
+    BO Dashboard のアラートがキッチンマネージャーに届かない件を、実データで確認しました。
+    <strong>17:30 に1回という案は、測ってみると足りません。</strong>その理由と代案です。
+  </p>
+
+  <h2>配信は壊れていません。押す人がいないだけです</h2>
+
+  <p class="lede">
+    Send を押すと <code>notify_task_owner()</code> が動き、担当マネージャーへ Discord DM が出ます。
+    マネージャー5名は全員 Discord 登録済みで、経路は生きています。
+    <strong>止まっているのは「送るものがある」と BO 担当に伝える部分だけ</strong>です。
+  </p>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-l">検知の実行</div>
+      <div class="kpi-v">15<span style="font-size:15px;color:var(--ink-3)">分毎</span></div>
+      <div class="kpi-n">止まっていない</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Par割れ 送信までの平均</div>
+      <div class="kpi-v bad">9.9<span style="font-size:15px;color:var(--ink-3)">時間</span></div>
+      <div class="kpi-n">70%割れは5.5時間</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">30日で送られず終わった</div>
+      <div class="kpi-v bad">28<span style="font-size:15px;color:var(--ink-3)">件</span></div>
+      <div class="kpi-n">backup系73件のうち</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">backup系の発生</div>
+      <div class="kpi-v">1.2<span style="font-size:15px;color:var(--ink-3)">件/日</span></div>
+      <div class="kpi-n">60日で73件。多すぎはしない</div>
+    </div>
+  </div>
+
+  <p>
+    <strong>9.9時間は「リアルタイムで上げないと意味がない」という指摘そのものです。</strong>
+    朝のレポートで Par 割れが出ても、伝わるのは夕方以降になっています。
+  </p>
+
+  <h2>17:30 の1回では 60% しか拾えません</h2>
+
+  <p>
+    バックアップレポートの提出時刻を30日ぶん実測すると、<strong>1日に2つの波</strong>があります。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>シフト</th><th class="num">件数</th><th>提出の時間帯</th><th>平均</th></tr></thead>
+      <tbody>
+        <tr><td><strong>morning</strong>（朝）</td><td class="num">94</td><td>10:00 – 13:00</td><td>約 11:00</td></tr>
+        <tr><td><strong>midday</strong>（昼）</td><td class="num">27</td><td>14:00 – 19:00</td><td>約 17:00</td></tr>
+        <tr><td><strong>closing</strong>（閉店）</td><td class="num">64</td><td>10:00 – 22:00</td><td>約 16:30</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    この波にアラートの発生時刻が従います。候補時刻ごとに「その日のうちに拾える割合」を計算しました
+    （backup系 60日・73件）。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>確認の時刻</th><th class="num">当日中に拾える</th><th>取りこぼし</th></tr></thead>
+      <tbody>
+        <tr class="bad"><td><strong>17:30 に1回</strong>（ご要望）</td><td class="num">44 / 73（60%）</td><td>朝の18件が6時間遅れ。残り29件は翌日</td></tr>
+        <tr><td>18:30 に1回</td><td class="num">48 / 73（66%）</td><td>同上</td></tr>
+        <tr><td>19:30 に1回</td><td class="num">58 / 73（79%）</td><td>朝の分が8時間遅れ</td></tr>
+        <tr class="pick"><td><strong>13:30 と 19:30 の2回</strong></td><td class="num">58 / 73（79%）</td><td><strong>朝の分は約2時間で伝わる</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="note-label">17:30 だけにすると起きること</span>
+    <p>
+      <strong>朝の Par 割れ 18件（25%）が、その日の夕方まで誰にも伝わりません。</strong>
+      朝に分かっていれば当日の仕込みで直せますが、17:30 に言われても手遅れです。
+      <strong>一番間に合う指摘が、一番遅れて届く</strong>ことになります。
+    </p>
+  </div>
+
+  <h2>1日の流れ（2回体制の場合）</h2>
+
+  <div class="day">
+    <div class="tl">
+      <div class="tl-t">10:00–13:00</div>
+      <div class="tl-b on">朝のバックアップレポートが届く（3店舗・94件/30日）</div>
+      <div class="tl-t">13:30</div>
+      <div class="tl-b hot"><strong>1回目の確認。</strong>朝の Par 割れをここで送る — <strong>まだ当日中に直せる</strong></div>
+      <div class="tl-t">14:00–19:00</div>
+      <div class="tl-b on">昼・閉店のレポートが届く</div>
+      <div class="tl-t">19:30</div>
+      <div class="tl-b hot"><strong>2回目の確認。</strong>閉店分を送る — 翌日の仕込みに間に合う</div>
+      <div class="tl-t">翌 10:00</div>
+      <div class="tl-b">22時までにずれ込んだ分（TAFT の閉店など）を回収</div>
+    </div>
+  </div>
+
+  <h2>実装案 — A と B、どちらかを選んでください</h2>
+
+  <h3>案A（推奨）— バックアップのアラートは自動で送る</h3>
+
+  <p>
+    <strong>Par 割れの Send に判断は要りません。</strong>
+    閾値は計算済み、文面は生成済み、宛先は当番表で決まっています。
+    人が押すことで加わっているのは <strong>9.9時間の遅れだけ</strong>です。
+  </p>
+
+  <ul>
+    <li>backup 50%割れ / 70%割れ のみ、検知の <strong>15分後に自動送信</strong>（15分は訂正の猶予）</li>
+    <li>宛先は現在と同じ当番表。<strong>当番が決まっていない支店は自動送信しない</strong>（今のガードを維持）</li>
+    <li>他の種類（Product Score・Disposal・Rush Check）は<strong>従来どおり人が押す</strong>。
+        判断が要るものと要らないものを分ける</li>
+    <li><code>MGMT_AUTOSEND_TYPES</code> で対象を指定。<strong>やめるのは設定を空にするだけ</strong>（デプロイ不要）</li>
+    <li>自動送信は <code>sent_by='auto'</code> で記録し、人の送信と混ざらないようにする</li>
+  </ul>
+
+  <p>
+    件数は 1.2件/日 なので、自動化しても通知が溢れません。
+    <strong>「決めた時間に必ず確認する」より確実で、担当の手も空きます。</strong>
+  </p>
+
+  <h3>案B — 人が押す運用のまま、確認を促す</h3>
+
+  <p>ご要望どおり人を残す場合は、<strong>17:30 の1回ではなく 13:30 と 19:30 の2回</strong>にしてください。</p>
+
+  <ul>
+    <li>その時刻に未送信があれば、当番の BO 担当へ <strong>Discord DM で件数と支店名</strong>を送る</li>
+    <li>未送信が 0 件なら<strong>何も送らない</strong>（毎日鳴る通知は読まれなくなります）</li>
+    <li>30分後にまだ未送信なら、もう一度だけ。それでも残れば翌朝に持ち越し、画面に日数を出す</li>
+  </ul>
+
+  <div class="note calm">
+    <span class="note-label">案Bには先に片付ける前提があります</span>
+    <p>
+      <strong>Discord に登録されているのはマネージャー5名だけで、送る側の BO 担当が入っていません。</strong>
+      直近30日で送信作業をしているのは Erica May Sadiasa（100件）と Aliana Manuel（89件）ですが、
+      <strong>2人とも未登録なので、今のままでは DM が届きません。</strong>
+      登録は Management Channel の設定画面から行えます。
+    </p>
+  </div>
+
+  <h2>Aliana さんの Discord 告知を止める件</h2>
+
+  <div class="note">
+    <span class="note-label">先に確認したいこと</span>
+    <p>
+      OS のアラートは<strong>「支店ごと・品目ごとに、その支店のマネージャーへ個別に」</strong>送られます。
+      Aliana さんの告知が<strong>全店まとめた一覧</strong>だとすると、止めた瞬間に
+      <strong>「全体でどこが薄いか」を見る人がいなくなります</strong>。個別DMは受け取った本人しか見ません。
+    </p>
+    <p>
+      止める前に、<strong>告知の実物を1回見せていただけますか。</strong>
+      同じ内容を OS 側から1本の要約として出す必要があるなら、それも一緒に作ります
+      （2回の確認時刻に合わせて「本日のPar割れ一覧」を1本投稿する形）。
+    </p>
+  </div>
+
+  <h2>あわせて報告 — 別の種類が溜まっています</h2>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>種類</th><th class="num">30日の検知</th><th class="num">送信</th><th class="num">送られず終了</th></tr></thead>
+      <tbody>
+        <tr class="bad"><td>Product Score C以下</td><td class="num">194</td><td class="num">47</td><td class="num">147（76%）</td></tr>
+        <tr><td>Rush Hour Check 未提出</td><td class="num">57</td><td class="num">33</td><td class="num">24</td></tr>
+        <tr><td>Disposal Report 未提出</td><td class="num">42</td><td class="num">16</td><td class="num">26</td></tr>
+        <tr><td>Backup Par割れ（50%・70%）</td><td class="num">73</td><td class="num">45</td><td class="num">28</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>Product Score は194件中147件（76%）が送られないまま終わっています。</strong>
+    これは担当の怠慢ではなく、<strong>件数が多すぎて読めない</strong>状態です。
+    バックアップの件が片付いたら、こちらは<strong>閾値を見直す</strong>のが先で、
+    確認時刻を決めても解決しません。
+  </p>
+
+  <h2>決めていただきたいこと</h2>
+
+  <ol>
+    <li><strong>案A（自動送信）と案B（2回の確認）のどちらか。</strong>
+      バックアップだけは自動送信にする案Aを推します。9.9時間の遅れが即座に消えます。</li>
+    <li><strong>案Bなら、Erica さんと Aliana さんの Discord 登録。</strong>これが無いと通知が届きません。</li>
+    <li><strong>Aliana さんの告知の実物。</strong>止める前に、代わりに必要な要約があるか確認します。</li>
+  </ol>
+
+  <p class="foot">
+    測定日 2026-09-04。対象は <code>management_tasks</code>（マニラ・直近30〜60日）と
+    <code>backup_reports</code>（マニラ・30日）。時刻はすべて Asia/Manila に変換して集計。
+    配信経路は <code>main.py</code> の <code>notify_task_owner()</code>、
+    Discord 登録は <code>management_channel_discord</code> の実データで確認。
+  </p>
+
+</div>
