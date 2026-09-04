@@ -920,13 +920,17 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
               {computed13 === null ? SALARY_HIDDEN : computed13.toFixed(2)}
             </span>
           </div>
+          {/* One peso, not one centavo. 44,252.85 ÷ 12 is 3,687.7375 and the
+              figure people record is 3,687.75 — a correct rounding. Warning on
+              that teaches everyone to ignore the warning. */}
           {diff !== null && (
             <div className={`mt-2 rounded px-2 py-1.5 text-xs ${
-              Math.abs(diff) < 0.01
+              Math.abs(diff) <= 1
                 ? "bg-emerald-500/10 text-emerald-300"
                 : "bg-amber-500/10 text-amber-200"}`}>
-              {Math.abs(diff) < 0.01
-                ? "✓ Matches the Prorated 13th Month entered above."
+              {Math.abs(diff) <= 1
+                ? `✓ Matches the Prorated 13th Month entered above${
+                    Math.abs(diff) >= 0.005 ? ` (rounded, ${diff > 0 ? "+" : "−"}${Math.abs(diff).toFixed(2)})` : ""}.`
                 : `⚠ The Prorated 13th Month above is ${entered13th?.toFixed(2)}, which is ${
                     diff > 0 ? "higher" : "lower"} than these cut-offs by ${Math.abs(diff).toFixed(2)}. One of the two is wrong.`}
             </div>
