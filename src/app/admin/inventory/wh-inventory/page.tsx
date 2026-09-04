@@ -129,7 +129,11 @@ function gapLabel(gap: number, hasVal: boolean): string {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Manila's date, not the browser's UTC one. toISOString() rolls over eight
+  // hours early, and the warehouse counts at 03:46-07:32 — every one of those
+  // would have been filed under the day before, and the 14:00 alert would then
+  // report a count that had in fact been done.
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 }
 
 function printWhDeliveryNote(req: PendingRequest, city: string) {
