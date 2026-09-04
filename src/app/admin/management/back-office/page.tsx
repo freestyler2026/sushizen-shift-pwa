@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -198,7 +198,7 @@ type MgmtRecipient = { id: number; staff_name: string; discord_user_id: string; 
  * who the daily reminder goes to.
  */
 function StoreRecipients() {
-  const STORES = ["TAFT", "PAR", "CUB", "CK", "BO"];
+  const STORES = useMemo(() => ["TAFT", "PAR", "CUB", "CK", "BO"], []);
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Record<string, MgmtRecipient[]> | null>(null);
   const [store, setStore] = useState("TAFT");
@@ -218,7 +218,22 @@ function StoreRecipients() {
     } catch { /* a panel, never the page */ }
   }, []);
 
-  useEffect(() => { if (open) load(); }, [open, load]);
+  // Load on mount, not on open. Gating the fetch behind the toggle meant the
+  // "nobody registered" badge — the only thing that makes this panel worth
+  // opening — could never appear, because the data it reads never arrived
+  // until somebody had already opened it.
+  useEffect(() => { load(); }, [load]);
+
+  // A store nobody is registered for is the case this panel exists for, so it
+  // opens itself rather than waiting to be found.
+  const [autoOpened, setAutoOpened] = useState(false);
+  useEffect(() => {
+    if (autoOpened || !data) return;
+    if (STORES.some((c) => !(data[c] || []).length)) {
+      setOpen(true);
+      setAutoOpened(true);
+    }
+  }, [data, autoOpened, STORES]);
 
   const add = async () => {
     setBusy(true); setErr("");
