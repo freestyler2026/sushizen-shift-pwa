@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryDueBanner from "@/components/InventoryDueBanner";
 import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
@@ -848,6 +849,8 @@ export default function WhInventoryPage() {
   return (
     <div className="space-y-6">
       <InventoryTabs />
+
+      <InventoryDueBanner taskType="wh_inventory_missing" cutoff="14:00" city={city} />
 
       {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
