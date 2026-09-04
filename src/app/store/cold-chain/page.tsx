@@ -57,6 +57,14 @@ const MANILA_EQUIPMENT: EquipmentDef[] = [
 
 type EquipmentQty = Record<string, number>;
 
+type Outstanding = {
+  started: boolean;
+  since: string | null;
+  items: { id: string; label: string; unit: string; short: number;
+           days_out: number | null; branches: string[] }[];
+  gyoza_outstanding: number[];
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Box form used in CK Dispatch form */
@@ -278,6 +286,11 @@ function DispatchForm({ city }: { city: string }) {
   // Gyoza containers GC CK-1 to GC CK-63 (Manila only)
   const [gcDispatched, setGcDispatched] = useState<number[]>([]);
   const [gcReturned,   setGcReturned]   = useState<number[]>([]);
+  // What has gone out and not come back. Read before anything is loaded: the
+  // person building the next delivery is the person standing next to the boxes.
+  const [outstanding, setOutstanding] = useState<Outstanding | null>(null);
+  const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  const [returnDone, setReturnDone] = useState(false);
   // Photo upload
   const photoRef                          = useRef<HTMLInputElement>(null);
   const [photoFile,    setPhotoFile]      = useState<File | null>(null);
@@ -319,6 +332,32 @@ function DispatchForm({ city }: { city: string }) {
   const toggleGcReturned = (n: number) =>
     setGcReturned((prev) => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n].sort((a, b) => a - b));
 
+  const loadOutstanding = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/store/cold-chain/outstanding?city=${city}`,
+                            { headers: getAuthHeaders(), cache: "no-store" });
+      if (!r.ok) return;
+      setOutstanding(await r.json());
+    } catch { /* a panel, never the form */ }
+  }, [city]);
+  useEffect(() => { loadOutstanding(); }, [loadOutstanding]);
+
+  // Everything out is back unless the person says otherwise. Asking them to
+  // pick returns out of sixty-three numbers is why the field that already
+  // existed was filled zero times out of a hundred and two.
+  const markAllReturned = () => {
+    const q: Record<string, number> = {};
+    (outstanding?.items || []).forEach((i) => { q[i.id] = i.short; });
+    setReturnQty(q);
+    setGcReturned(outstanding?.gyoza_outstanding || []);
+    setReturnDone(true);
+  };
+
+  const buildReturnedJson = () =>
+    (outstanding?.items || [])
+      .filter((i) => (returnQty[i.id] ?? 0) > 0)
+      .map((i) => ({ id: i.id, label: i.label, qty: returnQty[i.id], unit: i.unit }));
+
   const buildEquipmentJson = () =>
     MANILA_EQUIPMENT
       .filter((e) => (equipmentQty[e.id] ?? 0) > 0)
@@ -358,6 +397,7 @@ function DispatchForm({ city }: { city: string }) {
         boxes: isNewFlow ? allBoxes : [],
         gyoza_dispatched: gcDispatched,
         gyoza_returned:   gcReturned,
+        equipment_returned: buildReturnedJson(),
       };
 
       const res = await fetch("/api/store/cold-chain/dispatch", {
@@ -388,6 +428,7 @@ function DispatchForm({ city }: { city: string }) {
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
       setNotes(""); setEquipmentQty({}); setPhotoFile(null); setPhotoPreview("");
       setBoxes([]); setSoftBags([]); setGcDispatched([]); setGcReturned([]);
+      setReturnQty({}); setReturnDone(false); await loadOutstanding();
       setDestBranches([...branches]); // reset to all-selected for next dispatch
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -398,6 +439,84 @@ function DispatchForm({ city }: { city: string }) {
 
   return (
     <div className="space-y-4">
+      {/* Before anything is loaded: what went out and has not come back.
+          Placed first because this is the one moment somebody is standing in
+          front of the cooler boxes anyway — and because the delivery that got
+          held up was held up by boxes nobody knew were still in the car. */}
+      {city === "manila" && outstanding && (
+        <div className={`rounded-xl border p-4 ${
+          (outstanding.items.length || outstanding.gyoza_outstanding.length)
+            ? "border-amber-500/40 bg-amber-500/10"
+            : "border-white/10 bg-white/5"}`}>
+          <p className="text-sm font-semibold text-white">
+            Returned from the last trip?
+          </p>
+
+          {!outstanding.started ? (
+            <p className="mt-1 text-xs text-zinc-400">
+              Nothing to check yet — the count starts the first time you confirm returns here.
+              Press <strong>All returned</strong> once the boxes are back and it will track from then on.
+            </p>
+          ) : outstanding.items.length === 0 && outstanding.gyoza_outstanding.length === 0 ? (
+            <p className="mt-1 text-xs text-emerald-300">
+              ✓ Everything from {outstanding.since} is back.
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 mb-2 text-xs text-amber-200">
+                Still out since {outstanding.since}. Untick nothing if it is all back.
+              </p>
+              <div className="space-y-1.5">
+                {outstanding.items.map((i) => (
+                  <div key={i.id} className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="min-w-[150px] text-zinc-200">{i.label}</span>
+                    <span className="text-amber-300">
+                      {i.short} {i.unit} out
+                      {i.days_out !== null && i.days_out > 0 && (
+                        /* Days, not just a count. "Two boxes short" is a number
+                           nobody chases; "two boxes since Monday" is a thing
+                           somebody goes and finds. */
+                        <span className="ml-1 text-amber-400">· {i.days_out}d</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-zinc-500">{i.branches.join(", ")}</span>
+                    <span className="ml-auto flex items-center gap-1">
+                      <span className="text-xs text-zinc-400">back</span>
+                      <input
+                        type="number" min={0} max={i.short}
+                        value={returnQty[i.id] ?? ""}
+                        onChange={(e) => setReturnQty((p) => ({
+                          ...p, [i.id]: Math.max(0, Math.min(i.short, parseInt(e.target.value) || 0)) }))}
+                        className="w-16 rounded bg-white/5 px-2 py-1 text-right text-white"
+                      />
+                    </span>
+                  </div>
+                ))}
+                {outstanding.gyoza_outstanding.length > 0 && (
+                  <div className="pt-1 text-sm text-zinc-300">
+                    Gyoza containers out: {outstanding.gyoza_outstanding.length}
+                    <span className="ml-2 text-xs text-zinc-500">
+                      GC CK-{outstanding.gyoza_outstanding.slice(0, 10).join(", ")}
+                      {outstanding.gyoza_outstanding.length > 10 ? " …" : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={markAllReturned} className={PRIMARY_BUTTON}>
+                  All returned
+                </button>
+                {returnDone && (
+                  <span className="text-xs text-emerald-300">
+                    Recorded with this dispatch when you submit.
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Dispatched By */}
       <div>
         <label className={`${T_LABEL} mb-1 block`}>Dispatched By</label>
