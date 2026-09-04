@@ -185,211 +185,11 @@ function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
  * which is exactly how this went unnoticed the first time. Silent when there is
  * nothing to say.
  */
-type MgmtRecipient = {
-  id: number; staff_name: string; discord_user_id: string; is_active: boolean;
-  discord_dm_status?: string; discord_checked_at?: string | null;
-};
-
-/**
- * Who each store's alerts are DM'd to, edited where the sending happens.
- *
- * Send posts a mention in the shared city channel, which is read if the person
- * happens to be looking. It now also DMs this list. The list is the same table
- * the Discord Alerts page edits — one list, two doors, so they cannot drift.
- *
- * BO is not a store: it is the back-office people who press Send, and it is
- * who the daily reminder goes to.
- */
-function StoreRecipients() {
-  // Stores only. The back-office people are named on the Owners tab, next
-  // to the exception types they own — one place, and it can say which.
-  const STORES = useMemo(() => ["TAFT", "PAR", "CUB", "CK"], []);
-  const [open, setOpen] = useState(false);
-  const [data, setData] = useState<Record<string, MgmtRecipient[]> | null>(null);
-  const [store, setStore] = useState("TAFT");
-  const [name, setName] = useState("");
-  const [uid, setUid] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/management/recipients", {
-        headers: getAuthHeaders(getAuth()), cache: "no-store",
-      });
-      if (!res.ok) return;
-      const j = await res.json();
-      setData(j.stores || {});
-    } catch { /* a panel, never the page */ }
-  }, []);
-
-  // Load on mount, not on open. Gating the fetch behind the toggle meant the
-  // "nobody registered" badge — the only thing that makes this panel worth
-  // opening — could never appear, because the data it reads never arrived
-  // until somebody had already opened it.
-  useEffect(() => { load(); }, [load]);
-
-  // A store nobody is registered for is the case this panel exists for, so it
-  // opens itself rather than waiting to be found.
-  const [autoOpened, setAutoOpened] = useState(false);
-  useEffect(() => {
-    if (autoOpened || !data) return;
-    if (STORES.some((c) => !(data[c] || []).length)) {
-      setOpen(true);
-      setAutoOpened(true);
-    }
-  }, [data, autoOpened, STORES]);
-
-  const add = async () => {
-    setBusy(true); setErr("");
-    try {
-      const res = await fetch("/api/admin/management/recipients", {
-        method: "POST",
-        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
-        body: JSON.stringify({ store_code: store, staff_name: name.trim(), discord_user_id: uid.trim() }),
-      });
-      // Read the response before calling it saved: a registration that failed
-      // silently is a manager who never hears from this channel again.
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setErr(String(j.detail || `Could not save (${res.status}).`)); return; }
-      // Registering is not the same as being reachable, so say which happened.
-      const chk = j.dm_check;
-      if (chk && chk.ok === false) {
-        setErr(`Saved, but Discord cannot deliver to ${name.trim()}: ${chk.detail}`);
-      } else if (chk && chk.ok) {
-        setOk(`✅ ${name.trim()} added — Discord will deliver to them. Press “test” to send one real message.`);
-      } else {
-        setOk(`${name.trim()} added.`);
-      }
-      setName(""); setUid(""); await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not reach the server.");
-    } finally { setBusy(false); }
-  };
-
-  // Sends one real message and reports what happened, in the words of the
-  // failure rather than a status code.
-  const test = async (id: number, who: string) => {
-    setBusy(true); setErr(""); setOk("");
-    try {
-      const res = await fetch(`/api/admin/management/recipients/${id}/test`, {
-        method: "POST", headers: getAuthHeaders(getAuth()),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok && j.ok) setOk(`✅ Delivered to ${who}. Ask them to confirm they saw it.`);
-      else setErr(`❌ ${who}: ${String(j.detail || `failed (${res.status})`)}`);
-      await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not reach the server.");
-    } finally { setBusy(false); }
-  };
-
-  const remove = async (id: number) => {
-    if (!confirm("Remove this person from the list? They will stop receiving alerts for this store.")) return;
-    setBusy(true); setErr("");
-    try {
-      const res = await fetch(`/api/admin/management/recipients/${id}`, {
-        method: "DELETE", headers: getAuthHeaders(getAuth()),
-      });
-      if (!res.ok) { setErr(`Could not remove (${res.status}).`); return; }
-      await load();
-    } finally { setBusy(false); }
-  };
-
-  const empty = data ? STORES.filter((c) => !(data[c] || []).length) : [];
-
-  return (
-    <div className="mb-4 rounded-xl border border-white/10 bg-white/5">
-      <button className="flex w-full items-center justify-between px-4 py-3 text-left"
-              onClick={() => setOpen((v) => !v)}>
-        <span className="text-sm font-semibold text-white">
-          Who alerts are sent to
-          {empty.length > 0 && (
-            <span className="ml-2 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">
-              {empty.join(", ")} — nobody registered
-            </span>
-          )}
-        </span>
-        <span className="text-xs text-zinc-400">{open ? "Hide" : "Show"}</span>
-      </button>
-
-      {open && (
-        <div className="border-t border-white/10 px-4 py-3">
-          <p className="mb-3 text-xs text-zinc-400">
-            Pressing Send DMs everyone listed for that store — this is who hears about that
-            branch&apos;s exceptions. (The daily reminder goes to the back-office owners
-            instead; set them on the <strong>Owners</strong> tab.) To find an ID: Discord →
-            Settings → Advanced → Developer Mode, then right-click the person → Copy User ID
-            (17–19 digits, not a @name).
-          </p>
-
-          <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {STORES.map((c) => (
-              <div key={c} className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                  {c}
-                </p>
-                {(data?.[c] || []).length === 0 ? (
-                  <p className="text-xs text-amber-300">Nobody — alerts for {c} reach no one.</p>
-                ) : (
-                  (data?.[c] || []).map((r) => (
-                    <div key={r.id} className="flex items-center justify-between gap-2 py-0.5 text-sm text-zinc-300">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate">{r.staff_name}</span>
-                        {/* What Discord said last time, in words. A status code
-                            tells the reader nothing they can act on. */}
-                        {r.discord_dm_status === "ok" ? (
-                          <span title="Discord will deliver to this person" className="text-emerald-400">✓</span>
-                        ) : r.discord_dm_status && r.discord_dm_status !== "unregistered" ? (
-                          <span title="Discord refused — press Test for the reason" className="text-red-400">✕</span>
-                        ) : (
-                          <span title="Never checked" className="text-zinc-600">•</span>
-                        )}
-                      </span>
-                      {/* These were faint grey words and could not be found at
-                          all. A control nobody can see is a control that does
-                          not exist. */}
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        <button
-                          className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-200 hover:bg-violet-500/20 disabled:opacity-50"
-                          disabled={busy} onClick={() => test(r.id, r.staff_name)}
-                          title="Send one real message to check it arrives">Test</button>
-                        <button
-                          className="rounded-md border border-red-400/30 bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-200 hover:bg-red-500/20 disabled:opacity-50"
-                          disabled={busy} onClick={() => remove(r.id)}
-                          title="Stop sending this store's alerts to this person">Remove</button>
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <SelectDark
-              value={store}
-              onChange={(v) => setStore(v)}
-              options={STORES.map((c) => ({ value: c, label: c }))}
-              aria-label="Store to add this person to"
-              className="w-44 text-sm"
-            />
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name"
-                   className="min-w-[160px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-500" />
-            <input value={uid} onChange={(e) => setUid(e.target.value)} placeholder="Discord user ID"
-                   className="min-w-[180px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-500" />
-            <button className={SMALL_BUTTON} disabled={busy || !name.trim() || !uid.trim()} onClick={add}>
-              {busy ? "Saving…" : "Add"}
-            </button>
-          </div>
-          {ok && <p className="mt-2 text-sm text-emerald-300">{ok}</p>}
-          {err && <p className="mt-2 text-sm text-red-300">{err}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
+// StoreRecipients and its MgmtRecipient type were removed on 2026-09-04.
+// They fed the Discord DM that Send no longer makes; leaving the panel up
+// would have people registering IDs that change nothing. The store recipient
+// list itself still exists — Dubai's price checks read it — and is edited on
+// the Discord Alerts page.
 
 
 function SentStampBanner({ city }: { city: string }) {
@@ -432,7 +232,8 @@ function SentStampBanner({ city }: { city: string }) {
           {reminder!.will_reach.length > 0
             ? `It reaches ${reminder!.will_reach.join(", ")}.`
             : "No back-office person has a Discord ID registered, so nothing arrives and unsent alerts keep sitting here."}{" "}
-          Add them under <b>BO</b> in “Who alerts are sent to”, just below.
+          Set their Discord ID on the <b>Owners</b> tab, beside the exception
+          types they own — that is where this reminder reads from.
         </div>
       </div>
     )}
@@ -2571,7 +2372,6 @@ export default function BODashboardPage() {
         <MgmtChannelTabBar active="bo" />
         <AutoCheckBanner runs={jobRuns} city={cityFilter} />
         <SentStampBanner city={cityFilter} />
-        <StoreRecipients />
         <FarConfirmBanner city={cityFilter} />
         <BreakBanner city={cityFilter} />
         <TodayLine city={cityFilter} />
