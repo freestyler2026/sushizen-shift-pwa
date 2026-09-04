@@ -1,0 +1,260 @@
+<title>Invoice Inbox の提案への回答</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f0f3; --panel:#fffdff; --panel-2:#e7e3ea; --ink:#191519; --ink-2:#453f48;
+    --ink-3:#6f6874; --rule:#d6d0da; --plum:#5b3560; --plum-soft:#efe6f1;
+    --rust:#8a3626; --rust-soft:#f8e6e1; --moss:#3a6146; --moss-soft:#e3ece6; --gold:#8a6512;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+      --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+      --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+    }
+  }
+  [data-theme="dark"]{
+    --ground:#141118; --panel:#1c1821; --panel-2:#26202c; --ink:#ece7ef; --ink-2:#bab2c0;
+    --ink-3:#867d8d; --rule:#332c39; --plum:#c49ccb; --plum-soft:#251a29;
+    --rust:#e08b74; --rust-soft:#331c17; --moss:#8dc2a0; --moss-soft:#18241d; --gold:#dcae57;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Zen Kaku Gothic New",-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    font-size:16px; line-height:1.85; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:56px 22px 90px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); margin:0 0 12px}
+  h1{font-family:"Zen Old Mincho",serif; font-weight:700; font-size:clamp(30px,5.4vw,46px); line-height:1.28; margin:0 0 8px; text-wrap:balance}
+  .standfirst{font-size:17px; color:var(--ink-2); margin:0 0 34px; max-width:64ch}
+  h2{font-family:"Zen Old Mincho",serif; font-weight:700; font-size:22px; line-height:1.4; margin:52px 0 14px; padding-top:22px; border-top:1px solid var(--rule); text-wrap:balance}
+  h3{font-size:15.5px; font-weight:700; margin:28px 0 8px}
+  p{margin:0 0 15px; max-width:66ch}
+  .lede{font-size:17px; color:var(--ink-2)}
+  ul,ol{margin:0 0 15px; padding-left:1.3em; max-width:66ch}
+  li{margin-bottom:7px}
+  code{font-family:"IBM Plex Mono",monospace; font-size:.87em; background:var(--panel-2); padding:1px 5px; border-radius:4px}
+  .note{background:var(--rust-soft); border-left:3px solid var(--rust); padding:16px 18px; margin:20px 0; border-radius:0 6px 6px 0}
+  .note.calm{background:var(--plum-soft); border-left-color:var(--plum)}
+  .note.good{background:var(--moss-soft); border-left-color:var(--moss)}
+  .note p{margin:0 0 10px} .note p:last-child{margin:0}
+  .note-label{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--rust); display:block; margin-bottom:7px; font-weight:600}
+  .note.calm .note-label{color:var(--plum)}
+  .note.good .note-label{color:var(--moss)}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:26px 0}
+  .kpi{background:var(--panel); border:1px solid var(--rule); border-radius:9px; padding:16px 17px}
+  .kpi-l{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px}
+  .kpi-v{font-family:"Zen Old Mincho",serif; font-size:31px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--plum)}
+  .kpi-v.bad{color:var(--rust)}
+  .kpi-n{font-size:12.5px; color:var(--ink-3); margin-top:5px; line-height:1.55}
+  .scroll{overflow-x:auto; margin:20px 0; border:1px solid var(--rule); border-radius:9px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--rule); vertical-align:top}
+  th{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; background:var(--panel-2)}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right; font-variant-numeric:tabular-nums; font-family:"IBM Plex Mono",monospace}
+  .yes{color:var(--moss); font-weight:700}
+  .no{color:var(--rust); font-weight:700}
+  .mock{background:var(--panel-2); border:1px solid var(--rule); border-radius:10px; padding:16px 18px; margin:18px 0; font-size:14px; max-width:460px}
+  .mock b{display:block; margin:10px 0 2px; font-size:12px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace; letter-spacing:.08em; text-transform:uppercase}
+  .mock .v{font-size:15px}
+  .mock .foot{margin-top:14px; padding-top:10px; border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-3)}
+  .foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Sushi ZEN Workforce OS ／ 実装案</p>
+  <h1>Invoice Inbox の提案への回答</h1>
+  <p class="standfirst">
+    Aliana さんからの3点の提案を実データで確認しました。
+    <strong>3点とも妥当で、実装できます。</strong>ただし1点だけ、そのまま実装すると
+    確認されない請求書が25%生まれるため、条件を付けます。
+  </p>
+
+  <h2>提案の裏付けが数字に出ています</h2>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-l">未処理</div>
+      <div class="kpi-v bad">419</div>
+      <div class="kpi-n">8/18 から溜まり続けている</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">承認済み</div>
+      <div class="kpi-v bad">3</div>
+      <div class="kpi-n">18日間で3件</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">PO自動照合済み</div>
+      <div class="kpi-v">316</div>
+      <div class="kpi-n">75%・平均信頼度 0.79</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">PO紐付けなし</div>
+      <div class="kpi-v bad">103</div>
+      <div class="kpi-n">25%</div>
+    </div>
+  </div>
+
+  <p class="lede">
+    <strong>18日間で419件が溜まり、承認されたのは3件です。</strong>
+    「重すぎて着手されない」状態そのもので、
+    <strong>提案が指摘している問題は実在します。</strong>
+  </p>
+
+  <h2>1 ・ Invoice Inbox の確認項目を絞る</h2>
+
+  <p>
+    ご提案の5項目は<strong>データが揃っています</strong>。419件を調べた結果:
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>確認項目</th><th class="num">未入力</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td>Branch / Location（<code>store_name</code>）</td><td class="num">0</td><td class="yes">全件あり</td></tr>
+        <tr><td>Invoice Number</td><td class="num">7</td><td class="yes">98%</td></tr>
+        <tr><td>Supplier（Vendor Name）</td><td class="num">7</td><td class="yes">98%</td></tr>
+        <tr><td>Invoice Date</td><td class="num">9</td><td class="yes">98%</td></tr>
+        <tr><td>Total Amount</td><td class="num">11</td><td class="yes">97%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>Branch/Location は現在ラベル付きの欄がなく、画面上部に小さく併記されているだけ</strong>です
+    （<code>Business Bay · DUBAI</code>）。ご提案どおり独立した欄にします。
+  </p>
+
+  <div class="note">
+    <span class="note-label">そのまま実装すると起きること</span>
+    <p>
+      「明細は PO Match で見る」が成立するのは<strong>POが紐付いている請求書だけ</strong>です。
+      未処理419件のうち <strong>103件（25%）にはPOがありません</strong>。
+      この103件から明細を外すと、<strong>明細を見る場所がどこにも無くなります。</strong>
+    </p>
+  </div>
+
+  <h3>そこで、条件付きにします</h3>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>請求書</th><th class="num">件数</th><th>Invoice Inbox での表示</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>POが紐付いている</strong></td><td class="num">316</td>
+          <td>5項目のみ。明細は畳んで「Detailed line items are verified at Receiving → PO Match」と表示（開けば見られます）</td>
+        </tr>
+        <tr>
+          <td><strong>POが無い</strong></td><td class="num">103</td>
+          <td><strong>明細をそのまま表示</strong>。下流で誰も見ないため、ここで見るしかありません</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    これで<strong>75%は二重チェックが無くなり</strong>、残る25%は<strong>抜けません</strong>。
+    ご提案の「PO Match の工程は変えない」という前提もそのままです。
+  </p>
+
+  <div class="mock">
+    <div style="font-size:12px;color:var(--ink-3)">IMG_1904.jpg</div>
+    <b>Branch / Location</b><div class="v">Business Bay — DUBAI</div>
+    <b>Supplier</b><div class="v">Sushi ZEN Central Kitchen</div>
+    <b>Invoice Number</b><div class="v">082608213491 2</div>
+    <b>Invoice Date</b><div class="v">08/21/2026</div>
+    <b>Total Amount</b><div class="v">AED 166.9</div>
+    <div class="foot">▸ Line items (14) — Detailed line items are verified at Receiving → PO Match</div>
+  </div>
+
+  <h2>2 ・ Invoice Drive ボタンの行き先</h2>
+
+  <p class="lede"><strong>ご指摘のとおり、間違っています。</strong></p>
+
+  <p>
+    ボタンは <code>/api/admin/procurement/po-match/drive-folder</code> を呼んでおり、
+    <strong>PO Match のフォルダ</strong>を開きます。
+    Invoice Inbox が実際に保存しているのは別の共有ドライブ
+    （<code>0ABWT-suosP-iUk9PVA</code> の下に<strong>店舗 → 日付</strong>で自動整理）です。
+  </p>
+
+  <p>
+    <strong>ボタンが2か所にあります</strong>（Invoice Inbox のカード上部と、Invoices ページ上部）。
+    両方とも同じ間違った行き先なので、まとめて直します。
+  </p>
+
+  <h2>3 ・ SOA担当者へのDriveアクセス</h2>
+
+  <div class="note calm">
+    <span class="note-label">これは「便利」の話ではありません</span>
+    <p>
+      提案書の「現在の画面」で<strong>請求書の画像が表示されていない</strong>のは、これが原因の可能性が高いです。
+    </p>
+    <p>
+      画面は Google Drive の <code>/preview</code> を埋め込んで表示しています。
+      <strong>そのファイルに閲覧権限が無いGoogleアカウントで開くと、何も映りません。</strong>
+      つまり<strong>Driveアクセスが無い担当者は、請求書を見ないまま承認/却下を判断することになります。</strong>
+      3番目の要望は、1番目の画面が成立するための前提でもあります。
+    </p>
+  </div>
+
+  <p>
+    <strong>ただしDriveの共有設定は私が実行できません。</strong>
+    外部アカウントへのアクセス付与にあたるため、オーナーの操作としてお願いします。
+    対象は提案書に挙がっている5名です。
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>担当者</th><th>アカウント</th></tr></thead>
+      <tbody>
+        <tr><td>Cyrine Fernandez</td><td><code>cyrinefernandez7cz@gmail.com</code></td></tr>
+        <tr><td>Caila Macararanga</td><td><code>cailamacararanga2002@gmail.com</code></td></tr>
+        <tr><td>Erica May Sadiasa</td><td><code>ericamaysadiasa7cz@gmail.com</code></td></tr>
+        <tr><td>Ruby Rosa Rongcales</td><td><code>rubyrosarongcales7cz@gmail.com</code></td></tr>
+        <tr><td>Aliana Manuel</td><td><code>alianamanuel7cz@gmail.com</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>閲覧者（Viewer）で十分</strong>です。編集権限は不要で、
+    誤ってファイルを移動・削除される余地を残さないほうが安全です。
+    なお <code>cailamacararanga2002@gmail.com</code> だけ他4名と体裁が違うので、
+    ご本人の業務用アカウントで間違いないかご確認ください。
+  </p>
+
+  <h2>実装する順番</h2>
+
+  <ol>
+    <li><strong>Drive ボタンの行き先を直す</strong>（2か所）。影響が小さく、すぐ効きます</li>
+    <li><strong>Branch/Location を独立した欄にし、明細を条件付きで畳む</strong>。
+        POあり=畳む／POなし=開いたまま</li>
+    <li><strong>Driveの共有</strong>（オーナー操作）。これが済むまで、画像が見えない担当者が残ります</li>
+  </ol>
+
+  <div class="note good">
+    <span class="note-label">確認させてください</span>
+    <p>
+      <strong>この方針でよろしければ、1と2を実装します。</strong>
+      とくに「POが無い103件は明細を残す」という条件について、
+      現場の運用と食い違っていないかご確認ください。
+      もし<strong>PO無しの請求書は別の工程で明細を見ている</strong>のであれば、
+      条件を外して全件シンプルにできます。
+    </p>
+  </div>
+
+  <p class="foot">
+    測定日 2026-09-04。対象は <code>drive_invoices</code>（未処理419件・承認3件、2026-08-18〜09-04）。
+    Drive ボタンの行き先は <code>invoices/page.tsx:1022</code> と
+    <code>DriveInvoiceInbox.tsx:142</code>、保存先は
+    <code>services/discord_invoice_uploader.py:29</code> で確認。
+    画像表示は <code>DriveInvoiceModal.tsx:98</code> の Drive <code>/preview</code> 埋め込み。
+  </p>
+
+</div>
