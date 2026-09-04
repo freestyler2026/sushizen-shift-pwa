@@ -185,7 +185,10 @@ function AutoCheckBanner({ runs, city }: { runs: JobRun[]; city: string }) {
  * which is exactly how this went unnoticed the first time. Silent when there is
  * nothing to say.
  */
-type MgmtRecipient = { id: number; staff_name: string; discord_user_id: string; is_active: boolean };
+type MgmtRecipient = {
+  id: number; staff_name: string; discord_user_id: string; is_active: boolean;
+  discord_dm_status?: string; discord_checked_at?: string | null;
+};
 
 /**
  * Who each store's alerts are DM'd to, edited where the sending happens.
@@ -206,6 +209,7 @@ function StoreRecipients() {
   const [uid, setUid] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -247,7 +251,33 @@ function StoreRecipients() {
       // silently is a manager who never hears from this channel again.
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setErr(String(j.detail || `Could not save (${res.status}).`)); return; }
+      // Registering is not the same as being reachable, so say which happened.
+      const chk = j.dm_check;
+      if (chk && chk.ok === false) {
+        setErr(`Saved, but Discord cannot deliver to ${name.trim()}: ${chk.detail}`);
+      } else if (chk && chk.ok) {
+        setOk(`✅ ${name.trim()} added — Discord will deliver to them. Press “test” to send one real message.`);
+      } else {
+        setOk(`${name.trim()} added.`);
+      }
       setName(""); setUid(""); await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setBusy(false); }
+  };
+
+  // Sends one real message and reports what happened, in the words of the
+  // failure rather than a status code.
+  const test = async (id: number, who: string) => {
+    setBusy(true); setErr(""); setOk("");
+    try {
+      const res = await fetch(`/api/admin/management/recipients/${id}/test`, {
+        method: "POST", headers: getAuthHeaders(getAuth()),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.ok) setOk(`✅ Delivered to ${who}. Ask them to confirm they saw it.`);
+      else setErr(`❌ ${who}: ${String(j.detail || `failed (${res.status})`)}`);
+      await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not reach the server.");
     } finally { setBusy(false); }
@@ -302,9 +332,24 @@ function StoreRecipients() {
                 ) : (
                   (data?.[c] || []).map((r) => (
                     <div key={r.id} className="flex items-center justify-between gap-2 py-0.5 text-sm text-zinc-300">
-                      <span className="truncate">{r.staff_name}</span>
-                      <button className="text-xs text-zinc-500 hover:text-red-300"
-                              disabled={busy} onClick={() => remove(r.id)}>remove</button>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{r.staff_name}</span>
+                        {/* What Discord said last time, in words. A status code
+                            tells the reader nothing they can act on. */}
+                        {r.discord_dm_status === "ok" ? (
+                          <span title="Discord will deliver to this person" className="text-emerald-400">✓</span>
+                        ) : r.discord_dm_status && r.discord_dm_status !== "unregistered" ? (
+                          <span title="Discord refused — press Test for the reason" className="text-red-400">✕</span>
+                        ) : (
+                          <span title="Never checked" className="text-zinc-600">•</span>
+                        )}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <button className="text-xs text-violet-300 hover:text-violet-200 disabled:opacity-50"
+                                disabled={busy} onClick={() => test(r.id, r.staff_name)}>test</button>
+                        <button className="text-xs text-zinc-500 hover:text-red-300"
+                                disabled={busy} onClick={() => remove(r.id)}>remove</button>
+                      </span>
                     </div>
                   ))
                 )}
@@ -328,6 +373,7 @@ function StoreRecipients() {
               {busy ? "Saving…" : "Add"}
             </button>
           </div>
+          {ok && <p className="mt-2 text-sm text-emerald-300">{ok}</p>}
           {err && <p className="mt-2 text-sm text-red-300">{err}</p>}
         </div>
       )}
@@ -2075,6 +2121,10 @@ export default function BODashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  // Delivery feedback lives apart from `error`, which replaces the whole task
+  // list. A warning that the DM did not land must not take the queue away from
+  // the person who still has to work it.
+  const [notice, setNotice] = useState<{ text: string; bad: boolean } | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [jobRuns, setJobRuns] = useState<JobRun[]>([]);
   const [detecting, setDetecting] = useState(false);
@@ -2469,9 +2519,23 @@ export default function BODashboardPage() {
         throw new Error(data?.detail || `HTTP ${res.status}`);
       }
       // The task is recorded either way; a ping that did not leave is worth
-      // knowing about rather than assuming.
-      if (data?.notified && data.notified.sent === false) {
-        setError(`Sent, but Discord was not notified — ${data.notified.reason}.`);
+      // knowing about rather than assuming. Two routes go out — the channel
+      // mention and the DMs to that store's list — and each is reported for
+      // what it did, because "sent" on the screen while nothing arrived is the
+      // exact failure this channel is being rebuilt to stop.
+      const n = data?.notified || {};
+      const parts: string[] = [];
+      if (n.dm_sent > 0) {
+        parts.push(`DM delivered to ${n.dm_recipients?.join(", ") || `${n.dm_sent} people`}`);
+      }
+      if (n.dm_failed > 0) parts.push(`${n.dm_failed} DM(s) failed`);
+      if (!n.dm_sent && n.dm_reason) parts.push(`no DM — ${n.dm_reason}`);
+      if (n.sent === false && n.reason) parts.push(`channel mention did not go out — ${n.reason}`);
+
+      if (n.dm_sent > 0 && !n.dm_failed && n.sent !== false) {
+        setNotice({ text: `✅ Sent. ${parts.join(". ")}.`, bad: false });
+      } else if (parts.length) {
+        setNotice({ text: `⚠️ Recorded as sent, but: ${parts.join("; ")}.`, bad: true });
       }
       setSendingTask(null);
       setCustomMessage("");
@@ -2786,6 +2850,18 @@ export default function BODashboardPage() {
                 <ActionManual page={p} />
               </div>
             ))}
+          </div>
+        )}
+
+        {notice && (
+          <div className={`mb-4 flex items-start gap-2 rounded-xl border px-4 py-2.5 text-sm ${
+            notice.bad
+              ? "border-amber-500/35 bg-amber-500/10 text-amber-100"
+              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
+            <span className="flex-1">{notice.text}</span>
+            <button className="text-xs opacity-70 hover:opacity-100" onClick={() => setNotice(null)}>
+              dismiss
+            </button>
           </div>
         )}
 
