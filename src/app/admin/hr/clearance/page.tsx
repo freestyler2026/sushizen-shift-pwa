@@ -1116,6 +1116,23 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
           {/* The working behind the 13th month, next to the figure it produces. */}
           <SalaryHistory caseId={c.id} entered13th={fp.fp_prorated_13th} />
 
+          {/* Built from this case, so the form cannot carry a figure the case
+              does not hold — which is how the hand-made version ended up
+              stating the monthly salary four different ways. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a
+              href={`${API_BASE}/api/admin/hr/clearance/${c.id}/final-settlement.pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className={`${SECONDARY_BUTTON} inline-flex items-center gap-1.5 text-xs`}
+            >
+              Final Settlement Form (PDF)
+            </a>
+            <span className="text-xs text-zinc-500">
+              Save the figures first — the form is built from what is stored.
+            </span>
+          </div>
+
           <div>
             <label className={T_LABEL}>Notes</label>
             <textarea className={TEXTAREA_CLASS} rows={2}
