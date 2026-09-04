@@ -1,6 +1,25 @@
 name: Careem Dubai — Payout Extract (cycles + balances)
 
 on:
+  # Restored 2026-09-05. The schedule was dropped on 2026-08-24 when Dubai moved
+  # to manual upload, and Careem then imported nothing for ten days -- the gap was
+  # only noticed because somebody went looking. The portal extract works fine; it
+  # was simply that nobody was triggering it.
+  #
+  # Note on failures: the Careem session lives 72 hours and CI cannot write a
+  # refreshed one back to the secret, so this job starts failing about three days
+  # after each manual refresh. That is the intended behaviour -- a job that fails
+  # loudly every morning is what tells you the session needs renewing. Silence is
+  # what cost ten days.
+  #
+  # Careem PDFs must not be uploaded through the manual AR Payouts zone while this
+  # runs: that path keys rows as careem_{brand}_{store}_{start}_{end} while this
+  # one uses careem_cycle_{STORE}_{start}, so the same payout would be stored
+  # twice under different ids. No Careem PDF has ever been uploaded (450 portal
+  # rows, 0 manual), so the two have never collided.
+  schedule:
+    # 02:00 UTC = 06:00 GST (Dubai)
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       snapshot_date:
