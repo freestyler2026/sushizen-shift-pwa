@@ -81,6 +81,10 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
 
   // PO match state
   const [matchedPoId, setMatchedPoId] = useState(invoice.matched_po_id);
+  // Open when nothing downstream will read them. A linked PO means Receiving
+  // checks these line by line; without one this screen is the only place they
+  // are ever seen, so it must not hide them.
+  const [showLines, setShowLines] = useState(!invoice.matched_po_id);
   const [matchedPoNo, setMatchedPoNo] = useState(invoice.matched_po_no);
   const [matchedPoVendor, setMatchedPoVendor] = useState(invoice.matched_po_vendor);
   const [matchedPoAmount, setMatchedPoAmount] = useState(invoice.matched_po_amount);
@@ -353,6 +357,17 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
               <div className="col-span-2">
                 <Field label="Vendor Name" value={vendorName} onChange={setVendorName} />
               </div>
+              {/* Branch was printed once in small type under the file name. It is
+                  one of the five things being checked here, so it gets a label
+                  like the other four. Read-only on purpose: it comes from the
+                  folder the file was captured into, not from the OCR, so an
+                  editable box would invite correcting the wrong thing. */}
+              <div className="col-span-2">
+                <label className="block text-white/50 text-[11px] mb-1">Branch / Location</label>
+                <div className="w-full rounded-lg bg-white/[0.03] border border-white/10 px-3 py-1.5 text-sm text-white/80">
+                  {invoice.store_name || "—"} · {invoice.city.toUpperCase()}
+                </div>
+              </div>
               <Field label="Invoice Number" value={invoiceNumber} onChange={setInvoiceNumber} />
               <div>
                 <label className="block text-white/50 text-[11px] mb-1">Currency</label>
@@ -471,18 +486,40 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
               )}
             </div>
 
-            {/* Line items */}
+            {/* Line items.
+
+                Checked in full at Receiving -> PO Match, so re-reading fourteen
+                rows here is the same work twice — and 419 invoices had been
+                sitting unreviewed against three approved. But that only holds
+                where a PO exists: a quarter of them have none, and for those
+                nothing downstream ever looks at the lines, so they stay open. */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-white/50 text-[11px]">Line Items ({lineItems.length})</p>
                 <button
-                  onClick={addLineItem}
-                  className="text-xs text-amber-400/70 hover:text-amber-400"
+                  onClick={() => setShowLines((v) => !v)}
+                  className="flex items-center gap-1.5 text-white/50 text-[11px] hover:text-white/80"
                 >
-                  + Add row
+                  <span className={`transition-transform ${showLines ? "rotate-90" : ""}`}>▸</span>
+                  Line Items ({lineItems.length})
                 </button>
+                {showLines && (
+                  <button
+                    onClick={addLineItem}
+                    className="text-xs text-amber-400/70 hover:text-amber-400"
+                  >
+                    + Add row
+                  </button>
+                )}
               </div>
-              {lineItems.length > 0 && (
+              {!showLines && (
+                <p className="text-white/35 text-xs italic">
+                  Detailed line items are verified at Receiving → PO Match.
+                </p>
+              )}
+              {showLines && lineItems.length === 0 && (
+                <p className="text-white/30 text-xs italic">No line items were read from this invoice.</p>
+              )}
+              {showLines && lineItems.length > 0 && (
                 <div className="rounded-lg overflow-x-auto border border-white/10">
                   <table className="w-full text-xs">
                     <thead>

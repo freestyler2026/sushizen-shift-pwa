@@ -1019,7 +1019,10 @@ export default function ProcurementInvoicesPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    fetch(`/api/admin/procurement/po-match/drive-folder?city=${city}`, {
+    // The inbox's own drive, not PO Match's. PO Match holds invoices that have
+    // already been through detailed matching; the people checking an SOA need
+    // the originals the inbox captured.
+    fetch(`/api/admin/procurement/invoice-inbox/drive-folder?city=${city}`, {
       headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
     })
       .then((r) => r.json())
