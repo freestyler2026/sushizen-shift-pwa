@@ -88,6 +88,35 @@ def session_files():
     return out
 
 
+# 期限を見ても無意味なもの＝実際に試すしかないもの。
+# Foodpanda / Talabat（どちらも Delivery Hero）の accessToken は寿命4時間の JWT で、
+# 保存直後から数時間で必ず切れる。実測でも 294時間前に期限切れのトークンを持つ
+# Talabat セッションが問題なく生きていた。ポータルを開くと SPA が保存済み
+# セッションを新しい JWT に交換するので、健全性は「まだ交換できるか」に等しい。
+PROBE = {"foodpanda", "talabat"}
+
+
+def probe(platform, store):
+    """実際にポータルを開いてトークンを発行できるか試す。(生きているか, 説明)"""
+    cmd = ["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "probe-session.js"),
+           platform]
+    if store:
+        cmd.append(store)
+    env = dict(os.environ, NODE_PATH=os.path.join(os.path.dirname(ROOT), "node_modules"))
+    try:
+        r = subprocess.run(cmd, cwd=os.path.dirname(ROOT), capture_output=True,
+                           text=True, timeout=150, env=env)
+    except Exception as e:
+        return None, f"確認できず（{e.__class__.__name__}）"
+    msg = (r.stdout or r.stderr or "").strip().split(": ", 1)
+    detail = msg[1] if len(msg) > 1 else (r.stdout or "").strip()
+    if r.returncode == 0:
+        return True, detail
+    if r.returncode == 1:
+        return False, detail
+    return None, detail or "判定不能"
+
+
 def expiry_from_file(platform, path):
     """(残り時間, 根拠) を返す。判定できないときは (None, 理由)。"""
     try:
@@ -146,8 +175,27 @@ def main():
 
     runs = {p: last_run(w) for p, (w, _) in WORKFLOWS.items()}
 
+    # プローブは1件あたりブラウザを1つ起動するので直列だと4分近くかかる。
+    # 毎朝の確認が数分止まると実行されなくなるため、まとめて走らせる。
+    from concurrent.futures import ThreadPoolExecutor
+    targets = [(p, s) for p, s, _ in session_files() if p in PROBE]
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        probed = dict(zip(targets, ex.map(lambda t: probe(*t), targets)))
+
     for platform, store, path in session_files():
         label = f"{platform}" + (f" ({store})" if store else "")
+
+        # 期限が意味を持たないものは、予測せずに実際に試す
+        if platform in PROBE:
+            alive, detail = probed[(platform, store)]
+            if alive is True:
+                ok.append((label, detail, platform, store))
+            elif alive is False:
+                dead.append((label, detail, platform, store))
+            else:
+                unknown.append((label, detail, platform, store))
+            continue
+
         left, basis = expiry_from_file(platform, path)
 
         # 事実（CIの失敗）が最優先。予測より強い。ただしそのジョブが実際に
