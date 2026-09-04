@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HelpCircle, Send, Loader2, BookOpen } from "lucide-react";
 import MarkdownLite from "@/components/MarkdownLite";
-import { getAuth, getAuthHeaders, canAccessAdminNav, type Auth } from "@/lib/auth";
+import { getAuth, getAuthHeaders, hasChannelAccess, type Auth } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -131,7 +131,9 @@ export default function AdminHelpPage() {
   if (!mounted) {
     return <div className="p-6 text-sm text-zinc-500">Loading…</div>;
   }
-  if (!canAccessAdminNav(auth) && auth?.role !== "HQ" && auth?.role !== "ADMIN") {
+  // The same permission the API checks. A page that renders for somebody the
+  // server will refuse just moves the refusal one click later.
+  if (!hasChannelAccess("admin.help", ["view"], auth) && auth?.role !== "HQ") {
     return (
       <div className="p-6 text-sm text-zinc-400">
         Ask about the system is for admin, HR and HQ users.

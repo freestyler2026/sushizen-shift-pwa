@@ -493,10 +493,9 @@ export default function NavBar() {
     if (href === "/admin/finance") return canAccessFinancePage(auth);
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
-    // Same rule as the server: anyone admitted to the admin side may ask how
-    // the admin side works. It reaches no data, so a finer gate would only
-    // create a permission nobody remembers to grant.
-    if (href === "/admin/help") return canAccessAdminNav(auth);
+    // Falls through to channelAccessForRoute below, which is the designed path:
+    // the page is registered as admin.help, so Role Management is what decides
+    // who sees it. An explicit line here would make that switch a lie.
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/business-events") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
