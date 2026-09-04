@@ -344,11 +344,18 @@ function StoreRecipients() {
                           <span title="Never checked" className="text-zinc-600">•</span>
                         )}
                       </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <button className="text-xs text-violet-300 hover:text-violet-200 disabled:opacity-50"
-                                disabled={busy} onClick={() => test(r.id, r.staff_name)}>test</button>
-                        <button className="text-xs text-zinc-500 hover:text-red-300"
-                                disabled={busy} onClick={() => remove(r.id)}>remove</button>
+                      {/* These were faint grey words and could not be found at
+                          all. A control nobody can see is a control that does
+                          not exist. */}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-200 hover:bg-violet-500/20 disabled:opacity-50"
+                          disabled={busy} onClick={() => test(r.id, r.staff_name)}
+                          title="Send one real message to check it arrives">Test</button>
+                        <button
+                          className="rounded-md border border-red-400/30 bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                          disabled={busy} onClick={() => remove(r.id)}
+                          title="Stop sending this store's alerts to this person">Remove</button>
                       </span>
                     </div>
                   ))
