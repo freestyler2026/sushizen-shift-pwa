@@ -20,6 +20,12 @@ import { useUnsavedGuard } from "@/lib/unsavedGuard";
 // on the server; shown here only as a link for people to open.
 const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/0APqUBtx2OBdkUk9PVA";
 
+// Publishing changes the schedule; the workbook already on Drive then describes
+// the old one. The flag is kept per city+month in localStorage so it survives a
+// reload and a tab close — the person who publishes is often not the one who
+// exports, and a reminder that dies with the page would be missed by both.
+const exportFlagKey = (city: string, ym: string) => `shift_needs_export:${city}:${ym}`;
+
 const W_CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 
@@ -515,11 +521,25 @@ export default function ManualShiftPage() {
   const [exportResult, setExportResult] = useState<
     { name: string; url: string; version: number; shiftDays: number } | null>(null);
   const [exportError, setExportError] = useState("");
+  const [needsExport, setNeedsExport] = useState(false);
+  const [showExportPrompt, setShowExportPrompt] = useState(false);
   const [staffList, setStaffList] = useState<string[]>([]);
 
   // The week on screen decides the month exported. A week that straddles two
   // months belongs to the one it starts in, which is how the sheets are named.
   const exportMonthLabel = useMemo(() => weekStart.slice(0, 7), [weekStart]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      setNeedsExport(!!window.localStorage.getItem(exportFlagKey(city, exportMonthLabel)));
+    } catch { /* private mode: the banner just will not persist */ }
+  }, [city, exportMonthLabel]);
+
+  const markNeedsExport = useCallback(() => {
+    setNeedsExport(true);
+    try { window.localStorage.setItem(exportFlagKey(city, exportMonthLabel), "1"); } catch {}
+  }, [city, exportMonthLabel]);
 
   const runExport = useCallback(async () => {
     setExporting(true); setExportError(""); setExportResult(null);
@@ -539,12 +559,15 @@ export default function ManualShiftPage() {
         name: data?.file?.name || "", url: data?.file?.url || "",
         version: data?.version || 0, shiftDays: data?.shift_days || 0,
       });
+      setNeedsExport(false);
+      setShowExportPrompt(false);
+      try { window.localStorage.removeItem(exportFlagKey(city, exportMonthLabel)); } catch {}
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "Could not reach the server.");
     } finally {
       setExporting(false);
     }
-  }, [city, weekStart]);
+  }, [city, weekStart, exportMonthLabel]);
 
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
@@ -1482,6 +1505,9 @@ export default function ManualShiftPage() {
       setCellEditors({});
       publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
       setView("published");
+      // The schedule just changed, so the workbook on Drive is now out of date.
+      markNeedsExport();
+      setShowExportPrompt(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1702,6 +1728,29 @@ export default function ManualShiftPage() {
           </div>
         </div>
 
+        {/* Stays until the export actually happens. A message that can be waved
+            away is waved away; this one has the button in it and only the
+            export clears it. */}
+        {needsExport && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-amber-900">
+                <span className="font-semibold">The Excel on Drive is out of date.</span>{" "}
+                {exportMonthLabel} was published after the last export — export again so the
+                stores read the schedule that is live.
+              </p>
+              <button
+                type="button"
+                onClick={runExport}
+                disabled={exporting}
+                className={`${PRIMARY_BUTTON} disabled:opacity-50`}
+              >
+                {exporting ? "Exporting…" : "Export now"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {(exportResult || exportError) && (
           <div className={`${W_CARD} px-5 py-3 text-sm`}>
             {exportError ? (
@@ -1719,6 +1768,44 @@ export default function ManualShiftPage() {
                 </span>
               </p>
             ) : null}
+          </div>
+        )}
+
+        {showExportPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+               role="dialog" aria-modal="true" aria-labelledby="export-prompt-title">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+              <h2 id="export-prompt-title" className="text-lg font-semibold text-gray-900">
+                Published — export the Excel?
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                The schedule for {exportMonthLabel} has changed. The workbook in the Drive folder
+                still shows the previous version, and the stores work from that file.
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                Exporting writes a new version — nothing already in the folder is overwritten.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowExportPrompt(false)}
+                  className={SECONDARY_BUTTON}
+                >
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  onClick={runExport}
+                  disabled={exporting}
+                  className={`${PRIMARY_BUTTON} disabled:opacity-50`}
+                >
+                  {exporting ? "Exporting…" : "Export now"}
+                </button>
+              </div>
+              <p className="mt-3 text-[11px] text-gray-400">
+                “Not now” keeps the reminder on the page until the export is done.
+              </p>
+            </div>
           </div>
         )}
 
