@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 import { getAuthHeaders } from "@/lib/auth";
+import PrepTimeLedger from "./PrepTimeLedger";
 
 async function apiFetch(path: string, opts: RequestInit = {}) {
   const res = await fetch(path, {
@@ -177,7 +178,7 @@ function parseOrderHour(raw: string): number | null {
   return h >= 0 && h <= 23 ? h : null;
 }
 
-export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
+function PhotoPrepTime({ approverName, pin, isHQOrAdmin }: Props) {
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
   const [branchFilter, setBranchFilter] = useState("");
   const [branchCity, setBranchCity] = useState("");
@@ -902,6 +903,54 @@ function HourlyHistoryDOWTable({ rows }: { rows: HourlyRow[] }) {
       <p className="mt-2 text-[11px] text-white/30">
         Orange (26-35m) = draft planner adds +1 staff · Red (&gt;35m) = +2 staff for that hour
       </p>
+    </div>
+  );
+}
+
+
+/**
+ * Prep Time.
+ *
+ * The ledger is the measurement now: Grab in Manila, Keeta in Dubai, taken from
+ * each portal's own accepted and ready timestamps. The photographed-receipt view
+ * stays reachable but is no longer the number anyone should quote -- it saw 34%
+ * of Manila's orders, read a third of the times it did see wrong, and scored
+ * Dubai's kitchens up to 12 points below what they actually did.
+ *
+ * Kept in separate tabs rather than merged. The two are different measurements
+ * over different populations, and a single chart across them would draw a trend
+ * line out of the change in method.
+ */
+export default function PrepTimeTab(props: Props) {
+  const [view, setView] = useState<"ledger" | "photo">("ledger");
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setView("ledger")}
+          className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+            view === "ledger" ? "bg-violet-500/20 text-violet-200 border border-violet-400/40"
+                              : "border border-white/10 text-zinc-400 hover:text-zinc-200"}`}>
+          調理時間（注文台帳）
+        </button>
+        <button type="button" onClick={() => setView("photo")}
+          className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+            view === "photo" ? "bg-white/10 text-white border border-white/20"
+                             : "border border-white/10 text-zinc-500 hover:text-zinc-300"}`}>
+          旧方式（写真・〜2026-09）
+        </button>
+      </div>
+
+      {view === "photo" && (
+        <p className="text-xs text-amber-200/80">
+          写真とOCRによる旧データです。注文の一部しか捉えておらず、読み取った時刻にも
+          誤りが含まれます。<b>上の「注文台帳」が現在の正となる数字です。</b>
+          記録は消していないので、過去の経緯を追うときに使ってください。
+        </p>
+      )}
+
+      {view === "ledger"
+        ? <PrepTimeLedger approverName={props.approverName} pin={props.pin} />
+        : <PhotoPrepTime {...props} />}
     </div>
   );
 }
