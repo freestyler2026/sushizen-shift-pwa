@@ -200,3 +200,11 @@ BILLABLE のままなら needs_review として残す）。
 仕様書: `docs/ai/handoff/management-channel-delivery.md`
 
 Session 2 で対応済み: 宙に浮いた90件をクリア（`_management_tasks_backup_20260829` に退避）。
+
+## [2026-09-05] 植嶋さん / Store Procurement の Vendor 欄が空欄のまま保存できる
+理由: `proc_request_items.vendor_name` が自由入力でマスタ未接続。空欄でも保存でき、
+その行は Store Procurement のコスト集計で unclassified に落ちる。今回 A群299行
+（₱94,423）を補完して TAFT 8月は ₱29,410 → ₱8,400 になったが、**入力側を直さないと
+毎月再発する**。発注フォームで仕入先を選択式にする（または空欄を警告する）改修が必要。
+スキーマ・UI変更を伴うため hotfix セッションでは着手しない。
+残り ₱41,482 の内訳と対象行は docs/ai/2026-09-05-manila-unassigned-vendors.csv
