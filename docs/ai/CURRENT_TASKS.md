@@ -42,17 +42,20 @@ Taft は「残り34.5時間」と書いてあるのに 401 で、🟢 と表示�
 
 ---
 
-## 🔴 Grab Taft のセッションが死んでいる（2026-09-05・ユーザー作業待ち）
+## ✅ Grab 3店舗ともセッション復旧（2026-09-05）
 
-Taft だけ 3日欠測している（9/3・9/4・9/5）。**セッションが 401** なので取り直しが要る。
+Taft・QC・Paranaque すべて取り直し済み。シークレットも更新済みで、
+3店舗とも入金・注文台帳の両方が取り込めている。
+
+**セッションは48時間で切れ、使っても延長されない。** 切れたら:
 
 ```bash
-node scripts/grab/setup-session.js taft
-gh secret set GRAB_SESSION_TAFT < scripts/grab/taft-session.b64.txt
-gh workflow run grab-manila-daily-payout.yml -f store=taft
+node scripts/grab/setup-session.js <paranaque|taft|qc>
+gh secret set GRAB_SESSION_<PARANAQUE|TAFT|QC> < scripts/grab/<store>-session.b64.txt
 ```
 
-3行目まで実行すると30日ぶん遡って埋まる。PAR と CUB は復旧済み。
+⚠️ **Cookie の期限を信用しない。** Paranaque は「残り35.7時間」と申告しながら
+401 を返していた（教訓90）。`scripts/ops/session-health.py` は実際にAPIを叩いて判定する。
 
 ---
 
