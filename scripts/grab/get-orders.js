@@ -141,8 +141,13 @@ async function grabGet(cookie, url) {
         process.exit(1);
       }
       if (res.status !== 200) {
-        console.error(`HTTP ${res.status} on ${day} page ${pageIndex}`);
-        break;
+        // Breaking here moved on to the next day and posted whatever had been
+        // collected, exiting 0 -- the window silently short by the rest of that
+        // day. Fail the run instead; a three-day window means the next run
+        // picks it up anyway.
+        console.error(`HTTP ${res.status} on ${day} page ${pageIndex}. `
+          + 'Nothing imported.');
+        process.exit(1);
       }
 
       let body;
