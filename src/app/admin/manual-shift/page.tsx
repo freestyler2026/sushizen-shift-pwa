@@ -523,6 +523,7 @@ export default function ManualShiftPage() {
   const [exportError, setExportError] = useState("");
   const [needsExport, setNeedsExport] = useState(false);
   const [showExportPrompt, setShowExportPrompt] = useState(false);
+  const [showExportDone, setShowExportDone] = useState(false);
   const [staffList, setStaffList] = useState<string[]>([]);
 
   // The week on screen decides the month exported. A week that straddles two
@@ -569,6 +570,7 @@ export default function ManualShiftPage() {
         version: data?.version || 0, shiftDays: data?.shift_days || 0,
         notShown: Array.isArray(data?.not_shown) ? data.not_shown : [],
       });
+      setShowExportDone(true);
       if (exportMonth === publishedMonthLabel) {
         setNeedsExport(false);
         setShowExportPrompt(false);
@@ -1815,6 +1817,59 @@ export default function ManualShiftPage() {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {/* What happened, and the two things anyone wants next: open this file, or
+            go and look at the folder. Shown after the export rather than before,
+            so the answer is about a file that exists. */}
+        {showExportDone && exportResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+               role="dialog" aria-modal="true" aria-labelledby="export-done-title">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+              <h2 id="export-done-title" className="text-lg font-semibold text-gray-900">
+                Saved to the Drive folder
+              </h2>
+              <p className="mt-2 break-all text-sm font-semibold text-gray-800">
+                {exportResult.name}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Version {exportResult.version} · {exportResult.shiftDays} shift days ·
+                nothing already in the folder was overwritten.
+              </p>
+
+              {exportResult.notShown.length > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-amber-900">
+                    {exportResult.notShown.length} item(s) could not be drawn in the grid:
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-xs text-amber-800">
+                    {exportResult.notShown.map((n, i) => <li key={i}>{n}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              <p className="mt-4 text-sm text-gray-700">Open the Excel now?</p>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => setShowExportDone(false)}
+                        className={SECONDARY_BUTTON}>
+                  No
+                </button>
+                {/* A real link, not window.open — a popup blocker cannot eat it. */}
+                <a href={exportResult.url} target="_blank" rel="noopener noreferrer"
+                   onClick={() => setShowExportDone(false)}
+                   className={PRIMARY_BUTTON}>
+                  Yes, open it
+                </a>
+              </div>
+              <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                Every version of every month is in the{" "}
+                <a href={DRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer"
+                   className="font-semibold text-violet-700 underline">
+                  Drive folder
+                </a>.
+              </p>
+            </div>
           </div>
         )}
 
