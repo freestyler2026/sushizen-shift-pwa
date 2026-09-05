@@ -98,6 +98,43 @@ jobs:
           GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
         timeout-minutes: 4
 
+      # ── Order ledger (Prep Time) ────────────────────────────────────────
+      # Same sessions, same schedule, separate concern: payouts answer "what
+      # were we paid", orders answer "was the kitchen late". Prep Time used to
+      # come from staff photographing receipts, which caught 24% of Cubao's
+      # orders and read the time wrong in a third of the rest.
+      #
+      # A 3-day window, not 1: the ledger is upserted on long_order_id, so
+      # re-reading yesterday and the day before costs nothing and closes the gap
+      # when a session was dead for a night.
+      #
+      # Every store is `if: always()` for the same reason as the payout steps --
+      # one expired session must not skip the other two (lesson 17). The job
+      # still ends red so a stuck store cannot look successful (lesson 47).
+      - name: Extract Paranaque orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/grab/get-orders.js paranaque $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d) > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_PARANAQUE }}
+        timeout-minutes: 6
+
+      - name: Extract Taft orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-orders.js taft $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d) > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_TAFT }}
+        timeout-minutes: 6
+
+      - name: Extract Cubao (QC) orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-orders.js qc $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d) > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
+        timeout-minutes: 6
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |

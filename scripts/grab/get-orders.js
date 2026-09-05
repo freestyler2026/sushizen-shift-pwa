@@ -33,16 +33,39 @@
  *   node scripts/grab/get-orders.js taft 2026-09-01 2026-09-03
  *   node scripts/grab/get-orders.js taft            # yesterday only
  *
- * Output: JSON on stdout, one array of orders. Nothing is posted anywhere yet
- * -- wiring it into the OS is the next step, deliberately separate so the
- * extract can be eyeballed first.
+ * Output: JSON on stdout. With WEBHOOK_URL set it also posts to the OS; without
+ * it nothing is written anywhere, so the extract can be eyeballed first. That
+ * "dry unless a URL is given" shape is deliberate -- the Noon and Keeta
+ * workflows used `A && '' || B`, which always evaluates to B, so their dry_run
+ * never once suppressed a write.
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const STORE = process.argv[2] || 'taft';
 const SESSION = path.join(__dirname, `${STORE}-session.json`);
+
+/** CI has no session file -- the login lives in a gzip+base64 secret, the same
+ *  shape get-payouts.js reads. Locally the file is used, so the two paths stay
+ *  interchangeable and a local run tests what CI will do. */
+function loadSession() {
+  const b64 = (process.env.GRAB_SESSION_STATE || '').trim();
+  if (b64) {
+    const buf = Buffer.from(b64, 'base64');
+    const raw = (buf[0] === 0x1f && buf[1] === 0x8b)
+      ? zlib.gunzipSync(buf).toString('utf8')
+      : buf.toString('utf8');
+    return JSON.parse(raw);
+  }
+  if (!fs.existsSync(SESSION)) {
+    console.error(`No session: set GRAB_SESSION_STATE or run `
+      + `node scripts/grab/setup-session.js ${STORE}`);
+    process.exit(1);
+  }
+  return JSON.parse(fs.readFileSync(SESSION, 'utf8'));
+}
 
 function ymd(d) { return d.toISOString().slice(0, 10); }
 const yesterday = ymd(new Date(Date.now() - 86400000));
@@ -54,17 +77,9 @@ const TO = process.argv[4] || FROM;
 // midnight an order lands on, and createdAt is returned in UTC regardless.
 const OFFSET = '+04:00';
 
-if (!fs.existsSync(SESSION)) {
-  console.error(`No session at ${SESSION}`);
-  console.error(`Run: node scripts/grab/setup-session.js ${STORE}`);
-  process.exit(1);
-}
-
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext({
-    storageState: JSON.parse(fs.readFileSync(SESSION, 'utf8')),
-  });
+  const ctx = await browser.newContext({ storageState: loadSession() });
   const page = await ctx.newPage();
 
   await page.goto('https://merchant.grab.com/portal', {
@@ -140,7 +155,12 @@ if (!fs.existsSync(SESSION)) {
         created_at_utc: r.createdAt,
         updated_at_utc: r.updatedAt,
         status: r.deliveryStatus,
-        amount: r.priceDisplay,
+        // priceDisplay is formatted for humans -- "1,457.00". Sent raw it fails
+        // number validation and the whole batch of 200 is refused for one row.
+        amount: (() => {
+          const n = parseFloat(String(r.priceDisplay ?? '').replace(/,/g, ''));
+          return Number.isFinite(n) ? n : null;
+        })(),
         prep_task_id: r.preparationTaskID || '',
         prep_delayed: !!r.isPreparationTaskDelayed,
         prep_delayed_min: r.preparationTaskDelayedByMin || 0,
@@ -156,5 +176,35 @@ if (!fs.existsSync(SESSION)) {
   const delayed = all.filter((o) => o.prep_delayed_min > 0);
   console.error(`${STORE} ${FROM}..${TO}: ${all.length} orders, `
     + `${delayed.length} with a prep delay`);
+
+  const webhook = (process.env.WEBHOOK_URL || '').trim();
+  if (webhook && all.length) {
+    // Posted in batches: a month of three stores is a few thousand rows and one
+    // request that size is refused before it reaches the handler.
+    const SIZE = 200;
+    let written = 0;
+    for (let i = 0; i < all.length; i += SIZE) {
+      const chunk = all.slice(i, i + SIZE);
+      const res = await fetch(`${webhook}/api/grab/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store: STORE, orders: chunk }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        console.error(`POST failed ${res.status}: ${text.slice(0, 200)}`);
+        process.exit(1);
+      }
+      // Count what the server says it wrote, not what was sent. An upsert that
+      // changes nothing still returns 200, and reporting the sent count would
+      // print "245 imported" over a table that did not move.
+      try { written += JSON.parse(text).written || 0; } catch { /* keep going */ }
+    }
+    console.error(`  posted: ${written} rows written of ${all.length} sent`);
+  } else if (!webhook) {
+    console.error('  (dry run — no WEBHOOK_URL, nothing written)');
+  }
+
   process.stdout.write(JSON.stringify(all, null, 2));
 })();
