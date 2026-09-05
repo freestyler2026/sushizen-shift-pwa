@@ -80,12 +80,13 @@ type RequestRow = {
 /** Server-side split of settled spend. Aggregated per line, because a request
  *  can carry Warehouse and Central Kitchen items at once — 69 of 525 in a month
  *  do — and a request-level total cannot be attributed to one of them. */
-/** Two decimals, and an em dash for a source this month simply has none of —
- *  a plain 0.00 reads as "measured and it was zero". */
+/** Two decimals. A real zero prints as 0.00 — an em dash is kept for "no figure
+ *  at all", because a dash under Warehouse would read as "not calculated" to the
+ *  very people who asked for that column. */
 const money = (v?: number) =>
-  v === undefined || v === null ? "—"
-  : v === 0 ? "—"
-  : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  v === undefined || v === null
+    ? "—"
+    : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type SourceSummaryMonth = {
   month: string;
@@ -1414,23 +1415,6 @@ export default function StoreProcurementHomePage() {
     [activeRows, rejectedRows, statusFilter],
   );
 
-  // Monthly delivery summary: aggregate approved/received rows by YYYY-MM
-  const monthlySummary = useMemo(() => {
-    const SETTLED = new Set(["APPROVED", "RECEIVED", "CLAIMED", "CLOSED"]);
-    const byMonth: Record<string, { count: number; total: number }> = {};
-    for (const row of rows) {
-      if (!SETTLED.has(String(row.status || "").toUpperCase())) continue;
-      const month = String(row.request_date || "").slice(0, 7);
-      if (!month) continue;
-      if (!byMonth[month]) byMonth[month] = { count: 0, total: 0 };
-      byMonth[month].count += 1;
-      byMonth[month].total += Number(row.total_amount || 0);
-    }
-    return Object.entries(byMonth)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([month, d]) => ({ month, ...d }));
-  }, [rows]);
-
   const STATUS_FILTER_LABEL: Record<string, string> = {
     DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected",
   };
@@ -2434,7 +2418,7 @@ export default function StoreProcurementHomePage() {
       ) : null}
 
           {/* Delivery Summary */}
-          {storeCode && monthlySummary.length > 0 && (
+          {storeCode && sourceSummary.length > 0 && (
             <div className={`${BLUSH_GLASS} overflow-hidden`}>
               <button
                 type="button"
@@ -2478,13 +2462,17 @@ export default function StoreProcurementHomePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {monthlySummary.map((row) => {
+                          {/* Driven by the server summary, not the request list. The list
+                              is capped at 200 rows, so older months are missing from it
+                              entirely and its newest cut-off month is partial — totals taken
+                              from it would not match the breakdown on the same line. */}
+                          {sourceSummary.map((row) => {
                             const SETTLED = new Set(["APPROVED", "RECEIVED", "CLAIMED", "CLOSED"]);
                             const monthRows = rows.filter(
                               (r) => String(r.request_date || "").slice(0, 7) === row.month && SETTLED.has(String(r.status || "").toUpperCase())
                             );
                             const isOpen = expandedSummaryMonth === row.month;
-                            const split = sourceSummary.find((x) => x.month === row.month);
+                            const split = row;
                             return (
                               <React.Fragment key={row.month}>
                                 <tr
@@ -2499,7 +2487,7 @@ export default function StoreProcurementHomePage() {
                                       {row.month}
                                     </span>
                                   </td>
-                                  <td className="py-2 text-right text-zinc-400 text-xs">{row.count}</td>
+                                  <td className="py-2 text-right text-zinc-400 text-xs">{row.orders}</td>
                                   <td className="py-2 text-right font-semibold text-amber-300 tabular-nums">
                                     {money(split?.warehouse)}
                                   </td>
@@ -2525,6 +2513,15 @@ export default function StoreProcurementHomePage() {
                                   <tr>
                                     <td colSpan={6} className="pb-2 pt-0">
                                       <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-white/3 p-2">
+                                        {/* The month total is the server's; this list is only the
+                                            requests loaded on this page. Say so when it is short,
+                                            rather than letting the rows look like the whole month. */}
+                                        {monthRows.length < row.orders && (
+                                          <p className="px-2 pb-1 text-[10px] text-zinc-500">
+                                            Showing {monthRows.length} of {row.orders} orders — the rest are older than
+                                            the requests loaded on this page.
+                                          </p>
+                                        )}
                                         {monthRows.map((pr) => {
                                           const st = String(pr.status || "").toUpperCase();
                                           return (
@@ -2563,7 +2560,7 @@ export default function StoreProcurementHomePage() {
                         <tfoot>
                           <tr className="border-t border-white/15">
                             <td className="pt-2 text-xs text-zinc-500 font-semibold">Total</td>
-                            <td className="pt-2 text-right text-xs text-zinc-400">{monthlySummary.reduce((s, r) => s + r.count, 0)}</td>
+                            <td className="pt-2 text-right text-xs text-zinc-400">{sourceSummary.reduce((s, r) => s + (r.orders || 0), 0)}</td>
                             <td className="pt-2 text-right text-sm font-bold text-amber-300 tabular-nums">
                               {money(sourceSummary.reduce((s, r) => s + (r.warehouse || 0), 0))}
                             </td>
@@ -2574,17 +2571,16 @@ export default function StoreProcurementHomePage() {
                               {money(sourceSummary.reduce((s, r) => s + (r.supplier || 0), 0))}
                             </td>
                             <td className="pt-2 text-right text-sm font-bold text-white tabular-nums">
-                              {monthlySummary.reduce((s, r) => s + r.total, 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {sourceSummary.reduce((s, r) => s + (r.total || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
                         </tfoot>
                       </table>
                       <p className="mt-3 text-[11px] text-zinc-600">
-                        Orders and Total come from the requests loaded here (up to 200), covering APPROVED, RECEIVED,
-                        CLAIMED &amp; CLOSED. Warehouse / Central Kitchen / Supplier are calculated on the server from
-                        every line of those months, so a request holding both Warehouse and Central Kitchen items is
-                        counted under each for the part that belongs to it. A “+x?” next to Supplier is spend on lines
-                        with no supplier recorded.
+                        Calculated on the server over every APPROVED, RECEIVED, CLAIMED &amp; CLOSED request for this
+                        branch — not only the ones loaded on this page. Amounts are split per line, so a request holding
+                        both Warehouse and Central Kitchen items is counted under each for the part that belongs to it.
+                        A “+x?” next to Supplier is spend on lines with no supplier recorded.
                       </p>
                     </div>
                   </motion.div>
