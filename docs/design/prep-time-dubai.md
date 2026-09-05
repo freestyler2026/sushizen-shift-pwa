@@ -14,10 +14,10 @@
 |---|---:|---|---|
 | **Careem** | 671 | **指標は存在するが 403** | アカウント権限。**Careemに依頼が要る** |
 | **Talabat** | 401 | 注文画面に到達不可 | **長押しの人間認証**。突破しない |
-| **Keeta** | 217 | 未確認 | セッションは生存。Financials は開ける |
-| **Noon** | 39 | 未確認 | 件数が少なく優先度低 |
+| **Keeta** | 217 | **✅ 取得できる** | `readiedStatusTime − confirmedStatusTime` |
+| **Noon** | 39 | **調理時刻が無い** | 注文一覧は取れるが `placedAt` のみ |
 
-マニラ（Grab）のように**すぐ取れるものは1つも無い。**
+**Keeta だけが今すぐ実装できる。**
 
 ## Careem — 指標はあるが権限が無い
 
@@ -67,22 +67,59 @@ Estimated earnings で、**prep time の列は見当たらない**。
 → 人が認証を通した状態でセッションを取れば先に進める可能性はあるが、
 **取れたとしても日次バッチ化は難しい**（毎回認証を求められるなら自動化できない）。
 
-## Keeta — 未確認
+## Keeta — ✅ 取得できる
 
-セッションは生存（2027-02 まで）。`merchant.mykeeta.com/web/app/finance` は開け、
-Billing report の生成・ダウンロードができる。**Operations 相当の区画は未探索。**
+Orders → **Order history** が叩く API に注文ごとの状態遷移時刻が入っている。
 
-## Noon — 未確認
+```
+POST https://merchant.mykeeta.com/api/order/history/getOrders
+  confirmedStatusTime   受注
+  readiedStatusTime     調理完了   ← これ
+  completedStatusTime / arrivedStatusTime / createdStatusTime
+調理時間 = readiedStatusTime − confirmedStatusTime
+```
 
-30日で39件と少ない。優先度を下げた。
+**実測: 30件中30件で計算でき、中央値14分（6〜20分）。**
+Grab の `readyAt − acceptedAt` と同じ定義で、しかも**一覧に入っているので
+注文ごとの追加リクエストが要らない**（Grab より軽い）。
+
+セッションは2027-02まで有効。`scripts/keeta/keeta-session.json` がそのまま使える。
+
+⚠️ ポータルは iframe 構成で、ページ遷移はクリックで行う必要がある
+（URL直打ちでは中身が描画されない）。Playwright が要る。
+
+## Noon — 注文は取れるが調理時刻が無い
+
+```
+POST https://restaurant.noon.partners/_food-restaurant/order/search
+  {"startDate":"2026-09-01","endDate":"2026-09-05"}
+```
+
+日付ごとに注文が返る（**9/4 は173件**。`prep_time_records` の30日39件とは桁が違う）。
+ただし時刻は **`placedAt` の1つだけ**で、受注・調理完了は無い。
+
+```
+orderNr / orderRef / channelCode / status / amount / paymentStatus /
+currencyCode / placedAt / outletCode / outletName / 金額各種
+```
+
+注文詳細のエンドポイントは見つからなかった（試した4経路すべて404）。
+**現状 Noon の調理時間は取得できない。**
+
+⚠️ Noon のポータルはヘッドレスブラウザを HTTP/2 レベルで拒否する
+（`ERR_HTTP2_PROTOCOL_ERROR`）。素の fetch は通るので、UI探索ができない。
+追加のエンドポイントを見つけるには、人が実ブラウザで開いて通信を記録する必要がある。
 
 ## 提案
 
-1. **Careem に Operations/Analytics の権限を依頼する** — 最も見込みが高い。
-   指標も定義も API も判明済みで、権限だけが足りない
-2. **Keeta と Noon を次回調べる** — セッションは生きているので調査自体は可能
-3. **Talabat は当面あきらめる** — 認証の壁が自動化と相容れない
-4. **それまで、ドバイの Prep Time 画面は「計測していない」と明記する**
+1. **Keeta を実装する** — 今すぐできる。追加リクエスト不要で Grab より軽い。
+   ドバイで最初に本物の調理時間が出るのはここ
+2. **Careem に Operations/Analytics の権限を依頼する** — 指標も定義も API も
+   判明済みで、権限だけが足りない。件数はドバイ最大（671件）なので効果も大きい
+3. **Noon は保留** — 注文は取れるが調理時刻が無い。人が実ブラウザで
+   ポータルを開いて通信を記録すれば別経路が見つかる可能性はある
+4. **Talabat は当面あきらめる** — 人間認証が自動化と相容れない
+5. **Keeta が入るまで、ドバイの Prep Time は「計測していない」と明記する**
    （教訓58 — 見えていない場所について「問題なし」と表示しない）
 
 現行のドバイの数字（写真OCR）は**誤読が大半なので、消すか旧方式として隔離する**。
