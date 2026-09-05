@@ -14,6 +14,10 @@ on:
         description: 'Period end (YYYY-MM-DD). Default: yesterday (PHT).'
         required: false
         default: ''
+      store:
+        description: 'Which store: all (default) | paranaque | taft | qc'
+        required: false
+        default: ''
 
 jobs:
   extract-payouts:
@@ -44,13 +48,54 @@ jobs:
           echo "DATE_TO=$DATE_TO"     >> $GITHUB_ENV
           echo "Extracting Grab PH payouts: $DATE_FROM → $DATE_TO"
 
-      - name: Extract payouts (all PH stores via Paranaque manager account)
+      # Grab PH keeps each branch behind its own login: one session sees exactly
+      # one store (measured 2026-09-05 — the Paranaque session returns only
+      # "Sushi Zen - Paranaque", the Cubao session only "Sushizen Japanese
+      # Restaurant - Quezon City"). So this runs once per store, the way the
+      # FoodPanda workflow already does.
+      #
+      # Until 2026-09-05 only Paranaque ran here and the other two were done by
+      # hand. That held up for months and then quietly stopped: TAFT and CUB
+      # have nothing after 2026-09-02 while PAR kept going.
+      #
+      # Every store step is `if: always()` so one expired session cannot skip
+      # the others (lesson 17). The job still ends red, so a stuck store is
+      # never reported as success (lesson 47).
+
+      - name: Extract Paranaque payouts
+        if: ${{ github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque' }}
         run: node scripts/grab/get-payouts.js
         env:
           DATE_FROM:           ${{ env.DATE_FROM }}
           DATE_TO:             ${{ env.DATE_TO }}
           WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:     PAR
           GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_PARANAQUE }}
+        timeout-minutes: 4
+
+      - name: Extract Taft payouts
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-payouts.js
+        env:
+          DATE_FROM:           ${{ env.DATE_FROM }}
+          DATE_TO:             ${{ env.DATE_TO }}
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:     TAFT
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_TAFT }}
+        timeout-minutes: 4
+
+      # The login is called "qc" but Grab settles this branch as Cubao, so the
+      # store code is CUB while the secret keeps the login's name. Renaming
+      # either one would orphan existing rows / the existing secret.
+      - name: Extract Cubao (QC) payouts
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-payouts.js
+        env:
+          DATE_FROM:           ${{ env.DATE_FROM }}
+          DATE_TO:             ${{ env.DATE_TO }}
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:     CUB
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
         timeout-minutes: 4
 
       - name: Refresh Daily P&L cache

@@ -6,8 +6,14 @@
  * This script aggregates completed order transactions per store per day and
  * posts one summary record per (store × date) to ar_payouts via the webhook.
  *
- * Auth: one Paranaque manager session covers all 3 PH stores via the
- *   merchant group PHMG20250807052040017951 (confirmed from check-prices.js).
+ * Auth: ONE SESSION SEES ONE STORE. The merchant group id below is the same
+ *   for all three PH branches, so it does not select anything -- the session
+ *   does. Run this once per store with that store's session and the matching
+ *   GRAB_STORE_CODE (PAR | TAFT | CUB). Measured 2026-09-05: the Paranaque
+ *   session returns only "Sushi Zen - Paranaque", the Cubao session only
+ *   "Sushizen Japanese Restaurant - Quezon City".
+ *   (An earlier note here claimed one manager session covered all three. It
+ *   does not, and assertSessionMatchesStore below exists because of it.)
  *
  * APIs discovered 2026-08-22:
  *   GET https://merchant.grab.com/mex/finances/v2/transactions

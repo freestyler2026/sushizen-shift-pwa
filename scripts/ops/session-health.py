@@ -49,7 +49,9 @@ KNOWN_LIFETIME_H = {
 # 広げると、今日更新したばかりの taft まで «失敗» と表示してしまう
 # （grab の日次ジョブが読むのは GRAB_SESSION_PARANAQUE だけ）。
 WORKFLOWS = {
-    "grab": ("grab-manila-daily-payout.yml", {"paranaque"}),
+    # 2026-09-05 まで paranaque だけだった。taft と qc は手で回していて、
+    # 誰も回さなくなった 09-03 以降そのまま欠測していたので日次に載せた。
+    "grab": ("grab-manila-daily-payout.yml", {"paranaque", "taft", "qc"}),
     "foodpanda": ("foodpanda-manila-daily-payout.yml", {"paranaque", "taft", "qc"}),
     "keeta": ("keeta-dubai-payout.yml", {""}),
 }
@@ -133,6 +135,45 @@ def probe(platform, store):
     if r.returncode == 1:
         return False, detail
     return None, detail or "判定不能"
+
+
+def grab_still_accepted(path):
+    """Grab のセッションが今この瞬間に通るかを、実際に1回叩いて確かめる。
+
+    Cookie の exp は「いつまで有効か」の**申告**でしかない。2026-09-05、taft の
+    mexusers_authn_token は残り34.5時間と書いてあるのに API は 401 を返した。
+    この画面が 🟢 と表示した状態で、取込は動かない。予測より事実を優先する。
+
+    True=通った / False=401（死んでいる） / None=確かめられなかった。
+    確かめられなかったときに False へ倒してはいけない（教訓58）。
+    """
+    import urllib.error
+    import urllib.request
+    try:
+        s = json.load(open(path))
+    except Exception:
+        return None
+    cookie = "; ".join(
+        f"{c['name']}={c['value']}" for c in (s.get("cookies") or [])
+        if c.get("domain") in (".grab.com", "merchant.grab.com"))
+    if not cookie:
+        return None
+    day = NOW.date().isoformat()
+    url = ("https://merchant.grab.com/mex/finances/v2/transactions"
+           f"?merchant_group_id=PHMG20250807052040017951&from={day}&to={day}"
+           "&transaction_status=completed&currency=PHP&limit=1&offset=0")
+    req = urllib.request.Request(url, headers={
+        "Cookie": cookie, "Accept": "application/json",
+        "Referer": "https://merchant.grab.com/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/151.0.0.0",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return 200 <= r.status < 300
+    except urllib.error.HTTPError as e:
+        return False if e.code in (401, 403) else None
+    except Exception:
+        return None
 
 
 def expiry_from_file(platform, path):
@@ -319,6 +360,17 @@ def main():
             continue
 
         left, basis = expiry_from_file(platform, path)
+
+        # Grab は「まだ通るか」を実際に確かめられる。期限が残っていても弾かれる
+        # ことがあるので、事実が取れたときは予測より優先する。
+        if platform == "grab":
+            accepted = grab_still_accepted(path)
+            if accepted is False:
+                dead.append((label, "APIが401を返す（期限は残っているが実際には通らない）",
+                             platform, store))
+                continue
+            if accepted is True and left is not None:
+                basis += "・いま実際に通ることを確認"
 
         # 事実（CIの失敗）が最優先。予測より強い。ただしそのジョブが実際に
         # 読むシークレットの店舗にだけ適用する
