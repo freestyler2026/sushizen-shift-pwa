@@ -6,11 +6,18 @@ import AutoReload from "@/components/AutoReload";
 import SessionGuard from "@/components/SessionGuard";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
 
-const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
+// /apply is reached by people who do not work here yet. Staff navigation and
+// SessionGuard both assume a logged-in user, and a job applicant seeing a
+// half-loaded staff menu -- or being bounced to a login screen -- simply leaves.
+const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin", "/apply"]);
+// Pages an applicant reaches from a message. They have no account, so the admin
+// navigation would offer them nothing but a way to get lost.
+const HIDE_NAV_PREFIXES = ["/voice/"];
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideNav = HIDE_NAV_PATHS.has(pathname);
+  const hideNav = HIDE_NAV_PATHS.has(pathname)
+    || HIDE_NAV_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (hideNav) {
     return (
