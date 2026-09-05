@@ -55,8 +55,8 @@ const GRADE_TONE: Record<string, string> = {
 const MIN_HOUR_SAMPLE = 20;
 
 const PLATFORM_NOTE: Record<string, string> = {
-  manila: "Grab のみ。FoodPanda と Beep は取り込んでいません。",
-  dubai: "Keeta のみ。Careem・Talabat・Noon は取り込んでいません。",
+  manila: "Grab only — FoodPanda and Beep are not imported.",
+  dubai: "Keeta only — Careem, Talabat and Noon are not imported.",
 };
 
 function fmt(n: number | null | undefined, unit = ""): string {
@@ -123,7 +123,7 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
           <button key={d} type="button" onClick={() => setDays(d)}
             className={`rounded-xl px-3 py-2 text-xs transition ${
               days === d ? "bg-white/10 text-white" : "text-zinc-400 hover:text-zinc-200"}`}>
-            {d}日
+            {d}d
           </button>
         ))}
         <button type="button" onClick={() => void load()} disabled={loading}
@@ -146,10 +146,10 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              ["注文", String(data.orders), ""],
-              ["実測", `${data.measured}`, data.measured_pct !== null ? `${data.measured_pct}%` : ""],
-              ["中央値", fmt(data.median_prep_min), "分"],
-              ["p90", fmt(data.p90_prep_min), "分"],
+              ["Orders", String(data.orders), ""],
+              ["Measured", `${data.measured}`, data.measured_pct !== null ? `${data.measured_pct}%` : ""],
+              ["Median", fmt(data.median_prep_min), "min"],
+              ["p90", fmt(data.p90_prep_min), "min"],
             ].map(([label, value, sub]) => (
               <div key={label} className={`${GLASS_CARD} p-4`}>
                 <p className="text-xs text-zinc-500">{label}</p>
@@ -161,22 +161,23 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
           </div>
 
           {/* The gap, named. Cancellations and mis-pressed zeros are normal and
-              are counted apart, so a rise in "未取得" is the one thing that
+              are counted apart, so a rise in "not measured" is the one thing that
               means the import is failing rather than the day being quiet. */}
           <div className={`${GLASS_CARD} p-4`}>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">内訳</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Breakdown</p>
             <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-300">
-              <span>実測 <b className="tabular-nums text-white">{data.measured}</b></span>
-              <span>未調理（取消・調理中） <b className="tabular-nums">{data.never_cooked}</b></span>
-              <span>0分（押し間違い） <b className="tabular-nums">{data.zero_minute}</b></span>
+              <span>Measured <b className="tabular-nums text-white">{data.measured}</b></span>
+              <span>Never cooked (cancelled / in progress) <b className="tabular-nums">{data.never_cooked}</b></span>
+              <span>Zero minutes (mis-pressed) <b className="tabular-nums">{data.zero_minute}</b></span>
               <span className={unfetched > data.orders * 0.15 ? "text-amber-300" : ""}>
-                未取得 <b className="tabular-nums">{unfetched}</b>
+                Not measured <b className="tabular-nums">{unfetched}</b>
               </span>
             </div>
             {unfetched > 0 && (
               <p className="mt-2 text-xs text-zinc-500">
-                未取得は「調理完了」が押されなかった注文です。取込の失敗ではありません
-                （持ち帰り注文に多い）。ここだけが増えたときは取込を疑ってください。
+                Not measured means Ready was never pressed on that order, most often on
+                collections. It is not an import failure. If this alone starts rising,
+                suspect the import.
               </p>
             )}
           </div>
@@ -185,11 +186,11 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
             <div className={`${GLASS_CARD} p-4`}>
               <div className="flex items-baseline justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  時間帯別の中央値（現地時間）
+                  Median by hour (local time)
                 </p>
                 {worstHour && (
                   <p className="text-xs text-amber-200">
-                    最も遅い {String(worstHour.hour).padStart(2, "0")}時 · {fmt(worstHour.median_prep)}分
+                    Slowest {String(worstHour.hour).padStart(2, "0")}:00 · {fmt(worstHour.median_prep)} min
                   </p>
                 )}
               </div>
@@ -209,25 +210,25 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
               </div>
               {hidden > 0 && (
                 <p className="mt-2 text-xs text-zinc-500">
-                  実測 {MIN_HOUR_SAMPLE} 件未満の {hidden} 時間帯は表示していません。
-                  少数の注文では中央値が簡単に逆転します。
+                  {hidden} hour(s) with fewer than {MIN_HOUR_SAMPLE} measured orders are
+                  not drawn. A median over a handful of orders flips easily.
                 </p>
               )}
             </div>
           )}
 
           <div className={`${GLASS_CARD} p-4`}>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">店舗別</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">By store</p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-[520px] text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-xs text-zinc-500">
-                    <th className="py-2 text-left">店舗</th>
-                    <th className="py-2 text-right">注文</th>
-                    <th className="py-2 text-right">実測</th>
-                    <th className="py-2 text-right">中央値</th>
+                    <th className="py-2 text-left">Store</th>
+                    <th className="py-2 text-right">Orders</th>
+                    <th className="py-2 text-right">Measured</th>
+                    <th className="py-2 text-right">Median</th>
                     <th className="py-2 text-right">p90</th>
-                    <th className="py-2 text-right">点数</th>
+                    <th className="py-2 text-right">Score</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,8 +240,8 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
                         <td className="py-2 font-medium text-white">{r.store_code}</td>
                         <td className="py-2 text-right tabular-nums text-zinc-400">{r.orders}</td>
                         <td className="py-2 text-right tabular-nums text-zinc-400">{r.measured}</td>
-                        <td className="py-2 text-right tabular-nums text-zinc-200">{fmt(m, "分")}</td>
-                        <td className="py-2 text-right tabular-nums text-zinc-400">{fmt(r.p90_prep, "分")}</td>
+                        <td className="py-2 text-right tabular-nums text-zinc-200">{fmt(m, " min")}</td>
+                        <td className="py-2 text-right tabular-nums text-zinc-400">{fmt(r.p90_prep, " min")}</td>
                         <td className="py-2 text-right tabular-nums">
                           {s === null ? "—" : (
                             <span className={GRADE_TONE[grade(s)]}>{s} <b>{grade(s)}</b></span>
@@ -257,7 +258,7 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
           {/* One store stalling is invisible in the totals: the others keep
               importing and the figure only dips. */}
           <div className={`${GLASS_CARD} p-4`}>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">取込の鮮度</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Import freshness</p>
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
               {data.freshness.filter((f) => f.city === city).map((f) => {
                 const d = staleDays(f.last_import);
@@ -265,14 +266,14 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
                   <span key={`${f.platform}-${f.store_code}`}
                         className={d >= 2 ? "text-red-300" : "text-zinc-300"}>
                     {f.store_code} {String(f.last_date).slice(5)}
-                    {d >= 2 && <b className="ml-1">{d}日前</b>}
+                    {d >= 2 && <b className="ml-1">{d}d ago</b>}
                   </span>
                 );
               })}
             </div>
             {data.freshness.filter((f) => f.city === city && staleDays(f.last_import) >= 2).length > 0 && (
               <p className="mt-2 text-xs text-red-300">
-                止まっている店舗があります。セッションを取り直してください:
+                A store has stopped importing. Refresh its session:
                 <code className="ml-1 rounded bg-black/30 px-1">
                   node scripts/{city === "dubai" ? "keeta" : "grab"}/setup-session.js
                 </code>

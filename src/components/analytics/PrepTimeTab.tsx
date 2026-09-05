@@ -930,21 +930,22 @@ export default function PrepTimeTab(props: Props) {
           className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
             view === "ledger" ? "bg-violet-500/20 text-violet-200 border border-violet-400/40"
                               : "border border-white/10 text-zinc-400 hover:text-zinc-200"}`}>
-          調理時間（注文台帳）
+          Order ledger
         </button>
         <button type="button" onClick={() => setView("photo")}
           className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
             view === "photo" ? "bg-white/10 text-white border border-white/20"
                              : "border border-white/10 text-zinc-500 hover:text-zinc-300"}`}>
-          旧方式（写真・〜2026-09）
+          Photos (legacy, to 2026-09)
         </button>
       </div>
 
       {view === "photo" && (
         <p className="text-xs text-amber-200/80">
-          写真とOCRによる旧データです。注文の一部しか捉えておらず、読み取った時刻にも
-          誤りが含まれます。<b>上の「注文台帳」が現在の正となる数字です。</b>
-          記録は消していないので、過去の経緯を追うときに使ってください。
+          Legacy data read by OCR from photographed receipts. It covers only part of
+          the orders and a share of the times it read are wrong.{" "}
+          <b>Order ledger above is the figure to use.</b> Nothing here has been
+          deleted, so it stays available for looking back.
         </p>
       )}
 
