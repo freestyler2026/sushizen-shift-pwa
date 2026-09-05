@@ -22,9 +22,13 @@
  *   isPreparationTaskDelayed     Grab's verdict, not ours
  *   preparationTaskDelayedByMin  3-19 min across the sample
  *
- * There is no absolute "ready at" timestamp here. Clicking an order row fires
- * no detail request, so the delay minutes are as close to prep time as the
- * portal goes. That is still better than a number nobody can check.
+ * The list has no ready timestamp, but the per-order detail does:
+ *   GET api.grab.com/food/merchant/v3/orders/{ID}  ->  order.times.readyAt
+ * Prep minutes = readyAt - acceptedAt. One extra request per order, ~0.3s.
+ *
+ * Take the measured minutes, not isPreparationTaskDelayed. Grab's own flag
+ * understates lateness badly: GF-017 took 50 minutes against a 25-minute
+ * estimate and was recorded as delayed by 0, as was GF-740 at 53 against 33.
  *
  * Auth: one login sees one store, the same as get-payouts.js. Run
  * setup-session.js for each of paranaque | taft | qc. Sessions die within days.
@@ -177,6 +181,33 @@ async function grabGet(cookie, url) {
       if (!body.hasMore || rows.length === 0) break;
     }
   }
+
+  // Fill in the prep timestamps. Four at a time: sequential is ~0.3s each and a
+  // three-day window across a busy store is several hundred orders, while more
+  // concurrency risks the portal's rate limiting for no useful gain.
+  const detailable = all.filter((o) => o.status === 'COMPLETED');
+  let cursor = 0;
+  async function worker() {
+    while (cursor < detailable.length) {
+      const o = detailable[cursor++];
+      const d = await grabGet(cookie,
+        `https://api.grab.com/food/merchant/v3/orders/${o.long_order_id}`);
+      if (d.status !== 200) continue;
+      let t;
+      try { t = (JSON.parse(d.text).order || {}).times || {}; } catch { continue; }
+      o.accepted_at_utc = t.acceptedAt || null;
+      o.ready_at_utc = t.readyAt || null;
+      // Null when either end is missing, never 0: a zero would read as an order
+      // prepared instantly and drag the median down.
+      o.prep_minutes = (t.acceptedAt && t.readyAt)
+        ? Math.round((new Date(t.readyAt) - new Date(t.acceptedAt)) / 60000)
+        : null;
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker));
+
+  const withPrep = detailable.filter((o) => o.prep_minutes !== null).length;
+  console.error(`  prep times: ${withPrep}/${detailable.length} completed orders`);
 
   const delayed = all.filter((o) => o.prep_delayed_min > 0);
   console.error(`${STORE} ${FROM}..${TO}: ${all.length} orders, `
