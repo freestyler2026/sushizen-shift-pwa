@@ -1,6 +1,65 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-05（発注額の欠落37%を修正・unclassified の76%を Warehouse/CK へ復元）
+Last updated: 2026-09-05（音声一次面接 Phase 1 完成 — 応募フォーム・録音UI・HR判断画面）
+
+---
+
+## 2026-09-05 — 非同期音声一次面接 Phase 1（完成・本番稼働）
+
+応募 → 録音 → HRが聞いて1タップで判断、までが繋がった。
+
+**完了 — 応募フォーム**
+- `/apply`（公開・認証なし・モバイル前提・英語/タガログ）。マニラ4拠点＋BO。
+- `hr_applicants` に `position_group` / `experience_level` / `available_from` /
+  `contact_apps` / `facebook_url` / `form_language` / `submitted_ip` を追加。
+- 濫用対策はハニーポット＋IP 5件/時。CAPTCHAは入れない（応募母数を減らす）。
+- 既存135件は全てHRがMessengerから手入力したもので、requisition紐づき14%・
+  職種は自由記述・applied_date はHRが入力した日。フォーム経由は4つとも解消する。
+
+**完了 — 録音UI（応募者側）**
+- `src/components/apply/VoiceScreening.tsx`。送信直後に出す（メール0件・
+  Viber/WhatsApp/FB の記載も0件で、リンクを送る経路は必ず落ちるため）。
+- 任意であることを2回示す（同意前の「あとで」＋同意文を読んだ後の辞退）。
+- 質問7問（自己紹介 / **現在または前職の勤務先** / 志望理由 / 苦労した経験 /
+  遅刻しそうなとき / 繁忙時 / 5年後）。1問ずつ即アップロード、`answered[]` で再開。
+- Opus 24kbps（90秒 ≒ 270KB）。録り直しは1問1回まで（台本化を防ぐ）。
+- 保存先は Drive（`VOICE_SCREENING_FOLDER_ID`）。Postgres に音声を入れない（教訓29）。
+- 同意文は「保持期間経過後に削除手続き → 30日以内に完全消去」。SAは共有ドライブの
+  Contributor で `canDelete=False` / `canTrash=True` なので、即時消去とは書けない。
+
+**完了 — HR側の判断画面**
+- Recruitment ページの3つ目のタブ `Voice screening`（専用チャンネルを作らない＝
+  権限の配り忘れで全ボタンが無言403になるのを避ける）。バッジに `To review` 件数。
+- 待ち行列は4つに分けて数える: `To review`（あなた待ち）/ `Waiting on them` /
+  `Not started` / `Decided`。動詞に対して押せる件数だけを数える（教訓73）。
+- 1件開くと質問7問がプレイヤー付きで並ぶ。**未回答の問も残す**（5問の沈黙が
+  「面接が終わった」に見えないように）。音声は1問ずつ別エンドポイント・preload=none。
+- 判断は `Shortlist`（理由不要・`new`→`screened`）/ `Hold`（段階据え置き）/
+  `Pass`（`rejected`）。理由チップ6種。署名者と日時は聞かずトークンとNOW()で確定。
+- **判断は応募段階と同じトランザクションで動く。** `record_interview_outcome`
+  （会った後の判断）とは別物で、こちらは会う前の `new → screened` の1歩。
+- 取り消しは `prev_status` を戻す（別の判断を入れ直すのではない／教訓78）。
+  Undo は押した行にそのまま残り、消えるのは Refresh のときだけ（教訓56）。
+- `can_decide` をAPIが返す。閲覧のみの MANILA_MANAGEMENT にはボタンを出さず理由を書く。
+
+**本番で検証済み（`city='qa-selftest'` に隔離して往復・終了後に全削除）**
+- 応募→同意→録音2問アップロード→一覧→詳細→音声取得（アップロードしたバイト列と一致）
+- 理由なしpass / 未知の理由 / Other без note / 未知の判断 → 全て400
+- shortlist → `screened` に移動、`decided_by` にログイン名 → Undo → `new` に完全復帰
+- pass → `rejected` ＋ `rejection_reason` → Undo で理由も消える
+- hold → 段階据え置き / 採用済みの人は400で拒否
+- 実在アカウントで権限確認: STAFF 6名→403 / HR_STAFF(Camilla)・HR_MANAGER→can_decide=true /
+  MANILA_MANAGEMENT→閲覧200・書き込み403
+
+**未確認（オーナー対応が必要）**
+- **ブラウザでの実録音・実クリックは未検証。** マイク権限とログインが要るため。
+  スマホで `/apply` を送信 → 録音 → `Voice screening` タブで再生・判断まで通してほしい。
+
+**未着手**
+- 「あとで」を選んだ人に招待を送るボタン（Viber/WhatsApp/SMS のディープリンク）
+- Phase 2 文字起こし（実際のフィリピン英語・タグリッシュ音声でエンジン比較）
+- Phase 3 要約（スコア様の出力を出さないガード）／Phase 4 対面面接との比較指標
+- 法務: NPC登録の要否確認。**本番の本格運用は法務確認後**
 
 ---
 
