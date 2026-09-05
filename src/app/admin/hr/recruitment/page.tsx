@@ -31,6 +31,7 @@ import {
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import VoiceScreeningQueue from "@/components/hr/VoiceScreeningQueue";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -2242,7 +2243,10 @@ export default function HRRecruitmentPage() {
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
-  const [view, setView] = useState<"pipeline" | "plans">("pipeline");
+  const [view, setView] = useState<"pipeline" | "plans" | "voice">("pipeline");
+  // The tab carries its own count. A queue nobody can see the size of is a
+  // queue nobody opens.
+  const [voiceToReview, setVoiceToReview] = useState<number | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showNewPlan, setShowNewPlan] = useState(false);
@@ -2312,6 +2316,20 @@ export default function HRRecruitmentPage() {
         const reqData = await reqRes.json();
         setRequisitions(Array.isArray(reqData) ? reqData : reqData?.requisitions || []);
       }
+
+      // The voice tab's badge. Fetched here rather than inside the tab, or the
+      // number only appears once you have already opened the thing it was
+      // meant to send you to. Its own failure is not the pipeline's failure,
+      // so it never throws.
+      try {
+        const vRes = await fetch(
+          `${API_BASE}/api/admin/hr/voice-screenings?city=manila&state=to_review&limit=1`,
+          { headers, cache: "no-store" });
+        if (vRes.ok) {
+          const v = await vRes.json();
+          setVoiceToReview(Number(v?.counts?.to_review || 0));
+        }
+      } catch { /* the badge is not worth breaking the page for */ }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2618,13 +2636,18 @@ export default function HRRecruitmentPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
             <div className={TAB_CONTAINER}>
-              {([["pipeline", "Pipeline"], ["plans", "Plans"]] as const).map(([k, label]) => (
+              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   className={view === k ? TAB_ACTIVE : TAB_INACTIVE}
                   onClick={() => setView(k)}
                 >
                   {label}
+                  {k === "voice" && voiceToReview ? (
+                    <span className="ml-1.5 rounded-full bg-violet-500/25 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-violet-200">
+                      {voiceToReview}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -2734,7 +2757,9 @@ export default function HRRecruitmentPage() {
         )}
       </div>
 
-      {view === "plans" ? (
+      {view === "voice" ? (
+        <VoiceScreeningQueue />
+      ) : view === "plans" ? (
         <PlansView
           data={overview}
           loading={loadingOverview}
