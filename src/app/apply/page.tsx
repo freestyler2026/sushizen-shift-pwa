@@ -32,6 +32,10 @@ const T = {
     branch: "Which branch do you prefer?",
     experience: "Experience in food service",
     availableFrom: "When can you start?",
+    apps: "Which of these do you use on this number?",
+    appsHelp: "So we can send you the next step. Leave blank if you are not sure — we will text you.",
+    fb: "Facebook profile link (optional)",
+    fbPh: "facebook.com/yourname",
     referrer: "Who referred you? (optional)",
     referrerPh: "Name of the person",
     notes: "Anything else? (optional)",
@@ -52,6 +56,7 @@ const T = {
       none: "None", under_1y: "Less than 1 year",
       "1_3y": "1 to 3 years", over_3y: "More than 3 years",
     } as Record<string, string>,
+    appNames: { viber: "Viber", whatsapp: "WhatsApp", sms: "SMS only" } as Record<string, string>,
   },
   tl: {
     title: "Magtrabaho sa Sushi ZEN",
@@ -65,6 +70,10 @@ const T = {
     branch: "Aling branch ang gusto mo?",
     experience: "Karanasan sa food service",
     availableFrom: "Kailan ka pwedeng magsimula?",
+    apps: "Alin sa mga ito ang gamit mo sa numerong ito?",
+    appsHelp: "Para maipadala namin ang susunod na hakbang. Pwedeng iwanang blangko — ite-text ka namin.",
+    fb: "Link ng Facebook profile (opsyonal)",
+    fbPh: "facebook.com/pangalanmo",
     referrer: "Sino ang nag-refer sa iyo? (opsyonal)",
     referrerPh: "Pangalan ng tao",
     notes: "May iba ka pang sasabihin? (opsyonal)",
@@ -85,6 +94,7 @@ const T = {
       none: "Wala", under_1y: "Wala pang 1 taon",
       "1_3y": "1 hanggang 3 taon", over_3y: "Higit 3 taon",
     } as Record<string, string>,
+    appNames: { viber: "Viber", whatsapp: "WhatsApp", sms: "SMS lang" } as Record<string, string>,
   },
 };
 
@@ -100,6 +110,9 @@ const BRANCHES = [
   { code: "BO", label: "Office" },
 ];
 const EXPERIENCE = ["none", "under_1y", "1_3y", "over_3y"];
+// Viber first: it is the common one in the Philippines, and an app nobody uses
+// sitting at the top is an app somebody taps by mistake.
+const CONTACT_APPS = ["viber", "whatsapp", "sms"];
 
 const FIELD =
   "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-white " +
@@ -113,8 +126,10 @@ export default function ApplyPage() {
   const [form, setForm] = useState({
     full_name: "", phone: "", position_group: "", branch: "",
     experience_level: "", available_from: "", referrer_name: "", notes: "",
+    facebook_url: "",
     website: "",   // honeypot
   });
+  const [apps, setApps] = useState<string[]>([]);
   const [bad, setBad] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -143,7 +158,7 @@ export default function ApplyPage() {
       const res = await fetch("/api/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, language: lang }),
+        body: JSON.stringify({ ...form, contact_apps: apps, language: lang }),
       });
       if (res.status === 429) { setErr(t.errBusy); return; }
       if (!res.ok) {
@@ -176,8 +191,9 @@ export default function ApplyPage() {
             setForm({
               full_name: "", phone: "", position_group: "", branch: "",
               experience_level: "", available_from: "", referrer_name: "",
-              notes: "", website: "",
+              notes: "", facebook_url: "", website: "",
             });
+            setApps([]);
           }}
           className="mt-8 text-sm text-violet-300 underline"
         >
@@ -264,6 +280,36 @@ export default function ApplyPage() {
               <option key={x} value={x}>{t.experiences[x]}</option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.apps}</label>
+          <div className="flex flex-wrap gap-2">
+            {CONTACT_APPS.map((a) => {
+              const on = apps.includes(a);
+              return (
+                <button
+                  key={a} type="button"
+                  onClick={() => setApps((p) => on ? p.filter((x) => x !== a) : [...p, a])}
+                  aria-pressed={on}
+                  className={`rounded-xl border px-4 py-3 text-sm transition ${
+                    on ? "border-violet-400/60 bg-violet-500/20 text-violet-100"
+                       : "border-white/15 text-zinc-400"}`}
+                >
+                  {on ? "✓ " : ""}{t.appNames[a]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-500">{t.appsHelp}</p>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.fb}</label>
+          <input
+            value={form.facebook_url} onChange={(e) => set("facebook_url", e.target.value)}
+            placeholder={t.fbPh} inputMode="url" autoComplete="off" className={FIELD}
+          />
         </div>
 
         <div>
