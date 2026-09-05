@@ -16,6 +16,10 @@ import SelectDark from "@/components/SelectDark";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
+// The shared drive the exports are filed in. Same id as SHIFT_SCHEDULE_DRIVE_ID
+// on the server; shown here only as a link for people to open.
+const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/0APqUBtx2OBdkUk9PVA";
+
 const W_CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 
@@ -507,7 +511,41 @@ export default function ManualShiftPage() {
   const [city, setCity] = useState<City>((auth?.city as City) || "dubai");
   const [branchCode, setBranchCode] = useState(() => BRANCHES[(auth?.city as City) || "dubai"][0].code);
   const [weekStart, setWeekStart] = useState(todayMonday);
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<
+    { name: string; url: string; version: number; shiftDays: number } | null>(null);
+  const [exportError, setExportError] = useState("");
   const [staffList, setStaffList] = useState<string[]>([]);
+
+  // The week on screen decides the month exported. A week that straddles two
+  // months belongs to the one it starts in, which is how the sheets are named.
+  const exportMonthLabel = useMemo(() => weekStart.slice(0, 7), [weekStart]);
+
+  const runExport = useCallback(async () => {
+    setExporting(true); setExportError(""); setExportResult(null);
+    try {
+      const [y, m] = weekStart.split("-");
+      const res = await fetch("/api/admin/shifts/export-excel", {
+        method: "POST",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, year: Number(y), month: Number(m) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setExportError(String(data?.detail || `Export failed (${res.status}).`));
+        return;
+      }
+      setExportResult({
+        name: data?.file?.name || "", url: data?.file?.url || "",
+        version: data?.version || 0, shiftDays: data?.shift_days || 0,
+      });
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally {
+      setExporting(false);
+    }
+  }, [city, weekStart]);
+
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [editCellRect, setEditCellRect] = useState<DOMRect | null>(null);
@@ -1638,11 +1676,51 @@ export default function ManualShiftPage() {
             <h1 className="text-3xl font-light tracking-tight text-gray-900">Manual Shift Entry</h1>
             <p className="mt-1 text-xs text-gray-500">Hand-enter shifts for a week, then publish to Week / My-Shift and export to Google Sheets.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Export writes a NEW file each time, so the month keeps its history.
+                Re-export after any change here — editing the workbook does not
+                come back into the system. */}
+            <button
+              type="button"
+              onClick={runExport}
+              disabled={exporting}
+              title={`Write ${exportMonthLabel} to Google Drive as a new Excel file`}
+              className={`${PRIMARY_BUTTON} disabled:opacity-50`}
+            >
+              {exporting ? "Exporting…" : `Export Excel (${exportMonthLabel})`}
+            </button>
+            <a
+              href={DRIVE_FOLDER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={SECONDARY_BUTTON}
+            >
+              Drive folder
+            </a>
             <Link href="/admin/draft" className={SECONDARY_BUTTON}>AI Draft</Link>
             <Link href="/admin" className={SECONDARY_BUTTON}>Admin Dashboard</Link>
           </div>
         </div>
+
+        {(exportResult || exportError) && (
+          <div className={`${W_CARD} px-5 py-3 text-sm`}>
+            {exportError ? (
+              <p className="text-red-600">{exportError}</p>
+            ) : exportResult ? (
+              <p className="text-gray-700">
+                Saved{" "}
+                <a href={exportResult.url} target="_blank" rel="noopener noreferrer"
+                   className="font-semibold text-violet-700 underline">
+                  {exportResult.name}
+                </a>{" "}
+                to the Drive folder — version {exportResult.version}, {exportResult.shiftDays} shift days.
+                <span className="ml-2 text-xs text-gray-500">
+                  Editing that file does not change this page. Export again after any change here.
+                </span>
+              </p>
+            ) : null}
+          </div>
+        )}
 
         {/* Color legend */}
         <div className={`${W_CARD} px-5 py-3`}>
