@@ -71,6 +71,20 @@ if (!fs.existsSync(SESSION)) {
     waitUntil: 'networkidle', timeout: 60000,
   }).catch(() => {});
 
+  // A dead session is bounced to weblogin.grab.com, and every fetch after that
+  // runs on the wrong origin and dies as "Failed to fetch" -- an uncaught
+  // rejection with a stack trace into Grab's bundled JS, which says nothing
+  // about what to do. Check where we actually landed instead.
+  //
+  // The cookie expiry cannot be used for this: Paranaque's token claimed 35.7
+  // hours remaining on 2026-09-05 and the portal still refused it.
+  if (/weblogin\.grab\.com|\/login/i.test(page.url())) {
+    console.error(`SESSION_EXPIRED — run: node scripts/grab/setup-session.js ${STORE}`);
+    console.error(`  (landed on ${page.url().slice(0, 70)})`);
+    await browser.close();
+    process.exit(1);
+  }
+
   const all = [];
   const days = [];
   for (let d = new Date(FROM); ymd(d) <= TO; d.setDate(d.getDate() + 1)) days.push(ymd(d));
@@ -84,9 +98,23 @@ if (!fs.existsSync(SESSION)) {
         + `&pageIndex=${pageIndex}&pageSize=50`;
 
       const res = await page.evaluate(async (u) => {
-        const r = await fetch(u, { credentials: 'include' });
-        return { status: r.status, text: await r.text() };
+        try {
+          const r = await fetch(u, { credentials: 'include' });
+          return { status: r.status, text: await r.text() };
+        } catch (e) {
+          // Cross-origin refusal after a redirect to the login page reads as
+          // "Failed to fetch". Return it rather than throwing, so the caller
+          // reports a session problem instead of an uncaught rejection.
+          return { status: 0, text: String(e) };
+        }
       }, url);
+
+      if (res.status === 0) {
+        console.error(`SESSION_EXPIRED — run: node scripts/grab/setup-session.js ${STORE}`);
+        console.error(`  (${res.text.slice(0, 80)})`);
+        await browser.close();
+        process.exit(1);
+      }
 
       // An expired session answers 401/403 here. Exiting non-zero matters:
       // a green run that imported nothing is what hid the Grab payout outage
