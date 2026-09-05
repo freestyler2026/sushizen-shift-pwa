@@ -1,0 +1,62 @@
+name: Keeta Dubai — Order Ledger (Prep Time)
+
+# Dubai's prep time. Separate from the settlement workflow because that one runs
+# weekly and this has to run every day: the portal's order history is a rolling
+# window, and a day not fetched is a day that cannot be fetched later.
+#
+# Grab covers Manila in grab-manila-daily-payout.yml. Both write to the same
+# aggregator_orders table, so the Prep Time screen reads one dataset.
+
+on:
+  schedule:
+    # 23:40 UTC = 03:40 GST, after the Dubai trading day has closed.
+    - cron: '40 23 * * *'
+  workflow_dispatch:
+    inputs:
+      date_from:
+        description: 'From (YYYY-MM-DD). Default: 3 days ago.'
+        required: false
+        default: ''
+      date_to:
+        description: 'To (YYYY-MM-DD). Default: today.'
+        required: false
+        default: ''
+
+jobs:
+  extract-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Unlike the Grab extractor, this one needs a browser: the portal renders
+      # in an iframe and signs each request, so the parameters cannot be chosen
+      # from outside the page.
+      - name: Install dependencies
+        run: npm install playwright --no-save
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Calculate date range
+        run: |
+          echo "DATE_FROM=${{ github.event.inputs.date_from || '' }}" >> $GITHUB_ENV
+          echo "DATE_TO=${{ github.event.inputs.date_to || '' }}" >> $GITHUB_ENV
+
+      # A three-day window rather than one. Rows upsert on the order id, so
+      # re-reading costs nothing and a night with a dead session fills itself in
+      # on the next run instead of leaving a hole nobody looks for.
+      - name: Extract Keeta order ledger
+        run: |
+          FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
+          TO="${DATE_TO:-$(date -u +%Y-%m-%d)}"
+          node scripts/keeta/get-orders.js "$FROM" "$TO" > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          KEETA_SESSION_STATE: ${{ secrets.KEETA_SESSION }}
+        timeout-minutes: 12
