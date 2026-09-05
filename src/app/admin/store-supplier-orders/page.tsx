@@ -200,6 +200,7 @@ type SpendMonth = {
   total: number;
   items: number;
   items_without_price: number;
+  items_priced_from_catalog: number;
 };
 
 export default function StoreSupplierOrdersPage() {
@@ -1205,7 +1206,7 @@ export default function StoreSupplierOrdersPage() {
                           <th className="pb-2 text-left font-semibold">Month</th>
                           <th className="pb-2 text-right font-semibold">Orders</th>
                           <th className="pb-2 text-right font-semibold">Ordered (PHP)</th>
-                          <th className="pb-2 text-right font-semibold">Lines without price</th>
+                          <th className="pb-2 text-right font-semibold">Priced from catalog</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1216,20 +1217,26 @@ export default function StoreSupplierOrdersPage() {
                             <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
                               {Number(m.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
-                            {/* Stated, not hidden: a total blind to some of its lines
-                                reads as complete unless it says how many it missed. */}
-                            <td className={"py-2 text-right tabular-nums text-xs "
-                              + (m.items_without_price > 0 ? "text-amber-400" : "text-zinc-600")}>
-                              {m.items_without_price > 0 ? `${m.items_without_price} of ${m.items}` : "—"}
+                            {/* These lines are valued at today's catalog price, not the
+                                price on the day. Said out loud, because a total that
+                                mixes the two silently is worse than one that shows which. */}
+                            <td className="py-2 text-right tabular-nums text-xs">
+                              <span className={m.items_priced_from_catalog > 0 ? "text-zinc-400" : "text-zinc-600"}>
+                                {m.items_priced_from_catalog > 0 ? `${m.items_priced_from_catalog} of ${m.items}` : "—"}
+                              </span>
+                              {m.items_without_price > 0 && (
+                                <span className="ml-2 text-amber-400">{m.items_without_price} unpriced</span>
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     <p className="mt-3 text-[11px] text-zinc-600">
-                      Ordered value = quantity ordered × unit price, for every order past draft. Lines with no unit
-                      price are not in the total — fill the price in the catalog to bring them in. Received value is
-                      not shown: actual prices are recorded on too few lines to total honestly.
+                      Ordered value = quantity ordered × unit price, for every order past draft. An order line keeps
+                      the price the catalog held on the day it was generated, so a line generated before its item was
+                      priced falls back to today&apos;s catalog price — that is the &ldquo;priced from catalog&rdquo;
+                      count. Received value is not shown: actual prices are recorded on too few lines to total honestly.
                     </p>
                   </div>
                 )}
