@@ -154,6 +154,8 @@ function pick(obj, name) {
   const from = Date.parse(`${FROM}T00:00:00+04:00`);
   const to = Date.parse(`${TO}T23:59:59.999+04:00`);
   const arr = [];
+  let expected = null;   // totalCount as the portal reports it
+  let complete = false;
   for (let pageNum = 1; pageNum <= 200; pageNum++) {
     const out = await frame.evaluate(async ([h, body]) => {
       const r = await fetch(
@@ -189,13 +191,23 @@ function pick(obj, name) {
     }
     const list = ((j.data || {}).list) || [];
     arr.push(...list);
-    const total = (j.data || {}).totalCount || 0;
-    if (arr.length >= total || list.length === 0) break;
+    if (expected === null) expected = (j.data || {}).totalCount || 0;
+    if (arr.length >= expected || list.length === 0) { complete = true; break; }
   }
   await browser.close();
 
   if (arr.length === 0) {
     console.error('No orders returned for the window');
+    process.exit(1);
+  }
+
+  // A run that fetched only part of the window must not look like a good one.
+  // Breaking out of the loop on a failed page and importing what was collected
+  // would leave the table short by however many pages were missed, with a green
+  // tick over it -- the failure this pipeline was built to stop.
+  if (!complete) {
+    console.error(`Incomplete: fetched ${arr.length} of ${expected} orders. `
+      + 'Nothing imported.');
     process.exit(1);
   }
 
