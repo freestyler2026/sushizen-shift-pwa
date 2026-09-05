@@ -76,6 +76,19 @@ REFRESH = {
                 "gh secret set TALABAT_SESSION_STATE < scripts/talabat/talabat-session.b64.txt"),
 }
 
+# 上の2行目が書き込むシークレットと、その材料になるローカルファイル。
+# encoding は「そのコマンドを実行した結果、シークレットに入る中身」。
+#   b64      … ファイルが既に base64（gzip されていることもある）
+#   file2b64 … ファイルは素の JSON で、コマンド側で base64 にする
+SECRET_OF = {
+    "grab":      ("GRAB_SESSION_{STORE}",   "grab/{store}-session.b64.txt",      "b64"),
+    "foodpanda": ("FP_SESSION_{STORE}",     "foodpanda/{store}-session.b64.txt", "b64"),
+    "careem":    ("CAREEM_SESSION",         "careem/careem-session.b64.txt",     "b64"),
+    "keeta":     ("KEETA_RZ_SESSION",       "keeta/keeta-session.b64.txt",       "b64"),
+    "noon":      ("NOON_SESSION",           "noon/noon-session.json",            "file2b64"),
+    "talabat":   ("TALABAT_SESSION_STATE",  "talabat/talabat-session.b64.txt",   "b64"),
+}
+
 
 def session_files():
     out = []
@@ -154,6 +167,109 @@ def expiry_from_file(platform, path):
     return None, "認証が期限なしのCookie／寿命も未確認"
 
 
+# ── シークレット側の点検 ─────────────────────────────────────────────────────
+#
+# GitHub のシークレットは値が読めない（write-only）。だから「中身が正しいか」は
+# 原理的に確かめられない。2026-09-05 に NOON_SESSION へ生JSONを入れたまま
+# この画面が 🟢 を出し続けたのはそのため。
+#
+# 読めないものを推測するのではなく、**確実に言えることだけ**を出す:
+#   1. ワークフローが読むシークレットが存在しない        → 確実な障害
+#   2. 更新コマンドが作る中身を、取込側が復号できない     → 確実な障害（今回のNoon）
+#   3. そのシークレットをどのワークフローも読んでいない   → 更新しても何も起きない
+#
+# 「ローカルの方がシークレットより新しい」は検知しない。実測すると Foodpanda
+# (+236h) と Talabat (+298h) が該当するが、どちらも取込は動いている（保存済み
+# セッションをポータルが新しいトークンに交換するので、古い値のまま機能する）。
+# 押し忘れと区別がつかない以上、🔴 にすれば毎朝2件の誤報になる（教訓45）。
+
+def gh_secrets():
+    """{シークレット名: 更新日時}。gh が使えなければ None（点検を諦める）。"""
+    try:
+        r = subprocess.run(["gh", "secret", "list", "--json", "name,updatedAt"],
+                           cwd=ROOT, capture_output=True, text=True, timeout=60)
+        rows = json.loads(r.stdout or "[]")
+    except Exception:
+        return None
+    out = {}
+    for x in rows:
+        try:
+            out[x["name"]] = datetime.fromisoformat(x["updatedAt"].replace("Z", "+00:00"))
+        except Exception:
+            pass
+    return out
+
+
+def workflow_readers():
+    """{シークレット名: [そのシークレットを読むワークフロー]}。
+
+    表に持たず毎回 .github/workflows を読む。ワークフローが増減しても
+    自動で追従させるため（手で写した一覧は必ずどこかで古くなる）。
+    """
+    wf_dir = os.path.join(os.path.dirname(ROOT), ".github", "workflows")
+    readers = {}
+    if not os.path.isdir(wf_dir):
+        return readers
+    for fn in sorted(os.listdir(wf_dir)):
+        if not fn.endswith((".yml", ".yaml")):
+            continue
+        try:
+            body = open(os.path.join(wf_dir, fn)).read()
+        except Exception:
+            continue
+        for name in set(re.findall(r"secrets\.([A-Z0-9_]+)", body)):
+            readers.setdefault(name, []).append(fn)
+    return readers
+
+
+def decodes_like_ci(path, encoding):
+    """更新コマンドが作る中身を、取込スクリプトと同じ手順で復号してみる。
+
+    取込側は例外なく base64 → (gzipなら展開) → JSON.parse。シークレットの
+    中身は読めないが、**そこに入るはずの中身**はここで作れるので検証できる。
+    """
+    import base64
+    import gzip
+    if not os.path.exists(path):
+        return False, "材料のファイルが無い"
+    try:
+        raw = open(path, "rb").read()
+        blob = base64.b64encode(raw) if encoding == "file2b64" else raw
+        buf = base64.b64decode(bytes(blob).strip(), validate=False)
+        if buf[:2] == b"\x1f\x8b":
+            buf = gzip.decompress(buf)
+        json.loads(buf.decode("utf-8"))
+    except Exception as e:
+        return False, f"復号できない（{e.__class__.__name__}）"
+    return True, ""
+
+
+def secret_findings(secrets, readers):
+    """更新手順そのものの欠陥を返す。[(深刻度, 見出し, 詳細)]"""
+    out = []
+    for platform, (tmpl, art, enc) in sorted(SECRET_OF.items()):
+        stores = sorted({s for p, s, _ in session_files() if p == platform}) or [""]
+        for store in stores:
+            key = store or "paranaque"
+            name = tmpl.format(STORE=key.upper())
+            path = os.path.join(ROOT, art.format(store=key))
+            label = platform + (f" ({store})" if store else "")
+
+            ok, why = decodes_like_ci(path, enc)
+            if not ok:
+                out.append(("bad", f"{label} の更新コマンドが壊れている",
+                            f"{name} に入る中身を取込側と同じ手順で復号できない — {why}"))
+
+            used = readers.get(name) or []
+            if not used:
+                out.append(("info", f"{name} を読むワークフローが無い",
+                            f"{label} を更新しても取込には影響しない（手元の作業専用）"))
+            elif secrets is not None and name not in secrets:
+                out.append(("bad", f"{name} が存在しない",
+                            f"{', '.join(used)} が読もうとしている"))
+    return out
+
+
 def last_run(workflow):
     try:
         r = subprocess.run(
@@ -179,6 +295,7 @@ def main():
     dead, soon, ok, unknown = [], [], [], []
 
     runs = {p: last_run(w) for p, (w, _) in WORKFLOWS.items()}
+    findings = secret_findings(gh_secrets(), workflow_readers())
 
     # プローブは1件あたりブラウザを1つ起動するので直列だと4分近くかかる。
     # 毎朝の確認が数分止まると実行されなくなるため、まとめて走らせる。
@@ -252,9 +369,24 @@ def main():
             print(f"   {label:<22} {why}")
         print()
 
-    if not dead and not soon:
+    bad = [f for f in findings if f[0] == "bad"]
+    info = [f for f in findings if f[0] == "info"]
+    if bad:
+        print("🔧 更新手順そのものが壊れている")
+        for _, head, detail in bad:
+            print(f"   {head}")
+            print(f"      {detail}")
+        print()
+    if info:
+        print("ℹ️  更新しても取込には効かないもの")
+        for _, head, detail in info:
+            print(f"   {head}")
+            print(f"      {detail}")
+        print()
+
+    if not dead and not soon and not bad:
         print("更新が必要なものはありません。")
-    return 1 if dead else 0
+    return 1 if (dead or bad) else 0
 
 
 if __name__ == "__main__":
