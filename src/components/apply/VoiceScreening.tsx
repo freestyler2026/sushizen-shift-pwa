@@ -96,12 +96,26 @@ const T = {
 
 const BTN = "w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-60";
 
-export default function VoiceScreening({ token, lang: initial }: { token: string; lang: Lang }) {
+export default function VoiceScreening({
+  token,
+  lang: initial,
+  startAt = "offer",
+  onUnavailable,
+}: {
+  token: string;
+  lang: Lang;
+  /** Straight to consent when they arrived by clicking an invite -- the choice
+   *  the offer screen asks for was already made by opening the link. */
+  startAt?: "offer" | "consent";
+  /** Told why nothing can be shown, so a standalone page can say so instead of
+   *  rendering blank. Inside /apply there is nothing to say and it is omitted. */
+  onUnavailable?: (reason: "expired" | "off" | "error") => void;
+}) {
   const [lang, setLang] = useState<Lang>(initial);
   const t = T[lang];
 
   const [data, setData] = useState<Loaded | null>(null);
-  const [stage, setStage] = useState<"offer" | "consent" | "record" | "later" | "done">("offer");
+  const [stage, setStage] = useState<"offer" | "consent" | "record" | "later" | "done">(startAt);
   const [idx, setIdx] = useState(0);
   const [recording, setRecording] = useState(false);
   const [left, setLeft] = useState(0);
@@ -118,15 +132,24 @@ export default function VoiceScreening({ token, lang: initial }: { token: string
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/voice/${token}`);
-      if (!res.ok) return;               // 503 = not configured; stay silent
+      if (!res.ok) {
+        // Inside /apply there is nothing useful to say, so this stays hidden.
+        // On a page reached from an invite link, a blank screen is a dead end
+        // with no way out, so the reason is handed up.
+        onUnavailable?.(res.status === 503 ? "off"
+          : res.status === 404 ? "expired" : "error");
+        return;
+      }
       const d: Loaded = await res.json();
       setData(d);
       // Resume where the connection dropped rather than starting over.
       const first = d.questions.findIndex((q) => !d.answered.includes(q.seq));
       setIdx(first < 0 ? 0 : first);
       if (d.consent_given && first >= 0) setStage("record");
-    } catch { /* offer stays hidden */ }
-  }, [token]);
+    } catch {
+      onUnavailable?.("error");
+    }
+  }, [token, onUnavailable]);
 
   useEffect(() => { void load(); }, [load]);
 

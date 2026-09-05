@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic,
+  RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic, Send,
 } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, TEXTAREA_CLASS,
@@ -27,8 +27,11 @@ import {
  * not on the list.
  */
 
+type Phone = { raw: string; e164: string; usable: boolean };
+
 type Row = {
-  id: number;
+  /** null for an applicant who has no screening yet. */
+  id: number | null;
   applicant_id: string;
   full_name: string;
   phone: string;
@@ -46,7 +49,12 @@ type Row = {
   answered: number;
   total_questions: number;
   complete: boolean;
-  bucket: "to_review" | "started" | "not_started" | "decided";
+  bucket: State;
+  superseded: boolean;
+  invited_at: string | null;
+  invite_count: number;
+  invited_by: string | null;
+  phones: Phone[];
   decision: string | null;
   decision_reason: string | null;
   decision_notes: string | null;
@@ -79,15 +87,26 @@ type Item = {
 
 type Detail = Row & { items: Item[] };
 
-type State = "to_review" | "started" | "not_started" | "decided";
+type State = "to_invite" | "waiting" | "to_review" | "done";
+
+type Invite = {
+  url: string;
+  reissued: boolean;
+  invite_count: number;
+  answers_kept: number;
+  expires_in_days: number;
+  full_name: string;
+  phones: Phone[];
+  messages: { en: string; tl: string };
+};
 
 // Labelled by what you do with them, not by the state they are in. A count
 // under a verb has to be the count you can perform that verb on.
 const TABS: { key: State; label: string; hint: string }[] = [
-  { key: "to_review",   label: "To review",         hint: "Recordings in, waiting on you" },
-  { key: "started",     label: "Waiting on them",   hint: "Agreed, has not recorded yet" },
-  { key: "not_started", label: "Not started",       hint: "Offered, chose to do it later" },
-  { key: "decided",     label: "Decided",           hint: "Already reviewed" },
+  { key: "to_invite", label: "To invite",      hint: "Applied, no screening sent yet — oldest application first" },
+  { key: "waiting",   label: "Waiting on them", hint: "Link sent, nothing recorded yet" },
+  { key: "to_review", label: "To review",      hint: "Recordings in, waiting on you — longest wait first" },
+  { key: "done",      label: "Done",           hint: "Decided, or already interviewed in person" },
 ];
 
 const EXPERIENCE_LABEL: Record<string, string> = {
@@ -114,8 +133,8 @@ function waitedLabel(row: Row): string {
  *  undo puts the row back in the tab it came from, not the one you are standing
  *  in -- undoing from Decided sends somebody back to To review. */
 function bucketWithoutDecision(row: Row): State {
-  if (row.answered > 0) return "to_review";
-  return row.consent_at ? "started" : "not_started";
+  if (row.id === null) return "to_invite";
+  return row.answered > 0 ? "to_review" : "waiting";
 }
 
 function mmss(sec: number | null): string {
@@ -149,6 +168,14 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   // place the reviewer is already looking. Telling somebody the undo is on a
   // different tab is the same as not offering one.
   const [justDecided, setJustDecided] = useState<Record<number, string>>({});
+
+  // The invite panel for one applicant. Held open until it is dismissed: the
+  // link is shown once and re-issuing kills the previous one, so it must not
+  // disappear behind a re-render before it has been sent.
+  const [invite, setInvite] = useState<Invite | null>(null);
+  const [inviteFor, setInviteFor] = useState<string>("");
+  const [inviteLang, setInviteLang] = useState<"en" | "tl">("en");
+  const [copied, setCopied] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -199,8 +226,46 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
     }
   }
 
-  async function decide(row: Row, decision: string, reason = "") {
+  async function sendInvite(row: Row) {
     if (saving) return;
+    setSaving(true);
+    setErr("");
+    setCopied("");
+    try {
+      const res = await fetch(
+        `/api/admin/hr/applicants/${row.applicant_id}/voice-invite`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}) });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setErr(String(msg).slice(0, 300));
+        return;
+      }
+      setInvite(JSON.parse(text));
+      setInviteFor(row.applicant_id);
+      setInviteLang(row.form_language === "tl" ? "tl" : "en");
+    } catch {
+      setErr("Could not create the link. Nothing was sent — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function copy(text: string, what: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+    } catch {
+      // Clipboard is blocked outside a secure context or without permission.
+      // Saying so beats a button that looks like it worked.
+      setErr("Could not copy. Select the text and copy it by hand.");
+    }
+  }
+
+  async function decide(row: Row, decision: string, reason = "") {
+    if (saving || row.id === null) return;
     setSaving(true);
     setErr("");
     try {
@@ -225,12 +290,12 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
           : `${decision} — stage unchanged (${out.previous_status.replace("_", " ")})`,
       }));
       setRows((p) => p.map((r) => (r.id === row.id
-        ? { ...r, decision, decision_reason: reason || null, bucket: "decided" }
+        ? { ...r, decision, decision_reason: reason || null, bucket: "done" }
         : r)));
       setCounts((c) => ({
         ...c,
         [state]: Math.max(0, (c[state] || 0) - 1),
-        decided: (c.decided || 0) + 1,
+        done: (c.done || 0) + 1,
       }));
       setPending(null);
       setNote("");
@@ -244,6 +309,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   }
 
   async function undo(row: Row) {
+    if (row.id === null) return;
     setSaving(true);
     setErr("");
     try {
@@ -265,7 +331,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setCounts((c) => ({
         ...c,
         [back]: (c[back] || 0) + 1,
-        decided: Math.max(0, (c.decided || 0) - 1),
+        done: Math.max(0, (c.done || 0) - 1),
       }));
     } catch {
       setErr("Could not undo. The decision is still recorded.");
@@ -352,9 +418,11 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
           <p className={T_SECTION}>Nothing here</p>
           <p className={`${T_BODY} mt-1`}>
             {state === "to_review"
-              ? (counts.not_started || counts.started)
-                ? "No recordings are waiting. Some applicants chose to record later — they are under the other tabs."
-                : "No applicant has recorded yet. The interview is offered on the application form the moment it is sent."
+              ? (counts.to_invite || counts.waiting)
+                ? "No recordings are waiting. There are people under the other tabs who have not recorded yet."
+                : "No applicant has recorded yet. The interview is offered on the application form the moment it is sent, and you can send a link from To invite."
+              : state === "to_invite"
+              ? "Everyone at New or Screened has already been sent a link."
               : "No one is in this state."}
           </p>
         </div>
@@ -362,14 +430,13 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
 
       <div className="flex flex-col gap-2">
         {rows.map((row) => {
-          const isOpen = openId === row.id;
-          const done = justDecided[row.id];
+          const isOpen = row.id !== null && openId === row.id;
+          const done = row.id !== null ? justDecided[row.id] : undefined;
+          const noScreening = row.id === null;
+          const showingInvite = inviteFor === row.applicant_id && invite !== null;
           return (
-            <div key={row.id} className={`${GLASS_CARD} overflow-hidden`}>
-              <button
-                className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left hover:bg-white/4"
-                onClick={() => void open(row)}
-              >
+            <div key={row.id ?? `a-${row.applicant_id}`} className={`${GLASS_CARD} overflow-hidden`}>
+              <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
                 <Mic className="h-4 w-4 shrink-0 text-violet-400" />
                 <span className="font-semibold text-white">{row.full_name}</span>
                 <span className={T_CAPTION}>
@@ -377,11 +444,30 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                   {row.assigned_branch ? ` · ${row.assigned_branch}` : ""}
                   {row.experience_level ? ` · ${EXPERIENCE_LABEL[row.experience_level] || row.experience_level}` : ""}
                 </span>
-                <span className={row.complete ? BADGE_SUCCESS : BADGE_WARNING}>
-                  {row.answered} of {row.total_questions} answers
-                </span>
+
+                {noScreening ? (
+                  <span className={T_CAPTION}>
+                    applied {row.applied_date || "—"}
+                  </span>
+                ) : (
+                  <span className={row.complete ? BADGE_SUCCESS : BADGE_WARNING}>
+                    {row.answered} of {row.total_questions} answers
+                  </span>
+                )}
+
                 {row.bucket === "to_review" && (
                   <span className={T_CAPTION}>waiting {waitedLabel(row)}</span>
+                )}
+                {row.bucket === "waiting" && (
+                  <span className={T_CAPTION}>
+                    {row.consent_at ? "opened it, not finished" : "not opened yet"}
+                    {row.invite_count > 1 ? ` · sent ${row.invite_count}×` : ""}
+                  </span>
+                )}
+                {row.superseded && (
+                  <span className={T_CAPTION}>
+                    interviewed in person — no screening decision needed
+                  </span>
                 )}
                 {row.decision && (
                   <span className={BADGE_INFO}>
@@ -389,11 +475,141 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                     {row.decision_reason ? ` · ${row.decision_reason.replace(/_/g, " ")}` : ""}
                   </span>
                 )}
-                <span className="ml-auto flex items-center gap-1 text-xs text-violet-300">
-                  <Play className="h-3.5 w-3.5" />
-                  {isOpen ? "Close" : "Listen"}
+
+                <span className="ml-auto flex items-center gap-2">
+                  {(noScreening || row.bucket === "waiting") && canDecide && (
+                    <button
+                      className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                      onClick={() => void sendInvite(row)}
+                      disabled={saving}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {row.invite_count > 0 ? "New link" : "Get invite link"}
+                    </button>
+                  )}
+                  {!noScreening && row.answered > 0 && (
+                    <button
+                      className="flex items-center gap-1 text-xs text-violet-300 hover:text-violet-200"
+                      onClick={() => void open(row)}
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      {isOpen ? "Close" : "Listen"}
+                    </button>
+                  )}
                 </span>
-              </button>
+              </div>
+
+              {showingInvite && invite && (
+                <div className="border-t border-white/8 bg-violet-500/8 px-4 py-3">
+                  <p className="text-sm text-violet-200">
+                    Link ready for {invite.full_name}. Nothing has been sent —
+                    open one of these, then press send yourself.
+                  </p>
+                  {invite.reissued && (
+                    <p className={`${T_CAPTION} mt-1`}>
+                      This replaces their previous link, which no longer works.
+                      {invite.answers_kept > 0
+                        ? ` The ${invite.answers_kept} answer${invite.answers_kept > 1 ? "s" : ""} already recorded are kept, and they resume where they stopped.`
+                        : ""}
+                    </p>
+                  )}
+                  <p className={`${T_CAPTION} mt-1`}>
+                    Works for {invite.expires_in_days} days.
+                  </p>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {(["en", "tl"] as const).map((l) => (
+                      <button
+                        key={l}
+                        className={inviteLang === l ? BADGE_INFO : SMALL_BUTTON}
+                        onClick={() => setInviteLang(l)}
+                      >
+                        {l === "en" ? "English" : "Tagalog"}
+                      </button>
+                    ))}
+                  </div>
+                  <pre className="mt-2 max-w-2xl whitespace-pre-wrap rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-zinc-300">
+{invite.messages[inviteLang]}
+                  </pre>
+
+                  {invite.phones.length === 0 && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      No phone number on this applicant — copy the message and
+                      send it however you normally reach them.
+                    </p>
+                  )}
+                  {invite.phones.length > 1 && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      Two numbers are recorded for this person. Pick the right
+                      one — we will not guess.
+                    </p>
+                  )}
+
+                  {invite.phones.map((ph) => (
+                    <div key={ph.raw} className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={`${T_CAPTION} min-w-[9rem]`}>{ph.raw}</span>
+                      {ph.usable ? (
+                        <>
+                          <a
+                            className={SMALL_BUTTON}
+                            href={`https://wa.me/${ph.e164.replace("+", "")}?text=${encodeURIComponent(invite.messages[inviteLang])}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            WhatsApp
+                          </a>
+                          {/* Viber takes no message body, so the text is copied
+                              at the same time -- otherwise the chat opens empty
+                              and the link has to be typed from the screen. */}
+                          <a
+                            className={SMALL_BUTTON}
+                            href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
+                            onClick={() => void copy(invite.messages[inviteLang], "viber")}
+                          >
+                            Viber (copies the text)
+                          </a>
+                        </>
+                      ) : (
+                        <span className={T_CAPTION}>
+                          not a number these apps can open — copy the message instead
+                        </span>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      className={SMALL_BUTTON}
+                      onClick={() => void copy(invite.messages[inviteLang], "message")}
+                    >
+                      Copy message
+                    </button>
+                    <button
+                      className={SMALL_BUTTON}
+                      onClick={() => void copy(invite.url, "link")}
+                    >
+                      Copy link only
+                    </button>
+                    {copied && (
+                      <span className="text-xs text-emerald-300">
+                        Copied the {copied}
+                      </span>
+                    )}
+                    <button
+                      className={`${SMALL_BUTTON} ml-auto`}
+                      onClick={() => { setInvite(null); setInviteFor(""); setCopied(""); void load(); }}
+                    >
+                      Sent — close
+                    </button>
+                  </div>
+                  {/* Text messages cannot be sent from a computer, so SMS is a
+                      copy rather than a button that would do nothing. */}
+                  <p className={`${T_CAPTION} mt-2`}>
+                    For SMS, copy the message and send it from your phone — a
+                    computer cannot send one.
+                  </p>
+                </div>
+              )}
 
               {/* Decided in this sitting: the undo stays right here. */}
               {done && (

@@ -2244,9 +2244,11 @@ export default function HRRecruitmentPage() {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice">("pipeline");
-  // The tab carries its own count. A queue nobody can see the size of is a
-  // queue nobody opens.
-  const [voiceToReview, setVoiceToReview] = useState<number | null>(null);
+  // The tab carries its own count, and it counts both jobs that are waiting on
+  // HR: recordings to listen to, and applicants with no link sent. Counting only
+  // the recordings would leave the badge at zero while twenty people sit
+  // uninvited, and a badge at zero is a tab nobody opens.
+  const [voiceToDo, setVoiceToDo] = useState<{ review: number; invite: number } | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showNewPlan, setShowNewPlan] = useState(false);
@@ -2327,7 +2329,10 @@ export default function HRRecruitmentPage() {
           { headers, cache: "no-store" });
         if (vRes.ok) {
           const v = await vRes.json();
-          setVoiceToReview(Number(v?.counts?.to_review || 0));
+          setVoiceToDo({
+            review: Number(v?.counts?.to_review || 0),
+            invite: Number(v?.counts?.to_invite || 0),
+          });
         }
       } catch { /* the badge is not worth breaking the page for */ }
     } catch (e: unknown) {
@@ -2643,9 +2648,12 @@ export default function HRRecruitmentPage() {
                   onClick={() => setView(k)}
                 >
                   {label}
-                  {k === "voice" && voiceToReview ? (
-                    <span className="ml-1.5 rounded-full bg-violet-500/25 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-violet-200">
-                      {voiceToReview}
+                  {k === "voice" && voiceToDo && (voiceToDo.review + voiceToDo.invite) > 0 ? (
+                    <span
+                      className="ml-1.5 rounded-full bg-violet-500/25 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-violet-200"
+                      title={`${voiceToDo.review} to review, ${voiceToDo.invite} to invite`}
+                    >
+                      {voiceToDo.review + voiceToDo.invite}
                     </span>
                   ) : null}
                 </button>
