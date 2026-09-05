@@ -39,7 +39,11 @@ jobs:
           NOON_SESSION:  ${{ secrets.NOON_SESSION }}
           NOON_BACKFILL: ${{ github.event.inputs.backfill }}
           NOON_SINCE:    ${{ github.event.inputs.since_date }}
-          WEBHOOK_URL:   ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          # Keep the URL on the LEFT of &&. Written as `dry_run == 'true' && '' || URL`
+          # this silently ignored dry_run: '' is falsy, so `||` always fell through to
+          # the URL and a "dry" run posted for real. Found 2026-09-05 on a run that was
+          # supposed to write nothing and wrote 10 payouts.
+          WEBHOOK_URL:   ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
         timeout-minutes: 8
 
       - name: Refresh Daily P&L cache

@@ -41,7 +41,7 @@ jobs:
         env:
           SMILES_ACCOUNTS:      ${{ secrets.SMILES_ACCOUNTS }}
           SMILES_TARGET_MONTH:  ${{ github.event.inputs.target_month }}
-          WEBHOOK_URL:          ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          WEBHOOK_URL:          ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
         timeout-minutes: 18
 
       - name: Refresh Daily P&L cache

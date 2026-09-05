@@ -144,6 +144,42 @@ async function main() {
     capturing = true;
   }
 
+  // ── Confirm WHICH store we actually logged in as ───────────────────────────
+  //
+  // Every Manila store shares one merchant_group_id, so nothing downstream can
+  // tell the three apart -- the account that signed in is the only thing that
+  // decides which store's payouts get written. On 2026-09-05 a QC run captured
+  // the PARANAQUE account instead, and the script happily wrote it to
+  // qc-session.b64.txt. Pushed to GRAB_SESSION_QC that would have filed
+  // Paranaque's payouts under Quezon City, with no error anywhere.
+  if (loggedIn) {
+    let actual = null;
+    for (let i = 0; i < 10 && !actual; i++) {
+      try {
+        actual = await page.evaluate(() => {
+          const raw = localStorage.getItem('userprofileInfo');
+          if (!raw) return null;
+          return JSON.parse(raw)?.user_profile?.username || null;
+        });
+      } catch (_) {}
+      if (!actual) await page.waitForTimeout(2000);
+    }
+
+    if (!actual) {
+      console.log('\n⚠ Could not read the signed-in username — verify the store by hand');
+      console.log(`  before pushing ${LOCATION}-session.b64.txt to GitHub.\n`);
+    } else if (actual.toLowerCase() !== CREDS[LOCATION].toLowerCase()) {
+      console.error(`\n✗ WRONG STORE — signed in as: ${actual}`);
+      console.error(`  Expected for "${LOCATION}": ${CREDS[LOCATION]}`);
+      console.error('\n  Nothing was saved. The existing session files are untouched.');
+      console.error(`  Re-run and use the Username tab with ${CREDS[LOCATION]}.\n`);
+      await browser.close();
+      process.exit(1);
+    } else {
+      console.log(`✓ Confirmed store account: ${actual}`);
+    }
+  }
+
   // ── Auto-navigate to Finance pages to discover payout API ──────────────────
   console.log('\n=== Auto-navigating to Finance / Transfers pages ===');
   const FINANCE_PAGES = [

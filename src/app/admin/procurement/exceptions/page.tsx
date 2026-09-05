@@ -180,7 +180,24 @@ export default function ProcurementExceptionsPage() {
     }
   }, [city, pin, requestedBy]);
 
+  // The reason used to be hardcoded to "" here, so forty-one alerts were
+  // closed with a blank note and nobody could have entered one — the field did
+  // not exist on the screen. Six of those left an approval level short on
+  // requests still waiting to be paid, and afterwards there was no way to ask
+  // why any of them had been closed.
+  const [note, setNote] = useState<Record<string, string>>({});
+  // Refusals belong next to the row that was refused. The page-level banner is
+  // off-screen once the list is a few rows long, so a close that bounced would
+  // look like a button that does nothing.
+  const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
+
   const review = async (eventId: string, status: "REVIEWED" | "CLOSED") => {
+    const why = (note[eventId] || "").trim();
+    if (why.length < 10) {
+      setRowMsg((p) => ({ ...p, [eventId]: "Say why in a few words first — e.g. \"same order, second one voided\"." }));
+      return;
+    }
+    setRowMsg((p) => ({ ...p, [eventId]: "" }));
     setBusyId(eventId + status);
     setError("");
     setSuccessMsg("");
@@ -190,7 +207,7 @@ export default function ProcurementExceptionsPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ event_id: eventId, status, note: "", approver_name: requestedBy, pin }),
+          body: JSON.stringify({ event_id: eventId, status, note: why, approver_name: requestedBy, pin }),
         },
         requestedBy,
         pin,
@@ -200,8 +217,9 @@ export default function ProcurementExceptionsPage() {
       // open alerts only, so reloading would make the row disappear the moment
       // it is acted on -- and with it any way to see what was just done.
       setActed((p) => ({ ...p, [eventId]: status }));
+      setNote((p) => ({ ...p, [eventId]: "" }));
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setRowMsg((p) => ({ ...p, [eventId]: e?.message || String(e) }));
     } finally {
       setBusyId("");
     }
@@ -336,7 +354,17 @@ export default function ProcurementExceptionsPage() {
                     {row.request_date ? ` · ${String(row.request_date).slice(0, 10)}` : ""}
                   </p>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex flex-col gap-2 shrink-0 sm:w-[300px]">
+                  <input
+                    value={note[row.id] ?? ""}
+                    onChange={(e) => setNote((p) => ({ ...p, [row.id]: e.target.value }))}
+                    placeholder="Why is this alright? (required)"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500"
+                  />
+                  {rowMsg[row.id] ? (
+                    <p className="text-[11px] leading-snug text-amber-300">{rowMsg[row.id]}</p>
+                  ) : null}
+                  <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => void review(row.id, "REVIEWED")}
@@ -353,6 +381,7 @@ export default function ProcurementExceptionsPage() {
                   >
                     {busyId === row.id + "CLOSED" ? "…" : "Close"}
                   </button>
+                  </div>
                 </div>
               </div>
             </div>
