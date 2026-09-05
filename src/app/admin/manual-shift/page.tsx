@@ -527,24 +527,33 @@ export default function ManualShiftPage() {
 
   // The week on screen decides the month exported. A week that straddles two
   // months belongs to the one it starts in, which is how the sheets are named.
-  const exportMonthLabel = useMemo(() => weekStart.slice(0, 7), [weekStart]);
+  // The month to export is picked, not inferred. Deriving it from the visible
+  // week meant the file that came out depended on where the grid happened to be
+  // scrolled to, which is not something anyone should have to keep track of.
+  // It follows the week when the week moves, and can then be overridden.
+  const [exportMonth, setExportMonth] = useState(() => weekStart.slice(0, 7));
+  useEffect(() => { setExportMonth(weekStart.slice(0, 7)); }, [weekStart]);
+  const exportMonthLabel = exportMonth;
+
+  // The month that was published is the one whose workbook is now stale.
+  const publishedMonthLabel = useMemo(() => weekStart.slice(0, 7), [weekStart]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      setNeedsExport(!!window.localStorage.getItem(exportFlagKey(city, exportMonthLabel)));
+      setNeedsExport(!!window.localStorage.getItem(exportFlagKey(city, publishedMonthLabel)));
     } catch { /* private mode: the banner just will not persist */ }
-  }, [city, exportMonthLabel]);
+  }, [city, publishedMonthLabel]);
 
   const markNeedsExport = useCallback(() => {
     setNeedsExport(true);
-    try { window.localStorage.setItem(exportFlagKey(city, exportMonthLabel), "1"); } catch {}
-  }, [city, exportMonthLabel]);
+    try { window.localStorage.setItem(exportFlagKey(city, publishedMonthLabel), "1"); } catch {}
+  }, [city, publishedMonthLabel]);
 
   const runExport = useCallback(async () => {
     setExporting(true); setExportError(""); setExportResult(null);
     try {
-      const [y, m] = weekStart.split("-");
+      const [y, m] = exportMonth.split("-");
       const res = await fetch("/api/admin/shifts/export-excel", {
         method: "POST",
         headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
@@ -560,15 +569,17 @@ export default function ManualShiftPage() {
         version: data?.version || 0, shiftDays: data?.shift_days || 0,
         notShown: Array.isArray(data?.not_shown) ? data.not_shown : [],
       });
-      setNeedsExport(false);
-      setShowExportPrompt(false);
-      try { window.localStorage.removeItem(exportFlagKey(city, exportMonthLabel)); } catch {}
+      if (exportMonth === publishedMonthLabel) {
+        setNeedsExport(false);
+        setShowExportPrompt(false);
+        try { window.localStorage.removeItem(exportFlagKey(city, publishedMonthLabel)); } catch {}
+      }
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "Could not reach the server.");
     } finally {
       setExporting(false);
     }
-  }, [city, weekStart, exportMonthLabel]);
+  }, [city, exportMonth, publishedMonthLabel]);
 
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
@@ -1707,6 +1718,29 @@ export default function ManualShiftPage() {
             {/* Export writes a NEW file each time, so the month keeps its history.
                 Re-export after any change here — editing the workbook does not
                 come back into the system. */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2 py-1">
+              <label htmlFor="export-month"
+                     className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                Month
+              </label>
+              <input
+                id="export-month"
+                type="month"
+                value={exportMonth}
+                onChange={(e) => e.target.value && setExportMonth(e.target.value)}
+                className="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-900"
+              />
+              {exportMonth !== publishedMonthLabel && (
+                <button
+                  type="button"
+                  onClick={() => setExportMonth(publishedMonthLabel)}
+                  className="text-[11px] text-violet-700 underline"
+                  title={`Back to the month of the week on screen (${publishedMonthLabel})`}
+                >
+                  ↩ {publishedMonthLabel}
+                </button>
+              )}
+            </div>
             <button
               type="button"
               onClick={runExport}
@@ -1737,7 +1771,7 @@ export default function ManualShiftPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-amber-900">
                 <span className="font-semibold">The Excel on Drive is out of date.</span>{" "}
-                {exportMonthLabel} was published after the last export — export again so the
+                {publishedMonthLabel} was published after the last export — export again so the
                 stores read the schedule that is live.
               </p>
               <button
@@ -1792,7 +1826,7 @@ export default function ManualShiftPage() {
                 Published — export the Excel?
               </h2>
               <p className="mt-2 text-sm text-gray-600">
-                The schedule for {exportMonthLabel} has changed. The workbook in the Drive folder
+                The schedule for {publishedMonthLabel} has changed. The workbook in the Drive folder
                 still shows the previous version, and the stores work from that file.
               </p>
               <p className="mt-2 text-xs text-gray-500">
