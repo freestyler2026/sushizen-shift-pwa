@@ -29,6 +29,10 @@
  * Auth: one login sees one store, the same as get-payouts.js. Run
  * setup-session.js for each of paranaque | taft | qc. Sessions die within days.
  *
+ * No browser. The endpoint accepts the session cookies on a plain request, so
+ * driving a headless Chrome only added a Playwright dependency the payout job
+ * does not have -- which is exactly how the first CI run failed.
+ *
  * Usage:
  *   node scripts/grab/get-orders.js taft 2026-09-01 2026-09-03
  *   node scripts/grab/get-orders.js taft            # yesterday only
@@ -39,7 +43,6 @@
  * workflows used `A && '' || B`, which always evaluates to B, so their dry_run
  * never once suppressed a write.
  */
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -77,28 +80,34 @@ const TO = process.argv[4] || FROM;
 // midnight an order lands on, and createdAt is returned in UTC regardless.
 const OFFSET = '+04:00';
 
-(async () => {
-  const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext({ storageState: loadSession() });
-  const page = await ctx.newPage();
+function cookieHeader(state) {
+  return (state.cookies || [])
+    .filter((c) => String(c.domain || '').includes('grab.com'))
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
+}
 
-  await page.goto('https://merchant.grab.com/portal', {
-    waitUntil: 'networkidle', timeout: 60000,
-  }).catch(() => {});
-
-  // A dead session is bounced to weblogin.grab.com, and every fetch after that
-  // runs on the wrong origin and dies as "Failed to fetch" -- an uncaught
-  // rejection with a stack trace into Grab's bundled JS, which says nothing
-  // about what to do. Check where we actually landed instead.
-  //
-  // The cookie expiry cannot be used for this: Paranaque's token claimed 35.7
-  // hours remaining on 2026-09-05 and the portal still refused it.
-  if (/weblogin\.grab\.com|\/login/i.test(page.url())) {
-    console.error(`SESSION_EXPIRED — run: node scripts/grab/setup-session.js ${STORE}`);
-    console.error(`  (landed on ${page.url().slice(0, 70)})`);
-    await browser.close();
-    process.exit(1);
+async function grabGet(cookie, url) {
+  try {
+    const r = await fetch(url, {
+      headers: {
+        Cookie: cookie,
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+          + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
+        Referer: 'https://merchant.grab.com/',
+        Origin: 'https://merchant.grab.com',
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    return { status: r.status, text: await r.text() };
+  } catch (e) {
+    return { status: 0, text: String(e) };
   }
+}
+
+(async () => {
+  const cookie = cookieHeader(loadSession());
 
   const all = [];
   const days = [];
@@ -112,22 +121,11 @@ const OFFSET = '+04:00';
         + `&endTime=${day}T23:59:59${encodeURIComponent(OFFSET)}`
         + `&pageIndex=${pageIndex}&pageSize=50`;
 
-      const res = await page.evaluate(async (u) => {
-        try {
-          const r = await fetch(u, { credentials: 'include' });
-          return { status: r.status, text: await r.text() };
-        } catch (e) {
-          // Cross-origin refusal after a redirect to the login page reads as
-          // "Failed to fetch". Return it rather than throwing, so the caller
-          // reports a session problem instead of an uncaught rejection.
-          return { status: 0, text: String(e) };
-        }
-      }, url);
+      const res = await grabGet(cookie, url);
 
       if (res.status === 0) {
         console.error(`SESSION_EXPIRED — run: node scripts/grab/setup-session.js ${STORE}`);
         console.error(`  (${res.text.slice(0, 80)})`);
-        await browser.close();
         process.exit(1);
       }
 
@@ -136,7 +134,6 @@ const OFFSET = '+04:00';
       // for six days.
       if (res.status === 401 || res.status === 403) {
         console.error(`SESSION_EXPIRED — run: node scripts/grab/setup-session.js ${STORE}`);
-        await browser.close();
         process.exit(1);
       }
       if (res.status !== 200) {
@@ -145,7 +142,17 @@ const OFFSET = '+04:00';
       }
 
       let body;
-      try { body = JSON.parse(res.text); } catch { break; }
+      try {
+        body = JSON.parse(res.text);
+      } catch {
+        // A 200 that is not JSON means the endpoint moved or we were served a
+        // page instead of data. Breaking here would end the run with zero
+        // orders and exit 0 -- a green job that imported nothing, which is the
+        // failure this whole pipeline exists to stop happening quietly.
+        console.error(`Unparseable response on ${day} page ${pageIndex}: `
+          + res.text.slice(0, 120));
+        process.exit(1);
+      }
       const rows = body.statements || [];
       all.push(...rows.map((r) => ({
         store: STORE,
@@ -170,8 +177,6 @@ const OFFSET = '+04:00';
       if (!body.hasMore || rows.length === 0) break;
     }
   }
-
-  await browser.close();
 
   const delayed = all.filter((o) => o.prep_delayed_min > 0);
   console.error(`${STORE} ${FROM}..${TO}: ${all.length} orders, `
