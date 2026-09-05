@@ -572,7 +572,13 @@ function AdminPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialAuth = useMemo(() => getAuth(), []);
-  const [dashView, setDashView] = useState<AdminDashView>("requests");
+  // Adopt the tab in the URL as the starting view rather than correcting it
+  // afterwards, so there is no window in which a pending effect can overwrite a
+  // tab the person has already picked.
+  const [dashView, setDashView] = useState<AdminDashView>(
+    () => tabParamToDashView(searchParams.get("tab")),
+  );
+  const appliedTabParam = useRef<string | null>(searchParams.get("tab"));
   const [orderEntrySub, setOrderEntrySub] = useState<OrderEntrySub>("dubai");
   const [ratingEntrySub, setRatingEntrySub] = useState<"dubai" | "manila">("dubai");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
@@ -793,6 +799,14 @@ function AdminPageInner() {
       router.replace("/admin/ai-analytics-pro");
       return;
     }
+    // Only follow the URL when the URL is what changed -- back/forward, or a
+    // link into a specific tab. Re-running for any other reason used to reset
+    // the view to whatever the address bar said, and this effect is deferred:
+    // it can land after a click that has already switched tabs, putting the
+    // person back on Request Check with nothing to explain it. The tests catch
+    // it roughly one run in six; a person would just see the tab snap back.
+    if (appliedTabParam.current === tab) return;
+    appliedTabParam.current = tab;
     setDashView(tabParamToDashView(tab));
   }, [ready, allowed, searchParams, router]);
 
