@@ -1,5 +1,15 @@
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/dom";
 import { vi, beforeEach, afterEach } from "vitest";
+
+// waitFor's own budget, which vitest's testTimeout does not govern: the library
+// defaults to one second. These assertions settle in 19-49ms on a laptop, so a
+// second reads like room to spare -- until seventy test files share two cores on
+// a CI runner and the same work takes thirty times longer. That is what the
+// three "Tab navigation" failures were: a correct assertion, timed out. Nothing
+// about a real failure changes, it just gets five seconds to not happen in,
+// still well inside the 20s testTimeout.
+configure({ asyncUtilTimeout: 5000 });
 
 // ── localStorage mock (auth) ──────────────────────────────────────────────────
 const store: Record<string, string> = {};
