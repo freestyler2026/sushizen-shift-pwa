@@ -55,7 +55,12 @@ const T = {
     finish: "Finish",
     doneTitle: "All done",
     doneBody: "Thank you. Someone from Sushi ZEN will message you.",
-    noMic: "We could not use the microphone. Check your browser permission, or choose to do this later.",
+    micDenied: "This browser is not letting us use the microphone. Allow it for this site (tap the icon in the address bar), then press Start recording again.",
+    micNone: "No microphone was found on this device. Try a phone with a microphone, or do this later.",
+    micBusy: "The microphone is being used by another app. Close it and try again.",
+    micUnsupported: "This browser cannot record audio. Chrome works. You can also do this later — your application is already sent.",
+    micOther: "The microphone could not be started.",
+    laterHere: "Do this later instead",
     failed: "Could not send that answer. Try recording it again.",
     left: "left",
     againLeft: "You can re-record this answer once.",
@@ -87,7 +92,12 @@ const T = {
     finish: "Tapusin",
     doneTitle: "Tapos na",
     doneBody: "Salamat. May mag-me-message sa iyo mula sa Sushi ZEN.",
-    noMic: "Hindi namin nagamit ang mikropono. Pakicheck ang permission ng browser, o piliin na gawin ito mamaya.",
+    micDenied: "Hindi pinapayagan ng browser na ito ang mikropono. I-allow po ito para sa site na ito (pindutin ang icon sa address bar), tapos pindutin ulit ang Mag-record.",
+    micNone: "Walang nakitang mikropono sa device na ito. Subukan sa telepono na may mikropono, o gawin na lang mamaya.",
+    micBusy: "Ginagamit ng ibang app ang mikropono. Isara po ito at subukan ulit.",
+    micUnsupported: "Hindi makapag-record ang browser na ito. Gumagana ang Chrome. Pwede rin gawin mamaya — naipadala na po ang application mo.",
+    micOther: "Hindi masimulan ang mikropono.",
+    laterHere: "Mamaya na lang gawin ito",
     failed: "Hindi naipadala ang sagot na iyon. Subukang i-record ulit.",
     left: "natitira",
     againLeft: "Pwede mong i-record ulit ang sagot na ito nang isang beses.",
@@ -168,36 +178,97 @@ export default function VoiceScreening({
     setStage("record");
   }
 
+  /** Says which thing went wrong instead of blaming permissions for all of
+   *  them. An explanation that does not match what actually happened is how
+   *  people learn to stop reading explanations. */
+  function micMessage(e: unknown): string {
+    const name = (e as { name?: string })?.name || "";
+    if (name === "NotAllowedError" || name === "SecurityError") return t.micDenied;
+    if (name === "NotFoundError" || name === "OverconstrainedError") return t.micNone;
+    if (name === "NotReadableError" || name === "AbortError") return t.micBusy;
+    if (name === "TypeError") return t.micUnsupported;
+    // Unknown: show the browser's own word for it. Useless to the applicant,
+    // but it is the only thing that reaches us when they report the problem.
+    return name ? `${t.micOther} (${name})` : t.micOther;
+  }
+
   async function start() {
     setErr(""); setSaved(false);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Opus keeps 90 seconds near 270 KB, which matters on a prepaid plan and
-      // keeps every upload far below the 4.3 MB the proxy will carry.
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 24000 } : undefined);
-      chunks.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
-      rec.onstop = () => {
-        stream.getTracks().forEach((tr) => tr.stop());
-        void upload(new Blob(chunks.current, { type: (mime || "audio/webm").split(";")[0] }));
-      };
-      recRef.current = rec;
-      rec.start();
-      startedAt.current = Date.now();
-      setRecording(true);
-      setLeft(q.limit_seconds);
-      timer.current = setInterval(() => {
-        setLeft((s) => {
-          if (s <= 1) { stop(); return 0; }
-          return s - 1;
-        });
-      }, 1000);
-    } catch {
-      setErr(t.noMic);
+
+    // Old browsers, and any page that is somehow not on https, have no
+    // mediaDevices at all -- reading .getUserMedia off undefined would throw
+    // something unrelated to microphones.
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setErr(t.micUnsupported);
+      return;
     }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setErr(micMessage(e));
+      return;
+    }
+
+    // Opus keeps 90 seconds near 270 KB, which matters on a prepaid plan and
+    // keeps every upload far below the 4.3 MB the proxy will carry. Safari
+    // records mp4 instead and rejects webm outright.
+    let mime = "";
+    for (const c of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+      try {
+        if (MediaRecorder.isTypeSupported(c)) { mime = c; break; }
+      } catch { /* isTypeSupported itself is missing on some builds */ }
+    }
+
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 24000 } : {});
+    } catch {
+      // The options were refused rather than the recording. Retry bare before
+      // telling somebody their browser cannot do this -- the default settings
+      // work in browsers that reject an explicit bitrate.
+      try {
+        rec = new MediaRecorder(stream);
+        mime = "";
+      } catch {
+        stream.getTracks().forEach((tr) => tr.stop());
+        setErr(t.micUnsupported);
+        return;
+      }
+    }
+
+    chunks.current = [];
+    rec.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((tr) => tr.stop());
+      // The recorder's own mimeType is the truth once the options were dropped.
+      const type = (rec.mimeType || mime || "audio/webm").split(";")[0];
+      void upload(new Blob(chunks.current, { type }), type);
+    };
+    rec.onerror = () => {
+      stopTimer();
+      setRecording(false);
+      stream.getTracks().forEach((tr) => tr.stop());
+      setErr(t.micOther);
+    };
+    recRef.current = rec;
+    try {
+      rec.start();
+    } catch (e) {
+      stream.getTracks().forEach((tr) => tr.stop());
+      setErr(micMessage(e));
+      return;
+    }
+    startedAt.current = Date.now();
+    setRecording(true);
+    setLeft(q.limit_seconds);
+    timer.current = setInterval(() => {
+      setLeft((s) => {
+        if (s <= 1) { stop(); return 0; }
+        return s - 1;
+      });
+    }, 1000);
   }
 
   function stop() {
@@ -206,11 +277,15 @@ export default function VoiceScreening({
     try { recRef.current?.stop(); } catch { /* already stopped */ }
   }
 
-  async function upload(blob: Blob) {
+  async function upload(blob: Blob, type = "audio/webm") {
     setBusy(true); setErr("");
     try {
       const fd = new FormData();
-      fd.append("audio", blob, `q${q.seq}.webm`);
+      // Named for what it is: Safari produces mp4, not webm, and a file whose
+      // extension contradicts its contents is a thing somebody has to untangle
+      // later on Drive.
+      const ext = type === "audio/mp4" ? "m4a" : type === "audio/ogg" ? "ogg" : "webm";
+      fd.append("audio", blob, `q${q.seq}.${ext}`);
       fd.append("duration_seconds",
         String(Math.round((Date.now() - startedAt.current) / 1000)));
       // No Content-Type header: setting it would overwrite the multipart
@@ -329,6 +404,16 @@ export default function VoiceScreening({
         <button type="button" onClick={stop}
           className={`${BTN} bg-red-500/90 text-white hover:bg-red-500`}>
           ● {t.stop}
+        </button>
+      )}
+
+      {/* The microphone message offers to do this later, so the way out has to
+          be on this screen. Telling somebody to take a door that is not there
+          is worse than saying nothing. */}
+      {!recording && !saved && (
+        <button type="button" onClick={() => setStage("later")}
+          className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
+          {t.laterHere}
         </button>
       )}
 
