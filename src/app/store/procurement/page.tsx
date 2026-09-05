@@ -77,6 +77,26 @@ type RequestRow = {
   blocked_reason?: string;   // reject / return reason from Back Office
 };
 
+/** Server-side split of settled spend. Aggregated per line, because a request
+ *  can carry Warehouse and Central Kitchen items at once — 69 of 525 in a month
+ *  do — and a request-level total cannot be attributed to one of them. */
+/** Two decimals, and an em dash for a source this month simply has none of —
+ *  a plain 0.00 reads as "measured and it was zero". */
+const money = (v?: number) =>
+  v === undefined || v === null ? "—"
+  : v === 0 ? "—"
+  : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+type SourceSummaryMonth = {
+  month: string;
+  orders: number;
+  total: number;
+  warehouse: number;
+  central_kitchen: number;
+  supplier: number;
+  unassigned: number;
+};
+
 type RequestItem = {
   id: string;
   item_name: string;
@@ -984,6 +1004,7 @@ export default function StoreProcurementHomePage() {
   const [expandedActionsByItem, setExpandedActionsByItem] = useState<Record<string, boolean>>({});
   const [deliverySummaryOpen, setDeliverySummaryOpen] = useState(false);
   const [expandedSummaryMonth, setExpandedSummaryMonth] = useState<string | null>(null);
+  const [sourceSummary, setSourceSummary] = useState<SourceSummaryMonth[]>([]);
   const [error, setError] = useState("");
   const [submitSuccessMsg, setSubmitSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1054,6 +1075,23 @@ export default function StoreProcurementHomePage() {
       setPendingDeliveriesHiddenCount(0);
     } finally {
       setPendingDeliveriesLoading(false);
+    }
+  }, [city, storeCode]);
+
+  // The split has to come from the server: the request list carries one total
+  // and a comma-joined vendor label per request, which cannot be divided when a
+  // request holds both Warehouse and Central Kitchen lines.
+  const loadSourceSummary = useCallback(async (cityOverride?: string, storeCodeOverride?: string) => {
+    const activeCity = cityOverride ?? city;
+    const activeStore = storeCodeOverride ?? storeCode;
+    if (!activeStore) { setSourceSummary([]); return; }
+    try {
+      const qs = new URLSearchParams({ city: activeCity, store_code: activeStore });
+      const res = await fetch(`/api/store/procurement/delivery-summary?${qs}`, { method: "GET", cache: "no-store" });
+      const data = await res.json();
+      setSourceSummary(Array.isArray(data?.months) ? data.months : []);
+    } catch {
+      setSourceSummary([]);
     }
   }, [city, storeCode]);
 
@@ -1218,9 +1256,10 @@ export default function StoreProcurementHomePage() {
       if (isCkDispatchVisible(initialCity)) void loadCkDispatch(initialCity);
       // Load pending deliveries if a branch is already selected
       if (storeCode) void loadPendingDeliveries(initialCity, storeCode);
+      if (storeCode) void loadSourceSummary(initialCity, storeCode);
     }
     void init();
-  }, [auth, city, loadCkDispatch, loadMyRequests, loadPendingDeliveries, requestedBy, router, storeCode]);
+  }, [auth, city, loadCkDispatch, loadMyRequests, loadPendingDeliveries, loadSourceSummary, requestedBy, router, storeCode]);
 
 
   useEffect(() => {
@@ -2430,6 +2469,11 @@ export default function StoreProcurementHomePage() {
                           <tr className="text-xs text-zinc-500 border-b border-white/8">
                             <th className="pb-2 text-left font-semibold">Month</th>
                             <th className="pb-2 text-right font-semibold">Orders</th>
+                            {/* Warehouse first: it is the figure this page exists to show.
+                                Central Kitchen is already reported in CK Delivery. */}
+                            <th className="pb-2 text-right font-semibold text-amber-300/90">Warehouse</th>
+                            <th className="pb-2 text-right font-semibold">Central Kitchen</th>
+                            <th className="pb-2 text-right font-semibold">Supplier</th>
                             <th className="pb-2 text-right font-semibold">Total ({currencyCode})</th>
                           </tr>
                         </thead>
@@ -2440,6 +2484,7 @@ export default function StoreProcurementHomePage() {
                               (r) => String(r.request_date || "").slice(0, 7) === row.month && SETTLED.has(String(r.status || "").toUpperCase())
                             );
                             const isOpen = expandedSummaryMonth === row.month;
+                            const split = sourceSummary.find((x) => x.month === row.month);
                             return (
                               <React.Fragment key={row.month}>
                                 <tr
@@ -2455,13 +2500,30 @@ export default function StoreProcurementHomePage() {
                                     </span>
                                   </td>
                                   <td className="py-2 text-right text-zinc-400 text-xs">{row.count}</td>
+                                  <td className="py-2 text-right font-semibold text-amber-300 tabular-nums">
+                                    {money(split?.warehouse)}
+                                  </td>
+                                  <td className="py-2 text-right text-zinc-300 tabular-nums">
+                                    {money(split?.central_kitchen)}
+                                  </td>
+                                  <td className="py-2 text-right text-zinc-300 tabular-nums">
+                                    {money(split?.supplier)}
+                                    {split && split.unassigned > 0 ? (
+                                      <span
+                                        className="ml-1 text-[10px] text-zinc-500"
+                                        title={`${money(split.unassigned)} on lines with no supplier recorded — counted in the total but not attributable`}
+                                      >
+                                        +{money(split.unassigned)}?
+                                      </span>
+                                    ) : null}
+                                  </td>
                                   <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
                                     {Number(row.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                 </tr>
                                 {isOpen && (
                                   <tr>
-                                    <td colSpan={3} className="pb-2 pt-0">
+                                    <td colSpan={6} className="pb-2 pt-0">
                                       <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-white/3 p-2">
                                         {monthRows.map((pr) => {
                                           const st = String(pr.status || "").toUpperCase();
@@ -2502,13 +2564,28 @@ export default function StoreProcurementHomePage() {
                           <tr className="border-t border-white/15">
                             <td className="pt-2 text-xs text-zinc-500 font-semibold">Total</td>
                             <td className="pt-2 text-right text-xs text-zinc-400">{monthlySummary.reduce((s, r) => s + r.count, 0)}</td>
+                            <td className="pt-2 text-right text-sm font-bold text-amber-300 tabular-nums">
+                              {money(sourceSummary.reduce((s, r) => s + (r.warehouse || 0), 0))}
+                            </td>
+                            <td className="pt-2 text-right text-sm font-semibold text-zinc-300 tabular-nums">
+                              {money(sourceSummary.reduce((s, r) => s + (r.central_kitchen || 0), 0))}
+                            </td>
+                            <td className="pt-2 text-right text-sm font-semibold text-zinc-300 tabular-nums">
+                              {money(sourceSummary.reduce((s, r) => s + (r.supplier || 0), 0))}
+                            </td>
                             <td className="pt-2 text-right text-sm font-bold text-white tabular-nums">
                               {monthlySummary.reduce((s, r) => s + r.total, 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                           </tr>
                         </tfoot>
                       </table>
-                      <p className="mt-3 text-[11px] text-zinc-600">* Based on currently loaded requests (up to 200). Covers APPROVED, RECEIVED, CLAIMED &amp; CLOSED statuses.</p>
+                      <p className="mt-3 text-[11px] text-zinc-600">
+                        Orders and Total come from the requests loaded here (up to 200), covering APPROVED, RECEIVED,
+                        CLAIMED &amp; CLOSED. Warehouse / Central Kitchen / Supplier are calculated on the server from
+                        every line of those months, so a request holding both Warehouse and Central Kitchen items is
+                        counted under each for the part that belongs to it. A “+x?” next to Supplier is spend on lines
+                        with no supplier recorded.
+                      </p>
                     </div>
                   </motion.div>
                 )}

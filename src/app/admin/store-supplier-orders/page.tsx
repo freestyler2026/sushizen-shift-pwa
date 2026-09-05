@@ -194,6 +194,14 @@ function localDate(offsetDays = 0): string {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 }
 
+type SpendMonth = {
+  month: string;
+  orders: number;
+  total: number;
+  items: number;
+  items_without_price: number;
+};
+
 export default function StoreSupplierOrdersPage() {
   const auth = getAuth();
   const userRole = (auth?.role ?? "").toUpperCase();
@@ -209,6 +217,8 @@ export default function StoreSupplierOrdersPage() {
   const [dateTo, setDateTo] = useState<string>(() => localDate());
 
   const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [spend, setSpend] = useState<SpendMonth[]>([]);
+  const [spendOpen, setSpendOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -346,6 +356,21 @@ export default function StoreSupplierOrdersPage() {
     } catch { /* non-critical */ }
   }, []);
 
+  // Ordered value per month. Supplier ordering is moving to this channel and
+  // will stop showing up in Store Procurement, so the spend has to be readable
+  // from here.
+  const loadSpend = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/store-supplier/summary?store=${encodeURIComponent(store)}`, {
+        headers: getAuthHeaders(), cache: "no-store",
+      });
+      const data = await res.json();
+      setSpend(Array.isArray(data?.months) ? data.months : []);
+    } catch {
+      setSpend([]);
+    }
+  }, [store]);
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -424,11 +449,11 @@ export default function StoreSupplierOrdersPage() {
   }, [store]);
 
   useEffect(() => {
-    if (tab === "orders") loadOrders();
+    if (tab === "orders") { loadOrders(); loadSpend(); }
     else if (tab === "suppliers") loadSuppliers();
     else if (tab === "catalog") loadCatalog();
     else loadPerf();
-  }, [tab, loadOrders, loadPerf, loadSuppliers, loadCatalog]);
+  }, [tab, loadOrders, loadSpend, loadPerf, loadSuppliers, loadCatalog]);
 
   useEffect(() => { loadAlerts(); }, [loadAlerts]);
 
@@ -1159,6 +1184,58 @@ export default function StoreSupplierOrdersPage() {
         {/* ── ORDERS TAB ─────────────────────────────────────────────── */}
         {tab === "orders" && (
           <>
+            {/* Ordered value per month. Drafts are excluded — nothing is ordered yet. */}
+            {spend.length > 0 && (
+              <div className={GLASS_CARD + " overflow-hidden"}>
+                <button
+                  onClick={() => setSpendOpen((v) => !v)}
+                  className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-white/5 transition-colors"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-white">Order Amount Summary</p>
+                    <p className="text-xs text-zinc-500">Monthly ordered value for {store} — excludes drafts</p>
+                  </div>
+                  <span className="text-xs text-zinc-500">{spendOpen ? "Hide" : "Show"}</span>
+                </button>
+                {spendOpen && (
+                  <div className="border-t border-white/8 px-5 pb-4 pt-3">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-zinc-500 border-b border-white/8">
+                          <th className="pb-2 text-left font-semibold">Month</th>
+                          <th className="pb-2 text-right font-semibold">Orders</th>
+                          <th className="pb-2 text-right font-semibold">Ordered (PHP)</th>
+                          <th className="pb-2 text-right font-semibold">Lines without price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {spend.map((m) => (
+                          <tr key={m.month} className="border-b border-white/5 last:border-0">
+                            <td className="py-2 font-medium text-white">{m.month}</td>
+                            <td className="py-2 text-right text-xs text-zinc-400">{m.orders}</td>
+                            <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
+                              {Number(m.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            {/* Stated, not hidden: a total blind to some of its lines
+                                reads as complete unless it says how many it missed. */}
+                            <td className={"py-2 text-right tabular-nums text-xs "
+                              + (m.items_without_price > 0 ? "text-amber-400" : "text-zinc-600")}>
+                              {m.items_without_price > 0 ? `${m.items_without_price} of ${m.items}` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="mt-3 text-[11px] text-zinc-600">
+                      Ordered value = quantity ordered × unit price, for every order past draft. Lines with no unit
+                      price are not in the total — fill the price in the catalog to bring them in. Received value is
+                      not shown: actual prices are recorded on too few lines to total honestly.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Generate panel */}
             <div className={GLASS_CARD + " p-4 flex flex-wrap items-center gap-3"}>
               <span className="text-sm text-zinc-400 font-medium">Delivery Date:</span>
