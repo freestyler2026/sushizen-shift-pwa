@@ -71,54 +71,39 @@ PAR は毎日入り続けるので `ar_payouts` を見ても異常に見えな�
 
 ---
 
-## 🔜 次にやること — Prep Time を写真から Grab の注文台帳へ（2026-09-04 調査完了・実装未着手）
+## ⏳ 進行中 — Prep Time を Grab 注文台帳へ（2026-09-05 取込開始・並走中）
 
-**詳細は `docs/design/prep-time-from-grab.md`。明日はそれを開くところから。**
+**詳細は `docs/design/prep-time-redesign.md`。**
 
-### 分かったこと（実測・Taft店 9/1〜9/3）
+### 稼働しているもの
 
-現行の写真＋OCR方式は、Grabの注文207件のうち **116件（56%）しか見ておらず**、
-そのうち**注文時刻の36%が誤り**（最大581分ずれ＝別のレシートを読んでいる）。
-確認する人はOCRと同じ写真を見るので、**人力では見つからない**。件数削減では直らない。
+- `grab_orders` テーブル / `POST /api/grab/orders`（`app/db_grab_orders.py`）
+- 3店舗の日次取込を `grab-manila-daily-payout.yml` に追加（23:15 UTC・各店舗 `if: always()`）
+- **実測の調理時間**（`readyAt − acceptedAt`、注文詳細から4並列で取得）
 
-Grabの Orders → History が叩く API で、注文単位のデータが取れる:
+### 実測（8/29〜9/5・完了1,404件・実測率94.2%）
 
 ```
-GET https://api.grab.com/delvplatformapi/merchant/v1/reports/daily-pagination
-    ?startTime=YYYY-MM-DDT00:00:00+04:00&endTime=...&pageIndex=0&pageSize=50
+中央値 23分   p90 39分   最大 144分
+TAFT 21分 / PAR 23分 / CUB 26分       ← CUBが最も遅い
+時間帯 11時・18時 26分 / 19時 25分
 ```
 
-`displayID`(=GF-286) / `createdAt`(UTC・マニラ+8) / `deliveryStatus` /
-**`preparationTaskID`**(207件全件) / **`isPreparationTaskDelayed`** /
-**`preparationTaskDelayedByMin`**(3〜19分)。
+⚠️ **Grab の遅延フラグは使わない。** 50分（見積25分）を「遅延0」と記録する。
+1,404件中フラグは145件のみだが実測p90は39分。**主指標は実測分数。**
 
-**調理完了の絶対時刻は無い**（注文行をクリックしても詳細APIは呼ばれない）。
-取れるのは遅延の有無と分数まで。それでも現行より確実。
+### 次
 
-### 明日の手順
+1. **1〜2週間、写真ベースと並走**して数字を突き合わせる（現場の運用は変えない）
+2. 画面を差し替え、**毎朝15〜20件の確認キューを廃止**
+3. 採点0〜100点とS〜F等級は**維持できる**（分数が正しく取れるため）
 
-1. **まずセッションを取り直す**（Grabは数日で失効）。ログインは本人が行う:
-   ```bash
-   node scripts/grab/setup-session.js taft
-   ```
-   `paranaque` / `taft` / `qc` の3店舗ぶん必要（1ログイン＝1店舗）
-2. `node scripts/grab/get-orders.js taft 2026-09-01 2026-09-03` で取得（作成・動作確認済み）
-3. 3店舗ぶんの件数をOS側と店舗別に比較
-4. `grab_orders` テーブルを作り、worker で日次取り込み
-5. **写真ベースと並走**させてから切り替え
+### 注意
 
-### 切り替え方針
-
-- `prep_time_records` 9,808件は**削除しない**（旧方式として残す／教訓43と同じ）
-- 写真投稿は残してよいが**スコアの根拠から外す**
-- **毎朝の確認キューは廃止**（確認しても精度が上がらないため）
-
-### 併せて判明
-
-- ドバイの `grabfood` 2,270件は**UAEにGrabFoodが無い**ため全件誤読。ドバイのPrep Timeは根拠が薄い
-- `ocr_confidence` は未処理668件すべて `medium` — 優先順位に使えない
-- 2026-07に私が確認した241件は**訂正ゼロ**＝判子を押しただけだった
-- `scripts/grab/taft-api-responses.json` がセッション作成時に更新済み（業務データ。コミット可否は要判断）
+- 画面では**実測 n<20 の時間帯を出さない**（教訓82）
+- 実測率を必ず表示する。落ちたら詳細取得の失敗であり「速くなった」ではない
+- 旧 `prep_time_records` 9,910件は削除せず別タブ。**同じグラフに載せない**
+- ドバイは新方式の相当物が無い。**「計測していない」と明記する**
 
 ---
 
