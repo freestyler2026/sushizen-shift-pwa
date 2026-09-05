@@ -1,0 +1,177 @@
+group,store,item,lines,amount,months,vendor_to_assign,evidence_lines,vendors_seen,item_ids
+A_SAME_STORE,PAR,Hair Net BLACK,5,13500.0,2026-07,Warehouse,2,Warehouse,09692281-26b7-4d8e-8f31-dabf67f53499 0cbaf345-fa7a-4401-b433-686a84ac7e8c 7b983904-6920-4de1-8c0e-f794b0515ba8 d15f1763-05e5-44d1-9a4b-3ddfcd07965c e9bdc0b1-db24-46da-b72a-19ac4d9cc62b
+A_SAME_STORE,TAFT,Brown Paper Bag L (TB4) (1BNDL = 50pcs),12,9000.0,2026-08..2026-09,Warehouse,1,Warehouse,0409aee0-62d7-45fe-a9c8-c0cf9823ef6e 0ea70d1c-45da-42a8-8ddd-7d1fec0113df 569cf55e-452a-4b0b-b698-f0070d132057 6f20a539-c99d-47d9-8545-8109c9364247 8b18041a-679c-4575-9934-a321e105170b 92b560e1-8730-4d43-8ed1-14c0f77df2cc 95593fd5-5fce-42cd-b88e-dd5d710b0d77 ac500832-847b-4a8d-a6f1-726b1d11fc28 aeed324a-ec2a-44d6-9439-f6047db0dffd eb984ac4-9620-4933-998d-cecea025c77c f88be390-1d3d-4274-a2a2-e60d58f042e6 fb0714db-5e92-43df-9875-98320d186102
+A_SAME_STORE,TAFT,Pork Dumpling (25PC / PKT),1,4048.0,2026-09,Central Kitchen,11,Central Kitchen,c995b7e1-549e-4dd9-a273-8bdb0e8ab07a
+A_SAME_STORE,CUB,Paper Bowl White 750 (1PKT = 50pcs),3,3570.0,2026-07,Warehouse,16,Warehouse,0b491e88-f00b-4fdd-9dec-262f03167009 7054f09f-ab44-4fb8-8b9d-ef182389dd6b bf286e0a-a598-4e4c-bc46-f2a4dba4317f
+A_SAME_STORE,PAR,Chopsticks (1PKT = 50pcs),5,3127.0,2026-07..2026-08,Warehouse,13,Warehouse,492b41df-e94c-42a7-966c-b0b89dd3c1db 705086a6-a5a7-4024-82f1-7d2e8b546512 c1cc6e24-dd77-4bb0-9344-f54c325ce890 c46de4e8-a579-41fc-8c68-afe85b4fdedc f5f9c547-aba7-49ce-80ee-a696b9f35625
+A_SAME_STORE,PAR,ZEN Safety Sealed Sticker,4,2880.0,2026-08,Warehouse,1,Warehouse,7e871305-bdbd-4bbc-b2ce-34d677a0774b 9722ac46-dd2c-4e27-a07d-053fc8971d8c 9be99e1b-b35c-4cb1-842e-a62f2b8376ac bae773e1-eeaf-4e45-9e9a-646905748b6b
+A_SAME_STORE,CUB,Sushi 1Roll Tray SM1 1101 (1PKT = 50pcs),4,2400.0,2026-07..2026-08,Warehouse,7,Warehouse,4ba55a07-2df6-4c8a-9956-ae5e12caac63 8ec80a17-c1ac-48b8-90fa-9511a8422bd3 b347ab24-6a59-4f57-ae8c-05c3b2ea5f26 e4e02f5f-4992-4b40-bb16-9dead4ea10b8
+A_SAME_STORE,CUB,Paper Bowl White 520 (1PKT = 50pcs),3,2345.0,2026-07,Warehouse,15,Warehouse,b0b8555a-b352-46f0-991c-f4042e917671 b217474b-9332-40ac-9c34-378213dc6b22 c69087d7-74dc-4a2e-9fe0-ad08f9f06fbf
+A_SAME_STORE,TAFT,Soy Sauce 18L,1,2317.0,2026-08,Central Kitchen,6,Central Kitchen,fcbccbca-a56b-4b67-bb6c-560981135684
+A_SAME_STORE,PAR,Sushi Box 24pc - Sushi Tray (Divider),5,2100.0,2026-07,Warehouse,12,Warehouse,48f61ea8-b657-48c7-a60d-84f72d1b1f6a 5ab29688-1c2a-4e42-902b-4c4746a77194 63fcf20c-6ad2-4e16-a306-7116bef92577 ce61b098-f072-4fdb-972a-acec5625d113 f269ae55-ab17-4308-a450-d89b875655f7
+A_SAME_STORE,PAR,ZEN Safety Sealed Sticker 1set = 20sheets,5,1980.0,2026-07,Warehouse,1,Warehouse,0076733c-31c9-40de-ab78-002bb420ac78 74b4573c-4b15-405a-9f5f-972c037e7951 7ce40ae3-977c-4ba3-83a7-af424a58ee2c ed114c75-b9cd-467f-9f02-8642b30d2bbf fd73fa1d-e62c-451e-a370-24e59c9c851d
+A_SAME_STORE,CUB,Sushi Box 12pc - Inner Box,3,1797.4,2026-07,Warehouse,7,Warehouse,4e51b08b-1e0d-4814-98b8-4bd9eee7d463 8f9b5d97-8edc-407a-8d6b-85ad225e2854 cbfbdc4f-ed48-4dd6-be0b-499a7cf1ae89
+A_SAME_STORE,CUB,Sushi Box 12pc - Cover,3,1797.4,2026-07,Warehouse,3,Warehouse,65fefd14-bf70-43b6-808b-a8ab68066dab 902e3dbd-a90e-4111-912d-b30df38b572c ec55f167-4635-4aa5-b6e0-293bcff6097c
+A_SAME_STORE,PAR,Paper Bowl White 750 (1PKT = 50pcs),4,1785.0,2026-08,Warehouse,8,Warehouse,02912bb0-4929-439b-9c2d-d0b58dfb24dc 791987fb-c180-4057-8fe2-fd7acd7e6278 bd472127-e3ba-44b9-b9d3-5c75e6668df5 cba489b5-7f5b-48b6-8f4b-c6f1c550bf68
+A_SAME_STORE,CUB,Sushi Box 12pc - Sauce Tray,3,1560.9,2026-07..2026-08,Warehouse,7,Warehouse,4642e7b7-5a7f-4767-a538-253e34aee7d7 74b69a0f-c712-4e50-bb04-d40d9239d384 e4ea22cd-49b6-4044-bfee-9a870aeb8f39
+A_SAME_STORE,PAR,Vegetable Oil 16L,1,1380.0,2026-08,Central Kitchen,11,Central Kitchen,ca2fc747-1548-4fd4-afde-978a5dba8042
+A_SAME_STORE,CUB,Sushi Box 12pc - Sushi Tray (Divider),2,1324.4,2026-07,Warehouse,3,Warehouse,520b8ffd-e888-46fe-8c2f-4d785b002905 68f4361b-d999-461d-acd4-738688887fa5
+A_SAME_STORE,PAR,Sushi Box 16pc - Sauce Tray,5,1245.0,2026-07,Warehouse,5,Warehouse,065c1eec-bda7-4a94-a3ad-7ff9105d7b7a 5858c7fe-f698-40d4-b792-ec40edf99c74 6b8866b4-cf83-4480-ad22-1ac39c78f7e2 7ffcff54-f482-463a-8b2a-b8a5f2dca053 cfeee044-8afb-4ffe-b2c9-ea9a4d3a3cdb
+A_SAME_STORE,PAR,Dish Washing Liquid,5,1190.0,2026-07,Warehouse,15,Warehouse,436fc636-fc4c-4c07-b711-50bd1bef071e 4e6a24b9-0d78-4b27-9f44-4cfda02fc066 be9b8895-6ce2-41b3-a8e3-033e1ecea7fd cccd8536-f86a-45a4-95ca-c7657cd8c702 e7f0ff95-0e04-498b-9ea7-95019bd7588b
+A_SAME_STORE,PAR,Sushi Box 12pc - Cover,5,1182.5,2026-07,Warehouse,10,Warehouse,538c8b2c-886f-4bc5-aefc-60a39f550bc4 78b43878-3df3-4413-9096-6907d4f21bf9 bf84e72f-a136-47a9-a92c-45864d9a40ac e74a8a88-a1dd-448a-a8c5-b551f42dbf33 f8e732d2-0236-4ba6-b655-460a95703ace
+A_SAME_STORE,PAR,Sushi Box 12pc - Sushi Tray (Divider),5,1182.5,2026-07,Warehouse,12,Warehouse,0f5118ee-1e19-4004-b680-e62bd933eea3 5fa35c9b-dc6a-4745-8d69-f0d396ae02ae 769cce99-61d5-4fc6-97a3-b1a690b354f7 7caefe9d-af36-4bee-919b-81924f6fbd33 7cc8d4bc-38d4-4849-9034-5f0f5f1d4dff
+A_SAME_STORE,TAFT,Chashu (30PC / 1PKT),3,1029.58,2026-08,Central Kitchen,8,Central Kitchen,acb41089-bac0-4f1a-a135-7ceb9fc94276 b7c83f9b-1c3f-4046-8200-93adf03f6b9e da4824d1-ec88-4a25-8511-2afae711459e
+A_SAME_STORE,PAR,Paper Bowl White 520 (1PKT = 50pcs),4,1005.0,2026-08,Warehouse,10,Warehouse,124dcb9f-7921-4e13-a34f-f466caa17083 6cedae2c-f3ac-406c-bbed-8d78be83cd2e c0f890ce-3bf6-43ed-82a0-2d98e62ba9eb dcd4d8d2-a732-4884-9d12-347299298c70
+A_SAME_STORE,TAFT,Sliced Beef (80g / Portion),1,1000.0,2026-08,Central Kitchen,16,Central Kitchen,10e273fc-6b5e-4090-bd14-353b65fa0b58
+A_SAME_STORE,PAR,Coke Mismo (290ml) 12pcs/case,5,981.45,2026-08..2026-09,Central Kitchen,9,Central Kitchen,0b8473c6-0056-4a94-b898-7735e4facf36 52adab5d-2616-4f91-8347-d10e18c0c74e 828744ff-3fb4-409e-b594-1a110c7e37ec 97342b94-851f-4395-a71a-94d0470eb57e ad1483fb-116f-4e50-bb3c-9fc07070f936
+A_SAME_STORE,TAFT,Tonkotsu Broth,2,939.6,2026-06..2026-08,Central Kitchen,26,Central Kitchen,71b07a0e-f42b-4c69-865f-e31fa779dc12 bd851437-2255-468a-8317-32712f9ec8f5
+A_SAME_STORE,CUB,Bento Tray (1PKT = 50pcs),2,880.0,2026-07,Warehouse,2,Warehouse,0395c4a1-13c1-42f7-b331-3605cc1419c8 55411b8c-e197-4c51-a277-7706debb27c9
+A_SAME_STORE,PAR,Tantan Ramen Base,4,879.6,2026-08,Central Kitchen,7,Central Kitchen,151ee09d-7446-45e9-a956-5c864bf1eb1d b29b3494-9880-4cca-9103-15344c7a1612 d9dcf608-a9f4-4e21-a1c7-34bb972c4f24 e0cf75eb-b325-4031-8fe8-6258b8ef5f8c
+A_SAME_STORE,PAR,Flavored Oil,2,825.0,2026-08,Central Kitchen,15,Central Kitchen,737cffdd-f13b-4c53-916b-277a85eea28d ee759389-1177-46e6-81ba-30aea248322f
+A_SAME_STORE,TAFT,Nobashi Shrimp 1KG,1,800.0,2026-08,Central Kitchen,13,Central Kitchen,51ad2304-9bcd-4a51-acc4-abd38ac941d7
+A_SAME_STORE,PAR,Daily Quezo Cheese (2KG),1,796.0,2026-08,Central Kitchen,5,Central Kitchen,c0b32eed-759a-4aeb-8975-125907109c86
+A_SAME_STORE,CUB,Sushi Box 24pc - Sauce Tray,2,787.5,2026-08,Warehouse,9,Warehouse,ac4ff36b-be02-49d6-aef6-b751e31fbbbe eace23e0-d282-4bca-a65a-c99d617063d5
+A_SAME_STORE,PAR,Pickled Papaya,3,759.56,2026-08..2026-09,Central Kitchen,19,Central Kitchen,9d77cdeb-3ea1-411e-866f-9c89eec29728 cc876fca-a0bd-4587-8d99-e52e589ca8f3 d112b748-e29e-4308-8012-fc297f55611e
+A_SAME_STORE,PAR,Chicken Teriyaki,2,751.6,2026-08,Central Kitchen,7,Central Kitchen,f4afc6d2-09c6-435e-93d7-e0aeaf5094d3 f97065fc-6bf9-449c-b5d0-8bfa0ff0a877
+A_SAME_STORE,PAR,Water Summit (500ml) 24pcs/case,3,720.0,2026-08,Central Kitchen,6,Central Kitchen,540cb99b-6681-408f-8c98-fee321fbbc75 7a8f6874-3d0c-4216-8d45-970c50a0768b 9d800d5e-bdaf-4c28-be20-8d9f1cc2c943
+A_SAME_STORE,TAFT,Miso Ramen Soup,2,698.91,2026-08..2026-09,Central Kitchen,13,Central Kitchen,293cfe42-407e-4294-b4b5-9a8401374c16 460bc75a-32ce-4d9a-ab03-033c31f0dd35
+A_SAME_STORE,PAR,Chashu (30PC / 1PKT),2,643.75,2026-08,Central Kitchen,8,Central Kitchen,5c59d86c-2932-4688-a89f-677792acb83d a2dedc80-87bb-4b0d-a49e-c67eda0b2725
+A_SAME_STORE,TAFT,Shoyu Ramen Soup,3,608.58,2026-08,Central Kitchen,11,Central Kitchen,44338211-d9ce-4fcb-9eaf-08fec18c59c5 7088b49c-29bd-4982-9bd5-f0f4883ba29f fdb51cca-ffe9-4aa2-bf97-5213e40e7bb9
+A_SAME_STORE,TAFT,Chicken Teriyaki,2,605.5,2026-08,Central Kitchen,10,Central Kitchen,4ddc8127-c206-4df1-8822-250b441eb76f 8598c673-426f-4ed0-b01e-542a5f055179
+A_SAME_STORE,PAR,Garbage Bag,5,600.0,2026-07,Warehouse,8,Warehouse,486cf40d-fe32-4d3e-8315-882314fbdb36 751a220b-8145-4fe1-b678-bd55735b026d aa4620c7-cbe8-4176-a9ab-a096d4cc9061 c3a91532-823c-4f40-8469-a1fa18d172bc da9f8bc0-6e3a-470f-8bfa-6ae5212d4b66
+A_SAME_STORE,PAR,Nobashi Shrimp 1KG,1,595.0,2026-08,Central Kitchen,21,Central Kitchen,d5033e46-8740-4e88-a245-a699192854a9
+A_SAME_STORE,CUB,Sushi Box 24pc - Sushi Tray (Divider),1,525.0,2026-08,Warehouse,12,Warehouse,d778c542-b434-4ff9-9fca-29ac933d230c
+A_SAME_STORE,PAR,Shoyu Ramen Soup,4,521.64,2026-08,Central Kitchen,16,Central Kitchen,132af281-17e1-47b2-87e5-4aaf2632011b 6020419f-2575-4ee9-92a6-79e9c5b652c7 808661d9-2958-4636-b09b-3951dc7a5fe6 87d5e2e0-a82d-4c83-9900-415e380c0ec8
+A_SAME_STORE,PAR,Red Horse (330ml) 24pcs/case,1,514.7,2026-08,Central Kitchen,1,Central Kitchen,95969adf-7779-401f-a2d9-a91d48efefa5
+A_SAME_STORE,TAFT,Paper Bowl White 750 (1PKT = 50pcs),3,510.0,2026-08,Warehouse,11,Warehouse,249295d2-f0db-49c9-87af-3d6ffe1f5001 829b535b-565a-4e5a-8139-b21fd231f6c4 b70a6c6b-34ca-4511-90f3-c7c583c455e7
+A_SAME_STORE,PAR,Miso Ramen Soup,3,499.22,2026-08..2026-09,Central Kitchen,20,Central Kitchen,0abee854-198a-4223-acf2-c9ddb256d26d 6e8740cc-0c19-4550-a927-1cdd1ee2de94 8c08a86d-e017-4eaf-869d-5bf407dd3367
+A_SAME_STORE,CUB,Sushi Box 16pc - Inner Box,2,498.0,2026-07,Warehouse,4,Warehouse,10989819-6020-4c31-ab4f-019b4348d113 f112967d-f200-4f34-bf9c-1d40176d2b49
+A_SAME_STORE,TAFT,PD Shrimp,1,477.0,2026-08,Central Kitchen,2,Central Kitchen,0cf00b11-d9f2-4273-b721-bb9470befd6b
+A_SAME_STORE,TAFT,Ramen Noodle 80g Portion,1,450.0,2026-08,Central Kitchen,27,Central Kitchen,0eee89c1-4d47-4452-b71c-66606e4ba260
+A_SAME_STORE,PAR,Permanent Pen,4,420.0,2026-07,Warehouse,6,Warehouse,25b31cc0-ab0f-41e8-b9dc-951d762a4dd8 d681187d-56b7-4596-9501-526ecbdbf2dc df8c1981-5281-42e9-aa7b-49c2bdb045b8 f9f157f2-f4b5-420e-8149-4eed827b6225
+A_SAME_STORE,TAFT,Coke Mismo (290ml) 12pcs/case,2,394.95,2026-08,Central Kitchen,8,Central Kitchen,5a59881c-23d0-466d-99a6-d3a6a128bb85 6a0a44c0-9c36-493c-8444-9621299ce12e
+A_SAME_STORE,PAR,Mountain Dew (280ml) 12pcs/case,3,392.2,2026-08..2026-09,Central Kitchen,8,Central Kitchen,15af1ff9-ef6a-4bbb-9f28-9af9d9be043d 5e5697f0-64b3-4cb6-b52f-6330f748c5c8 72e616c9-c922-4234-abc3-d7ff9b3479be
+A_SAME_STORE,PAR,1oz Cup SC20 (1PKT = 100pcs),4,390.0,2026-07..2026-08,Warehouse,12,Warehouse,0d1ce823-3e92-4db8-9663-dbb9b0ac5e0d ab55298f-d979-4d81-8981-64649034410e be510fb1-b5e7-48ea-b67b-737095e2ef9c f15010e1-8293-4196-af1b-4722512c29c6
+A_SAME_STORE,PAR,Volcano Tonkotsu Base,2,387.83,2026-08,Central Kitchen,7,Central Kitchen,357f81f1-99a7-4ef2-97d5-5c63e200fdf6 6ba2e267-998e-4e51-b6b2-2fdfc7d10153
+A_SAME_STORE,PAR,Sriracha Mayo,3,367.97,2026-07..2026-08,Central Kitchen,28,Central Kitchen,2b4568be-b7bf-48e5-8fd3-ea88949e5795 55f4153d-4f7b-4482-a44a-b325b07191af 9a49c595-c730-4aa5-a990-f237cde0d074
+A_SAME_STORE,CUB,Hot Dog Box (Gyoza 4pc) (1pkt = 100pcs),2,366.0,2026-07,Warehouse,4,Warehouse,30edf6c0-40f6-4ce2-9f98-d70c899b32c8 cb3eddde-71e5-4b00-91c6-f5dc77cbf4cb
+A_SAME_STORE,PAR,Pork for Tonkatsu,1,362.8,2026-08,Central Kitchen,25,Central Kitchen,b7f0b1a1-e951-4cb8-ae52-cc6ef64317b7
+A_SAME_STORE,TAFT,Flavored Oil,1,349.43,2026-08,Central Kitchen,19,Central Kitchen,a682188e-ed0e-46b1-8885-1af5953f60d0
+A_SAME_STORE,TAFT,Paper Bowl White 520 (1PKT = 50pcs),1,335.0,2026-08,Warehouse,11,Warehouse,4fe98872-0b54-4f69-a4b7-77e899405c01
+A_SAME_STORE,CUB,1oz Cup SC20 (1PKT = 100pcs),1,325.0,2026-07,Warehouse,13,Warehouse,d8d1c811-fa0a-419c-b97e-e77617938051
+A_SAME_STORE,CUB,Kitchen Paper Tissue (Folded Tissue),1,315.0,2026-07,Warehouse,16,Warehouse,a5eb1f64-a929-419c-9c7f-ced6c9a1ea69
+A_SAME_STORE,PAR,Royal (250ml) 12pcs/case,3,292.88,2026-08..2026-09,Central Kitchen,8,Central Kitchen,5ad3018f-073a-4fec-9e4a-0bb93f7326de 7637cfc4-d164-4bee-b492-2689dfc94b54 db96156f-bd74-4311-b190-f8163d0e895a
+A_SAME_STORE,PAR,Ballpoint Pen,4,276.0,2026-07,Warehouse,6,Warehouse,4a4c0bcf-c514-4150-8bed-0af9fbc6c8e6 b002216c-a3f4-43b2-8a5f-61ba927da229 b03699b2-34e7-4de2-ae71-050e4ef11560 ef277c5a-90c6-418b-a0bf-467487756a31
+A_SAME_STORE,PAR,Seasoned Upo,2,270.24,2026-08,Central Kitchen,32,Central Kitchen,5414b495-4e47-4ec5-b1e3-cc91817c960e e6de4470-8f46-46c1-9fca-9a32d558c56b
+A_SAME_STORE,PAR,Milk Fish,1,270.0,2026-08,Central Kitchen,26,Central Kitchen,8737479b-a6a9-4e56-a130-aa755d7c3052
+A_SAME_STORE,CUB,Chopsticks (1PKT = 50pcs),1,265.0,2026-07,Warehouse,19,Warehouse,f7617e20-059c-4b12-a802-e90028a7757e
+A_SAME_STORE,PAR,Sweet Chili Mayo,2,264.63,2026-08,Central Kitchen,27,Central Kitchen,061e4f2c-c20c-4063-8aaa-05213e820824 c1ec7c1f-609e-4287-b20b-dc9b6189bc1c
+A_SAME_STORE,PAR,Sushi Box 24pc - Inner Box,1,262.5,2026-08,Warehouse,10,Warehouse,0159b468-0b09-4345-88fd-528fbae248b5
+A_SAME_STORE,TAFT,Volcano Tonkotsu Base,1,258.55,2026-08,Central Kitchen,5,Central Kitchen,799cd0a5-1c54-4743-94dc-2f690aac52e5
+A_SAME_STORE,TAFT,Pickled Papaya,1,258.0,2026-08,Central Kitchen,25,Central Kitchen,cd8e9df3-6c17-4784-ab9f-b64a33b52e5f
+A_SAME_STORE,PAR,Akadama (Red Mince Miso),2,246.78,2026-08,Central Kitchen,19,Central Kitchen,c8575219-b6d0-483a-9aac-0d985a64f8d0 db8942d4-3e7d-4447-9dd7-b3a16c71ebac
+A_SAME_STORE,TAFT,Red Oil,1,245.74,2026-08,Central Kitchen,16,Central Kitchen,03d6f942-7f0c-4300-9df0-bc8ad8b4359f
+A_SAME_STORE,PAR,Shoyu Tonkotsu Ramen Base,5,244.59,2026-08..2026-09,Central Kitchen,7,Central Kitchen,48bc4f6a-109f-44bc-9b57-2a75df8a249a 738a7315-d1c5-424b-a054-1e3936790653 89f844be-2820-4669-b640-409959f7ce0d 92ef3d03-ea9a-4ef1-bfa3-cb72603bdb17 c26d19ad-9f6a-4b61-9680-76f6428671f5
+A_SAME_STORE,TAFT,Mirin 1L,1,244.46,2026-08,Central Kitchen,8,Central Kitchen,f4b314dc-b774-4bad-a253-b11a48ecf015
+A_SAME_STORE,TAFT,Gyudon Sauce,3,241.53,2026-08,Central Kitchen,19,Central Kitchen,4ee942f1-f455-4978-ae1d-16c472c4f3bf 9d02a566-2227-46e3-a502-98ac0a27d434 9fe9fd35-03c5-4b8d-a84a-bc5e9f012686
+A_SAME_STORE,PAR,Thermal Paper S (1BNDL = 4roll),5,240.3,2026-07,Warehouse,6,Warehouse,2891ea78-645f-4b96-8ca9-07c14958788e 562d69d0-3201-4418-b5fd-4873244c99f5 6960589f-8586-464e-9ea3-e125260068fe 71788523-a09b-4ae3-88e5-2bfba4fec034 94b180ab-bfb0-43f7-bb6d-6fa7a8209655
+A_SAME_STORE,TAFT,Water Summit (500ml) 24pcs/case,1,240.0,2026-08,Central Kitchen,4,Central Kitchen,87ddbca5-0541-4afb-90b7-9175eecca66a
+A_SAME_STORE,TAFT,Katsudon Sauce,3,212.08,2026-08,Central Kitchen,14,Central Kitchen,350e989d-454f-4cc5-a5a3-87ee4c83f493 abb01651-3d66-4e08-ac66-e3ad56de1f4c bca4e4c9-c829-4d1b-8df2-c2068b465a9d
+A_SAME_STORE,TAFT,Mountain Dew (280ml) 12pcs/case,2,196.2,2026-08,Central Kitchen,6,Central Kitchen,b7d08fbb-1226-450b-a721-b5973c344905 cbd4247b-b985-40d1-b23c-99e893e2dc28
+A_SAME_STORE,PAR,Sprite Mismo (290ml) 12pcs/case,2,195.38,2026-08..2026-09,Central Kitchen,9,Central Kitchen,667050a7-7eef-4a99-b35f-3dca0903c2fe b8b2c9d0-66ba-45cb-8d97-c950abca0d93
+A_SAME_STORE,PAR,Pineapple Juice ACE 24pcs / Case,1,186.0,2026-08,Central Kitchen,3,Central Kitchen,01b2233f-a9f6-435e-9520-aa9456024a62
+A_SAME_STORE,TAFT,Tantan Ramen Base,1,175.92,2026-08,Central Kitchen,9,Central Kitchen,dbecbc3b-5935-447c-9418-f0a4c68c5f49
+A_SAME_STORE,TAFT,Hot Mayo,1,173.96,2026-08,Central Kitchen,23,Central Kitchen,1321a3c7-a73a-40da-b835-43cb4bf31711
+A_SAME_STORE,PAR,Gyudon Sauce,2,161.02,2026-08,Central Kitchen,21,Central Kitchen,93446fbe-efb9-4b14-8fd7-54036e602102 d9ecca2b-c4e6-40a8-a236-f0f1fd52eb63
+A_SAME_STORE,PAR,Spicy Tuna Mix sauce,1,155.71,2026-08,Central Kitchen,22,Central Kitchen,773b9522-3e44-4116-b3d7-71ecdb5ec1fd
+A_SAME_STORE,PAR,You Ling Zhi Sauce,2,149.4,2026-08,Central Kitchen,31,Central Kitchen,b19f19aa-ac88-4631-93ec-70c5bec0164a e4c32e3b-0019-4984-9d47-81737446a8de
+A_SAME_STORE,TAFT,You Ling Zhi Sauce,2,149.4,2026-08,Central Kitchen,18,Central Kitchen,59158ea8-78eb-42da-a271-4f90980917b5 da10fcc6-c87d-4e77-97f1-670328192d0c
+A_SAME_STORE,TAFT,Mix Oil for Ramen,1,144.85,2026-08,Central Kitchen,21,Central Kitchen,7f330de1-becb-4563-bc27-5455a04fcb7e
+A_SAME_STORE,PAR,Katsudon Sauce,2,141.39,2026-08,Central Kitchen,20,Central Kitchen,6dd15b41-0210-4019-ad27-d9aa8a370a38 ac639719-99de-4bc5-9135-e8c2c6d8fac8
+A_SAME_STORE,TAFT,Shoyu Tonkotsu Ramen Base,2,122.8,2026-08,Central Kitchen,10,Central Kitchen,c5d04217-d575-4872-8f09-5b86e45bf6fc d5714785-1895-4ab9-b5d6-8b21b3afd7e1
+A_SAME_STORE,PAR,Sweet Sauce (Eel Sauce),2,120.99,2026-07..2026-08,Central Kitchen,23,Central Kitchen,23a4d530-7ef3-4148-8df3-72fde2e40bbc b17222db-043c-4e2a-b683-f334a7dd9c38
+A_SAME_STORE,PAR,Bamboo Shoot,1,119.0,2026-08,Central Kitchen,25,Central Kitchen,a5388413-4acd-474d-9e67-caa65144ec35
+A_SAME_STORE,PAR,Rich Lemon Cream,2,114.05,2026-07..2026-08,Central Kitchen,24,Central Kitchen,02ff90c4-370c-44e4-911d-188144d608fd 282cc4dd-1d1c-4afd-b140-2afaf3345d46
+A_SAME_STORE,PAR,Rich Honey Mustard,1,103.22,2026-08,Central Kitchen,18,Central Kitchen,9b7da9c7-5efe-4165-ad68-2b972e7abf1a
+A_SAME_STORE,TAFT,Royal (250ml) 12pcs/case,1,97.88,2026-08,Central Kitchen,1,Central Kitchen,0389e620-6492-4f80-bf74-2395be62e530
+A_SAME_STORE,TAFT,Sprite Mismo (290ml) 12pcs/case,1,97.5,2026-08,Central Kitchen,7,Central Kitchen,002657c7-1524-421e-89bf-289f3bdf9a77
+A_SAME_STORE,PAR,Wet Wipes,2,96.0,2026-07,Warehouse,2,Warehouse,0c402b1a-8c2d-4cb1-a916-3865abd92dff f6b89d85-d3d7-4993-a65a-5f0c4ce0b678
+A_SAME_STORE,PAR,Tonkatsu Sauce,1,94.89,2026-08,Central Kitchen,18,Central Kitchen,129f816a-53e3-4f33-9bbb-77e07d836cc3
+A_SAME_STORE,PAR,Yangnyeom Sauce,2,85.62,2026-08,Central Kitchen,21,Central Kitchen,289191f6-4928-42ab-8033-b5cf468e283f 5a258b0c-cad4-4aa2-9bc6-0d931da24534
+A_SAME_STORE,PAR,Sweet Mayo,1,75.49,2026-08,Central Kitchen,17,Central Kitchen,d7e6bc51-515d-42cd-9364-e5b0b03933b6
+A_SAME_STORE,PAR,Japanese BBQ Sauce,1,74.61,2026-08,Central Kitchen,30,Central Kitchen,8b5302db-cdfe-49a8-b6c1-bd14550a5844
+A_SAME_STORE,TAFT,Japanese BBQ Sauce,1,74.61,2026-08,Central Kitchen,19,Central Kitchen,eeb84c8e-ef3f-497b-af06-33bae5d72c92
+A_SAME_STORE,PAR,Cajun Mayo,1,74.24,2026-08,Central Kitchen,7,Central Kitchen,31050482-9f6d-494a-8e85-1e6425d31ed4
+A_SAME_STORE,PAR,Mix Oil for Ramen,1,72.42,2026-08,Central Kitchen,27,Central Kitchen,bde0c8cf-37ce-400e-b550-73519a6b67f4
+A_SAME_STORE,PAR,Plastick Gloves (1PKT = 100pcs),3,69.0,2026-07,Warehouse,4,Warehouse,3243aac2-cd4a-4a96-aa2d-ab051a2eacde 48dbe86c-5a02-4fbd-8bde-7a9a7487f644 aed21ca8-42a3-4323-9b72-d1029c4d436d
+A_SAME_STORE,PAR,Satay Mayo,1,65.35,2026-08,Central Kitchen,8,Central Kitchen,43017150-bace-4483-9767-6613ab051c56
+A_SAME_STORE,CUB,Battery AA (1PKT=4Pcs),1,65.0,2026-07,Warehouse,4,Warehouse,bcfe69a6-bbd0-4bd3-9063-bfeb92798cb7
+A_SAME_STORE,PAR,Spicy Edamame Sauce,1,64.17,2026-08,Central Kitchen,11,Central Kitchen,af3c0544-daf8-4913-9a9a-796366af5af5
+A_SAME_STORE,TAFT,Spicy Edamame Sauce,1,64.17,2026-08,Central Kitchen,5,Central Kitchen,f7483a36-44dd-45ca-abb1-8daadf256a5d
+A_SAME_STORE,PAR,scotch bright,2,60.0,2026-07,Warehouse,5,Warehouse,a9f787c5-f433-4b47-a1df-0e73130799aa c6d0ece8-baba-4e9c-a02a-b9bec1ebb7ca
+A_SAME_STORE,PAR,Chicken Teriyaki Sauce,1,58.91,2026-08,Central Kitchen,19,Central Kitchen,659e54d2-0838-486b-8d1b-aa9dd59d9bce
+A_SAME_STORE,TAFT,Chicken Teriyaki Sauce,1,58.91,2026-08,Central Kitchen,21,Central Kitchen,85e6252c-32ac-48bc-b4a0-617bc36b4505
+A_SAME_STORE,PAR,Spaghetti Box (Gyoza 8pc) (1pkt = 50pcs),5,55.0,2026-07,Warehouse,4,Warehouse,332bdb12-1ac9-4aa0-9595-c04c9e98caea 39748429-ce06-4ced-80b2-e90f782ca87b 7a5bddf6-70f2-43d4-931a-16f58cc42daa 7c2410ad-7a16-466e-b0a6-df1b7a39c834 bb293508-dbae-484c-9d6f-faf917ecd73d
+A_SAME_STORE,TAFT,Garlic Sauce,1,51.0,2026-08,Central Kitchen,11,Central Kitchen,d1350a0a-5eb4-442e-8e5d-c82dc2087b51
+A_SAME_STORE,PAR,CORN STARCH,1,41.2,2026-07,Central Kitchen,3,Central Kitchen,0faeb7f6-878b-41bc-b4f0-874e93211bf5
+A_SAME_STORE,PAR,Calamansi Ponzu,1,41.0,2026-08,Central Kitchen,1,Central Kitchen,9ede1b25-5c06-46ea-9d26-79e4b5087d0c
+A_SAME_STORE,PAR,Poke Sauce,1,36.53,2026-08,Central Kitchen,15,Central Kitchen,22a1c4fc-5786-460d-8089-5b988803626e
+A_SAME_STORE,TAFT,Poke Sauce,1,36.53,2026-08,Central Kitchen,6,Central Kitchen,4be5d273-745d-4402-aa4a-97797ac2b85e
+A_SAME_STORE,PAR,Black Spoon 1450 (1PKT = 25pcs),3,34.5,2026-07,Warehouse,12,Warehouse,0eab44f2-b87e-4e07-b625-1175541efcf6 5393f3ac-e0ff-4a9d-9573-3eeed22de7d9 fec5c09c-5434-4acd-8d6c-684f819f9cf9
+A_SAME_STORE,(blank),Mint,1,15.0,2026-06,Ritchcath's Vegetables Stall,1,Ritchcath's Vegetables Stall,a14cc977-832e-4986-860d-b6cee7de47f8
+A_SAME_STORE,PAR,Shoyu Ramen Base,1,0.0,2026-09,Central Kitchen,5,Central Kitchen,b872735f-461f-47e3-b95a-1d40fdec68bf
+A_SAME_STORE,PAR,Multi Purpose Plastic (10x14 Calypso ),2,0.0,2026-07,Warehouse,6,Warehouse,b4e83323-8d34-47e4-a093-1a44d12a2619 cc7391e4-f6e9-4d6a-9174-adf5516d462b
+A_SAME_STORE,PAR,Velvety Sauce,1,0.0,2026-07,Central Kitchen,23,Central Kitchen,fb4c5bb9-18ec-43e2-80b6-7811624c4dca
+A_SAME_STORE,PAR,Mango Sauce,1,0.0,2026-07,Central Kitchen,26,Central Kitchen,2d6c82b8-4b0c-4e88-adc2-bb61d1300249
+A_SAME_STORE,PAR,Sushi Vinegar,1,0.0,2026-07,Central Kitchen,32,Central Kitchen,30619ca9-384e-450c-87de-46778c9185e1
+A_SAME_STORE,PAR,Scotch Tape,1,0.0,2026-08,Warehouse,5,Warehouse,1b6bfa6a-26f9-45c5-b54d-4da86c9ac24c
+A_SAME_STORE,PAR,Soy Sauce Tray,1,0.0,2026-08,Warehouse,15,Warehouse,5b71b36e-4a49-4f76-89d5-3c8a68093ce6
+A_SAME_STORE,PAR,Soy Sauce Bottle (1PKT = 100pcs),1,0.0,2026-08,Warehouse,9,Warehouse,24c586b7-65f0-40e0-817f-b5b97376da38
+A_SAME_STORE,PAR,Ice Pack (1PKT = 100pcs),1,0.0,2026-08,Warehouse,3,Warehouse,b4ec3d60-a371-470d-b832-07eba5e857ce
+A_SAME_STORE,PAR,Paper Napkin (Maxi Tissue),1,0.0,2026-08,Warehouse,6,Warehouse,7f931230-83f6-4c24-80a3-610d206741b9
+A_SAME_STORE,TAFT,Paper Napkin (Maxi Tissue),2,0.0,2026-08,Warehouse,9,Warehouse,67137893-c4ef-4e17-a9ed-616e19ca3ff6 bbff2e5f-d538-4f64-948d-54138bc3f989
+A_SAME_STORE,TAFT,Soy Sauce Bottle (1PKT = 100pcs),2,0.0,2026-08,Warehouse,11,Warehouse,102f196e-0697-42c2-a975-a7385f9fb252 5894adfa-8bc0-4ebe-a564-fdb4326eec0d
+A_SAME_STORE,TAFT,Soy Sauce Tray,2,0.0,2026-08,Warehouse,10,Warehouse,53a5ebd0-ea15-44c6-ae34-b7c94fe9a36b f696f661-717c-41c4-a1a8-6c480a3fed5e
+A_SAME_STORE,TAFT,Scotch Tape,1,0.0,2026-08,Warehouse,13,Warehouse,659c5451-b142-4ca8-95b0-b949312c5e86
+A_SAME_STORE,CUB,Soy Sauce Tray,1,0.0,2026-08,Warehouse,12,Warehouse,7ddfe507-9d54-4309-82fb-7024ff30941f
+A_SAME_STORE,CUB,Scotch Tape,1,0.0,2026-08,Warehouse,10,Warehouse,4752aab2-5afc-4945-840f-fe27d724a1e3
+A_SAME_STORE,TAFT,Seasoned Egg Sauce for 30pcs,1,0.0,2026-08,Central Kitchen,18,Central Kitchen,9550898c-bda6-4c34-8e6a-87981be9bfd4
+A_SAME_STORE,PAR,tonkotsu broth,1,0.0,2026-07,Central Kitchen,29,Central Kitchen,8411aa27-5ae3-485b-a92a-e4848dee584e
+A_SAME_STORE,PAR,sliced cheese,1,0.0,2026-07,Central Kitchen,14,Central Kitchen,40935515-9108-4257-9178-da35ab3e16a4
+A_SAME_STORE,PAR,century tuna chunk,1,0.0,2026-07,Central Kitchen,27,Central Kitchen,99463acd-12b4-43a4-a92d-b8c82fd3aa75
+A_SAME_STORE,PAR,spring onion,1,0.0,2026-07,three-S,29,three-S,2b05f7ca-d868-4b4e-9669-c6227a46aea6
+B_OTHER_STORE_ONLY,CUB,Brown Paper Bag L (TB4) (1BNDL = 50pcs),11,6750.0,2026-08,Warehouse,1,Warehouse,0e758687-6639-4977-bf3c-8574c74d82ac 31f9b6a1-d0d5-448d-b2a7-c952113a21c8 336378ca-dcce-49e0-9d79-2aca7151a7b6 347f9e8b-0327-4abf-a1b7-e79773a7d79c 4d0742e0-57cc-49c5-8fa3-a778850ccd84 736d0171-1952-4752-8e4c-c2b200a08821 7aa52d7b-f179-4cf1-a33b-0181f906860a a18272ea-9b60-4b2c-a3d3-f69d7cda4a09 c41ab24b-bbdd-4250-8d85-52cc4a4a0cb8 e912f8da-03f3-45be-8198-af0e69b881be f7070273-00ec-4639-978f-1be5761d8536
+B_OTHER_STORE_ONLY,PAR,Brown Paper Bag L (TB4) (1BNDL = 50pcs),7,5625.0,2026-08,Warehouse,1,Warehouse,0c62a029-f9eb-41e7-bab7-cb3c40d0479d 0fece570-61e5-4848-a5bf-9ca6a4f45be9 399e60bb-6cb9-43a0-b1c5-afee40215255 52cc85c7-9907-48b9-a288-f8d06b54bdce 77445862-818c-4963-8cca-bd62c78135de d1b49f9a-4563-4570-97b0-ceebd0303e5d f4d06c75-befa-4ba8-adc0-848fda1a9802
+B_OTHER_STORE_ONLY,PAR,Sushi Box 24pc - Divider,5,1837.5,2026-07,Warehouse,1,Warehouse,66eba674-a877-4f08-844e-3c9d3cd05757 7469863a-568f-4b03-ab73-ef6e5a147e54 83ac973a-30d2-4158-9ca4-99a4fa1510ca b3ece157-3cb8-4096-8e60-f061e7bd3064 e699ff3a-4298-48d1-a858-e6b4e572ce50
+B_OTHER_STORE_ONLY,PAR,Century Tuna Chunk 420g,1,526.25,2026-08,Central Kitchen,1,Central Kitchen,9ed928a1-0602-45ed-89e8-ce9ca4523988
+B_OTHER_STORE_ONLY,PAR,Paper Bag S (TB3) (1BDL = 50pcs),1,0.0,2026-08,JZP,3,JZP,71cfdd70-8cd5-4e02-926c-6541dcc19921
+B_OTHER_STORE_ONLY,PAR,Onigiri Film,1,0.0,2026-08,Shopee / Lazada,1,Shopee / Lazada,98910c01-6364-4ab7-968f-8139aa597ba5
+B_OTHER_STORE_ONLY,PAR,Double Sided Tape,1,0.0,2026-08,Cash & Carry,9,Cash & Carry,9de19782-6382-4b11-aae2-d6c6dfb2ae1b
+B_OTHER_STORE_ONLY,TAFT,Brown Paper Bag L (TB4) (1BDL = 50pcs),1,0.0,2026-08,JZP,3,JZP,f9f332f6-a0a0-40c7-8c9c-b064471b7105
+B_OTHER_STORE_ONLY,TAFT,ZEN Safety Sealed Sticker,2,0.0,2026-08,Warehouse,1,Warehouse,c2577308-20d9-4d41-9b3f-2137501d0a06 e4c1e4e6-b7d8-4cb1-a456-265e6fae39a5
+B_OTHER_STORE_ONLY,TAFT,Double Sided Tape,1,0.0,2026-08,Cash & Carry,9,Cash & Carry,7c8d34dc-8dd1-4080-b490-5413e20e85bb
+B_OTHER_STORE_ONLY,CUB,Double Sided Tape,1,0.0,2026-08,Cash & Carry,9,Cash & Carry,73e93406-787c-4113-a0f3-ef91b1c933be
+B_OTHER_STORE_ONLY,PAR,Black Pepper,1,0.0,2026-08,Better mart,1,Better mart,408b1e63-e782-4519-a7b4-5d58055d1766
+C_MIXED_AT_STORE,CUB,Sushi Box 24pc - Inner Box,1,525.0,2026-08,?,11,China / Warehouse,52555b01-af34-4991-a390-96f645af9aeb
+C_MIXED_ELSEWHERE,(blank),Cucumber,1,2250.0,2026-06,?,99,Mega Q / Three - S / Richcath's Vegetables Stall / Ritchcath's Vegetables Stall,3359cf63-2b2d-4578-b826-13614c3c949b
+D_NEVER_NAMED,TAFT,Paper Bag S (TB3) (1BNDL = 50pcs),14,9450.0,2026-08..2026-09,?,0,-,0023d83a-213f-4a4d-ae43-73db58c55653 076c2ada-d9dd-4001-9e64-2ca96eeca6a6 1c3d78aa-dd62-49c4-951e-960e6fc0963b 1dd584cd-8a9e-4826-afae-6e668a4cca2f 378f5ee4-04e1-4dbf-ba20-a9b566f0b702 3c7995a4-fc62-45d3-9021-6a6713c02ed2 4c35e4d0-b4ab-4d28-adc5-b2067bac17cc 9cbb94f3-e159-417e-b8a9-963bfbfd86b6 9dddf304-0352-4271-8368-7855af04e273 d8c00f70-81bd-4808-bc3c-33ecae550fef dd360be3-62a5-4da1-9843-7616c139a482 ec1176c1-87a3-4d1f-9ab1-362484e699e0 f8ea2b04-2ed5-4ce5-adde-e8fd4d633635 fc1b0407-80b1-4af4-b05b-b537f55ca86a
+D_NEVER_NAMED,PAR,Paper Bag S (TB3) (1BNDL = 50pcs),9,5600.0,2026-08..2026-09,?,0,-,102b0ef7-886d-4466-ab22-8b26dffacb1f 3758a7b0-04a4-45f4-b6a0-476b4b69d68e 38dc6b38-247e-4023-a3d9-3bcb641e0731 48e0bf6a-94b6-4034-885a-2a0668b960df 4b7ff3e5-7360-4090-a818-72bbf41670e4 60b96217-1283-40d5-8d18-876d59246e0d a617c558-4312-4521-9b63-4d153c1d26fc aff5ec86-b172-4cd2-8942-b50a18303057 f0d8113f-1b51-4963-aec4-8c309b1238b0
+D_NEVER_NAMED,CUB,Paper Bag S (TB3) (1BNDL = 50pcs),10,5250.0,2026-08..2026-09,?,0,-,1fe7551b-fe4b-4d28-b748-72f70ba0339e 35be38e3-3cd9-46d2-9404-a06802532c54 4e1389da-24d1-4c42-b7bf-18e1792c63ba 4e7ebd30-3810-422a-ba2b-04a1eb9eeef4 7b8bf0f5-0ba5-4f3e-aef1-ff5ef1daa6b7 8a0f742a-d1dd-4445-84c3-b2353646dcf5 a6495fad-c27d-4b28-9f84-0a3c32f8c12c b6d96f79-e71f-4c73-8569-24a8b03a97b0 c2fc9a67-3398-4bf5-b00b-bea31c131c3e df720059-4b50-4985-b35e-43dcb9bb54a3
+D_NEVER_NAMED,PAR,Sushi Box24 Out Box,1,525.0,2026-07,?,0,-,8085fb50-34c8-4bda-9fcd-7e3b22824259
+D_NEVER_NAMED,PAR,Sushi Box24  Inner Box,1,525.0,2026-07,?,0,-,c31c8836-b735-418b-b6ef-d58ddf3c48b4
+D_NEVER_NAMED,PAR,San Miguel Light (330ml) 24pcs/case,1,514.7,2026-08,?,0,-,dee172fa-6bbb-48d0-a451-7e9556b08640
+D_NEVER_NAMED,PAR,San Miguel Pilsen (330ml) 24pcs/case,1,514.7,2026-08,?,0,-,f5bf84bb-0678-4c66-b6f6-89e71d7e14a8
+D_NEVER_NAMED,PAR,Sushi box16 Outbox,1,498.0,2026-07,?,0,-,2c1b39ad-bb7a-42d9-94fc-d585fb034720
+D_NEVER_NAMED,PAR,Sushi box16 Innerbox,1,498.0,2026-07,?,0,-,7ed28762-bba3-432c-ae63-0ceec23eb7e0
+D_NEVER_NAMED,PAR,Sushi box12 Sauce Tray,1,473.0,2026-07,?,0,-,771c073d-3a07-4870-8abe-cfbb0f4f83c0
+D_NEVER_NAMED,PAR,Bread Crumbs,1,119.67,2026-07,?,0,-,02b10489-2267-447a-9935-5815499dd7c1
+D_NEVER_NAMED,CUB,,2,0.0,2026-06..2026-08,?,0,-,dfae077e-6949-4d0a-93b5-bda971a66047 e47655ab-6898-46da-9555-c40c36fe51ee
+D_NEVER_NAMED,TAFT,,1,0.0,2026-06,?,0,-,cf6a628a-9490-4e01-a477-a5631ebeefc0
+D_NEVER_NAMED,TAFT,Chashu (30 pcs.),1,0.0,2026-06,?,0,-,f6cb40a8-20aa-4b21-a768-eb4ebcac6dac
+D_NEVER_NAMED,TAFT,Shrimp Dumpling,1,0.0,2026-06,?,0,-,8594cd4a-fa9c-4eda-af35-a001cfecc4de
+D_NEVER_NAMED,PAR,coke,1,0.0,2026-07,?,0,-,8c08548b-6201-4794-a069-b9678e7cc4b3
+D_NEVER_NAMED,PAR,water,1,0.0,2026-07,?,0,-,7e2fe928-e6a0-4f8f-9a58-293b5c1b0d13
+D_NEVER_NAMED,PAR,soy sauce bottle,1,0.0,2026-07,?,0,-,613e656a-ae04-414b-a6b7-b6677f9e6290
+D_NEVER_NAMED,PAR,chashu (30 pcs.),1,0.0,2026-07,?,0,-,6b7279b3-dd7e-4e16-8c9f-1742a2736dcc
+D_NEVER_NAMED,PAR,paper bowl large,1,0.0,2026-07,?,0,-,f5cd2d2c-8cd0-4840-a027-169697f9fe2d
+D_NEVER_NAMED,PAR,paper bowl small,1,0.0,2026-07,?,0,-,c1da20cd-2111-429a-8ca9-5c86081945f1

@@ -1,8 +1,33 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-05（アグリゲーターのセッション更新で3つの欠陥を発見・修正）
+Last updated: 2026-09-05（発注額の欠落37%を修正・unclassified の76%を Warehouse/CK へ復元）
 
 ---
+
+## 2026-09-05 — Store Supplier Orders 発注額の欠落 / Store Procurement の unclassified
+
+**完了**
+- 発注明細に単価が無い行をカタログ単価でフォールバック（`store_supplier_order_summary`）。
+  2026-08 全店 ₱433,082.52 → ₱692,766.15（160行・₱259,684 が復活、未単価0件）。
+  フォールバック件数は `items_priced_from_catalog` として別に返す（当日単価ではないため）。
+  画面の列は "Lines without price" → "Priced from catalog"。誤った案内文を削除。
+- Store Procurement の unclassified を A群（同一店舗・同一品目で仕入先1社のみ）だけ補完。
+  299行・₱94,423 に `vendor_name` を書き込み。TAFT 8月 ₱29,410 → ₱8,400。
+  before は `_proc_req_items_vendor_bk_20260905`（299行）に退避済み。
+
+**現場対応待ち — 残 ₱41,482 の unclassified**
+| 群 | 内容 | 金額 | 対応 |
+|---|---|---:|---|
+| B | その店舗に記録が無く、他店舗では1社のみ | ₱14,739 | 適用可否は要判断（大半は Warehouse） |
+| C | 本当に複数の仕入先 | ₱2,775 | 現場が Vendor 欄を入力 |
+| D | どの店舗でも一度も仕入先が未記入 | ₱23,968 | 同上。最大は Paper Bag S (TB3) 3店舗計 ₱20,300 |
+
+一覧: `docs/ai/2026-09-05-manila-unassigned-vendors.csv`（`item_ids` 列で取り消し可能）
+
+**未着手 — Session 1 向け**
+- `proc_request_items.vendor_name` が自由入力でマスタ未接続。空欄のまま保存できるため
+  同じ欠落が再発する。入力時に仕入先を選ばせる（または空欄を警告する）改修が要る。
+  スキーマ変更を伴うため hotfix セッションでは着手しない。
 
 ## ✅ セッション更新の手順に3つの欠陥（2026-09-05・修正済み）
 

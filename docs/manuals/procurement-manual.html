@@ -517,6 +517,22 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <!-- ── NEW FEATURE: ORDER AMOUNT SUMMARY ── -->
+  <div class="card blue-border">
+    <div class="card-title" data-en="🆕 Order Amount Summary — Monthly Ordered Value" data-ja="🆕 Order Amount Summary — 月次の発注金額">🆕 Order Amount Summary — Monthly Ordered Value</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px" data-en="A collapsible card above the order list shows, per month for the selected store, how many orders were placed and their total ordered value (quantity ordered × unit price). Drafts are excluded — nothing has been ordered yet." data-ja="発注一覧の上にある開閉式のカードで、選択中の店舗の月ごとの発注件数と発注金額（発注数量 × 単価）を確認できます。draftは集計に含みません。">A collapsible card above the order list shows monthly order count and ordered value per store. Drafts excluded.</p>
+
+    <div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-en="The “Priced from catalog” Column" data-ja="「Priced from catalog」列の意味">The “Priced from catalog” Column</div>
+      <p style="font-size:12px;color:var(--muted)" data-en="An order line copies the catalog unit price at the moment the order is generated, and nothing back-fills it afterwards. So a line generated before its item was priced has no price of its own. Those lines are valued at today’s catalog price instead, and this column counts them — their value is today’s price, not the price on the day of the order. If a line has no price anywhere, it is shown separately in amber; there are currently none." data-ja="発注明細は、発注書を作成した時点のカタログ単価をコピーして保持します。後からカタログに単価を入れても、既存の発注書には反映されません。そのため単価を入れる前に作られた明細は単価を持ちません。これらは現在のカタログ単価で計上し、その件数をこの列に表示します（発注当日の単価ではないため区別しています）。どこにも単価がない明細はオレンジで別表示されます（現在は0件）。">A line keeps the catalog price from the day it was generated. Lines generated before their item was priced fall back to today’s catalog price; this column counts them. Lines with no price anywhere show in amber (currently none).</p>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px" data-en="Received Value Is Not Shown" data-ja="受入金額は表示しません">Received Value Is Not Shown</div>
+      <p style="font-size:12px;color:var(--muted)" data-en="Only ordered value is reported. Actual received prices are recorded on too few lines to total honestly, and a figure that silently covers part of the month would read as complete." data-ja="表示するのは発注金額だけです。実際の受入単価は記録されている明細が少なすぎ、合計すると一部しか見ていない数字が完全な合計に見えてしまうためです。">Ordered value only. Too few lines carry an actual received price to total honestly.</p>
+    </div>
+  </div>
+
   <!-- ── NEW FEATURE: PO DATE ── -->
   <div class="card blue-border">
     <div class="card-title" data-en="🆕 PO Date — Defaults to Tomorrow + Editable Per Order" data-ja="🆕 PO日付 — デフォルト翌日 + 発注ごとに編集可能">🆕 PO Date — Defaults to Tomorrow + Editable Per Order</div>
