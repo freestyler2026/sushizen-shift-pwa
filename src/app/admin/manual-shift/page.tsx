@@ -519,7 +519,7 @@ export default function ManualShiftPage() {
   const [weekStart, setWeekStart] = useState(todayMonday);
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<
-    { name: string; url: string; version: number; shiftDays: number } | null>(null);
+    { name: string; url: string; version: number; shiftDays: number; notShown: string[] } | null>(null);
   const [exportError, setExportError] = useState("");
   const [needsExport, setNeedsExport] = useState(false);
   const [showExportPrompt, setShowExportPrompt] = useState(false);
@@ -558,6 +558,7 @@ export default function ManualShiftPage() {
       setExportResult({
         name: data?.file?.name || "", url: data?.file?.url || "",
         version: data?.version || 0, shiftDays: data?.shift_days || 0,
+        notShown: Array.isArray(data?.not_shown) ? data.not_shown : [],
       });
       setNeedsExport(false);
       setShowExportPrompt(false);
@@ -1768,6 +1769,18 @@ export default function ManualShiftPage() {
                 </span>
               </p>
             ) : null}
+            {exportResult && exportResult.notShown.length > 0 && (
+              /* The workbook says this too, on its GUIDE tab. It is repeated here
+                 because the person who exports may never open the file. */
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-xs font-semibold text-amber-900">
+                  {exportResult.notShown.length} item(s) could not be drawn in the grid:
+                </p>
+                <ul className="mt-1 list-disc pl-5 text-xs text-amber-800">
+                  {exportResult.notShown.map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
