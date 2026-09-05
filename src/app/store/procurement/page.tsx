@@ -1289,11 +1289,13 @@ export default function StoreProcurementHomePage() {
     } catch {}
   }, [RECENT_ACTIVITY_EXPANDED_KEY, showAllRecentActivities]);
 
+  // Branch switch. The summary has to move with it — leaving it behind shows one
+  // branch's spend under another branch's name.
   useEffect(() => {
-    if (storeCode) void loadPendingDeliveries();
-    else setPendingDeliveries([]);
+    if (storeCode) { void loadPendingDeliveries(); void loadSourceSummary(); }
+    else { setPendingDeliveries([]); setSourceSummary([]); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeCode]);
+  }, [storeCode, city]);
 
   useEffect(() => {
     if (storeCodeMountRef.current) { storeCodeMountRef.current = false; return; }
@@ -1843,7 +1845,7 @@ export default function StoreProcurementHomePage() {
                 ]}
               />
             </div>
-            <button type="button" onClick={() => { void loadMyRequests(); void loadPendingDeliveries(); }} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
+            <button type="button" onClick={() => { void loadMyRequests(); void loadPendingDeliveries(); void loadSourceSummary(); }} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {loading ? "Loading..." : "Refresh"}
             </button>
@@ -2569,6 +2571,16 @@ export default function StoreProcurementHomePage() {
                             </td>
                             <td className="pt-2 text-right text-sm font-semibold text-zinc-300 tabular-nums">
                               {money(sourceSummary.reduce((s, r) => s + (r.supplier || 0), 0))}
+                              {/* Carried here too, or the three columns come up short of the
+                                  Total beside them with nothing on screen explaining the gap. */}
+                              {sourceSummary.some((r) => (r.unassigned || 0) > 0) ? (
+                                <span
+                                  className="ml-1 text-[10px] text-zinc-500"
+                                  title="Spend on lines with no supplier recorded — included in Total"
+                                >
+                                  +{money(sourceSummary.reduce((s, r) => s + (r.unassigned || 0), 0))}?
+                                </span>
+                              ) : null}
                             </td>
                             <td className="pt-2 text-right text-sm font-bold text-white tabular-nums">
                               {sourceSummary.reduce((s, r) => s + (r.total || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
