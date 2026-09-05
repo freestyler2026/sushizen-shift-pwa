@@ -19,6 +19,7 @@ interface StoreRow {
   median_prep: number | null; p90_prep: number | null;
 }
 interface HourRow { hour: number; orders: number; measured: number; median_prep: number | null }
+interface HourStoreRow extends HourRow { store_code: string }
 interface StatusRow { platform: string; status: string; orders: number; measured: number }
 interface FreshRow { city: string; platform: string; store_code: string; last_date: string; last_import: string }
 interface Ledger {
@@ -26,7 +27,8 @@ interface Ledger {
   never_cooked: number; zero_minute: number;
   median_prep_min: number | null; p90_prep_min: number | null; max_prep_min: number;
   grab_flagged: number;
-  by_store: StoreRow[]; by_hour: HourRow[]; by_status: StatusRow[]; freshness: FreshRow[];
+  by_store: StoreRow[]; by_hour: HourRow[]; by_hour_store: HourStoreRow[];
+  by_status: StatusRow[]; freshness: FreshRow[];
   platforms: string[]; date_from: string; date_to: string;
 }
 
@@ -67,6 +69,9 @@ function fmt(n: number | null | undefined, unit = ""): string {
 export default function PrepTimeLedger({ approverName, pin }: { approverName: string; pin: string }) {
   const [city, setCity] = useState<"manila" | "dubai">("manila");
   const [days, setDays] = useState(30);
+  // "" means every store. The hourly medians come per store from SQL, so
+  // switching here is a filter over data already fetched, not another request.
+  const [store, setStore] = useState("");
   const [data, setData] = useState<Ledger | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -94,8 +99,11 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
 
   useEffect(() => { void load(); }, [load]);
 
-  const hours = (data?.by_hour || []).filter((h) => (h.measured || 0) >= MIN_HOUR_SAMPLE);
-  const hidden = (data?.by_hour || []).length - hours.length;
+  const hourRows: HourRow[] = store
+    ? (data?.by_hour_store || []).filter((h) => h.store_code === store)
+    : (data?.by_hour || []);
+  const hours = hourRows.filter((h) => (h.measured || 0) >= MIN_HOUR_SAMPLE);
+  const hidden = hourRows.length - hours.length;
   const worstHour = hours.reduce<HourRow | null>(
     (a, h) => (!a || (h.median_prep || 0) > (a.median_prep || 0) ? h : a), null);
 
@@ -111,7 +119,7 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {(["manila", "dubai"] as const).map((c) => (
-          <button key={c} type="button" onClick={() => setCity(c)}
+          <button key={c} type="button" onClick={() => { setCity(c); setStore(""); }}
             className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
               city === c ? "bg-violet-500/20 text-violet-200 border border-violet-400/40"
                          : "border border-white/10 text-zinc-400 hover:text-zinc-200"}`}>
@@ -182,11 +190,20 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
             )}
           </div>
 
+          {hours.length === 0 && store && (
+            <div className={`${GLASS_CARD} p-4 text-sm text-zinc-400`}>
+              {store} has no hour with at least {MIN_HOUR_SAMPLE} measured orders in
+              this window. Widen the range or pick another store.
+              <button type="button" onClick={() => setStore("")}
+                className="ml-2 text-violet-300 underline">Show all stores</button>
+            </div>
+          )}
+
           {hours.length > 0 && (
             <div className={`${GLASS_CARD} p-4`}>
-              <div className="flex items-baseline justify-between">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Median by hour (local time)
+                  Median by hour (local time){store ? ` · ${store}` : ""}
                 </p>
                 {worstHour && (
                   <p className="text-xs text-amber-200">
@@ -194,6 +211,19 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
                   </p>
                 )}
               </div>
+              <div className="mt-3 flex flex-wrap gap-1">
+                {[{ code: "", label: "All stores" },
+                  ...(data.by_store.map((b) => ({ code: b.store_code, label: b.store_code })))]
+                  .map((o) => (
+                  <button key={o.code || "all"} type="button" onClick={() => setStore(o.code)}
+                    className={`rounded-lg px-2.5 py-1 text-xs transition ${
+                      store === o.code ? "bg-violet-500/25 text-violet-100"
+                                       : "text-zinc-500 hover:text-zinc-300"}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="mt-3 flex items-end gap-1 overflow-x-auto">
                 {hours.map((h) => {
                   const m = h.median_prep || 0;
