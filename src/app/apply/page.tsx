@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import VoiceScreening from "@/components/apply/VoiceScreening";
 
 /**
  * Public application form.
@@ -134,6 +135,10 @@ export default function ApplyPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
+  // Returned by /api/apply so the interview opens straight away. Null when the
+  // storage folder is not configured -- then nothing is offered, rather than
+  // asking someone to record into nowhere.
+  const [voiceToken, setVoiceToken] = useState("");
 
   const set = (k: string, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
@@ -171,6 +176,8 @@ export default function ApplyPage() {
         else setErr(t.errNetwork);
         return;
       }
+      try { setVoiceToken(JSON.parse(await res.text())?.voice?.token || ""); }
+      catch { setVoiceToken(""); }
       setDone(true);
     } catch {
       setErr(t.errNetwork);
@@ -184,10 +191,13 @@ export default function ApplyPage() {
       <div className="py-10 text-center">
         <h1 className="text-2xl font-semibold text-white">{t.doneTitle}</h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-300">{t.doneBody}</p>
+        {voiceToken && <VoiceScreening token={voiceToken} lang={lang} />}
+
         <button
           type="button"
           onClick={() => {
             setDone(false);
+            setVoiceToken("");
             setForm({
               full_name: "", phone: "", position_group: "", branch: "",
               experience_level: "", available_from: "", referrer_name: "",
