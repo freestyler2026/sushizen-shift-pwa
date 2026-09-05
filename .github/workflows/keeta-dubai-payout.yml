@@ -54,7 +54,7 @@ jobs:
         env:
           KEETA_SESSION:  ${{ secrets.KEETA_SESSION }}
           KEETA_BRAND:    sushi_zen
-          WEBHOOK_URL:    ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          WEBHOOK_URL:    ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
           GENERATE_FROM:  ${{ github.event.inputs.generate_from }}
           GENERATE_TO:    ${{ github.event.inputs.generate_to }}
         timeout-minutes: 12
@@ -67,7 +67,7 @@ jobs:
         env:
           KEETA_SESSION:  ${{ env.KEETA_RZ_SESSION }}
           KEETA_BRAND:    ramen_zen
-          WEBHOOK_URL:    ${{ github.event.inputs.dry_run == 'true' && '' || 'https://sushizen-shift-app-038d846023bc.herokuapp.com' }}
+          WEBHOOK_URL:    ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
           GENERATE_FROM:  ${{ github.event.inputs.generate_from }}
           GENERATE_TO:    ${{ github.event.inputs.generate_to }}
         timeout-minutes: 12

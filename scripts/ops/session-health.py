@@ -55,7 +55,12 @@ WORKFLOWS = {
 }
 
 # 更新手順。ファイル名は実物を確認済み（存在しない手順を案内するのは教訓21）。
-# noon だけ b64 を書き出さないので、シークレットには JSON をそのまま入れる。
+#
+# シークレットの中身は6つとも base64。noon だけ setup-session.js が b64 を
+# ファイルに書かず標準出力に出すので、ここで詰め替える。
+# 2026-09-05 まで「noon だけ JSON をそのまま入れる」と案内していたが、
+# get-payouts.js:71 は Buffer.from(b64,'base64') してから JSON.parse するので、
+# 生JSONを入れると復号が壊れて翌朝の取込が落ちる。実際に一度そう入れさせた。
 REFRESH = {
     "grab": ("node scripts/grab/setup-session.js {store}",
              "gh secret set GRAB_SESSION_{STORE} < scripts/grab/{store}-session.b64.txt"),
@@ -66,7 +71,7 @@ REFRESH = {
     "keeta": ("node scripts/keeta/setup-session.js",
               "gh secret set KEETA_RZ_SESSION < scripts/keeta/keeta-session.b64.txt"),
     "noon": ("node scripts/noon/setup-session.js",
-             "gh secret set NOON_SESSION < scripts/noon/noon-session.json"),
+             "base64 < scripts/noon/noon-session.json | tr -d '\\n' | gh secret set NOON_SESSION"),
     "talabat": ("node scripts/talabat/setup-session.js",
                 "gh secret set TALABAT_SESSION_STATE < scripts/talabat/talabat-session.b64.txt"),
 }
