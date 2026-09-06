@@ -83,7 +83,8 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 正となるシート: `Manila Shift Schedule 2026 .xlsx` の `Sep 1-  ` タブ。
 **ドバイと違い30日すべて記入済み。** 50名×30日＝1,434人日を突合。
 
-**一致率 96.8%（1,388/1,434）。残る46件は下記の保留分だけ。**
+**一致率 99.6%（1,428/1,434）。** 残る6件は Mariano Espenida Jr. の空欄日で、
+**OS側（ABSENT×3 + BO 9-18×3）が正しいとオーナー確認済み**＝実質的に食い違いゼロ。
 
 ### シートの読み方（次回必読）
 - 1日＝20列ブロック、列5開始（`col = 5 + 20*(日-1)`）。**19列が 8:00〜翌2:00**（`hour = 8 + offset`）
@@ -102,18 +103,30 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 - **タイムライン上の役割テキストを `note` に入れた**（1,055行）。`role` の職位（MGR / Line Cook 等）は温存
 - **Excel出力がその役割をバーの上に書くようにした**（開始時刻のセル。生成物で1,438件を確認）
 
-### 保留46件（判断が要る）
-| 件数 | 内容 |
-|---:|---|
-| 6 | Mariano Espenida Jr.：シートが空欄。**空欄は主張ではない**ので触らない |
-| 6 | **Keven Jhon A. Ayubong：シート=CK / OS=CUB。** 行位置ではCK側だが OS は Cubao |
-| 30 | **シートの水色「HQ works」に対応する支店がManilaに無い。** Richard S. Gante(14)・Peter Villafuerte(16)・Francis Ibana(3)。管理職が1日で複数拠点を回る日も含む |
-| 1 | Richard S. Gante 9/01：同じ日が2つの支店版に跨っていて置換できない |
+### 「HQ works」の行き先（2026-09-06 オーナー確認・適用済み）
+水色の「HQ works」は**施設名ではない**ので、人ごとに実際の勤務先へ割り当てた。
+- **Richard S. Gante → CK**（14日）
+- **Peter Villafuerte → BO**（16日。他の区間はシートどおり BO/PAR/TAFT の複数区間）
+- **Francis Ibana → その日の別区間と同じ支店**（TAFT。3日）
+- **Keven Jhon A. Ayubong → CK**（6日。OSは Cubao だった）
+
+Gante 3日・Ibana 1日は**同じ人日が2つの支店版に跨って**いたので、主たる版に書いて
+もう一方には空セルを publish して消した（版が違うと置換にならず横に増える）。
+
+⚠️ **Excelのどのタブに行が置かれるかは `staff_master.branch_code` で決まる。**
+Keven・Francis・Richard は名簿上いずれも **CUB** なので、日々の `Br` 欄が CK / TAFT でも
+**行は Cubao タブに出る**。シート原本では Richard と Francis は店舗グループの上の
+管理職ブロック、Keven は CK ブロックにいる。名簿を直すかは未決（給与・名簿に波及するため保留）。
 
 ### シートが扱っていない範囲
 **Back Office 8名**（Aliana Manuel / Caila Macararanga / Camilla Gadingan / Cyrine Fernandez /
 Erica May Sadiasa / Marithel Queri / Rose Ann Onido / Ruby Rosa Rongcales）は
 **シートに行が無く、OSにだけある**。消していない。シートは店舗・厨房のみを扱う。
+**OSの内容が正しい（オーナー確認）。Excelの Back Office タブに全員出ている**ことを
+生成物で確認済み（1人あたり74〜82セル）。ただし**役割テキストは空**（シートに元が無いため）。
+
+⚠️ **氏名はOS側の綴りが正**（オーナー確認）。`shift_published_rows.staff_name` が
+`staff_master` に無い名前は**0件**なので、OS内部の整合は取れている。
 
 ⚠️ **氏名の表記ゆれ23名分**を突合表に持っている（`Ricardo Lamis Ⅲ`＝`Ricardo Lamis III`、
 `Go, Leomar Maranan`＝`Leomar M. Go`、`Renz Erick Erespe`＝`Renz Erick Matudan` 等）。
