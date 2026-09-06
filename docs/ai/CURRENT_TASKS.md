@@ -64,7 +64,8 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 |---|---|
 | ~~**Arjan が 9/21〜9/30 未公開**~~ → **2026-09-06 公開済** | 版が week 8/31・9/07・9/14 の3本しか無かった。**9/14週の型を曜日単位でそのまま繰り返して公開**（9/07週と9/14週が63セル全一致＝固定ローテーションだったため、推測を含まない）。9/28週は他支店と揃えて **9/30 で切った**（10月の版はどの支店にも無い）。退避: `_shift_rows_bk_arj_20260906` |
 | Bibek BK 9/28〜9/30 | AM 14-23 と AB 17-26 が二重。9/28 は AB の DAY_OFF と AM 勤務が同居（オーナーが修正予定） |
-| Christian Baria / Sanjeev Bahadur Malla | 在籍なのに9月のシフトが1件も無い。**Sanjeev Bahadur Malla は ARJ 所属だが 9/07週・9/14週のローテーションにも入っていない**ので、Arjan を公開しても入らない |
+| Christian Baria | **退職済・最終勤務日 2026-08-28**（2026-09-06 オーナー確認）。打刻も 8/28 が最後で、8/20以降の公開シフトはゼロ＝教訓38の矛盾チェックに引っかかるものが無い。**`staff_master.status` はまだ ACTIVE。** 変更APIはPIN承認必須なので Staff ページから SEPARATED にする必要がある |
+| **Sanjeev が2人いる（要確認）** | **Sanjeev Tamang**（AB）＝トライアル終了の新人・9/1から AB 15-24 で登録済み・正常。**Sanjeev Bahadur Malla**（ARJ）は別人で、9月のシフトが1件も無く、ARJ の週ローテーションにも入っていない。**こちらは未確認のまま** |
 | Shushma Kumari | OSにはシフトがあるがスタッフシートに行が無い（Bibek・Sanjeev Tamang と同型） |
 | VLに時刻が残る6行 | Hayat 9/05-06、Kapil 9/22-23、Renuka 9/22-23（出力は修正済み・データは未清掃） |
 | 10時間勤務が27件 | Al Mina中心。OT+1 かどうかシートで確認できない |
@@ -84,11 +85,11 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 
 | 見つかったもの | 件数 | 中身 |
 |---|---:|---|
-| **0:00–24:00 の行** | 13 | 6名。**全員が自分の週定休の曜日**（各人が月内に1回だけ持つ本物のDAY_OFFと同じ曜日）。休みを時間帯として入力したもの。合計312時間の架空勤務 |
+| ~~**0:00–24:00 の行**~~ → **2026-09-06 Day Off に修正済** | 13 | 6名。**全員が自分の週定休の曜日**（各人が月内に1回だけ持つ本物のDAY_OFFと同じ曜日）。休みを時間帯として入力したもの。合計312時間の架空勤務だった。退避: `_shift_rows_bk_mnl_20260906` |
 | 同じ人日が2支店の版に重複 | 3 | Richard S. Gante 9/03・9/06、Francis Ibana 9/06。版は支店ごとなので、複数支店を見る人は両方に書かれうる |
 | **Back Office 3名が遠隔地から打刻** | 常時 | Cyrine Fernandez **326.8km**（26回・毎回同一）/ Caila Macararanga 15.6〜341.8km（20回）/ Ruby Rosa Rongcales **51.0km**（29回・毎回同一）。全件 `check_in_gps_ok=false` で、**PAR（パラニャーケ）として記録**されている |
-| ↑のうちWFH宣言が無い人 | 1 | **Ruby Rosa Rongcales は `os_wfh_days` に1行も無い**のに29回通っている（教訓66の免除経路では説明できない） |
-| 9月シフトが1件も無い在籍者 | 6 | Aldrin Jay Alowa / Cathrina Calimlim / Louiela Chica / Lowegie D. Dumangcas / Lynde B. Ore / Nathaneil Santos |
+| ↑のうちWFH宣言が無い人 | 1 | **Ruby Rosa Rongcales は `os_wfh_days` に1行も無い**のに29回通っている。**在宅は承認済み（2026-09-06 オーナー確認）**だが、OSに承認の記録が無いので同じ点検をすれば毎回また挙がる |
+| 9月シフトが1件も無い在籍者 | 6 | Aldrin Jay Alowa / Cathrina Calimlim / Louiela Chica / Lowegie D. Dumangcas / Lynde B. Ore / Nathaneil Santos（Manila・未確認） |
 | CK が 9/05 に0名 | 1 | 他の土曜は1〜2名。9/05だけゼロ |
 | 予定はあるが打刻が無い | 20 | 9/01〜9/05。Karen Jane Borja は5日全部、Mark Arvin Ocampo は4日 |
 | 予定と2時間以上ずれた出勤 | 7 | 最大 Peter Villafuerte 9/04（予定17:00 / 実際11:30） |
