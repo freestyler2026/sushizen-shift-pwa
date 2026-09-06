@@ -178,6 +178,12 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "m_mango_base",     label: "Mango Cut (For Base Roll)",unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_pickled_papaya", label: "Pickled Papaya",          unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
       { key: "m_salmon_skin_mix",label: "Salmon Skin Mix",         unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
+      // Paranaque was already reporting this, three times in two days, typed
+      // into Extra Items as "GARLIC CHIVES / CHINESE CHIVES — 50 g". A par was
+      // set for "Chives" to catch it and could never match, because the join is
+      // on the exact name. Grams for the same reason Dubai uses grams: the
+      // kitchen does not weigh chives by the container.
+      { key: "m_chives",         label: "Chives",                  unit: "g",         section: "prep", item_type: "ingredient", item_category: "Vegetables" },
     ],
   },
   {
