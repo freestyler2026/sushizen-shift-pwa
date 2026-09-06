@@ -363,20 +363,27 @@ def main():
 
         # Grab は「まだ通るか」を実際に確かめられる。期限が残っていても弾かれる
         # ことがあるので、事実が取れたときは予測より優先する。
+        accepted = None
         if platform == "grab":
             accepted = grab_still_accepted(path)
             if accepted is False:
                 dead.append((label, "APIが401を返す（期限は残っているが実際には通らない）",
                              platform, store))
                 continue
-            if accepted is True and left is not None:
+            if accepted is True:
                 basis += "・いま実際に通ることを確認"
 
-        # 事実（CIの失敗）が最優先。予測より強い。ただしそのジョブが実際に
-        # 読むシークレットの店舗にだけ適用する
+        # 事実（CIの失敗）が予測より強い。ただしそのジョブが実際に読む
+        # シークレットの店舗にだけ適用する。
+        #
+        # さらに、CI の conclusion はジョブ単位でしか取れない。Grab は3店舗を
+        # 1ジョブで順に回し、1店舗が失効してもジョブ全体を赤にする（教訓89 —
+        # 残りの店舗を skip させないため）。そのため QC が切れただけで Taft と
+        # Paranaque も「連続で失敗」に見え、毎朝3件のうち2件が偽の🔴になる。
+        # いま実際に通ることを確かめられた店舗は、ジョブ全体の結果より実測を採る。
         covered = WORKFLOWS.get(platform, (None, set()))[1]
         run = runs.get(platform) if store in covered else None
-        if run and run["consecutive_failures"] > 0:
+        if run and run["consecutive_failures"] > 0 and accepted is not True:
             dead.append((label, f"{run['when']} から {run['consecutive_failures']}回連続で失敗", platform, store))
             continue
 
