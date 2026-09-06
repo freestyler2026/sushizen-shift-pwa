@@ -237,6 +237,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" , cat: "daily" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" , cat: "daily" },
   { href: "/store/management/inbox", label: "Management Inbox", icon: MessageSquare, match: "prefix" , cat: "daily" },
+  { href: "/store/management/review", label: "Morning Review", icon: ClipboardCheck, match: "prefix" , cat: "daily" },
   { href: "/store/management/rush-check", label: "Rush Hour Check", icon: Timer, match: "prefix" , cat: "daily" },
   { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" , cat: "daily" },
   { href: "/store/receipt-log", label: "Receipt Log", icon: Receipt, match: "prefix" , cat: "spend" },
