@@ -46,6 +46,7 @@ type Item = {
 };
 
 type Summary = {
+  orders: { delivery: number; total: number | null };
   quality: {
     photos: number; graded: number; not_a_dish: number; below_c: number;
     issue_rate: number | null;
@@ -57,7 +58,7 @@ type Summary = {
     over_threshold_plus10?: number; worst?: number | null; average?: number | null;
   };
   backup: { filed: boolean; reports: number; shortage_alerts: number };
-  rush: { completed: number; missed: number };
+  rush: { completed: number; missed: number; required: number };
   disposal: { filed: boolean };
 };
 
@@ -318,6 +319,20 @@ export default function MorningReviewPage() {
       <div className={`${GLASS_CARD} mb-4 p-4`}>
         <p className={`${T_LABEL} mb-2`}>Operation summary</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm md:grid-cols-3">
+          <div>
+            <span className={T_CAPTION}>Delivery orders</span><br />
+            <span className="tabular-nums text-white">{s.orders?.delivery ?? "—"}</span>
+          </div>
+          <div>
+            <span className={T_CAPTION}>Total orders</span><br />
+            {/* Blank until the sales import lands, which is one to two days
+                behind. Saying so beats printing a zero. */}
+            {s.orders?.total === null || s.orders?.total === undefined ? (
+              <span className={T_CAPTION}>sales not imported yet</span>
+            ) : (
+              <span className="tabular-nums text-white">{s.orders.total}</span>
+            )}
+          </div>
           <div><span className={T_CAPTION}>Photos graded</span><br /><span className="tabular-nums text-white">{s.quality.graded}</span></div>
           <div><span className={T_CAPTION}>A / B</span><br /><span className="tabular-nums text-white">{g.a + g.s} / {g.b}</span></div>
           <div>
@@ -369,7 +384,11 @@ export default function MorningReviewPage() {
           </div>
           <div>
             <span className={T_CAPTION}>Rush hour checks</span><br />
-            <span className="tabular-nums text-white">{s.rush.completed}</span>
+            {/* With the denominator. 11 filed means nothing until you know
+                whether the day asked for 11 or 12. */}
+            <span className="tabular-nums text-white">
+              {s.rush.completed} of {s.rush.required ?? s.rush.completed}
+            </span>
             {s.rush.missed > 0 && <span className="text-amber-300"> · {s.rush.missed} missed</span>}
           </div>
           <div>
@@ -533,7 +552,8 @@ export default function MorningReviewPage() {
                     <span className="font-mono text-sm tabular-nums text-white">{mins} min</span>
                     <span className={T_CAPTION}>{String(it.payload.order_no ?? "")}</span>
                     <span className={T_CAPTION}>
-                      {String(it.payload.accepted ?? "")} → {String(it.payload.ready ?? "")}
+                      ordered {String(it.payload.ordered ?? it.payload.accepted ?? "")}
+                      {" → ready "}{String(it.payload.ready ?? "")}
                     </span>
                     {a ? <span className={BADGE_INFO}>{a.root_cause.join(", ")}</span>
                        : <span className={`${T_CAPTION} ml-auto text-violet-300`}>Answer</span>}
