@@ -1,5 +1,5 @@
-<title>Lend Us Your Taglish</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<title>Two Engines, Seven Answers</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
 <style>
   :root {
     --ground:  #F1F5F3;
@@ -68,17 +68,48 @@
     margin: 0;
     -webkit-font-smoothing: antialiased;
   }
+  [lang="ja"] {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+    line-height: 1.85;
+  }
   .wrap {
     max-width: 43rem;
     margin: 0 auto;
-    padding: 3rem 1.5rem 5rem;
+    padding: 2rem 1.5rem 5rem;
     display: flex;
     flex-direction: column;
     gap: 3rem;
   }
-  h1, h2, h3, .eyebrow, .lede, .num, .btn, th, .kpi-n, .kpi-l {
+  h1, h2, h3, .eyebrow, .lede, .num, th, .kpi-n, .kpi-l, .langbar {
     font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
   }
+  h1[lang="ja"], h2[lang="ja"], h3[lang="ja"], .eyebrow[lang="ja"],
+  .kpi-l[lang="ja"], .lede[lang="ja"] {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+
+  /* language switch */
+  .langbar { display: flex; justify-content: flex-end; gap: .25rem; }
+  .langbar button {
+    font: inherit;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: .3rem .7rem;
+    cursor: pointer;
+  }
+  .langbar button[aria-pressed="true"] {
+    color: var(--surface);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .langbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
   .eyebrow {
     font-size: .72rem;
     font-weight: 600;
@@ -87,21 +118,24 @@
     color: var(--accent);
     margin: 0;
   }
+  .eyebrow[lang="ja"] { letter-spacing: .06em; text-transform: none; font-size: .75rem; }
   h1 {
-    font-size: clamp(2rem, 6vw, 2.9rem);
+    font-size: clamp(1.9rem, 5.6vw, 2.8rem);
     font-weight: 700;
     letter-spacing: -.02em;
-    line-height: 1.08;
+    line-height: 1.1;
     text-wrap: balance;
     margin: .6rem 0 0;
   }
+  h1[lang="ja"] { font-size: clamp(1.6rem, 4.6vw, 2.2rem); letter-spacing: 0; line-height: 1.35; }
   .lede {
     font-family: "Source Serif 4", Georgia, serif;
-    font-size: 1.16rem;
+    font-size: 1.15rem;
     color: var(--muted);
     margin: 1rem 0 0;
     text-wrap: pretty;
   }
+  .lede[lang="ja"] { font-size: 1.02rem; }
   .meta {
     margin: 1.5rem 0 0;
     padding-top: 1.1rem;
@@ -116,24 +150,13 @@
   .meta b { color: var(--muted); font-weight: 500; }
 
   section { display: flex; flex-direction: column; gap: 1rem; }
-  h2 {
-    font-size: 1.32rem;
-    font-weight: 600;
-    letter-spacing: -.012em;
-    margin: 0;
-    text-wrap: balance;
-  }
-  h3 {
-    font-size: .95rem;
-    font-weight: 600;
-    letter-spacing: -.005em;
-    margin: 0;
-  }
+  h2 { font-size: 1.3rem; font-weight: 600; letter-spacing: -.012em; margin: 0; text-wrap: balance; }
+  h2[lang="ja"] { font-size: 1.14rem; letter-spacing: 0; }
+  h3 { font-size: .95rem; font-weight: 600; margin: 0; }
   p { margin: 0; text-wrap: pretty; }
   .sub { color: var(--muted); }
   strong { font-weight: 600; }
 
-  /* the sentence that is the whole point */
   .demo {
     background: var(--surface);
     border: 1px solid var(--rule);
@@ -145,14 +168,15 @@
   .demo-row + .demo-row { border-top: 1px solid var(--rule); }
   .demo-l {
     font-family: Archivo, sans-serif;
-    font-size: .68rem;
-    font-weight: 600;
-    letter-spacing: .13em;
-    text-transform: uppercase;
-    color: var(--faint);
-    margin-bottom: .5rem;
+    font-size: .68rem; font-weight: 600;
+    letter-spacing: .13em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: .5rem;
   }
-  .say { font-size: 1.05rem; line-height: 1.75; }
+  .demo-l[lang="ja"] {
+    font-family: "Noto Sans JP", sans-serif;
+    letter-spacing: .04em; text-transform: none; font-size: .72rem;
+  }
+  .say { font-size: 1.04rem; line-height: 1.8; }
   .tl { background: var(--tl-soft); color: var(--tl); padding: .06em .22em; border-radius: 2px; }
   .en { background: var(--en-soft); color: var(--en); padding: .06em .22em; border-radius: 2px; }
   .gone {
@@ -163,72 +187,53 @@
     background: none;
   }
   .verdict {
-    background: var(--warn-soft);
-    color: var(--warn);
+    background: var(--warn-soft); color: var(--warn);
     font-family: Archivo, sans-serif;
-    font-size: .82rem;
-    font-weight: 600;
+    font-size: .82rem; font-weight: 600;
     padding: .8rem 1.35rem;
   }
+  .verdict[lang="ja"] { font-family: "Noto Sans JP", sans-serif; font-size: .84rem; }
   .key {
-    display: flex;
-    gap: 1.1rem;
-    flex-wrap: wrap;
+    display: flex; gap: 1.1rem; flex-wrap: wrap;
     font-family: "IBM Plex Mono", monospace;
-    font-size: .74rem;
-    color: var(--faint);
+    font-size: .74rem; color: var(--faint);
   }
+  .key[lang="ja"] { font-family: "Noto Sans JP", sans-serif; }
   .key i { font-style: normal; padding: .05em .3em; border-radius: 2px; }
 
-  /* numbers from the first comparison */
   .kpis {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-    gap: 1px;
-    background: var(--rule);
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    overflow: hidden;
+    gap: 1px; background: var(--rule);
+    border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
   }
   .kpi { background: var(--surface); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
   .kpi-n {
-    font-size: 1.7rem;
-    font-weight: 700;
-    letter-spacing: -.02em;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
+    font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; line-height: 1;
   }
   .kpi-n.bad { color: var(--warn); }
   .kpi-n.ok  { color: var(--accent); }
-  .kpi-l { font-size: .74rem; font-weight: 500; color: var(--muted); line-height: 1.35; }
+  .kpi-l { font-size: .74rem; font-weight: 500; color: var(--muted); line-height: 1.4; }
 
-  /* the ask */
   ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.15rem; }
   ol.steps > li { display: grid; grid-template-columns: 2rem 1fr; gap: 1rem; align-items: start; }
   .num {
-    font-size: .8rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--accent);
-    background: var(--accent-soft);
-    border-radius: 999px;
-    width: 2rem; height: 2rem;
-    display: grid; place-items: center;
-    margin-top: .1rem;
+    font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--accent); background: var(--accent-soft);
+    border-radius: 999px; width: 2rem; height: 2rem;
+    display: grid; place-items: center; margin-top: .1rem;
   }
   .step-b { display: flex; flex-direction: column; gap: .35rem; }
   .why { font-size: .92rem; color: var(--muted); }
   code, .mono {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: .86em;
-    background: var(--sunk);
-    padding: .12em .38em;
-    border-radius: 2px;
+    font-size: .86em; background: var(--sunk);
+    padding: .12em .38em; border-radius: 2px;
   }
   a { color: var(--accent); text-underline-offset: 3px; }
-  a:focus-visible, .q:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  /* the seven questions */
   .qs { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
   .q { background: var(--surface); padding: .8rem 1.1rem; display: grid; grid-template-columns: 1.6rem 1fr; gap: .8rem; align-items: baseline; }
   .q-n { font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -237,167 +242,250 @@
   .q-tl { font-size: .88rem; color: var(--muted); font-style: italic; }
   .q-s { font-family: "IBM Plex Mono", monospace; font-size: .7rem; color: var(--faint); }
 
-  /* plain fact list */
   dl.facts { margin: 0; display: flex; flex-direction: column; gap: .9rem; }
-  dl.facts > div { display: grid; grid-template-columns: 8.5rem 1fr; gap: 1rem; align-items: start; }
+  dl.facts > div { display: grid; grid-template-columns: 9rem 1fr; gap: 1rem; align-items: start; }
   dl.facts dt {
     font-family: Archivo, sans-serif;
     font-size: .78rem; font-weight: 600;
     letter-spacing: .04em; text-transform: uppercase;
     color: var(--faint); padding-top: .22rem;
   }
+  dl.facts dt[lang="ja"] {
+    font-family: "Noto Sans JP", sans-serif;
+    letter-spacing: .02em; text-transform: none; font-size: .8rem;
+  }
   dl.facts dd { margin: 0; font-size: .98rem; }
 
   .note {
     border-left: 2px solid var(--accent);
     padding: .1rem 0 .1rem 1.1rem;
-    color: var(--muted);
-    font-size: .97rem;
+    color: var(--muted); font-size: .97rem;
   }
   footer {
     border-top: 1px solid var(--rule);
-    padding-top: 1.4rem;
-    font-size: .86rem;
-    color: var(--faint);
+    padding-top: 1.4rem; font-size: .86rem; color: var(--faint);
     display: flex; flex-direction: column; gap: .5rem;
   }
   @media (max-width: 34rem) {
     dl.facts > div { grid-template-columns: 1fr; gap: .15rem; }
-    .wrap { padding-top: 2rem; gap: 2.4rem; }
+    .wrap { padding-top: 1.4rem; gap: 2.4rem; }
   }
 </style>
 
 <div class="wrap">
 
+  <div class="langbar">
+    <button type="button" id="btn-en" aria-pressed="true">English</button>
+    <button type="button" id="btn-ja" aria-pressed="false">日本語</button>
+  </div>
+
   <header>
-    <p class="eyebrow">Sushi ZEN Workforce OS &middot; Request to Back Office &amp; HR</p>
-    <h1>Lend us your Taglish</h1>
-    <p class="lede">We are building voice screening for applicants. Before it goes live we have to choose which
-      transcription engine to use — and the only way to choose honestly is to test it on people who talk
-      the way our applicants actually talk. That is you. It takes about ten minutes.</p>
+    <p class="eyebrow" lang="en">Sushi ZEN Workforce OS &middot; Request to Back Office &amp; HR</p>
+    <p class="eyebrow" lang="ja" hidden>Sushi ZEN Workforce OS ／ バックオフィス・HRへの依頼</p>
+
+    <h1 lang="en">Two engines, seven answers</h1>
+    <h1 lang="ja" hidden>2つのエンジン、7つの回答</h1>
+
+    <p class="lede" lang="en">We are building voice screening for applicants, and we have to choose which
+      transcription software to use. Two candidates disagree badly on speech that moves between English and
+      Tagalog — so we need seven real answers, recorded on the real form, to settle it.
+      <strong>The software is what is being tested here, not you.</strong></p>
+    <p class="lede" lang="ja" hidden>応募者向けの音声スクリーニングを作っています。その文字起こしソフトを
+      2つの候補から選ばなければなりません。英語とタガログ語が混ざる話し方に対して、この2つの結果が
+      大きく食い違います。決着をつけるために、本番のフォームで録音した実際の回答が7問分必要です。
+      <strong>試しているのはソフトウェアであって、話す人ではありません。</strong></p>
+
     <div class="meta">
-      <span><b>When</b> Tomorrow, 8 September</span>
-      <span><b>Who</b> 3–5 people, Back Office or HR</span>
-      <span><b>Time</b> ~10 minutes each</span>
+      <span lang="en"><b>When</b> Tomorrow, 8 September</span>
+      <span lang="ja" hidden><b>実施</b> 9月8日（明日）</span>
+      <span lang="en"><b>Who</b> 3–5 volunteers, Back Office or HR</span>
+      <span lang="ja" hidden><b>対象</b> バックオフィス／HRから3〜5名</span>
+      <span lang="en"><b>Time</b> about 10 minutes each</span>
+      <span lang="ja" hidden><b>所要</b> 1人あたり約10分</span>
     </div>
   </header>
 
   <section>
-    <h2>What we are building</h2>
-    <p>An applicant fills in the form, and then — if they want to — answers seven questions by voice, from
-      their own phone, whenever they like. No appointment, nothing to attend. HR listens and records the
-      first-round decision in one tap.</p>
-    <p>That part already works. The next step is to <strong>transcribe the answers automatically</strong>, so HR
-      reads instead of listens. Ten minutes of audio per applicant becomes something you can skim in under a
-      minute, search, and paste into a note.</p>
-    <p class="sub">Nothing about the hiring decision changes. The transcript is there so a person can get
-      through more applicants without skipping any.</p>
+    <h2 lang="en">What we are building</h2>
+    <h2 lang="ja" hidden>作っているもの</h2>
+
+    <p lang="en">An applicant fills in the form, and then — if they want to — answers seven questions by
+      voice from their own phone, whenever suits them. No appointment, nothing to attend. HR listens and
+      records the first-round decision in one tap.</p>
+    <p lang="ja" hidden>応募者がフォームを記入し、希望すれば自分のスマートフォンから、都合のよい時間に
+      7つの質問へ音声で答えます。予約も来社も不要です。HRはそれを聴いて、一次判断を1タップで記録します。</p>
+
+    <p lang="en">That part already works. The next step is to <strong>transcribe the answers
+      automatically</strong>, so HR reads instead of listens. Ten minutes of audio per applicant becomes
+      something you can skim in under a minute, search, and paste into a note.</p>
+    <p lang="ja" hidden>ここまでは動いています。次の段階が<strong>回答の自動文字起こし</strong>で、
+      HRは「聴く」代わりに「読む」ことになります。1人あたり10分の音声が、1分足らずで目を通せて、
+      検索でき、メモに貼れるものになります。</p>
+
+    <p class="sub" lang="en">Nothing about the hiring decision changes. The transcript exists so a person can
+      get through more applicants without skipping any.</p>
+    <p class="sub" lang="ja" hidden>採用判断の中身は変わりません。文字起こしは、人が誰も飛ばさずに
+      より多くの応募者に目を通せるようにするためのものです。</p>
   </section>
 
   <section>
-    <h2>Why we need your voice specifically</h2>
-    <p>We have already compared two engines on public recordings. One result stopped us.</p>
+    <h2 lang="en">Why we cannot decide this from public recordings</h2>
+    <h2 lang="ja" hidden>公開データでは決められない理由</h2>
+
+    <p lang="en">We have already run both engines against public recordings. One result stopped us.</p>
+    <p lang="ja" hidden>2つのエンジンは、すでに公開の音声データで比較しました。その中に、
+      先に進めなくなる結果が1つありました。</p>
 
     <div class="demo">
       <div class="demo-row">
-        <div class="demo-l">What the person said</div>
+        <div class="demo-l" lang="en">What was said</div>
+        <div class="demo-l" lang="ja" hidden>実際に話された内容</div>
         <p class="say"><span class="en">I started as service crew</span>
           <span class="en">for two years</span>,
           <span class="tl">tapos nag-apply ako sa kitchen</span>
           <span class="tl">kasi gusto kong matuto mag-prep</span>.</p>
       </div>
       <div class="demo-row">
-        <div class="demo-l">What the engine wrote</div>
+        <div class="demo-l" lang="en">What the engine wrote down</div>
+        <div class="demo-l" lang="ja" hidden>エンジンが書き起こした内容</div>
         <p class="say"><span class="en">I started as service crew</span>
           <span class="en">for two years</span>.
           <span class="gone">tapos nag-apply ako sa kitchen</span>
           <span class="gone">kasi gusto kong matuto mag-prep</span></p>
       </div>
-      <div class="verdict">It dropped half the answer — and what is left still reads as a complete,
-        sensible sentence. Nobody reading the transcript would know anything was missing.</div>
+      <div class="verdict" lang="en">It dropped half the answer — and what is left still reads as a
+        complete, sensible sentence. Nobody reading the transcript would know anything was missing.</div>
+      <div class="verdict" lang="ja" hidden>回答の半分が落ちています。しかも残った部分だけで
+        自然な文として読めてしまうため、文字起こしを読んだ人は欠落に気づけません。</div>
     </div>
 
-    <div class="key">
+    <div class="key" lang="en">
       <span><i class="tl">green</i> Tagalog</span>
       <span><i class="en">purple</i> English</span>
-      <span>struck through — not written down</span>
+      <span>struck through — never written down</span>
+    </div>
+    <div class="key" lang="ja" hidden>
+      <span><i class="tl">緑</i> タガログ語</span>
+      <span><i class="en">紫</i> 英語</span>
+      <span>取り消し線 — 書き起こされなかった部分</span>
     </div>
 
     <div class="kpis">
       <div class="kpi">
         <div class="kpi-n bad">20/20</div>
-        <div class="kpi-l">mixed-language files where <code>gpt-4o-transcribe</code> wrote only one of the two languages</div>
+        <div class="kpi-l" lang="en">mixed-language files where <code>gpt-4o-transcribe</code> wrote only
+          one of the two languages</div>
+        <div class="kpi-l" lang="ja" hidden>混在音声のうち、<code>gpt-4o-transcribe</code> が
+          片方の言語しか書かなかった件数</div>
       </div>
       <div class="kpi">
         <div class="kpi-n bad">0.54</div>
-        <div class="kpi-l">words written ÷ words spoken, same engine. Just over half made it through</div>
+        <div class="kpi-l" lang="en">words written ÷ words spoken, same engine. Just over half survived</div>
+        <div class="kpi-l" lang="ja" hidden>同エンジンの「書かれた語数 ÷ 話された語数」。
+          半分強しか残っていません</div>
       </div>
       <div class="kpi">
         <div class="kpi-n ok">0.99</div>
-        <div class="kpi-l">same measure for <code>whisper-1</code>, our current first choice</div>
+        <div class="kpi-l" lang="en">the same measure for <code>whisper-1</code>, our current first choice</div>
+        <div class="kpi-l" lang="ja" hidden>現時点の第一候補 <code>whisper-1</code> の同じ指標</div>
       </div>
     </div>
 
-    <p class="note">Those numbers come from public read-aloud recordings, where each clip is in one language
-      only. Real applicants switch <em>inside a sentence</em>, which is the exact thing we are worried about
-      and the exact thing that data cannot show. That is the gap your recordings close.</p>
+    <p class="note" lang="en">Those numbers come from public read-aloud recordings, where each clip is in
+      one language only. Applicants will not speak that way: in ordinary conversation people move between
+      English and Tagalog inside a single sentence, and that is precisely the case the public data cannot
+      show us. Seven answers recorded here close that gap.</p>
+    <p class="note" lang="ja" hidden>この数字は公開の朗読音声で測ったもので、1つの音声はどれも
+      単一言語です。応募者はそのようには話しません。普段の会話では1つの文の中で英語とタガログ語を
+      行き来しますが、それこそ公開データでは確かめられない条件です。ここで7問分を録れば、
+      その穴が埋まります。</p>
   </section>
 
   <section>
-    <h2>What we are asking you to do</h2>
+    <h2 lang="en">What we are asking you to do</h2>
+    <h2 lang="ja" hidden>お願いしたいこと</h2>
+
     <ol class="steps">
       <li>
         <span class="num">1</span>
         <div class="step-b">
-          <h3>Open the real application form on your phone</h3>
+          <h3 lang="en">Open the real application form on your phone</h3>
+          <h3 lang="ja" hidden>本番の応募フォームをスマートフォンで開く</h3>
           <p><a href="https://sushizen-shift-pwa.vercel.app/apply">sushizen-shift-pwa.vercel.app/apply</a></p>
-          <p class="why">Please do not use a voice memo app. The application page records in the exact audio
-            format production uses (Opus, 24&nbsp;kbps, through the browser). A voice memo is a different
-            format, and a measurement taken on it would not predict what happens on a real applicant.</p>
+          <p class="why" lang="en">Please do not use a voice memo app. The application page records in the
+            exact audio format production uses (Opus, 24&nbsp;kbps, through the browser). A voice memo is a
+            different format, and a measurement taken on it would not predict what happens to a real
+            applicant.</p>
+          <p class="why" lang="ja" hidden>ボイスメモアプリは使わないでください。応募ページは本番と
+            まったく同じ音声形式（ブラウザ経由の Opus 24&nbsp;kbps）で録音します。ボイスメモは別形式なので、
+            それで測っても実際の応募者に何が起きるかを予測できません。</p>
         </div>
       </li>
       <li>
         <span class="num">2</span>
         <div class="step-b">
-          <h3>Put <code>STT Test 1</code> as your name</h3>
-          <p class="why">Test 1, Test 2, Test 3 — whichever number is yours. This is how we find these
-            records again and delete them. Your phone number can be your real one; nobody will call it.</p>
+          <h3 lang="en">Enter <code>STT Test 1</code> as the name</h3>
+          <h3 lang="ja" hidden>名前は <code>STT Test 1</code> と入力する</h3>
+          <p class="why" lang="en">Test 1, Test 2, Test 3 — whichever number is yours. This is how we find
+            these records again and delete them afterwards. Your phone number can be your real one; nobody
+            will call it.</p>
+          <p class="why" lang="ja" hidden>Test 1／Test 2／Test 3 と、ご自分の番号を入れてください。
+            後でこの記録を見つけて削除するための目印です。電話番号は実際のもので構いません。
+            誰も電話しません。</p>
         </div>
       </li>
       <li>
         <span class="num">3</span>
         <div class="step-b">
-          <h3>Answer the seven questions the way you normally talk</h3>
-          <p class="why">This is the one that matters. <strong>Switch between English and Tagalog in the
-            middle of your sentences</strong>, the way you would talking to a colleague. Please do
-            <em>not</em> try to answer in one language — a clean English answer or a clean Tagalog answer
-            repeats a test we have already run and tells us nothing new.</p>
+          <h3 lang="en">Answer as you normally would</h3>
+          <h3 lang="ja" hidden>普段どおりに答える</h3>
+          <p class="why" lang="en">This is the one that matters. If you would ordinarily move between
+            English and Tagalog inside a sentence, do that — <strong>please do not switch to one language
+            for the recording</strong>. A clean single-language answer repeats a test we have already run
+            and tells us nothing new.</p>
+          <p class="why" lang="ja" hidden>ここが一番重要です。普段1つの文の中で英語とタガログ語を
+            行き来して話す方は、そのまま話してください。<strong>録音のためにどちらか一方の言語に
+            切り替えないでください。</strong>単一言語のきれいな回答は、すでに済んだ比較の
+            繰り返しにしかならず、新しいことが分かりません。</p>
         </div>
       </li>
       <li>
         <span class="num">4</span>
         <div class="step-b">
-          <h3>Sit somewhere quiet</h3>
-          <p class="why">Background noise is the biggest risk we found — both engines fall apart in it. We
-            want to measure the language problem, not the noise problem, so give it a quiet room.</p>
+          <h3 lang="en">Sit somewhere quiet</h3>
+          <h3 lang="ja" hidden>静かな場所で行う</h3>
+          <p class="why" lang="en">Background noise was the largest risk we found — both engines fall apart
+            in it. We are trying to measure the language problem, so keep the noise out of the way.</p>
+          <p class="why" lang="ja" hidden>今回いちばん大きなリスクは背景ノイズでした。ノイズが入ると
+            どちらのエンジンも大きく崩れます。今回測りたいのは言語の問題なので、
+            ノイズは避けてください。</p>
         </div>
       </li>
       <li>
         <span class="num">5</span>
         <div class="step-b">
-          <h3>Tell us when you are done</h3>
-          <p class="why">We will then write down by hand what you actually said, word for word, and compare
-            it against what each engine produced. There is no answer key for real speech — a person has to
+          <h3 lang="en">Tell us when you are finished</h3>
+          <h3 lang="ja" hidden>終わったら知らせる</h3>
+          <p class="why" lang="en">We then write down by hand what was actually said, word for word, and
+            compare that against what each engine produced. Real speech has no answer key — a person has to
             make one.</p>
+          <p class="why" lang="ja" hidden>その後、実際に話された内容を人が一語ずつ書き起こし、
+            各エンジンの出力と突き合わせます。実音声には正解データが存在しないため、
+            人が作るしかありません。</p>
         </div>
       </li>
     </ol>
   </section>
 
   <section>
-    <h2>The seven questions</h2>
-    <p class="sub">So you know what is coming. You do not need to prepare — an unprepared answer is
-      actually better, because that is how applicants will sound.</p>
+    <h2 lang="en">The seven questions</h2>
+    <h2 lang="ja" hidden>7つの質問</h2>
+
+    <p class="sub" lang="en">So you know what is coming. You do not need to prepare — an unprepared answer
+      is actually better, because that is how applicants will sound.</p>
+    <p class="sub" lang="ja" hidden>何が聞かれるか分かるように載せておきます。準備は不要です。
+      むしろ準備しない方が、実際の応募者に近い音声になります。</p>
+
     <div class="qs">
       <div class="q"><span class="q-n">1</span><div class="q-t"><span class="q-en">Please introduce yourself.</span><span class="q-tl">Pakikilala ang iyong sarili.</span><span class="q-s">90 sec</span></div></div>
       <div class="q"><span class="q-n">2</span><div class="q-t"><span class="q-en">Where do you work now, or where did you work last? Tell us what you did there.</span><span class="q-tl">Saan ka nagtatrabaho ngayon, o saan ang huli mong pinasukan? Ano ang ginagawa mo doon?</span><span class="q-s">90 sec</span></div></div>
@@ -410,49 +498,94 @@
   </section>
 
   <section>
-    <h2>What happens to your recording</h2>
+    <h2 lang="en">What happens to your recording</h2>
+    <h2 lang="ja" hidden>録音の扱い</h2>
+
     <dl class="facts">
       <div>
-        <dt>Used for</dt>
-        <dd>Comparing how accurately each transcription engine writes down mixed English and Tagalog. Nothing else.</dd>
+        <dt lang="en">Used for</dt><dt lang="ja" hidden>用途</dt>
+        <dd lang="en">Comparing how accurately each transcription engine writes down what was said. Nothing else.</dd>
+        <dd lang="ja" hidden>各文字起こしエンジンが話された内容をどれだけ正確に書き取れるかの比較。それ以外には使いません。</dd>
       </div>
       <div>
-        <dt>Who hears it</dt>
-        <dd>The people running the comparison. It is not shared with your manager and it is not
-          part of any review.</dd>
+        <dt lang="en">Who hears it</dt><dt lang="ja" hidden>聴く人</dt>
+        <dd lang="en">The people running the comparison. It is not shared with your manager and it is not part of any review.</dd>
+        <dd lang="ja" hidden>比較作業を行う担当者のみ。上長には共有されず、人事評価にも一切関係しません。</dd>
       </div>
       <div>
-        <dt>Deleted</dt>
-        <dd>As soon as the comparison is finished — the audio and the <code>STT Test</code> application
-          record together. This is a promise about the test recordings specifically, not the ordinary
-          applicant retention rule.</dd>
+        <dt lang="en">Deleted</dt><dt lang="ja" hidden>削除</dt>
+        <dd lang="en">As soon as the comparison is finished — the audio and the <code>STT Test</code>
+          application record together. This is a promise about these test recordings specifically, not the
+          ordinary applicant retention rule.</dd>
+        <dd lang="ja" hidden>比較が終わり次第、音声と <code>STT Test</code> の応募記録をまとめて削除します。
+          これはこのテスト録音についての約束であって、通常の応募者の保存ルールとは別です。</dd>
       </div>
       <div>
-        <dt>Not an application</dt>
-        <dd>You are not applying for anything. Nothing you say is scored, kept on your file, or looked at again.</dd>
+        <dt lang="en">Not an application</dt><dt lang="ja" hidden>応募ではない</dt>
+        <dd lang="en">You are not applying for anything. Nothing you say is scored, kept on your file, or looked at again.</dd>
+        <dd lang="ja" hidden>何かに応募することにはなりません。話した内容が採点されたり、
+          個人の記録に残ったり、後から見返されたりすることはありません。</dd>
       </div>
       <div>
-        <dt>Optional</dt>
-        <dd>You can say no, and you can stop halfway. We need three people; if more than five volunteer we
-          will not use all of them.</dd>
+        <dt lang="en">Optional</dt><dt lang="ja" hidden>任意</dt>
+        <dd lang="en">You can decline, and you can stop halfway. Three people is enough; if more than five
+          volunteer we will not use all of them.</dd>
+        <dd lang="ja" hidden>断っても構いませんし、途中でやめても構いません。3名いれば足ります。
+          5名を超えた場合は全員分は使いません。</dd>
       </div>
     </dl>
   </section>
 
   <section>
-    <h2>What happens after</h2>
-    <p>We run your recordings through both engines with the same measurements as the first comparison, and
-      check whether the ranking holds. If it does, we fix the engine and build the transcript into the HR
-      screen. If it does not — if <code>whisper-1</code> turns out to drop words on real Taglish the way the
-      other engine did on the public clips — then we have found that out on five colleagues instead of on
-      five hundred applicants.</p>
-    <p class="sub">Either way we will tell you what your recordings showed.</p>
+    <h2 lang="en">What happens after</h2>
+    <h2 lang="ja" hidden>この後どうなるか</h2>
+
+    <p lang="en">We run the recordings through both engines with the same measurements as the first
+      comparison, and check whether the ranking holds. If it does, we fix the engine and build the
+      transcript into the HR screen. If it does not — if <code>whisper-1</code> also drops words on real
+      speech, the way the other engine did on the public clips — then we have found that out on five
+      colleagues instead of on five hundred applicants.</p>
+    <p lang="ja" hidden>集めた録音を、一次比較と同じ測り方で両エンジンに通し、順位が変わらないかを
+      確認します。変わらなければエンジンを確定し、HRの画面に文字起こしを組み込みます。もし変われば
+      — つまり <code>whisper-1</code> も実際の話し方では語を落とすと分かれば — それを
+      500人の応募者ではなく5人の同僚の段階で見つけられたことになります。</p>
+
+    <p class="sub" lang="en">Either way, we will tell you what your recordings showed.</p>
+    <p class="sub" lang="ja" hidden>どちらの結果になっても、録音から何が分かったかはお伝えします。</p>
   </section>
 
   <footer>
-    <p>Questions about the recording itself, or if the page will not use your microphone: ask before you
-      start rather than working around it — a recording made a different way cannot be used.</p>
-    <p>Sushi ZEN Workforce OS &middot; prepared 7 September 2026</p>
+    <p lang="en">If the page will not use your microphone, or anything about the recording is unclear, please
+      ask before starting rather than working around it — a recording made a different way cannot be used.</p>
+    <p lang="ja" hidden>マイクが使えない場合や、録音について分からないことがある場合は、
+      別の方法で回避せず、始める前にお尋ねください。方法が違うと、その録音は使えません。</p>
+    <p>Sushi ZEN Workforce OS &middot; 2026-09-07</p>
   </footer>
 
 </div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var bEn = document.getElementById("btn-en");
+    var bJa = document.getElementById("btn-ja");
+
+    function apply(lang) {
+      var nodes = document.querySelectorAll("[lang='en'], [lang='ja']");
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
+      }
+      root.setAttribute("lang", lang);
+      bEn.setAttribute("aria-pressed", String(lang === "en"));
+      bJa.setAttribute("aria-pressed", String(lang === "ja"));
+      try { localStorage.setItem("szn-lang", lang); } catch (e) { /* private window */ }
+    }
+
+    var saved = "en";
+    try { saved = localStorage.getItem("szn-lang") || "en"; } catch (e) { /* private window */ }
+    apply(saved === "ja" ? "ja" : "en");
+
+    bEn.addEventListener("click", function () { apply("en"); });
+    bJa.addEventListener("click", function () { apply("ja"); });
+  })();
+</script>
