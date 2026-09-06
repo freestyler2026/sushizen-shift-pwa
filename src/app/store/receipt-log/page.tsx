@@ -63,6 +63,7 @@ type Entry = {
   receipt_url: string;
   submitted_by: string;
   notes: string;
+  payment_method?: string;
   created_at: string;
 };
 
@@ -124,6 +125,10 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [items, setItems]       = useState<ItemRow[]>([newItem()]);
   const [notes, setNotes]       = useState("");
+  // Not pre-selected. A default of Cash would silently mislabel every card
+  // purchase, which is the one thing this field exists to prevent.
+  const [payment, setPayment]   = useState("");
+  const [methods, setMethods]   = useState<{ key: string; label: string }[]>([]);
   const [receiptUrl, setReceiptUrl] = useState("");
 
   // ── Catalog state ──
@@ -156,9 +161,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   // Load catalog (vendors + items) when city changes
   const loadCatalog = useCallback(async () => {
     try {
-      const [vRes, iRes] = await Promise.all([
+      const [vRes, iRes, mRes] = await Promise.all([
         fetch(`/api/store/receipt-log/catalog/vendors?city=${city}`, { headers: getAuthHeaders(auth) }),
         fetch(`/api/store/receipt-log/catalog/items?city=${city}`, { headers: getAuthHeaders(auth) }),
+        // Served rather than hardcoded, so the values that can be chosen and the
+        // values that can be saved cannot drift apart.
+        fetch(`/api/store/receipt-log/payment-methods`, { headers: getAuthHeaders(auth) }),
       ]);
       if (vRes.ok) {
         const vj = await vRes.json();
@@ -167,6 +175,10 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       if (iRes.ok) {
         const ij = await iRes.json();
         setCatalog(ij.items ?? []);
+      }
+      if (mRes.ok) {
+        const mj = await mRes.json();
+        setMethods(mj.methods ?? []);
       }
     } catch {
       // Catalog is optional — silently ignore
@@ -272,6 +284,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
 
     if (!supplier.trim()) { setErrMsg("Supplier / store name is required."); return; }
     if (total <= 0) { setErrMsg("At least one item with an amount is required."); return; }
+    if (!payment) { setErrMsg("Please choose how this was paid."); return; }
 
     const payload = {
       city,
@@ -290,6 +303,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       total_amount: total,
       receipt_url: receiptUrl,
       notes: notes.trim(),
+      payment_method: payment,
     };
 
     setSubmitting(true);
@@ -308,6 +322,8 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
       setItems([newItem()]);
       setNotes("");
       setReceiptUrl("");
+      // payment stays: three receipts from one trip were paid the same way, and
+      // re-picking each time is the tax that stops the third being entered.
       setDate(todayLocal());
       loadEntries();
     } catch (err: unknown) {
@@ -573,6 +589,31 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
           <span className="text-lg font-bold text-white">₱ {fmtAmt(total)}</span>
         </div>
 
+        {/* Paid with */}
+        <div>
+          <label className={`${T_LABEL} block mb-1`}>Paid with</label>
+          <div className="flex flex-wrap gap-2">
+            {methods.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setPayment(m.key)}
+                className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
+                  payment === m.key
+                    ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                    : "border-white/10 bg-white/6 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className={`${T_CAPTION} mt-1.5`}>
+            Card purchases are settled from this, without waiting for the
+            statement. The statement is then only checked against it.
+          </p>
+        </div>
+
         {/* Notes */}
         <div>
           <label className={`${T_LABEL} block mb-1`}>Notes <span className="text-zinc-500 font-normal">(optional)</span></label>
@@ -642,6 +683,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                     <span className="text-sm font-semibold text-white">{e.supplier_name}</span>
                     <span className={`${T_CAPTION} text-zinc-500`}>
                       {fmtDate(e.purchase_date)} · {e.branch_code} · {e.department}
+                      {" · "}
+                      {/* Shown so a wrong choice is caught here rather than
+                          months later against the card statement. Entries made
+                          before this field existed say so instead of guessing. */}
+                      {methods.find((m) => m.key === e.payment_method)?.label
+                        ?? (e.payment_method || "payment not recorded")}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">

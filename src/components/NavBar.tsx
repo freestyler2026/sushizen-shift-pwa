@@ -294,6 +294,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/unworked-shifts",  label: "Unworked Shifts",   icon: CalendarX2, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" , cat: "pay" },
+  { href: "/admin/procurement/receipt-log", label: "Receipt Log", icon: Receipt, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" , cat: "hrlife" },
