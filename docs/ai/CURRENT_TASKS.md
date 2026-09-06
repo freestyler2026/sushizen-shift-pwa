@@ -218,14 +218,22 @@ Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押�
   **`MANILA_MANAGER` が入っていない**ので、現場に一番近い店長が締め出され、BOのADMIN6名が押せる（教訓25・32と同型）。
   → **2026-09-07 オーナー判断：当面マニラはHQが承認するので変更しない。** |
 
-### ⚠️ HQロールの保有者が申告と合わない（2026-09-07・未対応）
-オーナーの申告は **4名**（Yukihiro Nishimura / Ayako Nishimura / Yusuke Uejima / Yuri Yamada）。
-実際の `staff_auth.role='HQ'` は **6名**で、**Jay Nishimura** と **Rafael Jonas Lagahit** が余分。
-- HQ は Channels UI で全チャンネル `locked` 表示＝**全権**。承認だけの話ではない
-- Rafael は所属が **BB（店舗）** で、実効ロールは `DUBAI_MANAGEMENT` に解決される
-  （`staff_auth.role` と割り当てロールが食い違っている）
-- **剥奪は破壊的なので未実施。** 外すなら Role Management から。
-  なお `DEFAULT_ROLE_GRANTS` を触らずDBだけ変えると次のログインで戻る（教訓33）
+### HQロールの保有者（2026-09-07）
+オーナー確認：HQ は **4名**（Yukihiro Nishimura / Ayako Nishimura / Yusuke Uejima / Yuri Yamada）。
+`main.py` の `_hq_name_overrides()` にベタ書きされている4名と**完全に一致**する。
+
+- **Rafael Jonas Lagahit → `staff_auth.role` を HQ から DUBAI_MANAGEMENT に修正済**。
+  実効ロールは元から `DUBAI_MANAGEMENT`（割り当てロールが勝つ）だったので**アクセスは不変**、
+  セッション切断も不要。直したのは**古い `staff_auth.role` 列だけ**。
+  ただしこの列を**直接読む箇所が2つ**あり、放置すると害があった:
+  - `hq_staff_names()`（インシデント報告で「誰に聞けばよいか」を出す）に彼が**HQとして出ていた**
+  - `resolve_staff_access_profile()` の**第3フォールバック** — 割り当ての参照が空振りした瞬間に HQ を渡す
+  監査ログ `staff_auth.role.change` を記録済み。
+- **Jay Nishimura はまだ HQ。** オーナーの4名リストに無いが、このMacのユーザー名が
+  `jaynishimura` であり**オーナー本人の別アカウントの可能性がある**ため、確認待ち。
+
+⚠️ **`staff_auth.role` は Role Management のUIからは変えられない**（UIが触るのは
+`staff_role_assignments`）。この2つは食い違ったまま残りうる。
 
 承認できる人（実効ロールで確認済み）:
 - **ドバイ9名** Ayako Nishimura / Jay Nishimura / Yukihiro Nishimura / Yuri Yamada / Yusuke Uejima（HQ）、Rafael Jonas Lagahit（DUBAI_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae / Sherileene Santiago（MANAGER）
