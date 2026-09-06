@@ -53,7 +53,7 @@ type Summary = {
   };
   prep: {
     measurable: boolean; reason?: string; threshold?: number;
-    measured_orders?: number; over_threshold?: number;
+    measured_orders?: number; over_threshold?: number; asked_about?: number;
     over_threshold_plus10?: number; worst?: number | null; average?: number | null;
   };
   backup: { filed: boolean; reports: number; shortage_alerts: number };
@@ -499,7 +499,17 @@ export default function MorningReviewPage() {
       {preps.length > 0 && (
         <div className="mb-4">
           <p className={`${T_LABEL} mb-2`}>
-            Prep time — {preps.length} over {review.options.prep_threshold} minutes
+            Prep time — the {preps.length} longest
+          </p>
+          {/* The count stays true even though the asking is capped. Nineteen
+              orders in one evening rush share one answer; typing it nineteen
+              times makes nineteen copies of it, not more insight. */}
+          <p className={`${T_CAPTION} mb-2`}>
+            {s.prep.over_threshold} order{s.prep.over_threshold === 1 ? "" : "s"} went
+            over {s.prep.threshold} minutes yesterday
+            {preps.length < (s.prep.over_threshold ?? 0)
+              ? `. You are asked about the ${preps.length} slowest; the rest are in the summary above.`
+              : "."}
           </p>
           <div className="flex flex-col gap-2">
             {preps.map((it) => {
