@@ -52,6 +52,7 @@
 | Management Channel の**配信**（当番表 / 送信ガード / Discord通知 / エスカレーション / 送信量の決め方） | **Management Channel Delivery** | `docs/manuals/management-channel-delivery-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
+| **Receipt Log**（`/store/receipt-log` 入力フォーム / `/admin/procurement/receipt-log` 全件一覧・月次） | **Receipt Log**（日英切替・スタッフ向け） | `docs/manuals/receipt-log-manual.html` |
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 
@@ -107,6 +108,13 @@
    - file_path: docs/manuals/recruitment-guide.html
    - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（HRスタッフ向け）
    - favicon: 🧭
+
+   - file_path: docs/manuals/receipt-log-manual.html
+   - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）
+   - favicon: 🧾
+   ※ **日英切替式**（右上のトグル・既定は英語）。読者はレジに立つ店舗スタッフと、
+     月次を締めるマニラ／日本の事務。既定を日本語にしないこと — 実際に入力するのは
+     現地スタッフで、UIも英語のため。片方の言語だけ直すと、もう片方が嘘になる。
    ※ 英語。読者はマニラのHRスタッフ・HRマネージャー。
      「入力が増えるのではなく減る」という論旨が定着の条件なので、
      機能追加として書き直さないこと。HR Manual とは役割が別。

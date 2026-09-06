@@ -30,7 +30,17 @@ type ReceiptEntry = {
   receipt_url: string;
   submitted_by: string;
   notes: string;
+  payment_method?: string;
   created_at: string;
+};
+
+type Summary = {
+  entries: number;
+  amount: number;
+  by_month: { month: string; entries: number; amount: number }[];
+  by_branch: { branch_code: string; entries: number; amount: number }[];
+  by_payment: { method: string; entries: number; amount: number }[];
+  methods: { key: string; label: string }[];
 };
 
 // ─── Branch / dept maps ───────────────────────────────────────────────────────
@@ -78,7 +88,10 @@ export default function AdminReceiptLogPage() {
   const [month, setMonth]         = useState(thisMonth());
   const [branch, setBranch]       = useState("");
   const [dept, setDept]           = useState("");
+  const [payMethod, setPayMethod] = useState("");
   const [entries, setEntries]     = useState<ReceiptEntry[]>([]);
+  const [summary, setSummary]     = useState<Summary | null>(null);
+  const [savingId, setSavingId]   = useState("");
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
 
@@ -90,6 +103,7 @@ export default function AdminReceiptLogPage() {
       const auth = await refreshAuthFromApi(getAuth());
       const params = new URLSearchParams({ city, month, limit: "500" });
       if (branch) params.set("branch_code", branch);
+      if (payMethod) params.set("payment_method", payMethod);
       const res = await fetch(`/api/admin/receipt-log?${params}`, {
         method: "GET",
         headers: getAuthHeaders(auth),
@@ -103,14 +117,55 @@ export default function AdminReceiptLogPage() {
       }
       const data = JSON.parse(text || "{}") as { entries?: ReceiptEntry[] };
       setEntries(data.entries ?? []);
+
+      // Twelve months, branches and methods in one request. The trend is the
+      // reason to open this daily, and it must not cost twelve round trips.
+      const sRes = await fetch(
+        `/api/admin/receipt-log/summary?city=${city}&month=${month}`,
+        { headers: getAuthHeaders(auth), cache: "no-store" });
+      setSummary(sRes.ok ? await sRes.json() : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load entries.");
     } finally {
       setLoading(false);
     }
-  }, [city, month, branch]);
+  }, [city, month, branch, payMethod]);
 
   useEffect(() => { load(); }, [load]);
+
+  const methodLabel = useCallback((key?: string) => {
+    if (!key) return "Not recorded";
+    return summary?.methods.find((m) => m.key === key)?.label ?? key;
+  }, [summary]);
+
+  /** Fill in the method on an entry made before the field existed. One at a
+   *  time: only whoever made the purchase knows what they paid with, and a bulk
+   *  action could only mean calling all twenty of them cash. */
+  const setEntryMethod = useCallback(async (id: string, key: string) => {
+    setSavingId(id);
+    try {
+      const auth = await refreshAuthFromApi(getAuth());
+      const res = await fetch(`/api/admin/receipt-log/${id}/payment-method`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({ payment_method: key }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setError(String(msg).slice(0, 200));
+        return;
+      }
+      setEntries((p) => p.map((e) => (e.id === id ? { ...e, payment_method: key } : e)));
+      // Totals move with it, so the breakdown never disagrees with the table.
+      await load();
+    } catch {
+      setError("Could not save. Nothing was changed.");
+    } finally {
+      setSavingId("");
+    }
+  }, [load]);
 
   // ─── Filter by dept client-side ────────────────────────────────────────────
   const filtered = useMemo(
@@ -143,7 +198,7 @@ export default function AdminReceiptLogPage() {
   // ─── CSV export ────────────────────────────────────────────────────────────
   const exportCsv = useCallback(() => {
     const rows = [
-      ["Date", "Branch", "Department", "Supplier", "Items", "Total (₱)", "Submitted By", "Notes", "Receipt URL"].join(","),
+      ["Date", "Branch", "Department", "Supplier", "Items", "Total (₱)", "Paid with", "Submitted By", "Notes", "Receipt URL"].join(","),
       ...filtered.map((e) =>
         [
           csvEscape(e.purchase_date),
@@ -152,6 +207,7 @@ export default function AdminReceiptLogPage() {
           csvEscape(e.supplier_name),
           csvEscape(e.items.map((i) => `${i.name} (${formatAmount(i.amount)})`).join("; ")),
           csvEscape(e.total_amount),
+          csvEscape(e.payment_method ? methodLabel(e.payment_method) : "Not recorded"),
           csvEscape(e.submitted_by),
           csvEscape(e.notes),
           csvEscape(e.receipt_url),
@@ -165,7 +221,7 @@ export default function AdminReceiptLogPage() {
     a.download = `receipt-log-${city}-${month}${branch ? `-${branch}` : ""}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filtered, city, month, branch]);
+  }, [filtered, city, month, branch, methodLabel]);
 
   // ─── Branch options ────────────────────────────────────────────────────────
   const branchMap = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
@@ -245,7 +301,92 @@ export default function AdminReceiptLogPage() {
           options={deptOptions}
           className="w-48"
         />
+
+        {/* Paid with. "Not recorded" is a choice, or the entries that still need
+            filling in cannot be reached. */}
+        <SelectDark
+          value={payMethod}
+          onChange={setPayMethod}
+          options={[
+            { value: "", label: "Any payment method" },
+            ...(summary?.methods ?? []).map((m) => ({ value: m.key, label: m.label })),
+            { value: "unrecorded", label: "Not recorded" },
+          ]}
+          className="w-72"
+        />
       </div>
+
+      {/* ─── Twelve months ──────────────────────────────────────────────────── */}
+      {summary && summary.by_month.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <p className={`${T_LABEL} mb-2`}>Monthly total — click a month to open it</p>
+          <div className="flex flex-wrap gap-2">
+            {summary.by_month.map((m) => (
+              <button
+                key={m.month}
+                onClick={() => setMonth(m.month)}
+                className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+                  m.month === month
+                    ? "border-violet-400/50 bg-violet-500/20"
+                    : "border-white/10 bg-white/4 hover:bg-white/8"
+                }`}
+              >
+                <span className={`block ${T_CAPTION}`}>{m.month}</span>
+                <span className="text-sm font-semibold tabular-nums text-white">
+                  {currencySymbol} {formatAmount(m.amount)}
+                </span>
+                <span className={`block ${T_CAPTION}`}>{m.entries} receipts</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── By branch / by payment method ──────────────────────────────────── */}
+      {summary && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className={`${GLASS_CARD} p-4`}>
+            <p className={`${T_LABEL} mb-2`}>{month} by branch</p>
+            {summary.by_branch.length === 0 ? (
+              <p className={T_CAPTION}>Nothing logged this month.</p>
+            ) : summary.by_branch.map((b) => (
+              <div key={b.branch_code} className="flex justify-between py-1 text-sm">
+                <span className="text-zinc-300">{branchLabel(b.branch_code, city)}</span>
+                <span className="tabular-nums text-white">
+                  {currencySymbol} {formatAmount(b.amount)}
+                  <span className={`ml-2 ${T_CAPTION}`}>{b.entries}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className={`${GLASS_CARD} p-4`}>
+            <p className={`${T_LABEL} mb-2`}>{month} by payment method</p>
+            {summary.by_payment.length === 0 ? (
+              <p className={T_CAPTION}>Nothing logged this month.</p>
+            ) : summary.by_payment.map((pm) => (
+              <button
+                key={pm.method}
+                onClick={() => setPayMethod(pm.method)}
+                className="flex w-full justify-between py-1 text-left text-sm hover:text-violet-200"
+              >
+                <span className="text-zinc-300">
+                  {pm.method === "unrecorded" ? "Not recorded" : methodLabel(pm.method)}
+                </span>
+                <span className="tabular-nums text-white">
+                  {currencySymbol} {formatAmount(pm.amount)}
+                  <span className={`ml-2 ${T_CAPTION}`}>{pm.entries}</span>
+                </span>
+              </button>
+            ))}
+            {/* The card total is what the statement has to agree with. Saying so
+                is the difference between a number and a thing you can act on. */}
+            <p className={`${T_CAPTION} mt-2`}>
+              The company card line is what the Unionbank statement should come
+              to for this month.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── KPI Cards ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -282,6 +423,7 @@ export default function AdminReceiptLogPage() {
                 <th className={`${T_LABEL} px-4 py-3 text-left`}>Supplier</th>
                 <th className={`${T_LABEL} px-4 py-3 text-left`}>Items</th>
                 <th className={`${T_LABEL} px-4 py-3 text-right`}>Amount</th>
+                <th className={`${T_LABEL} px-4 py-3 text-left`}>Paid with</th>
                 <th className={`${T_LABEL} px-4 py-3 text-left`}>Submitted By</th>
                 <th className={`${T_LABEL} px-4 py-3 text-center`}>Receipt</th>
               </tr>
@@ -289,12 +431,12 @@ export default function AdminReceiptLogPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-zinc-500">Loading…</td>
+                  <td colSpan={9} className="py-10 text-center text-zinc-500">Loading…</td>
                 </tr>
               )}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-zinc-500">
+                  <td colSpan={9} className="py-10 text-center text-zinc-500">
                     No entries found for {month}{branch ? ` · ${branchLabel(branch, city)}` : ""}.
                   </td>
                 </tr>
@@ -326,6 +468,25 @@ export default function AdminReceiptLogPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-white">
                       {currencySymbol} {formatAmount(entry.total_amount)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {entry.payment_method ? (
+                        <span className="text-zinc-300">{methodLabel(entry.payment_method)}</span>
+                      ) : (
+                        /* Editable right here. An entry that predates the field
+                           is the only thing standing between the month's card
+                           total and the statement, so the fix belongs on the
+                           row, not on another screen. */
+                        <SelectDark
+                          value=""
+                          onChange={(v) => { if (v) void setEntryMethod(entry.id, v); }}
+                          options={[
+                            { value: "", label: savingId === entry.id ? "Saving…" : "Not recorded — set" },
+                            ...(summary?.methods ?? []).map((m) => ({ value: m.key, label: m.label })),
+                          ]}
+                          className="w-56"
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-400">{entry.submitted_by}</td>
                     <td className="px-4 py-3 text-center">

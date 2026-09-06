@@ -1,6 +1,57 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-05（音声一次面接 Phase 1 完成 — フォーム・録音UI・HR判断画面・招待リンク）
+Last updated: 2026-09-06（Receipt Log に支払方法・管理一覧をメニューに追加）
+
+---
+
+## 2026-09-06 — Receipt Log：支払方法と、月次で見る画面
+
+現場（Ayako）から「会社カードで買ったが、支出をどこに記録するのか分からない」。
+山田さんも「カード明細が来ないと先月を確定できない」。原因は機能が無いことでは
+なく、**Receipt Log に支払方法の欄が無かったこと**と、**全件一覧がメニューに
+無かったこと**。
+
+**完了**
+- `receipt_log.payment_method` を追加。選択肢は `PAYMENT_METHODS`（DB側が唯一の正、
+  `GET /api/store/receipt-log/payment-methods` が配る）:
+  Cash / **Company card — Unionbank VISA ••4689** / GCash / Bank transfer / Other。
+  **カードは1枚なので下4桁を人に打たせない。**2枚目が増えたらこの一覧に足す。
+- 新規登録では**必須**（422）。既定値は置かない — Cash を既定にすると
+  カード払いが黙って現金として記録される。
+- **既存20件は空のまま。** `Not recorded` と表示し、現金と決めつけない（教訓40）。
+  一括補完は作らない（何で払ったかは買った本人しか知らない）。管理一覧の行から
+  1件ずつ選ぶ（`PATCH /api/admin/receipt-log/{id}/payment-method`、空に戻せる）。
+- 送信後も支払方法は保持する（同じ買い物の3枚を毎回選び直させない）。
+- `GET /api/admin/receipt-log/summary` — 12ヶ月分・支店別・支払方法別を1リクエストで。
+  **合計と内訳は同じクエリ範囲**から出す（別々に数えると画面内で食い違う）。
+- 管理一覧 `/admin/procurement/receipt-log` を NavBar（Expenses）に追加。
+  `admin.receipt_log` チャンネル＋`channel.admin.receipt_log.view` を新設し、
+  **今 role 名で通っている4ロールに付与**（広げも狭めもしない・死に権限を作らない）。
+  `access-channels.ts` 再生成済み・`audit-dead-permissions.py` は既存の1件のみ。
+- API は role 名の判定を残しつつ、権限による経路を `||` で追加（教訓25）。
+- 画面に「Company card の行が Unionbank 明細と一致すべき金額」と明記。
+- CSVにも Paid with 列。
+
+**本番で検証済み（24項目、失敗0。QA行1件を作って削除、既存20件は不変）**
+- 支払方法なし/未知の値は422・未知の後追い更新は400・空に戻せる
+- `unrecorded` で絞れる／合計と内訳（支払方法・支店・月別）が完全一致
+- トークンなし401・一般スタッフ403・Ayako/Yuri/Francis は開ける・Camilla は不可
+
+**マニュアル（2026-09-06 作成）**
+- `docs/manuals/receipt-log-manual.html` — **日英切替式**・スタッフ向け。
+  artifact: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33
+- 既定は英語（実際に入力するのは現地スタッフ・UIも英語）。トグルは右上、
+  localStorage に保存（例外は握りつぶして英語で表示＝JSが死んでも全文読める）。
+- 冒頭に「どのページを使うか」（Receipt Log / Expense Reimbursement / Petty Cash）。
+  **払ったのが誰のお金か**で分岐させる。ページ間違いが一番高くつくため。
+- 実物のレシート（Rustan's のトリュフペースト ₱2,100）を図として使い、
+  どの数字をどの欄に写すかを示す。Vatable/VAT に分けないことを明記。
+- **送信後は編集も削除もできない**ことを警告として明記（実際にAPIが無い）。
+  「訂正のためにもう1件送る」を禁止し、当日中に事務へ連絡する導線を書いた。
+
+**未着手**
+- カード明細（Unionbank）の取込は未着手。現状は「画面の Company card 合計と
+  明細を目視で突き合わせる」まで。自動照合をやるなら明細のCSV/PDF形式の確認から
 
 ---
 
