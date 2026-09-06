@@ -145,6 +145,10 @@ function MenuProductsPageInner() {
   const [saving, setSaving] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+  // Kept apart from `error`, which the list load clears the moment it starts.
+  // Sharing one banner let a background refresh wipe the "enter a name" message
+  // the click had just produced, leaving a button that looked broken.
+  const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuProductRow[]>([]);
   const [productFilterOptions, setProductFilterOptions] = useState<MenuProductRow[]>([]);
@@ -273,10 +277,11 @@ function MenuProductsPageInner() {
   }, [selectedIngredient]);
 
   function addDraftIngredient() {
-    if (!selectedIngredient) return setError("Please select ingredient item.");
+    if (!selectedIngredient) return setFormError("Please select ingredient item.");
     const quantity = Number(ingredientQty || 0);
-    if (!Number.isFinite(quantity) || quantity <= 0) return setError("Please enter ingredient quantity.");
-    if (!ingredientUnit.trim()) return setError("Please select ingredient unit.");
+    if (!Number.isFinite(quantity) || quantity <= 0) return setFormError("Please enter ingredient quantity.");
+    if (!ingredientUnit.trim()) return setFormError("Please select ingredient unit.");
+    setFormError("");
     setError("");
     setDraftIngredients((current) => [
       ...current.filter((row) => row.ingredient_item_id !== selectedIngredient.id),
@@ -298,9 +303,10 @@ function MenuProductsPageInner() {
   }
 
   async function saveProduct() {
-    if (!form.name.trim()) return setError("Please enter product name.");
-    if (!form.category_id) return setError("Please select category.");
+    if (!form.name.trim()) return setFormError("Please enter product name.");
+    if (!form.category_id) return setFormError("Please select category.");
     setSaving(true);
+    setFormError("");
     setError("");
     setSuccess("");
     setImportFailures([]);
@@ -838,9 +844,9 @@ function MenuProductsPageInner() {
           </div>
 
           {/* Messages */}
-          {error && (
+          {(formError || error) && (
             <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
-              <span className="mt-px shrink-0">⚠</span>{error}
+              <span className="mt-px shrink-0">⚠</span>{formError || error}
             </div>
           )}
           {success && (
