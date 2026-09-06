@@ -1,6 +1,49 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-06（段階1・2 を監査。認可の穴3件を修正）
+Last updated: 2026-09-06（音声面接の録音不能は Permissions-Policy が原因。修正済み）
+
+---
+
+## 2026-09-06 — 音声面接が録音できなかった真因は Permissions-Policy
+
+**PCの問題ではなく、こちらのヘッダーだった。**
+
+`next.config.ts` の `SECURITY_HEADERS` が全ルートに
+`Permissions-Policy: camera=(), microphone=(), geolocation=(self)` を送っていた。
+**`microphone=()` は自分自身のオリジンにも拒否**する指定なので、ブラウザは
+`getUserMedia` を**本人に許可を聞く前に** `NotAllowedError` で拒否する。
+**端末を問わず失敗する。** Macでもスマホでも同じ。
+
+⚠️ **画面の文言は正しく、かつ役に立たなかった。**
+「Allow it for this site（アドレスバーのアイコンから許可）」は、
+**ヘッダーで禁じられている場合はサイト権限をいくらいじっても覆せない。**
+教訓21（実行できない案内は無いより悪い）の一種。
+
+⚠️ **私は同じ失敗をプレビューペインで見て「ペインが端末キャプチャを塞いでいる」と
+判断した。** その判断は妥当だったが誤りで、真因を1日隠した。
+**ペインのブロックは実在し、同時にこれを覆い隠していた。**
+
+**修正**
+- 録音する2ページ `/apply` と `/voice/:token` だけ `microphone=(self)` に。
+  他は `microphone=()` のまま。**カメラは全ページで拒否のまま。**
+- 共有リストの1値を差し替えて生成する（コピーを作ると、そのコピーが
+  いつかCSPを落とす）。
+- **catch-all より前に宣言し、catch-all のパターンから除外する。**
+  Next は一致する全エントリを送り、ブラウザは複数の Permissions-Policy を
+  **積集合**で解釈するので、除外しないと deny が勝って何も変わらない。
+
+**検証（本番・実ブラウザ）**
+| ページ | ヘッダー | `featurePolicy.allowsFeature('microphone')` |
+|---|---|---|
+| /apply | `microphone=(self)` | **true** |
+| /voice/x | `microphone=(self)` | **true** |
+| /week | `microphone=()` | **false**（据え置き） |
+| /apply camera | — | **false**（据え置き） |
+CSP も消えていないことを確認（`content-security-policy` 1本）。
+
+**まだ確認できていないこと**
+プレビューペインは端末キャプチャ自体を塞ぐため、`permissionState` は
+`denied` のまま。**実際に録音できるかは実機でしか確認できない。**
 
 ---
 
