@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, hasChannelAccess } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
 import { MANILA_STANDARDS, type StandardSpec } from "@/lib/backup-standards";
 import {
@@ -1054,6 +1054,10 @@ export default function BackupReportPage() {
   const auth = useMemo(() => getAuth(), []);
   const role = auth?.role ?? "";
   const isAdmin = role === "ADMIN" || role === "HQ";
+  // Of the 48 people who filed a Manila report in the last 60 days, one can open
+  // the par screen. Showing everyone else a way in would only send them to a
+  // door that does not open for them.
+  const canEditPar = isAdmin || hasChannelAccess("admin.management_par_levels", ["view"], auth);
 
   // Header
   const [city, setCity] = useState<City>("dubai");
@@ -1353,9 +1357,25 @@ export default function BackupReportPage() {
           <div className={`${GLASS_CARD} p-4 sm:p-6`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={T_CARD_TITLE}>Fixed Items</h2>
-              <span className={`${T_CAPTION} text-zinc-500 text-xs`}>
-                Blank = skip · 0 = confirm zero
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`${T_CAPTION} text-zinc-500 text-xs`}>
+                  Blank = skip · 0 = confirm zero
+                </span>
+                {/* The targets these counts are judged against live on another
+                    screen, reachable only as a tab under BO Dashboard. Nobody
+                    had ever saved a value there: 228 par rows, none of them
+                    entered by hand. The question "where do I change the par?"
+                    is asked here, so the way there belongs here -- and only for
+                    the people who can actually open it, or it is a dead end. */}
+                {canEditPar ? (
+                  <Link
+                    href="/admin/management/par-levels"
+                    className="text-xs text-violet-300 hover:text-violet-200 underline underline-offset-2"
+                  >
+                    Par levels
+                  </Link>
+                ) : null}
+              </div>
             </div>
             <div className="space-y-3">
               {activeSections.map((sec) => (
