@@ -53,6 +53,9 @@ interface ManagementTask {
   source_id: string | null;
   severity: Severity;
   status: TaskStatus;
+  /** 'urgent' interrupts the manager; 'review' waits for a quiet moment. Rows
+   *  from before the split carry nothing and are treated as urgent. */
+  lane?: "urgent" | "review" | null;
   bo_assignee: string | null;
   template_key: string | null;
   sent_message: string | null;
@@ -972,6 +975,11 @@ function SendModal({ task, template, customMessage, onChangeMessage, onConfirm, 
           <div>
             <div className="flex items-center gap-2">
               <SevBadge sev={task.severity} />
+              {task.lane === "review" && (
+                <span className="rounded-full border border-teal-400/30 bg-teal-500/12 px-2 py-0.5 text-[11px] font-medium text-teal-300">
+                  Review — not during service
+                </span>
+              )}
               <span className="font-semibold text-white text-sm">{fmtLabel(task.type)}</span>
             </div>
             <div className="text-xs text-zinc-400 mt-0.5">
@@ -2161,7 +2169,13 @@ export default function BODashboardPage() {
   // the company's food and prime cost. Two of them were raised, never sent, and
   // swept out with 80 product-score notices without anyone reading them.
   const isCost = (t: ManagementTask) => t.type.startsWith("kpi_");
+  // Review-lane work sinks below everything urgent. It is still here to be sent
+  // -- nothing is hidden -- but it stops sitting between two things that need a
+  // manager during service.
+  const isReviewLane = (t: ManagementTask) => t.lane === "review";
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    const la = Number(isReviewLane(a)) - Number(isReviewLane(b));
+    if (la !== 0) return la;
     const ca = Number(isCost(b)) - Number(isCost(a));
     if (ca !== 0) return ca;
     const sevOrd: Record<string, number> = { red: 0, yellow: 1, green: 2 };

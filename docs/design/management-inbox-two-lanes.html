@@ -1,0 +1,601 @@
+<title>Two Lanes for the Manager's Inbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --paper:      #F3F4F7;
+    --surface:    #FFFFFF;
+    --sunken:     #E7E9EF;
+    --ink:        #171A21;
+    --ink-soft:   #414755;
+    --muted:      #5D6473;
+    --line:       #D6DAE3;
+    --line-soft:  #E6E9EF;
+    --urgent:     #B03A24;
+    --urgent-wash:#F8E7E2;
+    --review:     #1F6E70;
+    --review-wash:#DDEDEC;
+    --accent:     #2C4A8C;
+    --accent-wash:#E2E8F5;
+    --measure:    38rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #12141A;
+      --surface:    #1A1D25;
+      --sunken:     #222630;
+      --ink:        #E6E9F0;
+      --ink-soft:   #BEC5D2;
+      --muted:      #949CAC;
+      --line:       #2E333F;
+      --line-soft:  #262B35;
+      --urgent:     #E5866B;
+      --urgent-wash:#2C1F1B;
+      --review:     #6FBDBE;
+      --review-wash:#152A2B;
+      --accent:     #93AEE8;
+      --accent-wash:#1B2436;
+    }
+  }
+  :root[data-theme="dark"] {
+      --paper:      #12141A;
+      --surface:    #1A1D25;
+      --sunken:     #222630;
+      --ink:        #E6E9F0;
+      --ink-soft:   #BEC5D2;
+      --muted:      #949CAC;
+      --line:       #2E333F;
+      --line-soft:  #262B35;
+      --urgent:     #E5866B;
+      --urgent-wash:#2C1F1B;
+      --review:     #6FBDBE;
+      --review-wash:#152A2B;
+      --accent:     #93AEE8;
+      --accent-wash:#1B2436;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Noto Sans JP", "Familjen Grotesk", -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.85; -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: "Familjen Grotesk", "Noto Sans JP", sans-serif;
+    font-weight: 700; text-wrap: balance; margin: 0; color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  h1 { font-size: clamp(1.85rem, 4.6vw, 2.5rem); line-height: 1.25; }
+  h2 { font-size: clamp(1.25rem, 3vw, 1.5rem); line-height: 1.4; }
+  h3 { font-size: 1rem; font-weight: 700; line-height: 1.6; }
+  p { margin: 0 0 0.9rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 700; }
+  code, .mono { font-family: "Roboto Mono", ui-monospace, monospace;
+                font-variant-numeric: tabular-nums; font-size: 0.88em; }
+  .k { font-family: "Roboto Mono", monospace; font-size: 0.86em;
+       background: var(--sunken); border-radius: 4px; padding: 0.08em 0.4em; white-space: nowrap; }
+
+  .wrap { max-width: 50rem; margin: 0 auto; padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) 6rem; }
+  header.top { padding-bottom: 1.6rem; border-bottom: 2px solid var(--ink); }
+  header.top .meta { font-family: "Roboto Mono", monospace; font-size: 0.74rem;
+                     letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  header.top p { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0.9rem; }
+  section { margin-top: 3.25rem; }
+  .eyebrow { display: block; font-family: "Roboto Mono", monospace; font-size: 0.72rem;
+             letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent);
+             margin-bottom: 0.35rem; }
+  section > h2 { margin-bottom: 0.9rem; }
+
+  .verdict { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             border-radius: 0 12px 12px 0; padding: 1.2rem 1.4rem; margin-top: 1.2rem; }
+  .verdict p { font-size: 1.02rem; }
+
+  /* measured findings */
+  .finds { display: grid; gap: 0.75rem; margin-top: 1.2rem; }
+  .find { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+          padding: 1.05rem 1.2rem; }
+  .find h3 { margin-bottom: 0.35rem; }
+  .find p { font-size: 0.96rem; color: var(--ink-soft); }
+  .find .num { font-family: "Roboto Mono", monospace; font-weight: 500;
+               color: var(--urgent); font-size: 0.95rem; }
+  .find.ok .num { color: var(--review); }
+
+  .scroller { overflow-x: auto; margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 28rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th { font-family: "Roboto Mono", monospace; font-size: 0.68rem; letter-spacing: 0.09em;
+       text-transform: uppercase; color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--line); }
+  td.n { font-family: "Roboto Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* the two lanes */
+  .lanes { display: grid; gap: 0.9rem; margin-top: 1.2rem; }
+  @media (min-width: 46rem) { .lanes { grid-template-columns: 1fr 1fr; } }
+  .lane { border-radius: 12px; padding: 1.1rem 1.25rem; border: 1px solid var(--line); background: var(--surface); }
+  .lane.u { border-color: var(--urgent); background: var(--urgent-wash); }
+  .lane.r { border-color: var(--review); background: var(--review-wash); }
+  .lane .tag { font-family: "Roboto Mono", monospace; font-size: 0.7rem; letter-spacing: 0.12em;
+               text-transform: uppercase; display: block; margin-bottom: 0.3rem; }
+  .lane.u .tag { color: var(--urgent); }
+  .lane.r .tag { color: var(--review); }
+  .lane ul { margin: 0.7rem 0 0; padding-left: 1.05rem; }
+  .lane li { margin-bottom: 0.28rem; font-size: 0.94rem; }
+  .lane .when { font-size: 0.88rem; color: var(--muted); margin-top: 0.7rem; }
+
+  ol.plan { list-style: none; margin: 1.2rem 0 0; padding: 0; }
+  ol.plan > li { display: grid; grid-template-columns: 2.3rem 1fr; gap: 0 0.85rem;
+                 padding: 1.05rem 0; border-top: 1px solid var(--line-soft); }
+  ol.plan > li:first-child { border-top: 1px solid var(--line); }
+  ol.plan .n { font-family: "Roboto Mono", monospace; font-weight: 500; color: var(--accent);
+               font-size: 0.85rem; padding-top: 0.35rem; }
+  ol.plan h3 { margin-bottom: 0.25rem; }
+  ol.plan p, ol.plan li p { font-size: 0.95rem; }
+
+  ul.plain { margin: 0.55rem 0 0; padding-left: 1.05rem; }
+  ul.plain li { margin-bottom: 0.28rem; font-size: 0.95rem; max-width: var(--measure); }
+
+  pre.sql { background: var(--sunken); border: 1px solid var(--line); border-radius: 10px;
+            padding: 0.95rem 1.1rem; overflow-x: auto; font-family: "Roboto Mono", monospace;
+            font-size: 0.8rem; line-height: 1.7; color: var(--ink); margin: 0.9rem 0; }
+
+  .warn { border-left: 3px solid var(--urgent); background: var(--urgent-wash);
+          border-radius: 0 10px 10px 0; padding: 0.95rem 1.15rem; margin: 1.15rem 0; }
+  .warn h3 { margin-bottom: 0.25rem; color: var(--ink); }
+  .warn p { font-size: 0.95rem; }
+
+  .flow { background: var(--sunken); border: 1px solid var(--line); border-radius: 10px;
+          padding: 1rem 1.15rem; font-family: "Roboto Mono", monospace; font-size: 0.8rem;
+          line-height: 1.75; white-space: pre; overflow-x: auto; margin: 1rem 0; }
+  .flow b { font-weight: 500; color: var(--accent); }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 0.88rem; }
+  footer p { max-width: none; }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <span class="meta">Store Operation Management Channel · 実装案 · 2026-09-06 改訂</span>
+  <h1>Inbox を2本に分ける</h1>
+  <p>
+    今すぐ動くものと、翌朝に腰を据えて見るもの。ご提案の設計は実装可能で、
+    既存のテーブルとテンプレート機構でほぼ収まります。ただし
+    <strong>実データを測った結果、そのままでは効かない箇所が3つ</strong>ありました。
+    先にそれを書きます。
+  </p>
+</header>
+
+<section>
+  <span class="eyebrow">結論</span>
+  <h2>やる価値があります。ただし閾値を変えてください</h2>
+  <div class="verdict">
+    <p>
+      Inbox の6割が Product Scoring で埋まっているのは実測どおりです（30日で
+      546件中327件）。分割は正しい判断です。<br>
+      緊急レーンは <strong>新設する D</strong> を入口にします。現在のFは
+      レシート写真などが混ざっていて使えないというご指摘は、データで裏が取れました
+      —— ただし<strong>Fの上半分は本物の料理で、それがまさにDにしたいもの</strong>です。
+      境目は点数で引けます。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">実測</span>
+  <h2>提案を変える3点</h2>
+
+  <div class="finds">
+    <div class="find">
+      <h3>1. F は2つの別物が混ざっています</h3>
+      <p>
+        現在の等級は点数の帯だけで決まります（S≧90 / A≧75 / B≧60 / C≧45 / F&lt;45）。
+        90日のF 937件を点数で割ると、<strong>きれいに2つに分かれます。</strong>
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>点数帯</th><th>件数</th><th>実際の中身（feedback 原文より）</th></tr></thead>
+          <tbody>
+            <tr><td>40.0–44.3</td><td class="n">380</td><td>「スープの具が少なく盛付が雑」「弁当の寿司が崩れている」<strong>——本物の料理・出来が悪い</strong></td></tr>
+            <tr><td>35.0–39.3</td><td class="n">66</td><td>同上</td></tr>
+            <tr><td>30.0–34.3</td><td class="n">62</td><td>同上</td></tr>
+            <tr><td>5.0–29.3</td><td class="n">311</td><td>混在</td></tr>
+            <tr><td>0.0–4.3</td><td class="n">118</td><td>「これはレシート／伝票の写真で、食品ではない」<strong>——採点対象外</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <span class="num">「receipt」を含む feedback 211件中154件がF</span>、
+        <span class="num">「no food」97件中96件がF</span>。
+        ご指摘のとおりです。ただし<strong>Fの上半分（30〜44点、508件）は
+        レシートではなく、出来の悪い料理そのもの</strong>でした。
+      </p>
+      <p>
+        したがって修正は2つです。<strong>①レシート等を等級から外す（not_food）</strong>、
+        <strong>②C と F のあいだに D を作る。</strong>
+      </p>
+    </div>
+
+    <div class="find">
+      <h3>2. Keeta は取れていますが、時刻が20分で止まっています</h3>
+      <p>
+        取込は動いています —— 9/5 に141件、9/4 に147件、本日 01:20 UTC に取込済み。
+        <strong>止まっているのは取込ではなく値です。</strong>
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>使える時刻</th><th>範囲</th><th>中央値</th><th>判定</th></tr></thead>
+          <tbody>
+            <tr><td>ready − accepted<br><span class="k">現行 prep_minutes</span></td><td class="n">1–20</td><td class="n">14</td><td><strong>20で頭打ち。1,023件中203件がちょうど20分</strong></td></tr>
+            <tr><td>ready − created</td><td class="n">1–29</td><td class="n">14</td><td>同じく上限あり（29超が0件）</td></tr>
+            <tr><td>accepted − created</td><td class="n">0–9</td><td class="n">0</td><td>受付は即時。使えない</td></tr>
+            <tr><td>utime − accepted</td><td class="n">13–764</td><td class="n">39</td><td>唯一ばらついているが、<strong>配達完了まで含む</strong>ので厨房の時間ではない</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        マニラ（Grab）は 1〜144分・75通りの値。Keeta は 1〜20分・20通りで、
+        20分に20%が積み上がっています。これは分布ではなく天井です。
+        <span class="k">readiedStatusTime</span> は<strong>厨房が押した時刻ではなく、
+        20分という約束時刻に自動で進んだ値</strong>と考えるのが自然です。
+      </p>
+      <p>
+        <strong>抽出側にクランプはありません</strong>（差を取っているだけ）。
+        つまり Keeta が返している値そのものです。次にやるべきは
+        <strong>注文1件の生JSONを丸ごと出して、他に状態遷移の時刻を持っていないか見ること</strong>。
+        それが1回で済み、あるかないかが確定します。見つかるまでは
+        ドバイの Prep Time レビューは出さないでください。
+      </p>
+    </div>
+
+    <div class="find">
+      <h3>3. 支店コードが2系統あります</h3>
+      <p>
+        採点テーブルは <span class="k">CUBAO</span>、タスク側は <span class="k">CUB</span>。
+        このまま結合すると<strong>Cubao のレビューが毎朝空</strong>になります。
+        <strong>正規化を1箇所に置いて吸収します</strong>（<span class="k">CUBAO → CUB</span>、
+        両方の表記を受け取り、保存は片方に寄せる）。既存行は書き換えず、
+        読み出し時に正規化する方式にすれば、過去のレポートも壊れません。
+      </p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:1.6rem">レビューの分量は適正です</h3>
+  <p>マニラの「支店×日」あたりのC以下（直近10日の実測）:</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>支店</th><th>9/5</th><th>9/4</th><th>9/3</th><th>9/2</th><th>中央値</th><th>最大</th></tr></thead>
+      <tbody>
+        <tr><td>TAFT</td><td class="n">11</td><td class="n">15</td><td class="n">13</td><td class="n">7</td><td class="n">—</td><td class="n">16</td></tr>
+        <tr><td>PAR</td><td class="n">5</td><td class="n">5</td><td class="n">7</td><td class="n">7</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>CUBAO</td><td class="n">6</td><td class="n">4</td><td class="n">2</td><td class="n">4</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td colspan="5">全体</td><td class="n">5</td><td class="n">16</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    <strong>1支店あたり5〜16件。</strong>30〜45分のレビューにちょうど収まります。
+    Prep Time 30分超はマニラで <span class="num">PAR 19件 / TAFT 5件 / CUB 3件</span>（9/5）。
+    ご提案の運用時間は現実的です。
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow">設計</span>
+  <h2>D を作り、レシートを等級から外す</h2>
+  <p>
+    等級は <span class="k">total_score</span> の帯だけで決まっているので、
+    <strong>帯を1本増やすだけで D は作れます。</strong>
+    採点そのもの（7軸・1〜10点）は変えません。
+  </p>
+  <pre class="sql">S  ≧ 90        A  ≧ 75        B  ≧ 60        C  ≧ 45
+D  ≧ 30   ← 新設。「改善が必要な出来の悪いもの」
+F  &lt; 30   ← 残り。ほぼ非食品に寄る</pre>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Dの下限</th><th>90日で該当</th><th>全店1日あたり</th><th>マニラ1日あたり</th></tr></thead>
+      <tbody>
+        <tr><td>40点</td><td class="n">380</td><td class="n">4.2</td><td class="n">約1.4</td></tr>
+        <tr><td>35点</td><td class="n">446</td><td class="n">5.0</td><td class="n">約1.7</td></tr>
+        <tr><td><strong>30点</strong></td><td class="n">508</td><td class="n">5.6</td><td class="n">約1.9</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    どれでも緊急レーンに入る量としては適正です。<strong>30点を初期値として提案します</strong>
+    —— 30〜44点の帯の feedback は全て料理の話（「具が少ない」「盛付が崩れている」）で、
+    レシートの話は出てこないためです。
+  </p>
+  <p>
+    ただし<strong>この境目は写真を見て決めるべきもの</strong>です。
+    <span class="k">PRODUCT_SCORE_D_MIN</span> を環境変数にして、
+    <strong>デプロイなしで動かせるように</strong>します。運用開始後に
+    30 / 35 / 40 それぞれの境目付近の写真を10枚ずつ見て、現場の感覚に合わせてください。
+  </p>
+
+  <h3 style="margin-top:1.8rem">レシートは「悪い点数」ではなく「対象外」</h3>
+  <p>
+    採点AIは既に <span class="k">feedback</span> に「これはレシートで食品ではない」と
+    書いています。<strong>言う場所が無いだけ</strong>です。判定の第1段階に
+    <span class="k">not_food</span> を足し、該当したら7軸の採点自体を行わず、
+    等級も付けません。
+  </p>
+  <pre class="sql">STEP 1 — Identify the food category:
+  "sushi"    …
+  "general"  …
+  "not_food" … レシート・伝票・POS画面・空の容器・飲料のみ・
+               配達バッグのみなど、評価対象の料理が写っていないもの
+
+→ not_food のときは7軸を返さず、grade は付けない（NULL）。
+   集計・アラート・支店スコアから完全に除外する。</pre>
+  <p>
+    これで<strong>「Fが多い店＝レシートを多く撮っている店」という現在の歪み</strong>が
+    消えます。除外件数は画面に出してください —— 隠すと、撮り方の問題が
+    見えなくなります。
+  </p>
+
+  <div class="warn">
+    <h3>過去データの扱い</h3>
+    <p>
+      <strong>等級の付け直しは安全です。</strong>点数は保存済みで変わらず、
+      ラベルを貼り替えるだけだからです（給与の再計算とは性質が違います）。
+      バックアップを取ってから一括で再判定してください。
+    </p>
+    <p>
+      一方 <strong>not_food は遡って正確には判定できません</strong> ——
+      7万枚を採点し直すことになります。過去分は
+      <span class="k">total_score ≦ 5 かつ feedback が receipt / no food / invoice に一致</span>
+      するものだけを対象外に落とし、<strong>何件落としたかを報告する</strong>形を勧めます。
+      それ以外は触らない。曖昧なものを推測で消すと、あとで数字の説明がつかなくなります。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">設計</span>
+  <h2>レーンは列を1本足すだけ</h2>
+  <p>
+    検知ロジックは一切変えません。<strong>変えるのは行き先だけ</strong>です。
+    <span class="k">action_templates.lane</span> に既定を持たせ、
+    <span class="k">management_tasks.lane</span> に実際の行き先を記録します。
+  </p>
+  <pre class="sql">ALTER TABLE action_templates
+    ADD COLUMN IF NOT EXISTS lane TEXT NOT NULL DEFAULT 'urgent';
+ALTER TABLE management_tasks
+    ADD COLUMN IF NOT EXISTS lane TEXT NOT NULL DEFAULT 'urgent';</pre>
+  <p>
+    既定を <span class="k">urgent</span> にしてあるのが要点です。
+    <strong>足した直後の挙動は今日と完全に同じ</strong>で、テンプレートを1つずつ
+    <span class="k">review</span> に移すことで段階的に切り替わります。
+    戻すのもテンプレート1行です。
+  </p>
+
+  <div class="lanes">
+    <div class="lane u">
+      <span class="tag">Lane 1 · Urgent</span>
+      <h3>今日の営業に影響するもの</h3>
+      <ul>
+        <li>Rush Hour Check 未提出</li>
+        <li>Backup 50%未満</li>
+        <li>Disposal Report 未提出</li>
+        <li><strong>Product Quality D</strong>（新設・C は入れない）</li>
+        <li>Travel Path 衛生／Complaint 写真なし</li>
+        <li>（将来）Stock Shortage Risk</li>
+      </ul>
+      <p class="when">送信時刻にそのまま Inbox へ。今と同じ。</p>
+    </div>
+    <div class="lane r">
+      <span class="tag">Lane 2 · Morning Review</span>
+      <h3>時間を取って原因を考えるもの</h3>
+      <ul>
+        <li>Product Score <strong>C</strong></li>
+        <li>Prep Time 30分超（<strong>当面マニラのみ</strong>）</li>
+        <li>Backup 70%未満</li>
+        <li>KPI 系（コスト・売上）</li>
+      </ul>
+      <p class="when">当日は送らない。翌朝1本の Review にまとめる。</p>
+    </div>
+  </div>
+
+  <div class="warn">
+    <h3>いま緊急なものも、実は速くありません</h3>
+    <p>
+      送信から応答までの中央値は <span class="num">Rush Hour Check 未提出 = 223分</span>、
+      <span class="num">Disposal 未提出 = 196分</span>、Product Score = 123分。
+      <strong>全部が同じ箱にあると、何も緊急になりません。</strong>
+      分割の効果はここに出るはずなので、切替の前後でこの数字を測ってください。
+      「体感で軽くなった」では、次に増やすときの根拠になりません。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">設計</span>
+  <h2>朝のレビューは「1件のタスク」ではありません</h2>
+  <p>
+    16件のタスクを16回閉じる形にすると、いま起きていることの再演になります。
+    <strong>支店×日で1つのオブジェクト</strong>にし、最後の
+    <span class="k">Complete Morning Review</span> は1回だけ押します。
+  </p>
+  <pre class="sql">ops_reviews            -- 支店 × 日付 で1行
+  city, branch, review_date, status, assigned_to,
+  summary        JSONB   -- 生成時点の数字を保存する
+  manager_comment TEXT
+  completed_by, completed_at, generated_at
+
+ops_review_items       -- 写真1枚 / 遅延1件 で1行
+  review_id, kind ('quality' | 'prep_time'),
+  source_id,              -- product_score_results.id / aggregator_orders.id
+  payload   JSONB,        -- 表示に要る値（等級・写真URL・注文番号・分）
+  answer    JSONB,        -- 下記の回答
+  answered_by, answered_at</pre>
+  <p>
+    <span class="k">summary</span> を<strong>生成時に保存する</strong>のが重要です。
+    毎回その場で数え直す設計にすると、あとで同じレビューを開いたときに数字が
+    変わります。「9月5日のレビューで見た数字」が再現できなければ、
+    フィードバックの根拠になりません。
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow">設計</span>
+  <h2>写真1枚あたりの入力を、まず1タップにする</h2>
+  <p>
+    ご提案の4項目（Issue Type / Assessment / Root Cause / Action）を
+    全件に課すと、16枚 × 4問 = <strong>64回の選択</strong>になります。
+    これは確実に「早く消したい」を再発させます。
+  </p>
+  <p>
+    実測すると、現在の回答52件のうち <span class="num">19件（37%）に
+    <span class="k">no_issue</span> が含まれています</span>。
+    採点しているのはAIなので、Cの相当数は実際には問題がありません。
+  </p>
+
+  <div class="flow"><b>Step 1（全件・1タップ）</b>  この写真は？
+    [ 問題なし ] → その場で確定。以降の3問は出さない
+    [ 軽微 ]     ↓
+    [ 重大 ]     ↓
+
+<b>Step 2（軽微・重大のみ）</b>  何が / なぜ / どうした
+    Issue Type   … Presentation / Portion / Cutting / Topping /
+                   Packaging / Overcooked / Missing / Wrong / Other
+    Root Cause   … Training / Standard / Portion control /
+                   Backup / Rush / Ingredient / Other
+    Action Taken … Discord / 個別指導 / 研修 / レシピ確認 /
+                   作り直し / ブリーフィング / HQ報告 / 対応不要
+    Staff        … 複数選択（在籍者から。手入力させない）</div>
+
+  <p>
+    <strong>「No Issue Found」を Issue Type の選択肢に置かないでください。</strong>
+    それは「何が問題か」の答えではなく「問題ではない」という判断で、階層が違います。
+    いま同じ欄に混ざっているために <span class="k">no_issue, presentation</span> のような
+    矛盾した回答が実際に記録されています。
+  </p>
+
+  <div class="warn">
+    <h3>「問題なし」が多いこと自体が情報です</h3>
+    <p>
+      月末に<strong>「Cのうち何割が実際には問題なしだったか」</strong>を出してください。
+      その比率が高いままなら、直すべきは店舗ではなく採点の閾値です。
+      現場に毎朝16枚見せておいて、実は採点が厳しすぎただけ、という状態を
+      放置しないための数字です。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">運用</span>
+  <h2>いつ作り、誰に出すか</h2>
+  <ol class="plan">
+    <li>
+      <span class="n">05:00</span>
+      <div>
+        <h3>現地時刻で前日分を生成</h3>
+        <p>
+          マニラ 05:00（UTC 21:00）に前日のレビューを作ります。
+          <strong>日付は必ず現地時間で切ってください。</strong>
+          <span class="k">CURRENT_DATE</span> は UTC なので、そのまま使うと
+          マニラの朝8時までが「前日」に入ります。
+        </p>
+      </div>
+    </li>
+    <li>
+      <span class="n">担当</span>
+      <div>
+        <h3>前日の当番から引く</h3>
+        <p>
+          <span class="k">management_owner_roster</span> が曜日×支店で担当者を持っています。
+          <strong>「前日の曜日」で引けば、ご要望どおり当日の出勤先ではなく
+          前日の責任店舗になります。</strong>既存の表がそのまま使えます。
+        </p>
+      </div>
+    </li>
+    <li>
+      <span class="n">出口</span>
+      <div>
+        <h3>未完了は翌日に持ち越す。消さない</h3>
+        <p>
+          前日のレビューを完了せずに翌日を迎えたら、<strong>2日分が並びます</strong>。
+          自動で期限切れにしないでください。「プライムコストが基準超」と同じで、
+          昨日の品質問題は今日になっても真です。
+        </p>
+        <p>
+          ただし<strong>3日以上未完了が続いたら BO Dashboard に出す</strong>こと。
+          誰も見ていないレビューが静かに積み上がるのは、いま Inbox で
+          起きていることそのものです。
+        </p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <span class="eyebrow">順序</span>
+  <h2>出す順番</h2>
+  <p>まとめて出さず、この順で。各段階で1週間ずつ実データを見てください。</p>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>段階</th><th>内容</th><th>これで確かめること</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><span class="k">lane</span> 列を足す（既定 urgent＝挙動は不変）。<br>Product Score C だけを review に移す</td>
+          <td>Inbox の1日あたり件数がいくつ減るか。緊急の応答時間が縮むか</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>前日レビュー画面（サマリ＋C以下の写真＋1タップ判定）</td>
+          <td>「問題なし」の比率。1件あたりの所要時間</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Prep Time レビュー（<strong>マニラのみ</strong>）</td>
+          <td>30分超の件数が現場の実感と合うか</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Manager Comment とスタッフ紐づけ、月次の集計</td>
+          <td>誰に何回フィードバックしたかが追えるか</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">保留</span>
+  <h2>今は作らないほうがよいもの</h2>
+  <ul class="plain">
+    <li>
+      <strong>Stock Shortage Risk</strong> — 「次の納品までに切れる」を出すには、
+      日次在庫・納品予定日・消費速度の3つが揃っている必要があります。
+      揃っているか未確認です。<strong>先に3つのデータの欠測率を測ってから</strong>
+      判断させてください。欠測のある在庫から警告を出すと、
+      Product Scoring と同じ「大半がノイズのキュー」になります。
+    </li>
+    <li>
+      <strong>ドバイの Prep Time</strong> — 上記のとおり値が頭打ちです。
+      Keeta 側の取得を直すのが先で、直るまでは画面に
+      「ドバイは計測できていない」と<strong>明示</strong>してください。
+      黙って0件と出すと、良好だと読まれます。
+    </li>
+    <li>
+      <strong>C以下の自動スコア化・自動評価</strong> — ご提案に含まれていませんが、
+      念のため。写真から自動で店舗や個人を採点する方向には広げないでください。
+      いま人が「37%は問題なし」と判定している対象です。
+    </li>
+  </ul>
+</section>
+
+<footer>
+  <p>
+    Sushi ZEN Workforce OS · Store Operation Management Channel · 実装案 · 2026-09-06<br>
+    数字はすべて本番データの実測（採点 90日 70,345件 / タスク 30日 546件 /
+    Prep Time 直近5日 / 応答時間 全期間）。推定値は含みません。
+  </p>
+</footer>
+
+</div>

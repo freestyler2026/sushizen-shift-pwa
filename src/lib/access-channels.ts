@@ -124,6 +124,7 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/store/evaluation", { channel: "store_evaluation", match: "prefix", admin: false }],
   ["/store/expense-request", { channel: "store_expense_request", match: "prefix", admin: false }],
   ["/store/management/inbox", { channel: "store.management_inbox", match: "prefix", admin: false }],
+  ["/store/management/review", { channel: "store.management_review", match: "prefix", admin: false }],
   ["/store/management/rush-check", { channel: "store.management_rush_check", match: "prefix", admin: false }],
   ["/store/my-nte", { channel: "my_notices", match: "prefix", admin: false }],
   ["/store/overtime-request", { channel: "store_overtime_request", match: "prefix", admin: false }],
