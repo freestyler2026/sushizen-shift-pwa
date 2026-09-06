@@ -37,8 +37,19 @@ Last updated: 2026-09-06（Receipt Log に支払方法・管理一覧をメニ�
 - `unrecorded` で絞れる／合計と内訳（支払方法・支店・月別）が完全一致
 - トークンなし401・一般スタッフ403・Ayako/Yuri/Francis は開ける・Camilla は不可
 
+**マニュアル（2026-09-06 作成）**
+- `docs/manuals/receipt-log-manual.html` — **日英切替式**・スタッフ向け。
+  artifact: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33
+- 既定は英語（実際に入力するのは現地スタッフ・UIも英語）。トグルは右上、
+  localStorage に保存（例外は握りつぶして英語で表示＝JSが死んでも全文読める）。
+- 冒頭に「どのページを使うか」（Receipt Log / Expense Reimbursement / Petty Cash）。
+  **払ったのが誰のお金か**で分岐させる。ページ間違いが一番高くつくため。
+- 実物のレシート（Rustan's のトリュフペースト ₱2,100）を図として使い、
+  どの数字をどの欄に写すかを示す。Vatable/VAT に分けないことを明記。
+- **送信後は編集も削除もできない**ことを警告として明記（実際にAPIが無い）。
+  「訂正のためにもう1件送る」を禁止し、当日中に事務へ連絡する導線を書いた。
+
 **未着手**
-- 税務・証憑マニュアルに Receipt Log の章がまだ無い（CLAUDE.md の表には追加済み）
 - カード明細（Unionbank）の取込は未着手。現状は「画面の Company card 合計と
   明細を目視で突き合わせる」まで。自動照合をやるなら明細のCSV/PDF形式の確認から
 

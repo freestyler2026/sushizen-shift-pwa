@@ -1,0 +1,676 @@
+<title>Receipt Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Public+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  /* Light is the base set. Every token is declared here first, so the
+     un-stamped "system" state always resolves. */
+  :root {
+    --paper:       #F2F4F1;
+    --surface:     #FFFFFF;
+    --sunken:      #E7EBE6;
+    --ink:         #1B211C;
+    --ink-soft:    #4A554C;
+    --muted:       #616C63;
+    --line:        #D8DED8;
+    --line-soft:   #E6EAE5;
+    --accent:      #2F6B4F;
+    --accent-ink:  #2A6047;
+    --accent-wash: #E1EDE5;
+    --flag:        #A2542F;
+    --flag-wash:   #F6E9E0;
+    --shadow:      0 1px 2px rgba(27, 33, 28, .06);
+    --measure:     36rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:       #121712;
+      --surface:     #1B221C;
+      --sunken:      #232B24;
+      --ink:         #E4EAE3;
+      --ink-soft:    #BCC6BC;
+      --muted:       #93A095;
+      --line:        #2E382F;
+      --line-soft:   #262F27;
+      --accent:      #7FB99A;
+      --accent-ink:  #9BCBB0;
+      --accent-wash: #1D2B23;
+      --flag:        #D89163;
+      --flag-wash:   #2C231C;
+      --shadow:      none;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:       #121712;
+    --surface:     #1B221C;
+    --sunken:      #232B24;
+    --ink:         #E4EAE3;
+    --ink-soft:    #BCC6BC;
+    --muted:       #93A095;
+    --line:        #2E382F;
+    --line-soft:   #262F27;
+    --accent:      #7FB99A;
+    --accent-ink:  #9BCBB0;
+    --accent-wash: #1D2B23;
+    --flag:        #D89163;
+    --flag-wash:   #2C231C;
+    --shadow:      none;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Public Sans", "Noto Sans JP", -apple-system, BlinkMacSystemFont,
+                 "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: Archivo, "Noto Sans JP", -apple-system, "Hiragino Sans", sans-serif;
+    font-weight: 700;
+    text-wrap: balance;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.012em;
+  }
+  h1 { font-size: clamp(1.9rem, 5.2vw, 2.6rem); line-height: 1.15; }
+  h2 { font-size: clamp(1.3rem, 3.4vw, 1.6rem); line-height: 1.25; }
+  h3 { font-size: 1.03rem; line-height: 1.4; font-weight: 600; }
+
+  p  { margin: 0 0 0.85rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 600; }
+  a { color: var(--accent-ink); }
+
+  code, .mono, kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- language switch ------------------------------------------------- */
+  /* English is the resting state: the whole manual reads with no script.  */
+  .ja { display: none; }
+  :root[data-lang="ja"] .ja { display: revert; }
+  :root[data-lang="ja"] .en { display: none; }
+
+  /* --- chrome ----------------------------------------------------------- */
+
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem clamp(1rem, 4vw, 2rem);
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar .who {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.7rem; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .langs { display: flex; gap: 2px; background: var(--sunken); border-radius: 8px; padding: 2px; }
+  .langs button {
+    font: inherit; font-size: 0.82rem; font-weight: 600;
+    border: 0; border-radius: 6px; padding: 0.3rem 0.75rem;
+    background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .langs button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .langs button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 47rem; margin: 0 auto; padding: clamp(1.75rem, 5vw, 3.25rem) clamp(1rem, 4vw, 2rem) 5rem; }
+
+  header.lede { padding-bottom: 1.75rem; border-bottom: 1px solid var(--line); }
+  .lede p { font-size: 1.08rem; color: var(--ink-soft); margin-top: 0.85rem; }
+
+  section { margin-top: 3rem; }
+  .eyebrow {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 0.4rem;
+  }
+  section > h2 + p, section > .eyebrow + h2 + p { margin-top: 0.7rem; }
+
+  /* --- which page ------------------------------------------------------- */
+
+  .routes { display: grid; gap: 0.6rem; margin-top: 1.1rem; }
+  .route {
+    display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.85rem;
+    align-items: baseline;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 0.85rem 1rem;
+  }
+  .route .mark {
+    font-family: "JetBrains Mono", monospace; font-weight: 600;
+    font-size: 0.82rem; color: var(--accent);
+  }
+  .route.other .mark { color: var(--muted); }
+  .route h3 { grid-column: 2; }
+  .route p { grid-column: 2; margin: 0; font-size: 0.94rem; color: var(--ink-soft); }
+  .route .where {
+    grid-column: 2; font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem;
+  }
+
+  /* --- steps ------------------------------------------------------------ */
+
+  ol.steps { list-style: none; margin: 1.25rem 0 0; padding: 0; display: grid; gap: 0; }
+  ol.steps > li {
+    display: grid; grid-template-columns: 2.1rem 1fr; gap: 0 0.9rem;
+    padding: 1.1rem 0; border-top: 1px solid var(--line-soft);
+  }
+  ol.steps > li:first-child { border-top: 1px solid var(--line); }
+  ol.steps .n {
+    font-family: "JetBrains Mono", monospace; font-weight: 600;
+    font-size: 0.85rem; color: var(--accent); padding-top: 0.28rem;
+  }
+  ol.steps h3 { margin-bottom: 0.3rem; }
+  ol.steps p { font-size: 0.96rem; }
+
+  ul.plain { margin: 0.6rem 0 0; padding-left: 1.1rem; }
+  ul.plain li { margin-bottom: 0.3rem; max-width: var(--measure); font-size: 0.96rem; }
+
+  /* --- the slip --------------------------------------------------------- */
+
+  .slip {
+    background: var(--sunken); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1rem 1.15rem;
+    font-family: "JetBrains Mono", monospace; font-size: 0.8rem; line-height: 1.65;
+    white-space: pre; overflow-x: auto; color: var(--ink);
+    margin: 1rem 0;
+  }
+  .slip b { color: var(--accent-ink); font-weight: 600; }
+
+  .keyed { display: grid; gap: 0.45rem; margin-top: 0.9rem; }
+  .keyed > div { display: grid; grid-template-columns: 1.6rem 1fr; gap: 0.7rem; align-items: baseline; }
+  .keyed .k { font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: 0.9rem; }
+  .keyed p { margin: 0; font-size: 0.94rem; }
+
+  /* --- callouts --------------------------------------------------------- */
+
+  .note, .warn {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-wash);
+    border-radius: 0 10px 10px 0;
+    padding: 0.9rem 1.1rem;
+    margin: 1.1rem 0;
+  }
+  .warn { border-left-color: var(--flag); background: var(--flag-wash); }
+  .note p, .warn p { font-size: 0.96rem; color: var(--ink); }
+  .note h3, .warn h3 { margin-bottom: 0.3rem; }
+
+  /* --- payment methods -------------------------------------------------- */
+
+  .methods { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line);
+             border-radius: 10px; overflow: hidden; margin-top: 1.1rem; }
+  .method { background: var(--surface); padding: 0.85rem 1rem; display: grid;
+            grid-template-columns: 1fr; gap: 0.15rem; }
+  .method .name { font-weight: 600; font-family: "JetBrains Mono", monospace; font-size: 0.9rem; }
+  .method .when { font-size: 0.94rem; color: var(--ink-soft); }
+  .method.card { background: var(--accent-wash); }
+  .method.card .name { color: var(--accent-ink); }
+
+  /* --- tables ----------------------------------------------------------- */
+
+  .scroller { overflow-x: auto; margin-top: 1.1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.94rem; min-width: 30rem; }
+  th, td { text-align: left; padding: 0.65rem 0.8rem; border-bottom: 1px solid var(--line-soft);
+           vertical-align: top; }
+  th { font-family: "JetBrains Mono", monospace; font-size: 0.7rem; letter-spacing: 0.1em;
+       text-transform: uppercase; color: var(--muted); font-weight: 400;
+       border-bottom: 1px solid var(--line); }
+  td:first-child { color: var(--ink); font-weight: 600; }
+  td.amt { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+
+  .ui { font-family: "JetBrains Mono", monospace; font-size: 0.86em;
+        background: var(--sunken); color: var(--ink); border-radius: 4px; padding: 0.08em 0.38em;
+        white-space: nowrap; }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 0.88rem; }
+  footer p { max-width: none; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="bar">
+  <span class="who">
+    <span class="en">Sushi ZEN &middot; Receipt Log</span>
+    <span class="ja">Sushi ZEN・レシート記録</span>
+  </span>
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-set="en" aria-pressed="true">English</button>
+    <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="lede">
+  <h1>
+    <span class="en">Logging what you bought</span>
+    <span class="ja">買ったものを記録する</span>
+  </h1>
+  <p class="en">
+    You bought something with the company's money. Receipt Log is where that
+    money gets written down &mdash; on the same day, from your phone, with a
+    photo of the slip. Two minutes at the till saves the office a week at the
+    end of the month.
+  </p>
+  <p class="ja">
+    会社のお金で何かを買ったとき、その支出を書き留める場所が Receipt Log です。
+    その日のうちに、スマホから、レシートの写真をつけて。レジで2分かけておくと、
+    月末の事務作業が1週間分減ります。
+  </p>
+</header>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">Before you start</span><span class="ja">はじめに</span>
+  </span>
+  <h2>
+    <span class="en">Is this the right page?</span>
+    <span class="ja">このページで合っていますか</span>
+  </h2>
+  <p class="en">
+    Three pages look similar. The one you need depends on <strong>whose money
+    paid for it</strong>.
+  </p>
+  <p class="ja">
+    似たページが3つあります。<strong>誰のお金で払ったか</strong>で決まります。
+  </p>
+
+  <div class="routes">
+    <div class="route">
+      <span class="mark">&rarr;</span>
+      <h3><span class="en">Receipt Log</span><span class="ja">Receipt Log（このページ）</span></h3>
+      <p class="en">Company money. Company cash on hand, the company card, or company GCash. Nobody owes you anything &mdash; you are recording that the money left.</p>
+      <p class="ja">会社のお金で払った場合。店の現金、会社カード、会社の GCash。誰からもお金は戻ってきません。お金が出たことを記録するだけです。</p>
+      <div class="where">Menu &rarr; Expenses &amp; Cash &rarr; Receipt Log</div>
+    </div>
+    <div class="route other">
+      <span class="mark">&ne;</span>
+      <h3><span class="en">Expense Reimbursement</span><span class="ja">Expense Reimbursement</span></h3>
+      <p class="en">Your own money. You paid out of your own pocket and want it back. This one is approved, then paid to you.</p>
+      <p class="ja">自分のお金で立て替えた場合。承認を経て、あとで返金されます。</p>
+      <div class="where">Menu &rarr; Expenses &amp; Cash &rarr; Expense Reimbursement</div>
+    </div>
+    <div class="route other">
+      <span class="mark">&ne;</span>
+      <h3><span class="en">Petty Cash</span><span class="ja">Petty Cash</span></h3>
+      <p class="en">Asking for cash before you buy, and settling the float afterwards.</p>
+      <p class="ja">買う前に小口現金を申請し、あとで精算する場合。</p>
+      <div class="where">Menu &rarr; Expenses &amp; Cash &rarr; Petty Cash</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3><span class="en">If you are not sure, use Receipt Log</span><span class="ja">迷ったら Receipt Log</span></h3>
+    <p class="en">A purchase recorded on the wrong page can be moved by the office. A purchase recorded nowhere is found weeks later on a bank statement, by someone who has to guess what it was.</p>
+    <p class="ja">ページを間違えても事務側で移せます。どこにも記録しなかった支出は、数週間後に明細の中から見つかり、それが何だったのかを誰かが推測することになります。</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">The seven fields</span><span class="ja">7つの入力</span>
+  </span>
+  <h2>
+    <span class="en">Logging one receipt</span>
+    <span class="ja">1件を記録する</span>
+  </h2>
+  <p class="en">In order, top to bottom. It takes about two minutes.</p>
+  <p class="ja">上から順に。だいたい2分です。</p>
+
+  <ol class="steps">
+    <li>
+      <span class="n">01</span>
+      <div>
+        <h3><span class="en">City, Branch and Department</span><span class="ja">City / Branch / Department</span></h3>
+        <p class="en">The branch is <strong>where the goods are going</strong>, not where the shop is. Truffle paste bought in Makati for the Commissary Kitchen is <span class="ui">CK</span>. Department is who used it &mdash; Kitchen, Operations, Admin, Maintenance, Logistics or Other.</p>
+        <p class="ja">Branch は<strong>その品物が使われる場所</strong>で、買った店の場所ではありません。マカティで買っても、届け先がコミサリーなら <span class="ui">CK</span> です。Department は使った部署（Kitchen / Operations / Admin / Maintenance / Logistics / Other）。</p>
+      </div>
+    </li>
+    <li>
+      <span class="n">02</span>
+      <div>
+        <h3><span class="en">Purchase Date</span><span class="ja">Purchase Date</span></h3>
+        <p class="en">The date printed on the slip, not today's date. They are usually the same, which is the point &mdash; log it the day you buy it.</p>
+        <p class="ja">レシートに印字された日付です。今日の日付ではありません。ふつうは同じになります。買った日に入れれば同じになるからです。</p>
+      </div>
+    </li>
+    <li>
+      <span class="n">03</span>
+      <div>
+        <h3><span class="en">Supplier / Store</span><span class="ja">Supplier / Store</span></h3>
+        <p class="en">Start typing and the shops you have used before appear. <strong>Pick from the list when it is there.</strong> &ldquo;Rustan&rsquo;s Marketplace&rdquo; and &ldquo;Rustans marketplace&rdquo; become two different suppliers in every report that follows.</p>
+        <p class="ja">入力し始めると、過去に使った店が出ます。<strong>候補にあれば必ず候補から選んでください。</strong>「Rustan's Marketplace」と「Rustans marketplace」は、以後のすべての集計で別々の仕入先として扱われます。</p>
+      </div>
+    </li>
+    <li>
+      <span class="n">04</span>
+      <div>
+        <h3><span class="en">The items</span><span class="ja">明細</span></h3>
+        <p class="en">One line per item on the slip: name, quantity, unit, amount. The amount is the <strong>line total</strong>, not the price of one. Four jars at &#8369;525 is one line of &#8369;2,100. Press <span class="ui">+ Add item</span> for the next line; the Total adds itself up.</p>
+        <p class="ja">レシートの品目ごとに1行。名前・数量・単位・金額。金額は<strong>その行の合計</strong>で、単価ではありません。525ペソ×4個なら、1行 2,100 です。<span class="ui">+ Add item</span> で行を足すと、Total は自動で計算されます。</p>
+      </div>
+    </li>
+    <li>
+      <span class="n">05</span>
+      <div>
+        <h3><span class="en">Paid with</span><span class="ja">Paid with（支払方法）</span></h3>
+        <p class="en">Nothing is chosen for you. This is the field the office cannot fill in later &mdash; only you were standing at the till. See the next section.</p>
+        <p class="ja">既定値はありません。<strong>あとから事務側が埋めることのできない唯一の項目</strong>です。レジにいたのはあなただけだからです。次の節を読んでください。</p>
+      </div>
+    </li>
+    <li>
+      <span class="n">06</span>
+      <div>
+        <h3><span class="en">Receipt Photo</span><span class="ja">Receipt Photo（レシート写真）</span></h3>
+        <p class="en">Tap the box, take the photo there and then. The app shrinks it before sending, so it works on a slow connection.</p>
+        <p class="ja">枠をタップしてその場で撮影します。送信前にアプリ側で縮小するので、回線が遅くても送れます。</p>
+        <ul class="plain">
+          <li class="en">Flat on a table, not held up in the air.</li>
+          <li class="en">The whole slip in frame &mdash; the shop name at the top and the total at the bottom.</li>
+          <li class="en">Long slip? Fold it so the total sits under the items, and shoot once.</li>
+          <li class="ja">机に平らに置いて撮る（手に持って撮らない）。</li>
+          <li class="ja">上の店名から下の合計まで、レシート全体を入れる。</li>
+          <li class="ja">長いレシートは折って、合計が明細の下に来るようにして1枚で撮る。</li>
+        </ul>
+      </div>
+    </li>
+    <li>
+      <span class="n">07</span>
+      <div>
+        <h3><span class="en">Notes, then Submit</span><span class="ja">Notes、そして送信</span></h3>
+        <p class="en">Notes is optional. Use it for the thing a reader would otherwise have to ask: <span class="ui">Urgent, ran out mid-service</span>, or <span class="ui">Replaces the broken one</span>. Then <span class="ui">Submit Receipt</span>.</p>
+        <p class="ja">Notes は任意です。あとで誰かが聞きたくなることを書きます（例：<span class="ui">営業中に切らしたため急遽購入</span>、<span class="ui">破損したものの買い替え</span>）。最後に <span class="ui">Submit Receipt</span>。</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="warn">
+    <h3><span class="en">A sent entry cannot be edited or deleted</span><span class="ja">送信後は編集も削除もできません</span></h3>
+    <p class="en">Not by you, and not by the office. Check the total and the date before you press Submit. If you do send a wrong one, <strong>tell the office the same day</strong> with the shop, the date and the amount &mdash; they will keep it out of the month's figures by hand. Do not send a second entry to &ldquo;correct&rdquo; it; that makes two.</p>
+    <p class="ja">あなたも事務側も直せません。送信前に金額と日付を確認してください。間違えて送ってしまった場合は、<strong>その日のうちに</strong>店名・日付・金額を事務に伝えてください。月次の集計から手作業で除きます。<strong>「訂正のためにもう1件送る」はしないでください。</strong>2件になります。</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">Worked example</span><span class="ja">記入例</span>
+  </span>
+  <h2>
+    <span class="en">A real slip, field by field</span>
+    <span class="ja">実際のレシートで見る</span>
+  </h2>
+  <p class="en">Truffle paste for the Commissary Kitchen, bought on the company card at Rustan&rsquo;s Marketplace, Rockwell.</p>
+  <p class="ja">コミサリー用のトリュフペーストを、会社カードで Rustan's Marketplace（Rockwell）にて購入した場合。</p>
+
+  <div class="slip">    THE MARKETPLACE BY RUSTAN'S
+ LOWER G/F ROCKWELL DRIVE COR ESTRELLA ST
+              MAKATI CITY
+**********  SALES INVOICE  **********
+<b>MOLINERA TRUFFLE PAS</b> 04800593439913
+   <b>4 X P525.00/Unit</b>        <b>2,100.00</b> V
+TOTAL                       <b>P2,100.00</b>
+  Vatable                      1,875.00
+  VAT                            225.00
+  Total                        2,100.00
+Str No: 0721  <b>Date:09/06/2026</b>  09:30:26
+SI No: 0000074000</div>
+
+  <div class="keyed">
+    <div><span class="k">03</span><p class="en"><strong>Supplier</strong> &mdash; <span class="ui">Rustan&rsquo;s Marketplace</span>, picked from the list.</p><p class="ja"><strong>Supplier</strong> &mdash; 候補から <span class="ui">Rustan's Marketplace</span> を選ぶ。</p></div>
+    <div><span class="k">02</span><p class="en"><strong>Purchase Date</strong> &mdash; <span class="ui">2026-09-06</span>, from <span class="mono">Date:09/06/2026</span>.</p><p class="ja"><strong>Purchase Date</strong> &mdash; <span class="mono">Date:09/06/2026</span> を読んで <span class="ui">2026-09-06</span>。</p></div>
+    <div><span class="k">04</span><p class="en"><strong>Item</strong> &mdash; <span class="ui">Molinera Truffle Paste</span>, qty <span class="ui">4</span>, unit <span class="ui">jar</span>, amount <span class="ui">2100</span>. The line total, not 525.</p><p class="ja"><strong>明細</strong> &mdash; <span class="ui">Molinera Truffle Paste</span> / 数量 <span class="ui">4</span> / 単位 <span class="ui">jar</span> / 金額 <span class="ui">2100</span>。単価 525 ではなく行の合計。</p></div>
+    <div><span class="k">05</span><p class="en"><strong>Paid with</strong> &mdash; <span class="ui">Company card</span>.</p><p class="ja"><strong>Paid with</strong> &mdash; <span class="ui">Company card</span>。</p></div>
+  </div>
+
+  <div class="note">
+    <h3><span class="en">Enter the total as printed &mdash; &#8369;2,100</span><span class="ja">金額はレシートどおり &mdash; ₱2,100</span></h3>
+    <p class="en">Philippine slips break the total into <span class="mono">Vatable</span> and <span class="mono">VAT</span>. Do not split it. The figure you type is what left the account, which is the figure the card statement will show.</p>
+    <p class="ja">フィリピンのレシートは合計を <span class="mono">Vatable</span> と <span class="mono">VAT</span> に分けて印字します。<strong>分けて入力しないでください。</strong>入力するのは口座から出た金額で、それがカード明細に載る金額です。</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">The field that matters most</span><span class="ja">いちばん大事な欄</span>
+  </span>
+  <h2>
+    <span class="en">Paid with</span>
+    <span class="ja">Paid with &mdash; 何で払ったか</span>
+  </h2>
+  <p class="en">
+    Pick the one you actually used. Getting this right is what lets the office
+    close the month <strong>without waiting for the bank</strong>.
+  </p>
+  <p class="ja">
+    実際に使ったものを選びます。ここが正しく入っていると、事務側は
+    <strong>銀行の明細を待たずに</strong>その月を締められます。
+  </p>
+
+  <div class="methods">
+    <div class="method">
+      <span class="name">Cash</span>
+      <span class="when en">Company cash you were given or that sits at the store. Not your own wallet.</span>
+      <span class="when ja">店で預かっている、あるいは会社から受け取った現金。自分の財布は含みません。</span>
+    </div>
+    <div class="method card">
+      <span class="name">Company card &mdash; Unionbank VISA &bull;&bull;4689</span>
+      <span class="when en">The one company card. You do not type the number &mdash; there is only this card, so the system already knows it.</span>
+      <span class="when ja">会社のカードは1枚だけです。番号は入力しません。システムが既に知っています。</span>
+    </div>
+    <div class="method">
+      <span class="name">GCash</span>
+      <span class="when en">The company GCash account.</span>
+      <span class="when ja">会社の GCash から支払った場合。</span>
+    </div>
+    <div class="method">
+      <span class="name">Bank transfer</span>
+      <span class="when en">Paid to the supplier's account directly.</span>
+      <span class="when ja">仕入先の口座へ直接振り込んだ場合。</span>
+    </div>
+    <div class="method">
+      <span class="name">Other</span>
+      <span class="when en">Anything else. Say what it was in Notes, or nobody can match it later.</span>
+      <span class="when ja">それ以外。何で払ったかを Notes に書いてください。書かないと後で照合できません。</span>
+    </div>
+  </div>
+
+  <div class="warn">
+    <h3><span class="en">Your own money is not on this list</span><span class="ja">自分のお金はこの一覧にありません</span></h3>
+    <p class="en">If you paid from your own pocket, close this page and use <strong>Expense Reimbursement</strong>. Logging it here records the expense but never pays you back.</p>
+    <p class="ja">自分のお金で立て替えた場合は、このページを閉じて <strong>Expense Reimbursement</strong> を使ってください。ここに入れると支出は記録されますが、<strong>返金はされません。</strong></p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">Why the same day</span><span class="ja">なぜ当日か</span>
+  </span>
+  <h2>
+    <span class="en">The reason for the hurry</span>
+    <span class="ja">急いでほしい理由</span>
+  </h2>
+  <p class="en">
+    A card purchase used to reach the books only when the Unionbank statement
+    arrived &mdash; weeks later, as a line reading a shop name and an amount, with
+    nobody left who remembered what was in the bag. That is why the month was
+    always closed in a rush.
+  </p>
+  <p class="ja">
+    以前は、カードで買ったものが帳簿に載るのは Unionbank の明細が届いてからでした。
+    数週間後に、店名と金額だけの1行として。中身を覚えている人はもう誰もいません。
+    月末に慌てて集計していたのはこのためです。
+  </p>
+  <p class="en">
+    Logged at the till, the expense is settled the moment it happens. The
+    statement then has one job left: agreeing with a number that is already
+    written down.
+  </p>
+  <p class="ja">
+    レジで記録すれば、支出はその瞬間に確定します。明細に残る役目は
+    <strong>すでに書かれている数字と一致するかを確かめること</strong>だけになります。
+  </p>
+
+  <div class="note">
+    <h3><span class="en">Check your own entries</span><span class="ja">自分の記録を確認する</span></h3>
+    <p class="en"><span class="ui">My Recent Submissions</span> at the bottom of the page shows what you sent, with the payment method next to it. Look at it once before you leave the store &mdash; a wrong tap is easy to spot now and impossible to spot in November.</p>
+    <p class="ja">ページ下部の <span class="ui">My Recent Submissions</span> に、送信した内容と支払方法が並びます。店を出る前に1度見てください。押し間違いは今なら気づけますが、11月には気づけません。</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">For the office</span><span class="ja">事務・管理側</span>
+  </span>
+  <h2>
+    <span class="en">The month in one screen</span>
+    <span class="ja">1画面で月を見る</span>
+  </h2>
+  <p class="en">
+    <span class="mono">Menu &rarr; Expenses &rarr; Receipt Log</span> on the admin
+    side opens on twelve months of totals. Click a month to load it; it splits
+    that month by branch and by payment method.
+  </p>
+  <p class="ja">
+    管理側の <span class="mono">Menu &rarr; Expenses &rarr; Receipt Log</span> を開くと、
+    12ヶ月分の合計が並びます。月をクリックするとその月が読み込まれ、
+    支店別・支払方法別に分かれて表示されます。
+  </p>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th><span class="en">Row</span><span class="ja">行</span></th>
+          <th><span class="en">What it is for</span><span class="ja">用途</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Company card</td>
+          <td><span class="en">The figure the Unionbank statement should come to for that month. Match the statement against this, not the other way round.</span><span class="ja">その月の Unionbank 明細と一致すべき金額。明細をこちらに合わせます（逆ではありません）。</span></td>
+        </tr>
+        <tr>
+          <td>Cash</td>
+          <td><span class="en">Compare with what actually left the cash box.</span><span class="ja">実際に金庫から出た現金と突き合わせます。</span></td>
+        </tr>
+        <tr>
+          <td>Not recorded</td>
+          <td><span class="en">Entries made before the field existed. Click the row to filter to them; each has a picker to set the method, one at a time.</span><span class="ja">支払方法の欄ができる前の記録。行をクリックすると絞り込めます。各行の選択欄から1件ずつ設定します。</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="en" style="margin-top:1.1rem"><span class="ui">Export CSV</span> carries the payment method too, so the statement can be reconciled in a spreadsheet.</p>
+  <p class="ja" style="margin-top:1.1rem"><span class="ui">Export CSV</span> にも支払方法の列が入ります。明細との突き合わせは表計算でも行えます。</p>
+
+  <div class="warn">
+    <h3><span class="en">Nobody backfills &ldquo;Not recorded&rdquo; in bulk</span><span class="ja">「Not recorded」を一括で埋めない</span></h3>
+    <p class="en">Only the person who made the purchase knows what they paid with. A bulk update could only mean calling all of them cash, and a cash total that includes card spend is worse than a gap that is honest about itself.</p>
+    <p class="ja">何で払ったかを知っているのは、買った本人だけです。一括更新は「全部現金だったことにする」以外に方法がありません。カード払いを含んだ現金合計は、正直に空いている欄より有害です。</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">
+    <span class="en">When it does not work</span><span class="ja">うまくいかないとき</span>
+  </span>
+  <h2>
+    <span class="en">What to do</span>
+    <span class="ja">対処</span>
+  </h2>
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th><span class="en">What you see</span><span class="ja">出る表示</span></th>
+          <th><span class="en">What to do</span><span class="ja">対処</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="mono">Please choose how this was paid</span></td>
+          <td><span class="en">The <span class="ui">Paid with</span> row above Notes has nothing selected. Tap one.</span><span class="ja">Notes の上にある <span class="ui">Paid with</span> が未選択です。1つ選んでください。</span></td>
+        </tr>
+        <tr>
+          <td><span class="mono">At least one item with an amount is required</span></td>
+          <td><span class="en">An item line has a name but no amount, or the amount is 0.</span><span class="ja">明細に名前はあるが金額が空、または 0 になっています。</span></td>
+        </tr>
+        <tr>
+          <td><span class="mono">Supplier / store name is required</span></td>
+          <td><span class="en">You picked from the suggestion list but the box cleared. Type the name again.</span><span class="ja">候補から選んだのに欄が空になっています。もう一度入力してください。</span></td>
+        </tr>
+        <tr>
+          <td><span class="mono">Upload failed</span></td>
+          <td><span class="en">The photo did not reach us. <strong>Send the entry anyway</strong> &mdash; an expense with no photo beats no expense &mdash; then give the paper slip to the office.</span><span class="ja">写真が届いていません。<strong>記録自体は送信してください。</strong>写真の無い記録のほうが、記録が無いよりましです。紙のレシートは事務に渡してください。</span></td>
+        </tr>
+        <tr>
+          <td><span class="en">The shop is not in the list</span><span class="ja">店が候補に出ない</span></td>
+          <td><span class="en">Type it in full. It joins the list for next time.</span><span class="ja">正式名称を入力してください。次回から候補に出ます。</span></td>
+        </tr>
+        <tr>
+          <td><span class="en">No Receipt Log in your menu</span><span class="ja">メニューに Receipt Log が無い</span></td>
+          <td><span class="en">Look under <span class="ui">Expenses &amp; Cash</span>; the groups are collapsed by default. Still missing &mdash; ask the office to check your access.</span><span class="ja"><span class="ui">Expenses &amp; Cash</span> の中にあります（既定では折りたたまれています）。それでも無い場合は、事務に権限を確認してください。</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p class="en">
+    Sushi ZEN Workforce OS &middot; Receipt Log &middot; Describes the page as
+    deployed on 6&nbsp;September&nbsp;2026. Anything here that does not match
+    your screen is a fault in this guide &mdash; say so rather than working
+    around it.
+  </p>
+  <p class="ja">
+    Sushi ZEN Workforce OS・Receipt Log・2026年9月6日時点の画面に基づきます。
+    書かれていることと画面が違う場合は、<strong>この説明書の不具合</strong>です。
+    回避策で済ませず、そのまま伝えてください。
+  </p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".langs button"));
+
+    function apply(lang) {
+      root.setAttribute("data-lang", lang);
+      root.setAttribute("lang", lang === "ja" ? "ja" : "en");
+      buttons.forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b.dataset.set === lang));
+      });
+    }
+
+    // A stored choice is a convenience, never a requirement: a private window
+    // or blocked site data throws here, and the page still reads in English.
+    var saved = null;
+    try { saved = localStorage.getItem("zen:receipt-log-lang"); } catch (e) { saved = null; }
+    apply(saved === "ja" ? "ja" : "en");
+
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        var lang = b.dataset.set;
+        apply(lang);
+        try { localStorage.setItem("zen:receipt-log-lang", lang); } catch (e) { /* not essential */ }
+      });
+    });
+  })();
+</script>
