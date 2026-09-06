@@ -43,6 +43,10 @@ interface ParLevel {
   source: string;
   updated_by: string | null;
   updated_at: string;
+  /** Empty means the plain row: closing, any day. Two rows for one item are not
+      duplicates — they are different scopes, and the screen has to say so. */
+  shift: string;
+  day_type: string;
   /** What the last N days of closing reports said. Absent until the server
       has statistics for this item — a par nobody has ever reported against. */
   stats?: {
@@ -55,14 +59,15 @@ interface ParLevel {
   days_below?: number;
 }
 
-type Verdict = "unit_mixed" | "unit_mismatch" | "too_high" | "no_data" | "thin" | "consistent";
+type Verdict = "no_par" | "unit_mixed" | "unit_mismatch" | "too_high" | "no_data" | "thin" | "consistent";
 
 // Dealt with in this order: something the alert cannot read at all, then a par
 // that cries wolf, then one with nothing behind it, then one with too little,
 // then the ones the reports already agree with.
-const VERDICT_ORDER: Verdict[] = ["unit_mixed", "unit_mismatch", "too_high", "no_data", "thin", "consistent"];
+const VERDICT_ORDER: Verdict[] = ["no_par", "unit_mixed", "unit_mismatch", "too_high", "no_data", "thin", "consistent"];
 
 const VERDICT_STYLE: Record<Verdict, { label: string; cls: string }> = {
+  no_par:        { label: "No par",       cls: "text-red-300 bg-red-500/12 border-red-500/25" },
   unit_mixed:    { label: "Unit mixed",   cls: "text-red-300 bg-red-500/12 border-red-500/25" },
   unit_mismatch: { label: "Unit differs", cls: "text-red-300 bg-red-500/12 border-red-500/25" },
   too_high:      { label: "Too high",     cls: "text-orange-300 bg-orange-500/12 border-orange-500/25" },
@@ -168,6 +173,10 @@ export default function ParLevelsPage() {
           unit: row.unit,
           par_qty: value,
           updated_by: auth?.staffName || null,
+          // Sent back as it came, or the save creates a second plain row
+          // instead of editing the one on screen.
+          shift: row.shift || "",
+          day_type: row.day_type || "",
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -413,7 +422,8 @@ export default function ParLevelsPage() {
                 {/* The rule, on the screen. A threshold nobody can see is a
                     threshold nobody trusts. */}
                 Sorted worst first. Figures are the lowest / middle / highest daily total
-                over the last {windowDays} days of closing reports. An alert fires below
+                over the last {windowDays} days, counting only the reports each row applies
+                to — closing and any day unless the row says otherwise. An alert fires below
                 70% of par.
               </caption>
               <thead>
@@ -435,7 +445,14 @@ export default function ParLevelsPage() {
                     <tr key={r.id} className={TABLE_ROW}>
                       <td className="py-2.5 pl-2 text-sm text-zinc-300">{r.branch_code}</td>
                       <td className="py-2.5 text-xs text-zinc-500">{r.section || "—"}</td>
-                      <td className="py-2.5 text-sm text-zinc-100">{r.item_name}</td>
+                      <td className="py-2.5 text-sm text-zinc-100">
+                        {r.item_name}
+                        {r.shift || r.day_type ? (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-violet-300/80 border border-violet-400/25 rounded px-1 py-0.5">
+                            {[r.shift, r.day_type].filter(Boolean).join(" · ")}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-2.5 text-right">
                         <input
                           className="w-24 rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-sm text-white text-right tabular-nums outline-none focus:border-violet-500/50"
