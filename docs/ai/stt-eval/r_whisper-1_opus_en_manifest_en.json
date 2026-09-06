@@ -1,0 +1,106 @@
+{
+ "tag": "whisper-1/opus/lang=en",
+ "wer": 0.05513784461152882,
+ "rows": [
+  {
+   "id": "en_fil_014",
+   "ref": "Virtual teams are held to the same standards of excellence as conventional teams, but there are subtle differences.",
+   "hyp": "Virtual teams are held to the same standard of excellence as conventional teams, but there are subtle differences."
+  },
+  {
+   "id": "en_fil_005",
+   "ref": "In the north the region is bounded by the Sahel, and in the south and west by the Atlantic Ocean.",
+   "hyp": "In the north the region is bounded by the Sahel and in the south and west by the Atlantic Ocean."
+  },
+  {
+   "id": "en_fil_004",
+   "ref": "Hydrogen ions are protons that had their electrons stripped off them (since Hydrogen atoms consist of one proton and one electron).",
+   "hyp": "Hydrogen ions are protons that have their electrons stripped off them, since hydrogen atoms consist of one proton and one electron."
+  },
+  {
+   "id": "en_fil_002",
+   "ref": "The ruling party, South West Africa People's Organisation (SWAPO), also retained a majority in the parliamentary elections.",
+   "hyp": "The ruling party Southwest Africa People's Organization also retained a majority in the parliamentary elections."
+  },
+  {
+   "id": "en_fil_011",
+   "ref": "Similarly, by having a Schengen visa, you do not need to apply for visas to each of the Schengen member countries separately, hence saving time, money and paperwork.",
+   "hyp": "Similarly, by having a Schengen visa, you do not need to apply for visas to each of the Schengen member countries separately, hence saving time, money, and paperwork."
+  },
+  {
+   "id": "en_fil_016",
+   "ref": "The find also grants insight into the evolution of feathers in birds.",
+   "hyp": "The find also grabs insight into the evolution of feathers in birds."
+  },
+  {
+   "id": "en_fil_010",
+   "ref": "On some routes, the larger companies have their own planes, but for other routes and smaller firms there was a problem.",
+   "hyp": "On some routes, the larger companies have their own planes, but for other routes and smaller firms, there was a problem."
+  },
+  {
+   "id": "en_fil_001",
+   "ref": "Six hostages, including the children and elderly, were released early, as were the Filipino photographers.",
+   "hyp": "Six hostages, including the children and elderly, were released early, as were the Filipino photographers."
+  },
+  {
+   "id": "en_fil_019",
+   "ref": "This is not going to be goodbye. This is the closing of one chapter and the opening of a new one.",
+   "hyp": "This is not going to be goodbye. This is the closing of one chapter and the opening of a new one."
+  },
+  {
+   "id": "en_fil_009",
+   "ref": "Barcelona's official languages are Catalan and Spanish. About a half prefer to speak Catalan, a vast majority understands it, and virtually everyone knows Spanish.",
+   "hyp": "Barcelona's official languages are Catalan and Spanish. About half have preferred to speak Catalan, a vast majority understands it, and virtually everyone knows Spanish."
+  },
+  {
+   "id": "en_fil_018",
+   "ref": "Accepted were Aristotle's views on all matters of science, including psychology.",
+   "hyp": "Accepted were Aristotle's views on all matters of science including physiology."
+  },
+  {
+   "id": "en_fil_017",
+   "ref": "Be firm in turning down men, and don't be afraid to stand your ground (cultural differences or not, it doesn't make it ok!).",
+   "hyp": "Be firm in turning down men, and don't be afraid to stand your ground. Cultural differences or not, it doesn't make it okay."
+  },
+  {
+   "id": "en_fil_003",
+   "ref": "A full 20 percent of the water that pours out of the planet's rivers into the oceans comes from the Amazon.",
+   "hyp": "A full 20% of the water that pours out of the Plains Rivers into the oceans comes from the Amazon."
+  },
+  {
+   "id": "en_fil_006",
+   "ref": "Finland is a great boating destination. The \"Land of a thousand lakes\" has thousands of islands too, in the lakes and in the coastal archipelagos.",
+   "hyp": "Finland is a great boating destination. The land of a thousand lakes has thousands of islands too, and the lakes are in the coastal archipelagos."
+  },
+  {
+   "id": "en_fil_007",
+   "ref": "In 2002 Goma was destroyed by lava from the Nyiragongo volcano which buried most of the town’s streets, particularly the town centre.",
+   "hyp": "In 2002, Goma was destroyed by lava from the Nyiragongo volcano which buried most of the town's streets, particularly the town center."
+  },
+  {
+   "id": "en_fil_012",
+   "ref": "The smaller the Rossby number, the less active the star with respect to magnetic reversals.",
+   "hyp": "The smaller the Rossby number, the less active the star with respect to magnetic reversals."
+  },
+  {
+   "id": "en_fil_000",
+   "ref": "Its long jaws were studded with more than 70 razor-sharp teeth, along with an extra set in the roof of its mouth, meaning that there was no escape for anything that crossed its path.",
+   "hyp": "His long jaws were studded with more than 70 razor-sharp teeth along with an extra set in the roof of its mouth, meaning that there was no escape for anything that crossed his path."
+  },
+  {
+   "id": "en_fil_008",
+   "ref": "Lakkha Singh presented the chhappan bhog bhajan as well. Singer, Raju Khandelwal was accompanying him.",
+   "hyp": "Lakha Singh presented the Sharpan Bhajan as well. Singer Raju Khandelwal was accompanying him."
+  },
+  {
+   "id": "en_fil_013",
+   "ref": "Apia is the capital of Samoa. The town is on the island of Upolu and has a population of just under 40,000.",
+   "hyp": "Apia is the capital of Samoa. The town is on the island of Upolu and has a population of just under 40,000."
+  },
+  {
+   "id": "en_fil_015",
+   "ref": "After the accident occurred, Gibson was transported to a hospital but died shortly afterwards.",
+   "hyp": "After the accident occurred, Gibson was transported to a hospital but died shortly afterwards."
+  }
+ ]
+}

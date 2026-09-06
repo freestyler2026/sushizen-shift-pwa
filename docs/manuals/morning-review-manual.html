@@ -1,0 +1,574 @@
+<title>The Morning Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --paper:      #F2F4F6;
+    --surface:    #FFFFFF;
+    --sunken:     #E5E9ED;
+    --ink:        #141A21;
+    --ink-soft:   #3E4855;
+    --muted:      #5C6673;
+    --line:       #D5DBE2;
+    --line-soft:  #E6EAEF;
+    --now:        #A8451F;
+    --now-wash:   #F8E8E1;
+    --later:      #1C6667;
+    --later-wash: #DCEBEB;
+    --accent:     #2B4C7E;
+    --accent-wash:#E1E8F3;
+    --measure:    36rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #10141A;
+      --surface:    #191F27;
+      --sunken:     #212832;
+      --ink:        #E5EAF0;
+      --ink-soft:   #BCC5D0;
+      --muted:      #929BA8;
+      --line:       #2C333E;
+      --line-soft:  #242B34;
+      --now:        #E28C6B;
+      --now-wash:   #2B1F1A;
+      --later:      #6DB8B9;
+      --later-wash: #14282A;
+      --accent:     #8FAEDD;
+      --accent-wash:#1A2334;
+    }
+  }
+  :root[data-theme="dark"] {
+      --paper:      #10141A;
+      --surface:    #191F27;
+      --sunken:     #212832;
+      --ink:        #E5EAF0;
+      --ink-soft:   #BCC5D0;
+      --muted:      #929BA8;
+      --line:       #2C333E;
+      --line-soft:  #242B34;
+      --now:        #E28C6B;
+      --now-wash:   #2B1F1A;
+      --later:      #6DB8B9;
+      --later-wash: #14282A;
+      --accent:     #8FAEDD;
+      --accent-wash:#1A2334;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Instrument Sans", "Noto Sans JP", -apple-system, sans-serif;
+    font-size: 16.5px; line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: "Instrument Sans", "Noto Sans JP", sans-serif;
+    font-weight: 700; text-wrap: balance; margin: 0; color: var(--ink);
+    letter-spacing: -0.015em;
+  }
+  h1 { font-size: clamp(1.9rem, 5vw, 2.7rem); line-height: 1.14; }
+  h2 { font-size: clamp(1.25rem, 3.2vw, 1.55rem); line-height: 1.3; }
+  h3 { font-size: 1.02rem; font-weight: 600; line-height: 1.5; }
+  p { margin: 0 0 0.85rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 700; }
+  .mono, code { font-family: "IBM Plex Mono", ui-monospace, monospace;
+                font-variant-numeric: tabular-nums; font-size: 0.88em; }
+  .ui { font-family: "IBM Plex Mono", monospace; font-size: 0.85em;
+        background: var(--sunken); color: var(--ink);
+        border-radius: 4px; padding: 0.08em 0.4em; white-space: nowrap; }
+
+  /* language */
+  .ja { display: none; }
+  :root[data-lang="ja"] .ja { display: revert; }
+  :root[data-lang="ja"] .en { display: none; }
+
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.55rem clamp(1rem, 4vw, 2rem);
+    background: var(--paper); border-bottom: 1px solid var(--line);
+  }
+  .bar .who { font-family: "IBM Plex Mono", monospace; font-size: 0.7rem;
+              letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); }
+  .langs { display: flex; gap: 2px; background: var(--sunken); border-radius: 8px; padding: 2px; }
+  .langs button { font: inherit; font-size: 0.82rem; font-weight: 600; border: 0;
+                  border-radius: 6px; padding: 0.28rem 0.72rem; background: transparent;
+                  color: var(--muted); cursor: pointer; }
+  .langs button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+  .langs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 48rem; margin: 0 auto; padding: clamp(1.9rem, 5vw, 3.25rem) clamp(1rem, 4vw, 2rem) 6rem; }
+  header.top { padding-bottom: 1.6rem; border-bottom: 2px solid var(--ink); }
+  header.top p { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0.9rem; }
+  header.top .meta { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem;
+                     letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+  section { margin-top: 3.25rem; }
+  .eyebrow { display: block; font-family: "IBM Plex Mono", monospace; font-size: 0.7rem;
+             letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent);
+             margin-bottom: 0.35rem; }
+  section > h2 { margin-bottom: 0.9rem; }
+
+  /* the morning, as a sequence with real clock times */
+  .clockline { margin-top: 1.3rem; }
+  .slot { display: grid; grid-template-columns: 4.6rem 1fr; gap: 0 1.1rem;
+          padding: 1.05rem 0; border-top: 1px solid var(--line-soft); }
+  .slot:first-child { border-top: 1px solid var(--line); }
+  .slot .t { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem;
+             color: var(--accent); font-weight: 500; padding-top: 0.32rem; }
+  .slot h3 { margin-bottom: 0.25rem; }
+  .slot p { font-size: 0.96rem; }
+
+  /* the two lanes */
+  .lanes { display: grid; gap: 0.85rem; margin-top: 1.2rem; }
+  @media (min-width: 44rem) { .lanes { grid-template-columns: 1fr 1fr; } }
+  .lane { border-radius: 12px; padding: 1.05rem 1.2rem; border: 1px solid var(--line); }
+  .lane.now   { border-color: var(--now);   background: var(--now-wash); }
+  .lane.later { border-color: var(--later); background: var(--later-wash); }
+  .lane .tag { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem;
+               letter-spacing: 0.12em; text-transform: uppercase;
+               display: block; margin-bottom: 0.3rem; }
+  .lane.now .tag { color: var(--now); }
+  .lane.later .tag { color: var(--later); }
+  .lane ul { margin: 0.6rem 0 0; padding-left: 1.05rem; }
+  .lane li { margin-bottom: 0.26rem; font-size: 0.94rem; }
+  .lane .when { font-size: 0.87rem; color: var(--muted); margin-top: 0.65rem; }
+
+  .screen { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; line-height: 1.65;
+            background: var(--sunken); border: 1px solid var(--line); border-radius: 10px;
+            padding: 0.95rem 1.1rem; margin: 1rem 0; white-space: pre; overflow-x: auto;
+            color: var(--ink); }
+  .screen b { font-weight: 500; color: var(--accent); }
+
+  .note, .warn { border-left: 3px solid var(--accent); background: var(--accent-wash);
+                 border-radius: 0 10px 10px 0; padding: 0.9rem 1.1rem; margin: 1.15rem 0; }
+  .warn { border-left-color: var(--now); background: var(--now-wash); }
+  .note h3, .warn h3 { margin-bottom: 0.28rem; }
+  .note p, .warn p { font-size: 0.95rem; }
+
+  ul.plain { margin: 0.6rem 0 0; padding-left: 1.05rem; }
+  ul.plain li { margin-bottom: 0.32rem; font-size: 0.96rem; max-width: var(--measure); }
+
+  .scroller { overflow-x: auto; margin: 1.05rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 27rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line-soft);
+           vertical-align: top; }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 0.67rem; letter-spacing: 0.09em;
+       text-transform: uppercase; color: var(--muted); font-weight: 400;
+       border-bottom: 1px solid var(--line); }
+  td.n { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 0.88rem; }
+  footer p { max-width: none; }
+</style>
+
+<div class="bar">
+  <span class="who">
+    <span class="en">Sushi ZEN · Store Operation Management</span>
+    <span class="ja">Sushi ZEN・店舗運営管理</span>
+  </span>
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-set="en" aria-pressed="true">English</button>
+    <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="top">
+  <span class="meta">Deployed 6 September 2026</span>
+  <h1>
+    <span class="en">The morning review</span>
+    <span class="ja">朝のレビュー</span>
+  </h1>
+  <p class="en">
+    The inbox now has two streams. Things that change today reach you when they
+    happen; yesterday&rsquo;s product photos wait until the morning, on one screen,
+    with time to look at them. This is what changed and why.
+  </p>
+  <p class="ja">
+    Inbox が2本になりました。<strong>今日の営業に関わるものはその場で届き、
+    前日の商品写真は翌朝に1画面でまとまって届きます。</strong>
+    何がどう変わったかを書きます。
+  </p>
+</header>
+
+<section>
+  <span class="eyebrow"><span class="en">Why</span><span class="ja">なぜ変えたか</span></span>
+  <h2>
+    <span class="en">Sixty per cent of the inbox was one thing</span>
+    <span class="ja">Inbox の6割が1種類でした</span>
+  </h2>
+  <p class="en">
+    Over thirty days the channel raised 546 items and 327 of them &mdash; sixty per
+    cent &mdash; were product scores of C. A missing rush hour check sat in the same
+    list, in the same colour, behind nine photo alerts.
+  </p>
+  <p class="ja">
+    30日間に546件が発生し、そのうち<strong>327件（6割）が Product Score の C</strong>
+    でした。Rush Hour Check の未提出が、同じ一覧の同じ色で、写真のアラート9件の
+    後ろに並んでいました。
+  </p>
+  <p class="en">
+    It showed in the response times. A missing rush hour check took a median of
+    <strong>223 minutes</strong> to answer; a missing disposal report, 196.
+    When everything is in one box, nothing is urgent.
+  </p>
+  <p class="ja">
+    応答時間に出ていました。Rush Hour Check 未提出の応答は中央値
+    <strong>223分</strong>、Disposal 未提出は196分。
+    <strong>全部が同じ箱にあると、何も緊急になりません。</strong>
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">What changed</span><span class="ja">変わったこと</span></span>
+  <h2>
+    <span class="en">Two streams</span>
+    <span class="ja">2本のレーン</span>
+  </h2>
+  <div class="lanes">
+    <div class="lane now">
+      <span class="tag">Act now</span>
+      <h3><span class="en">Reaches you when it happens</span><span class="ja">その場で届く</span></h3>
+      <ul>
+        <li><span class="en">Rush hour check not filed</span><span class="ja">Rush Hour Check 未提出</span></li>
+        <li><span class="en">Backup below par</span><span class="ja">Backup が Par 割れ</span></li>
+        <li><span class="en">Disposal report not filed</span><span class="ja">Disposal Report 未提出</span></li>
+        <li><span class="en"><strong>Product scored D or below</strong></span><span class="ja"><strong>Product Score が D 以下</strong></span></li>
+        <li><span class="en">Hygiene and cost alerts</span><span class="ja">衛生・コストのアラート</span></li>
+      </ul>
+      <p class="when en">1&ndash;9 a day across all branches.</p>
+      <p class="when ja">全支店で1日1〜9件。</p>
+    </div>
+    <div class="lane later">
+      <span class="tag">Review when quiet</span>
+      <h3><span class="en">Waits for the next morning</span><span class="ja">翌朝まで待つ</span></h3>
+      <ul>
+        <li><span class="en"><strong>Product scored C</strong></span><span class="ja"><strong>Product Score が C</strong></span></li>
+        <li><span class="en">Slow orders from yesterday</span><span class="ja">前日の遅い注文</span></li>
+      </ul>
+      <p class="when en">5&ndash;16 a branch. None of it needs an answer during service.</p>
+      <p class="when ja">1支店あたり5〜16件。営業中に答える必要はありません。</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3><span class="en">D is a new grade</span><span class="ja">D は新しい等級です</span></h3>
+    <p class="en">
+      F used to hold two unrelated things. Of 937 F grades over ninety days, 508
+      scored 30&ndash;44 and were real food that was not good enough, while 118 scored
+      under 5 and were photographs of receipts and POS screens. A bucket that
+      means both &ldquo;remake this&rdquo; and &ldquo;that is not a dish&rdquo; cannot be acted on.
+    </p>
+    <p class="ja">
+      これまでの F には別物が2つ入っていました。90日のF 937件のうち、
+      <strong>30〜44点の508件は本物の料理で出来が悪いもの</strong>、
+      <strong>5点未満の118件はレシートやPOS画面の写真</strong>でした。
+      「作り直せ」と「これは料理ではない」が同じ箱にあると、対処できません。
+    </p>
+    <p class="en">
+      <strong>D now means: it was made, it was served, and it was not good
+      enough.</strong> Photos with no dish in them are no longer graded at all.
+    </p>
+    <p class="ja">
+      <strong>D は「作って出したが、出来が良くない」を指します。</strong>
+      料理が写っていない写真は、そもそも採点されなくなりました。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">The routine</span><span class="ja">朝の流れ</span></span>
+  <h2>
+    <span class="en">Your morning</span>
+    <span class="ja">朝にやること</span>
+  </h2>
+  <div class="clockline">
+    <div class="slot">
+      <span class="t">05:00</span>
+      <div>
+        <h3><span class="en">The review is built</span><span class="ja">レビューが作られる</span></h3>
+        <p class="en">Automatically, per branch, for the day that just ended. Nothing to press.</p>
+        <p class="ja">前日ぶんが支店ごとに自動で作られます。押す操作はありません。</p>
+      </div>
+    </div>
+    <div class="slot">
+      <span class="t">on arrival</span>
+      <div>
+        <h3><span class="en">Look at the kitchen first &mdash; 10 to 15 minutes</span><span class="ja">まず厨房を見る（10〜15分）</span></h3>
+        <p class="en">Before opening anything on a screen.</p>
+        <p class="ja">画面を開く前に。</p>
+      </div>
+    </div>
+    <div class="slot">
+      <span class="t">then</span>
+      <div>
+        <h3><span class="en">Morning Review &mdash; 30 to 45 minutes</span><span class="ja">Morning Review（30〜45分）</span></h3>
+        <p class="en">
+          <span class="ui">Menu &rarr; Daily Checks &rarr; Morning Review</span>.
+          The number on the menu is what is waiting for you.
+        </p>
+        <p class="ja">
+          <span class="ui">メニュー → Daily Checks → Morning Review</span>。
+          メニューの数字が、あなたを待っている件数です。
+        </p>
+        <div class="note">
+          <p class="en"><strong>It is yesterday&rsquo;s branch, not today&rsquo;s.</strong>
+            The review goes to whoever was on duty for that branch on that day,
+            taken from the roster. If you covered Taft yesterday and are at
+            Parañaque today, Taft&rsquo;s review is yours.</p>
+          <p class="ja"><strong>当日の出勤先ではなく、前日の責任店舗です。</strong>
+            当番表からその日の担当者を引いています。昨日 Taft を見ていて今日
+            Parañaque にいるなら、届くのは Taft のレビューです。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">On the screen</span><span class="ja">画面</span></span>
+  <h2>
+    <span class="en">The summary comes first</span>
+    <span class="ja">最初にサマリ</span>
+  </h2>
+  <p class="en">
+    These are the figures as they stood when the review was made. They do not
+    change when you open it again, so a review from last week still shows what
+    you acted on.
+  </p>
+  <p class="ja">
+    <strong>生成時点の数字を保存しています。</strong>開き直しても変わらないので、
+    先週のレビューを開いても、そのとき判断した数字がそのまま残ります。
+  </p>
+
+  <div class="screen">Taft &middot; 5 September 2026
+
+<b>Operation summary</b>
+  Delivery orders   85      Total orders  sales not imported yet
+  Photos graded    150      A/B 140/…     C/D/F  10 / 0 / 0
+  Issue rate       6.7%
+
+  Prep time    Measured 77   Over 30 min 5   Over 40 min 0
+               Worst 38 / avg 19
+
+  Backup  Filed &middot; 1 shortage    Rush  11 of 13 &middot; 2 missed    Disposal  Filed</div>
+
+  <ul class="plain">
+    <li class="en"><strong>Rush hour checks show the denominator.</strong> &ldquo;11 filed&rdquo; means nothing until you know whether the day asked for 11 or 13.</li>
+    <li class="en"><strong>Total orders is often blank.</strong> It comes from the sales import, which runs a day or two behind. It says so rather than showing a zero.</li>
+    <li class="en"><strong>Photos with no dish in them are excluded</strong> from the grades and from the issue rate, and counted separately.</li>
+    <li class="ja"><strong>Rush Hour Check は分母つきです。</strong>「11件提出」は、その日が11件を求めたのか13件だったのか分からなければ意味を持ちません。</li>
+    <li class="ja"><strong>Total orders はよく空欄になります。</strong>売上の取込が1〜2日遅れるためです。0と出さず「未取込」と書きます。</li>
+    <li class="ja"><strong>料理が写っていない写真は</strong>等級からも Issue rate からも除き、別に数えます。</li>
+  </ul>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">Answering</span><span class="ja">回答</span></span>
+  <h2>
+    <span class="en">One tap first, three questions only if needed</span>
+    <span class="ja">まず1タップ。必要なときだけ3問</span>
+  </h2>
+  <div class="screen"><b>This photo</b>
+  [ No actual issue ]  [ Not a dish ]   &larr; saves here, nothing more asked
+  [ Minor issue    ]  [ Critical    ]   &darr;
+
+<b>What was wrong</b>   Presentation / Portion / Cutting / Topping /
+                 Packaging / Overcooked / Missing / Wrong / Other
+<b>Why</b>              Training / Standard / Portion control /
+                 Backup / Rush / Ingredient / Other
+<b>What you did</b>     Discord / Individual feedback / Kitchen training /
+                 Recipe / Portion standard / Remade / Briefing /
+                 No action / Escalated to HQ / Other
+<b>Staff involved</b>   picked from the roster</div>
+
+  <p class="en">
+    Of the 52 answers on the old channel, <strong>19 said there was no issue</strong>.
+    Working through four questions to record that a photo was fine is how a list
+    becomes something to clear rather than something to read, so those two answers
+    end the item where they are.
+  </p>
+  <p class="ja">
+    旧チャンネルの回答52件のうち<strong>19件が「問題なし」</strong>でした。
+    問題のない写真1枚に4問答えさせると、<strong>作業の大半が「何も無かったことの
+    記録」</strong>になります。だからこの2つはその場で確定します。
+  </p>
+
+  <div class="note">
+    <h3><span class="en">&ldquo;Not a dish&rdquo; is not a complaint about you</span><span class="ja">「Not a dish」は遠慮なく押してください</span></h3>
+    <p class="en">
+      The scorer still misreads a prep tray or a sauce cup now and then, and
+      nothing in its wording gives it away. <strong>How often that button is
+      pressed is the only measurement we have of how often it is wrong.</strong>
+      Press it whenever it applies.
+    </p>
+    <p class="ja">
+      採点AIは今でも仕込みのトレーやソースカップを料理と読み違えることがあり、
+      文面からは判別できません。<strong>このボタンが押された回数だけが、
+      採点の誤りを測る唯一の手掛かりです。</strong>該当したら必ず押してください。
+    </p>
+  </div>
+
+  <p class="en">
+    Slow orders are asked about differently. There is no &ldquo;no issue&rdquo;: an order
+    that took 47 minutes took 47 minutes. You are asked why and what you did.
+  </p>
+  <p class="ja">
+    遅い注文には「問題なし」がありません。47分かかった注文は47分かかっています。
+    <strong>理由と対応だけを聞きます。</strong>
+  </p>
+
+  <div class="screen">38 min   GF-390   ordered 17:35 &rarr; ready 18:13
+
+<b>Why it took this long</b>  Too many orders / Insufficient backup /
+   Backup sufficient but production slow / Manpower /
+   Allocation / New staff / Ingredient / Order handling / Other
+<b>What you did</b>           Allocation changed / Backup adjusted /
+   Training / Process changed / No action / Escalated / Other</div>
+
+  <p class="en">
+    Every answer can be undone from the row you made it on. At the end there is
+    one comment box for the whole morning and one <span class="ui">Complete
+    morning review</span>.
+  </p>
+  <p class="ja">
+    すべての回答は<strong>押した行から取り消せます。</strong>最後に、朝全体について
+    1つのコメント欄と、<span class="ui">Complete morning review</span> が1つです。
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">Honest limits</span><span class="ja">できていないこと</span></span>
+  <h2>
+    <span class="en">What this does not do</span>
+    <span class="ja">正直に書きます</span>
+  </h2>
+  <div class="scroller">
+    <table>
+      <thead><tr>
+        <th><span class="en">Asked for</span><span class="ja">ご要望</span></th>
+        <th><span class="en">Where it stands</span><span class="ja">状況</span></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="en">Prep time in Dubai</span><span class="ja">ドバイの Prep Time</span></td>
+          <td>
+            <span class="en"><strong>Not shown, on purpose.</strong> Keeta reports ready-time at the 20-minute promise rather than when the kitchen finished: 203 of 1,023 orders sit at exactly 20 minutes and none above. Printing &ldquo;0 orders over 30 minutes&rdquo; from that would be a lie every morning.</span>
+            <span class="ja"><strong>意図的に出していません。</strong>Keeta の ready は「20分」という約束時刻で、厨房が完成させた時刻ではありません。1,023件中203件がちょうど20分、それ以上は0件。ここから「30分超 0件」と出すのは毎朝の嘘になります。</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="en">Dispatch time</span><span class="ja">Dispatch Time</span></td>
+          <td>
+            <span class="en"><strong>Not available.</strong> The platforms give order, acceptance and ready times. Nothing records when the rider took it.</span>
+            <span class="ja"><strong>データがありません。</strong>取得できるのは注文・受付・完成の3時刻で、配達員が持ち出した時刻は記録されていません。</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="en">Stock shortage risk</span><span class="ja">Stock Shortage Risk</span></td>
+          <td>
+            <span class="en"><strong>Not built.</strong> It needs daily stock, delivery dates and consumption rate together, and we have not yet measured how complete those three are. Building it on gappy data would make another list that is mostly noise.</span>
+            <span class="ja"><strong>未着手です。</strong>日次在庫・納品予定日・消費速度の3つが揃って初めて出せます。欠測率を測っていません。欠けたデータから警告を出すと、また大半がノイズの一覧ができます。</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="en">Repeat offences</span><span class="ja">繰り返しの可視化</span></td>
+          <td>
+            <span class="en"><strong>Not there yet, and it matters most.</strong> The screen does not tell you that this is the third time this month, or the same person as last week. Feedback and training are decided by &ldquo;this is the third time&rdquo;, not by one photo. It is next.</span>
+            <span class="ja"><strong>まだありません。ここが一番の未達です。</strong>「今月3回目」「先週と同じ人」が画面に出ません。フィードバックや研修は1枚の写真ではなく「3回目だから」で決めるものです。次に作ります。</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="warn">
+    <h3><span class="en">Dubai has no duty roster</span><span class="ja">ドバイは当番表が未設定です</span></h3>
+    <p class="en">
+      Dubai reviews are being generated but are addressed to nobody, so they do
+      not appear on anyone&rsquo;s screen and no badge lights up. Manila is set up.
+      Until a roster exists for Dubai, this is a Manila routine.
+    </p>
+    <p class="ja">
+      ドバイのレビューは生成されていますが<strong>宛先がありません。</strong>
+      誰の画面にも出ず、バッジも点きません。マニラは設定済みです。
+      当番表ができるまで、これはマニラの運用になります。
+    </p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow"><span class="en">What we are watching</span><span class="ja">これから測ること</span></span>
+  <h2>
+    <span class="en">Three numbers, in a week</span>
+    <span class="ja">1週間後に見る3つ</span>
+  </h2>
+  <ul class="plain">
+    <li>
+      <span class="en"><strong>How many answers say &ldquo;no actual issue&rdquo;.</strong> If it stays high, the thing to fix is the scoring threshold, not the kitchen.</span>
+      <span class="ja"><strong>「No actual issue」の比率。</strong>高いままなら、直すべきは店舗ではなく採点の閾値です。</span>
+    </li>
+    <li>
+      <span class="en"><strong>How often &ldquo;Not a dish&rdquo; is pressed.</strong> That is the scorer&rsquo;s error rate, and there is no other way to see it.</span>
+      <span class="ja"><strong>「Not a dish」が押された回数。</strong>採点の誤り率であり、他に見る方法がありません。</span>
+    </li>
+    <li>
+      <span class="en"><strong>Whether 223 minutes comes down.</strong> That is the response time on a missing rush hour check, and it is the whole reason for the split.</span>
+      <span class="ja"><strong>223分が縮むか。</strong>Rush Hour Check 未提出の応答時間で、分割した理由そのものです。</span>
+    </li>
+  </ul>
+  <p class="en" style="margin-top:1.1rem">
+    If anything on this page does not match what is on your screen, that is a
+    fault in this guide. Say so rather than working around it.
+  </p>
+  <p class="ja" style="margin-top:1.1rem">
+    このページの記述と画面が違う場合は、<strong>この説明書の不具合</strong>です。
+    回避せず、そのまま伝えてください。
+  </p>
+</section>
+
+<footer>
+  <p class="en">
+    Sushi ZEN Workforce OS &middot; Store Operation Management Channel &middot;
+    Describes the system as deployed on 6 September 2026. Figures are measured
+    from production: 546 channel items and 70,345 product scores over ninety
+    days, prep times over the last fourteen.
+  </p>
+  <p class="ja">
+    Sushi ZEN Workforce OS・Store Operation Management Channel・
+    2026年9月6日時点。数字はすべて本番の実測（90日で チャンネル546件・
+    採点70,345件、Prep Time は直近14日）。
+  </p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".langs button"));
+    function apply(lang) {
+      root.setAttribute("data-lang", lang);
+      root.setAttribute("lang", lang === "ja" ? "ja" : "en");
+      buttons.forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b.dataset.set === lang));
+      });
+    }
+    // A stored choice is a convenience, never a requirement: a private window
+    // throws here, and the page still reads in English.
+    var saved = null;
+    try { saved = localStorage.getItem("zen:morning-review-lang"); } catch (e) { saved = null; }
+    apply(saved === "ja" ? "ja" : "en");
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        apply(b.dataset.set);
+        try { localStorage.setItem("zen:morning-review-lang", b.dataset.set); } catch (e) {}
+      });
+    });
+  })();
+</script>

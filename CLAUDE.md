@@ -53,6 +53,7 @@
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
 | **Receipt Log**（`/store/receipt-log` 入力フォーム / `/admin/procurement/receipt-log` 全件一覧・月次） | **Receipt Log**（日英切替・スタッフ向け） | `docs/manuals/receipt-log-manual.html` |
+| **Morning Review**（`/store/management/review` / レーン分割 / D評価 / 前日レビューの生成） | **The Morning Review**（日英切替・マネージャー向け） | `docs/manuals/morning-review-manual.html` |
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 
@@ -112,6 +113,14 @@
    - file_path: docs/manuals/receipt-log-manual.html
    - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）
    - favicon: 🧾
+
+   - file_path: docs/manuals/morning-review-manual.html
+   - url: https://claude.ai/code/artifact/14fd264c-7a57-4489-a604-21f869666e7b   ← The Morning Review（日英切替）
+   - favicon: 🌅
+   ※ **日英切替式**（既定は英語）。読者はマニラの店舗マネージャーと、日本側の管理。
+     「できていないこと」の表は削らないこと — ドバイのPrep Time・Dispatch Time・
+     Stock Shortage・繰り返しの可視化が未達であることを現場が知っている状態が、
+     この文書の価値。実装が進んだら表から消す。
    ※ **日英切替式**（右上のトグル・既定は英語）。読者はレジに立つ店舗スタッフと、
      月次を締めるマニラ／日本の事務。既定を日本語にしないこと — 実際に入力するのは
      現地スタッフで、UIも英語のため。片方の言語だけ直すと、もう片方が嘘になる。

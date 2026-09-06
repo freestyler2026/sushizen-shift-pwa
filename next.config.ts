@@ -6,11 +6,23 @@ const IS_DEV = process.env.NODE_ENV === "development";
 const CONNECT_SRC = IS_DEV
   ? "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https: ws: wss:;"
   : "connect-src 'self' https: wss:;";
+// Where a page is allowed to ask for hardware. The default denies the
+// microphone outright, and `microphone=()` denies it to THIS origin too -- the
+// browser refuses getUserMedia before it ever asks the person, so the voice
+// screening failed on every device with "the browser is not letting us use the
+// microphone". It read like a laptop problem and was ours.
+//
+// Two pages record: /apply, where an applicant answers straight after sending
+// the form, and /voice/:token, where they answer from an invite link. Those get
+// microphone=(self); everything else keeps the deny.
+const PERMISSIONS_DENY_MIC = "camera=(), microphone=(), geolocation=(self)";
+const PERMISSIONS_ALLOW_MIC = "camera=(), microphone=(self), geolocation=(self)";
+
 const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+  { key: "Permissions-Policy", value: PERMISSIONS_DENY_MIC },
   {
     key: "Content-Security-Policy",
     value:
@@ -96,13 +108,27 @@ const nextConfig: NextConfig = {
       ...SECURITY_HEADERS,
       { key: "Cache-Control", value: "private, no-store, must-revalidate" },
     ] as const;
+    // Same set, with the microphone allowed to this origin. Built by swapping
+    // the one value rather than writing a second list: a copy would drift, and
+    // the copy is the one that would quietly lose the CSP.
+    const recordingPage = pageNoStore.map((h) =>
+      h.key === "Permissions-Policy"
+        ? { key: h.key, value: PERMISSIONS_ALLOW_MIC }
+        : h,
+    );
     return [
       { source: "/admin", headers: [...pageNoStore] },
       { source: "/admin/:path*", headers: [...pageNoStore] },
+      // Before the catch-all, and excluded from it below. Next sends every
+      // matching entry, and two Permissions-Policy headers are intersected by
+      // the browser -- the deny would win and nothing would change.
+      { source: "/apply", headers: [...recordingPage] },
+      { source: "/voice/:path*", headers: [...recordingPage] },
       {
         // Apply no-store to all routes except Next.js static bundles and image optimizer,
-        // which have their own immutable content-hash cache busting.
-        source: "/((?!_next/static|_next/image).*)",
+        // which have their own immutable content-hash cache busting -- and except
+        // the two recording pages, which set their own policy above.
+        source: "/((?!_next/static|_next/image|apply$|voice/).*)",
         headers: [...pageNoStore],
       },
     ];

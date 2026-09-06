@@ -1,0 +1,106 @@
+{
+ "tag": "gpt-4o-transcribe/opus/lang=en",
+ "wer": 0.5101070154577884,
+ "rows": [
+  {
+   "id": "mix_fil_014",
+   "ref": "Virtual teams are held to the same standards of excellence as conventional teams, but there are subtle differences. Ang mga birtwal na pangkat ay pinasusunod din sa kaparehong mga pamantayan ng kagalingan na katulad ng mga karaniwang pangkat, nguni't may mga hindi halatang pagkakaiba.",
+   "hyp": "Ang mga birtwal na pangkat ay pinasusunod din sa kaparehong mga pamantayan ng kagalingan na katulad ng mga karaniwang pangkat, ngunit may mga hindi halatang pagkakaiba."
+  },
+  {
+   "id": "mix_fil_005",
+   "ref": "In the north the region is bounded by the Sahel, and in the south and west by the Atlantic Ocean. Sahel ang nasa hangganan ng rehiyon sa hilaga, at sa timog at kanluran ay ang Karagatang Atlantiko.",
+   "hyp": "Sahel ang nasa hangganan ng rehiyon sa hilaga, at sa timog at kanluran ay ang Karagatang Atlantiko."
+  },
+  {
+   "id": "mix_fil_004",
+   "ref": "Hydrogen ions are protons that had their electrons stripped off them (since Hydrogen atoms consist of one proton and one electron). Ang mga atom ng hydrogen ay binubuo lamang ng isang proton na hiwalay sa elekton nito, at ang hiwalay na ion ng hydrogen ay karaniwang tinatawag na proton.",
+   "hyp": "Ang mga atom ng hydrogen ay binubuo lamang ng isang proton na hiwalay sa elektron nito, at ang hiwalay na ion ng hydrogen ay karaniwang tinatawag na proton."
+  },
+  {
+   "id": "mix_fil_002",
+   "ref": "The ruling party, South West Africa People's Organisation (SWAPO), also retained a majority in the parliamentary elections. Napanatili rin ng namumunong partido, ang South West Africa People's Organisation (SWAPO), ang mayorya sa parlamentaryong eleksyon.",
+   "hyp": "Napanatili rin ng namumunong partido ang South West Africa People's Organisation (SWAPO) ang mayorya sa parlamentaryong eleksyon."
+  },
+  {
+   "id": "mix_fil_011",
+   "ref": "Similarly, by having a Schengen visa, you do not need to apply for visas to each of the Schengen member countries separately, hence saving time, money and paperwork. Gayundin naman, sa pagkakaroon ng Schengen visa, hindi mo kailangang mag-apply ng visa nang hiwalay sa bawat bansang miyembro ng Schengen, kaya nakakatipid ng oras, pera at asikasuhing papeles.",
+   "hyp": "Gayundin naman, sa pagkakaroon ng Schengen visa, hindi mo kailangan mag-apply ng visa nang hiwalay sa bawat bansang miyembro ng Schengen, kaya nakakatipid ng oras, pera, at asikasuhin papeles."
+  },
+  {
+   "id": "mix_fil_016",
+   "ref": "The find also grants insight into the evolution of feathers in birds. Ang natuklasan ay nagbigay din ng pananaw sa ebolusyon ng mga balahibo sa mga ibon.",
+   "hyp": "Ang natuklasan ay nagbigay din ng pananaw sa ebolusyon ng mga balahibo sa mga ibon."
+  },
+  {
+   "id": "mix_fil_010",
+   "ref": "On some routes, the larger companies have their own planes, but for other routes and smaller firms there was a problem. Sa ibang mga ruta, ang mas malalaking mga kompanya ay mayroong sariling mga eroplano, ngunit sa ibang mga ruta at mas maliit na mga kompanya mayroong problema.",
+   "hyp": "Sa ibang mga ruta, ang mas malalaking mga kumpanya ay mayroong sariling mga eroplano, ngunit sa ibang mga ruta at mas maliit na mga kumpanya, mayroong problema."
+  },
+  {
+   "id": "mix_fil_001",
+   "ref": "Six hostages, including the children and elderly, were released early, as were the Filipino photographers. Anim na bihag, kabilang ang mga bata at matatanda, ang maagang pinakawalan, gayon din ang mga Pilipinong potograpo.",
+   "hyp": "Anim na bihag, kabilang ang mga bata at matatanda, ang maagang pinakawalan, gayundin ang mga Pilipinong potograpo."
+  },
+  {
+   "id": "mix_fil_019",
+   "ref": "This is not going to be goodbye. This is the closing of one chapter and the opening of a new one. Hindi ito mauuwi sa pamamaalam. Pagsasara ito ng isang yugto at pagbubukas ng panibago.",
+   "hyp": "Hindi ito nauuwi sa pamamaalam, pagsasara ito ng isang yugto at pagbubukas ng panibago."
+  },
+  {
+   "id": "mix_fil_009",
+   "ref": "Barcelona's official languages are Catalan and Spanish. About a half prefer to speak Catalan, a vast majority understands it, and virtually everyone knows Spanish. Ang mga opisyal na lengguwahe ng Barcelona ay Catalan at Espanyol. Mga kalahati ang mas gustong magsalita ng Catalan, naiintindihan ito ng karamihan, at halos ay lahat alam ang Espanyol.",
+   "hyp": "Ang mga opisyal na lingguwahe ng Barcelona ay Catalan at Espanyol. Mga kalahati ang mas gustong magsalita ng Catalan, naiintindihan ito ng karamihan at halos lahat ay alam ang Espanyol."
+  },
+  {
+   "id": "mix_fil_018",
+   "ref": "Accepted were Aristotle's views on all matters of science, including psychology. Tinatanggap ang mga pananaw ni Aristotle tungkol sa lahat ng usapin sa siyensya, kabilang ang sikolohiya.",
+   "hyp": "Tinanggap ang mga pananaw ni Aristotle tungkol sa lahat ng usapin sa siyensa, kabilang ang sikolohiya."
+  },
+  {
+   "id": "mix_fil_017",
+   "ref": "Be firm in turning down men, and don't be afraid to stand your ground (cultural differences or not, it doesn't make it ok!). Maging matibay sa pagtanggi sa mga lalaki, at huwag matakot na manindigan (may mga pagkakaiba man sa kultura o wala, hindi pa rin ito katanggap-tanggap!).",
+   "hyp": "Maging matibay sa pagtanggi sa mga lalaki at huwag matakot na manindigan. May mga pagkakaiba man sa kultura o wala, hindi pa rin ito katanggap-tanggap."
+  },
+  {
+   "id": "mix_fil_003",
+   "ref": "A full 20 percent of the water that pours out of the planet's rivers into the oceans comes from the Amazon. Ang buong 20 porsiyento ng tubig na lumalabas mula sa mga ilog sa planeta patungo sa mga dagat ay mula sa Amazon.",
+   "hyp": "Ang buong dalawampung porsyento ng tubig na lumalabas mula sa mga ilog sa planeta patungo sa mga dagat ay mula sa Amazon."
+  },
+  {
+   "id": "mix_fil_006",
+   "ref": "Finland is a great boating destination. The \"Land of a thousand lakes\" has thousands of islands too, in the lakes and in the coastal archipelagos. Ang Finland ay napakagandang destinasyon para sa pagbabangka. Ang \"Lupain ng libo-libong lawa\" ay mayroon ding libo-libong isla, na nasa mga lawa at mga kapuluan sa kahabaan ng baybayin.",
+   "hyp": "Ang Finland ay napakagandang destinasyon para sa pagbabangka. Ang lupain ng libo-libong lawa ay mayroon ding libo-libong isla na nasa mga lawa at mga kapuluan sa kahabaan ng baybayin."
+  },
+  {
+   "id": "mix_fil_007",
+   "ref": "In 2002 Goma was destroyed by lava from the Nyiragongo volcano which buried most of the town’s streets, particularly the town centre. Noong 2002 nawasak ang Goma dahil sa lahar mula sa bulkan ng Nyiragongo na tumakip ng karamihan sa mga kalsada ng bayan, partikular na sa sentro ng bayan.",
+   "hyp": "Noong 2002, nawasak ang Goma dahil sa lahar mula sa bulkan ng Nyiragongo na tumakip ng karamihan sa mga kalsada ng bayan, partikular na sa sentro ng bayan."
+  },
+  {
+   "id": "mix_fil_012",
+   "ref": "The smaller the Rossby number, the less active the star with respect to magnetic reversals. Mas maliit ang bilang na Rosby, mas hindi gaanong aktibo ang bituin kaugnay ng mga magnetikong pagbabaliktad.",
+   "hyp": "Na sa maliit ang bilang ng Rossby, mas hindi gaanong aktibo ang bituin kaugnay ng mga magnetikong pagbabaliktad."
+  },
+  {
+   "id": "mix_fil_000",
+   "ref": "Its long jaws were studded with more than 70 razor-sharp teeth, along with an extra set in the roof of its mouth, meaning that there was no escape for anything that crossed its path. Ang mahahaba nitong mga panga ay may 70 na mga matutulis na ngipin, kasama na ang ekstrang hanay sa itaas ng bunganga nito, nangangahulugan na walang matatakasan ang sinuman na makasalubong nito.",
+   "hyp": "Ang mahaba nitong mga panga ay may pitumpu na mga matutulis na ngipin, kasama na ang ekstrang hanay sa itaas ng bunganga nito, nangangahulugan na walang matatakasan ang sinuman na makasalubong nito."
+  },
+  {
+   "id": "mix_fil_008",
+   "ref": "Lakkha Singh presented the chhappan bhog bhajan as well. Singer, Raju Khandelwal was accompanying him. Ipinresenta rin ni Lakkha Singh ang chhappan bhog. Sinasamahan siya noon ng mangangantang si Raju Khandelwal.",
+   "hyp": "Ipinresenta rin ni Laka Singh ang Chapan Bagh. Sinasamahan siya noon ng mangangantang si Raju Kandelwal."
+  },
+  {
+   "id": "mix_fil_013",
+   "ref": "Apia is the capital of Samoa. The town is on the island of Upolu and has a population of just under 40,000. Ang Apia ang kapitolyo ng Samoa. Ang bayan ay nasa pulo ng Upolu at may populasyong mababa lang nang kaunti sa 40,000.",
+   "hyp": "Ang Apia ang kabisera ng Samoa. Ang bayan ay nasa pulo ng Upolu at may populasyong mababa lang ng kaunti sa apatnapung libo."
+  },
+  {
+   "id": "mix_fil_015",
+   "ref": "After the accident occurred, Gibson was transported to a hospital but died shortly afterwards. Matapos maganap ang aksidente, si Gibson ay dinala sa ospital nguni't namatay di-nagtagal pagkatapos.",
+   "hyp": "Matapos maganap ang aksidente, si Gibson ay dinala sa ospital, ngunit namatay di nagtagal pagkatapos."
+  }
+ ]
+}

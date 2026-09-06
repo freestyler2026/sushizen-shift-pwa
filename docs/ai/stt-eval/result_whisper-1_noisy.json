@@ -1,0 +1,127 @@
+{
+ "engine": "whisper-1",
+ "condition": "noisy",
+ "wer": 0.5,
+ "rows": [
+  {
+   "id": "fil_000",
+   "wer": 0.6875,
+   "ref": "Ang mahahaba nitong mga panga ay may 70 na mga matutulis na ngipin, kasama na ang ekstrang hanay sa itaas ng bunganga nito, nangangahulugan na walang matatakasan ang sinuman na makasalubong nito.",
+   "hyp": "Ang mga ganitong mga kamay ay miti-pungkit na mga gilis na yuti, kasama ng aksistam-anay sa taas ng ginawa ko. Nangangakita ko na walang makataka-taka, hindi naman nakasabihin ako."
+  },
+  {
+   "id": "fil_001",
+   "wer": 1.0,
+   "ref": "Anim na bihag, kabilang ang mga bata at matatanda, ang maagang pinakawalan, gayon din ang mga Pilipinong potograpo.",
+   "hyp": ""
+  },
+  {
+   "id": "fil_002",
+   "wer": 1.0,
+   "ref": "Napanatili rin ng namumunong partido, ang South West Africa People's Organisation (SWAPO), ang mayorya sa parlamentaryong eleksyon.",
+   "hyp": "pang here it means that hisni Youthful Juhani Juhani Ltd. Juhani Ltd. Jahani Jahani Jahani"
+  },
+  {
+   "id": "fil_003",
+   "wer": 0.13636363636363635,
+   "ref": "Ang buong 20 porsiyento ng tubig na lumalabas mula sa mga ilog sa planeta patungo sa mga dagat ay mula sa Amazon.",
+   "hyp": "Ang buong 20% ng humbig na lumalabas mula sa mga ilog sa planeta patungo sa mga dagat ay mula sa abasin."
+  },
+  {
+   "id": "fil_004",
+   "wer": 0.2857142857142857,
+   "ref": "Ang mga atom ng hydrogen ay binubuo lamang ng isang proton na hiwalay sa elekton nito, at ang hiwalay na ion ng hydrogen ay karaniwang tinatawag na proton.",
+   "hyp": "Ang mga khatid ng hydrogen ay binibigyan na lang ng isang proton na hiwalay sa electrons ko. At ang hiwalay na ion ng hydrogen ay karamihan pinagtalong na proton."
+  },
+  {
+   "id": "fil_005",
+   "wer": 0.29411764705882354,
+   "ref": "Sahel ang nasa hangganan ng rehiyon sa hilaga, at sa timog at kanluran ay ang Karagatang Atlantiko.",
+   "hyp": "Sahel ang nasa hangganan ng Angkiyon sa Pilagap at sa Pilugok at Kanduran ay ang Karagatang Atlantik."
+  },
+  {
+   "id": "fil_006",
+   "wer": 0.06896551724137931,
+   "ref": "Ang Finland ay napakagandang destinasyon para sa pagbabangka. Ang \"Lupain ng libo-libong lawa\" ay mayroon ding libo-libong isla, na nasa mga lawa at mga kapuluan sa kahabaan ng baybayin.",
+   "hyp": "Ang Finland ay napakagandang destinasyon para sa pagbabangka. Ang lupain ng libo-libong lawa ay mayroon ding libo-libong isla na nasa mga lawa at mga kapuloan sa kahabaan ng baybay."
+  },
+  {
+   "id": "fil_007",
+   "wer": 0.25,
+   "ref": "Noong 2002 nawasak ang Goma dahil sa lahar mula sa bulkan ng Nyiragongo na tumakip ng karamihan sa mga kalsada ng bayan, partikular na sa sentro ng bayan.",
+   "hyp": "Noong 2008 nawasak ang Goma dahil sa lahat mula sa bulkan ng Miragomo na tumakit ng karamihan sa mga palisada ng bayan, particular na sa sentra ng bayan."
+  },
+  {
+   "id": "fil_008",
+   "wer": 0.5625,
+   "ref": "Ipinresenta rin ni Lakkha Singh ang chhappan bhog. Sinasamahan siya noon ng mangangantang si Raju Khandelwal.",
+   "hyp": "Ipinresenta rin nila kasi ang Chapanbog. Sinasamaan siya noon ng mga ngantang si Raju Candelwal."
+  },
+  {
+   "id": "fil_009",
+   "wer": 0.7666666666666667,
+   "ref": "Ang mga opisyal na lengguwahe ng Barcelona ay Catalan at Espanyol. Mga kalahati ang mas gustong magsalita ng Catalan, naiintindihan ito ng karamihan, at halos ay lahat alam ang Espanyol.",
+   "hyp": "Ang mga pisyan na linggway ng Bansi Road ay katalan at espanjol. Nakakalahati ang kasintahan sa libanang katalan. Ang hindi din itong makaramingin at alas lahat kay alas ng espanjol."
+  },
+  {
+   "id": "fil_010",
+   "wer": 0.4444444444444444,
+   "ref": "Sa ibang mga ruta, ang mas malalaking mga kompanya ay mayroong sariling mga eroplano, ngunit sa ibang mga ruta at mas maliit na mga kompanya mayroong problema.",
+   "hyp": "Sa ibang mga rinta, ang mas malalaki ng kumpanya ay mayroong sabihing problem. Ngunit sa ibang mga rinta at mas malalaki ng kumpanya, mayroong problema."
+  },
+  {
+   "id": "fil_011",
+   "wer": 0.3448275862068966,
+   "ref": "Gayundin naman, sa pagkakaroon ng Schengen visa, hindi mo kailangang mag-apply ng visa nang hiwalay sa bawat bansang miyembro ng Schengen, kaya nakakatipid ng oras, pera at asikasuhing papeles.",
+   "hyp": "Gayun din naman, sa pagkakaroon ng Schengen Visa, hindi mo kailangang mag-apply ng Visa ng liwalay sa bawat bansang Piedro ng Schengen, kaya nakakatulid ng oras, tera, at asikat mo ng papeles."
+  },
+  {
+   "id": "fil_012",
+   "wer": 0.5294117647058824,
+   "ref": "Mas maliit ang bilang na Rosby, mas hindi gaanong aktibo ang bituin kaugnay ng mga magnetikong pagbabaliktad.",
+   "hyp": "Mas maliit ang bilang ng Rosti, mas hindi gaano akito ang bituin sa offline ng mga batleto kong pagbagalik."
+  },
+  {
+   "id": "fil_013",
+   "wer": 0.5909090909090909,
+   "ref": "Ang Apia ang kapitolyo ng Samoa. Ang bayan ay nasa pulo ng Upolu at may populasyong mababa lang nang kaunti sa 40,000.",
+   "hyp": "Ang aksilya ng kapituloy namin, ang bayan ay nasa pulo ng kipulig at may kapulisyon mababala ng mga kaunti sa atat na pulig."
+  },
+  {
+   "id": "fil_014",
+   "wer": 0.34615384615384615,
+   "ref": "Ang mga birtwal na pangkat ay pinasusunod din sa kaparehong mga pamantayan ng kagalingan na katulad ng mga karaniwang pangkat, nguni't may mga hindi halatang pagkakaiba.",
+   "hyp": "Ang mga bituan sa pangkat ay punasusunod din sa kaparerong mga pamatay na kagalingan na katulad ng mga karanibang pangkat, ngunit may mga hindi alatang pagkakanya."
+  },
+  {
+   "id": "fil_015",
+   "wer": 0.7857142857142857,
+   "ref": "Matapos maganap ang aksidente, si Gibson ay dinala sa ospital nguni't namatay di-nagtagal pagkatapos.",
+   "hyp": "Matapos mag-elab ng aksidente, Gibson ay dun nalang sa aspekto. Ngunit na matay, hindi nay kailanman."
+  },
+  {
+   "id": "fil_016",
+   "wer": 0.6,
+   "ref": "Ang natuklasan ay nagbigay din ng pananaw sa ebolusyon ng mga balahibo sa mga ibon.",
+   "hyp": "Ang napaklasang ay nagdutay nilang parangay sa ebulosyon ng mga balimuto sa mga tingin mo."
+  },
+  {
+   "id": "fil_017",
+   "wer": 0.44,
+   "ref": "Maging matibay sa pagtanggi sa mga lalaki, at huwag matakot na manindigan (may mga pagkakaiba man sa kultura o wala, hindi pa rin ito katanggap-tanggap!).",
+   "hyp": "Huwing matibay sa pagtanggol sa mga lalakang at huwag matapos na nangyayari. May mga pagkakayakaman sa kung sira o wala, hindi pa rin ito patuloy panggat."
+  },
+  {
+   "id": "fil_018",
+   "wer": 0.6875,
+   "ref": "Tinatanggap ang mga pananaw ni Aristotle tungkol sa lahat ng usapin sa siyensya, kabilang ang sikolohiya.",
+   "hyp": "Pinatanggap ang mga panahon ni Aristoteles kung kung sa lahat ng pag-ibig syempre, kapilang aksipalol."
+  },
+  {
+   "id": "fil_019",
+   "wer": 1.5,
+   "ref": "Hindi ito mauuwi sa pamamaalam. Pagsasara ito ng isang yugto at pagbubukas ng panibago.",
+   "hyp": "Sige. Ekong baonut ako, taho ng sugat sa pangusap na pinanaya sa pagsasari ito ay nakipisang meginew to apons, nagpapasak na sa lite"
+  }
+ ]
+}
