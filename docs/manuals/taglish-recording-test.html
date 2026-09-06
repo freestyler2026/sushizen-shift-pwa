@@ -201,6 +201,24 @@
   .key[lang="ja"] { font-family: "Noto Sans JP", sans-serif; }
   .key i { font-style: normal; padding: .05em .3em; border-radius: 2px; }
 
+  .funnel {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: .55rem 1.5rem;
+    padding: 1.1rem 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .fig { display: flex; align-items: baseline; gap: .5rem; }
+  .fig b {
+    font-family: Archivo, sans-serif;
+    font-size: 1.45rem; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+    color: var(--ink);
+  }
+  .fig span { font-size: .84rem; color: var(--muted); }
+  .fig[lang="ja"] span { font-family: "Noto Sans JP", sans-serif; }
+  .arrow { color: var(--faint); font-size: .9rem; }
+
   .kpis {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
@@ -306,26 +324,83 @@
   </header>
 
   <section>
+    <h2 lang="en">The problem this is meant to solve</h2>
+    <h2 lang="ja" hidden>この仕組みが解こうとしている問題</h2>
+
+    <p lang="en">Since June we have taken in 140 applications. Every one of them needs the same handling
+      before anybody has learned anything about the person: messages back and forth to agree a time, a slot
+      held in someone's day, and then — often enough that it shapes the whole week — nobody arrives.</p>
+    <p lang="ja" hidden>6月以降、140件の応募を受けています。その一人ひとりについて、
+      人物のことが何ひとつ分かる前に同じ手間がかかります。日程を決めるためのやり取り、
+      誰かの一日に空けておく枠、そして — 週の組み立てが変わってしまう程度には頻繁に — 誰も来ない。</p>
+
+    <div class="funnel" lang="en">
+      <span class="fig"><b>140</b><span>applications since June</span></span>
+      <span class="arrow">→</span>
+      <span class="fig"><b>78</b><span>reached an interview</span></span>
+      <span class="arrow">→</span>
+      <span class="fig"><b>14</b><span>hired</span></span>
+    </div>
+    <div class="funnel" lang="ja" hidden>
+      <span class="fig" lang="ja"><b>140</b><span>6月以降の応募</span></span>
+      <span class="arrow">→</span>
+      <span class="fig" lang="ja"><b>78</b><span>面接まで到達</span></span>
+      <span class="arrow">→</span>
+      <span class="fig" lang="ja"><b>14</b><span>採用</span></span>
+    </div>
+
+    <p lang="en">The cost is not in the interviews we want to hold. It is in the arranging, the waiting, and
+      the re-typing afterwards — work that has to be spent on every applicant, including the ones who never
+      appear.</p>
+    <p lang="ja" hidden>負担がかかっているのは、実施したい面接そのものではありません。
+      日程調整、待ち時間、そして終わった後の再入力です。<strong>現れなかった人にも同じだけかかります。</strong></p>
+  </section>
+
+  <section>
     <h2 lang="en">What we are building</h2>
     <h2 lang="ja" hidden>作っているもの</h2>
 
-    <p lang="en">An applicant fills in the form, and then — if they want to — answers seven questions by
-      voice from their own phone, whenever suits them. No appointment, nothing to attend. HR listens and
-      records the first-round decision in one tap.</p>
-    <p lang="ja" hidden>応募者がフォームを記入し、希望すれば自分のスマートフォンから、都合のよい時間に
-      7つの質問へ音声で答えます。予約も来社も不要です。HRはそれを聴いて、一次判断を1タップで記録します。</p>
+    <p lang="en">The first interview becomes a voice interview. An applicant fills in the form, and then —
+      if they want to — answers seven questions by voice from their own phone, whenever suits them. No
+      appointment to agree, nothing to travel to, nobody waiting. HR listens later and records the
+      first-round decision in one tap.</p>
+    <p lang="ja" hidden>一次面接を音声面接にします。応募者がフォームを記入し、希望すれば自分の
+      スマートフォンから、都合のよい時間に7つの質問へ音声で答えます。日程を決める必要も、
+      出向く必要も、待つ人も要りません。HRは後から聴いて、一次判断を1タップで記録します。</p>
 
-    <p lang="en">That part already works. The next step is to <strong>transcribe the answers
-      automatically</strong>, so HR reads instead of listens. Ten minutes of audio per applicant becomes
-      something you can skim in under a minute, search, and paste into a note.</p>
-    <p lang="ja" hidden>ここまでは動いています。次の段階が<strong>回答の自動文字起こし</strong>で、
-      HRは「聴く」代わりに「読む」ことになります。1人あたり10分の音声が、1分足らずで目を通せて、
-      検索でき、メモに貼れるものになります。</p>
+    <p lang="en">Two things change for HR. Applicants can be reached in numbers that scheduling never
+      allowed — the time you spend no longer rises with every person you want to hear from. And the
+      applicant's details go into the OS as they type them, so there is nothing to enter again afterwards.</p>
+    <p lang="ja" hidden>HRにとって変わることは2つです。日程調整では届かなかった人数の応募者に
+      接触できること — 話を聞きたい人が増えても、かかる時間がその分だけ増えることがなくなります。
+      そして応募者の情報は本人が入力した時点でOSに入るので、後から打ち直す作業がなくなります。</p>
 
-    <p class="sub" lang="en">Nothing about the hiring decision changes. The transcript exists so a person can
-      get through more applicants without skipping any.</p>
-    <p class="sub" lang="ja" hidden>採用判断の中身は変わりません。文字起こしは、人が誰も飛ばさずに
-      より多くの応募者に目を通せるようにするためのものです。</p>
+    <p lang="en">The step we are adding now is the <strong>transcript</strong>: the answers written out, so
+      HR reads instead of listens. Ten minutes of audio per applicant becomes something you can skim in
+      under a minute, search, and paste into a note.</p>
+    <p lang="ja" hidden>今回追加しようとしているのが<strong>文字起こし</strong>です。
+      回答が文章になるので、HRは「聴く」代わりに「読む」ことになります。1人あたり10分の音声が、
+      1分足らずで目を通せて、検索でき、メモに貼れるものになります。</p>
+  </section>
+
+  <section>
+    <h2 lang="en">What it will not do</h2>
+    <h2 lang="ja" hidden>やらないこと</h2>
+
+    <p lang="en"><strong>No applicant is scored by a machine.</strong> We could build that — the technique
+      exists — and we have decided not to. Philippine data privacy law places real limits on decisions
+      produced by automated processing, and a hiring decision is exactly the kind of decision it has in
+      mind.</p>
+    <p lang="ja" hidden><strong>応募者を機械が採点することはありません。</strong>技術的には可能ですが、
+      やらないと決めました。フィリピンのデータプライバシー法は、自動処理によって下される決定に
+      実際に制限を設けており、採用の判断はまさにその想定内にあるからです。</p>
+
+    <p lang="en">So the software's job stops at producing objective material — the recording, and the words
+      that were said in it — and every judgement stays with the person doing the hiring. The transcript is
+      there to make reading faster, not to have an opinion.</p>
+    <p lang="ja" hidden>そのためソフトウェアの役割は、客観的な材料 — 録音と、そこで話された言葉 —
+      を用意するところまでで、判断はすべて採用担当者が行います。文字起こしは読むのを速くするためのもので、
+      評価をするためのものではありません。</p>
   </section>
 
   <section>
