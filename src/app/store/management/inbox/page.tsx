@@ -94,6 +94,10 @@ interface ManagementTask {
   response_action: string | null;
   response_note: string | null;
   context: TaskContextShape | null;
+  /** Which stream this belongs to. 'urgent' interrupts; 'review' waits for a
+   *  quiet moment. Older rows have no lane and are treated as urgent, which is
+   *  where everything was before the split. */
+  lane?: "urgent" | "review" | null;
   /** Who the task is addressed to, from the duty roster. */
   manager_name: string | null;
   created_at: string;
@@ -1006,12 +1010,19 @@ export default function ManagerInboxPage() {
   const pendingTasks   = tasks.filter(t => t.status === "sent");
   const completedTasks = tasks.filter(t => t.status === "responded" || t.status === "closed");
 
-  const sortedPending = [...pendingTasks].sort((a, b) => {
+  const bySeverityThenAge = (a: ManagementTask, b: ManagementTask) => {
     const ord = { red: 0, yellow: 1, green: 2 };
     const so = (ord[a.severity] ?? 9) - (ord[b.severity] ?? 9);
     if (so !== 0) return so;
     return new Date(b.sent_at || b.created_at).getTime() - new Date(a.sent_at || a.created_at).getTime();
-  });
+  };
+
+  // Two lists, not one. Product scores of C were sixty per cent of everything
+  // that arrived here, so the things that needed acting on during service were
+  // read past to get to the bottom of the pile.
+  const isReview = (t: ManagementTask) => t.lane === "review";
+  const sortedPending = pendingTasks.filter((t) => !isReview(t)).sort(bySeverityThenAge);
+  const reviewPending = pendingTasks.filter(isReview).sort(bySeverityThenAge);
 
   const branchLabel = branch ? `${branch} — ` : "";
 
@@ -1094,8 +1105,16 @@ export default function ManagerInboxPage() {
         {/* KPI */}
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>Pending Action</div>
-            <div className={KPI_VALUE + " text-amber-400"}>{pendingTasks.length}</div>
+            {/* Counts the urgent lane only. A number headed "act now" that
+                includes yesterday's photo reviews is not a number anybody can
+                act on. */}
+            <div className={KPI_LABEL}>Act now</div>
+            <div className={KPI_VALUE + " text-amber-400"}>{sortedPending.length}</div>
+            {reviewPending.length > 0 && (
+              <div className={T_CAPTION + " mt-1"}>
+                + {reviewPending.length} to review when quiet
+              </div>
+            )}
           </div>
           <div className={KPI_CARD}>
             <div className={KPI_LABEL}>Completed Today</div>
@@ -1178,7 +1197,11 @@ export default function ManagerInboxPage() {
               <div className={GLASS_CARD + " py-14 text-center"}>
                 <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-500/60" />
                 <div className="text-sm font-medium text-zinc-300">All clear!</div>
-                <div className="text-xs text-zinc-500 mt-1">No pending instructions from Back Office.</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {reviewPending.length > 0
+                    ? "Nothing needs acting on right now. There is review work below."
+                    : "No pending instructions from Back Office."}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1191,6 +1214,36 @@ export default function ManagerInboxPage() {
                     onRespond={handleRespond}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* The review lane. Below the urgent list on purpose: it is read
+                after service, not instead of it. Same cards, same answers -- the
+                only thing that changes is when a person is expected to open
+                them. */}
+            {reviewPending.length > 0 && (
+              <div className="mt-8">
+                <div className="mb-3 rounded-xl border border-white/10 bg-white/4 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className={T_LABEL}>Review when quiet</span>
+                    <span className={T_CAPTION}>{reviewPending.length}</span>
+                  </div>
+                  <p className={T_CAPTION + " mt-1"}>
+                    Yesterday&rsquo;s product photos. Open these with time to look
+                    at them &mdash; none of it needs an answer during service.
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  {reviewPending.map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      template={templates[task.type] || null}
+                      managerName={auth?.staffName || "Manager"}
+                      onRespond={handleRespond}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
