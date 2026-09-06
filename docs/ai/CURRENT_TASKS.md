@@ -1,6 +1,67 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-06（Phase 2 は実音声の収集待ちで中断。再開手順を下に）
+Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシートの突合を完了。下記）
+
+---
+
+## ✅ 2026-09-06 — Dubai シフト：Discordのスタッフシートと OS の突合（完了）
+
+スタッフが毎日Discordに上げている `Shift schedule May 2026-.xlsx` の
+`2026Sept1` タブ（Dubai・9/01〜9/06・53名・318人日）を1マスずつ OS と照合した。
+
+**一致率 91.5% → 95.3%。残る15件はすべて「シートが空欄で OS にデータがある」もので、
+いずれもオーナー確認の結果 OS が正しい。つまり現時点では OS のほうが正確。**
+
+### シートの読み方（次回このシートを読むとき必読）
+- **勤務時間はセルの塗り色の連続で表現され、値は開始時刻のセルにしか入っていない。**
+  1列＝1時間、列9が8:00（`hour = 8 + (col - 9)`）、1日24列ブロック。
+- 色 → 支店: `00FF00`=Arjan / `8EA9DB`=B Bay / `00FFFF`=JLT / `EA9999`=Al Mina /
+  `FF00FF`=Al Barsha / `FFFF00`=CK / `93C47D`=Delivery
+- **グレー（`666666`/`999999`/`B7B7B7`）はシフト中なら休憩**、終日なら休暇。
+  休暇のラベル（Vacation Leave / Unpaid Leave）は**初日にしか書かれない**ので
+  carry-forward が要る（教訓12と同型）。
+- `FCE5CD`/`F9CB9C` 終日＝休み、`434343` 終日＝Vacation Leave
+- **`FF0000` の1マス＝OT+1**（シフト末尾に1時間の残業を前提で組んでいる予定残業）。
+  **シフトに含める**のが正（2026-09-06 オーナー確認）。GUIDEタブに色の説明は無い。
+- 抽出スクリプト: `/private/tmp/.../scratchpad/final2.py`（セッション限り。要なら再作成）
+
+### 直したもの（本番反映済み・Manual Shift のセル編集→Publish 経路）
+| 対象 | 修正 |
+|---|---|
+| Sandesh Pun Magar 9/05・9/06 | BB 17-26 → **BB 12-21** |
+| Sharon Nagawa 9/01 | JLT 10-19 → **10-18** |
+| Lyssa Rae 9/03 | JLT 15-24 → **14-23** |
+| Sota Horii 9/01・9/03〜9/06 | 最初の1時間を **CK** に分離（CK 12-13 ＋ Delivery 13-21） |
+| Aris 9/01・9/03、Sita 9/01・9/04、Manisha 9/04 | **OT+1 の1時間を追加**（note に `OT+1`） |
+| Yogesh Bashyal 9/01〜9/10 | **UL（Unpaid Leave）に統一**（9/07〜9/10 は勤務予定を削除） |
+
+退避テーブル: `_shift_rows_bk_20260906` / `_shift_rows_bk2_20260906`（Heroku PG）
+
+### コード側で直したもの
+1. **休暇の行が勤務として出力されていた** — `role=VL` なのに 7:00-16:00 が
+   残っている行が Dubai に6行あり、export は `DAY_OFF` しか特別扱いしていなかった。
+   Hayat Ullah Khan が休暇中に「7-16 勤務」と印字されていた。
+2. **Unpaid Leave という型が存在しなかった** — Manual Shift の選択肢は
+   Day Off / Absent / VL / ML / SL のみ。承認済みの無給休暇が **VL（有給）** として
+   記録されていた。`UL` を追加。
+3. **「休暇かどうか」の判定が6箇所に手書きされていた**（教訓62）。UL は6箇所すべてに
+   欠けており、SL・ML は `/week`・`/calendar`・`/my-shift` の3画面に欠けていて、
+   使った瞬間に勤務ブロックとして表示される状態だった。
+4. Excel は全休暇を灰色 `LV` 1種で出していた → **VL / UL / SL / ML / ABS** を
+   それぞれ別コード＋凡例で出す。給与が読むシートで有給と無給が区別できないのは危険。
+5. 行→ブロック変換を `shift_excel.rows_to_blocks()` に切り出した。以前は
+   endpoint 内にインラインで、**確認するには Drive にファイルを上げるしかなかった**。
+
+### 未決・引き継ぎ
+- **Bibek BK** — 9月は Al Barsha 勤務が正（オーナー確認）。OS に誤って入っている
+  Al Mina 側のシフトはオーナーが修正する。打刻は Al Mina に出ている（31回中28回）
+- **Sanjeev Tamang** — トライアル終了、9/1から AB 15-24。シートに行が無い。
+  day off をラファエルに確認中
+- **9/07以降の OT+1 は検証できていない。** シートは 9/06 までしか日付が入っていない。
+  OS には Aris 9/10、Sita 9/03・9/10・9/11、Manisha 9/05・9/11・9/12 に10時間勤務がある
+- **氏名の表記ゆれ9名**（`Aris John` vs `Aris Jhon`、`Ashik Khan` vs `Ashik Kahn` 等）。
+  OS 一本化後はスタッフが OS 側の綴りの表を受け取る。`Philip Borja` は
+  `Philip Ore` が正で修正済み
 
 ---
 
