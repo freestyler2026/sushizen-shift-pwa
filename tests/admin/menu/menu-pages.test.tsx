@@ -226,7 +226,11 @@ describe("MenuProductsPage — data loading", () => {
     mockMenuGet = mockGet;
     render(<MenuProductsPage />);
     await screen.findByText("New Product");
-    expect(mockGet).toHaveBeenCalledWith(expect.stringContaining("/sku/next"));
+    // The suggested SKU is fetched by its own effect, so the heading being on
+    // screen says nothing about whether that call has gone out yet.
+    await waitFor(() =>
+      expect(mockGet).toHaveBeenCalledWith(expect.stringContaining("/sku/next")),
+    );
   });
 });
 
