@@ -105,6 +105,7 @@ const SPECIAL_TYPES = [
   { role: "DAY_OFF",  label: "Day Off",        style: "border-gray-300 bg-gray-100 text-gray-600" },
   { role: "ABSENT",   label: "Absent",          style: "border-red-200 bg-red-50 text-red-700" },
   { role: "VL",       label: "VL (Vacation)",   style: "border-sky-200 bg-sky-50 text-sky-700" },
+  { role: "UL",       label: "UL (Unpaid)",     style: "border-violet-200 bg-violet-50 text-violet-700" },
   { role: "ML",       label: "ML (Medical)",    style: "border-amber-200 bg-amber-50 text-amber-700" },
   { role: "SL",       label: "SL (Sick)",       style: "border-orange-200 bg-orange-50 text-orange-700" },
 ] as const;
