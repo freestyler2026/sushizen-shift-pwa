@@ -57,6 +57,10 @@ function MenuGroupsPageInner() {
   const [saving, setSaving] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+  // Kept apart from `error`, which the list load clears the moment it starts.
+  // Sharing one banner meant a background refresh could wipe the "enter a name"
+  // message the click had just produced, leaving a button that looked broken.
+  const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuGroupRow[]>([]);
   const [groupFilterOptions, setGroupFilterOptions] = useState<MenuGroupRow[]>([]);
@@ -140,8 +144,9 @@ function MenuGroupsPageInner() {
   }
 
   async function saveGroup() {
-    if (!form.name.trim()) return setError("Please enter group name.");
+    if (!form.name.trim()) return setFormError("Please enter group name.");
     setSaving(true);
+    setFormError("");
     setError("");
     setSuccess("");
     setImportFailures([]);
@@ -456,7 +461,7 @@ function MenuGroupsPageInner() {
             </div>
           </div>
 
-          {error ? <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{error}</div> : null}
+          {(formError || error) ? <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{formError || error}</div> : null}
           {success ? <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-300">{success}</div> : null}
           <MenuImportFailures failures={importFailures} />
 

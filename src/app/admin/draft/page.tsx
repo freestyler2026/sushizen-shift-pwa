@@ -1488,6 +1488,62 @@ export default function AdminDraftPage() {
   const [autoExportRan, setAutoExportRan] = useState(false); // true once auto-export was triggered
 
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
+
+  // The export walks every branch with a 300ms gap between them, so it is still
+  // running long after the click that started it. Two copies of that loop had
+  // been written out by hand, neither of them able to stop: leaving the page did
+  // not end it, so it kept calling the export API for a screen nobody was on and
+  // then set state on a component that was gone. In the test run that last step
+  // reached for window after jsdom had torn down, and failed the whole suite
+  // with all seventy files passing.
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+
+  async function runAutoExport(
+    city: string,
+    month: string,
+    branches: BatchDraftVersion[],
+    approver: string,
+    approverPin: string,
+  ) {
+    setAutoExportResults({});
+    setAutoExportErrors({});
+    setAutoExportRan(true);
+    setAutoExportBusy(true);
+    const results: Record<string, string> = {};
+    const errors: Record<string, string> = {};
+    for (const v of branches) {
+      if (!aliveRef.current) return;
+      try {
+        const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
+          city,
+          branch_code: v.branch_code,
+          month,
+          mode: "DRAFT",
+          approver_name: approver,
+          pin: approverPin,
+        });
+        const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
+          confirm_token: prep.confirm_token,
+          approver_name: approver,
+          pin: approverPin,
+        });
+        if (conf.ok) {
+          results[v.branch_code] = conf.main_url || conf.sheet_url || "";
+        } else {
+          errors[v.branch_code] = conf.warning || "Export returned ok=false";
+        }
+        await sleep(300); // avoid Sheets API quota spikes
+      } catch (e: any) {
+        errors[v.branch_code] = String(e?.message || e || "Export failed");
+      }
+    }
+    if (!aliveRef.current) return;
+    setAutoExportResults(results);
+    setAutoExportErrors(errors);
+    setAutoExportBusy(false);
+  }
+
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
   const applyWeekStarts = useMemo(() => weekStartsForMonth(applyMonth), [applyMonth]);
   const version = useMemo(
@@ -1801,48 +1857,8 @@ export default function AdminDraftPage() {
         );
       }
 
-      // ── Auto-export draft to Google Sheets (runs in background) ──────────
       if (canOperate && approverName.trim() && pin.trim()) {
-        setAutoExportResults({});
-        setAutoExportErrors({});
-        setAutoExportRan(true);
-        setAutoExportBusy(true);
-        const _city = prepared.city;
-        const _month = prepared.target_month;
-        const _approver = approverName;
-        const _pin = pin;
-        void (async () => {
-          const results: Record<string, string> = {};
-          const errors: Record<string, string> = {};
-          for (const v of nextVersions) {
-            try {
-              const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
-                city: _city,
-                branch_code: v.branch_code,
-                month: _month,
-                mode: "DRAFT",
-                approver_name: _approver,
-                pin: _pin,
-              });
-              const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
-                confirm_token: prep.confirm_token,
-                approver_name: _approver,
-                pin: _pin,
-              });
-              if (conf.ok) {
-                results[v.branch_code] = conf.main_url || conf.sheet_url || "";
-              } else {
-                errors[v.branch_code] = conf.warning || "Export returned ok=false";
-              }
-              await sleep(300); // avoid Sheets API quota spikes
-            } catch (e: any) {
-              errors[v.branch_code] = String(e?.message || e || "Export failed");
-            }
-          }
-          setAutoExportResults(results);
-          setAutoExportErrors(errors);
-          setAutoExportBusy(false);
-        })();
+        void runAutoExport(prepared.city, prepared.target_month, nextVersions, approverName, pin);
       }
     } catch (e: any) {
       setError(String(e?.message || e || "Failed to generate monthly draft"));
@@ -1905,48 +1921,8 @@ export default function AdminDraftPage() {
       });
       setApplyMonth(replaceGuard.target_month);
 
-      // Auto-export draft to Google Sheets (same as confirmGenerate)
       if (canOperate && approverName.trim() && pin.trim()) {
-        setAutoExportResults({});
-        setAutoExportErrors({});
-        setAutoExportRan(true);
-        setAutoExportBusy(true);
-        const _city = replaceGuard.city;
-        const _month = replaceGuard.target_month;
-        const _approver = approverName;
-        const _pin = pin;
-        void (async () => {
-          const results: Record<string, string> = {};
-          const errors: Record<string, string> = {};
-          for (const v of nextVersions) {
-            try {
-              const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
-                city: _city,
-                branch_code: v.branch_code,
-                month: _month,
-                mode: "DRAFT",
-                approver_name: _approver,
-                pin: _pin,
-              });
-              const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
-                confirm_token: prep.confirm_token,
-                approver_name: _approver,
-                pin: _pin,
-              });
-              if (conf.ok) {
-                results[v.branch_code] = conf.main_url || conf.sheet_url || "";
-              } else {
-                errors[v.branch_code] = conf.warning || "Export returned ok=false";
-              }
-              await sleep(300);
-            } catch (e: any) {
-              errors[v.branch_code] = String(e?.message || e || "Export failed");
-            }
-          }
-          setAutoExportResults(results);
-          setAutoExportErrors(errors);
-          setAutoExportBusy(false);
-        })();
+        void runAutoExport(replaceGuard.city, replaceGuard.target_month, nextVersions, approverName, pin);
       }
     }
     if (failedBranches.length) {
