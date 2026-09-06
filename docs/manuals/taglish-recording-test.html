@@ -642,15 +642,19 @@
 <script>
   (function () {
     var root = document.documentElement;
+    var wrap = document.querySelector(".wrap");
     var bEn = document.getElementById("btn-en");
     var bJa = document.getElementById("btn-ja");
 
     function apply(lang) {
-      var nodes = document.querySelectorAll("[lang='en'], [lang='ja']");
+      // Scoped to the content, and the state lives in data-lang, not lang.
+      // Writing lang="en" on <html> put the root itself inside this selector,
+      // so the next click hid document.documentElement and the page went white.
+      var nodes = wrap.querySelectorAll("[lang='en'], [lang='ja']");
       for (var i = 0; i < nodes.length; i++) {
         nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
       }
-      root.setAttribute("lang", lang);
+      root.setAttribute("data-lang", lang);
       bEn.setAttribute("aria-pressed", String(lang === "en"));
       bJa.setAttribute("aria-pressed", String(lang === "ja"));
       try { localStorage.setItem("szn-lang", lang); } catch (e) { /* private window */ }
