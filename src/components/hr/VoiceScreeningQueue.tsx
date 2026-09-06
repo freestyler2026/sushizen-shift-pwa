@@ -657,10 +657,16 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                             {it.answer?.has_audio ? (
                               <div className="mt-2 flex flex-wrap items-center gap-3">
                                 {/* One request per question. Audio never travels
-                                    with the list. */}
+                                    with the list.
+
+                                    preload is metadata, not none: these files
+                                    are 2-15 KB, and loading it is what gives the
+                                    player a length and a scrubber that works.
+                                    With none, every row reads 0:00 / 0:00 until
+                                    somebody presses play, which looks broken. */}
                                 <audio
                                   controls
-                                  preload="none"
+                                  preload="metadata"
                                   className="h-9 w-full max-w-md"
                                   src={`/api/admin/hr/voice-screenings/${row.id}/answers/${it.seq}/audio`}
                                 />

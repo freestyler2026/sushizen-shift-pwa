@@ -18,6 +18,23 @@ function getApiBase() {
 
 type ForwardMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/** Response headers worth keeping. Content-type was the only one carried, so a
+ *  206 arrived without its Content-Range and a player could not tell how long
+ *  the audio was or seek within it. Cache-control defaults to no-store, which is
+ *  right for JSON and wrong for a recording that never changes -- the upstream
+ *  says which it wants. */
+function passThrough(upstream: Response): Record<string, string> {
+  const out: Record<string, string> = {
+    "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
+    "cache-control": upstream.headers.get("cache-control") || "no-store",
+  };
+  for (const k of ["content-range", "accept-ranges", "content-length", "content-disposition"]) {
+    const v = upstream.headers.get(k);
+    if (v) out[k] = v;
+  }
+  return out;
+}
+
 /** Build auth headers: httpOnly cookie takes precedence, client header is backward-compat fallback. */
 function resolveAuthHeaders(req: NextRequest): Record<string, string> {
   const access = sessionToken(req);
@@ -48,6 +65,10 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
     ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
     ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
+    // Media needs byte ranges. Without forwarding this the upstream never sees
+    // a Range request, always answers 200, and Safari refuses to play the audio
+    // at all -- the recordings on the voice screening page.
+    ...(req.headers.get("range") ? { Range: req.headers.get("range") as string } : {}),
     ...(body && body.byteLength > 0 ? { "Content-Type": req.headers.get("content-type") || "application/json" } : {}),
   };
 
@@ -70,10 +91,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
       const bytes = await upstream.arrayBuffer();
       const res = new NextResponse(bytes, {
         status: upstream.status,
-        headers: {
-          "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
-          "cache-control": "no-store",
-        },
+        headers: passThrough(upstream),
       });
       setRefreshedCookie(res, newToken);
       return res;
@@ -81,13 +99,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
   }
 
   const bytes = await upstream.arrayBuffer();
-  return new NextResponse(bytes, {
-    status: upstream.status,
-    headers: {
-      "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
+  return new NextResponse(bytes, { status: upstream.status, headers: passThrough(upstream) });
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ slug: string[] }> }) {
