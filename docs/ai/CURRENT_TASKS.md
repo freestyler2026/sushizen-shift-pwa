@@ -229,8 +229,18 @@ Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押�
   - `hq_staff_names()`（インシデント報告で「誰に聞けばよいか」を出す）に彼が**HQとして出ていた**
   - `resolve_staff_access_profile()` の**第3フォールバック** — 割り当ての参照が空振りした瞬間に HQ を渡す
   監査ログ `staff_auth.role.change` を記録済み。
-- **Jay Nishimura はまだ HQ。** オーナーの4名リストに無いが、このMacのユーザー名が
-  `jaynishimura` であり**オーナー本人の別アカウントの可能性がある**ため、確認待ち。
+- **Jay Nishimura → 削除済**（オーナー確認：Yukihiro Nishimura 本人の重複アカウント）。
+  **全テキスト列2,985本を実名で総なめしてから**着手し、11箇所を特定した。
+  退避 `_jay_nishimura_bk_20260907`（テーブル名つきの jsonb で1表にまとめて保存）。
+  - 削除: staff_auth / staff_master / staff_role_assignments / dubai_staff_profiles /
+    payroll_salary_configs / payroll_run_records（給与2件・設定1件はいずれも **0.00**、
+    プロフィールは全項目 null。何かが起きた記録ではない）
+  - **残した**: `security_audit_log` 3件・`discord_mentions` 2件。
+    **名前が不都合になったときに書き換える監査ログは、監査ログではない**
+  - ⚠️ **`shift_request_dm_recipients` は消さずに改名した。** この行の実体は
+    **Discord のユーザーID `844419400240070656`** で、**オーナーがシフト申請のDMを
+    受け取る唯一の宛先**（`Yukihiro Nishimura` という行は存在しなかった）。
+    消していたら、今週直している通知経路がオーナーに届かなくなっていた
 
 ⚠️ **`staff_auth.role` は Role Management のUIからは変えられない**（UIが触るのは
 `staff_role_assignments`）。この2つは食い違ったまま残りうる。
