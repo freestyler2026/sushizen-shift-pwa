@@ -1,6 +1,70 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-06（Management Inbox 2レーン化・段階1完了）
+Last updated: 2026-09-06（前日レビュー画面 稼働開始・段階2完了）
+
+---
+
+## 2026-09-06 — 前日レビュー画面（段階2・稼働開始）
+
+`/store/management/review` — **支店×日で1オブジェクト**。16件を16回閉じる形に
+すると、レーン分割で消した問題がそのまま戻る。
+
+**データモデル**
+- `ops_reviews`（city, branch, review_date, status, assigned_to, **summary JSONB**,
+  manager_comment, completed_by/at）UNIQUE(city,branch,review_date)
+- `ops_review_items`（review_id, kind='quality'|'prep_time', source_id, payload,
+  answer JSONB, answered_by/at）UNIQUE(review_id,kind,source_id)
+- ⚠️ **summary は生成時に保存する。** 開くたびに数え直すと、来週開いたときに
+  数字が変わり、現場との会話の根拠にならない。
+- ⚠️ **payload に画像を入れない**（実測 最大379バイト）。写真は行を開いたときに
+  `/api/store/ops-review/item/{id}/photo` から1枚ずつ（教訓29）。
+  **score_id ではなく item_id で引く** — 渡したレビューの写真だけが取れる。
+
+**1タップ設計**
+Assessment を先頭に置き、`no_issue` と `not_a_dish` は**その場で確定**して
+残り3問を出さない。旧チャンネルの回答52件中19件（37%）が `no_issue` だったため、
+4問答えさせると作業の37%が「何も無かったことの記録」になる。
+Prep 行には Assessment を置かない（47分かかった注文は「無かった」ことにできない）。
+
+**測れないものは「0」と書かない**
+ドバイは prep セクションごと出さず、理由を書く（Keeta の ready は20分の約束時刻で、
+1,023件中203件がちょうど20分・それ以上が0件）。
+
+**支店名の名寄せ**
+採点表は CUBAO、他は CUB。**両方の綴りで照合**する（片方だけだと Cubao のレビューが
+毎朝空になる）。`generate_review("manila","CUBAO",…)` は CUB に寄る。
+
+**生成**
+- worker 21:00 UTC（マニラ05:00 / ドバイ01:00）。日付は**都市ごとに現地で切る**（教訓75）。
+- 冪等。**回答済みの item と完了済みレビューは上書きしない。**
+- **見るものが無い支店にはレビューを作らない**（毎朝「0 of 0」が出る画面は開かれなくなる）。
+- 手動: `POST /api/admin/ops-review/generate?city=&date=`
+
+**本番検証（24項目・失敗0。自分で作った分だけ削除）**
+TAFT 9/5 の実データで写真151枚・C/D/F 10件・prep 77件中5件が30分超（最悪38分）を確認。
+Complete は未回答があると拒否して残数を返す／全部答えれば完了／Reopen で戻せる／
+再生成しても件数が増えず回答も壊れない。
+
+**稼働開始（2026-09-06 生成済み・9/5分）**
+| 都市 | 支店 | items | 担当 |
+|---|---|---:|---|
+| manila | TAFT | 15 | Richard S. Gante |
+| manila | PAR | 24 | Francis Ibana |
+| manila | CUB | 9 | Yusuke Uejima |
+| dubai | AB/AM/ARJ/BB/JLT | 3〜6 | **未設定** |
+
+**⚠️ 残課題**
+- **ドバイの当番表（`management_owner_roster`）が空**。レビューは生成されるが
+  宛先が無く、`mine=true` では誰の画面にも出ない。マニラは設定済み。
+- PAR 9/5 は prep 19件（88件中）。1朝としては多い。閾値は
+  `OPS_REVIEW_PREP_MIN`（既定30・デプロイ不要）で調整可。
+- 権限は Inbox と同じ4ロールに付与（HQ は `*`）。増やしていない。
+
+**次**
+- 1週間動かして「no_issue の比率」と「1件あたりの所要時間」を測る。
+  no_issue が高止まりするなら、直すのは店舗ではなく採点の閾値。
+- `not_a_dish` を押した回数＝採点ガードの取りこぼし件数。
+- 応答時間（rush_check 223分 / disposal 196分）が縮んだかの再測定。
 
 ---
 
