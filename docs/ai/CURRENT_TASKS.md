@@ -171,6 +171,53 @@ BO所属者がPARと記録されるのはピンの重複ではなく**実際に�
 
 ---
 
+## ✅ 2026-09-07 — シフト変更申請が承認できず溜まっていた件
+
+### 何が起きていたか
+Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押せば通るのに通らない**状態だった。
+
+1. **RED の承認はメモ10文字以上が必須**（`main.py` の confirm_manager / confirm_hq）。
+   しかし **Note欄の placeholder が literally `"OK"`（2文字）** で、
+   **画面が、サーバーが拒否する入力を教えていた。** 8/2に誰かが APPROVE を押しており、
+   `/intent` は成功して `last_intent=MANAGER/APPROVE` が残り、`/confirm_manager` が400で落ちて
+   ステータスは PENDING のまま。エラーはボタン下の小さな赤文字にしか出ない。
+2. **`red_open` は HQ のステータスだけを見る。** MANAGER で承認してもカードは消えない。
+
+### 直したもの（デプロイ済み）
+- Note欄に「10 characters minimum to approve」を表示。**満たすまで APPROVE を無効化**し、
+  `3/10` のように不足文字数を出す。placeholder の `"OK"` を廃止（教訓9：ルールが画面に無い）
+- カードに **待ち日数**（7日以上は琥珀色）と **どちら待ちか**（Manager / HQ / Manager, then HQ）を表示
+- **`open_other` バケットを新設。** 4つのキューは「マネージャーが却下してHQが未処理」
+  「HQが承認してマネージャーが未処理」を**どれも拾っておらず、ドバイの22件中18件が
+  データ上は開いたまま画面のどこにも出ていなかった**
+- ドバイのテスト申請 **27件を削除**（退避 `_shift_change_test_bk_20260907`、
+  紐づく override 12件も削除）。理由テキストを全種類列挙してから、
+  テストと判別できる9種のみを完全一致で削除。ドバイの未処理 **22件 → 2件**
+
+### ⚠️ 未処理が放置される構造（未修正）
+| | |
+|---|---|
+| **GREEN は誰にも通知されない** | Discord webhook は **YELLOW/RED のみ**。マニラの未回答9件は全部 GREEN |
+| 申請時の通知先 | `insert_private_report_notification(staff_name=staff_name)` ＝ **申請者本人**。承認者には飛ばない |
+| バッジ | `manager_status='PENDING' AND hq_status='PENDING'` の**1都市分だけ**（既定 dubai）。マニラの列は日本側から見えない |
+| 担当者 | **申請に担当者の欄が無い**。ロールを持つ全員が押せる＝誰の仕事でもない |
+| **Francis Ibana（MANILA_MANAGER）は承認できない** | 許可リストは `MANAGER/ADMIN/HQ/HR_MANAGER/DUBAI_MANAGEMENT/MANILA_MANAGEMENT`。
+  **`MANILA_MANAGER` が入っていない**ので、現場に一番近い店長が締め出され、BOのADMIN6名が押せる（教訓25・32と同型） |
+
+承認できる人（実効ロールで確認済み）:
+- **ドバイ9名** Ayako Nishimura / Jay Nishimura / Yukihiro Nishimura / Yuri Yamada / Yusuke Uejima（HQ）、Rafael Jonas Lagahit（DUBAI_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae / Sherileene Santiago（MANAGER）
+- **マニラ10名** Richard S. Gante（MANILA_MANAGEMENT）、Peter Villafuerte（HR_MANAGER）、Aliana Manuel / Caila Macararanga / Cyrine Fernandez / Erica May Sadiasa / Marithel Queri / Nathaneil Santos / Rose Ann Onido / Ruby Rosa Rongcales（ADMIN）
+
+### いま残っている未処理（2026-09-07 時点）
+```
+ドバイ 2件   Udaya Gurung 7/8（61日）/ Muskan Tamang 3/12（181日・HQ却下済でM未処理）
+マニラ 15件  うち休暇申請9件が未回答。9/20・9/30・10/1・10/3・10/4 は**まだ間に合う**
+             Reymar Contillo 3件・Mary Jane Tegerero 1件は M却下済でHQ未処理（118〜33日）
+             Samantha Varca 2件（7/5・92日）も同型
+```
+
+---
+
 ## ⏸ 2026-09-06 — 音声面接 Phase 2：ここで中断（再開はここから読む）
 
 ### いまどこにいるか
