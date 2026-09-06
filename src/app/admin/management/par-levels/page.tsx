@@ -117,13 +117,9 @@ export default function ParLevelsPage() {
     }
   }
 
-  async function saveRow(row: ParLevel) {
-    const raw = editing[row.id];
-    const value = Number(raw);
-    if (!raw || !Number.isFinite(value) || value <= 0) {
-      setBanner({ kind: "err", text: "Par level must be a number greater than 0." });
-      return;
-    }
+  /** The one write path. Confirming and correcting differ only in the number
+      sent, so they must not be two copies of this. */
+  async function writeRow(row: ParLevel, value: number, what: "Save" | "Confirm") {
     setSavingId(row.id);
     try {
       const auth = getAuth();
@@ -148,10 +144,28 @@ export default function ParLevelsPage() {
       });
       await load();
     } catch (e) {
-      setBanner({ kind: "err", text: `Save failed: ${e}` });
+      setBanner({ kind: "err", text: `${what} failed: ${e}` });
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function saveRow(row: ParLevel) {
+    const raw = editing[row.id];
+    const value = Number(raw);
+    if (!raw || !Number.isFinite(value) || value <= 0) {
+      setBanner({ kind: "err", text: "Par level must be a number greater than 0." });
+      return;
+    }
+    await writeRow(row, value, "Save");
+  }
+
+  /** Agreeing with a proposed number had no way to be recorded: Save is disabled
+      until the value changes, so the only route off "Proposed" was to type a
+      different number. 182 of the 228 rows here match the last 60 days of
+      reports, and every one of them was stuck showing as unreviewed. */
+  async function confirmRow(row: ParLevel) {
+    await writeRow(row, row.par_qty, "Confirm");
   }
 
   async function removeRow(row: ParLevel) {
@@ -223,6 +237,13 @@ export default function ParLevelsPage() {
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Not yet reviewed</div>
           <div className={KPI_VALUE + (unreviewed ? " text-amber-300" : "")}>{unreviewed}</div>
+          {/* Says how to clear it. The count sat at 80% because agreeing with a
+              proposed number was not an action the screen offered. */}
+          {unreviewed ? (
+            <div className="text-[11px] text-zinc-500 mt-1">
+              ✓ to keep the number · type a new one to change it
+            </div>
+          ) : null}
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Reviewed</div>
@@ -344,6 +365,16 @@ export default function ParLevelsPage() {
                       </td>
                       <td className="py-2.5 pr-2">
                         <div className="flex items-center justify-end gap-1.5">
+                          {r.source === "seeded_median" && !dirty ? (
+                            <button
+                              onClick={() => confirmRow(r)}
+                              disabled={savingId === r.id}
+                              className={SMALL_BUTTON + " disabled:opacity-30 text-emerald-300"}
+                              title="This number is right — mark it reviewed"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
                           <button
                             onClick={() => saveRow(r)}
                             disabled={!dirty || savingId === r.id}
