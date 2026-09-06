@@ -43,6 +43,37 @@ interface ParLevel {
   source: string;
   updated_by: string | null;
   updated_at: string;
+  /** What the last N days of closing reports said. Absent until the server
+      has statistics for this item — a par nobody has ever reported against. */
+  stats?: {
+    obs_days: number; obs_min: number; obs_median: number; obs_max: number;
+    unit_variants: number; obs_unit: string;
+  } | null;
+  verdict?: Verdict;
+  reason?: string;
+  obs_days?: number;
+  days_below?: number;
+}
+
+type Verdict = "unit_mixed" | "unit_mismatch" | "too_high" | "no_data" | "thin" | "consistent";
+
+// Dealt with in this order: something the alert cannot read at all, then a par
+// that cries wolf, then one with nothing behind it, then one with too little,
+// then the ones the reports already agree with.
+const VERDICT_ORDER: Verdict[] = ["unit_mixed", "unit_mismatch", "too_high", "no_data", "thin", "consistent"];
+
+const VERDICT_STYLE: Record<Verdict, { label: string; cls: string }> = {
+  unit_mixed:    { label: "Unit mixed",   cls: "text-red-300 bg-red-500/12 border-red-500/25" },
+  unit_mismatch: { label: "Unit differs", cls: "text-red-300 bg-red-500/12 border-red-500/25" },
+  too_high:      { label: "Too high",     cls: "text-orange-300 bg-orange-500/12 border-orange-500/25" },
+  no_data:       { label: "No reports",   cls: "text-zinc-400 bg-white/5 border-white/10" },
+  thin:          { label: "Thin history", cls: "text-amber-300 bg-amber-500/12 border-amber-500/25" },
+  consistent:    { label: "Matches",      cls: "text-emerald-300 bg-emerald-500/12 border-emerald-500/25" },
+};
+
+function fmt(n: number | null | undefined) {
+  if (n === null || n === undefined) return "—";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 const CITIES = [
@@ -56,6 +87,8 @@ export default function ParLevelsPage() {
   const [rows, setRows] = useState<ParLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [windowDays, setWindowDays] = useState(60);
+  const [confirming, setConfirming] = useState(false);
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [branchFilter, setBranchFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -81,6 +114,7 @@ export default function ParLevelsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setRows(data.par_levels || []);
+      setWindowDays(Number(data.window_days) || 60);
     } catch (e) {
       setBanner({ kind: "err", text: `Could not load par levels: ${e}` });
     } finally {
@@ -189,14 +223,61 @@ export default function ParLevelsPage() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(
+    const kept = rows.filter(
       (r) =>
         (branchFilter === "all" || r.branch_code === branchFilter) &&
         (!q || r.item_name.toLowerCase().includes(q) || r.section.toLowerCase().includes(q)),
     );
+    // Worst first. Alphabetical made the reviewer read 225 rows to find the one
+    // that would have alerted on half the days.
+    const rank = (r: ParLevel) => {
+      const i = VERDICT_ORDER.indexOf((r.verdict ?? "consistent") as Verdict);
+      return i < 0 ? VERDICT_ORDER.length : i;
+    };
+    return [...kept].sort((a, b) =>
+      rank(a) - rank(b) ||
+      (b.days_below ?? 0) - (a.days_below ?? 0) ||
+      a.branch_code.localeCompare(b.branch_code) ||
+      a.item_name.localeCompare(b.item_name));
   }, [rows, branchFilter, query]);
 
   const unreviewed = rows.filter((r) => r.source === "seeded_median").length;
+  const matching = rows.filter(
+    (r) => r.source === "seeded_median" && r.verdict === "consistent",
+  ).length;
+
+  /** Confirms only what the server judges consistent — it is told the city, not
+      a list of ids, so a screen left open overnight cannot wave through a value
+      the reports have since contradicted. */
+  async function confirmMatching() {
+    if (!confirm(
+      `Mark ${matching} proposed par levels as reviewed?\n\n` +
+      `These are the ones the last ${windowDays} days of reports agree with. ` +
+      `The numbers do not change. Rows with a unit problem, too few reports, ` +
+      `or none at all are left alone.`)) return;
+    setConfirming(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/admin/management/par-levels/confirm-matching", {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({ city, updated_by: auth?.staffName || null }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const left = Object.entries(data.left_for_review || {})
+        .map(([k, v]) => `${k} ${v}`).join(", ");
+      setBanner({
+        kind: "ok",
+        text: `Confirmed ${data.confirmed}.` + (left ? ` Still to look at: ${left}.` : ""),
+      });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Confirm failed: ${e}` });
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -303,6 +384,12 @@ export default function ParLevelsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
           <div className="flex-1" />
+          {matching > 0 ? (
+            <button onClick={confirmMatching} disabled={confirming} className={SMALL_BUTTON + " text-sm text-emerald-300"}>
+              <Check className={`h-4 w-4 inline mr-1.5 ${confirming ? "animate-pulse" : ""}`} />
+              {confirming ? "Confirming…" : `Confirm ${matching} matching`}
+            </button>
+          ) : null}
           <button onClick={handleSeed} disabled={seeding} className={PRIMARY_BUTTON + " text-sm"}>
             <Sparkles className={`h-4 w-4 inline mr-1.5 ${seeding ? "animate-pulse" : ""}`} />
             {seeding ? "Proposing…" : "Propose from last 30 days"}
@@ -322,6 +409,13 @@ export default function ParLevelsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px]">
+              <caption className="caption-top pb-3 text-left text-[11px] text-zinc-500">
+                {/* The rule, on the screen. A threshold nobody can see is a
+                    threshold nobody trusts. */}
+                Sorted worst first. Figures are the lowest / middle / highest daily total
+                over the last {windowDays} days of closing reports. An alert fires below
+                70% of par.
+              </caption>
               <thead>
                 <tr className="text-left">
                   <th className={TABLE_HEADER + " pl-2"}>Branch</th>
@@ -329,6 +423,7 @@ export default function ParLevelsPage() {
                   <th className={TABLE_HEADER}>Item</th>
                   <th className={TABLE_HEADER + " text-right"}>Par</th>
                   <th className={TABLE_HEADER}>Unit</th>
+                  <th className={TABLE_HEADER}>What the reports say</th>
                   <th className={TABLE_HEADER}>Source</th>
                   <th className={TABLE_HEADER + " text-right pr-2"}>Actions</th>
                 </tr>
@@ -352,6 +447,25 @@ export default function ParLevelsPage() {
                         />
                       </td>
                       <td className="py-2.5 text-xs text-zinc-500">{r.unit}</td>
+                      {/* The evidence, on the row. Without it the only way to
+                          judge a proposed number was to go and read the reports,
+                          which is why none of them were ever judged. */}
+                      <td className="py-2.5">
+                        {r.verdict ? (
+                          <div className="flex items-center gap-2">
+                            <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide rounded border px-1.5 py-0.5 ${VERDICT_STYLE[r.verdict].cls}`}>
+                              {VERDICT_STYLE[r.verdict].label}
+                            </span>
+                            <span className="text-[11px] text-zinc-400">
+                              {r.stats
+                                ? `${fmt(r.stats.obs_min)} / ${fmt(r.stats.obs_median)} / ${fmt(r.stats.obs_max)} ${r.stats.obs_unit} · ${r.reason}`
+                                : r.reason}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-zinc-600">—</span>
+                        )}
+                      </td>
                       <td className="py-2.5">
                         {r.source === "seeded_median" ? (
                           <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300 bg-amber-500/12 border border-amber-500/25 rounded px-1.5 py-0.5">
