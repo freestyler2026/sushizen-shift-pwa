@@ -78,6 +78,49 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 
 **過去日の照合は、シートより打刻を優先すること。** シートは予定、打刻は事実。
 
+## ✅ 2026-09-06 — Manila 9月：スタッフシートとの突合＋タイムライン役割の出力
+
+正となるシート: `Manila Shift Schedule 2026 .xlsx` の `Sep 1-  ` タブ。
+**ドバイと違い30日すべて記入済み。** 50名×30日＝1,434人日を突合。
+
+**一致率 96.8%（1,388/1,434）。残る46件は下記の保留分だけ。**
+
+### シートの読み方（次回必読）
+- 1日＝20列ブロック、列5開始（`col = 5 + 20*(日-1)`）。**19列が 8:00〜翌2:00**（`hour = 8 + offset`）
+- **20列目に正確な時刻がテキストで入っている**（`3:30PM - 12:30AM` `11AM-9PM PAR`）。
+  格子は1時間刻みなので15:30を描けない。**この20列目が正**で、無視すると300日以上が
+  「30分ずれ」で不一致になる（実際に最初そうなった）
+- 色＝**その日いる場所**（所属ではない）: `FFFF00`=Cubao/CK・`00FF00`=Paranaque・
+  `FF00FF`=TAFT・`FF9900`=Office・`00FFFF`=HQ works・`FFF2CC`=**休み**・`999999`=**休憩**・`FF0000`=Delivery等
+- **Cubao と CK は同色**（同一キッチン）。**「Operation Team」ラベルより上の6行がCK、下がCubao店**。
+  OS側の版と一致することを実データで確認済み
+- 休憩の灰色は**シフトの分割ではない**（OSは1本の連続ブロックで持つ）ので跨いで結合する
+- 抽出: `scratchpad/mnl_sheet.py` / 突合: `mnl_diff.py` / 適用: `mnl_apply.py`
+
+### やったこと
+- **1,386人日を書き込み**（Manual Shift のセル編集→Publish 経路）。退避 `_shift_rows_bk_mnl2_20260906`
+- **タイムライン上の役割テキストを `note` に入れた**（1,055行）。`role` の職位（MGR / Line Cook 等）は温存
+- **Excel出力がその役割をバーの上に書くようにした**（開始時刻のセル。生成物で1,438件を確認）
+
+### 保留46件（判断が要る）
+| 件数 | 内容 |
+|---:|---|
+| 6 | Mariano Espenida Jr.：シートが空欄。**空欄は主張ではない**ので触らない |
+| 6 | **Keven Jhon A. Ayubong：シート=CK / OS=CUB。** 行位置ではCK側だが OS は Cubao |
+| 30 | **シートの水色「HQ works」に対応する支店がManilaに無い。** Richard S. Gante(14)・Peter Villafuerte(16)・Francis Ibana(3)。管理職が1日で複数拠点を回る日も含む |
+| 1 | Richard S. Gante 9/01：同じ日が2つの支店版に跨っていて置換できない |
+
+### シートが扱っていない範囲
+**Back Office 8名**（Aliana Manuel / Caila Macararanga / Camilla Gadingan / Cyrine Fernandez /
+Erica May Sadiasa / Marithel Queri / Rose Ann Onido / Ruby Rosa Rongcales）は
+**シートに行が無く、OSにだけある**。消していない。シートは店舗・厨房のみを扱う。
+
+⚠️ **氏名の表記ゆれ23名分**を突合表に持っている（`Ricardo Lamis Ⅲ`＝`Ricardo Lamis III`、
+`Go, Leomar Maranan`＝`Leomar M. Go`、`Renz Erick Erespe`＝`Renz Erick Matudan` 等）。
+OSに一本化するとスタッフはOS側の綴りを受け取る。
+
+---
+
 ## 🔍 2026-09-06 — Manila 9月の点検（OS単独・データは未変更）
 
 版は5支店×全週そろっている（Arjanのような欠落なし）。1,625行・58名。
