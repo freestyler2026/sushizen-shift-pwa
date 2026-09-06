@@ -202,6 +202,7 @@ type AdminItem = {
   counterparty_name?: string;
   counterparty_status?: string;
   reason?: string;
+  requested_at?: string;
 };
 
 type Overview = {
@@ -213,6 +214,7 @@ type Overview = {
     swap_pending_counterparty: AdminItem[];
     pending_manager: AdminItem[];
     pending_hq: AdminItem[];
+    open_other: AdminItem[];
   };
 };
 
@@ -273,6 +275,7 @@ const BUCKET_ORDER: Array<keyof Overview["buckets"]> = [
   "swap_pending_counterparty",
   "pending_manager",
   "pending_hq",
+  "open_other",
 ];
 
 function bucketTitle(k: string) {
@@ -285,9 +288,18 @@ function bucketTitle(k: string) {
       return "Pending: Manager";
     case "pending_hq":
       return "Pending: HQ";
+    case "open_other":
+      return "Open — in no queue";
     default:
       return k;
   }
+}
+
+function daysSince(iso?: string) {
+  if (!iso) return null;
+  const t = Date.parse(String(iso).replace(" ", "T"));
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
 function urgencyBadge(u: string) {
@@ -339,6 +351,15 @@ function bucketMeta(key: keyof Overview["buckets"]) {
         emptyIconClass: "text-emerald-500",
         headerIconClass: "text-sky-400",
       };
+    case "open_other":
+      return {
+        title: "Open — in no queue",
+        subtitle: "one side answered, the other never did",
+        icon: Clock,
+        badgeClass: "border-amber-500/30 bg-amber-500/20 text-amber-300",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-amber-400",
+      };
     default:
       return {
         title: bucketTitle(key),
@@ -389,6 +410,22 @@ function RequestCard({
   onCounterpartyReject: () => void;
 }) {
   const badge = urgencyBadge(item.urgency_status);
+  // The server refuses a RED approval with a note under ten characters. The
+  // field used to suggest "OK", which is two -- so the button did nothing and
+  // said why only in small red text after the fact.
+  const isRed = String(item.urgency_status || "").toUpperCase() === "RED";
+  const noteLongEnough = note.trim().length >= 10;
+  const waitingDays = daysSince(item.requested_at);
+  // The queue names say who is blocked, so the card says it too rather than
+  // leaving M:PENDING / HQ:PENDING to be decoded.
+  const blockedOn =
+    item.manager_status === "PENDING" && item.hq_status === "PENDING"
+      ? "Manager, then HQ"
+      : item.hq_status === "PENDING"
+        ? "HQ"
+        : item.manager_status === "PENDING"
+          ? "Manager"
+          : "";
 
   return (
     <div>
@@ -410,6 +447,17 @@ function RequestCard({
             </div>
             {item.counterparty_name ? <div className="text-xs text-neutral-500">↔ {item.counterparty_name}</div> : null}
             {item.reason ? <div className="text-xs text-neutral-400 truncate italic">{item.reason}</div> : null}
+            {waitingDays != null || blockedOn ? (
+              <div className="mt-1 text-xs">
+                {waitingDays != null ? (
+                  <span className={waitingDays >= 7 ? "text-amber-400" : "text-neutral-500"}>
+                    waiting {waitingDays}d
+                  </span>
+                ) : null}
+                {waitingDays != null && blockedOn ? <span className="text-neutral-700"> · </span> : null}
+                {blockedOn ? <span className="text-neutral-500">on {blockedOn}</span> : null}
+              </div>
+            ) : null}
           </div>
           <span className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] ${badge.cls}`}>{badge.label}</span>
         </div>
@@ -458,21 +506,32 @@ function RequestCard({
               />
             </div>
             <div>
-              <div className="mb-1 text-[10px] text-neutral-500">Note</div>
+              <div className="mb-1 text-[10px] text-neutral-500">
+                Note{isRed ? <span className="text-amber-400"> — 10 characters minimum to approve</span> : null}
+              </div>
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="OK"
-                className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
+                placeholder={isRed ? "Why this RED change is being allowed" : "Optional"}
+                className={[
+                  "w-full rounded-lg border bg-neutral-950 px-2 py-1.5 text-xs",
+                  isRed && !noteLongEnough ? "border-amber-600/70" : "border-neutral-800",
+                ].join(" ")}
               />
+              {isRed && !noteLongEnough ? (
+                <div className="mt-1 text-[10px] text-amber-400">
+                  {note.trim().length}/10 — the server rejects a shorter note on a RED approval
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={opLoading || !pin.trim()}
+              disabled={opLoading || !pin.trim() || (isRed && !noteLongEnough)}
               onClick={onApprove}
+              title={isRed && !noteLongEnough ? "A RED approval needs a note of at least 10 characters" : undefined}
               className="rounded-lg border border-emerald-600/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-50"
             >
               {opLoading ? "..." : "✅ APPROVE"}
@@ -1122,6 +1181,7 @@ function AdminPageInner() {
   const swapItems = bucketMap.get("swap_pending_counterparty") || [];
   const managerItems = bucketMap.get("pending_manager") || [];
   const hqItems = bucketMap.get("pending_hq") || [];
+  const otherItems = bucketMap.get("open_other") || [];
   const weekRangeValue = useMemo(
     () => ({
       from: startDate || "",
@@ -1733,6 +1793,7 @@ function AdminPageInner() {
               ["swap_pending_counterparty", swapItems],
               ["pending_manager", managerItems],
               ["pending_hq", hqItems],
+              ["open_other", otherItems],
             ] as Array<[keyof Overview["buckets"], AdminItem[]]>).map(([key, items]) => {
               const meta = bucketMeta(key);
               const Icon = meta.icon;
