@@ -194,6 +194,19 @@ Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押�
   紐づく override 12件も削除）。理由テキストを全種類列挙してから、
   テストと判別できる9種のみを完全一致で削除。ドバイの未処理 **22件 → 2件**
 
+### 通知（2026-09-07 実装・デプロイ済み）
+`worker.run_shift_request_digest(now, city)` + `db.open_shift_change_digest(city)`
+- **マニラ 00:10 UTC / ドバイ 04:10 UTC**（＝どちらも現地 08:10）
+- 送信先は **`DISCORD_SHIFT_APPROVAL_WEBHOOK_URL`**（YELLOW/RED の申請が既に届く承認チャンネル）。
+  未設定なら都市別 webhook にフォールバック
+- **「まだ間に合う件数」を見出しにする。** 来週の休暇申請と7月の申請を1つの数字にまとめると
+  その数字が何も意味しなくなる（教訓73）。**日付が過ぎたものは件数だけ**にして列挙しない
+- **過ぎたものしか無い日は送らず、月曜だけにする。** 毎朝同じ文面が出ると読まれなくなり、
+  読まれなくなった後は新しいものも読まれない（教訓39・55）
+- 0件の日は送らない
+- 実データで本文を確認済み（マニラ「7 can still be answered in time. Oldest of all 15
+  has been waiting 117 days.」／ドバイ「2 past-dated only, holding until Monday」）
+
 ### ⚠️ 未処理が放置される構造（未修正）
 | | |
 |---|---|
@@ -202,7 +215,17 @@ Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押�
 | バッジ | `manager_status='PENDING' AND hq_status='PENDING'` の**1都市分だけ**（既定 dubai）。マニラの列は日本側から見えない |
 | 担当者 | **申請に担当者の欄が無い**。ロールを持つ全員が押せる＝誰の仕事でもない |
 | **Francis Ibana（MANILA_MANAGER）は承認できない** | 許可リストは `MANAGER/ADMIN/HQ/HR_MANAGER/DUBAI_MANAGEMENT/MANILA_MANAGEMENT`。
-  **`MANILA_MANAGER` が入っていない**ので、現場に一番近い店長が締め出され、BOのADMIN6名が押せる（教訓25・32と同型） |
+  **`MANILA_MANAGER` が入っていない**ので、現場に一番近い店長が締め出され、BOのADMIN6名が押せる（教訓25・32と同型）。
+  → **2026-09-07 オーナー判断：当面マニラはHQが承認するので変更しない。** |
+
+### ⚠️ HQロールの保有者が申告と合わない（2026-09-07・未対応）
+オーナーの申告は **4名**（Yukihiro Nishimura / Ayako Nishimura / Yusuke Uejima / Yuri Yamada）。
+実際の `staff_auth.role='HQ'` は **6名**で、**Jay Nishimura** と **Rafael Jonas Lagahit** が余分。
+- HQ は Channels UI で全チャンネル `locked` 表示＝**全権**。承認だけの話ではない
+- Rafael は所属が **BB（店舗）** で、実効ロールは `DUBAI_MANAGEMENT` に解決される
+  （`staff_auth.role` と割り当てロールが食い違っている）
+- **剥奪は破壊的なので未実施。** 外すなら Role Management から。
+  なお `DEFAULT_ROLE_GRANTS` を触らずDBだけ変えると次のログインで戻る（教訓33）
 
 承認できる人（実効ロールで確認済み）:
 - **ドバイ9名** Ayako Nishimura / Jay Nishimura / Yukihiro Nishimura / Yuri Yamada / Yusuke Uejima（HQ）、Rafael Jonas Lagahit（DUBAI_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae / Sherileene Santiago（MANAGER）
