@@ -170,7 +170,12 @@ export default function VoiceScreening({
 
   const q = data.questions[idx];
   const total = data.questions.length;
-  const text = lang === "tl" && q?.text_tl ? q.text_tl : q?.text_en;
+  // Both languages, always. Showing only the chosen one meant an applicant who
+  // reads Tagalog could be looking at an English question with no way to check
+  // what it asked -- and answering the wrong question wastes their ninety
+  // seconds, not ours. The chosen language leads; the other sits under it.
+  const primary = lang === "tl" && q?.text_tl ? q.text_tl : q?.text_en;
+  const secondary = lang === "tl" ? q?.text_en : q?.text_tl;
 
   async function agree() {
     setErr("");
@@ -391,7 +396,16 @@ export default function VoiceScreening({
         )}
       </div>
 
-      <p className="mb-5 text-base leading-relaxed text-white">{text}</p>
+      {/* "Q." so the question is unmistakably the question, and not the
+          instruction above it or the button below it. */}
+      <p className="mb-1.5 text-base leading-relaxed text-white">
+        <span className="mr-1.5 font-semibold text-violet-300">Q.</span>
+        {primary}
+      </p>
+      {secondary && secondary !== primary && (
+        <p className="mb-5 text-sm leading-relaxed text-zinc-400">{secondary}</p>
+      )}
+      {(!secondary || secondary === primary) && <div className="mb-5" />}
 
       {!recording && !saved && (
         <button type="button" onClick={() => void start()} disabled={busy}
