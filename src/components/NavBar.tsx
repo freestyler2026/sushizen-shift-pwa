@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { channelForRoute } from "@/lib/access-channels";
 import type { LucideIcon } from "lucide-react";
 import {
+  Target,
   Phone,
   Hand,
   AlertTriangle,
@@ -220,6 +221,10 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" , cat: "learn" },
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" , cat: "daily" },
   { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" , cat: "daily" },
+  // Next to the report it governs, not buried as a tab under BO Dashboard.
+  // The menu is filtered by permission, so this row costs the 47 people who
+  // file the report and cannot open it exactly nothing.
+  { href: "/admin/management/par-levels", label: "Backup Par Levels", icon: Target, adminOnly: true, match: "prefix" , cat: "daily" },
   { href: "/admin/yield-control", label: "Yield Control", icon: Activity, match: "prefix" , cat: "daily" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" , cat: "daily" },
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" , cat: "daily" },
