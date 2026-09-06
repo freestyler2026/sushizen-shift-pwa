@@ -150,6 +150,10 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
   const [entries, setEntries]       = useState<Entry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [expanded, setExpanded]     = useState<string | null>(null);
+  // Set while correcting an entry that is already filed. There is no other way
+  // back: the log has no delete, so a mistyped amount used to stay in the books
+  // and the purchase got entered a second time to compensate (lesson 22).
+  const [editingId, setEditingId]   = useState<string | null>(null);
 
   // Reset branch to first branch of the new city when city switches
   useEffect(() => {
@@ -308,15 +312,24 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/store/receipt-log", {
-        method: "POST",
-        headers: getAuthHeaders(auth),
-        body: JSON.stringify(payload),
-      });
+      const res = editingId
+        ? await fetch(`/api/store/receipt-log/${editingId}`, {
+            method: "PATCH",
+            headers: getAuthHeaders(auth),
+            body: JSON.stringify({ items: payload.items, total_amount: total }),
+          })
+        : await fetch("/api/store/receipt-log", {
+            method: "POST",
+            headers: getAuthHeaders(auth),
+            body: JSON.stringify(payload),
+          });
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.detail || "Submission failed");
+      if (!res.ok || !data.ok) throw new Error(data.detail || (editingId ? "Could not save the correction" : "Submission failed"));
 
-      setSuccessMsg(`Submitted! ₱${fmtAmt(total)} at ${supplier.trim()}`);
+      setSuccessMsg(editingId
+        ? `Corrected — now ₱${fmtAmt(total)} at ${supplier.trim()}`
+        : `Submitted! ₱${fmtAmt(total)} at ${supplier.trim()}`);
+      setEditingId(null);
       // Reset form
       setSupplier("");
       setItems([newItem()]);
@@ -493,7 +506,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className={T_LABEL}>Items</p>
-            <span className={`${T_CAPTION} text-zinc-500`}>name · qty · unit · amount</span>
+            <span className={`${T_CAPTION} text-zinc-500`}>name · qty · unit · line total</span>
           </div>
           <div className="space-y-3">
             {items.map((it) => (
@@ -564,13 +577,39 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                     type="number"
                     value={it.amount}
                     onChange={(e) => updateItemField(it.id, "amount", e.target.value)}
-                    placeholder="₱ Amount"
+                    placeholder="₱ Line total"
                     min="0"
                     step="0.01"
                     className={`${INPUT_BASE} flex-1 text-right`}
                     onFocus={() => setActiveSuggestId(null)}
                   />
                 </div>
+                {/* The last box is the line total, but with a quantity sitting
+                    right next to it people reasonably read it as the price of
+                    one and the receipt is then filed short (4 bottles logged as
+                    ₱525 instead of ₱2,100). We cannot tell which was meant, so
+                    we do the multiplication and offer it rather than applying
+                    it — whoever is holding the receipt decides. */}
+                {(() => {
+                  const q = parseFloat(it.qty);
+                  const a = parseFloat(it.amount);
+                  if (!(q > 1) || !(a > 0)) return null;
+                  const lineTotal = Math.round(q * a * 100) / 100;
+                  return (
+                    <div className="flex items-center gap-2 mt-1 pl-1">
+                      <span className="text-[11px] text-zinc-500">
+                        If ₱{fmtAmt(a)} is the price of one: {q} × ₱{fmtAmt(a)} = ₱{fmtAmt(lineTotal)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateItemField(it.id, "amount", String(lineTotal))}
+                        className="text-[11px] font-semibold text-violet-400 underline shrink-0"
+                      >
+                        Use
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -645,11 +684,22 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
           className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
         >
           {submitting ? (
-            <><Loader2 size={16} className="animate-spin" /> Submitting…</>
+            <><Loader2 size={16} className="animate-spin" /> {editingId ? "Saving…" : "Submitting…"}</>
+          ) : editingId ? (
+            <><Receipt size={16} /> Save Correction</>
           ) : (
             <><Receipt size={16} /> Submit Receipt</>
           )}
         </button>
+        {editingId && (
+          <button
+            type="button"
+            onClick={() => { setEditingId(null); setSupplier(""); setItems([newItem()]); setNotes(""); setReceiptUrl(""); setErrMsg(""); }}
+            className="w-full mt-2 text-xs text-zinc-400 underline"
+          >
+            Cancel — leave that entry as it is
+          </button>
+        )}
       </form>
 
       {/* ── Recent submissions ── */}
@@ -716,6 +766,32 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                     {e.notes && (
                       <p className="text-xs text-zinc-500 mt-1 italic">{e.notes}</p>
                     )}
+                    {/* The way back. Loads the lines into the form above; the
+                        branch, date, supplier, payment method and photo stay as
+                        filed, so a wrong number is fixed rather than the whole
+                        purchase entered again. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(e.id);
+                        setSupplier(e.supplier_name);
+                        setItems(e.items.length
+                          ? e.items.map((it) => ({
+                              id: Math.random().toString(36).slice(2),
+                              name: it.name ?? "",
+                              qty: it.qty != null ? String(it.qty) : "",
+                              unit: it.unit ?? "",
+                              amount: String(it.amount ?? ""),
+                            }))
+                          : [newItem()]);
+                        setErrMsg("");
+                        setSuccessMsg("");
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="text-xs text-violet-400 underline mt-2"
+                    >
+                      Fix the amounts on this receipt
+                    </button>
                     {e.receipt_url && (
                       <a
                         href={e.receipt_url}
