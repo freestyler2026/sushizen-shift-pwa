@@ -163,8 +163,12 @@ describe("MenuCategoriesPage — data loading", () => {
     mockMenuGet = vi.fn(async () => PAGINATED_EMPTY);
     render(<MenuCategoriesPage />);
     await screen.findByText("New Category");
-    expect(mockMenuGet).toHaveBeenCalled();
-    expect(mockMenuGet.mock.calls[0][0]).toContain("/api/admin/menu/categories");
+    // The load runs in its own effect, so the heading appearing says
+    // nothing about whether the call has gone out yet.
+    await waitFor(() => {
+      expect(mockMenuGet).toHaveBeenCalled();
+      expect(mockMenuGet.mock.calls[0][0]).toContain("/api/admin/menu/categories");
+    });
   });
 
   it("renders category rows in table", async () => {
