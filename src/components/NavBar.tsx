@@ -476,6 +476,9 @@ export default function NavBar() {
   // things nobody told me about".
   const [myMgmtBadge, setMyMgmtBadge] = useState(0);
   const [myMgmtOverdue, setMyMgmtOverdue] = useState(0);
+  // Yesterday's review waiting on this person. Without it the review sits
+  // behind a menu item that looks like every other one (lesson 72).
+  const [myReviewBadge, setMyReviewBadge] = useState(0);
   const [pettyCashBadge, setPettyCashBadge] = useState(0);
   const [expenseBadge, setExpenseBadge] = useState(0);
   const [transportBadge, setTransportBadge] = useState(0);
@@ -801,7 +804,7 @@ export default function NavBar() {
       try {
         const auth = getAuth();
         if (!auth?.hasSession && !auth?.accessToken) {
-          if (!cancelled) { setMyMgmtBadge(0); setMyMgmtOverdue(0); }
+          if (!cancelled) { setMyMgmtBadge(0); setMyMgmtOverdue(0); setMyReviewBadge(0); }
           return;
         }
         const res = await fetch(`/api/store/management/badge`, {
@@ -813,6 +816,7 @@ export default function NavBar() {
         if (!cancelled) {
           setMyMgmtBadge(Number(data?.count ?? 0));
           setMyMgmtOverdue(Number(data?.overdue ?? 0));
+          setMyReviewBadge(Number(data?.review ?? 0));
         }
       } catch {}
     };
@@ -1315,6 +1319,8 @@ export default function NavBar() {
           ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
           : item.href === "/store/my-nte"
           ? { ...item, badgeCount: nteBadge, badgeWarning: nteBadge > 0 }
+          : item.href === "/store/management/review"
+          ? { ...item, badgeCount: myReviewBadge, badgeWarning: myReviewBadge > 0 }
           : item.href === "/store/management/inbox"
           ? {
               ...item,

@@ -146,7 +146,13 @@ export default function MorningReviewPage() {
       const res = await fetch("/api/store/ops-review?status=open", {
         headers: getAuthHeaders(auth), cache: "no-store",
       });
-      if (!res.ok) { setErr(`Could not load (HTTP ${res.status})`); return; }
+      if (!res.ok) {
+        // A raw status code is a dead end. Say which of the two it is.
+        setErr(res.status === 403
+          ? "This page is for the managers on the branch duty roster. If that should include you, ask the office to add Morning Review to your role."
+          : `Could not load (HTTP ${res.status})`);
+        return;
+      }
       const d = await res.json();
       setRows(d.reviews || []);
       if ((d.reviews || []).length) await loadOne(d.reviews[0].id);
