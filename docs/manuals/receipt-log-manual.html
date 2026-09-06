@@ -397,10 +397,10 @@
     </li>
   </ol>
 
-  <div class="warn">
-    <h3><span class="en">A sent entry cannot be edited or deleted</span><span class="ja">送信後は編集も削除もできません</span></h3>
-    <p class="en">Not by you, and not by the office. Check the total and the date before you press Submit. If you do send a wrong one, <strong>tell the office the same day</strong> with the shop, the date and the amount &mdash; they will keep it out of the month's figures by hand. Do not send a second entry to &ldquo;correct&rdquo; it; that makes two.</p>
-    <p class="ja">あなたも事務側も直せません。送信前に金額と日付を確認してください。間違えて送ってしまった場合は、<strong>その日のうちに</strong>店名・日付・金額を事務に伝えてください。月次の集計から手作業で除きます。<strong>「訂正のためにもう1件送る」はしないでください。</strong>2件になります。</p>
+  <div class="note">
+    <h3><span class="en">A wrong number can be corrected &mdash; a duplicate cannot</span><span class="ja">金額は直せます &mdash; 二重登録は直せません</span></h3>
+    <p class="en">If you notice a mistake after sending, open the entry under <span class="ui">My Recent Submissions</span> and tap <span class="ui">Fix the amounts on this receipt</span>. <strong>Do not send the purchase again</strong> &mdash; that leaves two, and only the office can untangle it. The branch, date, supplier and payment method cannot be changed here; tell the office if one of those is wrong.</p>
+    <p class="ja">送ったあとで間違いに気づいたら、<span class="ui">My Recent Submissions</span> でその記録を開き、<span class="ui">Fix the amounts on this receipt</span> を押してください。<strong>同じ買い物をもう一度送らないでください。</strong>2件になり、事務側でしか元に戻せません。Branch・日付・仕入先・支払方法はここでは変えられません。そこが違う場合は事務に伝えてください。</p>
   </div>
 </section>
 
@@ -586,6 +586,48 @@ SI No: 0000074000</div>
 
 <section>
   <span class="eyebrow">
+    <span class="en">If a number is wrong</span><span class="ja">金額を間違えたとき</span>
+  </span>
+  <h2>
+    <span class="en">Fixing a receipt you already sent</span>
+    <span class="ja">送ってしまった記録を直す</span>
+  </h2>
+  <p class="en">
+    Open <strong>My Recent Submissions</strong> at the bottom of the page, tap the
+    entry, and tap <span class="ui">Fix the amounts on this receipt</span>. The lines
+    load back into the form above. Correct them and tap
+    <span class="ui">Save Correction</span>.
+  </p>
+  <p class="ja">
+    ページ下の <strong>My Recent Submissions</strong> でその記録を開き、
+    <span class="ui">Fix the amounts on this receipt</span> を押します。明細が上の
+    フォームに戻るので、直して <span class="ui">Save Correction</span> を押します。
+  </p>
+
+  <div class="note">
+    <h3><span class="en">Do not send the purchase a second time</span><span class="ja">同じ買い物を二重に送らないでください</span></h3>
+    <p class="en">
+      Sending it again does not replace the first one &mdash; the month then shows the
+      purchase twice. Correct the entry that is already there.
+    </p>
+    <p class="ja">
+      もう一度送っても最初の記録は消えません。その月にその買い物が<strong>2回</strong>
+      計上されます。既にある記録を直してください。
+    </p>
+  </div>
+
+  <p class="en">
+    Only the person who sent it can correct it. The branch, date, supplier, payment
+    method and photo stay as filed &mdash; only the lines and the total move.
+  </p>
+  <p class="ja">
+    直せるのは送った本人だけです。Branch・日付・仕入先・支払方法・写真は申告した
+    ままで、動くのは明細と合計だけです。
+  </p>
+</section>
+
+<section>
+  <span class="eyebrow">
     <span class="en">When it does not work</span><span class="ja">うまくいかないとき</span>
   </span>
   <h2>
@@ -620,6 +662,10 @@ SI No: 0000074000</div>
         <tr>
           <td><span class="en">The shop is not in the list</span><span class="ja">店が候補に出ない</span></td>
           <td><span class="en">Type it in full. It joins the list for next time.</span><span class="ja">正式名称を入力してください。次回から候補に出ます。</span></td>
+        </tr>
+        <tr>
+          <td><span class="en">The total shows one item&rsquo;s price, not the line</span><span class="ja">合計が1個分の値段になっている</span></td>
+          <td><span class="en">The last box is the <strong>line total</strong>, so 4 jars at &#8369;525 is <span class="mono">2100</span>. Type a quantity above 1 and the row offers <span class="mono">4 &times; &#8369;525.00 = &#8369;2,100.00</span> &mdash; tap <span class="ui">Use</span> if that matches the slip. Already sent it? See <strong>Fixing a receipt you already sent</strong>.</span><span class="ja">最後の欄は<strong>その行の合計</strong>です。1瓶 ₱525 の4瓶なら <span class="mono">2100</span>。数量に2以上を入れると <span class="mono">4 × ₱525.00 = ₱2,100.00</span> と出るので、レシートと合っていれば <span class="ui">Use</span> を押してください。送信済みなら<strong>「送ってしまった記録を直す」</strong>を見てください。</span></td>
         </tr>
         <tr>
           <td><span class="en">No Receipt Log in your menu</span><span class="ja">メニューに Receipt Log が無い</span></td>
