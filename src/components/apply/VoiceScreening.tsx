@@ -746,6 +746,11 @@ export default function VoiceScreening({
   if (stage === "intro") {
     // Nothing loads until they press play. A page that spends thirty megabytes
     // on its own is the page people stop opening.
+    // ⚠️ A YouTube or Vimeo URL will not play here. next.config.ts sets
+    // `default-src 'self'` with no frame-src or media-src, so the browser
+    // blocks both the embed iframe and any cross-origin file. Host the video
+    // with the app (public/media) and give VOICE_INTRO_VIDEO_URL a path such
+    // as /media/voice-intro.mp4 — same origin, so it is allowed.
     const embed = intro && (intro.kind === "youtube"
       ? intro.url.replace("youtu.be/", "www.youtube.com/embed/")
                  .replace("watch?v=", "embed/")
@@ -766,11 +771,12 @@ export default function VoiceScreening({
         ) : intro && intro.kind === "file" ? (
           // playsInline, or iOS takes the video fullscreen and drops them out
           // of the form when it ends.
-          // The company video is shot vertically, so on anything wider than a
-          // phone it would otherwise run taller than the screen and push the
-          // Continue button out of sight.
+          // The company video is shot vertically. At 70vh it filled the screen
+          // and pushed Continue below the fold on a normal phone -- somebody
+          // who has just watched a minute of video should not have to go
+          // looking for the way on. 46vh leaves the button visible.
           <video src={embed} controls autoPlay playsInline
-            className="max-h-[70vh] w-full rounded-xl bg-black object-contain" />
+            className="max-h-[46vh] w-full rounded-xl bg-black object-contain" />
         ) : (
           <div className="relative w-full overflow-hidden rounded-xl bg-black"
             style={{ paddingTop: "56.25%" }}>
