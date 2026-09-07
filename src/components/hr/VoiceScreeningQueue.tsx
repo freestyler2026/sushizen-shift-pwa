@@ -428,8 +428,9 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       </div>
 
       <p className={`${T_CAPTION} mb-3`}>
+        {/* The hint already ends with it; appending a second copy read
+            "longest wait first — longest wait first." on screen. */}
         {TABS.find((t) => t.key === state)?.hint}
-        {state === "to_review" && rows.length > 1 && " — longest wait first."}
       </p>
 
       {err && (
