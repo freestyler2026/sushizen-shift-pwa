@@ -305,6 +305,10 @@ npx tsc --noEmit
 24. **Vercel の Function リクエストボディ上限は約4.3MB — スマホ写真は超える** → 本番で実測: 4000KB→200 / 4400KB→413（`FUNCTION_PAYLOAD_TOO_LARGE`、**text/plain**）。バックエンドが20MBを許可していても、リクエストはそこに到達しない。写真アップロードは必ず `src/lib/image-compress.ts` の `prepareUpload()` でブラウザ側で縮小してから送る。またエラー処理で `res.ok` を見る**前に** `res.json()` を呼ぶと、text/plain の413で例外になり原因が消える。`readError()` を使うこと。
 
 25. **アクセス判定にロール名のベタ書きだけを使わない — Role Management が嘘になる** → カスタムロール（MANILA_STAFF / MANILA_MANAGER / INVENTORY_PURCHASING 等）は `staff_auth.role` こそ STAFF だが、トークンの `role` には**解決済みのカスタムロール名**が入る（例 `INVENTORY_PURCHASING`）。いずれにせよ `["HQ","ADMIN","MANILA_MANAGEMENT"].includes(role)` には該当せず、どれだけ権限にチェックを入れても**永久に false**。ロール名リストは残してよいが、必ず権限による経路を `||` で足す。（2026-08-27 Store Supplier Orders で発覚 → 構造修正は次項）
+    - ⚠️ **`staff_master.role` を見て「この人は ADMIN だから通るはず」と判断しない。** Camilla Gadingan は `staff_master.role='ADMIN'` だが、`staff_role_assignments` の `HR_STAFF` が優先され、トークンの `role` は `HR_STAFF` になる。**名簿の役職欄と、実効ロールは別物。** 判定は必ず `resolve_staff_access_profile()` の `primary_role` と `permissions` で見る。（2026-09-06 スタッフ無効化が403になった件）
+    - ⚠️ **ポリシー層が通していても、その先のベタ書きが実質の関門になっていることがある。** `staff.status.change` のポリシーは `permission:"*"` で誰でも通す設定だったが、エンドポイント内の `actor["role"] not in {"HQ","ADMIN"}` が本当の関門だった。**403の原因を探すときは、ポリシー定義だけを読んで納得しない。**
+    - **退行かどうかを監査ログで判定する。** 彼女は同じ操作を18回（最終 2026-08-24、当時の記録は `actor_role=ADMIN`）行っていた。**「新しく権限を配る」のか「動いていたものが止まった」のかで、判断の重さが変わる。**
+    - 広げる前に**在籍者全員で新旧の判定を回し、増える人と減る人を名前で出す**（今回 +8名 / −0名）。件数だけでは判断できない。
 
 30. **Driveのファイルは「アップロードしたサービスアカウント」でしか読めない** → 2026-08-27 に発生。レシートは用途ごとに別のSAでアップロードされている（petty cash / receipt log = `procurement_drive_chain`、請求書 = `Dubai_Discord_Invoice_Json`）。他方のSAで読むと **404 File not found**（権限エラーではないので原因が分かりにくい）。`app/services/receipt_ocr.py` の `_drive_services()` が複数の認証を順に試す。新しいDrive保存先を追加したら、この関数にも足すこと。
 
