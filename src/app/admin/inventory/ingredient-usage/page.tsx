@@ -76,7 +76,7 @@ const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
   // a purchase item. Saying "not ordered" for both would send someone looking
   // for a delivery that was never going to exist.
   not_ordered_here: "No invoice for it in these dates — it is linked, just not billed here",
-  not_linked: "Not linked to any invoice item on Cost Calculation, so nothing can be matched",
+  not_linked: "Not linked to an invoice item — add it in Cost Calculation → Invoice Mapping",
   unit_unknown: "Invoiced in a pack whose size is not on file",
 };
 
@@ -266,7 +266,7 @@ export default function IngredientUsagePage() {
             </div>
           )}
           <div className="mt-2 text-xs text-amber-200/60">
-            Add a recipe on Cost Calculation to bring a product into this screen.
+            Add a recipe in Cost Calculation to bring a product into this screen.
           </div>
         </section>
       )}
@@ -288,7 +288,8 @@ export default function IngredientUsagePage() {
                  className="rounded-xl border border-orange-500/25 bg-orange-500/[0.06] px-4 py-3 text-sm text-orange-200">
               <strong>“{c.description}”</strong> is linked to more than one ingredient
               ({c.ingredients}), so its invoices are left out of the comparison rather than
-              guessed at. Fix the link on Cost Calculation → item mapping and it comes back.
+              guessed at. Fix it in <strong>Cost Calculation → Invoice Mapping → Registered
+              Mappings</strong> and this ingredient comes back on its own.
             </div>
           ))}
         </section>
