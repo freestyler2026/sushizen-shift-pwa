@@ -21,9 +21,7 @@ type UsageRow = {
   category: string;
   supplier: string;
   used_qty: number;
-  used_unit: string;
-  order_unit: string;
-  used_in_order_unit: number | null;
+  unit: string;
   used_value: number;
   bought_qty: number | null;
   bought_amount: number;
@@ -55,6 +53,9 @@ type Payload = {
     used_value_not_linked: number;
   };
   coverage: Coverage;
+  invoices_through: string;
+  invoices_behind: boolean;
+  mapping_conflicts: { description: string; ingredients: string }[];
 };
 
 const BRANCHES = [
@@ -69,14 +70,14 @@ const BRANCHES = [
 // the row (lesson 9 — a rule that is not on the screen is not believed).
 const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
   ok: "",
-  partial: "Some of it was ordered in a pack with no size on file",
+  partial: "Part of it came on an invoice whose pack size is not on file",
   // These two look the same on screen but mean opposite jobs: one is a normal
   // week with no delivery, the other is an ingredient nobody has ever linked to
   // a purchase item. Saying "not ordered" for both would send someone looking
   // for a delivery that was never going to exist.
-  not_ordered_here: "Not ordered in these dates — it is bought under this name at other times",
-  not_linked: "No purchase item is linked to this ingredient, so nothing can be matched",
-  unit_unknown: "Ordered in a pack with no size on file",
+  not_ordered_here: "No invoice for it in these dates — it is linked, just not billed here",
+  not_linked: "Not linked to any invoice item on Cost Calculation, so nothing can be matched",
+  unit_unknown: "Invoiced in a pack whose size is not on file",
 };
 
 function iso(d: Date) {
@@ -90,6 +91,16 @@ function daysAgo(n: number) {
 function num(n: number | null | undefined, digits = 1) {
   if (n == null) return "—";
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+
+// Recipes are written in grams, so a week reads as 201,625 g. Nobody buys or
+// counts in that, so show kg past a kilo and keep the sign.
+function qty(n: number | null | undefined, unit: string) {
+  if (n == null) return "—";
+  const u = (unit || "").toLowerCase();
+  if (u === "g" && Math.abs(n) >= 1000) return `${num(n / 1000, 2)} kg`;
+  if (u === "ml" && Math.abs(n) >= 1000) return `${num(n / 1000, 2)} L`;
+  return `${num(n, u === "g" || u === "ml" ? 0 : 2)} ${unit}`;
 }
 
 export default function IngredientUsagePage() {
@@ -260,20 +271,43 @@ export default function IngredientUsagePage() {
         </section>
       )}
 
+      {/* Two things that make the Invoiced column wrong if nobody says them out
+          loud: invoices arrive days late, and one bad mapping row silently
+          removes an ingredient from the comparison entirely. */}
+      {data && (data.invoices_behind || data.mapping_conflicts.length > 0) && (
+        <section className="space-y-2">
+          {data.invoices_behind && (
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3 text-sm text-sky-200">
+              Invoices are entered up to <strong>{data.invoices_through}</strong>, which is before
+              the end of this period. Anything billed after that is not in the Invoiced column
+              yet — the differences for recent days will look larger than they are.
+            </div>
+          )}
+          {data.mapping_conflicts.map((c) => (
+            <div key={c.description}
+                 className="rounded-xl border border-orange-500/25 bg-orange-500/[0.06] px-4 py-3 text-sm text-orange-200">
+              <strong>“{c.description}”</strong> is linked to more than one ingredient
+              ({c.ingredients}), so its invoices are left out of the comparison rather than
+              guessed at. Fix the link on Cost Calculation → item mapping and it comes back.
+            </div>
+          ))}
+        </section>
+      )}
+
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-neutral-300">
             {data && (
               <>
                 <strong className="text-neutral-200">{data.summary.comparable}</strong> of{" "}
-                {data.summary.ingredients} can be compared with purchases.{" "}
+                {data.summary.ingredients} can be compared with invoices.{" "}
                 <span className="text-neutral-500">
-                  {data.summary.not_linked} have no purchase item linked to them
+                  {data.summary.not_linked} are not linked to an invoice item
                   {data.summary.used_value_not_linked > 0
                     ? ` (${num(data.summary.used_value_not_linked, 0)} of use)`
                     : ""}
-                  , {data.summary.not_ordered_here} were simply not ordered in these dates, and
-                  {" "}{data.summary.unit_unknown} were ordered in a pack with no size on file.
+                  , {data.summary.not_ordered_here} had no invoice in these dates, and
+                  {" "}{data.summary.unit_unknown} came in a pack whose size is not on file.
                 </span>
               </>
             )}
@@ -294,7 +328,7 @@ export default function IngredientUsagePage() {
                 <th className="px-3 py-2 text-left">Ingredient</th>
                 <th className="px-3 py-2 text-left">Supplier</th>
                 <th className="px-3 py-2 text-right">Used</th>
-                <th className="px-3 py-2 text-right">Ordered</th>
+                <th className="px-3 py-2 text-right">Invoiced</th>
                 <th className="px-3 py-2 text-right">Difference</th>
                 <th className="px-3 py-2 text-right">Cost of use</th>
               </tr>
@@ -310,17 +344,15 @@ export default function IngredientUsagePage() {
                     </td>
                     <td className="px-3 py-2 text-neutral-400">{r.supplier || "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
-                      {r.used_in_order_unit != null
-                        ? `${num(r.used_in_order_unit, 2)} ${r.order_unit}`
-                        : `${num(r.used_qty, 1)} ${r.used_unit || ""}`}
+                      {qty(r.used_qty, r.unit)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
-                      {r.bought_qty != null ? `${num(r.bought_qty, 2)} ${r.order_unit}` : "—"}
+                      {r.bought_qty != null ? qty(r.bought_qty, r.unit) : "—"}
                     </td>
                     <td className={`px-3 py-2 text-right tabular-nums ${
                       r.difference == null ? "text-neutral-600"
                         : r.difference < 0 ? "text-orange-300" : "text-teal-300"}`}>
-                      {r.difference == null ? "—" : num(r.difference, 2)}
+                      {r.difference == null ? "—" : qty(r.difference, r.unit)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-400">
                       {num(r.used_value, 0)}
@@ -343,12 +375,13 @@ export default function IngredientUsagePage() {
         <p className="mt-3 text-xs text-neutral-500">
           <strong className="text-neutral-400">Used</strong> is worked out from the recipes, not
           counted — it is what the sales should have consumed.
-          <strong className="text-neutral-400"> Ordered</strong> is what was requested through
-          Procurement in the same dates, which is not the same as what arrived.
+          <strong className="text-neutral-400"> Invoiced</strong> is what suppliers billed in the
+          same dates, matched to the ingredient through the item mapping on Cost Calculation —
+          the same mapping that carries the pack size (1 SACK = 25,000 g).
           A negative difference means more was used than ordered in these dates; over a short
           window that usually means it came out of stock already held.
           <br />
-          <strong className="text-neutral-400">Purchases are counted across all of Manila</strong>,
+          <strong className="text-neutral-400">Invoices are counted across all of Manila</strong>,
           not just the branch selected above — the stores sell it, but CK and the warehouse buy
           most of it.
         </p>
