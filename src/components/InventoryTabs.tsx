@@ -15,6 +15,7 @@ import {
   PackageMinus,
   RefreshCw,
   ScanLine,
+  Utensils,
   ScrollText,
   Warehouse,
   Layers,
@@ -39,6 +40,7 @@ const SECONDARY_ITEMS = [
   { href: "/admin/inventory/spot-checks",        label: "Quick Spot Check",       icon: ScanLine },
   { href: "/admin/inventory/quantity-adjustments", label: "Quantity Adjustments", icon: PackageMinus },
   { href: "/admin/inventory/cost-adjustments",   label: "Cost Adjustments",       icon: CircleDollarSign },
+  { href: "/admin/inventory/ingredient-usage",   label: "Ingredients Used by Sales", icon: Utensils },
   { href: "/admin/inventory/pos-sync",           label: "POS Sync",               icon: RefreshCw },
   { href: "/admin/inventory/ledger",             label: "Ledger",                 icon: ScrollText },
 ] satisfies Array<{ href: string; label: string; icon: LucideIcon }>;

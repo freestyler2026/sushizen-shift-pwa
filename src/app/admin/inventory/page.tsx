@@ -34,6 +34,12 @@ const MODULES: ModuleCard[] = [
     href: "/admin/inventory/items",
   },
   {
+    title: "Ingredients Used by Sales",
+    description: "What the food sold in a period was made of, worked out from the recipes, next to what was ordered for it.",
+    status: "Backend ready",
+    href: "/admin/inventory/ingredient-usage",
+  },
+  {
     title: "POS Sync",
     description: "UrbanPiper orders-by-item CSV sync from Google Drive into branch-aware inventory staging.",
     status: "Backend ready",
