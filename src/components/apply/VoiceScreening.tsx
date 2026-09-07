@@ -19,10 +19,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 interface Question { seq: number; text_en: string; text_tl: string; limit_seconds: number }
+interface IntroVideo { url: string; kind: "youtube" | "vimeo" | "file"; seconds: number }
 interface Loaded {
   name: string; language: string; status: string;
   consent_given: boolean; consent_version: string; retain_days: number;
   questions: Question[]; answered: number[];
+  /** Empty object when none is configured, and then the step does not exist. */
+  intro_video?: IntroVideo | Record<string, never>;
 }
 
 type Lang = "en" | "tl";
@@ -32,6 +35,11 @@ const T = {
     heading: "One more step (optional)",
     lead: "Answer five short questions by voice, in your own time. About five minutes. No appointment, nothing to attend.",
     startNow: "Answer now by voice",
+    introTitle: "First, a minute about Sushi ZEN",
+    introBody: "Watch if you like — it uses mobile data. You can skip it and it makes no difference to your application.",
+    introPlay: "Play the video",
+    introSkip: "Skip and continue",
+    introNext: "Continue",
     later: "I will do it later",
     laterNote: "We will message you the link on the number you gave.",
     consentTitle: "Before you record",
@@ -77,6 +85,12 @@ const T = {
     silentAnswer: "That answer had no sound in it, so it was not sent. Your microphone did not pick anything up.",
     silentRetry: "Record this answer again",
     meterHint: "The bar moves while you speak.",
+    inAppTitle: "Open this in your browser first",
+    inAppBody: "You opened this inside Facebook / Messenger. That window is not allowed to use the microphone. Tap the ••• (or ⋮) at the top and choose \u201cOpen in browser\u201d — Chrome or Safari — then this page will work.",
+    inAppCopy: "Copy the link",
+    inAppCopied: "Copied — paste it into Chrome or Safari",
+    fixLangTl: "Tagalog",
+    fixLangEn: "English",
     fixTitle: "How to fix the microphone",
     fixIos: "iPhone / iPad",
     fixAndroid: "Android",
@@ -100,6 +114,11 @@ const T = {
     heading: "Isa pang hakbang (opsyonal)",
     lead: "Sagutin ang limang maikling tanong gamit ang boses mo, kahit anong oras. Mga limang minuto. Walang appointment, walang pupuntahan.",
     startNow: "Sumagot ngayon gamit ang boses",
+    introTitle: "Una, isang minuto tungkol sa Sushi ZEN",
+    introBody: "Panoorin kung gusto mo — gumagamit ito ng mobile data. Pwede mo rin itong laktawan, at walang epekto ito sa application mo.",
+    introPlay: "I-play ang video",
+    introSkip: "Laktawan at magpatuloy",
+    introNext: "Magpatuloy",
     later: "Mamaya na lang",
     laterNote: "Ipapadala namin ang link sa numerong ibinigay mo.",
     consentTitle: "Bago ka mag-record",
@@ -145,6 +164,12 @@ const T = {
     silentAnswer: "Walang tunog ang sagot na iyon, kaya hindi ito naipadala. Walang nakuha ang mikropono mo.",
     silentRetry: "I-record ulit ang sagot na ito",
     meterHint: "Gumagalaw ang bar habang nagsasalita ka.",
+    inAppTitle: "Buksan muna ito sa browser",
+    inAppBody: "Nabuksan mo ito sa loob ng Facebook / Messenger. Hindi pinapayagan ng window na iyon ang mikropono. Pindutin ang ••• (o ⋮) sa itaas at piliin ang \u201cOpen in browser\u201d — Chrome o Safari — tapos gagana na ang page na ito.",
+    inAppCopy: "Kopyahin ang link",
+    inAppCopied: "Nakopya na — i-paste sa Chrome o Safari",
+    fixLangTl: "Tagalog",
+    fixLangEn: "English",
     fixTitle: "Paano ayusin ang mikropono",
     fixIos: "iPhone / iPad",
     fixAndroid: "Android",
@@ -243,6 +268,20 @@ function guessPlatform(): "ios" | "android" {
   return /iPhone|iPad|iPod/i.test(ua) ? "ios" : "android";
 }
 
+/** Opened inside an app's own browser rather than Chrome or Safari.
+ *
+ *  This is the likely case, not an edge one: the invite is sent over Messenger,
+ *  WhatsApp or Viber, and tapping a link in those opens a webview. Several of
+ *  them refuse getUserMedia outright, so the applicant meets "we could not hear
+ *  anything" for a reason no microphone setting will fix. Worth saying plainly
+ *  before they work through six steps that cannot help.
+ */
+function inAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /\bFBAN\b|\bFBAV\b|\bFB_IAB\b|Instagram|\bLine\/|Messenger|Viber/i.test(ua);
+}
+
 const BTN = "w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-60";
 
 export default function VoiceScreening({
@@ -264,7 +303,8 @@ export default function VoiceScreening({
   const t = T[lang];
 
   const [data, setData] = useState<Loaded | null>(null);
-  const [stage, setStage] = useState<"offer" | "consent" | "miccheck" | "record" | "later" | "done">(startAt);
+  const [stage, setStage] = useState<"offer" | "intro" | "consent" | "miccheck" | "record" | "later" | "done">(startAt);
+  const [playing, setPlaying] = useState(false);
   const [idx, setIdx] = useState(0);
   const [recording, setRecording] = useState(false);
   const [left, setLeft] = useState(0);
@@ -277,6 +317,12 @@ export default function VoiceScreening({
   const [bar, setBar] = useState(0);
   const [showFix, setShowFix] = useState(false);
   const [fixTab, setFixTab] = useState<"ios" | "android">("android");
+  // The fix steps carry their own language, starting in Tagalog whatever the
+  // rest of the page is set to: everybody applying is Filipino, and this panel
+  // only appears when something has already gone wrong.
+  const [fixLang, setFixLang] = useState<Lang>("tl");
+  const [inApp, setInApp] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [silent, setSilent] = useState(false);
 
   const recRef = useRef<MediaRecorder | null>(null);
@@ -287,7 +333,7 @@ export default function VoiceScreening({
   const barTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
 
-  useEffect(() => { setFixTab(guessPlatform()); }, []);
+  useEffect(() => { setFixTab(guessPlatform()); setInApp(inAppBrowser()); }, []);
   // Investigated once already: a loop left running after the screen is gone
   // keeps calling setState on something that no longer exists (lesson 94).
   useEffect(() => () => {
@@ -549,7 +595,26 @@ export default function VoiceScreening({
     setIdx(idx + 1);
   }
 
+  const iv = data.intro_video as IntroVideo | undefined;
+  const intro = iv && iv.url ? iv : null;
+
   const card = "rounded-2xl border border-white/10 bg-white/5 p-5";
+
+  /** On every screen, not just the first one. Somebody who arrives from an
+   *  invite link starts at the consent screen and never saw the offer screen's
+   *  switch -- so until now they had no way to read any of this in Tagalog,
+   *  including the instructions for when the microphone will not work. */
+  const langBar = (
+    <div className="mb-3 flex justify-end gap-1 text-xs">
+      {(["en", "tl"] as const).map((l) => (
+        <button key={l} type="button" onClick={() => setLang(l)}
+          className={`rounded-lg px-2 py-1 ${lang === l
+            ? "bg-violet-500/25 text-violet-100" : "text-zinc-500"}`}>
+          {l === "en" ? "English" : "Tagalog"}
+        </button>
+      ))}
+    </div>
+  );
 
   /** The bar. It is the whole point: a number in a database would not have told
    *  the person recording that nothing was going in. */
@@ -572,22 +637,52 @@ export default function VoiceScreening({
    *  headset in a bag records the bag. Both platforms stay reachable — leading
    *  with the wrong one would be an inconvenience, hiding the right one would
    *  be a dead end. */
+  const fx = T[fixLang];
   const fixPanel = (
     <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-950/15 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-amber-100">{t.fixTitle}</h3>
+      {/* Said before the six steps, because none of the six can help here. */}
+      {inApp && (
+        <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3">
+          <p className="text-sm font-semibold text-amber-100">{fx.inAppTitle}</p>
+          <p className="mt-1 text-sm leading-relaxed text-zinc-200">{fx.inAppBody}</p>
+          <button
+            type="button"
+            onClick={() => {
+              // Not every in-app webview grants clipboard access; if it refuses,
+              // the address bar is still there to copy from by hand.
+              void navigator.clipboard?.writeText(window.location.href)
+                .then(() => setCopied(true)).catch(() => setCopied(false));
+            }}
+            className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-100"
+          >
+            {copied ? fx.inAppCopied : fx.inAppCopy}
+          </button>
+        </div>
+      )}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-amber-100">{fx.fixTitle}</h3>
         <div className="flex gap-1 text-xs">
+          {/* Two switches, because two different things vary: which phone, and
+              which language. Tagalog leads. */}
+          {(["tl", "en"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setFixLang(k)}
+              className={`rounded-lg px-2 py-1 ${fixLang === k
+                ? "bg-amber-500/25 text-amber-100" : "text-zinc-500"}`}>
+              {k === "tl" ? fx.fixLangTl : fx.fixLangEn}
+            </button>
+          ))}
+          <span className="px-1 text-zinc-600">|</span>
           {(["ios", "android"] as const).map((k) => (
             <button key={k} type="button" onClick={() => setFixTab(k)}
               className={`rounded-lg px-2 py-1 ${fixTab === k
                 ? "bg-amber-500/25 text-amber-100" : "text-zinc-500"}`}>
-              {k === "ios" ? t.fixIos : t.fixAndroid}
+              {k === "ios" ? fx.fixIos : fx.fixAndroid}
             </button>
           ))}
         </div>
       </div>
       <ol className="space-y-2.5 text-sm leading-relaxed text-zinc-300">
-        {(fixTab === "ios" ? t.fixIosSteps : t.fixAndroidSteps).map((step, i) => (
+        {(fixTab === "ios" ? fx.fixIosSteps : fx.fixAndroidSteps).map((step, i) => (
           <li key={i} className="flex gap-2.5">
             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-200">
               {i + 1}
@@ -618,7 +713,7 @@ export default function VoiceScreening({
           </div>
         </div>
         <p className="mb-5 text-sm leading-relaxed text-zinc-300">{t.lead}</p>
-        <button type="button" onClick={() => setStage("consent")}
+        <button type="button" onClick={() => setStage(intro ? "intro" : "consent")}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {t.startNow}
         </button>
@@ -633,7 +728,56 @@ export default function VoiceScreening({
   if (stage === "later") {
     return (
       <div className={`${card} mt-8`}>
+        {langBar}
         <p className="text-sm text-zinc-300">{t.laterNote}</p>
+      </div>
+    );
+  }
+
+  if (stage === "intro") {
+    // Nothing loads until they press play. A page that spends thirty megabytes
+    // on its own is the page people stop opening.
+    const embed = intro && (intro.kind === "youtube"
+      ? intro.url.replace("youtu.be/", "www.youtube.com/embed/")
+                 .replace("watch?v=", "embed/")
+      : intro.kind === "vimeo"
+      ? intro.url.replace("vimeo.com/", "player.vimeo.com/video/")
+      : intro.url);
+    return (
+      <div className={`${card} mt-8`}>
+        {langBar}
+        <h2 className="mb-2 text-lg font-semibold text-white">{t.introTitle}</h2>
+        <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.introBody}</p>
+
+        {!playing ? (
+          <button type="button" onClick={() => setPlaying(true)}
+            className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
+            ▶ {t.introPlay}
+          </button>
+        ) : intro && intro.kind === "file" ? (
+          // playsInline, or iOS takes the video fullscreen and drops them out
+          // of the form when it ends.
+          <video src={embed} controls autoPlay playsInline
+            className="w-full rounded-xl bg-black" />
+        ) : (
+          <div className="relative w-full overflow-hidden rounded-xl bg-black"
+            style={{ paddingTop: "56.25%" }}>
+            <iframe
+              src={`${embed}${embed?.includes("?") ? "&" : "?"}autoplay=1&playsinline=1`}
+              title={t.introTitle}
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+        )}
+
+        <button type="button" onClick={() => setStage("consent")}
+          className={`${BTN} mt-3 ${playing
+            ? "bg-violet-500/90 text-white hover:bg-violet-500"
+            : "border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}>
+          {playing ? t.introNext : t.introSkip}
+        </button>
       </div>
     );
   }
@@ -641,6 +785,7 @@ export default function VoiceScreening({
   if (stage === "consent") {
     return (
       <div className={`${card} mt-8`}>
+        {langBar}
         <h2 className="mb-3 text-lg font-semibold text-white">{t.consentTitle}</h2>
         <ul className="mb-5 space-y-2 text-sm leading-relaxed text-zinc-300">
           {t.consentBody.map((line, i) => (
@@ -665,6 +810,7 @@ export default function VoiceScreening({
   if (stage === "miccheck") {
     return (
       <div className={`${card} mt-8`}>
+        {langBar}
         <h2 className="mb-2 text-lg font-semibold text-white">{t.checkTitle}</h2>
         <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.checkBody}</p>
 
@@ -727,6 +873,7 @@ export default function VoiceScreening({
   if (stage === "done") {
     return (
       <div className={`${card} mt-8 text-center`}>
+        {langBar}
         <h2 className="text-lg font-semibold text-white">{t.doneTitle}</h2>
         <p className="mt-2 text-sm text-zinc-300">{t.doneBody}</p>
       </div>
@@ -735,6 +882,7 @@ export default function VoiceScreening({
 
   return (
     <div className={`${card} mt-8`}>
+      {langBar}
       <div className="mb-1 flex items-baseline justify-between">
         <span className="text-xs uppercase tracking-wider text-zinc-500">
           {t.question} {idx + 1} {t.of} {total}
