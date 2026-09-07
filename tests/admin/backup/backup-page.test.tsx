@@ -285,11 +285,15 @@ describe("/admin/backup — city switching", () => {
     await renderPage();
     await waitFor(() => screen.getByText("Backup Report"));
     chooseValue("Dubai", "manila");
+    // Asserted on the title, not the face. Five buttons share a row two columns
+    // wide, which leaves each 22px on a 375px phone, so the % sign came off the
+    // face and "100%" stopped being clipped; the title still carries the whole
+    // reading. Matching the face would also match any bare 0 on the page.
     await waitFor(() =>
       // Percentage buttons appear for pct-type items (e.g. Quezo Cheese Cut)
-      expect(screen.getAllByText("0%").length).toBeGreaterThan(0)
+      expect(screen.getAllByTitle(/^0% \(standard:/).length).toBeGreaterThan(0)
     );
-    expect(screen.getAllByText("100%").length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle(/^100% \(standard:/).length).toBeGreaterThan(0);
   });
 
   it("switching back to Dubai removes Manila-only sections", async () => {
@@ -568,11 +572,12 @@ describe("/admin/backup — percentage selector (Manila pct items)", () => {
     chooseValue("Dubai", "manila");
     await waitFor(() => screen.getByText("Quezo Cheese Cut"));
 
-    expect(screen.getAllByText("0%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("25%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("50%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("75%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("100%").length).toBeGreaterThan(0);
+    // The face carries the number alone; the title carries the percentage.
+    for (const pct of [0, 25, 50, 75, 100]) {
+      expect(
+        screen.getAllByTitle(new RegExp(`^${pct}% \\(standard:`)).length,
+      ).toBeGreaterThan(0);
+    }
   });
 
   it("clicking a pct button selects it (adds to filled count)", async () => {
