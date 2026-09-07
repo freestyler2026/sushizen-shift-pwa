@@ -87,6 +87,12 @@ type Item = {
     peak_dbfs: number | null;
     mean_dbfs: number | null;
     level_note: string | null;
+    transcript: string | null;
+    transcript_engine: string | null;
+    /** Whisper's own avg_logprob. On the 21 answers recorded 2026-09-07 it
+     *  correlated 0.88 with whether two independent passes agreed on the
+     *  words, so it is a usable stand-in for "is this transcript true". */
+    transcript_confidence: number | null;
   } | null;
 };
 
@@ -106,7 +112,7 @@ function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) 
   return null;
 }
 
-type Detail = Row & { items: Item[] };
+type Detail = Row & { items: Item[]; transcript_check_below?: number };
 
 type State = "to_invite" | "waiting" | "to_review" | "done";
 
@@ -709,6 +715,37 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 {it.answer ? "Recording no longer held" : "Not answered"}
                               </p>
                             )}
+                            {it.answer?.transcript && (() => {
+                              // Marked, not hidden. A transcript the machine is
+                              // unsure of is still the fastest way to find the
+                              // answer in the recording -- it just must not be
+                              // read as what the candidate said. On 2026-09-07
+                              // one answer came back as invented Tagalog with a
+                              // confidence of -2.9, and nothing on the screen
+                              // would have told you.
+                              const c = it.answer.transcript_confidence;
+                              const limit = detail.transcript_check_below ?? -0.45;
+                              const shaky = c !== null && c <= limit;
+                              return (
+                                <div className={`mt-2 rounded-lg border p-2.5 ${
+                                  shaky ? "border-amber-500/30 bg-amber-950/15"
+                                        : "border-white/8 bg-white/3"}`}>
+                                  {shaky && (
+                                    <p className="mb-1 text-xs font-semibold text-amber-200">
+                                      Check this one by ear — the transcript may not be what was said
+                                    </p>
+                                  )}
+                                  <p className="text-[13px] leading-relaxed text-zinc-300">
+                                    {it.answer.transcript}
+                                  </p>
+                                  <p className={`${T_CAPTION} mt-1.5`}>
+                                    {it.answer.transcript_engine}
+                                    {c !== null && ` · confidence ${c.toFixed(2)}`}
+                                    {" · names and places in a transcript are the least reliable part of it"}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </div>
                         ))}
                       </div>
