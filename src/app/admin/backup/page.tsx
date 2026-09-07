@@ -911,7 +911,12 @@ function PercentageSelector({
             className={btnCls}
             title={`${pct}% (standard: ${standard}%)`}
           >
-            {pct}%
+            {/* No % on the button. Two columns on a 375px phone leave each of
+                these 22px, and "100%" does not fit in 22px -- the text was
+                clipped inside its own box on four of the five. The line
+                directly above already says what the number is a percentage
+                of, so the sign is the part that can go. */}
+            {pct}
           </button>
         );
       })}
