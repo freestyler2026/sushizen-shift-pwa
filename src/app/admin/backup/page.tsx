@@ -891,7 +891,11 @@ function PercentageSelector({
     <div className="flex gap-0.5 w-full">
       {PCT_LEVELS.map((pct) => {
         const isSelected = hasValue && current === pct;
-        let btnCls = "flex-1 rounded-md py-2.5 text-[11px] font-bold transition-colors border ";
+        // min-w-0 as well as flex-1: a flex item's default min-width is
+        // auto, so "100%" at 11px set a floor of about 30px each and five of
+        // them plus gaps came to ~158px in a ~155px column. The buttons went
+        // over the card edge and into the next one.
+        let btnCls = "flex-1 min-w-0 rounded-md px-0 py-2.5 text-[10px] font-bold transition-colors border ";
         if (isSelected) {
           if (pct >= standard) btnCls += "bg-green-500/25 text-green-300 border-green-500/50";
           else if (pct >= standard - 25) btnCls += "bg-yellow-500/25 text-yellow-300 border-yellow-500/50";
