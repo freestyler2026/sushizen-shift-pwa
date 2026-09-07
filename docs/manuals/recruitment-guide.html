@@ -810,17 +810,31 @@ open one of these, then press send yourself.
           ChromeやSafariに貼るよう案内します。これが無いと、その下の6つの手順は
           「やっても直らない手順」になります。</li>
       </ul>
-      <p lang="en">The video at the top is <strong>off unless somebody turns it
-        on</strong>, and there is no video yet. When there is one, it is one
-        setting — send the link to whoever runs the system and they set
-        <span class="ui">VOICE_INTRO_VIDEO_URL</span>; no new release is needed.
-        It never plays by itself (mobile data costs money), skipping it changes
-        nothing about the application, and it stops the moment they move on.</p>
-      <p lang="ja" hidden>冒頭のビデオは<strong>設定するまで出ません</strong>。まだ動画自体がありません。
-        用意できたら、リンクを管理側に渡して
-        <span class="ui">VOICE_INTRO_VIDEO_URL</span> に設定するだけで、リリースは不要です。
-        自動再生はしません（モバイルデータは応募者の負担です）。飛ばしても選考には一切影響せず、
-        次に進んだ時点で再生は止まります。</p>
+      <p lang="en">The one-minute company video is <strong>live from 7 September 2026</strong>.
+        It is the first thing the link opens on, and it <strong>never plays by
+        itself</strong> — mobile data costs the applicant money, so nothing is
+        downloaded until they press <span class="ui">Play the video</span>.
+        <span class="ui">Skip and continue</span> sits underneath and goes straight
+        to the consent screen; skipping changes nothing about the application, and
+        the video stops the moment they move on. It is 62 seconds and about 10 MB.</p>
+      <p lang="ja" hidden>1分の会社紹介ビデオは<strong>2026年9月7日から公開しています</strong>。
+        リンクを開いて最初に出る画面で、<strong>自動再生はしません</strong>。
+        モバイルデータは応募者の負担なので、<span class="ui">Play the video</span> を
+        押すまで何も読み込みません。その下に <span class="ui">Skip and continue</span> があり、
+        押すと同意画面に直行します。飛ばしても選考には一切影響せず、次に進んだ時点で再生は止まります。
+        長さ62秒・約10MBです。</p>
+      <p lang="en">To change the video later, replace the file at
+        <span class="ui">public/media/voice-intro.mp4</span> and release, or point
+        <span class="ui">VOICE_INTRO_VIDEO_URL</span> at another path on this app.
+        <strong>A YouTube or Vimeo link will not work</strong> — the app's content
+        security policy only allows media served from itself, so the video has to
+        live with the app. To take the video away entirely, clear that setting.</p>
+      <p lang="ja" hidden>後でビデオを差し替えるときは、
+        <span class="ui">public/media/voice-intro.mp4</span> を置き換えてリリースするか、
+        <span class="ui">VOICE_INTRO_VIDEO_URL</span> をこのアプリ内の別のパスに向けてください。
+        <strong>YouTube や Vimeo のリンクは動きません</strong> —
+        アプリのセキュリティポリシー上、動画はアプリ自身が配信するものしか再生できないためです。
+        ビデオをやめる場合はこの設定を空にします。</p>
 
       <p lang="en">Once a recording arrives the person moves to
         <span class="ui">To review</span>. Press <span class="ui">Listen</span>

@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-07（食材使用量の画面／CK発注ポップアップ／応募者の携帯まわり）
+Last updated: 2026-09-07（会社紹介ビデオ公開／食材使用量の画面／CK発注ポップアップ）
 
 ---
 
@@ -137,6 +137,38 @@ SALMON: 使用 54.0kg / 請求 95.0kg（+41.0kg）。GARI PINK も比較対象�
 - 数量編集・0にする・削除・Undo・仕入先が空になったときの件数、閉じて開き直すと初期値に戻ること、
   全削除で作成ボタンが無効になることを実操作で確認。
 - ⚠️ **実際の発注は作成していない**（PINは入力していない）。送信内容の検証はテスト側で行った。
+
+---
+
+## ✅ 2026-09-07 — 会社紹介ビデオを公開（音声面接の冒頭）
+
+`VOICE_INTRO_VIDEO_URL=/media/voice-intro.mp4`（設定済み・v2687）。62秒・9.8MB。
+
+### 元データは273MBだった
+渡された `voice interview-PR.mp4` は **HEVC 1440×2560 60fps 35.6Mbps / 273MB**。そのままは不可:
+- **HEVC は Android Chrome で再生できないことがある。**「色々なモバイルで使える」が要件なのでH.264にする
+- 同意画面で「モバイルデータを使います」と伝えている以上、273MBを流すのは嘘に近い
+
+`ffmpeg` で **H.264 High / 720×1280 / 30fps / faststart** に変換 → **9.8MB（28分の1）**。
+`public/media/voice-intro.mp4` に置いてVercelが配信（`public/music` に282MB入っている前例あり）。
+
+### ⚠️ YouTube / Vimeo のURLは使えない
+`next.config.ts` の CSP が `default-src 'self'` で **frame-src も media-src も無い**。
+埋め込みiframeもクロスオリジンのmp4も両方ブロックされる。実際、絶対URL
+（`https://sushizen-shift-pwa.vercel.app/media/...`）を localhost から指したら
+`Media load rejected by URL safety check` で止まった。
+**設定値はアプリ内の相対パスにすること。** 本番はページと動画が同一オリジンなので通る。
+以前「YouTube/Vimeo/mp3に対応」と書いたが、CSPの下では**自前配信のみ**が正しい。
+
+### 表示
+- **自動再生しない。** `Play the video` を押すまで `<video>` 自体を作らない（データを使わせない）
+- **Skip and continue** が下にあり、同意画面へ直行。押しても選考に影響しない
+- 縦動画なので `max-h-[46vh]`。70vhだと375×812の端末で **Continue が画面外**に出た
+- タガログ語も確認（`▶ I-play ang video` / `Laktawan at magpatuloy`）
+
+### 検証
+実ファイルを実ブラウザで再生: `readyState=4` / 720×1280 / 62秒 / 3秒間で3秒進行 / エラー無し。
+Skip経路では `<video>` が生成されないことも確認。既存テスト8件パス。
 
 ---
 
