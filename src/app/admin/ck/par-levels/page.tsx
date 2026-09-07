@@ -28,6 +28,9 @@ interface ParLevelRow {
   // 発注カタログの単価。Direct Purchase の手入力が引いているのと同じ表。
   catalog_unit_price?: number | null;
   price_source?: string | null;
+  // 発注カタログでの品名。item_name とは別に持つ — item_name は棚卸しの鍵で、
+  // 変えると現在庫が引けなくなり、その品が発注対象から消える。
+  catalog_item_name?: string | null;
 }
 
 // One line of the purchase order being built in the modal. `removed` keeps a
@@ -131,6 +134,13 @@ export default function CkParLevelsPage() {
   const [newVendorName, setNewVendorName] = useState("");
   const [savingVendor, setSavingVendor] = useState(false);
 
+  // catalogue name inline edit — the Procurement catalogue's name for the same
+  // item. Kept separate from item_name on purpose: item_name is what the CK
+  // count sheet says, and changing it would break the stock link.
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [catValue, setCatValue] = useState<string>("");
+  const [savingCat, setSavingCat] = useState(false);
+
   // unit inline edit
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [unitValue, setUnitValue] = useState<string>("");
@@ -216,6 +226,32 @@ export default function CkParLevelsPage() {
     } finally {
       setSavingUnit(false);
       setEditingUnitId(null);
+    }
+  };
+
+  // ── catalogue name inline save ────────────────────────────────────────────
+  const saveCatalogName = async (row: ParLevelRow, value: string) => {
+    setSavingCat(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({ catalog_item_name: value.trim() || null }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      // Reload so the price that this name unlocks appears straight away —
+      // the point of setting it is to see the figure.
+      await loadRows();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingCat(false);
+      setEditingCatId(null);
     }
   };
 
@@ -928,7 +964,48 @@ export default function CkParLevelsPage() {
                         {tab === "supplier" && (
                           <td className="px-4 py-2.5 text-zinc-500 text-xs">{row.category || "—"}</td>
                         )}
-                        <td className="px-4 py-2.5 text-white font-medium">{row.item_name}</td>
+                        <td className="px-4 py-2.5 text-white font-medium">
+                          {row.item_name}
+                          {tab === "supplier" && (
+                            editingCatId === row.id ? (
+                              <div className="mt-1 flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={catValue}
+                                  onChange={(e) => setCatValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") void saveCatalogName(row, catValue);
+                                    if (e.key === "Escape") setEditingCatId(null);
+                                  }}
+                                  autoFocus
+                                  placeholder="Name in the Procurement catalogue"
+                                  className="w-64 rounded-lg bg-white/10 px-2 py-1 text-xs text-white border border-sky-500/50 outline-none"
+                                />
+                                <button
+                                  onClick={() => void saveCatalogName(row, catValue)}
+                                  disabled={savingCat}
+                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-sky-500/20 text-sky-300 hover:bg-sky-500/35 disabled:opacity-60"
+                                >{savingCat ? "…" : "✓"}</button>
+                                <button
+                                  onClick={() => setEditingCatId(null)}
+                                  className="rounded px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/10"
+                                >✕</button>
+                              </div>
+                            ) : row.catalog_item_name ? (
+                              <button
+                                onClick={() => { setEditingCatId(row.id); setCatValue(row.catalog_item_name || ""); }}
+                                className="mt-0.5 block text-left text-[11px] font-normal text-teal-300/80 hover:text-teal-200"
+                                title="The name this item has in the Procurement catalogue. Click to change."
+                              >≡ {row.catalog_item_name}</button>
+                            ) : row.price_source && row.price_source !== "supplier" && row.price_source !== "catalog" ? (
+                              <button
+                                onClick={() => { setEditingCatId(row.id); setCatValue(""); }}
+                                className="mt-0.5 block text-left text-[11px] font-normal text-orange-300/70 hover:text-orange-200"
+                                title="No price could be taken from the Procurement catalogue. Set the name it has there and the price follows."
+                              >+ no price — set catalogue name</button>
+                            ) : null
+                          )}
+                        </td>
 
                         {/* Unit — inline editable */}
                         <td className="px-4 py-2.5 text-center">
