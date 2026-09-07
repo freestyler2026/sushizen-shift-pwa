@@ -408,7 +408,13 @@ export default function VoiceScreening({
   async function runMicCheck() {
     setErr(""); setShowFix(false); setBar(0);
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      // No recorder at all -- which is exactly what a Facebook or Viber webview
+      // looks like. Saying "this browser cannot record" and stopping leaves the
+      // one person who most needs the way out without it, so the panel opens
+      // here too and leads with how to leave the webview.
       setErr(t.micUnsupported);
+      setMic("bad");
+      setShowFix(true);
       return;
     }
     let stream: MediaStream;
@@ -662,15 +668,13 @@ export default function VoiceScreening({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-amber-100">{fx.fixTitle}</h3>
         <div className="flex gap-1 text-xs">
-          {/* Two switches, because two different things vary: which phone, and
-              which language. Tagalog leads. */}
-          {(["tl", "en"] as const).map((k) => (
-            <button key={k} type="button" onClick={() => setFixLang(k)}
-              className={`rounded-lg px-2 py-1 ${fixLang === k
-                ? "bg-amber-500/25 text-amber-100" : "text-zinc-500"}`}>
-              {k === "tl" ? fx.fixLangTl : fx.fixLangEn}
-            </button>
-          ))}
+          {/* One button naming the language you would get, written in that
+              language. A pair labelled English / Tagalog sat next to the page's
+              own pair and read as the same control twice. */}
+          <button type="button" onClick={() => setFixLang(fixLang === "tl" ? "en" : "tl")}
+            className="rounded-lg border border-amber-500/30 px-2 py-1 text-amber-100">
+            {fixLang === "tl" ? "Read in English" : "Basahin sa Tagalog"}
+          </button>
           <span className="px-1 text-zinc-600">|</span>
           {(["ios", "android"] as const).map((k) => (
             <button key={k} type="button" onClick={() => setFixTab(k)}
