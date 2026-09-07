@@ -766,8 +766,11 @@ export default function VoiceScreening({
         ) : intro && intro.kind === "file" ? (
           // playsInline, or iOS takes the video fullscreen and drops them out
           // of the form when it ends.
+          // The company video is shot vertically, so on anything wider than a
+          // phone it would otherwise run taller than the screen and push the
+          // Continue button out of sight.
           <video src={embed} controls autoPlay playsInline
-            className="w-full rounded-xl bg-black" />
+            className="max-h-[70vh] w-full rounded-xl bg-black object-contain" />
         ) : (
           <div className="relative w-full overflow-hidden rounded-xl bg-black"
             style={{ paddingTop: "56.25%" }}>
