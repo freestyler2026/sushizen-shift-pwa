@@ -975,13 +975,22 @@ function TemplateSectionBlock({
               const color = shortageColor(std, qty[item.key] ?? "");
 
               return (
-                <div key={item.key}>
-                  <div className="flex items-center justify-between mb-1 gap-1">
-                    <label className="text-xs text-zinc-400 flex-1 leading-tight break-words min-w-0">
+                // min-w-0, or the grid column cannot shrink to its 1fr share:
+                // a grid item defaults to min-width:auto, so the widest thing
+                // inside sets the column's floor. That is what pushed the
+                // percentage buttons past the card edge and squeezed the names
+                // down to one letter per line on a phone.
+                <div key={item.key} className="min-w-0">
+                  {/* Name and standard stacked rather than side by side. On the
+                      same line they compete for a 165px column, and the one
+                      that loses is the item name -- which is the half you
+                      cannot do without. */}
+                  <div className="mb-1">
+                    <label className="block text-xs leading-tight text-zinc-400 break-words">
                       {item.display ?? item.label}
                     </label>
                     {std && (
-                      <span className="shrink-0 text-[9px] font-semibold text-zinc-600 tabular-nums">
+                      <span className="block text-[9px] font-semibold text-zinc-600 tabular-nums">
                         {std.label}
                       </span>
                     )}
