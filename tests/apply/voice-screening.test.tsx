@@ -92,22 +92,38 @@ describe("voice screening on a phone", () => {
   });
 
   it("shows the video step only when one is configured, and loads nothing until asked", async () => {
+    // A file served by this app, not YouTube: the CSP is default-src 'self'
+    // with no frame-src, so an embed can never play in production. Testing the
+    // embed would be asserting behaviour the browser refuses.
     await renderVoice(loaded({
-      intro_video: { url: "https://youtu.be/abc123", kind: "youtube", seconds: 60 },
+      intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 62 },
     }));
     fireEvent.click(screen.getByText("Answer now by voice"));
     expect(await screen.findByText(/First, a minute about Sushi ZEN/)).toBeTruthy();
-    // Nothing is fetched before play.
-    expect(document.querySelector("iframe")).toBeNull();
+    // Nothing is downloaded before they press play — the screen has just told
+    // them it costs them data.
+    expect(document.querySelector("video")).toBeNull();
     fireEvent.click(screen.getByText(/Play the video/));
-    await waitFor(() => expect(document.querySelector("iframe")).toBeTruthy());
-    expect(document.querySelector("iframe")!.getAttribute("src"))
-      .toContain("youtube.com/embed/abc123");
+    await waitFor(() => expect(document.querySelector("video")).toBeTruthy());
+    const v = document.querySelector("video")!;
+    expect(v.getAttribute("src")).toBe("/media/voice-intro.mp4");
+    // iOS takes an inline-less video fullscreen and drops them out of the form.
+    expect(v.hasAttribute("playsinline")).toBe(true);
+  });
+
+  it("says how long the video is, from the setting", async () => {
+    // Hardcoded copy would go on saying "a minute" after somebody swaps in a
+    // three-minute film, on the one screen that owes an honest data cost.
+    await renderVoice(loaded({
+      intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 195 },
+    }));
+    fireEvent.click(screen.getByText("Answer now by voice"));
+    expect(await screen.findByText(/about 3 minutes/)).toBeTruthy();
   });
 
   it("lets somebody skip the video in one tap", async () => {
     await renderVoice(loaded({
-      intro_video: { url: "https://youtu.be/abc123", kind: "youtube", seconds: 60 },
+      intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 62 },
     }));
     fireEvent.click(screen.getByText("Answer now by voice"));
     fireEvent.click(await screen.findByText("Skip and continue"));
@@ -118,7 +134,7 @@ describe("voice screening on a phone", () => {
     // The link is what gets sent over Messenger, so this is the common path --
     // and it opens at the consent screen, past where the video used to live.
     await renderVoice(loaded({
-      intro_video: { url: "https://youtu.be/abc123", kind: "youtube", seconds: 60 },
+      intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 62 },
     }), { startAt: "consent" });
     expect(await screen.findByText(/First, a minute about Sushi ZEN/)).toBeTruthy();
     fireEvent.click(screen.getByText("Skip and continue"));

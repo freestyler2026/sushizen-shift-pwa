@@ -36,7 +36,8 @@ const T = {
     lead: "Answer five short questions by voice, in your own time. About five minutes. No appointment, nothing to attend.",
     startNow: "Answer now by voice",
     introTitle: "First, a minute about Sushi ZEN",
-    introBody: "Watch if you like — it uses mobile data. You can skip it and it makes no difference to your application.",
+    introBody: "Watch if you like{len} — it uses mobile data. You can skip it and it makes no difference to your application.",
+    introLen: " — about {n} minute{s}",
     introPlay: "Play the video",
     introSkip: "Skip and continue",
     introNext: "Continue",
@@ -115,7 +116,8 @@ const T = {
     lead: "Sagutin ang limang maikling tanong gamit ang boses mo, kahit anong oras. Mga limang minuto. Walang appointment, walang pupuntahan.",
     startNow: "Sumagot ngayon gamit ang boses",
     introTitle: "Una, isang minuto tungkol sa Sushi ZEN",
-    introBody: "Panoorin kung gusto mo — gumagamit ito ng mobile data. Pwede mo rin itong laktawan, at walang epekto ito sa application mo.",
+    introBody: "Panoorin kung gusto mo{len} — gumagamit ito ng mobile data. Pwede mo rin itong laktawan, at walang epekto ito sa application mo.",
+    introLen: " — mga {n} minuto",
     introPlay: "I-play ang video",
     introSkip: "Laktawan at magpatuloy",
     introNext: "Magpatuloy",
@@ -751,6 +753,10 @@ export default function VoiceScreening({
     // blocks both the embed iframe and any cross-origin file. Host the video
     // with the app (public/media) and give VOICE_INTRO_VIDEO_URL a path such
     // as /media/voice-intro.mp4 — same origin, so it is allowed.
+    const mins = intro && intro.seconds > 0 ? Math.max(1, Math.round(intro.seconds / 60)) : 0;
+    const introLen = mins
+      ? t.introLen.replace("{n}", String(mins)).replace("{s}", mins === 1 ? "" : "s")
+      : "";
     const embed = intro && (intro.kind === "youtube"
       ? intro.url.replace("youtu.be/", "www.youtube.com/embed/")
                  .replace("watch?v=", "embed/")
@@ -761,7 +767,13 @@ export default function VoiceScreening({
       <div className={`${card} mt-8`}>
         {langBar}
         <h2 className="mb-2 text-lg font-semibold text-white">{t.introTitle}</h2>
-        <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.introBody}</p>
+        {/* The length comes from the setting, not from the copy. It is the one
+            number this screen owes somebody who is paying for the data, and a
+            hardcoded "a minute" would go on saying that after the video is
+            replaced with a longer one. */}
+        <p className="mb-4 text-sm leading-relaxed text-zinc-300">
+          {t.introBody.replace("{len}", introLen)}
+        </p>
 
         {!playing ? (
           <button type="button" onClick={() => setPlaying(true)}
