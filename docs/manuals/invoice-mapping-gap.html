@@ -25,26 +25,40 @@
     --flag:#D6926A; --flag-soft:#2C231E;
   }
   *{box-sizing:border-box}
+  /* .eyebrow and .fig span set display:block, which out-ranks the browser's
+     [hidden] rule — so switching language left both languages stacked on
+     those two. Declare it once, with weight, rather than per element. */
+  [hidden]{display:none !important}
   body{margin:0;background:var(--paper);color:var(--ink);
-       font-family:"Source Sans 3","Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+       font-family:"Source Sans 3",-apple-system,BlinkMacSystemFont,sans-serif;
        font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:64rem;margin:0 auto;padding:clamp(2rem,5vw,3.5rem) clamp(1rem,4vw,2rem) 5rem}
+  .wrap{max-width:64rem;margin:0 auto;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,4vw,2rem) 5rem}
   h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0;text-wrap:balance;color:var(--ink)}
   h1{font-size:clamp(1.9rem,5vw,2.6rem);line-height:1.15;letter-spacing:-.015em}
   h2{font-size:clamp(1.25rem,3vw,1.55rem);line-height:1.25;margin-bottom:.35rem}
-  h3{font-size:1.02rem;line-height:1.35}
   p{margin:0 0 .9rem;max-width:var(--measure)}
   .lede{font-size:1.06rem;color:var(--ink-soft);max-width:34rem}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.14em;
            text-transform:uppercase;color:var(--accent);display:block;margin-bottom:.5rem}
   header{padding-bottom:1.75rem;border-bottom:1px solid var(--line);margin-bottom:2rem}
   .meta{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--muted);margin-top:1.25rem}
+  .langbar{display:flex;justify-content:flex-end;gap:.25rem;margin-bottom:1.25rem}
+  .langbar button{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);background:transparent;border:1px solid var(--line);
+    border-radius:5px;padding:.3rem .7rem;cursor:pointer}
+  .langbar button[aria-pressed="true"]{color:var(--surface);background:var(--accent);border-color:var(--accent)}
+  .langbar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  [lang="ja"]{font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic","Source Sans 3",sans-serif;line-height:1.85}
+  h1[lang="ja"]{font-size:clamp(1.5rem,4vw,2rem);line-height:1.35;letter-spacing:0}
+  h2[lang="ja"]{font-size:clamp(1.15rem,2.8vw,1.35rem);line-height:1.5}
+  .lede[lang="ja"]{font-size:1rem}
+  .eyebrow[lang="ja"]{letter-spacing:.05em;text-transform:none}
   .figs{display:grid;gap:1px;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));
         background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:1.5rem 0 0}
   .fig{background:var(--surface);padding:.95rem 1rem 1.05rem}
   .fig b{display:block;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
          font-size:1.5rem;font-weight:500;line-height:1.1;color:var(--ink);margin-bottom:.25rem}
-  .fig span{display:block;font-size:.84rem;line-height:1.4;color:var(--muted)}
+  .fig span{display:block;font-size:.84rem;line-height:1.45;color:var(--muted)}
   section{margin-bottom:3rem}
   .note{border-left:2px solid var(--accent);padding:.1rem 0 .1rem 1rem;margin:1.1rem 0;
         color:var(--ink-soft);font-size:.95rem;max-width:var(--measure)}
@@ -69,811 +83,155 @@
   .desc{font-family:"IBM Plex Mono",monospace;font-size:.83rem;color:var(--accent-ink);
         background:var(--accent-soft);border-radius:4px;padding:.06em .4em;overflow-wrap:anywhere}
   .who{color:var(--muted);font-size:.82rem}
-  .none{color:var(--flag);font-size:.85rem}
+  .none{color:var(--flag);font-size:.85rem;max-width:34rem}
   .pill{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
         border-radius:999px;padding:.16em .55em;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
   .pill.flag{color:var(--flag);border-color:var(--flag);background:var(--flag-soft)}
   .pill.ok{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-soft)}
   .empty{padding:1.2rem .95rem;color:var(--muted);font-size:.9rem}
   footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
-  .scroller{overflow-x:auto}
   @media (max-width:32rem){ .row{grid-template-columns:1.4rem 1fr;} .amt{grid-column:2;justify-self:start} }
 </style>
 
 <div class="wrap">
+
+<div class="langbar">
+  <button type="button" id="btn-en" aria-pressed="true">English</button>
+  <button type="button" id="btn-ja" aria-pressed="false">日本語</button>
+</div>
+
 <header>
-  <span class="eyebrow">Manila · Inventory · 23 Aug – 6 Sep 2026</span>
-  <h1>The invoice mapping gap</h1>
-  <p class="lede">Ingredients that <em>Ingredients Used by Sales</em> cannot compare against
-    purchases, because nothing on Cost Calculation ties them to an invoice item. Ranked by
-    the money they represent, so the list can be worked from the top.</p>
-  <div class="figs">
-    <div class="fig"><b>₱129,977</b><span>of food cost over these 15 days has no invoice link</span></div>
-    <div class="fig"><b>19.5%</b><span>of the ₱667,014 the recipes consumed</span></div>
-    <div class="fig"><b>53</b><span>ingredients, of 169 used</span></div>
-  </div>
-  <p class="meta">Add a link in Cost Calculation → Invoice Mapping → Registered Mappings.
-    The screen picks it up on the next load — nothing to re-run.</p>
-</header>
+<span lang="en" class="eyebrow">Manila · Inventory · 23 Aug – 6 Sep 2026</span><span lang="ja" class="eyebrow" hidden>マニラ ／ 在庫 ／ 2026年8月23日〜9月6日</span><h1 lang="en">The invoice mapping gap</h1><h1 lang="ja" hidden>対応表の穴</h1><p lang="en" class="lede">Ingredients that <em>Ingredients Used by Sales</em> cannot compare against purchases,
+      because nothing on Cost Calculation ties them to an invoice item. Ranked by the money
+      they represent, so the list can be worked from the top.</p><p lang="ja" class="lede" hidden><em>Ingredients Used by Sales</em> が仕入と比較できない食材です。Cost Calculation 側で
+      請求書の品名と結びついていないためです。金額の大きい順に並べてあるので、上から潰せます。</p><div class="figs"><div class="fig"><b>₱129,977</b><span lang="en">of food cost over these 15 days has no invoice link</span><span lang="ja" hidden>この15日間の食材原価のうち、請求書と結びついていない額</span></div><div class="fig"><b>19.5%</b><span lang="en">of the ₱667,014 the recipes consumed</span><span lang="ja" hidden>レシピが消費した ₱667,014 に対する割合</span></div><div class="fig"><b>53</b><span lang="en">ingredients, of 169 used</span><span lang="ja" hidden>使用された169品のうちの件数</span></div></div><p lang="en" class="meta">Add a link in Cost Calculation → Invoice Mapping → Registered Mappings.
+      The screen picks it up on the next load — nothing to re-run.</p><p lang="ja" class="meta" hidden>Cost Calculation → Invoice Mapping → Registered Mappings で紐づけてください。
+      次に開いたときに反映されます。再実行は不要です。</p></header>
 
-<section>
-  <h2>One pattern accounts for half of it</h2>
-  <p>Twelve of the 53 rows are the parts of a sushi box — cover, inner box, sauce tray and
-    divider, in three sizes. Together they are <strong>₱62,648</strong>,
-    just under half the gap, and they are all bought as packaging from the same supplier.
-    Linking the tray line once per part clears twelve rows.</p>
-  <div class="rows">
-    <div class="row">
-      <div class="rank">1</div>
-      <div class="name">Sushi Box 12pcs - Cover</div>
-      <div class="amt">₱6,726</div>
-      <div class="sub">1,337 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">2</div>
-      <div class="name">Sushi Box 12pcs - Inner Box</div>
-      <div class="amt">₱6,726</div>
-      <div class="sub">1,337 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">3</div>
-      <div class="name">Sushi Box 12pcs - Sauce Tray</div>
-      <div class="amt">₱6,726</div>
-      <div class="sub">1,337 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">4</div>
-      <div class="name">Sushi Box 12pcs - Sushi Tray (Divider)</div>
-      <div class="amt">₱6,726</div>
-      <div class="sub">1,337 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">5</div>
-      <div class="name">Sushi Box 24pcs - Sauce Tray</div>
-      <div class="amt">₱5,154</div>
-      <div class="sub">1,024 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">6</div>
-      <div class="name">Sushi Box 24pcs - Cover</div>
-      <div class="amt">₱5,154</div>
-      <div class="sub">1,024 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">7</div>
-      <div class="name">Sushi Box 24pcs - Sushi Tray (Divider)</div>
-      <div class="amt">₱5,154</div>
-      <div class="sub">1,024 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">8</div>
-      <div class="name">Sushi Box 24pcs - Inner Box</div>
-      <div class="amt">₱5,154</div>
-      <div class="sub">1,024 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">9</div>
-      <div class="name">Sushi Box 16pcs - Sushi Tray (Divider)</div>
-      <div class="amt">₱3,782</div>
-      <div class="sub">752 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">10</div>
-      <div class="name">Sushi Box 16pcs - Sauce Tray</div>
-      <div class="amt">₱3,782</div>
-      <div class="sub">752 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">11</div>
-      <div class="name">Sushi Box 16pcs - Cover</div>
-      <div class="amt">₱3,782</div>
-      <div class="sub">752 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-    <div class="row">
-      <div class="rank">12</div>
-      <div class="name">Sushi Box 16pcs - Inner Box</div>
-      <div class="amt">₱3,782</div>
-      <div class="sub">752 pc used</div>
-      <div class="cand"><div><span class="pill">candidate</span>
-        <span class="desc">sushi tray</span>
-        <span class="who">Multi Crystal Packaging Corp. · ₱17,280 / 90 days</span></div></div>
-    </div>
-  </div>
-  <div class="note">A tray bought by the box covers several recipe parts, so each of these
-    needs its own conversion rule — how many covers, how many dividers per box. That number
-    is not guessed for you; an invented pack size would quietly make the row wrong.</div>
-</section>
+<section><h2 lang="en">One pattern accounts for half of it</h2><h2 lang="ja" hidden>半分は1つのパターン</h2><p lang="en">Twelve of the 53 rows are the parts of a sushi box — cover, inner box, sauce tray and
+      divider, in three sizes. Together they are <strong>₱62,648</strong>, just under
+      half the gap, and they are all bought as packaging from the same supplier. Linking the
+      tray line once per part clears twelve rows.</p><p lang="ja" hidden>53件のうち12件が寿司ボックスの部材です（カバー・内箱・ソーストレイ・仕切り × 3サイズ）。
+      合わせて <strong>₱62,648</strong> で、穴のほぼ半分。すべて同じ仕入先から包材として
+      買っています。部材ごとにトレイの請求品名を1回ずつ張れば、12行が片付きます。</p><div class="rows"><div class="row"><div class="rank">1</div><div class="name">Sushi Box 12pcs - Cover</div><div class="amt">₱6,726</div><div class="sub"><span lang="en">1,337 pc used</span><span lang="ja" hidden>使用 1,337 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">2</div><div class="name">Sushi Box 12pcs - Inner Box</div><div class="amt">₱6,726</div><div class="sub"><span lang="en">1,337 pc used</span><span lang="ja" hidden>使用 1,337 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">3</div><div class="name">Sushi Box 12pcs - Sauce Tray</div><div class="amt">₱6,726</div><div class="sub"><span lang="en">1,337 pc used</span><span lang="ja" hidden>使用 1,337 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">4</div><div class="name">Sushi Box 12pcs - Sushi Tray (Divider)</div><div class="amt">₱6,726</div><div class="sub"><span lang="en">1,337 pc used</span><span lang="ja" hidden>使用 1,337 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">5</div><div class="name">Sushi Box 24pcs - Sauce Tray</div><div class="amt">₱5,154</div><div class="sub"><span lang="en">1,024 pc used</span><span lang="ja" hidden>使用 1,024 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">6</div><div class="name">Sushi Box 24pcs - Cover</div><div class="amt">₱5,154</div><div class="sub"><span lang="en">1,024 pc used</span><span lang="ja" hidden>使用 1,024 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">7</div><div class="name">Sushi Box 24pcs - Sushi Tray (Divider)</div><div class="amt">₱5,154</div><div class="sub"><span lang="en">1,024 pc used</span><span lang="ja" hidden>使用 1,024 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">8</div><div class="name">Sushi Box 24pcs - Inner Box</div><div class="amt">₱5,154</div><div class="sub"><span lang="en">1,024 pc used</span><span lang="ja" hidden>使用 1,024 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">9</div><div class="name">Sushi Box 16pcs - Sushi Tray (Divider)</div><div class="amt">₱3,782</div><div class="sub"><span lang="en">752 pc used</span><span lang="ja" hidden>使用 752 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">10</div><div class="name">Sushi Box 16pcs - Sauce Tray</div><div class="amt">₱3,782</div><div class="sub"><span lang="en">752 pc used</span><span lang="ja" hidden>使用 752 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">11</div><div class="name">Sushi Box 16pcs - Cover</div><div class="amt">₱3,782</div><div class="sub"><span lang="en">752 pc used</span><span lang="ja" hidden>使用 752 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row"><div class="rank">12</div><div class="name">Sushi Box 16pcs - Inner Box</div><div class="amt">₱3,782</div><div class="sub"><span lang="en">752 pc used</span><span lang="ja" hidden>使用 752 pc</span></div><div class="cand"><div><span lang="en" class="pill">candidate</span><span lang="ja" class="pill" hidden>候補</span><span class="desc">sushi tray</span><span class="who">Multi Crystal Packaging Corp. · ₱17,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div></div><div lang="en" class="note">A tray bought by the box covers several recipe parts, so each of these needs its own
+      conversion rule — how many covers, how many dividers per box. That number is not guessed
+      for you; an invented pack size would quietly make the row wrong.</div><div lang="ja" class="note" hidden>箱で買うトレイが複数の部材に対応するので、部材ごとに換算ルールが要ります
+      （1箱にカバー何枚、仕切り何枚か）。システムは推測しません。勝手に決めると、
+      その行の数量だけが静かに嘘になるためです。</div></section>
 
-<section>
-  <h2>Everything else, by cost</h2>
-  <p>The remaining 41 ingredients are <strong>₱67,328</strong>.
-    Where an unlinked invoice line shares a distinctive word with the ingredient, it is offered
-    below as a <em>candidate</em> — a starting point for whoever does the linking, not a decision.
-    Generic matches on “sauce” or “powder” are deliberately not shown: they would suggest tying
-    chilli oil to soy sauce.</p>
-  <div class="controls">
-    <input type="search" id="q" placeholder="Filter by ingredient or invoice item" aria-label="Filter the list">
-    <label class="toggle"><input type="checkbox" id="only-cand"> Only rows with a candidate</label>
-  </div>
-  <div class="rows" id="rest">
-    <div class="row" data-k="soy sauce " data-cand="0">
-      <div class="rank">1</div>
-      <div class="name">SOY SAUCE</div>
-      <div class="amt">₱17,087</div>
-      <div class="sub">126,109.4 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="pork loin pork loin blsl seara" data-cand="1">
-      <div class="rank">2</div>
-      <div class="name">PORK LOIN</div>
-      <div class="amt">₱7,221</div>
-      <div class="sub">21,800.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">pork loin blsl seara</span>
-              <span class="who">Mikana Asia Corporation · 165.7 KG · ₱43,436 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="vinegar mizkan vinegar suehiro mizkan vinegar suehiro" data-cand="1">
-      <div class="rank">3</div>
-      <div class="name">VINEGAR</div>
-      <div class="amt">₱7,197</div>
-      <div class="sub">65,119.4 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">mizkan vinegar suehiro</span>
-              <span class="who">McAsia Foodtrade Corporation · 21.0 BOX · ₱44,560 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">mizkan vinegar suehiro</span>
-              <span class="who">McAsia Foodtrade Corporation · 2.0 PACK · ₱4,200 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="ice pack " data-cand="0">
-      <div class="rank">4</div>
-      <div class="name">Ice Pack</div>
-      <div class="amt">₱5,414</div>
-      <div class="sub">4,148.2 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="zen safety sticker " data-cand="0">
-      <div class="rank">5</div>
-      <div class="name">ZEN Safety Sticker</div>
-      <div class="amt">₱3,541</div>
-      <div class="sub">3,934.6 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="napkin (zen) " data-cand="0">
-      <div class="rank">6</div>
-      <div class="name">Napkin (Zen)</div>
-      <div class="amt">₱3,229</div>
-      <div class="sub">8,496.5 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="sticker ramen " data-cand="0">
-      <div class="rank">7</div>
-      <div class="name">Sticker Ramen</div>
-      <div class="amt">₱3,212</div>
-      <div class="sub">1,155.3 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="sticker safe sealed " data-cand="0">
-      <div class="rank">8</div>
-      <div class="name">Sticker Safe Sealed</div>
-      <div class="amt">₱2,641</div>
-      <div class="sub">2,641.3 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="korean paste gochujiang " data-cand="0">
-      <div class="rank">9</div>
-      <div class="name">KOREAN PASTE GOCHUJIANG</div>
-      <div class="amt">₱1,894</div>
-      <div class="sub">2,167.4 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="edamame ozaki frozen edamame 500g" data-cand="1">
-      <div class="rank">10</div>
-      <div class="name">EDAMAME</div>
-      <div class="amt">₱1,778</div>
-      <div class="sub">8,530.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">ozaki frozen edamame 500g</span>
-              <span class="who">McAsia Foodtrade Corporation · 74.0 PACK · ₱7,326 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="knorr beef stock powder " data-cand="0">
-      <div class="rank">11</div>
-      <div class="name">KNORR BEEF STOCK POWDER</div>
-      <div class="amt">₱1,432</div>
-      <div class="sub">2,777.6 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="sriracha chili sauce p. chili oil p.s/ chili sauce 730" data-cand="1">
-      <div class="rank">12</div>
-      <div class="name">SRIRACHA CHILI SAUCE</div>
-      <div class="amt">₱1,410</div>
-      <div class="sub">4,895.4 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">p. chili oil</span>
-              <span class="who">Cash &amp; Carry Supermarket · 19.0 PC · ₱9,478 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">p.s/ chili sauce 730</span>
-              <span class="who">Cash &amp; Carry Supermarket · 25.0 PC · ₱7,277 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="sesame oil tai ming sesame oil sesame oil" data-cand="1">
-      <div class="rank">13</div>
-      <div class="name">SESAME OIL</div>
-      <div class="amt">₱1,323</div>
-      <div class="sub">6,080.5 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">tai ming sesame oil</span>
-              <span class="who">Le Professional · 7.0 PC · ₱4,340 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">sesame oil</span>
-              <span class="who">CHGL Store (Better Mart) · 2.0 PC · ₱1,300 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="chili oil p. chili oil p.s/ chili sauce 730" data-cand="1">
-      <div class="rank">14</div>
-      <div class="name">CHILI OIL</div>
-      <div class="amt">₱1,293</div>
-      <div class="sub">1,707.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">p. chili oil</span>
-              <span class="who">Cash &amp; Carry Supermarket · 19.0 PC · ₱9,478 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">p.s/ chili sauce 730</span>
-              <span class="who">Cash &amp; Carry Supermarket · 25.0 PC · ₱7,277 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="ajinomoto " data-cand="0">
-      <div class="rank">15</div>
-      <div class="name">AJINOMOTO</div>
-      <div class="amt">₱1,090</div>
-      <div class="sub">6,900.6 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="water mineral 500ml " data-cand="0">
-      <div class="rank">16</div>
-      <div class="name">WATER MINERAL 500ml</div>
-      <div class="amt">₱967</div>
-      <div class="sub">89.0 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="egg white powder " data-cand="0">
-      <div class="rank">17</div>
-      <div class="name">EGG WHITE POWDER</div>
-      <div class="amt">₱918</div>
-      <div class="sub">622.8 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="philadelphia cream cheese kraft phil cream cheese 2 kg mg cream cheese" data-cand="1">
-      <div class="rank">18</div>
-      <div class="name">PHILADELPHIA CREAM CHEESE</div>
-      <div class="amt">₱902</div>
-      <div class="sub">1,382.7 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">kraft phil cream cheese 2 kg</span>
-              <span class="who">Le Professional · 4.0 PC · ₱3,017 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">mg cream cheese</span>
-              <span class="who">Le Professional · 1.0 PC · ₱940 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="onigiri film " data-cand="0">
-      <div class="rank">19</div>
-      <div class="name">Onigiri Film</div>
-      <div class="amt">₱755</div>
-      <div class="sub">202.0 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="salmon skin " data-cand="0">
-      <div class="rank">20</div>
-      <div class="name">SALMON SKIN</div>
-      <div class="amt">₱640</div>
-      <div class="sub">5,443.0 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="pineapple chunk dm pineapple chunks" data-cand="1">
-      <div class="rank">21</div>
-      <div class="name">PINEAPPLE CHUNK</div>
-      <div class="amt">₱525</div>
-      <div class="sub">2,140.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">dm pineapple chunks</span>
-              <span class="who">Cash &amp; Carry Supermarket · 67.0 PC · ₱5,343 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="powder cheese kraft phil cream cheese 2 kg mg cream cheese" data-cand="1">
-      <div class="rank">22</div>
-      <div class="name">POWDER CHEESE</div>
-      <div class="amt">₱488</div>
-      <div class="sub">390.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">kraft phil cream cheese 2 kg</span>
-              <span class="who">Le Professional · 4.0 PC · ₱3,017 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">mg cream cheese</span>
-              <span class="who">Le Professional · 1.0 PC · ₱940 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="hotdog tray clam shell hotdog box 320cc" data-cand="1">
-      <div class="rank">23</div>
-      <div class="name">Hotdog Tray</div>
-      <div class="amt">₱421</div>
-      <div class="sub">164.1 pc used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">clam shell hotdog box 320cc</span>
-              <span class="who">Multi Crystal Packaging Corp. · 2.0 BOX · ₱4,640 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="cajun powder mc cajun seasoning" data-cand="1">
-      <div class="rank">24</div>
-      <div class="name">CAJUN POWDER</div>
-      <div class="amt">₱420</div>
-      <div class="sub">265.5 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">mc cajun seasoning</span>
-              <span class="who">Cash &amp; Carry Supermarket · 10.0 PC · ₱710 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="sticker onigiri " data-cand="0">
-      <div class="rank">25</div>
-      <div class="name">Sticker Onigiri</div>
-      <div class="amt">₱268</div>
-      <div class="sub">161.0 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="garlic ground " data-cand="0">
-      <div class="rank">26</div>
-      <div class="name">GARLIC GROUND</div>
-      <div class="amt">₱249</div>
-      <div class="sub">439.2 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="awase miso aka miso" data-cand="1">
-      <div class="rank">27</div>
-      <div class="name">AWASE MISO</div>
-      <div class="amt">₱229</div>
-      <div class="sub">1,219.5 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">aka miso</span>
-              <span class="who">Mikana Asia Corporation · 8.0 PACK · ₱1,280 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="radish red baby red radish" data-cand="1">
-      <div class="rank">28</div>
-      <div class="name">RADISH RED BABY</div>
-      <div class="amt">₱178</div>
-      <div class="sub">535.0 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">red radish</span>
-              <span class="who">Richcaths vegetable Stall · 7.7 KG · ₱2,200 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="cooking sake / ryorishou sake 18l sake 18l" data-cand="1">
-      <div class="rank">29</div>
-      <div class="name">COOKING SAKE / RYORISHOU</div>
-      <div class="amt">₱154</div>
-      <div class="sub">1,119.7 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">sake 18l</span>
-              <span class="who">Seijitsu Japanese Ramen &amp; Food OPC · 2.0 BOTTLE · ₱4,700 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">sake 18l</span>
-              <span class="who">Seijitsu Japanese Ramen &amp; Food OPC · 1.0 BOX · ₱2,350 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="vegetable stock century tuna chunks in vegetable oil 155g" data-cand="1">
-      <div class="rank">30</div>
-      <div class="name">VEGETABLE STOCK</div>
-      <div class="amt">₱124</div>
-      <div class="sub">962.3 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">century tuna chunks in vegetable oil 155g</span>
-              <span class="who">Sweeterie Bakery · 9.0 CAN · ₱6,950 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="kamote yellow " data-cand="0">
-      <div class="rank">31</div>
-      <div class="name">KAMOTE YELLOW</div>
-      <div class="amt">₱111</div>
-      <div class="sub">890.4 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="tarmeric powder " data-cand="0">
-      <div class="rank">32</div>
-      <div class="name">TARMERIC POWDER</div>
-      <div class="amt">₱44</div>
-      <div class="sub">151.6 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="coconut milk jolly coconut milk wisdom coconut milk 400" data-cand="1">
-      <div class="rank">33</div>
-      <div class="name">COCONUT MILK</div>
-      <div class="amt">₱42</div>
-      <div class="sub">293.6 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">jolly coconut milk</span>
-              <span class="who">Le Professional · 7.0 PC · ₱385 / 90 days</span></div><div><span class="pill ok">candidate</span>
-              <span class="desc">wisdom coconut milk 400</span>
-              <span class="who">Le Professional · 1.0 PC · ₱51 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="cayenne pepper " data-cand="0">
-      <div class="rank">34</div>
-      <div class="name">CAYENNE PEPPER</div>
-      <div class="amt">₱25</div>
-      <div class="sub">79.0 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="mic seasoning " data-cand="0">
-      <div class="rank">35</div>
-      <div class="name">MIC SEASONING</div>
-      <div class="amt">₱22</div>
-      <div class="sub">141.9 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="paprika powder mc cormick spanish paprika pet 470g" data-cand="1">
-      <div class="rank">36</div>
-      <div class="name">PAPRIKA POWDER</div>
-      <div class="amt">₱20</div>
-      <div class="sub">51.9 g used</div><div class="cand"><div><span class="pill ok">candidate</span>
-              <span class="desc">mc cormick spanish paprika pet 470g</span>
-              <span class="who">Le Professional · 2.0 PC · ₱1,160 / 90 days</span></div></div>
-    </div>
-    <div class="row" data-k="hondashi " data-cand="0">
-      <div class="rank">37</div>
-      <div class="name">HONDASHI</div>
-      <div class="amt">₱19</div>
-      <div class="sub">40.3 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="maxe tissue " data-cand="0">
-      <div class="rank">38</div>
-      <div class="name">Maxe Tissue</div>
-      <div class="amt">₱15</div>
-      <div class="sub">53.7 pc used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="curry powder " data-cand="0">
-      <div class="rank">39</div>
-      <div class="name">CURRY POWDER</div>
-      <div class="amt">₱12</div>
-      <div class="sub">57.4 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="nampula " data-cand="0">
-      <div class="rank">40</div>
-      <div class="name">NAMPULA</div>
-      <div class="amt">₱9</div>
-      <div class="sub">120.0 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="row" data-k="charcoal powder " data-cand="0">
-      <div class="rank">41</div>
-      <div class="name">CHARCOAL POWDER</div>
-      <div class="amt">₱9</div>
-      <div class="sub">16.6 g used</div>
-      <div class="cand"><div><span class="pill flag">no candidate</span>
-        <span class="none">Nothing on any Manila invoice in 90 days resembles this name.
-        It may be bought outside the invoice flow, or under a name with nothing in common.</span></div></div>
-    </div>
-    <div class="empty" id="rest-empty" hidden>Nothing matches that filter.</div>
-  </div>
-  <div class="note">24 of these have no candidate at all
-    (₱43,603). Stickers, ice packs and film are the
-    bulk of them — worth checking whether they are invoiced at all before anyone hunts for a name.</div>
-</section>
+<section><h2 lang="en">Everything else, by cost</h2><h2 lang="ja" hidden>残りを金額順に</h2><p lang="en">The remaining 41 ingredients are <strong>₱67,328</strong>. Where an
+      unlinked invoice line shares a distinctive word with the ingredient, it is offered below
+      as a <em>candidate</em> — a starting point for whoever does the linking, not a decision.
+      Generic matches on “sauce” or “powder” are deliberately not shown: they would suggest
+      tying chilli oil to soy sauce.</p><p lang="ja" hidden>残り41品で <strong>₱67,328</strong> です。未紐付けの請求品名が、
+      その食材と特徴的な語を共有している場合は<em>候補</em>として出します。紐づける人のための
+      手がかりであって、決定ではありません。「sauce」「powder」のような総称語だけの一致は
+      意図的に外しています。チリオイルを醤油に張る候補が出てしまうためです。</p><div class="controls"><input type="search" id="q" data-en="Filter by ingredient or invoice item" data-ja="食材名・請求品名で絞り込む" placeholder="Filter by ingredient or invoice item" aria-label="Filter the list"><label class="toggle"><input type="checkbox" id="only-cand"><span lang="en">Only rows with a candidate</span><span lang="ja" hidden>候補がある行だけ</span></label></div><div class="rows" id="rest"><div class="row" data-k="soy sauce " data-cand="0"><div class="rank">1</div><div class="name">SOY SAUCE</div><div class="amt">₱17,087</div><div class="sub"><span lang="en">126,109.4 g used</span><span lang="ja" hidden>使用 126,109.4 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="pork loin pork loin blsl seara" data-cand="1"><div class="rank">2</div><div class="name">PORK LOIN</div><div class="amt">₱7,221</div><div class="sub"><span lang="en">21,800.0 g used</span><span lang="ja" hidden>使用 21,800.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">pork loin blsl seara</span><span class="who">Mikana Asia Corporation · 165.7 KG · ₱43,436<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="vinegar mizkan vinegar suehiro mizkan vinegar suehiro" data-cand="1"><div class="rank">3</div><div class="name">VINEGAR</div><div class="amt">₱7,197</div><div class="sub"><span lang="en">65,119.4 g used</span><span lang="ja" hidden>使用 65,119.4 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mizkan vinegar suehiro</span><span class="who">McAsia Foodtrade Corporation · 21.0 BOX · ₱44,560<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mizkan vinegar suehiro</span><span class="who">McAsia Foodtrade Corporation · 2.0 PACK · ₱4,200<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="ice pack " data-cand="0"><div class="rank">4</div><div class="name">Ice Pack</div><div class="amt">₱5,414</div><div class="sub"><span lang="en">4,148.2 pc used</span><span lang="ja" hidden>使用 4,148.2 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="zen safety sticker " data-cand="0"><div class="rank">5</div><div class="name">ZEN Safety Sticker</div><div class="amt">₱3,541</div><div class="sub"><span lang="en">3,934.6 pc used</span><span lang="ja" hidden>使用 3,934.6 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="napkin (zen) " data-cand="0"><div class="rank">6</div><div class="name">Napkin (Zen)</div><div class="amt">₱3,229</div><div class="sub"><span lang="en">8,496.5 pc used</span><span lang="ja" hidden>使用 8,496.5 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="sticker ramen " data-cand="0"><div class="rank">7</div><div class="name">Sticker Ramen</div><div class="amt">₱3,212</div><div class="sub"><span lang="en">1,155.3 pc used</span><span lang="ja" hidden>使用 1,155.3 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="sticker safe sealed " data-cand="0"><div class="rank">8</div><div class="name">Sticker Safe Sealed</div><div class="amt">₱2,641</div><div class="sub"><span lang="en">2,641.3 pc used</span><span lang="ja" hidden>使用 2,641.3 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="korean paste gochujiang " data-cand="0"><div class="rank">9</div><div class="name">KOREAN PASTE GOCHUJIANG</div><div class="amt">₱1,894</div><div class="sub"><span lang="en">2,167.4 g used</span><span lang="ja" hidden>使用 2,167.4 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="edamame ozaki frozen edamame 500g" data-cand="1"><div class="rank">10</div><div class="name">EDAMAME</div><div class="amt">₱1,778</div><div class="sub"><span lang="en">8,530.0 g used</span><span lang="ja" hidden>使用 8,530.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">ozaki frozen edamame 500g</span><span class="who">McAsia Foodtrade Corporation · 74.0 PACK · ₱7,326<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="knorr beef stock powder " data-cand="0"><div class="rank">11</div><div class="name">KNORR BEEF STOCK POWDER</div><div class="amt">₱1,432</div><div class="sub"><span lang="en">2,777.6 g used</span><span lang="ja" hidden>使用 2,777.6 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="sriracha chili sauce p. chili oil p.s/ chili sauce 730" data-cand="1"><div class="rank">12</div><div class="name">SRIRACHA CHILI SAUCE</div><div class="amt">₱1,410</div><div class="sub"><span lang="en">4,895.4 g used</span><span lang="ja" hidden>使用 4,895.4 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">p. chili oil</span><span class="who">Cash &amp; Carry Supermarket · 19.0 PC · ₱9,478<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">p.s/ chili sauce 730</span><span class="who">Cash &amp; Carry Supermarket · 25.0 PC · ₱7,277<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="sesame oil tai ming sesame oil sesame oil" data-cand="1"><div class="rank">13</div><div class="name">SESAME OIL</div><div class="amt">₱1,323</div><div class="sub"><span lang="en">6,080.5 g used</span><span lang="ja" hidden>使用 6,080.5 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">tai ming sesame oil</span><span class="who">Le Professional · 7.0 PC · ₱4,340<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">sesame oil</span><span class="who">CHGL Store (Better Mart) · 2.0 PC · ₱1,300<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="chili oil p. chili oil p.s/ chili sauce 730" data-cand="1"><div class="rank">14</div><div class="name">CHILI OIL</div><div class="amt">₱1,293</div><div class="sub"><span lang="en">1,707.0 g used</span><span lang="ja" hidden>使用 1,707.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">p. chili oil</span><span class="who">Cash &amp; Carry Supermarket · 19.0 PC · ₱9,478<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">p.s/ chili sauce 730</span><span class="who">Cash &amp; Carry Supermarket · 25.0 PC · ₱7,277<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="ajinomoto " data-cand="0"><div class="rank">15</div><div class="name">AJINOMOTO</div><div class="amt">₱1,090</div><div class="sub"><span lang="en">6,900.6 g used</span><span lang="ja" hidden>使用 6,900.6 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="water mineral 500ml " data-cand="0"><div class="rank">16</div><div class="name">WATER MINERAL 500ml</div><div class="amt">₱967</div><div class="sub"><span lang="en">89.0 pc used</span><span lang="ja" hidden>使用 89.0 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="egg white powder " data-cand="0"><div class="rank">17</div><div class="name">EGG WHITE POWDER</div><div class="amt">₱918</div><div class="sub"><span lang="en">622.8 g used</span><span lang="ja" hidden>使用 622.8 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="philadelphia cream cheese kraft phil cream cheese 2 kg mg cream cheese" data-cand="1"><div class="rank">18</div><div class="name">PHILADELPHIA CREAM CHEESE</div><div class="amt">₱902</div><div class="sub"><span lang="en">1,382.7 g used</span><span lang="ja" hidden>使用 1,382.7 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">kraft phil cream cheese 2 kg</span><span class="who">Le Professional · 4.0 PC · ₱3,017<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mg cream cheese</span><span class="who">Le Professional · 1.0 PC · ₱940<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="onigiri film " data-cand="0"><div class="rank">19</div><div class="name">Onigiri Film</div><div class="amt">₱755</div><div class="sub"><span lang="en">202.0 pc used</span><span lang="ja" hidden>使用 202.0 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="salmon skin " data-cand="0"><div class="rank">20</div><div class="name">SALMON SKIN</div><div class="amt">₱640</div><div class="sub"><span lang="en">5,443.0 g used</span><span lang="ja" hidden>使用 5,443.0 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="pineapple chunk dm pineapple chunks" data-cand="1"><div class="rank">21</div><div class="name">PINEAPPLE CHUNK</div><div class="amt">₱525</div><div class="sub"><span lang="en">2,140.0 g used</span><span lang="ja" hidden>使用 2,140.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">dm pineapple chunks</span><span class="who">Cash &amp; Carry Supermarket · 67.0 PC · ₱5,343<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="powder cheese kraft phil cream cheese 2 kg mg cream cheese" data-cand="1"><div class="rank">22</div><div class="name">POWDER CHEESE</div><div class="amt">₱488</div><div class="sub"><span lang="en">390.0 g used</span><span lang="ja" hidden>使用 390.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">kraft phil cream cheese 2 kg</span><span class="who">Le Professional · 4.0 PC · ₱3,017<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mg cream cheese</span><span class="who">Le Professional · 1.0 PC · ₱940<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="hotdog tray clam shell hotdog box 320cc" data-cand="1"><div class="rank">23</div><div class="name">Hotdog Tray</div><div class="amt">₱421</div><div class="sub"><span lang="en">164.1 pc used</span><span lang="ja" hidden>使用 164.1 pc</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">clam shell hotdog box 320cc</span><span class="who">Multi Crystal Packaging Corp. · 2.0 BOX · ₱4,640<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="cajun powder mc cajun seasoning" data-cand="1"><div class="rank">24</div><div class="name">CAJUN POWDER</div><div class="amt">₱420</div><div class="sub"><span lang="en">265.5 g used</span><span lang="ja" hidden>使用 265.5 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mc cajun seasoning</span><span class="who">Cash &amp; Carry Supermarket · 10.0 PC · ₱710<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="sticker onigiri " data-cand="0"><div class="rank">25</div><div class="name">Sticker Onigiri</div><div class="amt">₱268</div><div class="sub"><span lang="en">161.0 pc used</span><span lang="ja" hidden>使用 161.0 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="garlic ground " data-cand="0"><div class="rank">26</div><div class="name">GARLIC GROUND</div><div class="amt">₱249</div><div class="sub"><span lang="en">439.2 g used</span><span lang="ja" hidden>使用 439.2 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="awase miso aka miso" data-cand="1"><div class="rank">27</div><div class="name">AWASE MISO</div><div class="amt">₱229</div><div class="sub"><span lang="en">1,219.5 g used</span><span lang="ja" hidden>使用 1,219.5 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">aka miso</span><span class="who">Mikana Asia Corporation · 8.0 PACK · ₱1,280<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="radish red baby red radish" data-cand="1"><div class="rank">28</div><div class="name">RADISH RED BABY</div><div class="amt">₱178</div><div class="sub"><span lang="en">535.0 g used</span><span lang="ja" hidden>使用 535.0 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">red radish</span><span class="who">Richcaths vegetable Stall · 7.7 KG · ₱2,200<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="cooking sake / ryorishou sake 18l sake 18l" data-cand="1"><div class="rank">29</div><div class="name">COOKING SAKE / RYORISHOU</div><div class="amt">₱154</div><div class="sub"><span lang="en">1,119.7 g used</span><span lang="ja" hidden>使用 1,119.7 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">sake 18l</span><span class="who">Seijitsu Japanese Ramen &amp; Food OPC · 2.0 BOTTLE · ₱4,700<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">sake 18l</span><span class="who">Seijitsu Japanese Ramen &amp; Food OPC · 1.0 BOX · ₱2,350<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="vegetable stock century tuna chunks in vegetable oil 155g" data-cand="1"><div class="rank">30</div><div class="name">VEGETABLE STOCK</div><div class="amt">₱124</div><div class="sub"><span lang="en">962.3 g used</span><span lang="ja" hidden>使用 962.3 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">century tuna chunks in vegetable oil 155g</span><span class="who">Sweeterie Bakery · 9.0 CAN · ₱6,950<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="kamote yellow " data-cand="0"><div class="rank">31</div><div class="name">KAMOTE YELLOW</div><div class="amt">₱111</div><div class="sub"><span lang="en">890.4 g used</span><span lang="ja" hidden>使用 890.4 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="tarmeric powder " data-cand="0"><div class="rank">32</div><div class="name">TARMERIC POWDER</div><div class="amt">₱44</div><div class="sub"><span lang="en">151.6 g used</span><span lang="ja" hidden>使用 151.6 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="coconut milk jolly coconut milk wisdom coconut milk 400" data-cand="1"><div class="rank">33</div><div class="name">COCONUT MILK</div><div class="amt">₱42</div><div class="sub"><span lang="en">293.6 g used</span><span lang="ja" hidden>使用 293.6 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">jolly coconut milk</span><span class="who">Le Professional · 7.0 PC · ₱385<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">wisdom coconut milk 400</span><span class="who">Le Professional · 1.0 PC · ₱51<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="cayenne pepper " data-cand="0"><div class="rank">34</div><div class="name">CAYENNE PEPPER</div><div class="amt">₱25</div><div class="sub"><span lang="en">79.0 g used</span><span lang="ja" hidden>使用 79.0 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="mic seasoning " data-cand="0"><div class="rank">35</div><div class="name">MIC SEASONING</div><div class="amt">₱22</div><div class="sub"><span lang="en">141.9 g used</span><span lang="ja" hidden>使用 141.9 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="paprika powder mc cormick spanish paprika pet 470g" data-cand="1"><div class="rank">36</div><div class="name">PAPRIKA POWDER</div><div class="amt">₱20</div><div class="sub"><span lang="en">51.9 g used</span><span lang="ja" hidden>使用 51.9 g</span></div><div class="cand"><div><span lang="en" class="pill ok">candidate</span><span lang="ja" class="pill ok" hidden>候補</span><span class="desc">mc cormick spanish paprika pet 470g</span><span class="who">Le Professional · 2.0 PC · ₱1,160<span lang="en"> / 90 days</span><span lang="ja" hidden> ／ 90日</span></span></div></div></div><div class="row" data-k="hondashi " data-cand="0"><div class="rank">37</div><div class="name">HONDASHI</div><div class="amt">₱19</div><div class="sub"><span lang="en">40.3 g used</span><span lang="ja" hidden>使用 40.3 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="maxe tissue " data-cand="0"><div class="rank">38</div><div class="name">Maxe Tissue</div><div class="amt">₱15</div><div class="sub"><span lang="en">53.7 pc used</span><span lang="ja" hidden>使用 53.7 pc</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="curry powder " data-cand="0"><div class="rank">39</div><div class="name">CURRY POWDER</div><div class="amt">₱12</div><div class="sub"><span lang="en">57.4 g used</span><span lang="ja" hidden>使用 57.4 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="nampula " data-cand="0"><div class="rank">40</div><div class="name">NAMPULA</div><div class="amt">₱9</div><div class="sub"><span lang="en">120.0 g used</span><span lang="ja" hidden>使用 120.0 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="row" data-k="charcoal powder " data-cand="0"><div class="rank">41</div><div class="name">CHARCOAL POWDER</div><div class="amt">₱9</div><div class="sub"><span lang="en">16.6 g used</span><span lang="ja" hidden>使用 16.6 g</span></div><div class="cand"><div><span lang="en" class="pill flag">no candidate</span><span lang="ja" class="pill flag" hidden>候補なし</span><span lang="en" class="none">Nothing on any Manila invoice in 90 days resembles this name. It may be bought
+                 outside the invoice flow, or under a name with nothing in common.</span><span lang="ja" class="none" hidden>直近90日のマニラの請求書に、この名前に似たものがありません。請求書を通さずに
+                 買っているか、まったく違う名前で買っている可能性があります。</span></div></div></div><div class="empty" id="rest-empty" hidden><span lang="en">Nothing matches that filter.</span><span lang="ja" hidden>その条件に一致する行はありません。</span></div></div><div lang="en" class="note">24 of these have no candidate at all (₱43,603).
+      Stickers, ice packs and film are the bulk of them — worth checking whether they are
+      invoiced at all before anyone hunts for a name.</div><div lang="ja" class="note" hidden>このうち24品は候補がありません（₱43,603）。
+      大半がステッカー・アイスパック・フィルムなので、名前を探す前に
+      そもそも請求書に載っているかを確認したほうが早いです。</div></section>
 
-<section>
-  <h2>The same gap from the invoice side</h2>
-  <p>Over 90 days, <strong>₱848,557</strong> of Manila invoices — 109 of 228
-    descriptions — are tied to no ingredient. Not all of it should be: gas, dishwashing liquid
-    and gloves are not in anybody’s recipe and never will be. The food and packaging lines here
-    are the ones worth linking.</p>
-  <div class="controls">
-    <input type="search" id="q2" placeholder="Filter invoice items" aria-label="Filter the invoice list">
-  </div>
-  <div class="rows" id="inv">
-    <div class="row" data-k="50 kg gas glorious commercial exports, inc.">
-      <div class="rank">1</div>
-      <div class="name"><span class="desc">50 kg gas</span></div>
-      <div class="amt">₱97,586</div>
-      <div class="sub">Glorious Commercial Exports, Inc. · 16.0 TANK · last invoiced 2026-08-27</div>
-    </div>
-    <div class="row" data-k="marukin 18l mikana asia corporation">
-      <div class="rank">2</div>
-      <div class="name"><span class="desc">marukin 18l</span></div>
-      <div class="amt">₱71,827</div>
-      <div class="sub">Mikana Asia Corporation · 31.0 BOX · last invoiced 2026-08-24</div>
-    </div>
-    <div class="row" data-k="leg fillet jb frozen meat foods co.">
-      <div class="rank">3</div>
-      <div class="name"><span class="desc">leg fillet</span></div>
-      <div class="amt">₱67,810</div>
-      <div class="sub">JB Frozen Meat Foods Co. · 286.0 KG · last invoiced 2026-08-22</div>
-    </div>
-    <div class="row" data-k="mizkan vinegar suehiro mcasia foodtrade corporation">
-      <div class="rank">4</div>
-      <div class="name"><span class="desc">mizkan vinegar suehiro</span></div>
-      <div class="amt">₱44,560</div>
-      <div class="sub">McAsia Foodtrade Corporation · 21.0 BOX · last invoiced 2026-08-24</div>
-    </div>
-    <div class="row" data-k="pork loin blsl seara mikana asia corporation">
-      <div class="rank">5</div>
-      <div class="name"><span class="desc">pork loin blsl seara</span></div>
-      <div class="amt">₱43,436</div>
-      <div class="sub">Mikana Asia Corporation · 165.7 KG · last invoiced 2026-08-22</div>
-    </div>
-    <div class="row" data-k="dishwashing liquid multi crystal packaging corp.">
-      <div class="rank">6</div>
-      <div class="name"><span class="desc">dishwashing liquid</span></div>
-      <div class="amt">₱40,840</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 24.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="bamboo twin chopstick multi crystal packaging corp.">
-      <div class="rank">7</div>
-      <div class="name"><span class="desc">bamboo twin chopstick</span></div>
-      <div class="amt">₱40,280</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 19.0 BOX · last invoiced 2026-08-23</div>
-    </div>
-    <div class="row" data-k="hinged cup 20ml multi crystal packaging corp.">
-      <div class="rank">8</div>
-      <div class="name"><span class="desc">hinged cup 20ml</span></div>
-      <div class="amt">₱40,040</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 22.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="gloves nitrile m multi crystal packaging corp.">
-      <div class="rank">9</div>
-      <div class="name"><span class="desc">gloves nitrile m</span></div>
-      <div class="amt">₱28,350</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 21.0 BOX · last invoiced 2026-08-23</div>
-    </div>
-    <div class="row" data-k="paper bowl 780 cc plain dpe multi crystal packaging corp.">
-      <div class="rank">10</div>
-      <div class="name"><span class="desc">paper bowl 780 cc plain dpe</span></div>
-      <div class="amt">₱24,000</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 8.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="table napkin quarterfold multi crystal packaging corp.">
-      <div class="rank">11</div>
-      <div class="name"><span class="desc">table napkin quarterfold</span></div>
-      <div class="amt">₱22,260</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 30.0 BUNDLE · last invoiced 2026-08-23</div>
-    </div>
-    <div class="row" data-k="paper bowl 780/850/1000 cc flat lid multi crystal packaging corp.">
-      <div class="rank">12</div>
-      <div class="name"><span class="desc">paper bowl 780/850/1000 cc flat lid</span></div>
-      <div class="amt">₱21,600</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="sushi tray multi crystal packaging corp.">
-      <div class="rank">13</div>
-      <div class="name"><span class="desc">sushi tray</span></div>
-      <div class="amt">₱17,280</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · last invoiced 2026-07-26</div>
-    </div>
-    <div class="row" data-k="chicken feet jwe meat dealer">
-      <div class="rank">14</div>
-      <div class="name"><span class="desc">chicken feet</span></div>
-      <div class="amt">₱14,030</div>
-      <div class="sub">JWE Meat Dealer · 61.0 KG · last invoiced 2026-08-13</div>
-    </div>
-    <div class="row" data-k="premium noodle 80 g nishikiken gen. merchandise">
-      <div class="rank">15</div>
-      <div class="name"><span class="desc">premium noodle 80 g</span></div>
-      <div class="amt">₱13,600</div>
-      <div class="sub">Nishikiken Gen. Merchandise · 800.0 PACK · last invoiced 2026-06-26</div>
-    </div>
-    <div class="row" data-k="cj gochujang 500g kor asian enterprices inc">
-      <div class="rank">16</div>
-      <div class="name"><span class="desc">cj gochujang 500g</span></div>
-      <div class="amt">₱9,960</div>
-      <div class="sub">KOR Asian Enterprices INC · 24.0 CAN · last invoiced 2026-08-25</div>
-    </div>
-    <div class="row" data-k="p. chili oil cash &amp; carry supermarket">
-      <div class="rank">17</div>
-      <div class="name"><span class="desc">p. chili oil</span></div>
-      <div class="amt">₱9,478</div>
-      <div class="sub">Cash &amp; Carry Supermarket · 19.0 PC · last invoiced 2026-08-13</div>
-    </div>
-    <div class="row" data-k="marukin 18l mikana asia corporation">
-      <div class="rank">18</div>
-      <div class="name"><span class="desc">marukin 18l</span></div>
-      <div class="amt">₱9,268</div>
-      <div class="sub">Mikana Asia Corporation · 4.0 BOTTLE · last invoiced 2026-07-14</div>
-    </div>
-    <div class="row" data-k="hd rollbags 10x14 multi crystal packaging corp.">
-      <div class="rank">19</div>
-      <div class="name"><span class="desc">hd rollbags 10x14</span></div>
-      <div class="amt">₱8,200</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 40.0 PACK · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="zonrox cash &amp; carry supermarket">
-      <div class="rank">20</div>
-      <div class="name"><span class="desc">zonrox</span></div>
-      <div class="amt">₱7,438</div>
-      <div class="sub">Cash &amp; Carry Supermarket · 27.0 PC · last invoiced 2026-07-30</div>
-    </div>
-    <div class="row" data-k="ozaki frozen edamame 500g mcasia foodtrade corporation">
-      <div class="rank">21</div>
-      <div class="name"><span class="desc">ozaki frozen edamame 500g</span></div>
-      <div class="amt">₱7,326</div>
-      <div class="sub">McAsia Foodtrade Corporation · 74.0 PACK · last invoiced 2026-08-03</div>
-    </div>
-    <div class="row" data-k="p.s/ chili sauce 730 cash &amp; carry supermarket">
-      <div class="rank">22</div>
-      <div class="name"><span class="desc">p.s/ chili sauce 730</span></div>
-      <div class="amt">₱7,277</div>
-      <div class="sub">Cash &amp; Carry Supermarket · 25.0 PC · last invoiced 2026-08-23</div>
-    </div>
-    <div class="row" data-k="century tuna chunks in vegetable oil 155g sweeterie bakery">
-      <div class="rank">23</div>
-      <div class="name"><span class="desc">century tuna chunks in vegetable oil 155g</span></div>
-      <div class="amt">₱6,950</div>
-      <div class="sub">Sweeterie Bakery · 9.0 CAN · last invoiced 2026-08-11</div>
-    </div>
-    <div class="row" data-k="back fat jwe meat dealer">
-      <div class="rank">24</div>
-      <div class="name"><span class="desc">back fat</span></div>
-      <div class="amt">₱6,720</div>
-      <div class="sub">JWE Meat Dealer · 24.0 KG · last invoiced 2026-08-25</div>
-    </div>
-    <div class="row" data-k="hd rollbags 10x14 multi crystal packaging corp.">
-      <div class="rank">25</div>
-      <div class="name"><span class="desc">hd rollbags 10x14</span></div>
-      <div class="amt">₱6,600</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 30.0 BUNDLE · last invoiced 2026-07-12</div>
-    </div>
-    <div class="row" data-k="panich sriracha chili sauce mcasia foodtrade corporation">
-      <div class="rank">26</div>
-      <div class="name"><span class="desc">panich sriracha chili sauce</span></div>
-      <div class="amt">₱6,552</div>
-      <div class="sub">McAsia Foodtrade Corporation · 42.0 BOTTLE · last invoiced 2026-08-25</div>
-    </div>
-    <div class="row" data-k="scotch tape 1x100m multi crystal packaging corp.">
-      <div class="rank">27</div>
-      <div class="name"><span class="desc">scotch tape 1x100m</span></div>
-      <div class="amt">₱6,480</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 2.0 BOX · last invoiced 2026-07-26</div>
-    </div>
-    <div class="row" data-k="isopropyl alcohol 70% multi crystal packaging corp.">
-      <div class="rank">28</div>
-      <div class="name"><span class="desc">isopropyl alcohol 70%</span></div>
-      <div class="amt">₱6,000</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 4.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="japanese kansui 1kg nishikiken gen. merchandise">
-      <div class="rank">29</div>
-      <div class="name"><span class="desc">japanese kansui 1kg</span></div>
-      <div class="amt">₱6,000</div>
-      <div class="sub">Nishikiken Gen. Merchandise · 10.0 KG · last invoiced 2026-07-17</div>
-    </div>
-    <div class="row" data-k="sanitay cap white 21&quot; multi crystal packaging corp.">
-      <div class="rank">30</div>
-      <div class="name"><span class="desc">sanitay cap white 21&quot;</span></div>
-      <div class="amt">₱5,500</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 5.0 BOX · last invoiced 2026-07-12</div>
-    </div>
-    <div class="row" data-k="dm pineapple chunks cash &amp; carry supermarket">
-      <div class="rank">31</div>
-      <div class="name"><span class="desc">dm pineapple chunks</span></div>
-      <div class="amt">₱5,343</div>
-      <div class="sub">Cash &amp; Carry Supermarket · 67.0 PC · last invoiced 2026-08-06</div>
-    </div>
-    <div class="row" data-k="liquid hand soap multi crystal packaging corp.">
-      <div class="rank">32</div>
-      <div class="name"><span class="desc">liquid hand soap</span></div>
-      <div class="amt">₱5,160</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · last invoiced 2026-08-16</div>
-    </div>
-    <div class="row" data-k="summit natural drinking water le professional">
-      <div class="rank">33</div>
-      <div class="name"><span class="desc">summit natural drinking water</span></div>
-      <div class="amt">₱5,040</div>
-      <div class="sub">Le Professional · 21.0 CASE · last invoiced 2026-07-28</div>
-    </div>
-    <div class="row" data-k="capri chicken soup le professional">
-      <div class="rank">34</div>
-      <div class="name"><span class="desc">capri chicken soup</span></div>
-      <div class="amt">₱5,002</div>
-      <div class="sub">Le Professional · 11.0 PC · last invoiced 2026-08-13</div>
-    </div>
-    <div class="row" data-k="sake 18l seijitsu japanese ramen &amp; food opc">
-      <div class="rank">35</div>
-      <div class="name"><span class="desc">sake 18l</span></div>
-      <div class="amt">₱4,700</div>
-      <div class="sub">Seijitsu Japanese Ramen &amp; Food OPC · 2.0 BOTTLE · last invoiced 2026-06-25</div>
-    </div>
-    <div class="row" data-k="clam shell hotdog box 320cc multi crystal packaging corp.">
-      <div class="rank">36</div>
-      <div class="name"><span class="desc">clam shell hotdog box 320cc</span></div>
-      <div class="amt">₱4,640</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 2.0 BOX · last invoiced 2026-06-30</div>
-    </div>
-    <div class="row" data-k="tai ming sesame oil le professional">
-      <div class="rank">37</div>
-      <div class="name"><span class="desc">tai ming sesame oil</span></div>
-      <div class="amt">₱4,340</div>
-      <div class="sub">Le Professional · 7.0 PC · last invoiced 2026-08-06</div>
-    </div>
-    <div class="row" data-k="mizkan vinegar suehiro mcasia foodtrade corporation">
-      <div class="rank">38</div>
-      <div class="name"><span class="desc">mizkan vinegar suehiro</span></div>
-      <div class="amt">₱4,200</div>
-      <div class="sub">McAsia Foodtrade Corporation · 2.0 PACK · last invoiced 2026-06-10</div>
-    </div>
-    <div class="row" data-k="hikari shiro mikana asia corporation">
-      <div class="rank">39</div>
-      <div class="name"><span class="desc">hikari shiro</span></div>
-      <div class="amt">₱4,160</div>
-      <div class="sub">Mikana Asia Corporation · 26.0 PC · last invoiced 2026-08-27</div>
-    </div>
-    <div class="row" data-k="trash bag xxl multi crystal packaging corp.">
-      <div class="rank">40</div>
-      <div class="name"><span class="desc">trash bag xxl</span></div>
-      <div class="amt">₱4,000</div>
-      <div class="sub">Multi Crystal Packaging Corp. · 80.0 ROLL · last invoiced 2026-07-19</div>
-    </div>
-    <div class="empty" id="inv-empty" hidden>Nothing matches that filter.</div>
-  </div>
-</section>
+<section><h2 lang="en">The same gap from the invoice side</h2><h2 lang="ja" hidden>請求書の側から見た同じ穴</h2><p lang="en">Over 90 days, <strong>₱848,557</strong> of Manila invoices — 109 of 228
+      descriptions — are tied to no ingredient. Not all of it should be: gas, dishwashing liquid
+      and gloves are not in anybody’s recipe and never will be. The food and packaging lines
+      here are the ones worth linking.</p><p lang="ja" hidden>直近90日で、マニラの請求 <strong>₱848,557</strong>（228品名中109件）が
+      どの食材にも紐づいていません。ただし全部を紐づけるべきではありません。ガス・食器用洗剤・
+      手袋はどのレシピにも入りませんし、今後も入りません。紐づける価値があるのは食材と包材です。</p><div class="controls"><input type="search" id="q2" data-en="Filter invoice items" data-ja="請求品名で絞り込む" placeholder="Filter invoice items" aria-label="Filter the invoice list"></div><div class="rows" id="inv"><div class="row" data-k="50 kg gas glorious commercial exports, inc."><div class="rank">1</div><div class="name"><span class="desc">50 kg gas</span></div><div class="amt">₱97,586</div><div class="sub">Glorious Commercial Exports, Inc. · 16.0 TANK · <span lang="en">last invoiced 2026-08-27</span><span lang="ja" hidden>最終請求 2026-08-27</span></div></div><div class="row" data-k="marukin 18l mikana asia corporation"><div class="rank">2</div><div class="name"><span class="desc">marukin 18l</span></div><div class="amt">₱71,827</div><div class="sub">Mikana Asia Corporation · 31.0 BOX · <span lang="en">last invoiced 2026-08-24</span><span lang="ja" hidden>最終請求 2026-08-24</span></div></div><div class="row" data-k="leg fillet jb frozen meat foods co."><div class="rank">3</div><div class="name"><span class="desc">leg fillet</span></div><div class="amt">₱67,810</div><div class="sub">JB Frozen Meat Foods Co. · 286.0 KG · <span lang="en">last invoiced 2026-08-22</span><span lang="ja" hidden>最終請求 2026-08-22</span></div></div><div class="row" data-k="mizkan vinegar suehiro mcasia foodtrade corporation"><div class="rank">4</div><div class="name"><span class="desc">mizkan vinegar suehiro</span></div><div class="amt">₱44,560</div><div class="sub">McAsia Foodtrade Corporation · 21.0 BOX · <span lang="en">last invoiced 2026-08-24</span><span lang="ja" hidden>最終請求 2026-08-24</span></div></div><div class="row" data-k="pork loin blsl seara mikana asia corporation"><div class="rank">5</div><div class="name"><span class="desc">pork loin blsl seara</span></div><div class="amt">₱43,436</div><div class="sub">Mikana Asia Corporation · 165.7 KG · <span lang="en">last invoiced 2026-08-22</span><span lang="ja" hidden>最終請求 2026-08-22</span></div></div><div class="row" data-k="dishwashing liquid multi crystal packaging corp."><div class="rank">6</div><div class="name"><span class="desc">dishwashing liquid</span></div><div class="amt">₱40,840</div><div class="sub">Multi Crystal Packaging Corp. · 24.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="bamboo twin chopstick multi crystal packaging corp."><div class="rank">7</div><div class="name"><span class="desc">bamboo twin chopstick</span></div><div class="amt">₱40,280</div><div class="sub">Multi Crystal Packaging Corp. · 19.0 BOX · <span lang="en">last invoiced 2026-08-23</span><span lang="ja" hidden>最終請求 2026-08-23</span></div></div><div class="row" data-k="hinged cup 20ml multi crystal packaging corp."><div class="rank">8</div><div class="name"><span class="desc">hinged cup 20ml</span></div><div class="amt">₱40,040</div><div class="sub">Multi Crystal Packaging Corp. · 22.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="gloves nitrile m multi crystal packaging corp."><div class="rank">9</div><div class="name"><span class="desc">gloves nitrile m</span></div><div class="amt">₱28,350</div><div class="sub">Multi Crystal Packaging Corp. · 21.0 BOX · <span lang="en">last invoiced 2026-08-23</span><span lang="ja" hidden>最終請求 2026-08-23</span></div></div><div class="row" data-k="paper bowl 780 cc plain dpe multi crystal packaging corp."><div class="rank">10</div><div class="name"><span class="desc">paper bowl 780 cc plain dpe</span></div><div class="amt">₱24,000</div><div class="sub">Multi Crystal Packaging Corp. · 8.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="table napkin quarterfold multi crystal packaging corp."><div class="rank">11</div><div class="name"><span class="desc">table napkin quarterfold</span></div><div class="amt">₱22,260</div><div class="sub">Multi Crystal Packaging Corp. · 30.0 BUNDLE · <span lang="en">last invoiced 2026-08-23</span><span lang="ja" hidden>最終請求 2026-08-23</span></div></div><div class="row" data-k="paper bowl 780/850/1000 cc flat lid multi crystal packaging corp."><div class="rank">12</div><div class="name"><span class="desc">paper bowl 780/850/1000 cc flat lid</span></div><div class="amt">₱21,600</div><div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="sushi tray multi crystal packaging corp."><div class="rank">13</div><div class="name"><span class="desc">sushi tray</span></div><div class="amt">₱17,280</div><div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · <span lang="en">last invoiced 2026-07-26</span><span lang="ja" hidden>最終請求 2026-07-26</span></div></div><div class="row" data-k="chicken feet jwe meat dealer"><div class="rank">14</div><div class="name"><span class="desc">chicken feet</span></div><div class="amt">₱14,030</div><div class="sub">JWE Meat Dealer · 61.0 KG · <span lang="en">last invoiced 2026-08-13</span><span lang="ja" hidden>最終請求 2026-08-13</span></div></div><div class="row" data-k="premium noodle 80 g nishikiken gen. merchandise"><div class="rank">15</div><div class="name"><span class="desc">premium noodle 80 g</span></div><div class="amt">₱13,600</div><div class="sub">Nishikiken Gen. Merchandise · 800.0 PACK · <span lang="en">last invoiced 2026-06-26</span><span lang="ja" hidden>最終請求 2026-06-26</span></div></div><div class="row" data-k="cj gochujang 500g kor asian enterprices inc"><div class="rank">16</div><div class="name"><span class="desc">cj gochujang 500g</span></div><div class="amt">₱9,960</div><div class="sub">KOR Asian Enterprices INC · 24.0 CAN · <span lang="en">last invoiced 2026-08-25</span><span lang="ja" hidden>最終請求 2026-08-25</span></div></div><div class="row" data-k="p. chili oil cash &amp; carry supermarket"><div class="rank">17</div><div class="name"><span class="desc">p. chili oil</span></div><div class="amt">₱9,478</div><div class="sub">Cash &amp; Carry Supermarket · 19.0 PC · <span lang="en">last invoiced 2026-08-13</span><span lang="ja" hidden>最終請求 2026-08-13</span></div></div><div class="row" data-k="marukin 18l mikana asia corporation"><div class="rank">18</div><div class="name"><span class="desc">marukin 18l</span></div><div class="amt">₱9,268</div><div class="sub">Mikana Asia Corporation · 4.0 BOTTLE · <span lang="en">last invoiced 2026-07-14</span><span lang="ja" hidden>最終請求 2026-07-14</span></div></div><div class="row" data-k="hd rollbags 10x14 multi crystal packaging corp."><div class="rank">19</div><div class="name"><span class="desc">hd rollbags 10x14</span></div><div class="amt">₱8,200</div><div class="sub">Multi Crystal Packaging Corp. · 40.0 PACK · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="zonrox cash &amp; carry supermarket"><div class="rank">20</div><div class="name"><span class="desc">zonrox</span></div><div class="amt">₱7,438</div><div class="sub">Cash &amp; Carry Supermarket · 27.0 PC · <span lang="en">last invoiced 2026-07-30</span><span lang="ja" hidden>最終請求 2026-07-30</span></div></div><div class="row" data-k="ozaki frozen edamame 500g mcasia foodtrade corporation"><div class="rank">21</div><div class="name"><span class="desc">ozaki frozen edamame 500g</span></div><div class="amt">₱7,326</div><div class="sub">McAsia Foodtrade Corporation · 74.0 PACK · <span lang="en">last invoiced 2026-08-03</span><span lang="ja" hidden>最終請求 2026-08-03</span></div></div><div class="row" data-k="p.s/ chili sauce 730 cash &amp; carry supermarket"><div class="rank">22</div><div class="name"><span class="desc">p.s/ chili sauce 730</span></div><div class="amt">₱7,277</div><div class="sub">Cash &amp; Carry Supermarket · 25.0 PC · <span lang="en">last invoiced 2026-08-23</span><span lang="ja" hidden>最終請求 2026-08-23</span></div></div><div class="row" data-k="century tuna chunks in vegetable oil 155g sweeterie bakery"><div class="rank">23</div><div class="name"><span class="desc">century tuna chunks in vegetable oil 155g</span></div><div class="amt">₱6,950</div><div class="sub">Sweeterie Bakery · 9.0 CAN · <span lang="en">last invoiced 2026-08-11</span><span lang="ja" hidden>最終請求 2026-08-11</span></div></div><div class="row" data-k="back fat jwe meat dealer"><div class="rank">24</div><div class="name"><span class="desc">back fat</span></div><div class="amt">₱6,720</div><div class="sub">JWE Meat Dealer · 24.0 KG · <span lang="en">last invoiced 2026-08-25</span><span lang="ja" hidden>最終請求 2026-08-25</span></div></div><div class="row" data-k="hd rollbags 10x14 multi crystal packaging corp."><div class="rank">25</div><div class="name"><span class="desc">hd rollbags 10x14</span></div><div class="amt">₱6,600</div><div class="sub">Multi Crystal Packaging Corp. · 30.0 BUNDLE · <span lang="en">last invoiced 2026-07-12</span><span lang="ja" hidden>最終請求 2026-07-12</span></div></div><div class="row" data-k="panich sriracha chili sauce mcasia foodtrade corporation"><div class="rank">26</div><div class="name"><span class="desc">panich sriracha chili sauce</span></div><div class="amt">₱6,552</div><div class="sub">McAsia Foodtrade Corporation · 42.0 BOTTLE · <span lang="en">last invoiced 2026-08-25</span><span lang="ja" hidden>最終請求 2026-08-25</span></div></div><div class="row" data-k="scotch tape 1x100m multi crystal packaging corp."><div class="rank">27</div><div class="name"><span class="desc">scotch tape 1x100m</span></div><div class="amt">₱6,480</div><div class="sub">Multi Crystal Packaging Corp. · 2.0 BOX · <span lang="en">last invoiced 2026-07-26</span><span lang="ja" hidden>最終請求 2026-07-26</span></div></div><div class="row" data-k="isopropyl alcohol 70% multi crystal packaging corp."><div class="rank">28</div><div class="name"><span class="desc">isopropyl alcohol 70%</span></div><div class="amt">₱6,000</div><div class="sub">Multi Crystal Packaging Corp. · 4.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="japanese kansui 1kg nishikiken gen. merchandise"><div class="rank">29</div><div class="name"><span class="desc">japanese kansui 1kg</span></div><div class="amt">₱6,000</div><div class="sub">Nishikiken Gen. Merchandise · 10.0 KG · <span lang="en">last invoiced 2026-07-17</span><span lang="ja" hidden>最終請求 2026-07-17</span></div></div><div class="row" data-k="sanitay cap white 21&quot; multi crystal packaging corp."><div class="rank">30</div><div class="name"><span class="desc">sanitay cap white 21&quot;</span></div><div class="amt">₱5,500</div><div class="sub">Multi Crystal Packaging Corp. · 5.0 BOX · <span lang="en">last invoiced 2026-07-12</span><span lang="ja" hidden>最終請求 2026-07-12</span></div></div><div class="row" data-k="dm pineapple chunks cash &amp; carry supermarket"><div class="rank">31</div><div class="name"><span class="desc">dm pineapple chunks</span></div><div class="amt">₱5,343</div><div class="sub">Cash &amp; Carry Supermarket · 67.0 PC · <span lang="en">last invoiced 2026-08-06</span><span lang="ja" hidden>最終請求 2026-08-06</span></div></div><div class="row" data-k="liquid hand soap multi crystal packaging corp."><div class="rank">32</div><div class="name"><span class="desc">liquid hand soap</span></div><div class="amt">₱5,160</div><div class="sub">Multi Crystal Packaging Corp. · 9.0 BOX · <span lang="en">last invoiced 2026-08-16</span><span lang="ja" hidden>最終請求 2026-08-16</span></div></div><div class="row" data-k="summit natural drinking water le professional"><div class="rank">33</div><div class="name"><span class="desc">summit natural drinking water</span></div><div class="amt">₱5,040</div><div class="sub">Le Professional · 21.0 CASE · <span lang="en">last invoiced 2026-07-28</span><span lang="ja" hidden>最終請求 2026-07-28</span></div></div><div class="row" data-k="capri chicken soup le professional"><div class="rank">34</div><div class="name"><span class="desc">capri chicken soup</span></div><div class="amt">₱5,002</div><div class="sub">Le Professional · 11.0 PC · <span lang="en">last invoiced 2026-08-13</span><span lang="ja" hidden>最終請求 2026-08-13</span></div></div><div class="row" data-k="sake 18l seijitsu japanese ramen &amp; food opc"><div class="rank">35</div><div class="name"><span class="desc">sake 18l</span></div><div class="amt">₱4,700</div><div class="sub">Seijitsu Japanese Ramen &amp; Food OPC · 2.0 BOTTLE · <span lang="en">last invoiced 2026-06-25</span><span lang="ja" hidden>最終請求 2026-06-25</span></div></div><div class="row" data-k="clam shell hotdog box 320cc multi crystal packaging corp."><div class="rank">36</div><div class="name"><span class="desc">clam shell hotdog box 320cc</span></div><div class="amt">₱4,640</div><div class="sub">Multi Crystal Packaging Corp. · 2.0 BOX · <span lang="en">last invoiced 2026-06-30</span><span lang="ja" hidden>最終請求 2026-06-30</span></div></div><div class="row" data-k="tai ming sesame oil le professional"><div class="rank">37</div><div class="name"><span class="desc">tai ming sesame oil</span></div><div class="amt">₱4,340</div><div class="sub">Le Professional · 7.0 PC · <span lang="en">last invoiced 2026-08-06</span><span lang="ja" hidden>最終請求 2026-08-06</span></div></div><div class="row" data-k="mizkan vinegar suehiro mcasia foodtrade corporation"><div class="rank">38</div><div class="name"><span class="desc">mizkan vinegar suehiro</span></div><div class="amt">₱4,200</div><div class="sub">McAsia Foodtrade Corporation · 2.0 PACK · <span lang="en">last invoiced 2026-06-10</span><span lang="ja" hidden>最終請求 2026-06-10</span></div></div><div class="row" data-k="hikari shiro mikana asia corporation"><div class="rank">39</div><div class="name"><span class="desc">hikari shiro</span></div><div class="amt">₱4,160</div><div class="sub">Mikana Asia Corporation · 26.0 PC · <span lang="en">last invoiced 2026-08-27</span><span lang="ja" hidden>最終請求 2026-08-27</span></div></div><div class="row" data-k="trash bag xxl multi crystal packaging corp."><div class="rank">40</div><div class="name"><span class="desc">trash bag xxl</span></div><div class="amt">₱4,000</div><div class="sub">Multi Crystal Packaging Corp. · 80.0 ROLL · <span lang="en">last invoiced 2026-07-19</span><span lang="ja" hidden>最終請求 2026-07-19</span></div></div><div class="empty" id="inv-empty" hidden><span lang="en">Nothing matches that filter.</span><span lang="ja" hidden>その条件に一致する行はありません。</span></div></div></section>
 
-<footer>
-  Measured against production on 7 September 2026. Usage covers 23 August – 6 September;
-  invoices are counted over the previous 90 days, because an ingredient bought monthly would
-  otherwise look unlinked. Candidates are suggestions from a shared distinctive word — check
-  each one before saving it.
-</footer>
+<footer><span lang="en">Measured against production on 7 September 2026. Usage covers 23 August – 6 September;
+      invoices are counted over the previous 90 days, because an ingredient bought monthly would
+      otherwise look unlinked. Candidates are suggestions from a shared distinctive word — check
+      each one before saving it.</span><span lang="ja" hidden>2026年9月7日に本番データで実測しました。使用量は8月23日〜9月6日、請求書は直近90日で
+      数えています（月1回しか買わない食材が「未紐付け」に見えてしまうため）。候補は特徴的な語の
+      一致による提案です。保存する前に1件ずつ確認してください。</span></footer>
 </div>
 
 <script>
   (function () {
+    var root = document.documentElement;
+    var wrap = document.querySelector(".wrap");
+    var bEn = document.getElementById("btn-en");
+    var bJa = document.getElementById("btn-ja");
+
+    function apply(lang) {
+      // Scoped to .wrap on purpose: writing lang on <html> would put the root
+      // itself inside this selector, and the next click would hide the page.
+      var nodes = wrap.querySelectorAll("[lang='en'], [lang='ja']");
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
+      }
+      var fields = wrap.querySelectorAll("input[data-en]");
+      for (var j = 0; j < fields.length; j++) {
+        fields[j].placeholder = fields[j].getAttribute("data-" + lang) || "";
+      }
+      root.setAttribute("data-lang", lang);
+      bEn.setAttribute("aria-pressed", String(lang === "en"));
+      bJa.setAttribute("aria-pressed", String(lang === "ja"));
+      try { localStorage.setItem("szn-gap-lang", lang); } catch (e) { /* private window */ }
+    }
+
+    var saved = "en";
+    try { saved = localStorage.getItem("szn-gap-lang") || "en"; } catch (e) { /* private window */ }
+    apply(saved === "ja" ? "ja" : "en");
+
+    bEn.addEventListener("click", function () { apply("en"); });
+    bJa.addEventListener("click", function () { apply("ja"); });
+
     function bind(inputId, listId, emptyId, candBoxId) {
       var input = document.getElementById(inputId);
       var list = document.getElementById(listId);
       var empty = document.getElementById(emptyId);
       var onlyCand = candBoxId ? document.getElementById(candBoxId) : null;
-      function apply() {
+      function run() {
         var q = (input.value || "").trim().toLowerCase();
         var rows = list.querySelectorAll(".row");
         var shown = 0;
@@ -886,8 +244,8 @@
         }
         empty.hidden = shown !== 0;
       }
-      input.addEventListener("input", apply);
-      if (onlyCand) onlyCand.addEventListener("change", apply);
+      input.addEventListener("input", run);
+      if (onlyCand) onlyCand.addEventListener("change", run);
     }
     bind("q", "rest", "rest-empty", "only-cand");
     bind("q2", "inv", "inv-empty", null);
