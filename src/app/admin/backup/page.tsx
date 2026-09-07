@@ -170,20 +170,36 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
     label: "Prepared Ingredients",
     items: [
       { key: "m_quezo_cheese",   label: "Quezo Cheese Cut",        unit: "kg",        section: "prep", item_type: "ingredient", item_category: "Seasonings" },
-      { key: "m_crabstick_cut",  label: "Crabstick Cut",           unit: "kg",        section: "prep", item_type: "ingredient", item_category: "Processed Meat / Eggs" },
-      { key: "m_cucumber_cut",   label: "Cucumber Cut",            unit: "kg",        section: "prep", item_type: "ingredient", item_category: "Vegetables" },
+      // Weighed in kilos until 2026-09-07. The kitchen judges these by how full
+      // the container is, so the form now asks what the kitchen can actually
+      // see. Readings before that date are in kg and are not comparable.
+      { key: "m_crabstick_cut",  label: "Crabstick Cut",           unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Meat / Eggs" },
+      { key: "m_cucumber_cut",   label: "Cucumber Cut",            unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_seasoned_upo",   label: "Seasoned Upo",            unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_crabstick_mayo", label: "Crabstick Mayo",          unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
       { key: "m_spicy_tuna_chunk",label: "Spicy Tuna Chunk",       unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
       { key: "m_mango_base",     label: "Mango Cut (For Base Roll)",unit: "container", section: "prep", item_type: "ingredient", item_category: "Vegetables" },
       { key: "m_pickled_papaya", label: "Pickled Papaya",          unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
       { key: "m_salmon_skin_mix",label: "Salmon Skin Mix",         unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
-      // Paranaque was already reporting this, three times in two days, typed
-      // into Extra Items as "GARLIC CHIVES / CHINESE CHIVES — 50 g". A par was
-      // set for "Chives" to catch it and could never match, because the join is
-      // on the exact name. Grams for the same reason Dubai uses grams: the
-      // kitchen does not weigh chives by the container.
-      { key: "m_chives",         label: "Chives",                  unit: "g",         section: "prep", item_type: "ingredient", item_category: "Vegetables" },
+      // Chives was added because Paranaque kept typing it into Extra Items.
+      // The kitchen has since stopped using it (Manila, 2026-09-07), so the
+      // field is gone. The seven reports already filed keep their values; the
+      // par rows are deactivated rather than deleted.
+    ],
+  },
+  {
+    id: "backup",
+    label: "Backup (Working Fridge)",
+    // The designated backup in the working fridge is not enough for these three
+    // during service, so a second lot is kept in another bowl or strainer. They
+    // are the three that take longest to prepare from scratch, which is why
+    // running out of them shows up in prep time rather than anywhere else.
+    // Counted as fill of the vessel they are kept in, like every other Manila
+    // prep item -- nobody weighs a strainer.
+    items: [
+      { key: "m_bk_cucumber_cut",      label: "Cucumber Cut (Backup)",      unit: "large strainer", section: "backup", item_type: "ingredient", item_category: "Vegetables" },
+      { key: "m_bk_shredded_crabstick",label: "Shredded Crabstick (Backup)",unit: "container",      section: "backup", item_type: "ingredient", item_category: "Processed Meat / Eggs" },
+      { key: "m_bk_fried_salmon_skin", label: "Fried Salmon Skin (Backup)", unit: "container",      section: "backup", item_type: "ingredient", item_category: "Processed Ingredients" },
     ],
   },
   {
@@ -351,6 +367,7 @@ const SECTION_LABELS: Record<string, string> = {
   rolls:       "Sushi Rolls",
   hot_section: "Hot Section",
   base_roll:   "Base Roll",
+  backup:      "Backup (Working Fridge)",
   extra:       "Extra Items",
 };
 

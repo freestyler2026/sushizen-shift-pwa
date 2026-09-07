@@ -57,6 +57,7 @@ const SECTION_LABELS: Record<string, string> = {
   hot_section:  "Hot Section",
   rolls:        "Sushi Rolls",
   base_roll:    "Base Roll",
+  backup:       "Backup (Working Fridge)",
   free:         "Free Entry",
   // The submit page writes "extra"; this file only knew "free", so free-entry
   // rows arrived unlabelled, uncoloured and uncounted. Paranaque's Fried Garlic
@@ -71,6 +72,7 @@ const SECTION_COLORS: Record<string, string> = {
   hot_section:  "#f87171",
   rolls:        "#f472b6",
   base_roll:    "#c084fc",
+  backup:       "#2dd4bf",
   free:         "#fbbf24",
   extra:        "#fbbf24",
 };

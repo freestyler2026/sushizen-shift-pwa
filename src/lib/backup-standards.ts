@@ -25,14 +25,20 @@ export const MANILA_STANDARDS: Record<string, StandardSpec> = {
   m_box_24:           { type: "qty", min: 30,  label: "30+ pcs" },
   // Prepared Ingredients
   m_quezo_cheese:     { type: "pct", min: 50,  label: "50% of container" },
-  m_crabstick_cut:    { type: "qty", min: 0.5, label: "500g (0.5kg)" },
-  m_cucumber_cut:     { type: "qty", min: 3,   label: "3kg" },
+  // Weighed in kilos until 2026-09-07. The kitchen judges these by how full the
+  // container is, so the standard is stated the way the kitchen states it.
+  m_crabstick_cut:    { type: "pct", min: 50,  label: "50% of container" },
+  m_cucumber_cut:     { type: "pct", min: 100, label: "100% of container" },
   m_seasoned_upo:     { type: "pct", min: 50,  label: "50% of container" },
   m_crabstick_mayo:   { type: "pct", min: 75,  label: "75% of container" },
   m_spicy_tuna_chunk: { type: "pct", min: 75,  label: "75% of container" },
   m_mango_base:       { type: "pct", min: 50,  label: "50% of container" },
   m_pickled_papaya:   { type: "pct", min: 75,  label: "75% of container" },
   m_salmon_skin_mix:  { type: "pct", min: 75,  label: "75% of container" },
+  // Backup (Working Fridge) — the second lot kept in another bowl or strainer
+  m_bk_cucumber_cut:       { type: "pct", min: 100, label: "100% of large strainer" },
+  m_bk_shredded_crabstick: { type: "pct", min: 100, label: "100% of container" },
+  m_bk_fried_salmon_skin:  { type: "pct", min: 50,  label: "50% of container" },
   // Toppings & Flakes
   m_spring_onion_top: { type: "pct", min: 75,  label: "75% of container" },
   m_crabmayo_top:     { type: "pct", min: 50,  label: "50% of container" },
@@ -89,8 +95,11 @@ export const MANILA_LABEL_STANDARDS: Record<string, StandardSpec> = {
   "Box16 Set":                       { type: "qty", min: 30,  label: "30+ pcs" },
   "Box24 Set":                       { type: "qty", min: 30,  label: "30+ pcs" },
   "Quezo Cheese Cut":                { type: "pct", min: 50,  label: "50% of container" },
-  "Crabstick Cut":                   { type: "qty", min: 0.5, label: "500g (0.5kg)" },
-  "Cucumber Cut":                    { type: "qty", min: 3,   label: "3kg" },
+  "Crabstick Cut":                   { type: "pct", min: 50,  label: "50% of container" },
+  "Cucumber Cut":                    { type: "pct", min: 100, label: "100% of container" },
+  "Cucumber Cut (Backup)":           { type: "pct", min: 100, label: "100% of large strainer" },
+  "Shredded Crabstick (Backup)":     { type: "pct", min: 100, label: "100% of container" },
+  "Fried Salmon Skin (Backup)":      { type: "pct", min: 50,  label: "50% of container" },
   "Seasoned Upo":                    { type: "pct", min: 50,  label: "50% of container" },
   "Crabstick Mayo":                  { type: "pct", min: 75,  label: "75% of container" },
   "Spicy Tuna Chunk":                { type: "pct", min: 75,  label: "75% of container" },
