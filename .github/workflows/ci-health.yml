@@ -1,0 +1,127 @@
+name: CI Health
+
+# One message when the suite gets stuck, instead of one email per run.
+#
+# On 7 September the Frontend Tests went red at 11:19 and stayed red for nine
+# hours and twenty-five runs. Every one of them sent its own failure mail, and
+# the pile is what finally got looked at -- not the first one. A signal that
+# arrives twenty-five times is a signal nobody reads.
+#
+# So: say it once, when the third failure in a row lands, and name the commit
+# the streak started at, because that is the question anyone asks first. Say it
+# once more when it goes green. Nothing in between.
+
+on:
+  workflow_run:
+    workflows: ["Frontend Tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  issues: write
+  actions: read
+  contents: read
+
+jobs:
+  streak:
+    name: Report a stuck suite once
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Read the recent runs and decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Newest first. Ten is plenty: we only need the leading run of
+          # failures and the one before it.
+          runs=$(gh api \
+            "/repos/$REPO/actions/workflows/test.yml/runs?branch=main&status=completed&per_page=10" \
+            --jq '[.workflow_runs[] | {c: .conclusion, sha: .head_sha, t: .display_title, url: .html_url}]')
+
+          latest=$(echo "$runs" | jq -r '.[0].c // "none"')
+          # Leading run of failures. Counting "not success" instead would let a
+          # cancelled run extend a streak it was never part of.
+          streak=$(echo "$runs" | jq '[.[].c] | (map(. == "failure") | index(false)) // length')
+
+          # The oldest run of the current streak: the commit it started at.
+          first_sha=$(echo "$runs" | jq -r --argjson n "$streak" 'if $n > 0 then .[$n-1].sha[0:7] else "" end')
+          first_title=$(echo "$runs" | jq -r --argjson n "$streak" 'if $n > 0 then .[$n-1].t else "" end')
+          last_url=$(echo "$runs" | jq -r '.[0].url')
+
+          {
+            echo "latest=$latest"
+            echo "streak=$streak"
+            echo "first_sha=$first_sha"
+            echo "last_url=$last_url"
+            echo "first_title<<EOF"
+            echo "$first_title"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "latest=$latest streak=$streak started_at=$first_sha"
+
+      - name: Open the alert, or close it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # Optional. Set a Discord webhook here and the same message goes there
+          # as well; without it the issue is the whole notification.
+          CI_ALERT_WEBHOOK: ${{ secrets.CI_ALERT_WEBHOOK }}
+          LATEST: ${{ steps.decide.outputs.latest }}
+          STREAK: ${{ steps.decide.outputs.streak }}
+          FIRST_SHA: ${{ steps.decide.outputs.first_sha }}
+          FIRST_TITLE: ${{ steps.decide.outputs.first_title }}
+          LAST_URL: ${{ steps.decide.outputs.last_url }}
+        run: |
+          set -euo pipefail
+          TITLE="Frontend Tests is red"
+
+          open_no=$(gh issue list --repo "$REPO" --state open --search "$TITLE in:title" \
+                      --json number,title --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+
+          post_discord() {
+            [ -n "${CI_ALERT_WEBHOOK:-}" ] || return 0
+            # Failing to reach Discord must not fail the job: the issue has
+            # already been written and is the record that matters.
+            curl -sS -m 20 -X POST -H 'Content-Type: application/json' \
+                 -d "$(jq -n --arg c "$1" '{content: $c}')" \
+                 "$CI_ALERT_WEBHOOK" >/dev/null || echo "Discord post failed; the issue still stands."
+          }
+
+          if [ "$LATEST" = "failure" ] && [ "$STREAK" -ge 3 ]; then
+            if [ -n "$open_no" ]; then
+              echo "Already reported in #$open_no; staying quiet."
+              exit 0
+            fi
+            body=$(printf '%s\n' \
+              "The suite has failed $STREAK times in a row on \`main\`." \
+              "" \
+              "It started at **$FIRST_SHA** — $FIRST_TITLE" \
+              "" \
+              "Latest run: $LAST_URL" \
+              "" \
+              "Nothing else will be posted while it stays red. This closes itself" \
+              "on the first green run." \
+              "" \
+              "\`npx vitest run\` takes about 22 seconds locally and says the same thing.")
+            num=$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" \
+                  | grep -oE '[0-9]+$')
+            echo "Opened #$num"
+            post_discord ":rotating_light: Frontend Tests: $STREAK failures in a row on main. Started at $FIRST_SHA — $FIRST_TITLE. $LAST_URL"
+            exit 0
+          fi
+
+          if [ "$LATEST" = "success" ] && [ -n "$open_no" ]; then
+            gh issue comment "$open_no" --repo "$REPO" --body "Green again: $LAST_URL"
+            gh issue close "$open_no" --repo "$REPO"
+            echo "Closed #$open_no"
+            post_discord ":white_check_mark: Frontend Tests is green again on main. $LAST_URL"
+            exit 0
+          fi
+
+          echo "latest=$LATEST streak=$STREAK — nothing to say."

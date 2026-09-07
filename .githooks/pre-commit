@@ -1,0 +1,39 @@
+#!/bin/sh
+# Run the suite before a commit that touches the app or its tests.
+#
+# On 7 September a change took the % off five buttons -- correct, the sign did
+# not fit in 22px -- and the two tests still looking for "0%" went red. Nobody
+# ran them, and the next twenty-five pushes went red too, for nine hours, until
+# more than ten failure emails had piled up. Twenty-two seconds here is the
+# whole price of not doing that again.
+#
+# Skipped for a commit that touches neither src/ nor tests/.
+# Bypass with: git commit --no-verify
+set -e
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+git diff --cached --name-only --diff-filter=ACMR | grep -qE '^(src|tests)/' || exit 0
+
+if [ ! -d node_modules ]; then
+  echo "pre-commit: no node_modules here, skipping the suite." >&2
+  exit 0
+fi
+
+echo "pre-commit: running the suite (about 22s) …"
+if npx vitest run > /tmp/precommit-vitest.log 2>&1; then
+  grep -E "^ (Test Files|      Tests)" /tmp/precommit-vitest.log || true
+  exit 0
+fi
+
+echo >&2
+echo "pre-commit: the suite is red, so this commit is not being made." >&2
+echo >&2
+sed 's/\x1b\[[0-9;]*m//g' /tmp/precommit-vitest.log \
+  | grep -E "^ *FAIL |Unable to find|AssertionError|ReferenceError|TypeError|expected .* to |^ (Test Files|      Tests)" \
+  | head -20 >&2
+echo >&2
+echo "Full output: /tmp/precommit-vitest.log" >&2
+echo "If this is deliberate and you are fixing it next: git commit --no-verify" >&2
+exit 1
