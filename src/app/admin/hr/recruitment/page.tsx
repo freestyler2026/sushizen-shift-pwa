@@ -2305,10 +2305,12 @@ function AddRequisitionModal({
  */
 function DecisionList({
   rows,
+  decided,
   onSelect,
   onRecordOutcome,
 }: {
   rows: Applicant[];
+  decided: Record<string, string>;
   onSelect: (a: Applicant) => void;
   onRecordOutcome: (a: Applicant) => void;
 }) {
@@ -2319,12 +2321,13 @@ function DecisionList({
       </div>
     );
   }
-  const byStatus = rows.reduce<Record<string, number>>((acc, a) => {
+  const open = rows.filter((a) => !decided[a.id]);
+  const byStatus = open.reduce<Record<string, number>>((acc, a) => {
     acc[a.status] = (acc[a.status] || 0) + 1; return acc;
   }, {});
   // People we never replied to at all. Worth its own number: it is the one
   // thing on this screen that is our doing rather than the candidate's.
-  const silent = rows.filter((a) => a.never_moved).length;
+  const silent = open.filter((a) => a.never_moved).length;
 
   return (
     <div className="p-3">
@@ -2345,10 +2348,14 @@ function DecisionList({
       <div className="flex flex-col gap-1.5">
         {rows.map((a) => {
           const waited = a.days_since_move ?? a.days_in_pipeline ?? 0;
+          const done = decided[a.id];
           return (
             <div
               key={a.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-white/8 bg-white/3 px-3 py-2.5"
+              className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-3 py-2.5 ${
+                done
+                  ? "border-emerald-500/25 bg-emerald-500/5"
+                  : "border-white/8 bg-white/3"}`}
             >
               {/* The wait leads the row, in one column, so the eye can run down
                   it. It is the whole sort order and the whole reason to act. */}
@@ -2378,13 +2385,22 @@ function DecisionList({
                 {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
               </span>
 
-              <button
-                type="button"
-                onClick={() => onRecordOutcome(a)}
-                className="shrink-0 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/25 transition-colors"
-              >
-                Decide
-              </button>
+              {done ? (
+                // What was recorded, in words, next to the person it was
+                // recorded about. Open them to change it if it was the wrong
+                // row -- and the row is still here to be opened.
+                <span className="shrink-0 text-xs font-medium text-emerald-300">
+                  ✓ {done}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onRecordOutcome(a)}
+                  className="shrink-0 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/25 transition-colors"
+                >
+                  Decide
+                </button>
+              )}
             </div>
           );
         })}
@@ -2477,6 +2493,12 @@ export default function HRRecruitmentPage() {
   const [view, setView] = useState<"pipeline" | "plans" | "voice">("pipeline");
   const [lane, setLane] = useState<Lane>("active");
   const [closedSearch, setClosedSearch] = useState("");
+  // Rows decided during this sitting. On the board a decision moved a card to
+  // another column and you saw it happen; in a list the row simply stops
+  // existing, which reads the same as a mis-click. They stay until Refresh,
+  // which is the explicit "I am done with these" (the same shape as justClosed
+  // on the BO Dashboard).
+  const [justDecided, setJustDecided] = useState<Record<string, string>>({});
   // The tab carries its own count, and it counts both jobs that are waiting on
   // HR: recordings to listen to, and applicants with no link sent. Counting only
   // the recordings would leave the badge at zero while twenty people sit
@@ -2727,6 +2749,10 @@ export default function HRRecruitmentPage() {
         return "Your session has expired. Redirecting to login\u2026";
       }
       if (!res.ok) return await errorDetail(res);
+      const label = OUTCOME_BUTTONS.find((b) => b.key === data.outcome)?.label
+        ?? data.outcome;
+      const why = outcomeReasons.find((r) => r.key === data.reason)?.label ?? "";
+      setJustDecided((m) => ({ ...m, [outcomeFor.id]: why ? `${label} — ${why}` : label }));
       void loadData();
       return null;
     } catch (e: unknown) {
@@ -2857,7 +2883,12 @@ export default function HRRecruitmentPage() {
 
   // Oldest first, and the oldest is the first row -- the point of this screen
   // is being able to name the longest-waiting person without scrolling.
-  const decideRows = [...lanes.decide].sort(
+  const decideRows = [
+    ...lanes.decide,
+    // Decided a moment ago and therefore no longer stalled -- kept in place so
+    // the person who pressed the button can see what they recorded.
+    ...applicants.filter((a) => justDecided[a.id] && laneOf(a) !== "decide"),
+  ].sort(
     (a, b) => (b.days_since_move ?? b.days_in_pipeline ?? 0)
             - (a.days_since_move ?? a.days_in_pipeline ?? 0));
 
@@ -2915,7 +2946,7 @@ export default function HRRecruitmentPage() {
           <div className="flex items-center gap-2">
             <button
               className={`${SECONDARY_BUTTON} flex items-center gap-1.5`}
-              onClick={() => void loadData()}
+              onClick={() => { setJustDecided({}); void loadData(); }}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -3035,7 +3066,11 @@ export default function HRRecruitmentPage() {
               opening it. */}
           <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
             {(["active", "decide", "closed"] as Lane[]).map((k) => {
-              const n = lanes[k].length;
+              // The decide count is what is left to do, so a decision taken a
+              // moment ago comes off it even while its row is still on screen.
+              const n = k === "decide"
+                ? lanes.decide.filter((a) => !justDecided[a.id]).length
+                : lanes[k].length;
               const urgent = k === "decide" && n > 0;
               return (
                 <button
@@ -3065,26 +3100,28 @@ export default function HRRecruitmentPage() {
             </p>
           </div>
 
-          {lane === "decide" ? (
-            <DecisionList
-              rows={decideRows}
-              onSelect={setSelectedApplicant}
-              onRecordOutcome={setOutcomeFor}
-            />
-          ) : lane === "closed" ? (
-            <ClosedList
-              rows={closedRows}
-              total={lanes.closed.length}
-              query={closedSearch}
-              onQuery={setClosedSearch}
-              onSelect={setSelectedApplicant}
-            />
-          ) : (
-          <>
-          {/* ── Main area: Kanban + Detail Panel ── */}
+          {/* One row: whichever screen is selected, plus the detail panel beside
+              it. The panel sits outside the choice on purpose -- when it lived
+              inside the board branch, clicking a name on either of the other two
+              screens set the selection and drew nothing. */}
           <div className="flex">
-            {/* Kanban Board */}
-            <div className="flex-1 overflow-x-auto">
+            <div className="min-w-0 flex-1 overflow-x-auto">
+            {lane === "decide" ? (
+              <DecisionList
+                rows={decideRows}
+                decided={justDecided}
+                onSelect={setSelectedApplicant}
+                onRecordOutcome={setOutcomeFor}
+              />
+            ) : lane === "closed" ? (
+              <ClosedList
+                rows={closedRows}
+                total={lanes.closed.length}
+                query={closedSearch}
+                onQuery={setClosedSearch}
+                onSelect={setSelectedApplicant}
+              />
+            ) : (
               <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${OPEN_COLUMNS.length}, minmax(0, 1fr))` }}>
                 {OPEN_COLUMNS.map((col) => {
                   const cards = grouped[col.id] || [];
@@ -3121,6 +3158,7 @@ export default function HRRecruitmentPage() {
                   );
                 })}
               </div>
+            )}
             </div>
 
             {/* Detail Panel (right slide-in) */}
@@ -3136,8 +3174,6 @@ export default function HRRecruitmentPage() {
               </div>
             )}
           </div>
-          </>
-          )}
 
           {/* Mobile detail panel: bottom sheet */}
           {selectedApplicant && (
