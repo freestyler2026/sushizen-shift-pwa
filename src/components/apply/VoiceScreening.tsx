@@ -358,11 +358,16 @@ export default function VoiceScreening({
       // Resume where the connection dropped rather than starting over.
       const first = d.questions.findIndex((q) => !d.answered.includes(q.seq));
       setIdx(first < 0 ? 0 : first);
+      const hasIntro = !!(d.intro_video as IntroVideo | undefined)?.url;
       if (d.consent_given && first >= 0) setStage("record");
+      // An invite link opens at the consent screen, so somebody who arrived
+      // that way would never be shown the company video at all -- and that is
+      // most people, because the link is what gets sent over Messenger.
+      else if (!d.consent_given && hasIntro && startAt === "consent") setStage("intro");
     } catch {
       onUnavailable?.("error");
     }
-  }, [token, onUnavailable]);
+  }, [token, onUnavailable, startAt]);
 
   useEffect(() => { void load(); }, [load]);
 

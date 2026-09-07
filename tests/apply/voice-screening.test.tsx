@@ -44,7 +44,8 @@ async function renderVoice(data: Record<string, unknown> = loaded(),
   mockFetch.mockImplementation(() => fetchOk(data));
   const Voice = (await import("@/components/apply/VoiceScreening")).default;
   render(<Voice token="tok" lang="en" {...props} />);
-  await screen.findByText(/One more step|Before you record/);
+  // Whichever screen this token opens on -- offer, consent, or the video.
+  await screen.findByText(/One more step|Before you record|First, a minute about/);
 }
 
 beforeEach(() => { mockFetch.mockReset(); });
@@ -110,6 +111,17 @@ describe("voice screening on a phone", () => {
     }));
     fireEvent.click(screen.getByText("Answer now by voice"));
     fireEvent.click(await screen.findByText("Skip and continue"));
+    expect(await screen.findByText(/Before you record/)).toBeTruthy();
+  });
+
+  it("shows the video to somebody who arrived from an invite link", async () => {
+    // The link is what gets sent over Messenger, so this is the common path --
+    // and it opens at the consent screen, past where the video used to live.
+    await renderVoice(loaded({
+      intro_video: { url: "https://youtu.be/abc123", kind: "youtube", seconds: 60 },
+    }), { startAt: "consent" });
+    expect(await screen.findByText(/First, a minute about Sushi ZEN/)).toBeTruthy();
+    fireEvent.click(screen.getByText("Skip and continue"));
     expect(await screen.findByText(/Before you record/)).toBeTruthy();
   });
 
