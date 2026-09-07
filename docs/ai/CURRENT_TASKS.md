@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシートの突合を完了。下記）
+Last updated: 2026-09-07（マニラ厨房からの Backup アイテム変更を反映。下記）
+
+---
+
+## ✅ 2026-09-07 — Backup Par Level：マニラ厨房の依頼を反映（完了・本番反映済み）
+
+店舗からの4点の依頼を、フロント（テンプレート＋基準）と `backup_par_levels` の両方に入れた。
+アイテムの追加・削除は現場の画面からはできない運用なので、依頼ベースでこちら側が反映する
+（Backup Par Level 見直しのアーティファクトに明記されている運用）。
+
+| 依頼 | 反映内容 |
+|---|---|
+| Chives 削除 | フォームから削除。**par 3行は `is_active=FALSE`（削除ではない）** — 既に7件の報告があり、その値が何と比べられたのかが消えるため |
+| Cucumber Cut 3kg → 100% Container | `type:"pct"` に変更。**単位ドロップダウンが消えるので今後 g/kg では届かない** |
+| Crabstick Cut 0.5kg → 50% Container | 同上 |
+| Backup セクション新設（3品・全マニラ店） | Cucumber Cut (Backup) 100% large strainer / Shredded Crabstick (Backup) 100% container / Fried Salmon Skin (Backup) 50% container |
+
+- 変更ファイル: `src/app/admin/backup/page.tsx`（テンプレート＋`SECTION_LABELS`）、
+  `src/lib/backup-standards.ts`（`MANILA_STANDARDS` と `MANILA_LABEL_STANDARDS` の両方）、
+  `src/components/analytics/BackupAnalyticsSection.tsx`（`SECTION_LABELS`＋`SECTION_COLORS`）
+- DB退避: `_backup_par_bk_20260907`（9行）
+- 検証: 本番のフォームを実際に開き、Manila を選んで3品が %セレクタで出ることを確認（教訓56）
+
+### 引き継ぎ事項（未対応・判断待ち）
+1. **kg → % で過去と比較できない。** Cucumber Cut 587行・Crabstick Cut 416行が kg で、
+   9/07 以降は container。検知側は単位が違うと**比較せずスキップ**する（誤検知ではなく無検査）
+   ので、しばらく par レビュー画面に `unit_mismatch` と出る。自然に解消する。
+2. **Chives の削除はマニラ3店舗すべてに効く。** テンプレートが共通なので Paranaque だけ外せない。
+3. **plain な par 行は `closing` レポートしか見ない**（`p.shift='' AND s.shift='closing'`）。
+   直近60日のマニラは **morning 179件 / closing 128件 / midday 50件** で、
+   **最も多い morning は Base Roll 以外の64アイテムすべてで無検査**。
+   今回の3品は「営業中に切れると PREP TIME に響く」ことが依頼理由なので、
+   midday の par 行を足す価値はある（`shift='midday'` の行を9件足すだけ）。
+   ただし morning は仕込み前で par 割れが正常なので足さないこと（教訓39）。
+   **既存64アイテムの扱いを含め、オーナー判断待ち。**
 
 ---
 
