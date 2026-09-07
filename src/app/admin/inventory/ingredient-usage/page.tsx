@@ -28,7 +28,7 @@ type UsageRow = {
   bought_qty: number | null;
   bought_amount: number;
   difference: number | null;
-  compare_status: "ok" | "partial" | "no_purchase_record" | "unit_unknown";
+  compare_status: "ok" | "partial" | "not_linked" | "not_ordered_here" | "unit_unknown";
   unconvertible_units: string[];
   in_par_list: boolean;
 };
@@ -49,8 +49,10 @@ type Payload = {
     ingredients: number;
     used_value: number;
     comparable: number;
-    no_purchase_record: number;
+    not_linked: number;
+    not_ordered_here: number;
     unit_unknown: number;
+    used_value_not_linked: number;
   };
   coverage: Coverage;
 };
@@ -67,9 +69,14 @@ const BRANCHES = [
 // the row (lesson 9 — a rule that is not on the screen is not believed).
 const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
   ok: "",
-  partial: "Some purchases were in a pack unit that has no size on file",
-  no_purchase_record: "Nothing with this name was ordered in this period",
-  unit_unknown: "Purchased in a pack unit with no size on file",
+  partial: "Some of it was ordered in a pack with no size on file",
+  // These two look the same on screen but mean opposite jobs: one is a normal
+  // week with no delivery, the other is an ingredient nobody has ever linked to
+  // a purchase item. Saying "not ordered" for both would send someone looking
+  // for a delivery that was never going to exist.
+  not_ordered_here: "Not ordered in these dates — it is bought under this name at other times",
+  not_linked: "No purchase item is linked to this ingredient, so nothing can be matched",
+  unit_unknown: "Ordered in a pack with no size on file",
 };
 
 function iso(d: Date) {
@@ -258,10 +265,14 @@ export default function IngredientUsagePage() {
           <div className="text-sm text-neutral-300">
             {data && (
               <>
-                {data.summary.comparable} of {data.summary.ingredients} can be compared with
-                purchases.{" "}
+                <strong className="text-neutral-200">{data.summary.comparable}</strong> of{" "}
+                {data.summary.ingredients} can be compared with purchases.{" "}
                 <span className="text-neutral-500">
-                  {data.summary.no_purchase_record} were not ordered under this name,
+                  {data.summary.not_linked} have no purchase item linked to them
+                  {data.summary.used_value_not_linked > 0
+                    ? ` (${num(data.summary.used_value_not_linked, 0)} of use)`
+                    : ""}
+                  , {data.summary.not_ordered_here} were simply not ordered in these dates, and
                   {" "}{data.summary.unit_unknown} were ordered in a pack with no size on file.
                 </span>
               </>
@@ -336,6 +347,10 @@ export default function IngredientUsagePage() {
           Procurement in the same dates, which is not the same as what arrived.
           A negative difference means more was used than ordered in these dates; over a short
           window that usually means it came out of stock already held.
+          <br />
+          <strong className="text-neutral-400">Purchases are counted across all of Manila</strong>,
+          not just the branch selected above — the stores sell it, but CK and the warehouse buy
+          most of it.
         </p>
       </section>
     </div>
