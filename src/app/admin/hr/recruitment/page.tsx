@@ -63,6 +63,41 @@ type Applicant = {
   latest_score?: number;
   latest_recommendation?: string;
   latest_outcome_reason?: string;
+  /** Days since anything happened to them, as opposed to days since they
+   *  applied. Someone interviewed yesterday who applied six weeks ago is not
+   *  stalled; the two numbers say different things. */
+  days_since_move?: number;
+  never_moved?: boolean;
+  prior_applications?: number;
+  prior_last_applied?: string | null;
+};
+
+/** After this long with nothing happening, an open application is not being
+ *  worked on -- it is waiting for somebody to decide. Measured 2026-09-07:
+ *  63 of 152 were past it, 45 of them sitting at "interviewed". */
+const STALE_DAYS = 14;
+
+type Lane = "active" | "decide" | "closed";
+
+/** Which of the three screens a person belongs on.
+ *
+ *  Splitting on the decision rather than on the status: "interviewed" holds
+ *  both somebody seen yesterday and somebody nobody has touched for 45 days,
+ *  and putting them in one column is what made the board unreadable.
+ */
+function laneOf(a: Applicant): Lane {
+  if (a.status === "hired" || a.status === "rejected") return "closed";
+  const idle = a.days_since_move ?? a.days_in_pipeline ?? 0;
+  return idle > STALE_DAYS ? "decide" : "active";
+}
+
+const LANE_LABEL: Record<Lane, string> = {
+  active: "Working on",
+  // Named for what has to happen, not for how the pile looks. A screen called
+  // "stalled" invites you to look at it; one called "needs a decision" tells
+  // you the row is only leaving when somebody decides something.
+  decide: "Needs a decision",
+  closed: "Closed",
 };
 
 /** The two points where a decision is actually made. Past these, moving someone
@@ -135,6 +170,12 @@ const KANBAN_COLUMNS: { id: KanbanStatus; label: string; color: string }[] = [
 ];
 
 const ALL_STATUSES: KanbanStatus[] = KANBAN_COLUMNS.map((c) => c.id);
+
+/** The board shows only the states somebody is still working. Hired and
+ *  rejected are 50 of the 152 cards and nothing is ever done to them again;
+ *  they belong on the Closed screen where they can be searched. */
+const OPEN_COLUMNS = KANBAN_COLUMNS.filter(
+  (c) => c.id !== "hired" && c.id !== "rejected");
 
 // ─── Source badge helper ─────────────────────────────────────────────────────
 
@@ -1382,8 +1423,15 @@ function NewPlanModal({
 
 type OutcomeReason = { key: string; label: string };
 
+/** Reasons that describe running out of time rather than judging anybody.
+ *  Kept apart in both directions, and the server enforces the same split: a
+ *  count of "another candidate is stronger" that quietly includes 45 people
+ *  nobody ever assessed is worse than no count at all. */
+const LAPSE_REASONS = new Set(["unreachable", "lapsed", "no_show", "withdrew", "other"]);
+const LAPSE_ONLY = new Set(["unreachable", "lapsed"]);
+
 const OUTCOME_BUTTONS: {
-  key: "proceed" | "hold" | "pass";
+  key: "proceed" | "hold" | "pass" | "lapse";
   label: string;
   hint: string;
   cls: string;
@@ -1405,6 +1453,12 @@ const OUTCOME_BUTTONS: {
     label: "Not proceeding",
     hint: "Moves them to Rejected",
     cls: "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25",
+  },
+  {
+    key: "lapse",
+    label: "Close — nobody assessed them",
+    hint: "For an application that ran out of time, or someone who stopped replying",
+    cls: "border-zinc-400/40 bg-zinc-400/15 text-zinc-200 hover:bg-zinc-400/25",
   },
 ];
 
@@ -1431,12 +1485,23 @@ function InterviewOutcomeModal({
   onClose: () => void;
   saving: boolean;
 }) {
-  const [outcome, setOutcome] = useState<"" | "proceed" | "hold" | "pass">("");
+  const [outcome, setOutcome] = useState<"" | "proceed" | "hold" | "pass" | "lapse">("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
 
-  const reasonRequired = outcome === "hold" || outcome === "pass";
+  // 18 of the people on the decision list are still at "new" -- nobody has met
+  // them. Offering "Proceed to offer" or "Hold" there would be offering to skip
+  // the interview, so those two only appear once there has been one.
+  const interviewed = applicant.status === "scheduled" || applicant.status === "interviewed";
+  const buttons = OUTCOME_BUTTONS.filter(
+    (b) => interviewed || b.key === "pass" || b.key === "lapse");
+
+  const reasonRequired = outcome === "hold" || outcome === "pass" || outcome === "lapse";
+  // Only the reasons that fit what was chosen. Offering all of them and then
+  // refusing the save teaches people to distrust the chips.
+  const shownReasons = reasons.filter((r) =>
+    outcome === "lapse" ? LAPSE_REASONS.has(r.key) : !LAPSE_ONLY.has(r.key));
   const noteRequired = reason === "other";
   const ready =
     !!outcome &&
@@ -1467,9 +1532,13 @@ function InterviewOutcomeModal({
         </div>
 
         <div>
-          <p className={T_LABEL}>How did the interview go?</p>
+          <p className={T_LABEL}>
+            {interviewed
+              ? "How did the interview go?"
+              : "This application never reached an interview. What happened?"}
+          </p>
           <div className="mt-2 grid gap-2">
-            {OUTCOME_BUTTONS.map((b) => (
+            {buttons.map((b) => (
               <button
                 key={b.key}
                 type="button"
@@ -1494,7 +1563,7 @@ function InterviewOutcomeModal({
               Reason {reasonRequired ? "*" : <span className="opacity-60">(optional)</span>}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {reasons.map((r) => (
+              {shownReasons.map((r) => (
                 <button
                   key={r.key}
                   type="button"
@@ -2225,6 +2294,168 @@ function AddRequisitionModal({
   );
 }
 
+// ─── Needs a decision ────────────────────────────────────────────────────────
+
+/** One list, oldest first, not a board.
+ *
+ *  Columns are for work in progress. These 63 are not in progress -- they are
+ *  waiting on somebody, and the only question the screen has to answer is who
+ *  has been waiting longest. A column layout puts that person somewhere in the
+ *  middle of one of five stacks.
+ */
+function DecisionList({
+  rows,
+  onSelect,
+  onRecordOutcome,
+}: {
+  rows: Applicant[];
+  onSelect: (a: Applicant) => void;
+  onRecordOutcome: (a: Applicant) => void;
+}) {
+  if (!rows.length) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm text-zinc-400">Nothing has been waiting more than {STALE_DAYS} days.</p>
+      </div>
+    );
+  }
+  const byStatus = rows.reduce<Record<string, number>>((acc, a) => {
+    acc[a.status] = (acc[a.status] || 0) + 1; return acc;
+  }, {});
+  // People we never replied to at all. Worth its own number: it is the one
+  // thing on this screen that is our doing rather than the candidate's.
+  const silent = rows.filter((a) => a.never_moved).length;
+
+  return (
+    <div className="p-3">
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {Object.entries(byStatus).map(([k, n]) => (
+          <span key={k} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300">
+            {KANBAN_COLUMNS.find((c) => c.id === k)?.label ?? k}
+            <span className="ml-1.5 tabular-nums text-zinc-500">{n}</span>
+          </span>
+        ))}
+        {silent > 0 && (
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200">
+            {silent} never had a reply from us
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {rows.map((a) => {
+          const waited = a.days_since_move ?? a.days_in_pipeline ?? 0;
+          return (
+            <div
+              key={a.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-white/8 bg-white/3 px-3 py-2.5"
+            >
+              {/* The wait leads the row, in one column, so the eye can run down
+                  it. It is the whole sort order and the whole reason to act. */}
+              <span className={`w-14 shrink-0 text-right text-sm font-bold tabular-nums ${
+                waited > 60 ? "text-red-300" : waited > 30 ? "text-amber-300" : "text-zinc-400"}`}>
+                {waited}d
+              </span>
+
+              <button
+                type="button"
+                onClick={() => onSelect(a)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <p className="truncate text-sm font-medium text-zinc-100">{a.full_name}</p>
+                <p className="truncate text-xs text-zinc-500">
+                  {a.position_applied || "—"}
+                  {a.never_moved
+                    ? " · applied and never heard back from us"
+                    : ` · last moved ${waited} days ago`}
+                  {(a.prior_applications ?? 0) > 0 && (
+                    ` · applied before (${a.prior_last_applied ?? "earlier"})`
+                  )}
+                </p>
+              </button>
+
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400">
+                {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => onRecordOutcome(a)}
+                className="shrink-0 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/25 transition-colors"
+              >
+                Decide
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Closed ──────────────────────────────────────────────────────────────────
+
+/** Hired and rejected, off the working board but not deleted.
+ *
+ *  Deleting them would cost three things that are already in use: which source
+ *  actually produces hires (Facebook 113 applications, 11 hired; referrals 32
+ *  and 3; JobStreet 6 and none), whether somebody has applied before, and any
+ *  answer to "what happened to that candidate".
+ */
+function ClosedList({
+  rows,
+  total,
+  query,
+  onQuery,
+  onSelect,
+}: {
+  rows: Applicant[];
+  total: number;
+  query: string;
+  onQuery: (v: string) => void;
+  onSelect: (a: Applicant) => void;
+}) {
+  return (
+    <div className="p-3">
+      <input
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+        placeholder="Search name, position or phone…"
+        className="mb-3 w-full max-w-md rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/50"
+      />
+      <p className="mb-2 text-xs text-zinc-500">
+        {query ? `${rows.length} of ${total}` : `${total} closed`}
+      </p>
+      <div className="flex flex-col gap-1">
+        {rows.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => onSelect(a)}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-left hover:bg-white/6 transition-colors"
+          >
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+              a.status === "hired"
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "bg-zinc-500/15 text-zinc-400"}`}>
+              {a.status === "hired" ? "Hired" : "Rejected"}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{a.full_name}</span>
+            <span className="truncate text-xs text-zinc-500">{a.position_applied || "—"}</span>
+            {a.latest_outcome_reason && (
+              <span className="truncate text-xs text-zinc-600">{a.latest_outcome_reason.replace(/_/g, " ")}</span>
+            )}
+            <span className="shrink-0 text-xs tabular-nums text-zinc-600">{a.applied_date}</span>
+          </button>
+        ))}
+        {!rows.length && (
+          <p className="py-6 text-center text-sm text-zinc-500">Nothing matches that.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const ALLOWED_ROLES = ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"];
@@ -2244,6 +2475,8 @@ export default function HRRecruitmentPage() {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice">("pipeline");
+  const [lane, setLane] = useState<Lane>("active");
+  const [closedSearch, setClosedSearch] = useState("");
   // The tab carries its own count, and it counts both jobs that are waiting on
   // HR: recordings to listen to, and applicants with no link sent. Counting only
   // the recordings would leave the badge at zero while twenty people sit
@@ -2609,13 +2842,32 @@ export default function HRRecruitmentPage() {
 
   // ── Kanban grouping ───────────────────────────────────────────────────────
 
-  const grouped = KANBAN_COLUMNS.reduce(
+  const lanes = applicants.reduce(
+    (acc, a) => { acc[laneOf(a)].push(a); return acc; },
+    { active: [] as Applicant[], decide: [] as Applicant[], closed: [] as Applicant[] }
+  );
+
+  const grouped = OPEN_COLUMNS.reduce(
     (acc, col) => {
-      acc[col.id] = applicants.filter((a) => a.status === col.id);
+      acc[col.id] = lanes.active.filter((a) => a.status === col.id);
       return acc;
     },
     {} as Record<KanbanStatus, Applicant[]>
   );
+
+  // Oldest first, and the oldest is the first row -- the point of this screen
+  // is being able to name the longest-waiting person without scrolling.
+  const decideRows = [...lanes.decide].sort(
+    (a, b) => (b.days_since_move ?? b.days_in_pipeline ?? 0)
+            - (a.days_since_move ?? a.days_in_pipeline ?? 0));
+
+  const closedQuery = closedSearch.trim().toLowerCase();
+  const closedRows = [...lanes.closed]
+    .filter((a) => !closedQuery
+      || a.full_name.toLowerCase().includes(closedQuery)
+      || (a.position_applied || "").toLowerCase().includes(closedQuery)
+      || (a.phone || "").includes(closedQuery))
+    .sort((a, b) => (b.applied_date || "").localeCompare(a.applied_date || ""));
 
   const getNextStatus = (current: KanbanStatus): KanbanStatus | null => {
     const idx = ALL_STATUSES.indexOf(current);
@@ -2777,12 +3029,64 @@ export default function HRRecruitmentPage() {
         />
       ) : (
         <>
+          {/* Three screens rather than one board of 152 cards. The counts are on
+              the tabs because the number of people waiting on a decision is the
+              reason to open that screen, and it has to be readable without
+              opening it. */}
+          <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
+            {(["active", "decide", "closed"] as Lane[]).map((k) => {
+              const n = lanes[k].length;
+              const urgent = k === "decide" && n > 0;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setLane(k)}
+                  className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                    lane === k
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-100"
+                      : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                  }`}
+                >
+                  {LANE_LABEL[k]}
+                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs tabular-nums ${
+                    urgent ? "bg-amber-500/25 text-amber-200" : "bg-white/10 text-zinc-300"}`}>
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
+            <p className="ml-1 text-xs text-zinc-500">
+              {lane === "active"
+                ? `Moved within the last ${STALE_DAYS} days`
+                : lane === "decide"
+                ? `Nothing has happened for over ${STALE_DAYS} days`
+                : "Hired and rejected — kept so the source figures and repeat applications still work"}
+            </p>
+          </div>
+
+          {lane === "decide" ? (
+            <DecisionList
+              rows={decideRows}
+              onSelect={setSelectedApplicant}
+              onRecordOutcome={setOutcomeFor}
+            />
+          ) : lane === "closed" ? (
+            <ClosedList
+              rows={closedRows}
+              total={lanes.closed.length}
+              query={closedSearch}
+              onQuery={setClosedSearch}
+              onSelect={setSelectedApplicant}
+            />
+          ) : (
+          <>
           {/* ── Main area: Kanban + Detail Panel ── */}
           <div className="flex">
             {/* Kanban Board */}
             <div className="flex-1 overflow-x-auto">
-              <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
-                {KANBAN_COLUMNS.map((col) => {
+              <div className="grid gap-2 p-3" style={{ gridTemplateColumns: `repeat(${OPEN_COLUMNS.length}, minmax(0, 1fr))` }}>
+                {OPEN_COLUMNS.map((col) => {
                   const cards = grouped[col.id] || [];
                   return (
                     <div
@@ -2832,6 +3136,8 @@ export default function HRRecruitmentPage() {
               </div>
             )}
           </div>
+          </>
+          )}
 
           {/* Mobile detail panel: bottom sheet */}
           {selectedApplicant && (
