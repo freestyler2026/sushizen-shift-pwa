@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシートの突合を完了。下記）
+Last updated: 2026-09-07（マニラ厨房からの Backup アイテム変更を反映。下記）
+
+---
+
+## ✅ 2026-09-07 — Backup Par Level：マニラ厨房の依頼を反映（完了・本番反映済み）
+
+店舗からの4点の依頼を、フロント（テンプレート＋基準）と `backup_par_levels` の両方に入れた。
+アイテムの追加・削除は現場の画面からはできない運用なので、依頼ベースでこちら側が反映する
+（Backup Par Level 見直しのアーティファクトに明記されている運用）。
+
+| 依頼 | 反映内容 |
+|---|---|
+| Chives 削除 | フォームから削除。**par 3行は `is_active=FALSE`（削除ではない）** — 既に7件の報告があり、その値が何と比べられたのかが消えるため |
+| Cucumber Cut 3kg → 100% Container | `type:"pct"` に変更。**単位ドロップダウンが消えるので今後 g/kg では届かない** |
+| Crabstick Cut 0.5kg → 50% Container | 同上 |
+| Backup セクション新設（3品・全マニラ店） | Cucumber Cut (Backup) 100% large strainer / Shredded Crabstick (Backup) 100% container / Fried Salmon Skin (Backup) 50% container |
+
+- 変更ファイル: `src/app/admin/backup/page.tsx`（テンプレート＋`SECTION_LABELS`）、
+  `src/lib/backup-standards.ts`（`MANILA_STANDARDS` と `MANILA_LABEL_STANDARDS` の両方）、
+  `src/components/analytics/BackupAnalyticsSection.tsx`（`SECTION_LABELS`＋`SECTION_COLORS`）
+- DB退避: `_backup_par_bk_20260907`（9行）
+- 検証: 本番のフォームを実際に開き、Manila を選んで3品が %セレクタで出ることを確認（教訓56）
+
+### 引き継ぎ事項（未対応・判断待ち）
+1. **kg → % で過去と比較できない。** Cucumber Cut 587行・Crabstick Cut 416行が kg で、
+   9/07 以降は container。検知側は単位が違うと**比較せずスキップ**する（誤検知ではなく無検査）
+   ので、しばらく par レビュー画面に `unit_mismatch` と出る。自然に解消する。
+2. **Chives の削除はマニラ3店舗すべてに効く。** テンプレートが共通なので Paranaque だけ外せない。
+3. **plain な par 行は `closing` レポートしか見ない**（`p.shift='' AND s.shift='closing'`）。
+   直近60日のマニラは **morning 179件 / closing 128件 / midday 50件** で、
+   **最も多い morning は Base Roll 以外の64アイテムすべてで無検査**。
+   今回の3品は「営業中に切れると PREP TIME に響く」ことが依頼理由なので、
+   midday の par 行を足す価値はある（`shift='midday'` の行を9件足すだけ）。
+   ただし morning は仕込み前で par 割れが正常なので足さないこと（教訓39）。
+   **既存64アイテムの扱いを含め、オーナー判断待ち。**
 
 ---
 
@@ -78,6 +112,62 @@ Last updated: 2026-09-06（Manual Shift の Excel 出力とスタッフシート
 
 **過去日の照合は、シートより打刻を優先すること。** シートは予定、打刻は事実。
 
+## ✅ 2026-09-06 — Manila 9月：スタッフシートとの突合＋タイムライン役割の出力
+
+正となるシート: `Manila Shift Schedule 2026 .xlsx` の `Sep 1-  ` タブ。
+**ドバイと違い30日すべて記入済み。** 50名×30日＝1,434人日を突合。
+
+**一致率 99.6%（1,428/1,434）。** 残る6件は Mariano Espenida Jr. の空欄日で、
+**OS側（ABSENT×3 + BO 9-18×3）が正しいとオーナー確認済み**＝実質的に食い違いゼロ。
+
+### シートの読み方（次回必読）
+- 1日＝20列ブロック、列5開始（`col = 5 + 20*(日-1)`）。**19列が 8:00〜翌2:00**（`hour = 8 + offset`）
+- **20列目に正確な時刻がテキストで入っている**（`3:30PM - 12:30AM` `11AM-9PM PAR`）。
+  格子は1時間刻みなので15:30を描けない。**この20列目が正**で、無視すると300日以上が
+  「30分ずれ」で不一致になる（実際に最初そうなった）
+- 色＝**その日いる場所**（所属ではない）: `FFFF00`=Cubao/CK・`00FF00`=Paranaque・
+  `FF00FF`=TAFT・`FF9900`=Office・`00FFFF`=HQ works・`FFF2CC`=**休み**・`999999`=**休憩**・`FF0000`=Delivery等
+- **Cubao と CK は同色**（同一キッチン）。**「Operation Team」ラベルより上の6行がCK、下がCubao店**。
+  OS側の版と一致することを実データで確認済み
+- 休憩の灰色は**シフトの分割ではない**（OSは1本の連続ブロックで持つ）ので跨いで結合する
+- 抽出: `scratchpad/mnl_sheet.py` / 突合: `mnl_diff.py` / 適用: `mnl_apply.py`
+
+### やったこと
+- **1,386人日を書き込み**（Manual Shift のセル編集→Publish 経路）。退避 `_shift_rows_bk_mnl2_20260906`
+- **タイムライン上の役割テキストを `note` に入れた**（1,055行）。`role` の職位（MGR / Line Cook 等）は温存
+- **Excel出力がその役割をバーの上に書くようにした**（開始時刻のセル。生成物で1,438件を確認）
+
+### 「HQ works」の行き先（2026-09-06 オーナー確認・適用済み）
+水色の「HQ works」は**施設名ではない**ので、人ごとに実際の勤務先へ割り当てた。
+- **Richard S. Gante → CK**（14日）
+- **Peter Villafuerte → BO**（16日。他の区間はシートどおり BO/PAR/TAFT の複数区間）
+- **Francis Ibana → その日の別区間と同じ支店**（TAFT。3日）
+- **Keven Jhon A. Ayubong → CK**（6日。OSは Cubao だった）
+
+Gante 3日・Ibana 1日は**同じ人日が2つの支店版に跨って**いたので、主たる版に書いて
+もう一方には空セルを publish して消した（版が違うと置換にならず横に増える）。
+
+⚠️ **Excelのどのタブに行が置かれるかは `staff_master.branch_code` で決まる。**
+Keven・Francis・Richard は名簿上いずれも **CUB** なので、日々の `Br` 欄が CK / TAFT でも
+**行は Cubao タブに出る**。シート原本では Richard と Francis は店舗グループの上の
+管理職ブロック、Keven は CK ブロックにいる。名簿を直すかは未決（給与・名簿に波及するため保留）。
+
+### シートが扱っていない範囲
+**Back Office 8名**（Aliana Manuel / Caila Macararanga / Camilla Gadingan / Cyrine Fernandez /
+Erica May Sadiasa / Marithel Queri / Rose Ann Onido / Ruby Rosa Rongcales）は
+**シートに行が無く、OSにだけある**。消していない。シートは店舗・厨房のみを扱う。
+**OSの内容が正しい（オーナー確認）。Excelの Back Office タブに全員出ている**ことを
+生成物で確認済み（1人あたり74〜82セル）。ただし**役割テキストは空**（シートに元が無いため）。
+
+⚠️ **氏名はOS側の綴りが正**（オーナー確認）。`shift_published_rows.staff_name` が
+`staff_master` に無い名前は**0件**なので、OS内部の整合は取れている。
+
+⚠️ **氏名の表記ゆれ23名分**を突合表に持っている（`Ricardo Lamis Ⅲ`＝`Ricardo Lamis III`、
+`Go, Leomar Maranan`＝`Leomar M. Go`、`Renz Erick Erespe`＝`Renz Erick Matudan` 等）。
+OSに一本化するとスタッフはOS側の綴りを受け取る。
+
+---
+
 ## 🔍 2026-09-06 — Manila 9月の点検（OS単独・データは未変更）
 
 版は5支店×全週そろっている（Arjanのような欠落なし）。1,625行・58名。
@@ -115,6 +205,94 @@ BO所属者がPARと記録されるのはピンの重複ではなく**実際に�
 
 ---
 
+## ✅ 2026-09-07 — シフト変更申請が承認できず溜まっていた件
+
+### 何が起きていたか
+Admin Dashboard に2か月残っていた RED（Udaya Gurung 7/8）は、**押せば通るのに通らない**状態だった。
+
+1. **RED の承認はメモ10文字以上が必須**（`main.py` の confirm_manager / confirm_hq）。
+   しかし **Note欄の placeholder が literally `"OK"`（2文字）** で、
+   **画面が、サーバーが拒否する入力を教えていた。** 8/2に誰かが APPROVE を押しており、
+   `/intent` は成功して `last_intent=MANAGER/APPROVE` が残り、`/confirm_manager` が400で落ちて
+   ステータスは PENDING のまま。エラーはボタン下の小さな赤文字にしか出ない。
+2. **`red_open` は HQ のステータスだけを見る。** MANAGER で承認してもカードは消えない。
+
+### 直したもの（デプロイ済み）
+- Note欄に「10 characters minimum to approve」を表示。**満たすまで APPROVE を無効化**し、
+  `3/10` のように不足文字数を出す。placeholder の `"OK"` を廃止（教訓9：ルールが画面に無い）
+- カードに **待ち日数**（7日以上は琥珀色）と **どちら待ちか**（Manager / HQ / Manager, then HQ）を表示
+- **`open_other` バケットを新設。** 4つのキューは「マネージャーが却下してHQが未処理」
+  「HQが承認してマネージャーが未処理」を**どれも拾っておらず、ドバイの22件中18件が
+  データ上は開いたまま画面のどこにも出ていなかった**
+- ドバイのテスト申請 **27件を削除**（退避 `_shift_change_test_bk_20260907`、
+  紐づく override 12件も削除）。理由テキストを全種類列挙してから、
+  テストと判別できる9種のみを完全一致で削除。ドバイの未処理 **22件 → 2件**
+
+### 通知（2026-09-07 実装・デプロイ済み）
+`worker.run_shift_request_digest(now, city)` + `db.open_shift_change_digest(city)`
+- **マニラ 00:10 UTC / ドバイ 04:10 UTC**（＝どちらも現地 08:10）
+- 送信先は **`DISCORD_SHIFT_APPROVAL_WEBHOOK_URL`**（YELLOW/RED の申請が既に届く承認チャンネル）。
+  未設定なら都市別 webhook にフォールバック
+- **「まだ間に合う件数」を見出しにする。** 来週の休暇申請と7月の申請を1つの数字にまとめると
+  その数字が何も意味しなくなる（教訓73）。**日付が過ぎたものは件数だけ**にして列挙しない
+- **過ぎたものしか無い日は送らず、月曜だけにする。** 毎朝同じ文面が出ると読まれなくなり、
+  読まれなくなった後は新しいものも読まれない（教訓39・55）
+- 0件の日は送らない
+- 実データで本文を確認済み（マニラ「7 can still be answered in time. Oldest of all 15
+  has been waiting 117 days.」／ドバイ「2 past-dated only, holding until Monday」）
+
+### ⚠️ 未処理が放置される構造（未修正）
+| | |
+|---|---|
+| **GREEN は誰にも通知されない** | Discord webhook は **YELLOW/RED のみ**。マニラの未回答9件は全部 GREEN |
+| 申請時の通知先 | `insert_private_report_notification(staff_name=staff_name)` ＝ **申請者本人**。承認者には飛ばない |
+| バッジ | `manager_status='PENDING' AND hq_status='PENDING'` の**1都市分だけ**（既定 dubai）。マニラの列は日本側から見えない |
+| 担当者 | **申請に担当者の欄が無い**。ロールを持つ全員が押せる＝誰の仕事でもない |
+| **Francis Ibana（MANILA_MANAGER）は承認できない** | 許可リストは `MANAGER/ADMIN/HQ/HR_MANAGER/DUBAI_MANAGEMENT/MANILA_MANAGEMENT`。
+  **`MANILA_MANAGER` が入っていない**ので、現場に一番近い店長が締め出され、BOのADMIN6名が押せる（教訓25・32と同型）。
+  → **2026-09-07 オーナー判断：当面マニラはHQが承認するので変更しない。** |
+
+### HQロールの保有者（2026-09-07）
+オーナー確認：HQ は **4名**（Yukihiro Nishimura / Ayako Nishimura / Yusuke Uejima / Yuri Yamada）。
+`main.py` の `_hq_name_overrides()` にベタ書きされている4名と**完全に一致**する。
+
+- **Rafael Jonas Lagahit → `staff_auth.role` を HQ から DUBAI_MANAGEMENT に修正済**。
+  実効ロールは元から `DUBAI_MANAGEMENT`（割り当てロールが勝つ）だったので**アクセスは不変**、
+  セッション切断も不要。直したのは**古い `staff_auth.role` 列だけ**。
+  ただしこの列を**直接読む箇所が2つ**あり、放置すると害があった:
+  - `hq_staff_names()`（インシデント報告で「誰に聞けばよいか」を出す）に彼が**HQとして出ていた**
+  - `resolve_staff_access_profile()` の**第3フォールバック** — 割り当ての参照が空振りした瞬間に HQ を渡す
+  監査ログ `staff_auth.role.change` を記録済み。
+- **Jay Nishimura → 削除済**（オーナー確認：Yukihiro Nishimura 本人の重複アカウント）。
+  **全テキスト列2,985本を実名で総なめしてから**着手し、11箇所を特定した。
+  退避 `_jay_nishimura_bk_20260907`（テーブル名つきの jsonb で1表にまとめて保存）。
+  - 削除: staff_auth / staff_master / staff_role_assignments / dubai_staff_profiles /
+    payroll_salary_configs / payroll_run_records（給与2件・設定1件はいずれも **0.00**、
+    プロフィールは全項目 null。何かが起きた記録ではない）
+  - **残した**: `security_audit_log` 3件・`discord_mentions` 2件。
+    **名前が不都合になったときに書き換える監査ログは、監査ログではない**
+  - ⚠️ **`shift_request_dm_recipients` は消さずに改名した。** この行の実体は
+    **Discord のユーザーID `844419400240070656`** で、**オーナーがシフト申請のDMを
+    受け取る唯一の宛先**（`Yukihiro Nishimura` という行は存在しなかった）。
+    消していたら、今週直している通知経路がオーナーに届かなくなっていた
+
+⚠️ **`staff_auth.role` は Role Management のUIからは変えられない**（UIが触るのは
+`staff_role_assignments`）。この2つは食い違ったまま残りうる。
+
+承認できる人（実効ロールで確認済み）:
+- **ドバイ9名** Ayako Nishimura / Jay Nishimura / Yukihiro Nishimura / Yuri Yamada / Yusuke Uejima（HQ）、Rafael Jonas Lagahit（DUBAI_MANAGEMENT）、Jasmine Sadoval / Lyssa Rae / Sherileene Santiago（MANAGER）
+- **マニラ10名** Richard S. Gante（MANILA_MANAGEMENT）、Peter Villafuerte（HR_MANAGER）、Aliana Manuel / Caila Macararanga / Cyrine Fernandez / Erica May Sadiasa / Marithel Queri / Nathaneil Santos / Rose Ann Onido / Ruby Rosa Rongcales（ADMIN）
+
+### いま残っている未処理（2026-09-07 時点）
+```
+ドバイ 2件   Udaya Gurung 7/8（61日）/ Muskan Tamang 3/12（181日・HQ却下済でM未処理）
+マニラ 15件  うち休暇申請9件が未回答。9/20・9/30・10/1・10/3・10/4 は**まだ間に合う**
+             Reymar Contillo 3件・Mary Jane Tegerero 1件は M却下済でHQ未処理（118〜33日）
+             Samantha Varca 2件（7/5・92日）も同型
+```
+
+---
+
 ## ⏸ 2026-09-06 — 音声面接 Phase 2：ここで中断（再開はここから読む）
 
 ### いまどこにいるか
@@ -134,7 +312,16 @@ BO所属者がPARと記録されるのはピンの重複ではなく**実際に�
 
 ### 再開したら、この順で
 
-**1. スタッフの録音を集める**（ユーザーが手配中）
+**1. スタッフの録音を集める**（2026-09-08 にBO/HRメンバーで実施予定）
+- 依頼文（**日英切替・既定は英語**・BO/HR向け）: `docs/manuals/taglish-recording-test.html`
+  Artifact: https://claude.ai/code/artifact/c83750ac-eeab-44de-b88e-40dcff6fa7ef
+  ※「普段どおり話す（録音のために片方の言語に切り替えない）」「/apply の本番フローを使う」
+    「終わったら消す」の3点が要。単一言語で答えられると一次比較の再現にしかならない
+  ⚠️ **文書内で "Taglish" という語は使わない。**語自体は蔑称ではないが、日本側の雇用主が
+    フィリピン人スタッフの話し方を採取対象として名指す構図になり、「正しい英語でも
+    正しいタガログ語でもないもの」という含みを持ち得る（2026-09-07 オーナー指摘）。
+    **試験の対象はソフトウェアであって人ではない**、という立て方にしてある。
+    タイトルも "Lend us your Taglish" から "Two engines, seven answers" に変更済み
 - 3〜5名 × 7問。**同じ人が文中で英語とタガログを切り替える**のが要点
 - 収集方法は `/apply` の本番フローを使う（**実際の配信形式で録れる唯一の方法**）
   → 名前を `STT Test 1` 等にして、**測定後に必ず削除**（教訓38）

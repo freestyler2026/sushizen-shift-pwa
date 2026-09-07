@@ -107,7 +107,7 @@
      緊急時に端末で読むため。他マニュアル（日本語・サイドバー式）と体裁を揃えないこと。
 
    - file_path: docs/manuals/recruitment-guide.html
-   - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（HRスタッフ向け）
+   - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（日英切替・HRスタッフ向け）
    - favicon: 🧭
 
    - file_path: docs/manuals/receipt-log-manual.html
@@ -124,9 +124,14 @@
    ※ **日英切替式**（右上のトグル・既定は英語）。読者はレジに立つ店舗スタッフと、
      月次を締めるマニラ／日本の事務。既定を日本語にしないこと — 実際に入力するのは
      現地スタッフで、UIも英語のため。片方の言語だけ直すと、もう片方が嘘になる。
-   ※ 英語。読者はマニラのHRスタッフ・HRマネージャー。
+   ※ **日英切替式（既定は英語）**。読者はマニラのHRスタッフ・HRマネージャーと、日本側の管理。
      「入力が増えるのではなく減る」という論旨が定着の条件なので、
      機能追加として書き直さないこと。HR Manual とは役割が別。
+     **片方の言語だけ直すと、もう片方が嘘になる。**
+   ⚠️ 言語切替のJSは `[lang='en'], [lang='ja']` を **`.wrap` 配下に限定**すること。
+     `<html>` に `lang` を書くと root 自身がセレクタに入り、次のクリックで
+     `documentElement.hidden = true` になって**全画面が真っ白**になる（2026-09-07 実際に発生）。
+     状態は `data-lang` に持たせる。
 ```
 
 **更新対象の判断基準:**

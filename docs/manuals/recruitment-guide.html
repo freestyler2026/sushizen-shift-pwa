@@ -1,7 +1,7 @@
 <title>Sushi ZEN Recruitment Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;600&display=swap">
 
 <style>
   :root {
@@ -333,196 +333,340 @@
     color: var(--muted);
     font-size: 0.9rem;
   }
+  /* --- language switch -------------------------------------------------- */
+
+  [lang="ja"] {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic",
+                 "IBM Plex Sans", sans-serif;
+    line-height: 1.85;
+  }
+  h1[lang="ja"], h2[lang="ja"], h3[lang="ja"] {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+    letter-spacing: 0;
+  }
+  h1[lang="ja"] { font-size: clamp(1.6rem, 4.4vw, 2.1rem); line-height: 1.35; }
+  h2[lang="ja"] { font-size: clamp(1.2rem, 3vw, 1.45rem); line-height: 1.45; }
+  .lede[lang="ja"] { font-family: "Noto Sans JP", sans-serif; font-size: 1.05rem; }
+  .eyebrow[lang="ja"] { letter-spacing: 0.05em; text-transform: none; }
+  .ba h4[lang="ja"] { letter-spacing: 0.04em; text-transform: none; }
+  th[lang="ja"] { letter-spacing: 0.03em; text-transform: none; font-size: 0.78rem; }
+
+  .langbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .langbar button {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+  }
+  .langbar button[aria-pressed="true"] {
+    color: var(--surface);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .langbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 
 <div class="wrap">
 
+<div class="langbar">
+  <button type="button" id="btn-en" aria-pressed="true">English</button>
+  <button type="button" id="btn-ja" aria-pressed="false">日本語</button>
+</div>
+
 <header>
-  <span class="eyebrow">Manila HR · Workforce OS</span>
-  <h1>The Recruitment page has been rebuilt</h1>
-  <p class="lede">
+  <span class="eyebrow" lang="en">Manila HR · Workforce OS</span>
+  <span class="eyebrow" lang="ja" hidden>Manila HR ／ Workforce OS</span>
+  <h1 lang="en">The Recruitment page has been rebuilt</h1>
+  <h1 lang="ja" hidden>Recruitment ページを作り直しました</h1>
+  <p class="lede" lang="en">
     It was asking you to do the same job twice and only keeping the half that
     took longer. That is fixed. Everything below is less typing than before,
     not more.
   </p>
-  <p class="meta">For HR staff and the HR Manager · Updated 5 September 2026</p>
+  <p class="lede" lang="ja" hidden>
+    これまでのページは、同じことを2通りで記録させたうえで、時間のかかる方しか
+    残していませんでした。それを直しました。以下はすべて、入力が増えるのではなく
+    減る変更です。
+  </p>
+  <p class="meta" lang="en">For HR staff and the HR Manager · Updated 5 September 2026</p>
+  <p class="meta" lang="ja" hidden>HRスタッフ・HRマネージャー向け ／ 2026年9月5日 更新</p>
 </header>
 
 <section>
-  <h2>First, this was our fault, not yours</h2>
+  <h2 lang="en">First, this was our fault, not yours</h2>
+  <h2 lang="ja" hidden>はじめに ── これは皆さんの落ち度ではありません</h2>
 
-  <p>
+  <p lang="en">
     We looked at how the Recruitment page has actually been used, and the numbers
     show the work is being done. In the last two weeks alone, 49 new candidates
     were entered and 22 of them were manager or head chef candidates. That is a
     lot of sourcing.
   </p>
+  <p lang="ja" hidden>
+    Recruitment ページが実際にどう使われてきたかを調べました。数字を見る限り、
+    仕事はきちんと行われています。直近2週間だけで49名の候補者が登録され、
+    そのうち22名はマネージャーまたはヘッドシェフの候補でした。かなりの母集団形成です。
+  </p>
 
-  <p>
+  <p lang="en">
     What we also found is that the page gave you <strong>two ways to record the
     same thing</strong> — a quick one and a slow one — and only the slow one kept
     any record. Anyone would take the quick one. So the effort went in and the
     information did not come out:
   </p>
+  <p lang="ja" hidden>
+    同時に分かったのは、このページが<strong>同じことを記録する道を2つ</strong>
+    用意していたことです。速い道と遅い道があり、<strong>記録が残るのは遅い方だけ</strong>でした。
+    誰でも速い方を選びます。その結果、手間はかかったのに情報が残らない状態になっていました。
+  </p>
 
   <div class="facts">
     <div class="fact">
       <b>115 / 132</b>
-      <span>candidates were tied to no job requisition, so no opening could show its own progress</span>
+      <span lang="en">candidates were tied to no job requisition, so no opening could show its own progress</span>
+      <span lang="ja" hidden>候補者が求人票に紐づいておらず、募集ごとの進捗が出せない状態でした</span>
     </div>
     <div class="fact">
       <b>74</b>
-      <span>different spellings of job titles across 132 entries — “store manager” appeared five ways</span>
+      <span lang="en">different spellings of job titles across 132 entries — “store manager” appeared five ways</span>
+      <span lang="ja" hidden>職種名の表記ゆれ（132件中）。「store manager」だけで5通りありました</span>
     </div>
     <div class="fact">
       <b>92 vs 3</b>
-      <span>candidates marked interviewed or beyond, against 3 interview records on file</span>
+      <span lang="en">candidates marked interviewed or beyond, against 3 interview records on file</span>
+      <span lang="ja" hidden>「面接済み」以降のステータスの候補者に対し、面接記録は3件だけでした</span>
     </div>
     <div class="fact">
       <b>0 / 16</b>
-      <span>rejections had a reason recorded, so no one could answer why a candidate was passed over</span>
+      <span lang="en">rejections had a reason recorded, so no one could answer why a candidate was passed over</span>
+      <span lang="ja" hidden>不採用に理由が記録されていました。なぜ見送ったのか誰も答えられません</span>
     </div>
   </div>
 
-  <p>
+  <p lang="en">
     None of that is a diligence problem. It is a design problem, and we have
     changed the design.
+  </p>
+  <p lang="ja" hidden>
+    これはどれも真面目さの問題ではありません。設計の問題です。設計の方を変えました。
   </p>
 </section>
 
 <section>
-  <span class="eyebrow">What changed</span>
-  <h2>Six changes, all of them fewer keystrokes</h2>
+  <span class="eyebrow" lang="en">What changed</span>
+  <span class="eyebrow" lang="ja" hidden>変更点</span>
+  <h2 lang="en">Six changes, all of them fewer keystrokes</h2>
+  <h2 lang="ja" hidden>6つの変更。すべて入力を減らす方向です</h2>
 
   <div class="change">
-    <h3>1. One field for the job, instead of two</h3>
+    <h3 lang="en">1. One field for the job, instead of two</h3>
+    <h3 lang="ja" hidden>1. 職種の入力欄を2つから1つに</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        Type the position by hand, then find the matching requisition in a second
-        dropdown marked “optional”.
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">Type the position by hand, then find the matching requisition in a second
+        dropdown marked “optional”.</span>
+        <span lang="ja" hidden>職種を手で入力したうえで、「任意」と書かれた別のプルダウンから
+        対応する求人票を探す必要がありました。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        One field, <span class="ui">Applying for</span>. Pick the opening and the
-        job title and branch fill themselves in.
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en">One field, <span class="ui">Applying for</span>. Pick the opening and the
+        job title and branch fill themselves in.</span>
+        <span lang="ja" hidden><span class="ui">Applying for</span> の1欄だけです。
+        募集を選べば、職種名と支店は自動で入ります。</span>
       </div>
     </div>
-    <p class="takeaway">You stop typing job titles altogether, and the candidate is
+    <p class="takeaway" lang="en">You stop typing job titles altogether, and the candidate is
       linked to the opening automatically.</p>
+    <p class="takeaway" lang="ja" hidden>職種名を打つ作業そのものが無くなり、
+      候補者は自動で募集に紐づきます。</p>
   </div>
 
   <div class="change">
-    <h3>2. Add a whole stack of resumes at once</h3>
+    <h3 lang="en">2. Add a whole stack of resumes at once</h3>
+    <h3 lang="ja" hidden>2. 履歴書の束をまとめて登録できる</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        One window per candidate. Fifteen walk-ins on 26 August meant opening the
-        same form fifteen times.
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">One window per candidate. Fifteen walk-ins on 26 August meant opening the
+        same form fifteen times.</span>
+        <span lang="ja" hidden>候補者1人につき1画面。8月26日の飛び込み15名は、
+        同じフォームを15回開くことを意味しました。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        <span class="ui">Add Several</span>. Choose the position, source and date
-        once, then type only the names.
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en"><span class="ui">Add Several</span>. Choose the position, source and date
+        once, then type only the names.</span>
+        <span lang="ja" hidden><span class="ui">Add Several</span> を使います。職種・流入元・日付を
+        1回だけ選び、あとは名前を入力するだけです。</span>
       </div>
     </div>
-    <p class="takeaway">You can paste a column of names straight from a spreadsheet
+    <p class="takeaway" lang="en">You can paste a column of names straight from a spreadsheet
       and it fills one row each.</p>
+    <p class="takeaway" lang="ja" hidden>表計算ソフトから名前の列をそのまま貼り付けると、
+      1名につき1行に入ります。</p>
   </div>
 
   <div class="change">
-    <h3>3. Recording an interview is now three taps</h3>
+    <h3 lang="en">3. Recording an interview is now three taps</h3>
+    <h3 lang="ja" hidden>3. 面接結果の記録が3タップに</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        A six-field interview form and an eight-field evaluation form — or one
-        click that moved the card and saved nothing.
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">A six-field interview form and an eight-field evaluation form — or one
+        click that moved the card and saved nothing.</span>
+        <span lang="ja" hidden>6項目の面接フォームと8項目の評価フォーム。あるいは、
+        カードを動かすだけで何も保存しない1クリック。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        <span class="ui">Proceed to offer</span> / <span class="ui">Hold</span> /
-        <span class="ui">Not proceeding</span>, plus one reason.
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en"><span class="ui">Proceed to offer</span> / <span class="ui">Hold</span> /
+        <span class="ui">Not proceeding</span>, plus one reason.</span>
+        <span lang="ja" hidden><span class="ui">Proceed to offer</span> ／ <span class="ui">Hold</span> ／
+        <span class="ui">Not proceeding</span> のいずれかと、理由を1つ選ぶだけです。</span>
       </div>
     </div>
-    <p class="takeaway">Your name and today’s date are filled in for you. You are
+    <p class="takeaway" lang="en">Your name and today’s date are filled in for you. You are
       never asked for them again.</p>
+    <p class="takeaway" lang="ja" hidden>担当者名と当日の日付は自動で入ります。
+      もう聞かれることはありません。</p>
   </div>
 
   <div class="change">
-    <h3>4. Applications arrive already typed</h3>
+    <h3 lang="en">4. Applications arrive already typed</h3>
+    <h3 lang="ja" hidden>4. 応募は入力済みの状態で届く</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        Every one of the 135 applications on file was retyped by you from a
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">Every one of the 135 applications on file was retyped by you from a
         Messenger thread. That is why 116 of them are linked to no opening and
-        why the applied date is the day you typed it.
+        why the applied date is the day you typed it.</span>
+        <span lang="ja" hidden>登録済みの応募135件は、すべて Messenger のやり取りから
+        皆さんが手で打ち直したものです。116件が募集に紐づいていないのも、
+        応募日が「入力した日」になっているのも、そのためです。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        Send people to
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en">Send people to
         <span class="ui">sushizen-shift-pwa.vercel.app/apply</span>. They fill it
         in themselves, in English or Tagalog, and appear in
-        <span class="ui">New</span> with the job, branch and date already set.
+        <span class="ui">New</span> with the job, branch and date already set.</span>
+        <span lang="ja" hidden>応募者に
+        <span class="ui">sushizen-shift-pwa.vercel.app/apply</span> を案内します。
+        本人が英語かタガログ語で入力し、職種・支店・日付が入った状態で
+        <span class="ui">New</span> に現れます。</span>
       </div>
     </div>
-    <p class="takeaway">Nothing to retype, and the source shows as
+    <p class="takeaway" lang="en">Nothing to retype, and the source shows as
       <span class="ui">form</span> so you can see which channel is actually
       bringing people in.</p>
+    <p class="takeaway" lang="ja" hidden>打ち直しが不要になり、流入元が
+      <span class="ui">form</span> と表示されるので、どの経路から実際に人が来ているか
+      分かるようになります。</p>
   </div>
 
   <div class="change">
-    <h3>5. A first-round interview they record on their own phone</h3>
+    <h3 lang="en">5. A first-round interview they record on their own phone</h3>
+    <h3 lang="ja" hidden>5. 一次面接を応募者自身のスマホで録音してもらう</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        Every candidate had to be booked, reminded and met before anyone knew
-        whether the basics fit.
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">Every candidate had to be booked, reminded and met before anyone knew
+        whether the basics fit.</span>
+        <span lang="ja" hidden>基本的な条件が合うかどうかを知る前に、全員について
+        日程を押さえ、リマインドし、会う必要がありました。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        The moment they send the form, they are offered seven short questions to
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en">The moment they send the form, they are offered seven short questions to
         answer by voice — and you can send the same link to anyone already in the
         pipeline. You listen when it suits you, under
-        <span class="ui">Voice screening</span>.
+        <span class="ui">Voice screening</span>.</span>
+        <span lang="ja" hidden>フォームを送信した時点で、7つの短い質問に音声で答える案内が出ます。
+        すでにパイプラインにいる人にも同じリンクを送れます。聴くのは
+        <span class="ui">Voice screening</span> から、都合のよいときで構いません。</span>
       </div>
     </div>
-    <p class="takeaway">It is optional for them and there is nothing to schedule.
+    <p class="takeaway" lang="en">It is optional for them and there is nothing to schedule.
       Nobody is rejected for skipping it.</p>
+    <p class="takeaway" lang="ja" hidden>応募者にとっては任意で、日程調整は発生しません。
+      やらなかったことを理由に不採用にはしません。</p>
   </div>
 
   <div class="change">
-    <h3>6. Openings close themselves</h3>
+    <h3 lang="en">6. Openings close themselves</h3>
+    <h3 lang="ja" hidden>6. 募集が自動で締まる</h3>
     <div class="ba">
       <div class="was">
-        <h4>Before</h4>
-        Requisitions stayed open forever. All 19 on file were still open, 16 of
-        them past their target start date.
+        <h4 lang="en">Before</h4>
+        <h4 lang="ja" hidden>これまで</h4>
+        <span lang="en">Requisitions stayed open forever. All 19 on file were still open, 16 of
+        them past their target start date.</span>
+        <span lang="ja" hidden>求人票が閉じられないまま残り続けました。登録済みの19件はすべて
+        オープンのままで、うち16件は入社目標日を過ぎていました。</span>
       </div>
       <div class="now">
-        <h4>Now</h4>
-        Each opening says how many people it needs, and closes on its own once
-        that many are hired.
+        <h4 lang="en">Now</h4>
+        <h4 lang="ja" hidden>これから</h4>
+        <span lang="en">Each opening says how many people it needs, and closes on its own once
+        that many are hired.</span>
+        <span lang="ja" hidden>募集ごとに必要人数を持ち、その人数が採用された時点で
+        自動的に閉じます。</span>
       </div>
     </div>
-    <p class="takeaway">Closing requisitions is no longer a job anybody has to
+    <p class="takeaway" lang="en">Closing requisitions is no longer a job anybody has to
       remember.</p>
+    <p class="takeaway" lang="ja" hidden>求人票を閉じる作業を、誰かが覚えておく必要は
+      なくなりました。</p>
   </div>
 </section>
 
 <section>
-  <span class="eyebrow">How to use it</span>
-  <h2>The five things you will do</h2>
+  <span class="eyebrow" lang="en">How to use it</span>
+  <span class="eyebrow" lang="ja" hidden>使い方</span>
+  <h2 lang="en">The five things you will do</h2>
+  <h2 lang="ja" hidden>実際に行う5つの作業</h2>
 
   <div class="task">
     <div class="n">01</div>
     <div>
-      <h3>Adding candidates</h3>
-      <p>For one person use <span class="ui">Add Applicant</span>. For a stack of
+      <h3 lang="en">Adding candidates</h3>
+      <h3 lang="ja" hidden>候補者を登録する</h3>
+      <p lang="en">For one person use <span class="ui">Add Applicant</span>. For a stack of
         resumes use <span class="ui">Add Several</span> — it is much faster.</p>
-      <ol>
+      <p lang="ja" hidden>1名なら <span class="ui">Add Applicant</span>、履歴書の束なら
+        <span class="ui">Add Several</span> を使ってください。後者の方がはるかに速いです。</p>
+      <ol lang="en">
         <li>Set <span class="ui">Applying for</span> to the opening they are for.</li>
         <li>Set the source and the date the applications came in. Once, for the whole stack.</li>
         <li>Type the names, one per line. Press <kbd>Enter</kbd> to go to the next.</li>
+      </ol>
+      <ol lang="ja" hidden>
+        <li><span class="ui">Applying for</span> に、その人たちが応募している募集を設定します。</li>
+        <li>流入元と応募日を設定します。束全体に対して1回だけです。</li>
+        <li>名前を1行ずつ入力します。<kbd>Enter</kbd> で次の行に移ります。</li>
       </ol>
       <div class="screen">Applying for   [ Manager — Cubao (urgent)  ▾ ]
 Source [ Walk-in ▾ ]   Applied Date [ 2026-08-26 ]
@@ -532,14 +676,20 @@ Source [ Walk-in ▾ ]   Applied Date [ 2026-08-26 ]
   3  [                         ]
 
            [ Add 2 candidates ]</div>
-      <p>If the same name is already in the pipeline for that opening, it will not
+      <p lang="en">If the same name is already in the pipeline for that opening, it will not
         be added twice — you will be told which names were skipped.</p>
+      <p lang="ja" hidden>同じ名前がその募集にすでにいる場合、二重には登録されません。
+        どの名前を飛ばしたかが表示されます。</p>
       <div class="note">
-        <p><strong>If the job is not in the list</strong>, choose
+        <p lang="en"><strong>If the job is not in the list</strong>, choose
           <span class="ui">Other</span> and type it. The page will tell you that
           this candidate will not count toward any opening. That is fine for a
           speculative application — but if the role is really being hired for,
           raise a requisition for it instead.</p>
+        <p lang="ja" hidden><strong>一覧に該当の職種が無い場合</strong>は
+          <span class="ui">Other</span> を選んで入力してください。その候補者は
+          どの募集にも計上されない、と画面が知らせます。自己応募であればそれで構いませんが、
+          実際に採用活動をしている職種なら、求人票を先に立ててください。</p>
       </div>
     </div>
   </div>
@@ -547,20 +697,27 @@ Source [ Walk-in ▾ ]   Applied Date [ 2026-08-26 ]
   <div class="task">
     <div class="n">02</div>
     <div>
-      <h3>Sending a voice screening, and listening to it</h3>
-      <p>Open <span class="ui">Voice screening</span> at the top of the page. The
+      <h3 lang="en">Sending a voice screening, and listening to it</h3>
+      <h3 lang="ja" hidden>音声スクリーニングを送り、聴く</h3>
+      <p lang="en">Open <span class="ui">Voice screening</span> at the top of the page. The
         tab carries the number waiting for you — recordings to listen to, plus
         people nobody has sent a link to.</p>
+      <p lang="ja" hidden>ページ上部の <span class="ui">Voice screening</span> を開きます。
+        タブには対応待ちの件数が出ます。聴くべき録音と、まだ誰もリンクを送っていない人の数です。</p>
       <div class="screen">[ To invite 20 ] [ Waiting on them 2 ] [ To review 4 ] [ Done 11 ]
    ^ applied, no link sent yet       ^ recordings in, waiting on you
 
   melvin bautista  kitchen · TAFT   applied 2026-06-11   [ Get invite link ]
   Mark Santos      kitchen · TAFT   (7 of 7 answers)  waiting 2 days  [ Listen ]</div>
-      <p><strong>To invite</strong> holds everyone at <span class="ui">New</span>
+      <p lang="en"><strong>To invite</strong> holds everyone at <span class="ui">New</span>
         or <span class="ui">Screened</span> who has no screening yet — the twenty
         people already in the pipeline from before the form existed, oldest
         application first. Press <span class="ui">Get invite link</span> and you
         get the message and the buttons that open it:</p>
+      <p lang="ja" hidden><strong>To invite</strong> には、<span class="ui">New</span> または
+        <span class="ui">Screened</span> でまだスクリーニングを受けていない人が入ります。
+        フォームができる前からパイプラインにいる20名で、応募が古い順に並びます。
+        <span class="ui">Get invite link</span> を押すと、送信用の文面とアプリを開くボタンが出ます。</p>
       <div class="screen">Link ready for melvin bautista. Nothing has been sent —
 open one of these, then press send yourself.
 
@@ -572,7 +729,7 @@ open one of these, then press send yourself.
   09275132662     [ WhatsApp ]  [ Viber (copies the text) ]
 
   [ Copy message ]  [ Copy link only ]        [ Sent — close ]</div>
-      <ul>
+      <ul lang="en">
         <li><strong>Nothing is sent for you.</strong> The button opens WhatsApp or
           Viber with the message ready — you press send.</li>
         <li><strong>SMS is a copy button.</strong> A computer cannot send a text
@@ -585,21 +742,41 @@ open one of these, then press send yourself.
         <li>If two numbers are on file for one person, both are offered.
           <strong>We will not guess which one to send a job message to.</strong></li>
       </ul>
-      <p>Links work for 14 days. After that the applicant sees a page telling them
+      <ul lang="ja" hidden>
+        <li><strong>システムが勝手に送ることはありません。</strong>ボタンは文面を入れた状態で
+          WhatsApp や Viber を開くだけです。送信は皆さんが押します。</li>
+        <li><strong>SMSはコピーボタンです。</strong>パソコンからSMSは送れないので、
+          コピーしてご自分の携帯から送ってください。</li>
+        <li><strong>Viberはリンクに文面を載せられない</strong>ため、押すと同時に文面をコピーします。
+          チャットに貼り付けてください。</li>
+        <li><strong>新しいリンクを発行すると、古いリンクは使えなくなります。</strong>
+          録音済みの回答は残り、続きから再開できますが、前のリンクは無効になります。
+          その旨は画面に表示されます。</li>
+        <li>1人に2つの番号が登録されている場合は、両方が表示されます。
+          <strong>どちらに仕事の連絡を送るかを、システムが推測することはしません。</strong></li>
+      </ul>
+      <p lang="en">Links work for 14 days. After that the applicant sees a page telling them
         to reply and ask for a new one — press
         <span class="ui">New link</span> under <span class="ui">Waiting on them</span>.</p>
-      <p>Once a recording arrives the person moves to
+      <p lang="ja" hidden>リンクの有効期限は14日です。期限が切れると、応募者には
+        「返信して新しいリンクを依頼してください」という画面が出ます。
+        <span class="ui">Waiting on them</span> の <span class="ui">New link</span> を押してください。</p>
+      <p lang="en">Once a recording arrives the person moves to
         <span class="ui">To review</span>. Press <span class="ui">Listen</span>
         and the seven questions open with a
         player on each one. Questions they did not answer stay in the list, marked
         <span class="ui">Not answered</span>, so five silent gaps cannot be
         mistaken for a finished interview.</p>
+      <p lang="ja" hidden>録音が届くと、その人は <span class="ui">To review</span> に移ります。
+        <span class="ui">Listen</span> を押すと7つの質問が並び、それぞれに再生ボタンが付きます。
+        答えていない質問も <span class="ui">Not answered</span> と表示されたまま残るので、
+        5問分の無音を「面接が終わった」と見誤ることはありません。</p>
       <div class="screen">Decide
 
   [ Shortlist — invite to interview ]   moves them to Screened
   [ Hold ]                              stage unchanged, reason on record
   [ Pass ]                              moves them to Rejected</div>
-      <ul>
+      <ul lang="en">
         <li><strong>Shortlist</strong> — one tap, no reason. They move to
           <span class="ui">Screened</span>, ready for you to book an interview
           the normal way.</li>
@@ -608,24 +785,46 @@ open one of these, then press send yourself.
           <span class="ui">Undo</span> button stays on the row until you press
           <span class="ui">Refresh</span>.</li>
       </ul>
+      <ul lang="ja" hidden>
+        <li><strong>Shortlist</strong> ── 1タップ、理由は不要です。
+          <span class="ui">Screened</span> に移り、通常どおり面接の日程を組めます。</li>
+        <li><strong>Hold</strong> と <strong>Pass</strong> ── 理由を1つ選んでください。</li>
+        <li>いずれも取り消せます。<span class="ui">Undo</span> ボタンは
+          <span class="ui">Refresh</span> を押すまで行に残ります。</li>
+      </ul>
       <div class="note">
-        <p><strong>The four numbers mean different things.</strong> Two are
+        <p lang="en"><strong>The four numbers mean different things.</strong> Two are
           waiting on you — <span class="ui">To invite</span> and
           <span class="ui">To review</span>. <span class="ui">Waiting on them</span>
           is people who have the link and have not finished; you can send a
           reminder, but you do not have to do anything.</p>
-        <p><strong>Somebody you interviewed in person</strong> moves to
+        <p lang="ja" hidden><strong>4つの数字は意味が違います。</strong>皆さんの対応待ちは
+          <span class="ui">To invite</span> と <span class="ui">To review</span> の2つです。
+          <span class="ui">Waiting on them</span> はリンクを受け取って未完了の人で、
+          リマインドは送れますが、何もしなくても構いません。</p>
+        <p lang="en"><strong>Somebody you interviewed in person</strong> moves to
           <span class="ui">Done</span> on their own, marked
           “interviewed in person”. You are not asked to decide on a screening
           you have already gone past.</p>
-        <p><strong>Nobody is scored.</strong> There is no rating field and no
+        <p lang="ja" hidden><strong>対面で面接済みの人</strong>は自動で
+          <span class="ui">Done</span> に移り、「interviewed in person」と表示されます。
+          すでに先の段階に進んだ人について、スクリーニングの判断を求められることはありません。</p>
+        <p lang="en"><strong>Nobody is scored.</strong> There is no rating field and no
           ranking. The reasons cover experience, availability and whether the
           questions were actually answered — nothing about how a person speaks.</p>
-        <p><strong>Skipping it is not a mark against anyone.</strong> Plenty of
+        <p lang="ja" hidden><strong>点数はつきません。</strong>評価欄も順位付けもありません。
+          理由の選択肢は、経験・勤務可否・質問に実際に答えているかどうかで、
+          話し方に関するものは一つもありません。</p>
+        <p lang="en"><strong>Skipping it is not a mark against anyone.</strong> Plenty of
           applicants have nowhere quiet to record. Treat a
           <span class="ui">Not started</span> exactly as you treated every
           candidate before this existed.</p>
-        <p>Recordings are kept for six months and then deleted.</p>
+        <p lang="ja" hidden><strong>やらなかったことを不利に扱わないでください。</strong>
+          静かに録音できる場所が無い応募者はたくさんいます。
+          <span class="ui">Not started</span> の人は、この仕組みができる前と
+          まったく同じように扱ってください。</p>
+        <p lang="en">Recordings are kept for six months and then deleted.</p>
+        <p lang="ja" hidden>録音は6か月保管し、その後削除します。</p>
       </div>
     </div>
   </div>
@@ -633,9 +832,12 @@ open one of these, then press send yourself.
   <div class="task">
     <div class="n">03</div>
     <div>
-      <h3>After an interview</h3>
-      <p>On the candidate’s card, press <span class="ui">Record outcome</span>
+      <h3 lang="en">After an interview</h3>
+      <h3 lang="ja" hidden>面接が終わったら</h3>
+      <p lang="en">On the candidate’s card, press <span class="ui">Record outcome</span>
         (or <span class="ui">Decide</span> if they were already interviewed).</p>
+      <p lang="ja" hidden>候補者のカードで <span class="ui">Record outcome</span>
+        （面接済みの人は <span class="ui">Decide</span>）を押します。</p>
       <div class="screen">How did the interview go?
 
   [ Proceed to offer ]   moves them to Offer Sent
@@ -647,20 +849,32 @@ Reason *
   (Failed the trade test) (Did not attend)
   (Cannot work the schedule) (Another candidate is stronger)
   (Withdrew / took another job) (Other)</div>
-      <ul>
+      <ul lang="en">
         <li><strong>Proceed to offer</strong> — no reason needed.</li>
         <li><strong>Hold</strong> and <strong>Not proceeding</strong> — please pick
           one reason. These are the two that get asked about weeks later.</li>
         <li><strong>Other</strong> — add a short note saying what happened.</li>
       </ul>
-      <p>That single action saves the interview record, your name, the date, the
+      <ul lang="ja" hidden>
+        <li><strong>Proceed to offer</strong> ── 理由は不要です。</li>
+        <li><strong>Hold</strong> と <strong>Not proceeding</strong> ── 理由を1つ選んでください。
+          数週間後に聞かれるのは、この2つです。</li>
+        <li><strong>Other</strong> ── 何があったかを短くメモしてください。</li>
+      </ul>
+      <p lang="en">That single action saves the interview record, your name, the date, the
         recommendation and the reason. You do not need to fill in anything else.</p>
+      <p lang="ja" hidden>この操作1回で、面接記録・担当者名・日付・判断・理由が保存されます。
+        ほかに入力するものはありません。</p>
       <div class="note">
-        <p>The old status dropdown is still there for fixing mistakes, but it
+        <p lang="en">The old status dropdown is still there for fixing mistakes, but it
           records no reason — so please use the buttons for real decisions.</p>
-        <p>The detailed scored evaluation form is still available under the
+        <p lang="ja" hidden>従来のステータス変更プルダウンは、間違いの修正用に残してあります。
+          ただし理由が記録されないので、実際の判断にはボタンを使ってください。</p>
+        <p lang="en">The detailed scored evaluation form is still available under the
           <span class="ui">Evaluation</span> tab if you want to use it for senior
           roles. It is optional.</p>
+        <p lang="ja" hidden>点数式の詳細な評価フォームは <span class="ui">Evaluation</span>
+          タブに残っています。上位職などで使いたい場合はどうぞ。任意です。</p>
       </div>
     </div>
   </div>
@@ -668,33 +882,50 @@ Reason *
   <div class="task">
     <div class="n">04</div>
     <div>
-      <h3>Raising an opening</h3>
-      <p>Use <span class="ui">+ Requisition</span> for a single role. It now asks
+      <h3 lang="en">Raising an opening</h3>
+      <h3 lang="ja" hidden>募集を立てる</h3>
+      <p lang="en">Use <span class="ui">+ Requisition</span> for a single role. It now asks
         <span class="ui">How many people</span> — put the real number rather than
         creating the same row twice.</p>
-      <p>Each opening now shows its own progress wherever it appears:</p>
+      <p lang="ja" hidden>単一の職種なら <span class="ui">+ Requisition</span> を使います。
+        <span class="ui">How many people</span> を聞くようになったので、
+        同じ行を2つ作るのではなく、実際の人数を入れてください。</p>
+      <p lang="en">Each opening now shows its own progress wherever it appears:</p>
+      <p lang="ja" hidden>募集は、表示されるどの画面でも自分の進捗を出します。</p>
       <div class="screen">Cubao — Manager
   0/1 filled · 9 candidates
   Start: 2026-07-10 · 52d late</div>
-      <p>When the last person is hired, the opening closes by itself. If someone
+      <p lang="en">When the last person is hired, the opening closes by itself. If someone
         you hired falls through, change their status back and the opening reopens
         on its own.</p>
+      <p lang="ja" hidden>最後の1名が採用された時点で、募集は自動的に閉じます。
+        採用が流れた場合は、その人のステータスを戻せば募集も自動的に再開します。</p>
     </div>
   </div>
 
   <div class="task">
     <div class="n">05</div>
     <div>
-      <h3>Opening a new branch — the Plans tab</h3>
-      <p>A new store is one plan, not fourteen separate requisitions. Switch to
+      <h3 lang="en">Opening a new branch — the Plans tab</h3>
+      <h3 lang="ja" hidden>新店を開く ── Plans タブ</h3>
+      <p lang="en">A new store is one plan, not fourteen separate requisitions. Switch to
         <span class="ui">Plans</span> at the top of the page and press
         <span class="ui">New Hiring Plan</span>.</p>
-      <ol>
+      <p lang="ja" hidden>新店は、14件バラバラの求人票ではなく1つの計画として扱います。
+        ページ上部の <span class="ui">Plans</span> に切り替えて
+        <span class="ui">New Hiring Plan</span> を押してください。</p>
+      <ol lang="en">
         <li>Name the plan, set the branch and the opening date.</li>
         <li>List each role and how many of each.</li>
         <li>Submit once. Every requisition is created for you.</li>
       </ol>
-      <p>From then on, the plan shows where the whole opening stands:</p>
+      <ol lang="ja" hidden>
+        <li>計画名を付け、支店と開店日を設定します。</li>
+        <li>職種ごとに必要人数を並べます。</li>
+        <li>1回送信します。求人票はすべて自動で作られます。</li>
+      </ol>
+      <p lang="en">From then on, the plan shows where the whole opening stands:</p>
+      <p lang="ja" hidden>以降は、この計画が開店準備全体の状況を示します。</p>
       <div class="screen">Cubao (QC) opening        opens 2026-09-30 · 30 days to go
                                     3 / 7 filled   4 to go
 ████████░░░░░░░░░░░░
@@ -704,23 +935,30 @@ Store Manager    0/1     22          16           —       No offer out
 Head Chef        0/1      8           5           —       No offer out
 Line Cook        3/3      3           3           —       Filled
 Kitchen Asst     0/2      —           —           —       No candidates</div>
-      <p>When the store is fully staffed, press <span class="ui">Mark done</span>.
+      <p lang="en">When the store is fully staffed, press <span class="ui">Mark done</span>.
         It will tell you that the openings underneath will be closed too.</p>
+      <p lang="ja" hidden>人員が揃ったら <span class="ui">Mark done</span> を押します。
+        配下の募集もまとめて閉じる旨が表示されます。</p>
       <div class="note">
-        <p><strong>This is the report.</strong> Nothing needs to be prepared for
+        <p lang="en"><strong>This is the report.</strong> Nothing needs to be prepared for
           management on top of this screen — it is the same screen they look at.</p>
+        <p lang="ja" hidden><strong>この画面が報告書です。</strong>これとは別に
+          経営側へ資料を用意する必要はありません。経営側が見るのも同じ画面です。</p>
       </div>
     </div>
   </div>
 </section>
 
 <section>
-  <span class="eyebrow">This week</span>
-  <h2>What we are asking for</h2>
+  <span class="eyebrow" lang="en">This week</span>
+  <span class="eyebrow" lang="ja" hidden>今週やっていただきたいこと</span>
+  <h2 lang="en">What we are asking for</h2>
+  <h2 lang="ja" hidden>お願いしたいこと</h2>
 
   <div class="ask">
-    <p>Three things, in this order:</p>
-    <ul>
+    <p lang="en">Three things, in this order:</p>
+    <p lang="ja" hidden>この順番でお願いします。</p>
+    <ul lang="en">
       <li>
         <strong>Decide on the 55 candidates who are waiting.</strong> The
         <span class="ui">Plans</span> tab lists everyone interviewed more than a
@@ -744,52 +982,126 @@ Kitchen Asst     0/2      —           —           —       No candidates</d
         arrive typed, and you stop copying them out of Messenger.
       </li>
     </ul>
+    <ul lang="ja" hidden>
+      <li>
+        <strong>判断待ちの55名について結論を出してください。</strong>
+        <span class="ui">Plans</span> タブに、面接から1週間以上たって判断が出ていない人が
+        一覧で出ます。最長で47日待ちです。マネージャーとヘッドシェフの候補を優先してください。
+      </li>
+      <li>
+        <strong>すでに充足している募集を閉じてください。</strong>19件がオープンのままです。
+        まだ必要な募集には正しい人数を設定し、過ぎてしまった目標日を入れ直してください。
+      </li>
+      <li>
+        <strong>今後は結果ボタンを使ってください。</strong>本日以降の面接はすべて
+        Proceed／Hold／Not proceeding のいずれかで終え、後ろ2つには理由を付けてください。
+      </li>
+      <li>
+        <strong>求人を出す場所に、応募フォームのリンクを掲載してください。</strong>
+        <span class="ui">sushizen-shift-pwa.vercel.app/apply</span> ──
+        Facebook、グループチャット、店頭の掲示に。以降は応募が入力済みで届き、
+        Messenger から書き写す作業が無くなります。
+      </li>
+    </ul>
   </div>
 </section>
 
 <section>
-  <h2>If something does not look right</h2>
+  <h2 lang="en">If something does not look right</h2>
+  <h2 lang="ja" hidden>おかしいと思ったら</h2>
 
   <div class="scroller">
     <table>
       <thead>
-        <tr><th>What you see</th><th>What it means</th></tr>
+        <tr>
+          <th lang="en">What you see</th><th lang="en">What it means</th>
+          <th lang="ja" hidden>表示</th><th lang="ja" hidden>意味</th>
+        </tr>
       </thead>
       <tbody>
         <tr>
-          <td>“This candidate is already hired”</td>
-          <td>You are recording an interview outcome for someone already hired.
+          <td lang="en">“This candidate is already hired”</td>
+          <td lang="en">You are recording an interview outcome for someone already hired.
               Change their status back first if the hire fell through.</td>
+          <td lang="ja" hidden>「This candidate is already hired」</td>
+          <td lang="ja" hidden>すでに採用済みの人に面接結果を記録しようとしています。
+              採用が流れた場合は、先にステータスを戻してください。</td>
         </tr>
         <tr>
-          <td>“This opening is already filled (2 of 2)”</td>
-          <td>You are reopening a full opening. Raise <span class="ui">How many
+          <td lang="en">“This opening is already filled (2 of 2)”</td>
+          <td lang="en">You are reopening a full opening. Raise <span class="ui">How many
               people</span> at the same time to reopen it.</td>
+          <td lang="ja" hidden>「This opening is already filled (2 of 2)」</td>
+          <td lang="ja" hidden>充足済みの募集を再開しようとしています。再開するなら
+              <span class="ui">How many people</span> も同時に増やしてください。</td>
         </tr>
         <tr>
-          <td>“N skipped — already in the pipeline”</td>
-          <td>Those names were already added for that opening, so they were not
+          <td lang="en">“N skipped — already in the pipeline”</td>
+          <td lang="en">Those names were already added for that opening, so they were not
               duplicated. Nothing is lost.</td>
+          <td lang="ja" hidden>「N skipped — already in the pipeline」</td>
+          <td lang="ja" hidden>その名前はすでにその募集に登録済みなので、二重登録を避けました。
+              失われたものはありません。</td>
         </tr>
         <tr>
-          <td>A candidate shows no star rating</td>
-          <td>Normal. Stars only appear when someone fills in the full scored
+          <td lang="en">A candidate shows no star rating</td>
+          <td lang="en">Normal. Stars only appear when someone fills in the full scored
               evaluation. A three-tap outcome does not give a score, and that is
               not the same as scoring them zero.</td>
+          <td lang="ja" hidden>候補者に星評価が出ない</td>
+          <td lang="ja" hidden>正常です。星は点数式の詳細評価を入力したときだけ出ます。
+              3タップの結果記録では点数がつきませんが、それは0点を付けたという意味では
+              ありません。</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <p>Anything else that looks wrong, or any step here that does not match what is
+  <p lang="en">Anything else that looks wrong, or any step here that does not match what is
     on your screen — tell us. Do not work around it. Every problem described at
     the top of this page was found by looking at the data, not by anyone
     complaining, and we would rather hear about the next one sooner.</p>
+  <p lang="ja" hidden>これ以外におかしいところ、あるいはこの手順と画面が食い違うところが
+    あれば、教えてください。回避策で済ませないでください。このページ冒頭に書いた問題は
+    どれも、誰かの苦情ではなくデータを見て見つけたものです。次の1つは、もっと早く
+    知りたいと思っています。</p>
 </section>
 
 <footer>
-  Sushi ZEN Workforce OS · Recruitment · This guide describes the page as
-  deployed on 5 September 2026.
+  <span lang="en">Sushi ZEN Workforce OS · Recruitment · This guide describes the page as
+  deployed on 5 September 2026.</span>
+  <span lang="ja" hidden>Sushi ZEN Workforce OS ／ Recruitment ／
+  2026年9月5日時点のページについての説明です。</span>
 </footer>
 
 </div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var wrap = document.querySelector(".wrap");
+    var bEn = document.getElementById("btn-en");
+    var bJa = document.getElementById("btn-ja");
+
+    function apply(lang) {
+      // Scoped to the content: writing lang on <html> would put the root inside
+      // this selector, and the next click would hide the whole document.
+      var nodes = wrap.querySelectorAll("[lang='en'], [lang='ja']");
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
+      }
+      root.setAttribute("data-lang", lang);
+      bEn.setAttribute("aria-pressed", String(lang === "en"));
+      bJa.setAttribute("aria-pressed", String(lang === "ja"));
+      try { localStorage.setItem("szn-rg-lang", lang); } catch (e) { /* private window */ }
+    }
+
+    var saved = "en";
+    try { saved = localStorage.getItem("szn-rg-lang") || "en"; } catch (e) { /* private window */ }
+    apply(saved === "ja" ? "ja" : "en");
+
+    bEn.addEventListener("click", function () { apply("en"); });
+    bJa.addEventListener("click", function () { apply("ja"); });
+  })();
+</script>
+
