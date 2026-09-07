@@ -55,6 +55,9 @@ type Payload = {
   coverage: Coverage;
   invoices_through: string;
   invoices_behind: boolean;
+  usage_days: number;
+  period_days: number;
+  usage_partial: boolean;
   mapping_conflicts: { description: string; ingredients: string }[];
 };
 
@@ -109,7 +112,9 @@ export default function IngredientUsagePage() {
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">((auth?.city as "manila" | "dubai") || "manila");
   const [branch, setBranch] = useState("");
-  const [dateFrom, setDateFrom] = useState(daysAgo(7));
+  // 30 days, not 7: invoices arrive about a week late, so a 7-day view is
+  // mostly blank Invoiced cells — and rice bought monthly never appears.
+  const [dateFrom, setDateFrom] = useState(daysAgo(30));
   const [dateTo, setDateTo] = useState(daysAgo(1));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -274,8 +279,15 @@ export default function IngredientUsagePage() {
       {/* Two things that make the Invoiced column wrong if nobody says them out
           loud: invoices arrive days late, and one bad mapping row silently
           removes an ingredient from the comparison entirely. */}
-      {data && (data.invoices_behind || data.mapping_conflicts.length > 0) && (
+      {data && (data.usage_partial || data.invoices_behind || data.mapping_conflicts.length > 0) && (
         <section className="space-y-2">
+          {data.usage_partial && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
+              These figures cover <strong>{data.usage_days} of the {data.period_days} days</strong> in
+              this period. The rest has not been worked out yet — it fills in overnight, a day at a
+              time. Totals here are for the days that exist, not the whole period.
+            </div>
+          )}
           {data.invoices_behind && (
             <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3 text-sm text-sky-200">
               Invoices are entered up to <strong>{data.invoices_through}</strong>, which is before
